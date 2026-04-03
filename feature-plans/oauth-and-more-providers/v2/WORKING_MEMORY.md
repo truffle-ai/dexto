@@ -17,15 +17,15 @@
 
 ## Current Task
 
-**Task:** Task 3 - Gateway Model-Origin Consolidation
+**Task:** Task 4 - Reasoning Status Rollout
 **Status:** *Implemented, Uncommitted*
 
 ### Plan
 
-- review the uncommitted Task 3 model-origin consolidation slice
-- keep the helper stateless and scoped to OpenRouter-style gateway semantics only
-- move to Task 4 after Task 3 approval/commit
-- keep the registry/source-of-truth path centered in [`packages/core/src/llm/registry/`](../../../packages/core/src/llm/registry/)
+- review the uncommitted Task 4 reasoning-status slice
+- keep `ReasoningProfile.status` descriptive only; do not change unknown gateway runtime fallback behavior
+- move to Task 5 after Task 4 approval/commit
+- keep the reasoning/source-of-truth path centered in [`packages/core/src/llm/reasoning/`](../../../packages/core/src/llm/reasoning/)
 
 ### Notes
 
@@ -104,6 +104,28 @@
 - Task 3 verification:
   - focused tests: `pnpm exec vitest run packages/core/src/llm/registry/model-origin.test.ts packages/core/src/llm/registry/index.test.ts packages/core/src/llm/reasoning/profile.test.ts`
   - targeted typecheck: `pnpm exec tsc -p packages/core/tsconfig.json --noEmit`
+- Task 3 landed in commit `0bbb8fa07` (`consolidate gateway model-origin helpers`).
+- Task 4 adds explicit `ReasoningProfile.status` values so Dexto can distinguish supported semantics from known unsupported cases and unknown gateway semantics without guessing runtime controls.
+- Task 4 changed files:
+  - [`packages/core/src/llm/registry/index.ts`](../../../packages/core/src/llm/registry/index.ts)
+  - [`packages/core/src/llm/formatters/vercel.ts`](../../../packages/core/src/llm/formatters/vercel.ts)
+  - [`packages/core/src/llm/reasoning/profiles/shared.ts`](../../../packages/core/src/llm/reasoning/profiles/shared.ts)
+  - [`packages/core/src/llm/reasoning/profile.ts`](../../../packages/core/src/llm/reasoning/profile.ts)
+  - [`packages/core/src/llm/reasoning/profile.test.ts`](../../../packages/core/src/llm/reasoning/profile.test.ts)
+  - [`packages/core/src/llm/executor/provider-options.test.ts`](../../../packages/core/src/llm/executor/provider-options.test.ts)
+  - [`packages/server/src/hono/routes/llm.ts`](../../../packages/server/src/hono/routes/llm.ts)
+  - [`packages/server/src/hono/__tests__/api.integration.test.ts`](../../../packages/server/src/hono/__tests__/api.integration.test.ts)
+  - [`packages/cli/src/cli/commands/setup.test.ts`](../../../packages/cli/src/cli/commands/setup.test.ts)
+- Task 4 outcomes:
+  - `ReasoningProfile` now carries `status: 'supported' | 'unsupported' | 'unknown'` while preserving the existing `capable` execution gate
+  - unresolved `openrouter` / `dexto-nova` semantics now report `status: 'unknown'` instead of being conflated with known unsupported models
+  - provider-option generation still refuses to guess reasoning controls for unknown gateway semantics
+  - shared OpenRouter-family gateway checks now reuse the existing `isOpenRouterGatewayProvider()` helper in core paths that actually share the same semantics, instead of repeating raw provider string comparisons
+  - `/api/llm/capabilities` now exposes the status field alongside the existing reasoning metadata
+- Task 4 verification:
+  - focused tests: `pnpm exec vitest run packages/core/src/llm/reasoning/profile.test.ts packages/core/src/llm/executor/provider-options.test.ts packages/server/src/hono/__tests__/api.integration.test.ts`
+  - targeted typecheck: `pnpm exec tsc -p packages/core/tsconfig.json --noEmit && pnpm exec tsc -p packages/cli/tsconfig.json --noEmit`
+  - public-type refresh for downstream server checks: `pnpm --filter @dexto/core build && pnpm exec tsc -p packages/server/tsconfig.json --noEmit`
 
 ---
 
@@ -117,7 +139,7 @@
 | 2026-04-02 | Extend `ProviderInfo` rather than adding a new provider-definition registry first.                                                                                                                                                   | Reuses the existing registry surface and avoids a second provider source of truth.                                                                                                           |
 | 2026-04-02 | Keep `reasoning/` as the main semantics layer.                                                                                                                                                                                       | Existing reasoning logic is already meaningful; a large parallel abstraction is not needed yet.                                                                                              |
 | 2026-04-02 | Keep model-origin logic as plain helper functions.                                                                                                                                                                                   | Current needs are stateless and table-driven; no dedicated abstraction is justified yet.                                                                                                     |
-| 2026-04-02 | Add `status` directly to `ReasoningProfile` using `supported                                                                                                                                                                         | unsupported                                                                                                                                                                                  |
+| 2026-04-02 | Add `status` directly to `ReasoningProfile` using `supported`, `unsupported`, and `unknown`.                                                                                                                                        | This keeps the semantic distinction explicit without inventing a second reasoning-capability contract.                                                                                       |
 | 2026-04-02 | Auth definitions stay explicit by `(providerId, methodId)` and may reuse a tiny shared implementation layer underneath.                                                                                                              | Preserves provider-specific behavior while allowing minimal reuse for generic mechanics.                                                                                                     |
 | 2026-04-02 | Provider runtime metadata should be derived automatically at build time for generated providers.                                                                                                                                     | Avoids hand-maintaining 100+ providers while still allowing a tiny override layer for Dexto-specific or exceptional cases.                                                                   |
 | 2026-04-02 | The generated provider snapshot should be app-oriented rather than preserving a separate raw upstream snapshot in-repo.                                                                                                              | The purpose of the generated files is to serve Dexto directly; raw upstream data can be re-fetched from models.dev when needed.                                                              |
@@ -158,4 +180,5 @@
 | 2026-04-02 | Completed Task 1 registry runtime metadata foundation | Moved the generated provider snapshot under `registry/`, wired `ProviderInfo.runtime` from the generated snapshot, regenerated provider metadata with initial runtime fields, removed unnecessary widening casts added during the task, and kept focused registry coverage only. |
 | 2026-04-03 | Completed Task 2 runtime metadata inference and support gating | Added a shared runtime-metadata inference helper, regenerated provider runtime metadata from it, introduced family-first provider support gating with clear unsupported-provider reasons, rejected unsupported providers earlier in schemas/runtime creation, and filtered server provider/model picker loops to runtime-supported providers. |
 | 2026-04-03 | Completed Task 2.5 runtime-supported provider list alignment | Switched the affected WebUI provider selectors to use the runtime-supported catalog surface, kept legacy unsupported current values visible as temporary unsupported options during edit flows, and committed the slice as its own follow-up task. |
-| 2026-04-03 | Implemented Task 3 gateway model-origin consolidation | Consolidated the OpenRouter-style gateway origin helpers under `registry/model-origin.ts`, reused that helper from both the registry transform path and the reasoning path, removed the old OpenRouter-specific reasoning helper module, and left the change uncommitted pending review. |
+| 2026-04-03 | Completed Task 3 gateway model-origin consolidation | Consolidated the OpenRouter-style gateway origin helpers under `registry/model-origin.ts`, reused that helper from both the registry transform path and the reasoning path, removed the old OpenRouter-specific reasoning helper module, and committed the slice as `0bbb8fa07`. |
+| 2026-04-03 | Implemented Task 4 reasoning status rollout | Added `status` to `ReasoningProfile`, preserved the safe unknown-gateway fallback, exposed the new status via `/api/llm/capabilities`, and added focused profile/provider-options/API coverage; left the change uncommitted pending review. |

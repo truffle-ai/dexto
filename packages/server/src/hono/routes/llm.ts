@@ -440,6 +440,11 @@ const capabilitiesRoute = createRoute({
                                     .describe(
                                         'Whether Dexto considers this provider/model reasoning-capable (derived from registry metadata plus explicit provider/model rules)'
                                     ),
+                                status: z
+                                    .enum(['supported', 'unsupported', 'unknown'])
+                                    .describe(
+                                        'Whether Dexto knows exact reasoning semantics for this provider/model combination'
+                                    ),
                                 paradigm: z
                                     .enum([
                                         'effort',

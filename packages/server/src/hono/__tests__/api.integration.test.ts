@@ -154,6 +154,7 @@ describe('Hono API Integration Tests', () => {
 
             const reasoning = (res.body as { reasoning: unknown }).reasoning as {
                 capable: boolean;
+                status: string;
                 paradigm: string;
                 supportedVariants: string[];
                 defaultVariant?: string;
@@ -161,6 +162,7 @@ describe('Hono API Integration Tests', () => {
             };
 
             expect(reasoning.capable).toBe(true);
+            expect(reasoning.status).toBe('supported');
             expect(reasoning.paradigm).toBe('budget');
             expect(reasoning.supportedVariants).toContain('enabled');
             expect(reasoning.supportedVariants).toContain('disabled');
@@ -180,10 +182,12 @@ describe('Hono API Integration Tests', () => {
 
             const reasoning = (res.body as { reasoning: unknown }).reasoning as {
                 capable: boolean;
+                status: string;
                 supportedVariants: string[];
             };
 
             expect(reasoning.capable).toBe(true);
+            expect(reasoning.status).toBe('supported');
             expect(reasoning.supportedVariants).toContain('high');
             expect(reasoning.supportedVariants).not.toContain('max');
             expect(reasoning.supportedVariants).toContain('xhigh');

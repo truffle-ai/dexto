@@ -4,6 +4,7 @@ import type { InternalMessage, AssistantMessage, ToolMessage } from '../../conte
 import { getImageData, getFileData, filterMessagesByLLMCapabilities } from '../../context/utils.js';
 import type { Logger } from '../../logger/v2/types.js';
 import { DextoLogComponent } from '../../logger/v2/types.js';
+import { isOpenRouterGatewayProvider } from '../registry/model-origin.js';
 
 /**
  * Checks if a string is a URL (http:// or https://).
@@ -226,8 +227,7 @@ export class VercelMessageFormatter {
         return (
             context.provider !== 'openai' &&
             context.provider !== 'openai-compatible' &&
-            context.provider !== 'openrouter' &&
-            context.provider !== 'dexto-nova'
+            !isOpenRouterGatewayProvider(context.provider)
         );
     }
 

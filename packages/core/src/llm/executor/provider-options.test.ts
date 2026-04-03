@@ -394,6 +394,15 @@ describe('buildProviderOptions', () => {
             ).toBeUndefined();
         });
 
+        it('does not guess reasoning controls for unknown gateway semantics', () => {
+            expect(
+                buildProviderOptions({
+                    provider: 'openrouter',
+                    model: 'deepseek/deepseek-r1:free',
+                })
+            ).toBeUndefined();
+        });
+
         it('keeps openrouter and dexto-nova option mapping aligned', () => {
             const cases = [
                 {

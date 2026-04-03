@@ -28192,6 +28192,15 @@
                           "type": "boolean",
                           "description": "Whether Dexto considers this provider/model reasoning-capable (derived from registry metadata plus explicit provider/model rules)"
                         },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "supported",
+                            "unsupported",
+                            "unknown"
+                          ],
+                          "description": "Whether Dexto knows exact reasoning semantics for this provider/model combination"
+                        },
                         "paradigm": {
                           "type": "string",
                           "enum": [
@@ -28243,6 +28252,7 @@
                       },
                       "required": [
                         "capable",
+                        "status",
                         "paradigm",
                         "variants",
                         "supportedVariants",

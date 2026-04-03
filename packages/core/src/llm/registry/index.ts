@@ -36,7 +36,7 @@ import {
     MODELS_DEV_PROVIDER_METADATA_BY_PROVIDER,
 } from './models.generated.js';
 import { MANUAL_MODELS_BY_PROVIDER } from './models.manual.js';
-import { getOpenRouterCandidateModelIds } from './model-origin.js';
+import { getOpenRouterCandidateModelIds, isOpenRouterGatewayProvider } from './model-origin.js';
 import { PROVIDERS_BY_ID, type ProviderSnapshotEntry } from './providers.generated.js';
 import {
     PROVIDER_RUNTIME_FAMILIES,
@@ -717,7 +717,7 @@ export function getMaxInputTokensForModel(
     if (!modelInfo) {
         // Gateways can accept arbitrary OpenRouter-format IDs; fall back to OpenRouter's cached catalog
         // for a context length hint when possible.
-        if ((provider === 'openrouter' || provider === 'dexto-nova') && model.includes('/')) {
+        if (isOpenRouterGatewayProvider(provider) && model.includes('/')) {
             const contextLength = getOpenRouterModelContextLength(model);
             if (typeof contextLength === 'number') {
                 logger?.debug(

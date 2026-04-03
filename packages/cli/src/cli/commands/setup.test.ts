@@ -85,11 +85,13 @@ vi.mock('@dexto/core', () => {
         getReasoningProfile: vi.fn((_provider: string, model: string) =>
             isReasoningModel(model)
                 ? {
+                      status: 'supported',
                       capable: true,
                       supportedVariants: ['enabled', 'disabled'],
                       defaultVariant: 'enabled',
                   }
                 : {
+                      status: 'unsupported',
                       capable: false,
                       supportedVariants: [],
                       defaultVariant: undefined,
