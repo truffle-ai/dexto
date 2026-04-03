@@ -17,13 +17,14 @@
 
 ## Current Task
 
-**Task:** Task 3 - Gateway Model-Origin Consolidation
+**Task:** Task 2.5 - Runtime-Supported Provider List Alignment
 **Status:** *Ready to Start*
 
 ### Plan
 
-- preserve Task 2 as an uncommitted reviewable slice until approved
-- consolidate gateway model-origin logic next without introducing a large adapter layer
+- keep Task 2 committed as the stable support-gating checkpoint (`c9c1d994b`)
+- align user-facing provider lists with `getSupportedProviders()` where only runnable providers should appear
+- preserve raw `LLM_PROVIDERS` usage for schema/compatibility surfaces that still need the full generated catalog
 - keep the registry/source-of-truth path centered in [`packages/core/src/llm/registry/`](../../../packages/core/src/llm/registry/)
 
 ### Notes
@@ -64,6 +65,14 @@
 - Task 2 verification:
   - focused tests: `pnpm exec vitest run packages/core/src/llm/registry/provider-runtime.test.ts packages/core/src/llm/registry/index.test.ts packages/core/src/llm/schemas.test.ts packages/core/src/llm/reasoning/profile.test.ts`
   - targeted typecheck: `pnpm exec tsc -p packages/core/tsconfig.json --noEmit && pnpm exec tsc -p packages/server/tsconfig.json --noEmit`
+- Task 2 landed in commit `c9c1d994b` (`infer llm provider runtime metadata and gate support`).
+- Task 2.5 exists because some user-facing selectors still iterate raw `LLM_PROVIDERS`, which can surface unsupported providers even though validation now rejects them.
+- Likely Task 2.5 touch points:
+  - [`packages/webui/components/AgentEditor/form-sections/LLMConfigSection.tsx`](../../../packages/webui/components/AgentEditor/form-sections/LLMConfigSection.tsx)
+  - [`packages/webui/components/AgentEditor/FormEditorTabs.tsx`](../../../packages/webui/components/AgentEditor/FormEditorTabs.tsx)
+  - [`packages/webui/components/AgentSelector/CreateAgentModal.tsx`](../../../packages/webui/components/AgentSelector/CreateAgentModal.tsx)
+  - [`packages/webui/components/ModelPicker/ModelPickerModal.tsx`](../../../packages/webui/components/ModelPicker/ModelPickerModal.tsx)
+  - [`packages/cli/src/cli/utils/provider-setup.ts`](../../../packages/cli/src/cli/utils/provider-setup.ts)
 
 ---
 
@@ -117,5 +126,4 @@
 | 2026-04-02 | Completed `/grill-me` alignment for the v2 direction  | Locked the runtime-family direction, auth definition shape, ownership split, and reasoning-status direction.                                                                                                                                                                     |
 | 2026-04-02 | Completed Task 1 registry runtime metadata foundation | Moved the generated provider snapshot under `registry/`, wired `ProviderInfo.runtime` from the generated snapshot, regenerated provider metadata with initial runtime fields, removed unnecessary widening casts added during the task, and kept focused registry coverage only. |
 | 2026-04-03 | Completed Task 2 runtime metadata inference and support gating | Added a shared runtime-metadata inference helper, regenerated provider runtime metadata from it, introduced family-first provider support gating with clear unsupported-provider reasons, rejected unsupported providers earlier in schemas/runtime creation, and filtered server provider/model picker loops to runtime-supported providers. |
-
 

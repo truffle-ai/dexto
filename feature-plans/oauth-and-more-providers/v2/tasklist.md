@@ -71,6 +71,28 @@ Use this as execution guidance, not as a hard waterfall. If a task uncovers a de
 
 ---
 
+## Task 2.5. Runtime-Supported Provider List Alignment
+
+### Changes
+
+- Audit callers after the `getSupportedProviders()` semantic change in Task 2.
+- Switch user-facing provider selectors, pickers, and setup flows to runtime-supported provider helpers where they should only expose runnable providers.
+- Keep raw `LLM_PROVIDERS` usage in schema/enum/compatibility paths that still need the full generated catalog.
+- Preserve existing feature-flag behavior such as `dexto-nova` visibility gating.
+
+### Tests
+
+- Add focused regression tests for representative provider-selection surfaces that should now hide unsupported providers.
+- Add a regression test proving runtime-supported picker/setup flows do not surface unsupported raw-catalog providers.
+- Keep tests narrow; do not add broad catalog duplication checks.
+
+### Notes
+
+- This is a small contract-alignment follow-up to Task 2, not a new registry abstraction pass.
+- The important distinction is now explicit: `LLM_PROVIDERS` is raw catalog data, while `getSupportedProviders()` is the runtime-supported surface.
+
+---
+
 ## Task 3. Gateway Model-Origin Consolidation
 
 ### Changes
@@ -261,12 +283,13 @@ Use this as execution guidance, not as a hard waterfall. If a task uncovers a de
 
 1. Task 1
 2. Task 2
-3. Task 3
-4. Task 4
-5. Task 5
-6. Task 6
-7. Task 7
-8. Task 8
-9. Task 9
+3. Task 2.5
+4. Task 3
+5. Task 4
+6. Task 5
+7. Task 6
+8. Task 7
+9. Task 8
+10. Task 9
 
 This order keeps the data model and support gating stable before the auth/connect refactor gets deeper, and keeps the branch-cleanup work after the new metadata/auth surfaces exist.
