@@ -6,10 +6,7 @@ import { buildBedrockReasoningProfile } from './profiles/bedrock.js';
 import { buildGoogleReasoningProfile } from './profiles/google.js';
 import { buildOpenAICompatibleReasoningProfile } from './profiles/openai-compatible.js';
 import { buildOpenAIReasoningProfile } from './profiles/openai.js';
-import {
-    getOpenRouterReasoningTarget,
-    isOpenRouterGatewayProvider,
-} from './profiles/openrouter.js';
+import { resolveGatewayModelOrigin } from '../registry/model-origin.js';
 import { buildVertexReasoningProfile } from './profiles/vertex.js';
 import { nonCapableProfile, type ReasoningProfile } from './profiles/shared.js';
 
@@ -112,14 +109,17 @@ function toGatewayReasoningProfile(nativeProfile: ReasoningProfile): ReasoningPr
  * - No guessed variants for unknown paradigms
  */
 export function getReasoningProfile(provider: LLMProvider, model: string): ReasoningProfile {
-    if (isOpenRouterGatewayProvider(provider)) {
-        const target = getOpenRouterReasoningTarget(model);
-        if (!target) {
-            return nonCapableProfile();
-        }
-
-        const nativeProfile = getNativeReasoningProfile(target.upstreamProvider, target.modelId);
+    const gatewayOrigin = resolveGatewayModelOrigin(provider, model);
+    if (gatewayOrigin) {
+        const nativeProfile = getNativeReasoningProfile(
+            gatewayOrigin.upstreamProvider,
+            gatewayOrigin.upstreamModelId
+        );
         return toGatewayReasoningProfile(nativeProfile);
+    }
+
+    if (provider === 'openrouter' || provider === 'dexto-nova') {
+        return nonCapableProfile();
     }
 
     return getNativeReasoningProfile(provider, model);

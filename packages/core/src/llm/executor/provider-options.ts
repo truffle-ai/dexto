@@ -10,7 +10,7 @@ import {
 } from '../reasoning/anthropic-thinking.js';
 import { ANTHROPIC_INTERLEAVED_THINKING_BETA } from '../reasoning/anthropic-betas.js';
 import { getReasoningProfile } from '../reasoning/profile.js';
-import { isOpenRouterGatewayProvider } from '../reasoning/profiles/openrouter.js';
+import { isOpenRouterGatewayProvider } from '../registry/model-origin.js';
 import {
     type OpenAIReasoningEffort,
     supportsOpenAIReasoningEffort,

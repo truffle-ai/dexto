@@ -36,12 +36,15 @@ import {
     MODELS_DEV_PROVIDER_METADATA_BY_PROVIDER,
 } from './models.generated.js';
 import { MANUAL_MODELS_BY_PROVIDER } from './models.manual.js';
+import { getOpenRouterCandidateModelIds } from './model-origin.js';
 import { PROVIDERS_BY_ID, type ProviderSnapshotEntry } from './providers.generated.js';
 import {
     PROVIDER_RUNTIME_FAMILIES,
     type ProviderRuntimeFamily,
     type ProviderRuntimeMetadata,
 } from './provider-runtime.js';
+
+export { getOpenRouterCandidateModelIds } from './model-origin.js';
 
 const LEGACY_MODEL_ID_ALIASES: Partial<Record<LLMProvider, Record<string, string>>> = {
     anthropic: {
@@ -831,59 +834,8 @@ export function hasAllRegistryModelsSupport(provider: LLMProvider): boolean {
     return providerInfo.supportsAllRegistryModels === true;
 }
 
-/**
- * Prefix used for OpenRouter-format model IDs (e.g. "openai/gpt-4.1-mini").
- * This is intentionally kept small and deterministic.
- */
-const OPENROUTER_PREFIX_BY_PROVIDER: Partial<Record<LLMProvider, string>> = {
-    openai: 'openai',
-    anthropic: 'anthropic',
-    google: 'google',
-    xai: 'x-ai',
-    cohere: 'cohere',
-    minimax: 'minimax',
-    'minimax-cn': 'minimax',
-    'minimax-coding-plan': 'minimax',
-    'minimax-cn-coding-plan': 'minimax',
-    zhipuai: 'z-ai',
-    'zhipuai-coding-plan': 'z-ai',
-    zai: 'z-ai',
-    'zai-coding-plan': 'z-ai',
-    moonshotai: 'moonshotai',
-    'moonshotai-cn': 'moonshotai',
-};
-
 function getOpenRouterModelIdSet(): Set<string> {
     return new Set(LLM_REGISTRY.openrouter.models.map((m) => m.name.toLowerCase()));
-}
-
-export function getOpenRouterCandidateModelIds(
-    model: string,
-    originalProvider: LLMProvider
-): string[] {
-    if (model.includes('/')) return [model];
-
-    const prefix = OPENROUTER_PREFIX_BY_PROVIDER[originalProvider];
-    if (!prefix) return [];
-
-    // Anthropic IDs include dates and use dashes in "X-Y" version segments.
-    // OpenRouter uses dotted versions and typically omits the date suffix.
-    if (originalProvider === 'anthropic') {
-        const noDate = model.replace(/-\d{8}.*$/i, '');
-        const dotted = noDate.replace(/-(\d)-(\d)\b/g, '-$1.$2');
-        return [`${prefix}/${dotted}`, `${prefix}/${noDate}`, `${prefix}/${model}`];
-    }
-
-    // Google Gemini: some models use a "-001" suffix on OpenRouter, but others don't.
-    // Prefer whichever exists in the OpenRouter catalog snapshot.
-    if (originalProvider === 'google') {
-        if (!/^gemini-/i.test(model)) {
-            return [`${prefix}/${model}`];
-        }
-        return [`${prefix}/${model}`, `${prefix}/${model}-001`];
-    }
-
-    return [`${prefix}/${model}`];
 }
 
 function pickExistingOpenRouterModelId(candidates: string[]): string | null {

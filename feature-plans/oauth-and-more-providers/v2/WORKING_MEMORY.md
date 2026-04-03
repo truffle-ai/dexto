@@ -17,14 +17,14 @@
 
 ## Current Task
 
-**Task:** Task 2.5 - Runtime-Supported Provider List Alignment
+**Task:** Task 3 - Gateway Model-Origin Consolidation
 **Status:** *Implemented, Uncommitted*
 
 ### Plan
 
-- review the uncommitted Task 2.5 WebUI alignment slice
-- keep raw `LLM_PROVIDERS` usage in schema/compatibility surfaces that still need the full generated catalog
-- move to Task 3 after Task 2.5 approval/commit
+- review the uncommitted Task 3 model-origin consolidation slice
+- keep the helper stateless and scoped to OpenRouter-style gateway semantics only
+- move to Task 4 after Task 3 approval/commit
 - keep the registry/source-of-truth path centered in [`packages/core/src/llm/registry/`](../../../packages/core/src/llm/registry/)
 
 ### Notes
@@ -87,6 +87,23 @@
 - Task 2.5 verification:
   - focused tests: `pnpm exec vitest run packages/webui/lib/llm/provider-select.test.ts`
   - targeted typecheck: `pnpm exec tsc -p packages/webui/tsconfig.json --noEmit`
+- Task 2.5 landed in commit `63389ece8` (`align webui provider selectors with supported catalog`).
+- Task 3 consolidates the OpenRouter-style gateway model-origin helpers that were previously split across registry transform logic and reasoning-specific OpenRouter helpers.
+- Task 3 changed files:
+  - [`packages/core/src/llm/registry/model-origin.ts`](../../../packages/core/src/llm/registry/model-origin.ts)
+  - [`packages/core/src/llm/registry/model-origin.test.ts`](../../../packages/core/src/llm/registry/model-origin.test.ts)
+  - [`packages/core/src/llm/registry/index.ts`](../../../packages/core/src/llm/registry/index.ts)
+  - [`packages/core/src/llm/reasoning/profile.ts`](../../../packages/core/src/llm/reasoning/profile.ts)
+  - [`packages/core/src/llm/executor/provider-options.ts`](../../../packages/core/src/llm/executor/provider-options.ts)
+  - removed [`packages/core/src/llm/reasoning/profiles/openrouter.ts`](../../../packages/core/src/llm/reasoning/profiles/openrouter.ts)
+  - removed [`packages/core/src/llm/reasoning/profiles/openrouter.test.ts`](../../../packages/core/src/llm/reasoning/profiles/openrouter.test.ts)
+- Task 3 outcomes:
+  - OpenRouter-style gateway-provider detection, gateway semantic-origin resolution, and forward candidate generation now live in one small helper file under `registry/`
+  - reasoning now routes gateway semantic reuse through that shared helper instead of a separate OpenRouter-only module
+  - the existing safe fallback remains: unknown or intentionally unsupported gateway mappings still return non-capable reasoning semantics instead of guessed behavior
+- Task 3 verification:
+  - focused tests: `pnpm exec vitest run packages/core/src/llm/registry/model-origin.test.ts packages/core/src/llm/registry/index.test.ts packages/core/src/llm/reasoning/profile.test.ts`
+  - targeted typecheck: `pnpm exec tsc -p packages/core/tsconfig.json --noEmit`
 
 ---
 
@@ -140,4 +157,5 @@
 | 2026-04-02 | Completed `/grill-me` alignment for the v2 direction  | Locked the runtime-family direction, auth definition shape, ownership split, and reasoning-status direction.                                                                                                                                                                     |
 | 2026-04-02 | Completed Task 1 registry runtime metadata foundation | Moved the generated provider snapshot under `registry/`, wired `ProviderInfo.runtime` from the generated snapshot, regenerated provider metadata with initial runtime fields, removed unnecessary widening casts added during the task, and kept focused registry coverage only. |
 | 2026-04-03 | Completed Task 2 runtime metadata inference and support gating | Added a shared runtime-metadata inference helper, regenerated provider runtime metadata from it, introduced family-first provider support gating with clear unsupported-provider reasons, rejected unsupported providers earlier in schemas/runtime creation, and filtered server provider/model picker loops to runtime-supported providers. |
-| 2026-04-03 | Implemented Task 2.5 runtime-supported provider list alignment | Switched the affected WebUI provider selectors to use the runtime-supported catalog surface, kept legacy unsupported current values visible as temporary unsupported options during edit flows, and left the change uncommitted pending review. |
+| 2026-04-03 | Completed Task 2.5 runtime-supported provider list alignment | Switched the affected WebUI provider selectors to use the runtime-supported catalog surface, kept legacy unsupported current values visible as temporary unsupported options during edit flows, and committed the slice as its own follow-up task. |
+| 2026-04-03 | Implemented Task 3 gateway model-origin consolidation | Consolidated the OpenRouter-style gateway origin helpers under `registry/model-origin.ts`, reused that helper from both the registry transform path and the reasoning path, removed the old OpenRouter-specific reasoning helper module, and left the change uncommitted pending review. |
