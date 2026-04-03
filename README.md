@@ -156,6 +156,7 @@ Switch models mid-conversation—no code changes, no restarts.
 | **Google** | Gemini 3 Pro, 2.5 Pro/Flash |
 | **Groq** | Llama 4, Qwen, DeepSeek |
 | **xAI** | Grok 4, Grok 3 |
+| **MiniMax** | MiniMax-M2.7, MiniMax-M2.5 |
 | **Local** | Ollama, GGUF via node-llama-cpp (Llama, Qwen, Mistral, etc.) |
 | **+ Gateways** | OpenRouter, AWS Bedrock, Vertex AI, LiteLLM |
 
@@ -499,6 +500,7 @@ Switch between providers instantly—no code changes required.
 | **Groq** | `llama-4-scout`, `qwen-qwq`, `deepseek-r1-distill` | API key |
 | **xAI** | `grok-4`, `grok-3`, `grok-3-fast` | API key |
 | **Cohere** | `command-r-plus`, `command-r` | API key |
+| **MiniMax** | `MiniMax-M2.7`, `MiniMax-M2.5` | API key |
 
 #### Local Models (Privacy-First)
 

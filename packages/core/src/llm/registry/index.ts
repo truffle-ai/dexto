@@ -290,9 +290,9 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
         modelsDev: MODELS_DEV_PROVIDER_METADATA_BY_PROVIDER.cohere,
     },
     // https://platform.minimax.io/docs/api-reference/text-openai-api
-    // MiniMax provides an OpenAI-compatible endpoint at https://api.minimax.chat/v1
+    // MiniMax provides an OpenAI-compatible endpoint at https://api.minimax.io/v1
     minimax: {
-        models: MODELS_BY_PROVIDER.minimax,
+        models: mergeModels(MODELS_BY_PROVIDER.minimax, MANUAL_MODELS_BY_PROVIDER.minimax),
         baseURLSupport: 'none',
         supportedFileTypes: [], // No defaults - models must explicitly specify support
         modelsDev: MODELS_DEV_PROVIDER_METADATA_BY_PROVIDER.minimax,
@@ -481,8 +481,8 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
                 },
             },
             {
-                name: 'minimax/minimax-m2.5',
-                displayName: 'MiniMax M2.5',
+                name: 'minimax/minimax-m2.7',
+                displayName: 'MiniMax M2.7',
                 maxInputTokens: 204800,
                 supportedFileTypes: [],
                 pricing: {

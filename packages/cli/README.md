@@ -116,7 +116,7 @@ Upgrade/uninstall and migration troubleshooting live in docs:
 ### Run
 
 ```bash
-# Start Dexto
+# Start Dexto (launches setup wizard on first run)
 dexto
 ```
 
@@ -131,8 +131,6 @@ dexto --help                                       # Explore all options
 ```
 
 **Inside the interactive CLI**, type `/` to explore commands—switch models, manage sessions, configure tools, and more.
-
-If Dexto has not been set up yet, the first interactive launch opens the generic `dexto setup` flow before starting. Existing provider keys in your environment are detected there, so you can keep startup simple without inheriting the wrong bundled provider by accident.
 
 ### Manage Settings
 
@@ -158,6 +156,7 @@ Switch models mid-conversation—no code changes, no restarts.
 | **Google** | Gemini 3 Pro, 2.5 Pro/Flash |
 | **Groq** | Llama 4, Qwen, DeepSeek |
 | **xAI** | Grok 4, Grok 3 |
+| **MiniMax** | MiniMax-M2.7, MiniMax-M2.5 |
 | **Local** | Ollama, GGUF via node-llama-cpp (Llama, Qwen, Mistral, etc.) |
 | **+ Gateways** | OpenRouter, AWS Bedrock, Vertex AI, LiteLLM |
 
@@ -501,6 +500,7 @@ Switch between providers instantly—no code changes required.
 | **Groq** | `llama-4-scout`, `qwen-qwq`, `deepseek-r1-distill` | API key |
 | **xAI** | `grok-4`, `grok-3`, `grok-3-fast` | API key |
 | **Cohere** | `command-r-plus`, `command-r` | API key |
+| **MiniMax** | `MiniMax-M2.7`, `MiniMax-M2.5` | API key |
 
 #### Local Models (Privacy-First)
 
@@ -597,8 +597,9 @@ Test tools before deploying:
 Usage: dexto [options] [command] [prompt...]
 
 Basic Usage:
-  dexto or dexto --mode cli  Start interactive CLI (default)
-  dexto "query"              Run one-shot query
+  dexto                    Start web UI (default)
+  dexto "query"            Run one-shot query
+  dexto --mode cli         Interactive CLI
 
 Session Management:
   dexto -c                 Continue last conversation
