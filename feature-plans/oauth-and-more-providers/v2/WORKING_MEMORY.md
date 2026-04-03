@@ -18,13 +18,13 @@
 ## Current Task
 
 **Task:** Task 2.5 - Runtime-Supported Provider List Alignment
-**Status:** *Ready to Start*
+**Status:** *Implemented, Uncommitted*
 
 ### Plan
 
-- keep Task 2 committed as the stable support-gating checkpoint (`c9c1d994b`)
-- align user-facing provider lists with `getSupportedProviders()` where only runnable providers should appear
-- preserve raw `LLM_PROVIDERS` usage for schema/compatibility surfaces that still need the full generated catalog
+- review the uncommitted Task 2.5 WebUI alignment slice
+- keep raw `LLM_PROVIDERS` usage in schema/compatibility surfaces that still need the full generated catalog
+- move to Task 3 after Task 2.5 approval/commit
 - keep the registry/source-of-truth path centered in [`packages/core/src/llm/registry/`](../../../packages/core/src/llm/registry/)
 
 ### Notes
@@ -73,6 +73,20 @@
   - [`packages/webui/components/AgentSelector/CreateAgentModal.tsx`](../../../packages/webui/components/AgentSelector/CreateAgentModal.tsx)
   - [`packages/webui/components/ModelPicker/ModelPickerModal.tsx`](../../../packages/webui/components/ModelPicker/ModelPickerModal.tsx)
   - [`packages/cli/src/cli/utils/provider-setup.ts`](../../../packages/cli/src/cli/utils/provider-setup.ts)
+- Task 2.5 implementation is limited to the real affected WebUI selectors; the audit showed the model picker already derives visible providers from the supported catalog payload and CLI setup already uses a curated provider registry.
+- Task 2.5 changed files:
+  - [`packages/webui/lib/llm/provider-select.ts`](../../../packages/webui/lib/llm/provider-select.ts)
+  - [`packages/webui/lib/llm/provider-select.test.ts`](../../../packages/webui/lib/llm/provider-select.test.ts)
+  - [`packages/webui/components/AgentEditor/form-sections/LLMConfigSection.tsx`](../../../packages/webui/components/AgentEditor/form-sections/LLMConfigSection.tsx)
+  - [`packages/webui/components/AgentEditor/FormEditorTabs.tsx`](../../../packages/webui/components/AgentEditor/FormEditorTabs.tsx)
+  - [`packages/webui/components/AgentSelector/CreateAgentModal.tsx`](../../../packages/webui/components/AgentSelector/CreateAgentModal.tsx)
+- Task 2.5 outcomes:
+  - the WebUI provider selectors now derive visible providers from the runtime-supported `/llm/catalog` response instead of iterating raw `LLM_PROVIDERS`
+  - existing configs with an unsupported provider keep that current value visible as a temporary `(...Unsupported)` option instead of silently blanking the selection
+  - no registry/support-gating semantics changed in core; this is UI contract alignment only
+- Task 2.5 verification:
+  - focused tests: `pnpm exec vitest run packages/webui/lib/llm/provider-select.test.ts`
+  - targeted typecheck: `pnpm exec tsc -p packages/webui/tsconfig.json --noEmit`
 
 ---
 
@@ -126,4 +140,4 @@
 | 2026-04-02 | Completed `/grill-me` alignment for the v2 direction  | Locked the runtime-family direction, auth definition shape, ownership split, and reasoning-status direction.                                                                                                                                                                     |
 | 2026-04-02 | Completed Task 1 registry runtime metadata foundation | Moved the generated provider snapshot under `registry/`, wired `ProviderInfo.runtime` from the generated snapshot, regenerated provider metadata with initial runtime fields, removed unnecessary widening casts added during the task, and kept focused registry coverage only. |
 | 2026-04-03 | Completed Task 2 runtime metadata inference and support gating | Added a shared runtime-metadata inference helper, regenerated provider runtime metadata from it, introduced family-first provider support gating with clear unsupported-provider reasons, rejected unsupported providers earlier in schemas/runtime creation, and filtered server provider/model picker loops to runtime-supported providers. |
-
+| 2026-04-03 | Implemented Task 2.5 runtime-supported provider list alignment | Switched the affected WebUI provider selectors to use the runtime-supported catalog surface, kept legacy unsupported current values visible as temporary unsupported options during edit flows, and left the change uncommitted pending review. |

@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useCreateAgent, type CreateAgentPayload } from '../hooks/useAgents';
+import { useLLMCatalog } from '../hooks/useLLM';
 import {
     Dialog,
     DialogContent,
@@ -14,6 +15,11 @@ import { Textarea } from '../ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { AlertCircle, Loader2, Eye, EyeOff, Info } from 'lucide-react';
 import { LLM_PROVIDERS, type LLMProvider } from '@dexto/core';
+import {
+    formatProviderLabel,
+    getProviderSelectOptions,
+    getSupportedProviderIdsFromCatalog,
+} from '@/lib/llm/provider-select';
 
 interface CreateAgentModalProps {
     open: boolean;
@@ -70,7 +76,30 @@ export default function CreateAgentModal({
     const [createError, setCreateError] = useState<string | null>(null);
     const [showApiKey, setShowApiKey] = useState(false);
     const createAgentMutation = useCreateAgent();
+    const { data: providerCatalogData } = useLLMCatalog({
+        enabled: open,
+        mode: 'grouped',
+        includeModels: false,
+    });
     const isCreating = createAgentMutation.isPending;
+    const providerOptions = useMemo(() => {
+        if (!providerCatalogData) {
+            return form.provider
+                ? [
+                      {
+                          value: form.provider,
+                          label: formatProviderLabel(form.provider),
+                          isUnsupported: false,
+                      },
+                  ]
+                : [];
+        }
+
+        return getProviderSelectOptions({
+            supportedProviders: getSupportedProviderIdsFromCatalog(providerCatalogData),
+            currentProvider: form.provider,
+        });
+    }, [form.provider, providerCatalogData]);
 
     const updateField = (field: keyof FormData, value: string) => {
         setForm((prev) => {
@@ -254,12 +283,9 @@ export default function CreateAgentModal({
                                         <SelectValue placeholder="Select provider..." />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        {LLM_PROVIDERS.map((p) => (
-                                            <SelectItem key={p} value={p}>
-                                                {p === 'dexto-nova'
-                                                    ? 'Dexto Nova'
-                                                    : p.charAt(0).toUpperCase() +
-                                                      p.slice(1).replace(/-/g, ' ')}
+                                        {providerOptions.map((provider) => (
+                                            <SelectItem key={provider.value} value={provider.value}>
+                                                {provider.label}
                                             </SelectItem>
                                         ))}
                                     </SelectContent>
