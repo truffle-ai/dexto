@@ -26,6 +26,7 @@ import {
     hasAllRegistryModelsSupport,
 } from './index.js';
 import { MODELS_BY_PROVIDER } from './models.generated.js';
+import { PROVIDERS_BY_ID } from './providers.generated.js';
 import { LLMErrorCode } from '../error-codes.js';
 import { ErrorScope, ErrorType } from '../../errors/types.js';
 import type { Logger } from '../../logger/v2/types.js';
@@ -210,6 +211,17 @@ describe('LLM Registry Core Functions', () => {
 });
 
 describe('Provider Capabilities', () => {
+    describe('runtime metadata', () => {
+        it('exposes generated provider runtime metadata through LLM_REGISTRY', () => {
+            expect(LLM_REGISTRY.openai.runtime).toEqual(PROVIDERS_BY_ID.openai.runtime);
+            expect(LLM_REGISTRY['google-vertex'].runtime).toEqual(
+                PROVIDERS_BY_ID['google-vertex'].runtime
+            );
+            expect(LLM_REGISTRY.openrouter.runtime).toEqual(PROVIDERS_BY_ID.openrouter.runtime);
+            expect(LLM_REGISTRY.local.runtime).toEqual(PROVIDERS_BY_ID.local.runtime);
+        });
+    });
+
     describe('supportsBaseURL', () => {
         it('returns true for providers supporting baseURL', () => {
             expect(supportsBaseURL('openai-compatible')).toBe(true);

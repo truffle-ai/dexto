@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from 'fs';
 import type { LLMProvider } from '../llm/types.js';
-import { PROVIDERS_BY_ID } from '../llm/providers.generated.js';
+import { PROVIDERS_BY_ID } from '../llm/registry/providers.generated.js';
 import { getDextoGlobalPath } from './path.js';
 
 /**

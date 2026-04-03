@@ -35,6 +35,11 @@ import {
     MODELS_DEV_PROVIDER_METADATA_BY_PROVIDER,
 } from './models.generated.js';
 import { MANUAL_MODELS_BY_PROVIDER } from './models.manual.js';
+import {
+    PROVIDERS_BY_ID,
+    type ProviderRuntimeMetadata,
+    type ProviderSnapshotEntry,
+} from './providers.generated.js';
 
 const LEGACY_MODEL_ID_ALIASES: Partial<Record<LLMProvider, Record<string, string>>> = {
     anthropic: {
@@ -262,6 +267,7 @@ export interface ProviderInfo {
     supportedFileTypes: SupportedFileType[]; // Provider-level default, used when model doesn't specify
     supportsCustomModels?: boolean; // Allow arbitrary model IDs beyond fixed list
     modelsDev?: ModelsDevProviderMetadata;
+    runtime?: ProviderRuntimeMetadata;
     /**
      * When true, this provider can access all models from all other providers in the registry.
      * Used for gateway providers like 'dexto-nova' that route to multiple upstream providers.
@@ -285,12 +291,14 @@ export const DEFAULT_MAX_INPUT_TOKENS = 128000;
  * - The web UI directly reflects these capabilities without fallback logic
  */
 export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = (() => {
-    const registry = {} as Record<LLMProvider, ProviderInfo>;
-    const modelsDevMetadataByProvider = MODELS_DEV_PROVIDER_METADATA_BY_PROVIDER as Partial<
-        Record<LLMProvider, ModelsDevProviderMetadata>
-    >;
+    const registry: Record<string, ProviderInfo> = {};
+    const modelsDevMetadataByProvider: Record<string, ModelsDevProviderMetadata | undefined> =
+        MODELS_DEV_PROVIDER_METADATA_BY_PROVIDER;
+    const providerSnapshotsByProvider: Record<string, ProviderSnapshotEntry | undefined> =
+        PROVIDERS_BY_ID;
 
     for (const provider of LLM_PROVIDERS) {
+        const providerSnapshot = providerSnapshotsByProvider[provider];
         registry[provider] = {
             models: mergeModels(MODELS_BY_PROVIDER[provider], MANUAL_MODELS_BY_PROVIDER[provider]),
             baseURLSupport: 'none',
@@ -298,10 +306,12 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = (() => {
             ...(modelsDevMetadataByProvider[provider]
                 ? { modelsDev: modelsDevMetadataByProvider[provider] }
                 : {}),
+            ...(providerSnapshot?.runtime ? { runtime: providerSnapshot.runtime } : {}),
         };
     }
 
     registry['openai-compatible'] = {
+        ...registry['openai-compatible'],
         models: [], // Empty - accepts any model name for custom endpoints
         baseURLSupport: 'required',
         supportedFileTypes: GENERIC_UPLOAD_FILE_TYPES, // Allow all generic file categories for custom endpoints
@@ -319,6 +329,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = (() => {
 
     // LiteLLM: user-hosted OpenAI-compatible proxy (baseURL required)
     registry.litellm = {
+        ...registry.litellm,
         models: [],
         baseURLSupport: 'required',
         supportedFileTypes: GENERIC_UPLOAD_FILE_TYPES,
@@ -327,6 +338,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = (() => {
 
     // Glama: fixed OpenAI-compatible gateway
     registry.glama = {
+        ...registry.glama,
         models: [],
         baseURLSupport: 'none',
         supportedFileTypes: GENERIC_UPLOAD_FILE_TYPES,
@@ -368,6 +380,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = (() => {
 
     // Native local model execution via node-llama-cpp
     registry.local = {
+        ...registry.local,
         models: [], // Populated dynamically from local model registry
         baseURLSupport: 'none',
         supportedFileTypes: ['image'],
@@ -376,6 +389,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = (() => {
 
     // Ollama server integration
     registry.ollama = {
+        ...registry.ollama,
         models: [], // Populated dynamically from Ollama API
         baseURLSupport: 'optional',
         supportedFileTypes: ['image'],
@@ -384,6 +398,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = (() => {
 
     // Dexto Gateway (OpenRouter proxy) - OpenAI-compatible proxy through api.dexto.ai
     registry['dexto-nova'] = {
+        ...registry['dexto-nova'],
         models: [
             // Claude models (Anthropic via OpenRouter)
             {
@@ -1331,7 +1346,7 @@ export function getModelDisplayName(model: string, provider?: LLMProvider): stri
  */
 export function isReasoningCapableModel(model: string, provider?: LLMProvider): boolean {
     const registryProvider = (() => {
-        if (model.includes('/')) return 'openrouter' as const;
+        if (model.includes('/')) return 'openrouter';
         if (provider) return provider;
         try {
             return getProviderFromModel(model);

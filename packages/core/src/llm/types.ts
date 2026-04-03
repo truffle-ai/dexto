@@ -1,4 +1,4 @@
-import { LLM_PROVIDERS as GENERATED_LLM_PROVIDERS } from './providers.generated.js';
+import { LLM_PROVIDERS as GENERATED_LLM_PROVIDERS } from './registry/providers.generated.js';
 
 // Derived from a committed models.dev provider snapshot (plus a small Dexto overlay).
 export const LLM_PROVIDERS = GENERATED_LLM_PROVIDERS;

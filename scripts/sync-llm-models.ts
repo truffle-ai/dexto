@@ -32,7 +32,7 @@ const MODELS_OUTPUT_PATH = path.join(
 );
 const PROVIDERS_OUTPUT_PATH = path.join(
     __dirname,
-    '../packages/core/src/llm/providers.generated.ts'
+    '../packages/core/src/llm/registry/providers.generated.ts'
 );
 
 const MODELS_DEV_URL = 'https://models.dev/api.json';
@@ -339,6 +339,132 @@ type GeneratedProviderMetadata = {
     doc?: string;
 };
 
+type GeneratedProviderRuntimeCategory = 'direct' | 'gateway' | 'cloud' | 'self-hosted' | 'local';
+
+type GeneratedProviderRuntimeFamily =
+    | 'openai-responses'
+    | 'openai-completions'
+    | 'anthropic-messages'
+    | 'google-generative-ai'
+    | 'google-vertex'
+    | 'google-vertex-anthropic'
+    | 'bedrock-converse-stream'
+    | 'openrouter'
+    | 'cohere'
+    | 'local-native';
+
+type GeneratedProviderRuntimeMetadata = {
+    family: GeneratedProviderRuntimeFamily;
+    category: GeneratedProviderRuntimeCategory;
+};
+
+type GeneratedProviderSnapshotEntry = {
+    id: string;
+    name: string;
+    env: string[];
+    npm: string;
+    api?: string;
+    doc?: string;
+    runtime?: GeneratedProviderRuntimeMetadata;
+};
+
+const PROVIDER_RUNTIME_OVERRIDES: Partial<Record<string, GeneratedProviderRuntimeMetadata>> = {
+    'amazon-bedrock': {
+        family: 'bedrock-converse-stream',
+        category: 'cloud',
+    },
+    'dexto-nova': {
+        family: 'openrouter',
+        category: 'gateway',
+    },
+    glama: {
+        family: 'openai-completions',
+        category: 'gateway',
+    },
+    'google-vertex': {
+        family: 'google-vertex',
+        category: 'cloud',
+    },
+    'google-vertex-anthropic': {
+        family: 'google-vertex-anthropic',
+        category: 'cloud',
+    },
+    local: {
+        family: 'local-native',
+        category: 'local',
+    },
+    litellm: {
+        family: 'openai-completions',
+        category: 'self-hosted',
+    },
+    ollama: {
+        family: 'openai-completions',
+        category: 'local',
+    },
+    'openai-compatible': {
+        family: 'openai-completions',
+        category: 'self-hosted',
+    },
+    openrouter: {
+        family: 'openrouter',
+        category: 'gateway',
+    },
+};
+
+const NPM_RUNTIME_METADATA: Partial<Record<string, GeneratedProviderRuntimeMetadata>> = {
+    '@ai-sdk/amazon-bedrock': {
+        family: 'bedrock-converse-stream',
+        category: 'cloud',
+    },
+    '@ai-sdk/anthropic': {
+        family: 'anthropic-messages',
+        category: 'direct',
+    },
+    '@ai-sdk/cohere': {
+        family: 'cohere',
+        category: 'direct',
+    },
+    '@ai-sdk/google': {
+        family: 'google-generative-ai',
+        category: 'direct',
+    },
+    '@ai-sdk/google-vertex': {
+        family: 'google-vertex',
+        category: 'cloud',
+    },
+    '@ai-sdk/google-vertex/anthropic': {
+        family: 'google-vertex-anthropic',
+        category: 'cloud',
+    },
+    '@ai-sdk/groq': {
+        family: 'openai-completions',
+        category: 'direct',
+    },
+    '@ai-sdk/openai': {
+        family: 'openai-responses',
+        category: 'direct',
+    },
+    '@ai-sdk/openai-compatible': {
+        family: 'openai-completions',
+        category: 'direct',
+    },
+    '@ai-sdk/xai': {
+        family: 'openai-completions',
+        category: 'direct',
+    },
+    '@openrouter/ai-sdk-provider': {
+        family: 'openrouter',
+        category: 'gateway',
+    },
+};
+
+function getProviderRuntimeMetadata(
+    providerId: string,
+    npm: string
+): GeneratedProviderRuntimeMetadata | undefined {
+    return PROVIDER_RUNTIME_OVERRIDES[providerId] ?? NPM_RUNTIME_METADATA[npm];
+}
+
 function getSupportedFileTypesFromModel(
     provider: string,
     model: ModelsDevModel
@@ -575,20 +701,11 @@ async function syncLlmRegistry() {
         modelsByProvider[overlayId] = [];
     }
 
-    const providersById: Record<
-        string,
-        {
-            id: string;
-            name: string;
-            env: string[];
-            npm: string;
-            api?: string;
-            doc?: string;
-        }
-    > = {};
+    const providersById: Record<string, GeneratedProviderSnapshotEntry> = {};
 
     for (const providerId of providerIds) {
         const p = modelsDevJson[providerId]!;
+        const runtime = getProviderRuntimeMetadata(providerId, p.npm);
         providersById[providerId] = {
             id: p.id,
             name: p.name,
@@ -596,6 +713,7 @@ async function syncLlmRegistry() {
             npm: p.npm,
             ...(p.api ? { api: p.api } : {}),
             ...(p.doc ? { doc: p.doc } : {}),
+            ...(runtime ? { runtime } : {}),
         };
     }
 
@@ -646,7 +764,11 @@ async function syncLlmRegistry() {
     } as const;
 
     for (const [providerId, info] of Object.entries(overlayProviders)) {
-        providersById[providerId] = { ...info };
+        const runtime = getProviderRuntimeMetadata(providerId, info.npm);
+        providersById[providerId] = {
+            ...info,
+            ...(runtime ? { runtime } : {}),
+        };
     }
 
     const llmProviders = Object.keys(providersById).sort();
@@ -677,6 +799,25 @@ export const MODELS_DEV_PROVIDER_METADATA_BY_PROVIDER = ${JSON.stringify(
 
     const providersHeader = `// This file is auto-generated by scripts/sync-llm-models.ts\n// Do not edit manually - run 'pnpm run sync-llm-models' to update\n`;
     const providersBody = `
+export type ProviderRuntimeCategory = 'direct' | 'gateway' | 'cloud' | 'self-hosted' | 'local';
+
+export type ProviderRuntimeFamily =
+    | 'openai-responses'
+    | 'openai-completions'
+    | 'anthropic-messages'
+    | 'google-generative-ai'
+    | 'google-vertex'
+    | 'google-vertex-anthropic'
+    | 'bedrock-converse-stream'
+    | 'openrouter'
+    | 'cohere'
+    | 'local-native';
+
+export type ProviderRuntimeMetadata = {
+    family: ProviderRuntimeFamily;
+    category: ProviderRuntimeCategory;
+};
+
 export type ProviderSnapshotEntry = {
     id: string;
     name: string;
@@ -684,6 +825,7 @@ export type ProviderSnapshotEntry = {
     npm: string;
     api?: string;
     doc?: string;
+    runtime?: ProviderRuntimeMetadata;
 };
 
 export const PROVIDERS_BY_ID = ${JSON.stringify(providersById, null, 4)} as const satisfies Record<
