@@ -17,6 +17,7 @@ import { LLMConfig } from '../schemas.js';
 import { LLMError } from '../errors.js';
 import { LLMErrorCode } from '../error-codes.js';
 import { DextoRuntimeError } from '../../errors/DextoRuntimeError.js';
+import { ErrorScope, ErrorType } from '../../errors/types.js';
 import {
     LLM_PROVIDERS,
     type LLMProvider,
@@ -35,11 +36,12 @@ import {
     MODELS_DEV_PROVIDER_METADATA_BY_PROVIDER,
 } from './models.generated.js';
 import { MANUAL_MODELS_BY_PROVIDER } from './models.manual.js';
+import { PROVIDERS_BY_ID, type ProviderSnapshotEntry } from './providers.generated.js';
 import {
-    PROVIDERS_BY_ID,
+    PROVIDER_RUNTIME_FAMILIES,
+    type ProviderRuntimeFamily,
     type ProviderRuntimeMetadata,
-    type ProviderSnapshotEntry,
-} from './providers.generated.js';
+} from './provider-runtime.js';
 
 const LEGACY_MODEL_ID_ALIASES: Partial<Record<LLMProvider, Record<string, string>>> = {
     anthropic: {
@@ -319,8 +321,19 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = (() => {
     };
 
     // OpenRouter is a unified API gateway providing access to many models.
+    const openrouterEntry = registry.openrouter;
+    if (!openrouterEntry) {
+        throw new DextoRuntimeError(
+            'llm_registry_provider_missing',
+            ErrorScope.LLM,
+            ErrorType.SYSTEM,
+            "Expected provider 'openrouter' to be initialized in the registry",
+            { provider: 'openrouter' }
+        );
+    }
     registry.openrouter = {
-        ...registry.openrouter,
+        ...openrouterEntry,
+        models: openrouterEntry.models,
         baseURLSupport: 'none',
         supportedFileTypes: GENERIC_UPLOAD_FILE_TYPES, // Allow all generic file categories - user assumes responsibility
         supportsCustomModels: true,
@@ -544,6 +557,53 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = (() => {
     return registry;
 })();
 
+const RUNTIME_SUPPORTED_PROVIDERS_BY_FAMILY = {
+    'openai-responses': ['openai'],
+    'openai-completions': [
+        'openai-compatible',
+        'glama',
+        'groq',
+        'litellm',
+        'moonshotai',
+        'moonshotai-cn',
+        'ollama',
+        'xai',
+        'zai',
+        'zai-coding-plan',
+        'zhipuai',
+        'zhipuai-coding-plan',
+    ],
+    'anthropic-messages': [
+        'anthropic',
+        'kimi-for-coding',
+        'minimax',
+        'minimax-cn',
+        'minimax-coding-plan',
+        'minimax-cn-coding-plan',
+    ],
+    'google-generative-ai': ['google'],
+    'google-vertex': ['google-vertex'],
+    'google-vertex-anthropic': ['google-vertex-anthropic'],
+    'bedrock-converse-stream': ['amazon-bedrock'],
+    openrouter: ['openrouter', 'dexto-nova'],
+    cohere: ['cohere'],
+    'local-native': ['local'],
+} as const satisfies Partial<Record<ProviderRuntimeFamily, readonly LLMProvider[]>>;
+
+const RUNTIME_SUPPORTED_FAMILY_SET = new Set<ProviderRuntimeFamily>(
+    PROVIDER_RUNTIME_FAMILIES.filter((family) => family in RUNTIME_SUPPORTED_PROVIDERS_BY_FAMILY)
+);
+
+const RUNTIME_SUPPORTED_PROVIDER_SET = new Set<LLMProvider>(
+    Object.values(RUNTIME_SUPPORTED_PROVIDERS_BY_FAMILY).flatMap((providers) => [...providers])
+);
+
+export type ProviderSupportInfo = {
+    isSupported: boolean;
+    runtime: ProviderRuntimeMetadata | null;
+    reason?: string;
+};
+
 /**
  * Strips Bedrock cross-region inference profile prefix (eu., us., global.) from model ID.
  * This allows registry lookups to work regardless of whether the user specified a prefix.
@@ -558,6 +618,49 @@ export function stripBedrockRegionPrefix(model: string): string {
         return model.slice(7);
     }
     return model;
+}
+
+export function getProviderRuntime(provider: LLMProvider): ProviderRuntimeMetadata | null {
+    return LLM_REGISTRY[provider].runtime ?? null;
+}
+
+export function getProviderSupportInfo(provider: LLMProvider): ProviderSupportInfo {
+    const runtime = getProviderRuntime(provider);
+    if (!runtime) {
+        return {
+            isSupported: false,
+            runtime: null,
+            reason: 'No Dexto runtime family mapping exists for this provider yet.',
+        };
+    }
+
+    if (!RUNTIME_SUPPORTED_FAMILY_SET.has(runtime.family)) {
+        return {
+            isSupported: false,
+            runtime,
+            reason: `Runtime family '${runtime.family}' is not enabled in Dexto yet.`,
+        };
+    }
+
+    if (!RUNTIME_SUPPORTED_PROVIDER_SET.has(provider)) {
+        const supportedProviders = RUNTIME_SUPPORTED_PROVIDERS_BY_FAMILY[runtime.family] ?? [];
+        return {
+            isSupported: false,
+            runtime,
+            reason:
+                `Runtime family '${runtime.family}' is enabled, but this provider is not yet ` +
+                `supported. Supported providers in this family: ${supportedProviders.join(', ')}`,
+        };
+    }
+
+    return {
+        isSupported: true,
+        runtime,
+    };
+}
+
+export function isProviderRuntimeSupported(provider: LLMProvider): boolean {
+    return getProviderSupportInfo(provider).isSupported;
 }
 
 /**
@@ -580,7 +683,7 @@ export function getDefaultModelForProvider(provider: LLMProvider): string | null
  * @returns An array of supported provider names.
  */
 export function getSupportedProviders(): LLMProvider[] {
-    return [...LLM_PROVIDERS];
+    return LLM_PROVIDERS.filter((provider) => isProviderRuntimeSupported(provider));
 }
 
 /**

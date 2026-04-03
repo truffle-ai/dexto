@@ -24,6 +24,9 @@ import {
     getAllModelsForProvider,
     isModelValidForProvider,
     hasAllRegistryModelsSupport,
+    getProviderRuntime,
+    getProviderSupportInfo,
+    isProviderRuntimeSupported,
 } from './index.js';
 import { MODELS_BY_PROVIDER } from './models.generated.js';
 import { PROVIDERS_BY_ID } from './providers.generated.js';
@@ -61,9 +64,14 @@ const mockLogger: Logger = {
 
 describe('LLM Registry Core Functions', () => {
     describe('getSupportedProviders', () => {
-        it('returns all provider keys from registry', () => {
+        it('returns only providers enabled by the current runtime support gate', () => {
             const providers = getSupportedProviders();
-            expect(providers).toEqual(Object.keys(LLM_REGISTRY));
+            expect(providers).toContain('openai');
+            expect(providers).toContain('openrouter');
+            expect(providers).toContain('google-vertex-anthropic');
+            expect(providers).not.toContain('alibaba');
+            expect(providers).not.toContain('azure');
+            expect(providers.every((provider) => LLM_PROVIDERS.includes(provider))).toBe(true);
         });
     });
 
@@ -219,6 +227,34 @@ describe('Provider Capabilities', () => {
             );
             expect(LLM_REGISTRY.openrouter.runtime).toEqual(PROVIDERS_BY_ID.openrouter.runtime);
             expect(LLM_REGISTRY.local.runtime).toEqual(PROVIDERS_BY_ID.local.runtime);
+        });
+
+        it('reports runtime support separately from raw provider metadata', () => {
+            expect(getProviderRuntime('alibaba')).toEqual({
+                family: 'openai-completions',
+                category: 'direct',
+            });
+            expect(isProviderRuntimeSupported('alibaba')).toBe(false);
+            expect(getProviderSupportInfo('alibaba')).toMatchObject({
+                isSupported: false,
+                runtime: {
+                    family: 'openai-completions',
+                    category: 'direct',
+                },
+            });
+            expect(getProviderSupportInfo('alibaba').reason).toContain(
+                "Runtime family 'openai-completions' is enabled"
+            );
+            expect(getProviderSupportInfo('alibaba').reason).toContain('openai-compatible');
+        });
+
+        it('flags providers with no runtime mapping as unsupported', () => {
+            expect(getProviderRuntime('azure')).toBeNull();
+            expect(getProviderSupportInfo('azure')).toEqual({
+                isSupported: false,
+                runtime: null,
+                reason: 'No Dexto runtime family mapping exists for this provider yet.',
+            });
         });
     });
 

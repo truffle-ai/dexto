@@ -17,14 +17,15 @@ import {
     type LLMConfig,
     type ValidatedLLMConfig,
 } from './schemas.js';
-import { LLM_PROVIDERS } from './types.js';
 import {
     getSupportedModels,
+    getSupportedProviders,
     getMaxInputTokensForModel,
     requiresBaseURL,
     supportsBaseURL,
     getDefaultModelForProvider,
     acceptsAnyModel,
+    supportsCustomModels,
 } from './registry/index.js';
 import type { LLMProvider } from './types.js';
 
@@ -55,11 +56,11 @@ class LLMTestHelpers {
     }
 
     static getProviderRequiringBaseURL(): LLMProvider | null {
-        return LLM_PROVIDERS.find((p) => requiresBaseURL(p)) || null;
+        return getSupportedProviders().find((p) => requiresBaseURL(p)) || null;
     }
 
     static getProviderNotSupportingBaseURL(): LLMProvider | null {
-        return LLM_PROVIDERS.find((p) => !supportsBaseURL(p)) || null;
+        return getSupportedProviders().find((p) => !supportsBaseURL(p)) || null;
     }
 }
 
@@ -136,8 +137,8 @@ describe('LLMConfigSchema', () => {
     });
 
     describe('Provider Validation', () => {
-        it('should accept all registry providers', () => {
-            for (const provider of LLM_PROVIDERS) {
+        it('should accept all runtime-supported providers', () => {
+            for (const provider of getSupportedProviders()) {
                 const config = LLMTestHelpers.getValidConfigForProvider(provider);
                 const result = LLMConfigSchema.safeParse(config);
                 expect(result.success).toBe(true);
@@ -145,6 +146,43 @@ describe('LLMConfigSchema', () => {
                     expect(result.data.provider).toBe(provider);
                 }
             }
+        });
+
+        it('should reject providers that map to a supported family but are not enabled', () => {
+            const result = LLMConfigSchema.safeParse({
+                provider: 'alibaba',
+                model: 'qwen3-coder-plus',
+                apiKey: 'test-key',
+            });
+
+            expect(result.success).toBe(false);
+            expect(result.error?.issues[0]?.path).toEqual(['provider']);
+            expect(getIssueParamCode(result.error?.issues[0])).toBe(
+                LLMErrorCode.PROVIDER_UNSUPPORTED
+            );
+            expect(result.error?.issues[0]?.message).toContain(
+                "Provider 'alibaba' is not supported."
+            );
+            expect(result.error?.issues[0]?.message).toContain(
+                "Runtime family 'openai-completions'"
+            );
+        });
+
+        it('should reject providers with no runtime family mapping', () => {
+            const result = LLMConfigSchema.safeParse({
+                provider: 'azure',
+                model: 'gpt-4.1',
+                apiKey: 'test-key',
+            });
+
+            expect(result.success).toBe(false);
+            expect(result.error?.issues[0]?.path).toEqual(['provider']);
+            expect(getIssueParamCode(result.error?.issues[0])).toBe(
+                LLMErrorCode.PROVIDER_UNSUPPORTED
+            );
+            expect(result.error?.issues[0]?.message).toContain(
+                'No Dexto runtime family mapping exists'
+            );
         });
 
         it('should reject invalid providers', () => {
@@ -176,7 +214,7 @@ describe('LLMConfigSchema', () => {
 
     describe('Model Validation', () => {
         it('should accept known models for each provider', () => {
-            for (const provider of LLM_PROVIDERS) {
+            for (const provider of getSupportedProviders()) {
                 const models = getSupportedModels(provider);
                 if (models.length === 0) continue; // Skip providers that accept any model
 
@@ -198,7 +236,9 @@ describe('LLMConfigSchema', () => {
 
         it('should reject unknown models for providers with restricted models', () => {
             // Find a provider that has specific model restrictions
-            const provider = LLM_PROVIDERS.find((p) => !acceptsAnyModel(p));
+            const provider = getSupportedProviders().find(
+                (p) => !acceptsAnyModel(p) && !supportsCustomModels(p)
+            );
             if (!provider) return; // Skip if no providers have model restrictions
 
             const config: LLMConfig = {
@@ -314,7 +354,9 @@ describe('LLMConfigSchema', () => {
     describe('MaxInputTokens Validation', () => {
         it('should accept valid maxInputTokens within model limits', () => {
             // Find a provider with specific models to test token limits
-            const provider = LLM_PROVIDERS.find((p) => !acceptsAnyModel(p));
+            const provider = getSupportedProviders().find(
+                (p) => !acceptsAnyModel(p) && !supportsCustomModels(p)
+            );
             if (!provider) return;
 
             const models = getSupportedModels(provider);
@@ -334,7 +376,9 @@ describe('LLMConfigSchema', () => {
         });
 
         it('should reject maxInputTokens exceeding model limits', () => {
-            const provider = LLM_PROVIDERS.find((p) => !acceptsAnyModel(p));
+            const provider = getSupportedProviders().find(
+                (p) => !acceptsAnyModel(p) && !supportsCustomModels(p)
+            );
             if (!provider) return;
 
             const models = getSupportedModels(provider);

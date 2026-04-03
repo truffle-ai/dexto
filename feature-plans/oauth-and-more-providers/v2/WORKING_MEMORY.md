@@ -17,13 +17,13 @@
 
 ## Current Task
 
-**Task:** Task 2 - Runtime Metadata Inference and Support Gating
+**Task:** Task 3 - Gateway Model-Origin Consolidation
 **Status:** *Ready to Start*
 
 ### Plan
 
-- preserve Task 1 as a small standalone commit
-- tighten runtime metadata inference coverage and family-first support gating next
+- preserve Task 2 as an uncommitted reviewable slice until approved
+- consolidate gateway model-origin logic next without introducing a large adapter layer
 - keep the registry/source-of-truth path centered in [`packages/core/src/llm/registry/`](../../../packages/core/src/llm/registry/)
 
 ### Notes
@@ -42,6 +42,28 @@
   - [`packages/core/src/llm/registry/index.test.ts`](../../../packages/core/src/llm/registry/index.test.ts)
   - [`packages/core/src/utils/api-key-resolver.test.ts`](../../../packages/core/src/utils/api-key-resolver.test.ts)
 - Task 1 focused test command: `pnpm exec vitest run packages/core/src/llm/registry/index.test.ts packages/core/src/utils/api-key-resolver.test.ts`
+- Task 2 is complete and focused on runtime metadata inference plus early support gating, without doing the broader runtime/factory cleanup planned for later tasks.
+- Task 2 changed files:
+  - [`packages/core/src/llm/registry/provider-runtime.ts`](../../../packages/core/src/llm/registry/provider-runtime.ts)
+  - [`packages/core/src/llm/registry/provider-runtime.test.ts`](../../../packages/core/src/llm/registry/provider-runtime.test.ts)
+  - [`scripts/sync-llm-models.ts`](../../../scripts/sync-llm-models.ts)
+  - [`packages/core/src/llm/registry/providers.generated.ts`](../../../packages/core/src/llm/registry/providers.generated.ts)
+  - [`packages/core/src/llm/registry/index.ts`](../../../packages/core/src/llm/registry/index.ts)
+  - [`packages/core/src/llm/registry/index.test.ts`](../../../packages/core/src/llm/registry/index.test.ts)
+  - [`packages/core/src/llm/schemas.ts`](../../../packages/core/src/llm/schemas.ts)
+  - [`packages/core/src/llm/schemas.test.ts`](../../../packages/core/src/llm/schemas.test.ts)
+  - [`packages/core/src/llm/services/factory.ts`](../../../packages/core/src/llm/services/factory.ts)
+  - [`packages/core/src/llm/errors.ts`](../../../packages/core/src/llm/errors.ts)
+  - [`packages/server/src/hono/routes/llm.ts`](../../../packages/server/src/hono/routes/llm.ts)
+- Task 2 outcomes:
+  - runtime family/category inference now lives in a small shared helper instead of only inside the generation script
+  - `getSupportedProviders()` now returns runtime-supported providers rather than the full raw catalog
+  - unsupported providers are rejected in `LLMConfigSchema` / `LLMUpdatesSchema` before model construction
+  - `createVercelModel()` now defensively rejects unsupported providers even if a caller bypasses schema validation
+  - server provider/model picker loops now use the runtime-supported provider list rather than the full raw catalog
+- Task 2 verification:
+  - focused tests: `pnpm exec vitest run packages/core/src/llm/registry/provider-runtime.test.ts packages/core/src/llm/registry/index.test.ts packages/core/src/llm/schemas.test.ts packages/core/src/llm/reasoning/profile.test.ts`
+  - targeted typecheck: `pnpm exec tsc -p packages/core/tsconfig.json --noEmit && pnpm exec tsc -p packages/server/tsconfig.json --noEmit`
 
 ---
 
@@ -94,5 +116,6 @@
 | 2026-04-02 | Created initial v2 discussion docs                    | Added `grill-me-discussion.md`, WIP `PLAN.md`, and this working-memory file to track alignment.                                                                                                                                                                                  |
 | 2026-04-02 | Completed `/grill-me` alignment for the v2 direction  | Locked the runtime-family direction, auth definition shape, ownership split, and reasoning-status direction.                                                                                                                                                                     |
 | 2026-04-02 | Completed Task 1 registry runtime metadata foundation | Moved the generated provider snapshot under `registry/`, wired `ProviderInfo.runtime` from the generated snapshot, regenerated provider metadata with initial runtime fields, removed unnecessary widening casts added during the task, and kept focused registry coverage only. |
+| 2026-04-03 | Completed Task 2 runtime metadata inference and support gating | Added a shared runtime-metadata inference helper, regenerated provider runtime metadata from it, introduced family-first provider support gating with clear unsupported-provider reasons, rejected unsupported providers earlier in schemas/runtime creation, and filtered server provider/model picker loops to runtime-supported providers. |
 
 

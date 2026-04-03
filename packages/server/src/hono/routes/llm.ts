@@ -5,6 +5,7 @@ import {
     LLM_PROVIDERS,
     SUPPORTED_FILE_TYPES,
     supportsBaseURL,
+    getSupportedProviders,
     getAllModelsForProvider,
     getCuratedModelsForProvider,
     getCuratedModelRefsForProviders,
@@ -651,6 +652,9 @@ export function createLlmRouter(getAgent: GetAgentFn) {
     const isProviderEnabled = (provider: LLMProvider): boolean =>
         provider !== 'dexto-nova' || isDextoAuthEnabled();
 
+    const getVisibleProviders = (): LLMProvider[] =>
+        getSupportedProviders().filter((provider) => isProviderEnabled(provider));
+
     const dedupeEntries = (entries: Array<z.output<typeof ModelPickerEntrySchema>>) => {
         const seen = new Set<string>();
         const deduped: Array<z.output<typeof ModelPickerEntrySchema>> = [];
@@ -697,11 +701,7 @@ export function createLlmRouter(getAgent: GetAgentFn) {
             };
         };
 
-        for (const provider of LLM_PROVIDERS) {
-            if (!isProviderEnabled(provider)) {
-                continue;
-            }
-
+        for (const provider of getVisibleProviders()) {
             const providerInfo = LLM_REGISTRY[provider];
             for (const model of getAllModelsForProvider(provider)) {
                 const supportedFileTypes =
@@ -759,7 +759,7 @@ export function createLlmRouter(getAgent: GetAgentFn) {
             byKey.set(toModelPickerKey(entry), entry);
         }
 
-        const featuredProviders = LLM_PROVIDERS.filter((provider) => isProviderEnabled(provider));
+        const featuredProviders = getVisibleProviders();
         const featured = getCuratedModelRefsForProviders({
             providers: featuredProviders,
             max: MODEL_PICKER_FEATURED_LIMIT,
@@ -878,12 +878,7 @@ export function createLlmRouter(getAgent: GetAgentFn) {
 
             const providers: Record<string, ProviderCatalog> = {};
 
-            for (const provider of LLM_PROVIDERS) {
-                // Skip dexto-nova provider when feature is not enabled
-                if (provider === 'dexto-nova' && !isDextoAuthEnabled()) {
-                    continue;
-                }
-
+            for (const provider of getVisibleProviders()) {
                 const info = LLM_REGISTRY[provider];
                 const displayName =
                     provider === 'dexto-nova'

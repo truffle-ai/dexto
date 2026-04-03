@@ -8,11 +8,12 @@ import {
     acceptsAnyModel,
     supportsCustomModels,
     hasAllRegistryModelsSupport,
+    getProviderSupportInfo,
     getSupportedModels,
     isValidProviderModel,
     getMaxInputTokensForModel,
 } from './registry/index.js';
-import { LLM_PROVIDERS } from './types.js';
+import { LLM_PROVIDERS, type LLMProvider } from './types.js';
 import { getReasoningProfile, supportsReasoningVariant } from './reasoning/profile.js';
 
 /**
@@ -111,6 +112,30 @@ export const LLMConfigBaseSchema = z
     })
     .strict();
 
+function addUnsupportedProviderIssue(
+    provider: LLMProvider,
+    ctx: z.RefinementCtx,
+    path: (string | number)[] = ['provider']
+): boolean {
+    const support = getProviderSupportInfo(provider);
+    if (support.isSupported) {
+        return false;
+    }
+
+    ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path,
+        message: `Provider '${provider}' is not supported. ${support.reason ?? ''}`.trim(),
+        params: {
+            code: LLMErrorCode.PROVIDER_UNSUPPORTED,
+            scope: ErrorScope.LLM,
+            type: ErrorType.USER,
+        },
+    });
+
+    return true;
+}
+
 /**
  * LLM config schema.
  *
@@ -121,6 +146,10 @@ export const LLMConfigBaseSchema = z
 export const LLMConfigSchema = LLMConfigBaseSchema.superRefine((data, ctx) => {
     const baseURLIsSet = data.baseURL != null && data.baseURL.trim() !== '';
     const maxInputTokensIsSet = data.maxInputTokens != null;
+
+    if (addUnsupportedProviderIssue(data.provider, ctx)) {
+        return;
+    }
 
     // Gateway providers require OpenRouter-format model IDs ("provider/model").
     // This avoids implicit transformation and makes the config unambiguous.
@@ -295,6 +324,10 @@ export const LLMUpdatesSchema = z
                 message: 'At least model or provider must be specified for LLM switch',
                 path: [],
             });
+        }
+
+        if (typeof data.provider === 'string' && addUnsupportedProviderIssue(data.provider, ctx)) {
+            return;
         }
 
         // If we have enough context (provider+model), validate reasoning updates to avoid

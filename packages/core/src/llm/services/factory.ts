@@ -19,7 +19,7 @@ import { createLocalLanguageModel } from '../providers/local/ai-sdk-adapter.js';
 import type { ConversationHistoryProvider } from '../../session/history/types.js';
 import type { SystemPromptManager } from '../../systemPrompt/manager.js';
 import type { Logger } from '../../logger/v2/types.js';
-import { requiresApiKey } from '../registry/index.js';
+import { getProviderSupportInfo, requiresApiKey } from '../registry/index.js';
 import { getPrimaryApiKeyEnvVar, resolveApiKeyForProvider } from '../../utils/api-key-resolver.js';
 import type { LlmAuthResolver } from '../auth/types.js';
 import {
@@ -98,6 +98,11 @@ export function createVercelModel(
     context?: DextoProviderContext
 ): LanguageModel {
     const { provider, model, baseURL } = llmConfig;
+    const providerSupport = getProviderSupportInfo(provider);
+    if (!providerSupport.isSupported) {
+        throw LLMError.unsupportedProvider(provider, providerSupport.reason);
+    }
+
     const runtimeAuth = context?.authResolver?.resolveRuntimeAuth({ provider, model }) ?? null;
     const apiKey = llmConfig.apiKey || runtimeAuth?.apiKey || resolveApiKeyForProvider(provider);
     const extraHeaders = runtimeAuth?.headers;
