@@ -17,14 +17,14 @@
 
 ## Current Task
 
-**Task:** Task 9 - Final Integration and Cleanup Pass
-**Status:** *Ready to implement*
+**Task:** All planned v2 tasks complete
+**Status:** *Done*
 
-### Plan
+### Final State
 
-- audit the finalized runtime-family mapping, auth definitions, reasoning status, and supported-provider surfaces across core, CLI `/connect`, and server catalog/capability responses
-- add focused integration regressions for connected auth profile -> runtime auth resolution -> model construction, gateway model -> origin mapping -> reasoning semantics, and unsupported provider/family -> early validation failure
-- remove any leftover pre-v2 branching or comments that are now obsolete after Tasks 1-8
+- Tasks 1 through 9 are implemented and committed as independent slices.
+- The final repo quality gate passed: `bash scripts/quality-checks.sh`.
+- No blocking follow-up remains inside the planned v2 scope; future changes should be treated as separate follow-up work rather than part of this refactor plan.
 
 ### Notes
 
@@ -194,6 +194,22 @@
   - focused tests: `pnpm exec vitest run packages/core/src/llm/services/factory.test.ts packages/core/src/llm/executor/provider-options.test.ts`
   - targeted typecheck: `pnpm exec tsc -p packages/core/tsconfig.json --noEmit`
   - repo quality gate: `bash scripts/quality-checks.sh`
+- Task 9 aligns the remaining server/catalog/runtime-auth surfaces with the runtime-supported provider contract and closes the last integration gaps from the earlier tasks.
+- Task 9 changed files:
+  - [`packages/server/src/hono/routes/llm.ts`](../../../packages/server/src/hono/routes/llm.ts)
+  - [`packages/server/src/hono/__tests__/api.integration.test.ts`](../../../packages/server/src/hono/__tests__/api.integration.test.ts)
+  - [`packages/server/src/hono/__tests__/test-fixtures.ts`](../../../packages/server/src/hono/__tests__/test-fixtures.ts)
+  - [`packages/agent-management/src/auth/provider-auth-definitions.test.ts`](../../../packages/agent-management/src/auth/provider-auth-definitions.test.ts)
+- Task 9 outcomes:
+  - server LLM routes now consistently treat unsupported providers as non-visible, instead of only special-casing `dexto-nova`
+  - persisted model-picker favorites/recents and custom-model loops now prune unsupported providers from visible server state
+  - `/api/llm/capabilities` now returns an explicit unsupported capability response for unsupported providers instead of trying to infer supported files or reasoning semantics
+  - auth-definition coverage is regression-checked against the runtime-supported provider set so provider auth surfaces cannot silently drift ahead of actual provider support
+  - the shared server test fixture now binds once to an OS-assigned port and rewrites its agent card after listen, which removes the probe-then-bind race that full quality runs exposed
+- Task 9 verification:
+  - focused tests: `pnpm exec vitest run packages/agent-management/src/auth/provider-auth-definitions.test.ts packages/agent-management/src/auth/runtime-auth-resolver.test.ts packages/server/src/hono/__tests__/api.integration.test.ts`
+  - targeted typecheck: `pnpm exec tsc -p packages/agent-management/tsconfig.json --noEmit && pnpm exec tsc -p packages/server/tsconfig.json --noEmit`
+  - repo quality gate: `bash scripts/quality-checks.sh`
 
 ---
 
@@ -254,3 +270,4 @@
 | 2026-04-03 | Completed Task 6 OAuth method ownership move | Moved OpenAI Codex and MiniMax OAuth behavior into `agent-management`, made runtime auth resolution definition-driven, and landed the slice as `df0436d1c`. |
 | 2026-04-03 | Completed Task 7 CLI `/connect` on top of auth definitions | Drove the CLI provider/method selection flow from the shared auth-definition surface, added the focused connected-profile runtime-auth regression, and landed the slice as `c744576c0`. |
 | 2026-04-03 | Completed Task 8 runtime hotspot cleanup | Reduced the worst runtime branch duplication in `factory.ts` and `provider-options.ts`, added representative routing tests in `factory.test.ts`, and verified the slice through the full repo quality gate before moving to Task 9. |
+| 2026-04-08 | Completed Task 9 final integration and cleanup pass | Aligned the remaining server LLM/catalog surfaces with runtime support gating, added unsupported-provider API regressions, hardened the shared server test fixture against port-binding races, and cleared the full repo quality gate to close the planned v2 scope. |

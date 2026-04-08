@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
+import { getSupportedProviders } from '@dexto/core';
 
 import { getConnectProvider } from './connect-catalog.js';
 import {
+    PROVIDER_AUTH_DEFINITIONS,
     getAuthMethodDefinition,
     getAuthMethodDefinitionForProfile,
     getProviderAuthDefinition,
@@ -84,5 +86,15 @@ describe('provider auth definitions', () => {
                 },
             ],
         });
+    });
+
+    it('only exposes auth definitions for runtime-supported providers', () => {
+        const supportedProviders = new Set<string>(getSupportedProviders());
+
+        expect(
+            PROVIDER_AUTH_DEFINITIONS.every((provider) =>
+                supportedProviders.has(provider.providerId)
+            )
+        ).toBe(true);
     });
 });
