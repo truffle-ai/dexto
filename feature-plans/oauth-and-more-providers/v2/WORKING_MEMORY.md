@@ -17,15 +17,14 @@
 
 ## Current Task
 
-**Task:** Task 6 - OAuth Method Ownership Move
-**Status:** *Implemented, Uncommitted*
+**Task:** Task 8 - Runtime Hotspot Cleanup in `factory.ts` and `provider-options.ts`
+**Status:** *Ready to implement*
 
 ### Plan
 
-- review the uncommitted Task 5 / Task 6 auth-definition and OAuth-ownership slice
-- keep the new auth-definition surface explicit by `(providerId, methodId)` without adding typed persisted metadata schemas
-- move OpenAI Codex and MiniMax Portal OAuth ownership into `agent-management`, while leaving the bigger CLI-thinning pass for Task 7
-- commit Task 5 and Task 6 separately after approval
+- extract the highest-value runtime-family hotspots from [`packages/core/src/llm/services/factory.ts`](../../../packages/core/src/llm/services/factory.ts) and [`packages/core/src/llm/executor/provider-options.ts`](../../../packages/core/src/llm/executor/provider-options.ts)
+- keep the cleanup focused on painful branch clusters, not a blanket adapter layer
+- preserve Task 1-7 behavior while improving the runtime-family seam for the remaining cleanup task
 
 ### Notes
 
@@ -164,6 +163,21 @@
   - targeted typecheck: `pnpm exec tsc -p packages/agent-management/tsconfig.json --noEmit && pnpm exec tsc -p packages/server/tsconfig.json --noEmit`
   - downstream export refresh for CLI consumers: `pnpm --filter @dexto/agent-management build`
   - package-wide `packages/cli` typecheck still has unrelated pre-existing failures outside the connect slice; the touched `connect/index.ts` path is clean under filtered checking
+  - repo quality gate: `bash scripts/quality-checks.sh`
+- Task 7 finishes the CLI `/connect` cleanup on top of the shared auth definition surface.
+- Task 7 changed files:
+  - [`packages/cli/src/cli/commands/connect/index.ts`](../../../packages/cli/src/cli/commands/connect/index.ts)
+  - [`packages/cli/src/cli/commands/connect/index.test.ts`](../../../packages/cli/src/cli/commands/connect/index.test.ts)
+  - [`packages/cli/src/cli/commands/connect/index.integration.test.ts`](../../../packages/cli/src/cli/commands/connect/index.integration.test.ts)
+- Task 7 outcomes:
+  - the CLI provider picker now uses the real `ProviderAuthDefinition` surface directly instead of driving `/connect` off the derived `CONNECT_PROVIDERS` view
+  - method selection, persistence, and OAuth start flow now operate on the selected auth-definition method object directly, reducing extra lookup drift inside the CLI
+  - the CLI still owns prompts, spinners, browser opening, and replace/delete/default UX, which keeps Task 7 aligned with the intended ownership split
+  - a focused integration-style test now proves that a profile connected through `/connect` still resolves into compatible runtime auth for a representative OAuth-backed provider
+- Task 7 verification:
+  - focused tests: `pnpm exec vitest run packages/cli/src/cli/commands/connect/index.test.ts packages/cli/src/cli/commands/connect/index.integration.test.ts packages/agent-management/src/auth/runtime-auth-resolver.test.ts`
+  - targeted downstream checks: `pnpm exec tsc -p packages/agent-management/tsconfig.json --noEmit && pnpm exec tsc -p packages/server/tsconfig.json --noEmit`
+  - touched-file CLI typecheck check: `pnpm exec tsc -p packages/cli/tsconfig.json --noEmit --pretty false 2>&1 | rg "packages/cli/src/cli/commands/connect/index(\\.integration)?\\.test\\.ts|packages/cli/src/cli/commands/connect/index\\.ts"`
   - repo quality gate: `bash scripts/quality-checks.sh`
 
 ---

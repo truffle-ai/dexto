@@ -18,26 +18,46 @@ vi.mock('@clack/prompts', () => ({
 }));
 
 vi.mock('@dexto/agent-management', () => {
-    const CONNECT_PROVIDERS = [
+    const PROVIDER_AUTH_DEFINITIONS = [
         {
             providerId: 'openai',
             label: 'OpenAI',
             methods: [{ id: 'api_key', label: 'API key', kind: 'api_key' }],
         },
         {
+            providerId: 'anthropic',
+            label: 'Anthropic',
+            methods: [
+                { id: 'setup_token', label: 'Setup token', kind: 'token' },
+                { id: 'api_key', label: 'API key', kind: 'api_key' },
+            ],
+        },
+        {
             providerId: 'minimax',
             label: 'MiniMax',
-            methods: [{ id: 'portal_oauth_global', label: 'MiniMax Portal OAuth', kind: 'oauth' }],
+            methods: [
+                {
+                    id: 'portal_oauth_global',
+                    label: 'MiniMax Portal OAuth',
+                    kind: 'oauth',
+                    oauth: {
+                        start: vi.fn(),
+                        refresh: vi.fn(),
+                        resolveRuntimeAuth: vi.fn(),
+                    },
+                },
+            ],
         },
     ];
 
     return {
-        CONNECT_PROVIDERS,
-        getConnectProvider: vi.fn((providerId: string) => {
-            return CONNECT_PROVIDERS.find((p) => p.providerId === providerId) ?? null;
+        PROVIDER_AUTH_DEFINITIONS,
+        getProviderAuthDefinition: vi.fn((providerId: string) => {
+            return (
+                PROVIDER_AUTH_DEFINITIONS.find((provider) => provider.providerId === providerId) ??
+                null
+            );
         }),
-        getAuthMethodDefinition: vi.fn(),
-        isOauthAuthMethod: vi.fn((method: { kind: string }) => method.kind === 'oauth'),
         listLlmAuthProfiles: vi.fn(),
         getDefaultLlmAuthProfileId: vi.fn(),
         setDefaultLlmAuthProfile: vi.fn(),
@@ -165,6 +185,34 @@ describe('/connect command (auth slots)', () => {
         expect(agentManagement.upsertLlmAuthProfile).not.toHaveBeenCalled();
     });
 
+    it('selects a non-default method from the provider auth definition surface', async () => {
+        const prompts = await import('@clack/prompts');
+        const agentManagement = await import('@dexto/agent-management');
+
+        vi.mocked(prompts.select)
+            .mockResolvedValueOnce('anthropic')
+            .mockResolvedValueOnce('setup_token');
+        vi.mocked(prompts.password).mockResolvedValueOnce('anthropic-token-1234567890');
+
+        vi.mocked(agentManagement.listLlmAuthProfiles).mockResolvedValueOnce([]);
+        vi.mocked(agentManagement.getDefaultLlmAuthProfileId).mockResolvedValueOnce(null);
+
+        await handleConnectCommand({ interactive: true });
+
+        expect(agentManagement.upsertLlmAuthProfile).toHaveBeenCalledWith(
+            expect.objectContaining({
+                profileId: 'anthropic:setup_token',
+                providerId: 'anthropic',
+                methodId: 'setup_token',
+                credential: { type: 'token', token: 'anthropic-token-1234567890' },
+            })
+        );
+        expect(agentManagement.setDefaultLlmAuthProfile).toHaveBeenCalledWith({
+            providerId: 'anthropic',
+            profileId: 'anthropic:setup_token',
+        });
+    });
+
     it('persists oauth credentials returned by the shared auth definition hooks', async () => {
         const prompts = await import('@clack/prompts');
         const agentManagement = await import('@dexto/agent-management');
@@ -184,19 +232,25 @@ describe('/connect command (auth slots)', () => {
         vi.mocked(prompts.select).mockResolvedValueOnce('minimax');
         vi.mocked(agentManagement.listLlmAuthProfiles).mockResolvedValueOnce([]);
         vi.mocked(agentManagement.getDefaultLlmAuthProfileId).mockResolvedValueOnce(null);
-        vi.mocked(agentManagement.getAuthMethodDefinition).mockReturnValueOnce({
-            id: 'portal_oauth_global',
-            label: 'MiniMax Portal OAuth',
-            kind: 'oauth',
-            oauth: {
-                start: vi.fn().mockResolvedValue({
-                    verificationUrl: 'https://example.com/verify',
-                    userCode: 'USER-CODE',
-                    waitForCompletion,
-                }),
-                refresh: vi.fn(),
-                resolveRuntimeAuth: vi.fn(),
-            },
+        vi.mocked(agentManagement.getProviderAuthDefinition).mockReturnValueOnce({
+            providerId: 'minimax',
+            label: 'MiniMax',
+            methods: [
+                {
+                    id: 'portal_oauth_global',
+                    label: 'MiniMax Portal OAuth',
+                    kind: 'oauth',
+                    oauth: {
+                        start: vi.fn().mockResolvedValue({
+                            verificationUrl: 'https://example.com/verify',
+                            userCode: 'USER-CODE',
+                            waitForCompletion,
+                        }),
+                        refresh: vi.fn(),
+                        resolveRuntimeAuth: vi.fn(),
+                    },
+                },
+            ],
         });
 
         await handleConnectCommand({ interactive: true });

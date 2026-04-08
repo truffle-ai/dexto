@@ -3,22 +3,23 @@ import * as p from '@clack/prompts';
 import open from 'open';
 
 import {
-    CONNECT_PROVIDERS,
-    getAuthMethodDefinition,
-    getConnectProvider,
-    isOauthAuthMethod,
+    PROVIDER_AUTH_DEFINITIONS,
     deleteLlmAuthProfile,
     getDefaultLlmAuthProfileId,
+    getProviderAuthDefinition,
     listLlmAuthProfiles,
     setDefaultLlmAuthProfile,
     upsertLlmAuthProfile,
+    type AuthMethodDefinition,
+    type LlmAuthCredential,
+    type ProviderAuthDefinition,
 } from '@dexto/agent-management';
 
 function isCancel<T>(value: T | symbol): value is symbol {
     return p.isCancel(value);
 }
 
-function toProviderOption(provider: (typeof CONNECT_PROVIDERS)[number]): p.Option<string> {
+function toProviderOption(provider: ProviderAuthDefinition): p.Option<string> {
     const hint = provider.methods.length > 1 ? `${provider.methods.length} methods` : undefined;
     return {
         value: provider.providerId,
@@ -38,9 +39,22 @@ function combineHint(...parts: Array<string | undefined>): string | undefined {
     return cleaned.length > 0 ? cleaned.join(' — ') : undefined;
 }
 
-type ConnectProvider = (typeof CONNECT_PROVIDERS)[number];
-type ConnectMethod = ConnectProvider['methods'][number];
 type AuthProfile = Awaited<ReturnType<typeof listLlmAuthProfiles>>[number];
+
+async function persistConnectedProfile(params: {
+    profileId: string;
+    provider: ProviderAuthDefinition;
+    method: AuthMethodDefinition;
+    credential: LlmAuthCredential;
+}): Promise<void> {
+    await upsertLlmAuthProfile({
+        profileId: params.profileId,
+        providerId: params.provider.providerId,
+        methodId: params.method.id,
+        label: params.method.label,
+        credential: params.credential,
+    });
+}
 
 export async function handleConnectCommand(options?: { interactive?: boolean }): Promise<void> {
     if (options?.interactive === false) {
@@ -51,7 +65,7 @@ export async function handleConnectCommand(options?: { interactive?: boolean }):
 
     const providerId = await p.select({
         message: 'Choose a provider',
-        options: CONNECT_PROVIDERS.map(toProviderOption),
+        options: PROVIDER_AUTH_DEFINITIONS.map(toProviderOption),
     });
 
     if (isCancel(providerId)) {
@@ -59,7 +73,7 @@ export async function handleConnectCommand(options?: { interactive?: boolean }):
         return;
     }
 
-    const provider = getConnectProvider(providerId as string);
+    const provider = getProviderAuthDefinition(providerId as string);
     if (!provider) {
         p.cancel(`Unknown provider: ${providerId as string}`);
         return;
@@ -76,7 +90,7 @@ export async function handleConnectCommand(options?: { interactive?: boolean }):
             ? provider.methods[0]!.id
             : await p.select({
                   message: `Choose a login method for ${provider.label}`,
-                  options: provider.methods.map((method: ConnectMethod) => {
+                  options: provider.methods.map((method) => {
                       const profileId = defaultProfileId(provider.providerId, method.id);
                       const existing = existingByProfileId.get(profileId);
                       const connectedHint =
@@ -99,7 +113,7 @@ export async function handleConnectCommand(options?: { interactive?: boolean }):
         return;
     }
 
-    const method = provider.methods.find((candidate: ConnectMethod) => candidate.id === methodId);
+    const method = provider.methods.find((candidate) => candidate.id === methodId);
     if (!method) {
         p.cancel(`Unknown method: ${methodId as string}`);
         return;
@@ -181,12 +195,11 @@ export async function handleConnectCommand(options?: { interactive?: boolean }):
             return;
         }
 
-        await upsertLlmAuthProfile({
+        await persistConnectedProfile({
             profileId,
-            providerId: provider.providerId,
-            methodId: method.id,
-            label: method.label,
             credential: { type: 'api_key', key: String(apiKey).trim() },
+            provider,
+            method,
         });
         await setDefaultLlmAuthProfile({ providerId: provider.providerId, profileId });
 
@@ -208,12 +221,11 @@ export async function handleConnectCommand(options?: { interactive?: boolean }):
             return;
         }
 
-        await upsertLlmAuthProfile({
+        await persistConnectedProfile({
             profileId,
-            providerId: provider.providerId,
-            methodId: method.id,
-            label: method.label,
             credential: { type: 'token', token: String(token).trim() },
+            provider,
+            method,
         });
         await setDefaultLlmAuthProfile({ providerId: provider.providerId, profileId });
 
@@ -222,18 +234,12 @@ export async function handleConnectCommand(options?: { interactive?: boolean }):
     }
 
     if (method.kind === 'oauth') {
-        const authMethod = getAuthMethodDefinition(provider.providerId, method.id);
-        if (!authMethod || !isOauthAuthMethod(authMethod)) {
-            p.outro(chalk.red(`❌ OAuth method not implemented for ${provider.label}`));
-            return;
-        }
-
         const spinner = p.spinner();
         spinner.start(`Starting ${provider.label} OAuth…`);
 
-        let flow: Awaited<ReturnType<typeof authMethod.oauth.start>>;
+        let flow: Awaited<ReturnType<typeof method.oauth.start>>;
         try {
-            flow = await authMethod.oauth.start({
+            flow = await method.oauth.start({
                 userAgent: `dexto/${process.env.DEXTO_CLI_VERSION || 'dev'}`,
             });
         } catch (error) {
@@ -276,12 +282,11 @@ export async function handleConnectCommand(options?: { interactive?: boolean }):
             return;
         }
 
-        await upsertLlmAuthProfile({
+        await persistConnectedProfile({
             profileId,
-            providerId: provider.providerId,
-            methodId: method.id,
-            label: method.label,
             credential: result.credential,
+            provider,
+            method,
         });
         await setDefaultLlmAuthProfile({ providerId: provider.providerId, profileId });
 
