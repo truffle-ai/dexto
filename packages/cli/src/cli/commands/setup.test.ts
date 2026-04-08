@@ -552,7 +552,7 @@ describe('Setup Command', () => {
             mockCodexAppServerCreate.mockResolvedValue(codexClient);
 
             mockPrompts.select
-                .mockResolvedValueOnce('openai-codex')
+                .mockResolvedValueOnce('chatgpt-login')
                 .mockResolvedValueOnce('gpt-4o-mini')
                 .mockResolvedValueOnce('cli');
 
@@ -627,7 +627,7 @@ describe('Setup Command', () => {
                 .mockResolvedValueOnce(codexClient);
 
             mockPrompts.select
-                .mockResolvedValueOnce('openai-codex')
+                .mockResolvedValueOnce('chatgpt-login')
                 .mockResolvedValueOnce('gpt-4o-mini')
                 .mockResolvedValueOnce('cli');
 
@@ -664,7 +664,7 @@ describe('Setup Command', () => {
 
             const cancelToken = Symbol.for('cancel');
             mockPrompts.select
-                .mockResolvedValueOnce('openai-codex')
+                .mockResolvedValueOnce('chatgpt-login')
                 .mockResolvedValueOnce(cancelToken);
             mockPrompts.isCancel.mockImplementation((value: unknown) => value === cancelToken);
 

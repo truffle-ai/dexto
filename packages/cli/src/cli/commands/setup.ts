@@ -1074,7 +1074,7 @@ async function wizardStepSetupType(state: SetupWizardState): Promise<SetupWizard
 
     options.push(
         {
-            value: 'openai-codex',
+            value: 'chatgpt-login',
             label: `${chalk.green('●')} ChatGPT Login`,
             hint: 'Use your ChatGPT account through Codex',
         },
@@ -1106,7 +1106,7 @@ async function wizardStepSetupType(state: SetupWizardState): Promise<SetupWizard
         return { ...state, step: 'complete', quickStartHandled: true };
     }
 
-    if (setupType === 'openai-codex') {
+    if (setupType === 'chatgpt-login') {
         const completed = await handleCodexProviderSetup({ exitOnCancel: false });
         if (!completed) {
             return { ...state, step: 'setupType' };
@@ -2081,7 +2081,7 @@ async function changeModel(currentProvider?: LLMProvider, currentBaseURL?: strin
 
         sourceOptions.push(
             {
-                value: 'openai-codex',
+                value: 'chatgpt-login',
                 label: `${chalk.green('●')} ChatGPT Login`,
                 hint: 'Use your ChatGPT account through Codex',
             },
@@ -2111,7 +2111,7 @@ async function changeModel(currentProvider?: LLMProvider, currentBaseURL?: strin
             return;
         }
 
-        if (providerChoice === 'openai-codex') {
+        if (providerChoice === 'chatgpt-login') {
             const completed = await handleCodexProviderSetup({ exitOnCancel: false });
             if (!completed) {
                 return;
