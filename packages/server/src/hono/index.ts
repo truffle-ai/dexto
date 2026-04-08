@@ -35,6 +35,7 @@ import { createDiscoveryRouter, type DiscoveryRouterSchema } from './routes/disc
 import { createModelsRouter, type ModelsRouterSchema } from './routes/models.js';
 import { createDextoAuthRouter, type DextoAuthRouterSchema } from './routes/dexto-auth.js';
 import { createSystemPromptRouter, type SystemPromptRouterSchema } from './routes/system-prompt.js';
+import { createLlmConnectRouter } from './routes/llm-connect.js';
 import {
     createStaticRouter,
     createSpaFallbackHandler,
@@ -148,6 +149,10 @@ type HealthSchema = MergeSchemaPath<
 >;
 type DiscoverySchema = MergeSchemaPath<ExtractSchema<ReturnType<typeof createA2aRouter>>, '/'>;
 type JsonRpcSchema = MergeSchemaPath<ExtractSchema<ReturnType<typeof createA2AJsonRpcRouter>>, '/'>;
+// Keep /llm/connect routes out of the exported typed client surface for now.
+// They remain mounted at runtime and in OpenAPI docs, but extracting the full Hono schema here
+// currently triggers TS2589 during server declaration emit.
+type LlmConnectRouterSchema = never;
 
 type ConversationRouterSchema =
     | GreetingRouterSchema
@@ -170,6 +175,7 @@ type ManagementRouterSchema = ApprovalsRouterSchema | AgentsRouterSchema | Queue
 type SystemRouterSchema =
     | OpenRouterRouterSchema
     | KeyRouterSchema
+    | LlmConnectRouterSchema
     | ToolsRouterSchema
     | DiscoveryRouterSchema
     | ModelsRouterSchema
@@ -277,6 +283,7 @@ export function createDextoApp(options: CreateDextoAppOptions): DextoApp {
         [routePrefix, createQueueRouter(getAgent)],
         [routePrefix, createOpenRouterRouter()],
         [routePrefix, createKeyRouter()],
+        [routePrefix, createLlmConnectRouter()],
         [routePrefix, createToolsRouter(getAgent)],
         [routePrefix, createDiscoveryRouter(resolvedGetAgentConfigPath)],
         [routePrefix, createModelsRouter()],

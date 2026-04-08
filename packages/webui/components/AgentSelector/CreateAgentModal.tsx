@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useCreateAgent, type CreateAgentPayload } from '../hooks/useAgents';
+import { useLLMCatalog } from '../hooks/useLLM';
 import {
     Dialog,
     DialogContent,
@@ -13,7 +14,12 @@ import { Input } from '../ui/input';
 import { Textarea } from '../ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { AlertCircle, Loader2, Eye, EyeOff, Info } from 'lucide-react';
-import { LLM_PROVIDERS } from '@dexto/core';
+import { LLM_PROVIDERS, type LLMProvider } from '@dexto/core';
+import {
+    formatProviderLabel,
+    getProviderSelectOptions,
+    getSupportedProviderIdsFromCatalog,
+} from '@/lib/llm/provider-select';
 
 interface CreateAgentModalProps {
     open: boolean;
@@ -54,6 +60,12 @@ function nameToId(name: string): string {
         .replace(/^-|-$/g, ''); // Trim leading/trailing hyphens
 }
 
+const LLM_PROVIDER_SET = new Set<string>(LLM_PROVIDERS);
+
+function isLLMProvider(value: string): value is LLMProvider {
+    return LLM_PROVIDER_SET.has(value);
+}
+
 export default function CreateAgentModal({
     open,
     onOpenChange,
@@ -64,7 +76,30 @@ export default function CreateAgentModal({
     const [createError, setCreateError] = useState<string | null>(null);
     const [showApiKey, setShowApiKey] = useState(false);
     const createAgentMutation = useCreateAgent();
+    const { data: providerCatalogData } = useLLMCatalog({
+        enabled: open,
+        mode: 'grouped',
+        includeModels: false,
+    });
     const isCreating = createAgentMutation.isPending;
+    const providerOptions = useMemo(() => {
+        if (!providerCatalogData) {
+            return form.provider
+                ? [
+                      {
+                          value: form.provider,
+                          label: formatProviderLabel(form.provider),
+                          isUnsupported: false,
+                      },
+                  ]
+                : [];
+        }
+
+        return getProviderSelectOptions({
+            supportedProviders: getSupportedProviderIdsFromCatalog(providerCatalogData),
+            currentProvider: form.provider,
+        });
+    }, [form.provider, providerCatalogData]);
 
     const updateField = (field: keyof FormData, value: string) => {
         setForm((prev) => {
@@ -110,6 +145,8 @@ export default function CreateAgentModal({
 
         if (!form.provider) {
             newErrors.provider = 'Required';
+        } else if (!isLLMProvider(form.provider)) {
+            newErrors.provider = 'Invalid provider';
         }
 
         if (!form.model.trim()) {
@@ -125,30 +162,37 @@ export default function CreateAgentModal({
 
         setCreateError(null);
 
+        if (!isLLMProvider(form.provider)) {
+            setErrors((prev) => ({ ...prev, provider: 'Invalid provider' }));
+            return;
+        }
+
+        const config = {
+            llm: {
+                provider: form.provider,
+                model: form.model.trim(),
+                apiKey: form.apiKey.trim() || undefined,
+            },
+            ...(form.systemPrompt.trim() && {
+                systemPrompt: {
+                    contributors: [
+                        {
+                            id: 'primary',
+                            type: 'static' as const,
+                            priority: 0,
+                            enabled: true,
+                            content: form.systemPrompt.trim(),
+                        },
+                    ],
+                },
+            }),
+        };
+
         const payload: CreateAgentPayload = {
             id: form.id.trim(),
             name: form.name.trim(),
             description: form.description.trim(),
-            config: {
-                llm: {
-                    provider: form.provider as CreateAgentPayload['config']['llm']['provider'],
-                    model: form.model.trim(),
-                    apiKey: form.apiKey.trim() || undefined,
-                },
-                ...(form.systemPrompt.trim() && {
-                    systemPrompt: {
-                        contributors: [
-                            {
-                                id: 'primary',
-                                type: 'static' as const,
-                                priority: 0,
-                                enabled: true,
-                                content: form.systemPrompt.trim(),
-                            },
-                        ],
-                    },
-                }),
-            },
+            config,
         };
 
         createAgentMutation.mutate(payload, {
@@ -239,12 +283,9 @@ export default function CreateAgentModal({
                                         <SelectValue placeholder="Select provider..." />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        {LLM_PROVIDERS.map((p) => (
-                                            <SelectItem key={p} value={p}>
-                                                {p === 'dexto-nova'
-                                                    ? 'Dexto Nova'
-                                                    : p.charAt(0).toUpperCase() +
-                                                      p.slice(1).replace(/-/g, ' ')}
+                                        {providerOptions.map((provider) => (
+                                            <SelectItem key={provider.value} value={provider.value}>
+                                                {provider.label}
                                             </SelectItem>
                                         ))}
                                     </SelectContent>

@@ -24,8 +24,12 @@ import {
     getAllModelsForProvider,
     isModelValidForProvider,
     hasAllRegistryModelsSupport,
+    getProviderRuntime,
+    getProviderSupportInfo,
+    isProviderRuntimeSupported,
 } from './index.js';
 import { MODELS_BY_PROVIDER } from './models.generated.js';
+import { PROVIDERS_BY_ID } from './providers.generated.js';
 import { LLMErrorCode } from '../error-codes.js';
 import { ErrorScope, ErrorType } from '../../errors/types.js';
 import type { Logger } from '../../logger/v2/types.js';
@@ -60,9 +64,14 @@ const mockLogger: Logger = {
 
 describe('LLM Registry Core Functions', () => {
     describe('getSupportedProviders', () => {
-        it('returns all provider keys from registry', () => {
+        it('returns only providers enabled by the current runtime support gate', () => {
             const providers = getSupportedProviders();
-            expect(providers).toEqual(Object.keys(LLM_REGISTRY));
+            expect(providers).toContain('openai');
+            expect(providers).toContain('openrouter');
+            expect(providers).toContain('google-vertex-anthropic');
+            expect(providers).not.toContain('alibaba');
+            expect(providers).not.toContain('azure');
+            expect(providers.every((provider) => LLM_PROVIDERS.includes(provider))).toBe(true);
         });
     });
 
@@ -134,7 +143,7 @@ describe('LLM Registry Core Functions', () => {
                 'xai',
                 'cohere',
                 'minimax',
-                'glm',
+                'zhipuai',
             ] as const;
 
             const failures: Array<{
@@ -210,6 +219,45 @@ describe('LLM Registry Core Functions', () => {
 });
 
 describe('Provider Capabilities', () => {
+    describe('runtime metadata', () => {
+        it('exposes generated provider runtime metadata through LLM_REGISTRY', () => {
+            expect(LLM_REGISTRY.openai.runtime).toEqual(PROVIDERS_BY_ID.openai.runtime);
+            expect(LLM_REGISTRY['google-vertex'].runtime).toEqual(
+                PROVIDERS_BY_ID['google-vertex'].runtime
+            );
+            expect(LLM_REGISTRY.openrouter.runtime).toEqual(PROVIDERS_BY_ID.openrouter.runtime);
+            expect(LLM_REGISTRY.local.runtime).toEqual(PROVIDERS_BY_ID.local.runtime);
+        });
+
+        it('reports runtime support separately from raw provider metadata', () => {
+            expect(getProviderRuntime('alibaba')).toEqual({
+                family: 'openai-completions',
+                category: 'direct',
+            });
+            expect(isProviderRuntimeSupported('alibaba')).toBe(false);
+            expect(getProviderSupportInfo('alibaba')).toMatchObject({
+                isSupported: false,
+                runtime: {
+                    family: 'openai-completions',
+                    category: 'direct',
+                },
+            });
+            expect(getProviderSupportInfo('alibaba').reason).toContain(
+                "Runtime family 'openai-completions' is enabled"
+            );
+            expect(getProviderSupportInfo('alibaba').reason).toContain('openai-compatible');
+        });
+
+        it('flags providers with no runtime mapping as unsupported', () => {
+            expect(getProviderRuntime('azure')).toBeNull();
+            expect(getProviderSupportInfo('azure')).toEqual({
+                isSupported: false,
+                runtime: null,
+                reason: 'No Dexto runtime family mapping exists for this provider yet.',
+            });
+        });
+    });
+
     describe('supportsBaseURL', () => {
         it('returns true for providers supporting baseURL', () => {
             expect(supportsBaseURL('openai-compatible')).toBe(true);
@@ -702,16 +750,16 @@ describe('Provider-Specific Tests', () => {
         });
     });
 
-    describe('Bedrock provider', () => {
+    describe('Amazon Bedrock provider', () => {
         it('has correct capabilities', () => {
-            expect(getSupportedProviders()).toContain('bedrock');
-            expect(getSupportedModels('bedrock').length).toBeGreaterThan(0);
-            expect(getDefaultModelForProvider('bedrock')).toBe(
+            expect(getSupportedProviders()).toContain('amazon-bedrock');
+            expect(getSupportedModels('amazon-bedrock').length).toBeGreaterThan(0);
+            expect(getDefaultModelForProvider('amazon-bedrock')).toBe(
                 'anthropic.claude-sonnet-4-5-20250929-v1:0'
             );
-            expect(supportsBaseURL('bedrock')).toBe(false);
-            expect(requiresBaseURL('bedrock')).toBe(false);
-            expect(acceptsAnyModel('bedrock')).toBe(false);
+            expect(supportsBaseURL('amazon-bedrock')).toBe(false);
+            expect(requiresBaseURL('amazon-bedrock')).toBe(false);
+            expect(acceptsAnyModel('amazon-bedrock')).toBe(false);
         });
     });
 });
@@ -754,57 +802,57 @@ describe('Bedrock Region Prefix Handling', () => {
         const bedrockModel = 'anthropic.claude-sonnet-4-5-20250929-v1:0';
 
         it('isValidProviderModel works with prefixed models', () => {
-            expect(isValidProviderModel('bedrock', bedrockModel)).toBe(true);
-            expect(isValidProviderModel('bedrock', `eu.${bedrockModel}`)).toBe(true);
-            expect(isValidProviderModel('bedrock', `us.${bedrockModel}`)).toBe(true);
-            expect(isValidProviderModel('bedrock', `global.${bedrockModel}`)).toBe(true);
+            expect(isValidProviderModel('amazon-bedrock', bedrockModel)).toBe(true);
+            expect(isValidProviderModel('amazon-bedrock', `eu.${bedrockModel}`)).toBe(true);
+            expect(isValidProviderModel('amazon-bedrock', `us.${bedrockModel}`)).toBe(true);
+            expect(isValidProviderModel('amazon-bedrock', `global.${bedrockModel}`)).toBe(true);
         });
 
         it('getProviderFromModel works with prefixed models', () => {
-            expect(getProviderFromModel(bedrockModel)).toBe('bedrock');
-            expect(getProviderFromModel(`eu.${bedrockModel}`)).toBe('bedrock');
-            expect(getProviderFromModel(`us.${bedrockModel}`)).toBe('bedrock');
-            expect(getProviderFromModel(`global.${bedrockModel}`)).toBe('bedrock');
+            expect(getProviderFromModel(bedrockModel)).toBe('amazon-bedrock');
+            expect(getProviderFromModel(`eu.${bedrockModel}`)).toBe('amazon-bedrock');
+            expect(getProviderFromModel(`us.${bedrockModel}`)).toBe('amazon-bedrock');
+            expect(getProviderFromModel(`global.${bedrockModel}`)).toBe('amazon-bedrock');
         });
 
         it('getMaxInputTokensForModel works with prefixed models', () => {
-            const expected = getMaxInputTokensForModel('bedrock', bedrockModel, mockLogger);
-            expect(getMaxInputTokensForModel('bedrock', `eu.${bedrockModel}`, mockLogger)).toBe(
-                expected
-            );
-            expect(getMaxInputTokensForModel('bedrock', `us.${bedrockModel}`, mockLogger)).toBe(
-                expected
-            );
-            expect(getMaxInputTokensForModel('bedrock', `global.${bedrockModel}`, mockLogger)).toBe(
-                expected
-            );
+            const expected = getMaxInputTokensForModel('amazon-bedrock', bedrockModel, mockLogger);
+            expect(
+                getMaxInputTokensForModel('amazon-bedrock', `eu.${bedrockModel}`, mockLogger)
+            ).toBe(expected);
+            expect(
+                getMaxInputTokensForModel('amazon-bedrock', `us.${bedrockModel}`, mockLogger)
+            ).toBe(expected);
+            expect(
+                getMaxInputTokensForModel('amazon-bedrock', `global.${bedrockModel}`, mockLogger)
+            ).toBe(expected);
         });
 
         it('getSupportedFileTypesForModel works with prefixed models', () => {
-            const expected = getSupportedFileTypesForModel('bedrock', bedrockModel);
-            expect(getSupportedFileTypesForModel('bedrock', `eu.${bedrockModel}`)).toEqual(
+            const expected = getSupportedFileTypesForModel('amazon-bedrock', bedrockModel);
+            expect(getSupportedFileTypesForModel('amazon-bedrock', `eu.${bedrockModel}`)).toEqual(
                 expected
             );
-            expect(getSupportedFileTypesForModel('bedrock', `us.${bedrockModel}`)).toEqual(
+            expect(getSupportedFileTypesForModel('amazon-bedrock', `us.${bedrockModel}`)).toEqual(
                 expected
             );
-            expect(getSupportedFileTypesForModel('bedrock', `global.${bedrockModel}`)).toEqual(
-                expected
-            );
+            expect(
+                getSupportedFileTypesForModel('amazon-bedrock', `global.${bedrockModel}`)
+            ).toEqual(expected);
         });
 
         it('getModelPricing works with prefixed models', () => {
-            const expected = getModelPricing('bedrock', bedrockModel);
-            expect(getModelPricing('bedrock', `eu.${bedrockModel}`)).toEqual(expected);
-            expect(getModelPricing('bedrock', `us.${bedrockModel}`)).toEqual(expected);
-            expect(getModelPricing('bedrock', `global.${bedrockModel}`)).toEqual(expected);
+            const expected = getModelPricing('amazon-bedrock', bedrockModel);
+            expect(getModelPricing('amazon-bedrock', `eu.${bedrockModel}`)).toEqual(expected);
+            expect(getModelPricing('amazon-bedrock', `us.${bedrockModel}`)).toEqual(expected);
+            expect(getModelPricing('amazon-bedrock', `global.${bedrockModel}`)).toEqual(expected);
         });
 
         it('getModelDisplayName works with prefixed models', () => {
-            const expected = getModelDisplayName(bedrockModel, 'bedrock');
-            expect(getModelDisplayName(`eu.${bedrockModel}`, 'bedrock')).toBe(expected);
-            expect(getModelDisplayName(`us.${bedrockModel}`, 'bedrock')).toBe(expected);
-            expect(getModelDisplayName(`global.${bedrockModel}`, 'bedrock')).toBe(expected);
+            const expected = getModelDisplayName(bedrockModel, 'amazon-bedrock');
+            expect(getModelDisplayName(`eu.${bedrockModel}`, 'amazon-bedrock')).toBe(expected);
+            expect(getModelDisplayName(`us.${bedrockModel}`, 'amazon-bedrock')).toBe(expected);
+            expect(getModelDisplayName(`global.${bedrockModel}`, 'amazon-bedrock')).toBe(expected);
         });
     });
 });
@@ -1098,7 +1146,7 @@ describe('Gateway provider integration with lookup functions', () => {
     describe('getModelDisplayName', () => {
         it('handles OpenRouter format models', () => {
             const result = getModelDisplayName('anthropic/claude-haiku-4.5', 'dexto-nova');
-            expect(result).toBe('Claude Haiku 4.5');
+            expect(result).toBe('Claude 4.5 Haiku');
         });
     });
 });

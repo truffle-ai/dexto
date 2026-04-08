@@ -4,6 +4,7 @@ export * from './registry/index.js';
 export * from './curation.js';
 export * from './validation.js';
 export * from './types.js';
+export * from './auth/types.js';
 export * from './usage-metadata.js';
 export * from './usage-scope.js';
 export * from './usage-summary.js';
@@ -25,6 +26,8 @@ export {
     createCodexBaseURL,
     getCodexAuthModeLabel,
     getCodexProviderDisplayName,
+    isChatGptLoginConfig,
+    isCodexBackedOpenAiConfig,
     isCodexBaseURL,
     parseCodexBaseURL,
     type CodexAuthMode,

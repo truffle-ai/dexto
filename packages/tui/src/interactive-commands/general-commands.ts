@@ -12,7 +12,7 @@
 
 import chalk from 'chalk';
 import { spawn } from 'child_process';
-import { parseCodexBaseURL } from '@dexto/core';
+import { isChatGptLoginConfig } from '@dexto/core';
 import type { CommandDefinition, CommandHandlerResult, CommandContext } from './command-parser.js';
 import { formatForInkCli } from './utils/format-output.js';
 import { CommandOutputHelper } from './utils/command-output.js';
@@ -64,10 +64,7 @@ function wrapCommandWithRcSource(command: string, shell: string): string {
 
 function isChatGPTLoginConfig(agent: TuiAgentBackend, sessionId: string): boolean {
     const llmConfig = agent.getCurrentLLMConfig(sessionId);
-    return (
-        llmConfig.provider === 'openai-compatible' &&
-        parseCodexBaseURL(llmConfig.baseURL)?.authMode === 'chatgpt'
-    );
+    return isChatGptLoginConfig(llmConfig.provider, llmConfig.baseURL);
 }
 
 async function executeShellCommand(

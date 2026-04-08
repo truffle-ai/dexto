@@ -1,16 +1,16 @@
 #!/usr/bin/env tsx
 /**
- * Syncs Dexto's built-in LLM model registry from models.dev.
+ * Syncs Dexto's built-in LLM model + provider snapshots from models.dev.
  *
  * Why:
  * - `packages/core/src/llm/registry/index.ts` used to hardcode many models (tokens/pricing/modalities),
  *   which is painful to maintain.
  * - models.dev provides a maintained, cross-provider model catalog.
- * - models.dev provides gateway catalogs (e.g. OpenRouter) including pricing and modalities.
+ * - models.dev provides provider metadata (env var hints, docs, base URLs, intended SDK transports).
  *
  * Usage:
- *   pnpm run sync-llm-registry        # regenerate the committed snapshot
- *   pnpm run sync-llm-registry:check  # verify snapshot is up-to-date (CI)
+ *   pnpm run sync-llm-models        # regenerate the committed snapshots
+ *   pnpm run sync-llm-models:check  # verify snapshots are up-to-date (CI)
  *
  * Optional env overrides:
  *   DEXTO_MODELS_DEV_API_JSON=/path/to/api.json
@@ -20,13 +20,24 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import prettier from 'prettier';
+import {
+    inferProviderRuntimeMetadata,
+    type ProviderRuntimeMetadata,
+} from '../packages/core/src/llm/registry/provider-runtime.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const CHECK_MODE = process.argv.includes('--check');
 
-const OUTPUT_PATH = path.join(__dirname, '../packages/core/src/llm/registry/models.generated.ts');
+const MODELS_OUTPUT_PATH = path.join(
+    __dirname,
+    '../packages/core/src/llm/registry/models.generated.ts'
+);
+const PROVIDERS_OUTPUT_PATH = path.join(
+    __dirname,
+    '../packages/core/src/llm/registry/providers.generated.ts'
+);
 
 const MODELS_DEV_URL = 'https://models.dev/api.json';
 
@@ -34,10 +45,10 @@ type ModelsDevApi = Record<string, ModelsDevProvider>;
 type ModelsDevProvider = {
     id: string;
     name: string;
-    env?: string[];
-    npm?: string;
-    api?: string;
-    doc?: string;
+    env: string[];
+    npm: string;
+    api?: string | undefined;
+    doc?: string | undefined;
     models: Record<string, ModelsDevModel>;
 };
 type ModelsDevModel = {
@@ -158,10 +169,16 @@ function parseModelsDevApi(json: unknown): ModelsDevApi {
                 provider.name ?? providerId,
                 `models.dev provider '${providerId}'.name`
             ),
-            ...(Array.isArray(provider.env) ? { env: parseStringArray(provider.env) } : {}),
-            ...(typeof provider.npm === 'string' ? { npm: provider.npm } : {}),
-            ...(typeof provider.api === 'string' ? { api: provider.api } : {}),
-            ...(typeof provider.doc === 'string' ? { doc: provider.doc } : {}),
+            env: parseStringArray(provider.env),
+            npm: requireString(provider.npm, `models.dev provider '${providerId}'.npm`),
+            api:
+                typeof provider.api === 'string' && provider.api.trim()
+                    ? provider.api.trim()
+                    : undefined,
+            doc:
+                typeof provider.doc === 'string' && provider.doc.trim()
+                    ? provider.doc.trim()
+                    : undefined,
             models: {},
         };
 
@@ -268,25 +285,6 @@ function parseModelsDevApi(json: unknown): ModelsDevApi {
     return api;
 }
 
-type DextoProvider =
-    | 'openai'
-    | 'openai-compatible'
-    | 'anthropic'
-    | 'google'
-    | 'groq'
-    | 'xai'
-    | 'cohere'
-    | 'minimax'
-    | 'glm'
-    | 'openrouter'
-    | 'litellm'
-    | 'glama'
-    | 'vertex'
-    | 'bedrock'
-    | 'local'
-    | 'ollama'
-    | 'dexto-nova';
-
 type DextoSupportedFileType = 'pdf' | 'image' | 'audio' | 'video' | 'document';
 
 type GeneratedModelPricing = {
@@ -345,8 +343,18 @@ type GeneratedProviderMetadata = {
     doc?: string;
 };
 
+type GeneratedProviderSnapshotEntry = {
+    id: string;
+    name: string;
+    env: string[];
+    npm: string;
+    api?: string;
+    doc?: string;
+    runtime?: ProviderRuntimeMetadata;
+};
+
 function getSupportedFileTypesFromModel(
-    provider: DextoProvider,
+    provider: string,
     model: ModelsDevModel
 ): DextoSupportedFileType[] {
     const inputModalities = model.modalities?.input ?? [];
@@ -416,7 +424,7 @@ function getPricing(model: ModelsDevModel): GeneratedModelPricing | undefined {
 function modelToGeneratedModel(
     model: ModelsDevModel,
     options: {
-        provider: DextoProvider;
+        provider: string;
         defaultModelId?: string;
     }
 ): GeneratedModelInfo {
@@ -437,22 +445,12 @@ function modelToGeneratedModel(
         displayName: model.name,
         maxInputTokens: model.limit.input ?? model.limit.context,
         supportedFileTypes: getSupportedFileTypesFromModel(options.provider, model),
-        reasoning: requireBoolean(
-            model.reasoning,
-            `models.dev model '${options.provider}/${model.id}'.reasoning`
-        ),
-        supportsTemperature: requireBoolean(
-            model.temperature,
-            `models.dev model '${options.provider}/${model.id}'.temperature`
-        ),
-        supportsToolCall: requireBoolean(
-            model.tool_call,
-            `models.dev model '${options.provider}/${model.id}'.tool_call`
-        ),
-        releaseDate: requireString(
-            model.release_date,
-            `models.dev model '${options.provider}/${model.id}'.release_date`
-        ),
+        ...(typeof model.reasoning === 'boolean' ? { reasoning: model.reasoning } : {}),
+        ...(typeof model.temperature === 'boolean'
+            ? { supportsTemperature: model.temperature }
+            : {}),
+        ...(typeof model.tool_call === 'boolean' ? { supportsToolCall: model.tool_call } : {}),
+        ...(typeof model.release_date === 'string' ? { releaseDate: model.release_date } : {}),
         ...(model.status ? { status: model.status } : {}),
         modalities: model.modalities ?? { input: [], output: [] },
         ...(model.provider ? { providerMetadata: model.provider } : {}),
@@ -482,7 +480,7 @@ function getProviderMetadata(
 }
 
 function buildModelsFromModelsDevProvider(params: {
-    provider: DextoProvider;
+    provider: string;
     modelsDevApi: ModelsDevApi;
     modelsDevProviderId: string;
     defaultModelId?: string;
@@ -518,7 +516,7 @@ async function loadModelsDevApiJsonText(): Promise<string> {
     }
 
     const res = await fetch(MODELS_DEV_URL, {
-        headers: { 'User-Agent': 'dexto-sync-llm-registry' },
+        headers: { 'User-Agent': 'dexto-sync-llm-models' },
         signal: AbortSignal.timeout(30_000),
     });
     if (!res.ok) {
@@ -531,7 +529,16 @@ async function syncLlmRegistry() {
     const modelsDevText = await loadModelsDevApiJsonText();
     const modelsDevJson = parseModelsDevApi(JSON.parse(modelsDevText));
 
-    const defaults: Partial<Record<DextoProvider, string>> = {
+    const overlayProviderIds = [
+        'dexto-nova',
+        'openai-compatible',
+        'litellm',
+        'glama',
+        'local',
+        'ollama',
+    ] as const;
+
+    const defaults: Partial<Record<string, string>> = {
         openai: 'gpt-5-mini',
         anthropic: 'claude-haiku-4-5-20251001',
         google: 'gemini-3-flash-preview',
@@ -539,142 +546,138 @@ async function syncLlmRegistry() {
         xai: 'grok-4',
         cohere: 'command-a-03-2025',
         minimax: 'MiniMax-M2.1',
-        glm: 'glm-4.7',
-        vertex: 'gemini-3-flash-preview',
-        bedrock: 'anthropic.claude-sonnet-4-5-20250929-v1:0',
+        zhipuai: 'glm-4.7',
+        moonshotai: 'kimi-k2.5',
         // gateway/dynamic providers intentionally omit defaults here
     };
 
-    const include = {
-        openai: (id: string) => id.startsWith('gpt-') || id.startsWith('o'),
-        anthropic: (id: string) => id.startsWith('claude-'),
-        google: (id: string) => id.startsWith('gemini-'),
-        groq: (_id: string) => true,
-        xai: (id: string) => id.startsWith('grok-'),
-        cohere: (id: string) => id.startsWith('command-'),
-        minimax: (_id: string) => true,
-        glm: (id: string) => id.startsWith('glm-'),
-        vertex: (_id: string) => true,
-        bedrock: (_id: string) => true,
-        openrouter: (_id: string) => true,
+    function includeModel(providerId: string, modelId: string): boolean {
+        if (providerId === 'openai') return modelId.startsWith('gpt-') || modelId.startsWith('o');
+        if (providerId === 'anthropic') return modelId.startsWith('claude-');
+        if (providerId === 'google') return modelId.startsWith('gemini-');
+        if (providerId === 'xai') return modelId.startsWith('grok-');
+        if (providerId === 'cohere') return modelId.startsWith('command-');
+        return true;
+    }
+
+    const providerIds = Object.keys(modelsDevJson).sort();
+
+    const modelsByProvider: Record<string, GeneratedModelInfo[]> = {};
+    for (const providerId of providerIds) {
+        const defaultModelId = defaults[providerId];
+        const models = buildModelsFromModelsDevProvider({
+            provider: providerId,
+            modelsDevApi: modelsDevJson,
+            modelsDevProviderId: providerId,
+            defaultModelId,
+            includeModelId: (modelId) => includeModel(providerId, modelId),
+        });
+
+        if (providerId === 'amazon-bedrock') {
+            modelsByProvider[providerId] = models
+                // Normalize AWS region-prefixed IDs to the canonical unprefixed ID.
+                .map((m) => ({ ...m, name: m.name.replace(/^(eu\\.|us\\.|global\\.)/i, '') }))
+                // De-dupe after stripping prefixes.
+                .filter((m, idx, arr) => arr.findIndex((x) => x.name === m.name) === idx)
+                .sort((a, b) => a.name.localeCompare(b.name));
+        } else {
+            modelsByProvider[providerId] = models;
+        }
+    }
+
+    for (const overlayId of overlayProviderIds) {
+        modelsByProvider[overlayId] = [];
+    }
+
+    const providersById: Record<string, GeneratedProviderSnapshotEntry> = {};
+
+    for (const providerId of providerIds) {
+        const p = modelsDevJson[providerId]!;
+        const runtime = inferProviderRuntimeMetadata({
+            providerId,
+            npm: p.npm,
+            api: p.api,
+        });
+        providersById[providerId] = {
+            id: p.id,
+            name: p.name,
+            env: p.env,
+            npm: p.npm,
+            ...(p.api ? { api: p.api } : {}),
+            ...(p.doc ? { doc: p.doc } : {}),
+            ...(runtime ? { runtime } : {}),
+        };
+    }
+
+    const overlayProviders = {
+        'dexto-nova': {
+            id: 'dexto-nova',
+            name: 'Dexto Nova',
+            env: ['DEXTO_API_KEY'],
+            npm: '@ai-sdk/openai-compatible',
+            api: 'https://api.dexto.ai/v1',
+            doc: 'https://dexto.ai',
+        },
+        'openai-compatible': {
+            id: 'openai-compatible',
+            name: 'OpenAI Compatible (Custom)',
+            env: ['OPENAI_API_KEY', 'OPENAI_KEY'],
+            npm: '@ai-sdk/openai-compatible',
+        },
+        litellm: {
+            id: 'litellm',
+            name: 'LiteLLM',
+            env: ['LITELLM_API_KEY', 'LITELLM_KEY'],
+            npm: '@ai-sdk/openai-compatible',
+            doc: 'https://docs.litellm.ai',
+        },
+        glama: {
+            id: 'glama',
+            name: 'Glama',
+            env: ['GLAMA_API_KEY'],
+            npm: '@ai-sdk/openai-compatible',
+            api: 'https://glama.ai/api/gateway/openai/v1',
+            doc: 'https://glama.ai',
+        },
+        local: {
+            id: 'local',
+            name: 'Local (GGUF)',
+            env: [],
+            npm: '@ai-sdk/openai-compatible',
+        },
+        ollama: {
+            id: 'ollama',
+            name: 'Ollama',
+            env: [],
+            npm: '@ai-sdk/openai-compatible',
+            api: 'http://localhost:11434/v1',
+            doc: 'https://ollama.com',
+        },
     } as const;
 
-    const modelsByProvider: Record<DextoProvider, GeneratedModelInfo[]> = {
-        openai: buildModelsFromModelsDevProvider({
-            provider: 'openai',
-            modelsDevApi: modelsDevJson,
-            modelsDevProviderId: 'openai',
-            defaultModelId: defaults.openai,
-            includeModelId: include.openai,
-        }),
-        'openai-compatible': [],
-        anthropic: buildModelsFromModelsDevProvider({
-            provider: 'anthropic',
-            modelsDevApi: modelsDevJson,
-            modelsDevProviderId: 'anthropic',
-            defaultModelId: defaults.anthropic,
-            includeModelId: include.anthropic,
-        }),
-        google: buildModelsFromModelsDevProvider({
-            provider: 'google',
-            modelsDevApi: modelsDevJson,
-            modelsDevProviderId: 'google',
-            defaultModelId: defaults.google,
-            includeModelId: include.google,
-        }),
-        groq: buildModelsFromModelsDevProvider({
-            provider: 'groq',
-            modelsDevApi: modelsDevJson,
-            modelsDevProviderId: 'groq',
-            defaultModelId: defaults.groq,
-            includeModelId: include.groq,
-        }),
-        xai: buildModelsFromModelsDevProvider({
-            provider: 'xai',
-            modelsDevApi: modelsDevJson,
-            modelsDevProviderId: 'xai',
-            defaultModelId: defaults.xai,
-            includeModelId: include.xai,
-        }),
-        cohere: buildModelsFromModelsDevProvider({
-            provider: 'cohere',
-            modelsDevApi: modelsDevJson,
-            modelsDevProviderId: 'cohere',
-            defaultModelId: defaults.cohere,
-            includeModelId: include.cohere,
-        }),
-        minimax: buildModelsFromModelsDevProvider({
-            provider: 'minimax',
-            modelsDevApi: modelsDevJson,
-            modelsDevProviderId: 'minimax',
-            defaultModelId: defaults.minimax,
-            includeModelId: include.minimax,
-        }),
-        glm: buildModelsFromModelsDevProvider({
-            provider: 'glm',
-            modelsDevApi: modelsDevJson,
-            modelsDevProviderId: 'zhipuai',
-            defaultModelId: defaults.glm,
-            includeModelId: include.glm,
-        }),
-        openrouter: buildModelsFromModelsDevProvider({
-            provider: 'openrouter',
-            modelsDevApi: modelsDevJson,
-            modelsDevProviderId: 'openrouter',
-            defaultModelId: undefined,
-            includeModelId: include.openrouter,
-        }),
-        litellm: [],
-        glama: [],
-        vertex: [
-            ...buildModelsFromModelsDevProvider({
-                provider: 'vertex',
-                modelsDevApi: modelsDevJson,
-                modelsDevProviderId: 'google-vertex',
-                defaultModelId: defaults.vertex,
-                includeModelId: include.vertex,
-            }),
-            ...buildModelsFromModelsDevProvider({
-                provider: 'vertex',
-                modelsDevApi: modelsDevJson,
-                modelsDevProviderId: 'google-vertex-anthropic',
-                defaultModelId: undefined,
-                includeModelId: include.vertex,
-            }),
-        ].sort((a, b) => a.name.localeCompare(b.name)),
-        bedrock: buildModelsFromModelsDevProvider({
-            provider: 'bedrock',
-            modelsDevApi: modelsDevJson,
-            modelsDevProviderId: 'amazon-bedrock',
-            defaultModelId: defaults.bedrock,
-            includeModelId: include.bedrock,
-        })
-            // Normalize AWS region-prefixed IDs to the canonical unprefixed ID.
-            .map((m) => ({ ...m, name: m.name.replace(/^(eu\\.|us\\.|global\\.)/i, '') }))
-            // De-dupe after stripping prefixes.
-            .filter((m, idx, arr) => arr.findIndex((x) => x.name === m.name) === idx)
-            .sort((a, b) => a.name.localeCompare(b.name)),
-        local: [],
-        ollama: [],
-        'dexto-nova': [],
-    };
+    for (const [providerId, info] of Object.entries(overlayProviders)) {
+        const runtime = inferProviderRuntimeMetadata({
+            providerId,
+            npm: info.npm,
+            api: info.api,
+        });
+        providersById[providerId] = {
+            ...info,
+            ...(runtime ? { runtime } : {}),
+        };
+    }
 
-    const modelsDevMetadataByProvider: Partial<Record<DextoProvider, GeneratedProviderMetadata>> = {
-        openai: getProviderMetadata(modelsDevJson.openai, 'openai'),
-        anthropic: getProviderMetadata(modelsDevJson.anthropic, 'anthropic'),
-        google: getProviderMetadata(modelsDevJson.google, 'google'),
-        groq: getProviderMetadata(modelsDevJson.groq, 'groq'),
-        xai: getProviderMetadata(modelsDevJson.xai, 'xai'),
-        cohere: getProviderMetadata(modelsDevJson.cohere, 'cohere'),
-        minimax: getProviderMetadata(modelsDevJson.minimax, 'minimax'),
-        glm: getProviderMetadata(modelsDevJson.zhipuai, 'zhipuai'),
-        openrouter: getProviderMetadata(modelsDevJson.openrouter, 'openrouter'),
-        vertex: getProviderMetadata(modelsDevJson['google-vertex'], 'google-vertex'),
-        bedrock: getProviderMetadata(modelsDevJson['amazon-bedrock'], 'amazon-bedrock'),
-    };
+    const llmProviders = Object.keys(providersById).sort();
 
-    const header = `// This file is auto-generated by scripts/sync-llm-registry.ts\n// Do not edit manually - run 'pnpm run sync-llm-registry' to update\n`;
-    const body = `
+    const modelsDevMetadataByProvider: Partial<Record<string, GeneratedProviderMetadata>> = {};
+    for (const providerId of providerIds) {
+        const metadata = getProviderMetadata(modelsDevJson[providerId], providerId);
+        if (!metadata) continue;
+        modelsDevMetadataByProvider[providerId] = metadata;
+    }
+
+    const modelsHeader = `// This file is auto-generated by scripts/sync-llm-models.ts\n// Do not edit manually - run 'pnpm run sync-llm-models' to update\n`;
+    const modelsBody = `
 import type { LLMProvider } from '../types.js';
 import type { ModelInfo, ModelsDevProviderMetadata } from './index.js';
 
@@ -690,35 +693,83 @@ export const MODELS_DEV_PROVIDER_METADATA_BY_PROVIDER = ${JSON.stringify(
     )} satisfies Partial<Record<LLMProvider, ModelsDevProviderMetadata>>;
 `;
 
-    const prettierConfig = (await prettier.resolveConfig(OUTPUT_PATH)) ?? undefined;
-    const formatted = await prettier.format(header + body, {
+    const providersHeader = `// This file is auto-generated by scripts/sync-llm-models.ts\n// Do not edit manually - run 'pnpm run sync-llm-models' to update\n`;
+    const providersBody = `
+import type { ProviderRuntimeMetadata } from './provider-runtime.js';
+
+export type ProviderSnapshotEntry = {
+    id: string;
+    name: string;
+    env: readonly string[];
+    npm: string;
+    api?: string;
+    doc?: string;
+    runtime?: ProviderRuntimeMetadata;
+};
+
+export const PROVIDERS_BY_ID = ${JSON.stringify(providersById, null, 4)} as const satisfies Record<
+    string,
+    ProviderSnapshotEntry
+>;
+
+export const LLM_PROVIDERS = ${JSON.stringify(llmProviders, null, 4)} as const;
+`;
+
+    const prettierConfig = (await prettier.resolveConfig(MODELS_OUTPUT_PATH)) ?? undefined;
+    const formattedModels = await prettier.format(modelsHeader + modelsBody, {
         ...prettierConfig,
         parser: 'typescript',
-        filepath: OUTPUT_PATH,
+        filepath: MODELS_OUTPUT_PATH,
+    });
+
+    const formattedProviders = await prettier.format(providersHeader + providersBody, {
+        ...prettierConfig,
+        parser: 'typescript',
+        filepath: PROVIDERS_OUTPUT_PATH,
     });
 
     if (CHECK_MODE) {
-        if (!fs.existsSync(OUTPUT_PATH)) {
+        if (!fs.existsSync(MODELS_OUTPUT_PATH)) {
             console.error(
-                `❌ Missing generated file: ${path.relative(process.cwd(), OUTPUT_PATH)}`
+                `❌ Missing generated file: ${path.relative(process.cwd(), MODELS_OUTPUT_PATH)}`
             );
-            console.error(`   Run: pnpm run sync-llm-registry\n`);
+            console.error(`   Run: pnpm run sync-llm-models\n`);
             process.exit(1);
         }
-        const existing = fs.readFileSync(OUTPUT_PATH, 'utf-8');
-        if (existing !== formatted) {
+        if (!fs.existsSync(PROVIDERS_OUTPUT_PATH)) {
+            console.error(
+                `❌ Missing generated file: ${path.relative(process.cwd(), PROVIDERS_OUTPUT_PATH)}`
+            );
+            console.error(`   Run: pnpm run sync-llm-models\n`);
+            process.exit(1);
+        }
+
+        const existingModels = fs.readFileSync(MODELS_OUTPUT_PATH, 'utf-8');
+        if (existingModels !== formattedModels) {
             console.error('❌ LLM registry snapshot is out of date!');
-            console.error(`   File: ${path.relative(process.cwd(), OUTPUT_PATH)}`);
-            console.error('   Run: pnpm run sync-llm-registry\n');
+            console.error(`   File: ${path.relative(process.cwd(), MODELS_OUTPUT_PATH)}`);
+            console.error('   Run: pnpm run sync-llm-models\n');
+            process.exit(1);
+        }
+
+        const existingProviders = fs.readFileSync(PROVIDERS_OUTPUT_PATH, 'utf-8');
+        if (existingProviders !== formattedProviders) {
+            console.error('❌ LLM provider snapshot is out of date!');
+            console.error(`   File: ${path.relative(process.cwd(), PROVIDERS_OUTPUT_PATH)}`);
+            console.error('   Run: pnpm run sync-llm-models\n');
             process.exit(1);
         }
         console.log('✅ LLM registry snapshot is up-to-date');
         return;
     }
 
-    fs.mkdirSync(path.dirname(OUTPUT_PATH), { recursive: true });
-    fs.writeFileSync(OUTPUT_PATH, formatted, 'utf-8');
-    console.log(`✓ Wrote ${path.relative(process.cwd(), OUTPUT_PATH)}`);
+    fs.mkdirSync(path.dirname(MODELS_OUTPUT_PATH), { recursive: true });
+    fs.writeFileSync(MODELS_OUTPUT_PATH, formattedModels, 'utf-8');
+    console.log(`✓ Wrote ${path.relative(process.cwd(), MODELS_OUTPUT_PATH)}`);
+
+    fs.mkdirSync(path.dirname(PROVIDERS_OUTPUT_PATH), { recursive: true });
+    fs.writeFileSync(PROVIDERS_OUTPUT_PATH, formattedProviders, 'utf-8');
+    console.log(`✓ Wrote ${path.relative(process.cwd(), PROVIDERS_OUTPUT_PATH)}`);
 }
 
 syncLlmRegistry().catch((err) => {

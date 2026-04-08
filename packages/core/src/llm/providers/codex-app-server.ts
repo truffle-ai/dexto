@@ -21,6 +21,7 @@ import { safeStringify } from '../../utils/safe-stringify.js';
 import { LLMErrorCode } from '../error-codes.js';
 import { LLMError } from '../errors.js';
 import { type CodexAuthMode, parseCodexBaseURL } from './codex-base-url.js';
+import type { LLMProvider } from '../types.js';
 
 type CodexJsonRpcId = number;
 type CodexServerRequestId = number | string;
@@ -630,7 +631,8 @@ function buildUsageLimitSnapshot(existing: CodexRateLimitSnapshot | null): Codex
 function toChatGPTUsageLimitError(
     details: CodexErrorDetails,
     modelId: string,
-    snapshot: CodexRateLimitSnapshot | null
+    snapshot: CodexRateLimitSnapshot | null,
+    providerId: Extract<LLMProvider, 'openai'>
 ): DextoRuntimeError {
     const message = details.message ?? 'You have reached your ChatGPT usage limit.';
 
@@ -640,7 +642,7 @@ function toChatGPTUsageLimitError(
         ErrorType.RATE_LIMIT,
         message,
         {
-            provider: 'openai-compatible',
+            provider: providerId,
             model: modelId,
             source: 'chatgpt-login',
             ...(snapshot?.limitId ? { limitId: snapshot.limitId } : {}),
@@ -844,7 +846,11 @@ function buildDeveloperInstructions(
     return instructions.join(' ');
 }
 
-function toCodexFailureMessage(error: unknown, modelId: string): Error {
+function toCodexFailureMessage(
+    error: unknown,
+    modelId: string,
+    providerId: Extract<LLMProvider, 'openai'>
+): Error {
     if (error instanceof DextoRuntimeError) {
         return error;
     }
@@ -852,7 +858,7 @@ function toCodexFailureMessage(error: unknown, modelId: string): Error {
     const normalized = normalizeError(error);
     if (isMissingCodexCliError(normalized)) {
         return LLMError.missingConfig(
-            'openai-compatible',
+            providerId,
             'the Codex CLI on PATH (install Codex to use ChatGPT Login in Dexto)'
         );
     }
@@ -863,17 +869,21 @@ function toCodexFailureMessage(error: unknown, modelId: string): Error {
         errorInfoKeys: [],
     };
     if (isUsageLimitError(fallbackDetails)) {
-        return toChatGPTUsageLimitError(fallbackDetails, modelId, null);
+        return toChatGPTUsageLimitError(fallbackDetails, modelId, null, providerId);
     }
 
-    return LLMError.generationFailed(normalized.message, 'openai-compatible', modelId);
+    return LLMError.generationFailed(normalized.message, providerId, modelId);
 }
 
-function enforceAuthMode(authMode: CodexAuthMode, accountState: CodexReadAccountResponse): void {
+function enforceAuthMode(
+    authMode: CodexAuthMode,
+    accountState: CodexReadAccountResponse,
+    providerId: Extract<LLMProvider, 'openai'>
+): void {
     if (!accountState.account) {
         if (accountState.requiresOpenaiAuth) {
             throw LLMError.missingConfig(
-                'openai-compatible',
+                providerId,
                 'Codex authentication (run `codex login` or re-run `dexto setup` and choose ChatGPT Login)'
             );
         }
@@ -886,14 +896,14 @@ function enforceAuthMode(authMode: CodexAuthMode, accountState: CodexReadAccount
 
     if (authMode === 'chatgpt' && accountState.account.type !== 'chatgpt') {
         throw LLMError.missingConfig(
-            'openai-compatible',
+            providerId,
             'a ChatGPT-backed Codex login (run `codex logout` and sign in with ChatGPT, or re-run `dexto setup`)'
         );
     }
 
     if (authMode === 'apikey' && accountState.account.type !== 'apiKey') {
         throw LLMError.missingConfig(
-            'openai-compatible',
+            providerId,
             'an API key-backed Codex login (run `codex login --with-api-key` or re-run `dexto setup`)'
         );
     }
@@ -1423,11 +1433,13 @@ export class CodexAppServerClient {
 export function createCodexLanguageModel(options: {
     modelId: string;
     baseURL: string;
+    providerId?: Extract<LLMProvider, 'openai'>;
     cwd?: string;
     onRateLimitStatus?: (snapshot: CodexRateLimitSnapshot) => void;
 }): LanguageModelV2 {
     const parsedBaseURL = parseCodexBaseURL(options.baseURL);
     const authMode = parsedBaseURL?.authMode ?? 'auto';
+    const providerId = options.providerId ?? 'openai';
 
     async function executeTurn(callOptions: LanguageModelV2CallOptions): Promise<{
         stream: ReadableStream<LanguageModelV2StreamPart>;
@@ -1460,7 +1472,7 @@ export function createCodexLanguageModel(options: {
             });
             const activeClient = client;
             const account = await activeClient.readAccount(false);
-            enforceAuthMode(authMode, account);
+            enforceAuthMode(authMode, account, providerId);
             const shouldTrackRateLimits =
                 account.account?.type === 'chatgpt' || authMode === 'chatgpt';
 
@@ -1568,7 +1580,12 @@ export function createCodexLanguageModel(options: {
                             const snapshot = buildUsageLimitSnapshot(latestRateLimitSnapshot);
                             emitRateLimitStatus(snapshot);
                             failStream(
-                                toChatGPTUsageLimitError(details, options.modelId, snapshot)
+                                toChatGPTUsageLimitError(
+                                    details,
+                                    options.modelId,
+                                    snapshot,
+                                    providerId
+                                )
                             );
                             return;
                         }
@@ -1576,7 +1593,7 @@ export function createCodexLanguageModel(options: {
                         failStream(
                             LLMError.generationFailed(
                                 details?.message ?? fallbackMessage,
-                                'openai-compatible',
+                                providerId,
                                 options.modelId
                             )
                         );
@@ -1834,7 +1851,7 @@ export function createCodexLanguageModel(options: {
             };
         } catch (error) {
             await client?.close().catch(() => undefined);
-            const mappedError = toCodexFailureMessage(error, options.modelId);
+            const mappedError = toCodexFailureMessage(error, options.modelId, providerId);
             if (
                 mappedError instanceof DextoRuntimeError &&
                 mappedError.code === LLMErrorCode.RATE_LIMIT_EXCEEDED
@@ -1886,7 +1903,7 @@ export function createCodexLanguageModel(options: {
                         input: value.input,
                     });
                 } else if (value.type === 'error') {
-                    throw toCodexFailureMessage(value.error, options.modelId);
+                    throw toCodexFailureMessage(value.error, options.modelId, providerId);
                 } else if (value.type === 'finish') {
                     finishReason = value.finishReason;
                 }

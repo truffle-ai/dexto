@@ -122,6 +122,62 @@ export {
     canUseDextoProvider,
 } from './utils/dexto-auth.js';
 
+// LLM auth profiles (multi-method provider connect)
+export {
+    getLlmAuthProfilesPath,
+    loadLlmAuthProfilesStore,
+    loadLlmAuthProfilesStoreSync,
+    listLlmAuthProfiles,
+    upsertLlmAuthProfile,
+    deleteLlmAuthProfile,
+    setDefaultLlmAuthProfile,
+    getDefaultLlmAuthProfileId,
+    getDefaultLlmAuthProfileIdSync,
+    getLlmAuthProfile,
+    getLlmAuthProfileSync,
+    LlmAuthCredentialSchema,
+    LlmAuthProfileSchema,
+    LlmAuthProfilesStoreSchema,
+    type LlmAuthCredential,
+    type LlmAuthProfile,
+    type LlmAuthProfilesStore,
+} from './auth/llm-profiles.js';
+
+export {
+    CONNECT_PROVIDERS,
+    getConnectProvider,
+    ConnectProviderSchema,
+    ConnectMethodSchema,
+    ConnectMethodKindSchema,
+    type ConnectProvider,
+    type ConnectMethod,
+    type ConnectMethodKind,
+} from './auth/connect-catalog.js';
+export {
+    AUTH_METHOD_KINDS,
+    PROVIDER_AUTH_DEFINITIONS,
+    getProviderAuthDefinition,
+    getAuthMethodDefinition,
+    getAuthMethodDefinitionForProfile,
+    isExternalAccountAuthMethod,
+    isOauthAuthMethod,
+    type AuthMethodKind,
+    type ExternalAccountMethodHooks,
+    type ExternalAccountRuntimeAuthProjection,
+    type OAuthHeaderKind,
+    type OAuthRuntimeAuthProjection,
+    type StartedOAuthFlow,
+    type ApiKeyAuthMethodDefinition,
+    type TokenAuthMethodDefinition,
+    type ExternalAccountAuthMethodDefinition,
+    type GuidanceAuthMethodDefinition,
+    type OAuthAuthMethodDefinition,
+    type AuthMethodDefinition,
+    type ProviderAuthDefinition,
+} from './auth/provider-auth-definitions.js';
+
+export { createDefaultLlmAuthResolver } from './auth/runtime-auth-resolver.js';
+
 // Config management utilities
 export {
     updateAgentConfigFile,
@@ -155,7 +211,7 @@ export {
 export {
     resolveApiKeyForProvider,
     getPrimaryApiKeyEnvVar,
-    PROVIDER_API_KEY_MAP,
+    getApiKeyEnvVarsForProvider,
 } from './utils/api-key-resolver.js';
 
 // Custom models

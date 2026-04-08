@@ -5,6 +5,8 @@ import {
     LLM_PROVIDERS,
     SUPPORTED_FILE_TYPES,
     supportsBaseURL,
+    getSupportedProviders,
+    isProviderRuntimeSupported,
     getAllModelsForProvider,
     getCuratedModelsForProvider,
     getCuratedModelRefsForProviders,
@@ -44,6 +46,14 @@ import {
 } from '../schemas/responses.js';
 import type { GetAgentFn, OpenAPIRouteSchema } from '../types.js';
 const MODEL_PICKER_FEATURED_LIMIT = 8;
+const UNSUPPORTED_REASONING_RESPONSE = {
+    status: 'unsupported' as const,
+    capable: false,
+    paradigm: 'none' as const,
+    variants: [],
+    supportedVariants: [],
+    supportsBudgetTokens: false,
+};
 
 const CurrentQuerySchema = z
     .object({
@@ -439,6 +449,11 @@ const capabilitiesRoute = createRoute({
                                     .describe(
                                         'Whether Dexto considers this provider/model reasoning-capable (derived from registry metadata plus explicit provider/model rules)'
                                     ),
+                                status: z
+                                    .enum(['supported', 'unsupported', 'unknown'])
+                                    .describe(
+                                        'Whether Dexto knows exact reasoning semantics for this provider/model combination'
+                                    ),
                                 paradigm: z
                                     .enum([
                                         'effort',
@@ -648,8 +663,11 @@ const setFavoritesRoute = createRoute({
 export function createLlmRouter(getAgent: GetAgentFn) {
     const app = new OpenAPIHono();
 
-    const isProviderEnabled = (provider: LLMProvider): boolean =>
-        provider !== 'dexto-nova' || isDextoAuthEnabled();
+    const isProviderVisible = (provider: LLMProvider): boolean =>
+        isProviderRuntimeSupported(provider) && (provider !== 'dexto-nova' || isDextoAuthEnabled());
+
+    const getVisibleProviders = (): LLMProvider[] =>
+        getSupportedProviders().filter((provider) => isProviderVisible(provider));
 
     const dedupeEntries = (entries: Array<z.output<typeof ModelPickerEntrySchema>>) => {
         const seen = new Set<string>();
@@ -697,11 +715,7 @@ export function createLlmRouter(getAgent: GetAgentFn) {
             };
         };
 
-        for (const provider of LLM_PROVIDERS) {
-            if (!isProviderEnabled(provider)) {
-                continue;
-            }
-
+        for (const provider of getVisibleProviders()) {
             const providerInfo = LLM_REGISTRY[provider];
             for (const model of getAllModelsForProvider(provider)) {
                 const supportedFileTypes =
@@ -727,7 +741,7 @@ export function createLlmRouter(getAgent: GetAgentFn) {
         const customModels = await loadCustomModels();
         for (const customModel of customModels) {
             const provider = (customModel.provider ?? 'openai-compatible') as LLMProvider;
-            if (!isProviderEnabled(provider)) {
+            if (!isProviderVisible(provider)) {
                 continue;
             }
 
@@ -759,7 +773,7 @@ export function createLlmRouter(getAgent: GetAgentFn) {
             byKey.set(toModelPickerKey(entry), entry);
         }
 
-        const featuredProviders = LLM_PROVIDERS.filter((provider) => isProviderEnabled(provider));
+        const featuredProviders = getVisibleProviders();
         const featured = getCuratedModelRefsForProviders({
             providers: featuredProviders,
             max: MODEL_PICKER_FEATURED_LIMIT,
@@ -769,7 +783,7 @@ export function createLlmRouter(getAgent: GetAgentFn) {
 
         const state = await loadModelPickerState();
         for (const entry of [...state.recents, ...state.favorites]) {
-            if (!isProviderEnabled(entry.provider)) {
+            if (!isProviderVisible(entry.provider)) {
                 continue;
             }
             const key = toModelPickerKey(entry);
@@ -878,12 +892,7 @@ export function createLlmRouter(getAgent: GetAgentFn) {
 
             const providers: Record<string, ProviderCatalog> = {};
 
-            for (const provider of LLM_PROVIDERS) {
-                // Skip dexto-nova provider when feature is not enabled
-                if (provider === 'dexto-nova' && !isDextoAuthEnabled()) {
-                    continue;
-                }
-
+            for (const provider of getVisibleProviders()) {
                 const info = LLM_REGISTRY[provider];
                 const displayName =
                     provider === 'dexto-nova'
@@ -1070,6 +1079,18 @@ export function createLlmRouter(getAgent: GetAgentFn) {
         })
         .openapi(capabilitiesRoute, (ctx) => {
             const { provider, model } = ctx.req.valid('query');
+
+            if (!isProviderVisible(provider)) {
+                return ctx.json(
+                    {
+                        provider,
+                        model,
+                        supportedFileTypes: [],
+                        reasoning: UNSUPPORTED_REASONING_RESPONSE,
+                    },
+                    200
+                );
+            }
 
             // getSupportedFileTypesForModel handles:
             // 1. Gateway providers (dexto-nova, openrouter) - resolves via resolveModelOrigin to underlying model

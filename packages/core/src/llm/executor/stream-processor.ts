@@ -252,7 +252,8 @@ export class StreamProcessor {
                         // (e.g., Gemini thought signatures). OpenAI Responses metadata can cause invalid
                         // follow-up requests (function_call item references missing required reasoning items).
                         const shouldPersistProviderMetadata =
-                            this.config.provider === 'google' || this.config.provider === 'vertex';
+                            this.config.provider === 'google' ||
+                            this.config.provider === 'google-vertex';
 
                         if (shouldPersistProviderMetadata && event.providerMetadata) {
                             toolCall.providerOptions = {

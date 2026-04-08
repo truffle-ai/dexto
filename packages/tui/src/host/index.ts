@@ -5,6 +5,8 @@ export interface TuiShutdownHandle {
     stop?: (() => Promise<void>) | undefined;
 }
 
+type TuiProviderId = LLMProvider | string;
+
 export interface TuiAuthConfig {
     token?: string | undefined;
     refreshToken?: string | undefined;
@@ -58,10 +60,10 @@ export interface TuiRuntimeServices {
     ) => void;
     capture?: (event: string, properties?: Record<string, unknown>) => void;
     applyLayeredEnvironmentLoading?: () => Promise<void>;
-    getProviderDisplayName?: (provider: LLMProvider | string) => string;
-    isValidApiKeyFormat?: (apiKey: string, provider: LLMProvider) => boolean;
+    getProviderDisplayName?: (provider: TuiProviderId) => string;
+    isValidApiKeyFormat?: (apiKey: string, provider: TuiProviderId) => boolean;
     getProviderInstructions?: (
-        provider: LLMProvider
+        provider: TuiProviderId
     ) => { title: string; content: string; url?: string | undefined } | null;
     performDeviceCodeLogin?: (options?: {
         signal?: AbortSignal | undefined;
@@ -120,15 +122,15 @@ export async function applyLayeredEnvironmentLoading(): Promise<void> {
     }
 }
 
-export function getProviderDisplayName(provider: LLMProvider | string): string {
+export function getProviderDisplayName(provider: TuiProviderId): string {
     return runtimeServices.getProviderDisplayName?.(provider) ?? String(provider);
 }
 
-export function isValidApiKeyFormat(apiKey: string, provider: LLMProvider): boolean {
+export function isValidApiKeyFormat(apiKey: string, provider: TuiProviderId): boolean {
     return runtimeServices.isValidApiKeyFormat?.(apiKey, provider) ?? apiKey.trim().length > 0;
 }
 
-export function getProviderInstructions(provider: LLMProvider): {
+export function getProviderInstructions(provider: TuiProviderId): {
     title: string;
     content: string;
     url?: string | undefined;

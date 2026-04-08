@@ -7,6 +7,8 @@ import {
     acceptsAnyModel,
     supportsCustomModels,
     supportsBaseURL,
+    isCodexBackedOpenAiConfig,
+    isCodexBaseURL,
     getReasoningProfile,
     supportsReasoningVariant,
     LLM_PROVIDERS,
@@ -34,7 +36,7 @@ export const PreferenceLLMSchema = z
             ),
 
         baseURL: OptionalURL.describe(
-            'Custom base URL for providers that support it (openai-compatible, litellm, Codex)'
+            'Custom base URL for providers that support it, or codex://chatgpt for OpenAI ChatGPT Login'
         ),
 
         reasoning: z
@@ -85,11 +87,31 @@ export const PreferenceLLMSchema = z
         }
 
         // Validate baseURL format if provided (but don't require it - allow incomplete setup)
-        if (data.baseURL && !supportsBaseURL(data.provider)) {
+        if (data.baseURL && isCodexBaseURL(data.baseURL) && data.provider !== 'openai') {
             ctx.addIssue({
                 code: z.ZodIssueCode.custom,
                 path: ['baseURL'],
-                message: `Provider '${data.provider}' does not support custom baseURL. Use 'openai-compatible' for custom endpoints.`,
+                message:
+                    "Use provider 'openai' with ChatGPT Login instead of a codex:// baseURL on custom endpoint providers.",
+                params: {
+                    code: PreferenceErrorCode.INVALID_PREFERENCE_VALUE,
+                    scope: 'preference',
+                    type: ErrorType.USER,
+                },
+            });
+        }
+
+        if (
+            data.baseURL &&
+            !supportsBaseURL(data.provider) &&
+            !isCodexBackedOpenAiConfig(data.provider, data.baseURL)
+        ) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ['baseURL'],
+                message:
+                    `Provider '${data.provider}' does not support custom baseURL. ` +
+                    `Use 'openai-compatible' for custom endpoints or 'openai' for ChatGPT Login.`,
                 params: {
                     code: PreferenceErrorCode.INVALID_PREFERENCE_VALUE,
                     scope: 'preference',

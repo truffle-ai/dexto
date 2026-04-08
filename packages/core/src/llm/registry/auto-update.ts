@@ -27,9 +27,11 @@ const UPDATABLE_PROVIDERS: LLMProvider[] = [
     'xai',
     'cohere',
     'minimax',
-    'glm',
-    'vertex',
-    'bedrock',
+    'zhipuai',
+    'moonshotai',
+    'google-vertex',
+    'google-vertex-anthropic',
+    'amazon-bedrock',
 ];
 
 type CacheFile = {

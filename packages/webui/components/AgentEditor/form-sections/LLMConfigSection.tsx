@@ -1,12 +1,16 @@
-import React, { useRef, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { Input } from '../../ui/input';
 import { LabelWithTooltip } from '../../ui/label-with-tooltip';
 import { Collapsible } from '../../ui/collapsible';
 import { Eye, EyeOff } from 'lucide-react';
-import { useModelCapabilities } from '../../hooks/useLLM';
-import { LLM_PROVIDERS } from '@dexto/core';
+import { useLLMCatalog, useModelCapabilities } from '../../hooks/useLLM';
 import type { AgentConfig } from '@dexto/agent-config';
 import { useDebounce } from 'use-debounce';
+import {
+    formatProviderLabel,
+    getProviderSelectOptions,
+    getSupportedProviderIdsFromCatalog,
+} from '@/lib/llm/provider-select';
 
 type LLMConfig = AgentConfig['llm'];
 
@@ -32,10 +36,32 @@ export function LLMConfigSection({
     const [showApiKey, setShowApiKey] = useState(false);
     const modelValueAtFocusRef = useRef('');
     const [debouncedModel] = useDebounce(value.model ?? '', 300);
+    const { data: providerCatalogData } = useLLMCatalog({
+        mode: 'grouped',
+        includeModels: false,
+    });
     const { data: capabilities } = useModelCapabilities(
         value.provider ?? null,
         debouncedModel ? debouncedModel : null
     );
+    const providerOptions = useMemo(() => {
+        if (!providerCatalogData) {
+            return value.provider
+                ? [
+                      {
+                          value: value.provider,
+                          label: formatProviderLabel(value.provider),
+                          isUnsupported: false,
+                      },
+                  ]
+                : [];
+        }
+
+        return getProviderSelectOptions({
+            supportedProviders: getSupportedProviderIdsFromCatalog(providerCatalogData),
+            currentProvider: value.provider ?? null,
+        });
+    }, [providerCatalogData, value.provider]);
     const reasoningSupport = capabilities?.reasoning;
     const reasoningVariants = reasoningSupport?.supportedVariants ?? [];
     const reasoningCapable = reasoningSupport?.capable ?? false;
@@ -79,9 +105,9 @@ export function LLMConfigSection({
                         className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive"
                     >
                         <option value="">Select provider...</option>
-                        {LLM_PROVIDERS.map((p) => (
-                            <option key={p} value={p}>
-                                {p === 'dexto-nova' ? 'Dexto Nova' : p}
+                        {providerOptions.map((provider) => (
+                            <option key={provider.value} value={provider.value}>
+                                {provider.label}
                             </option>
                         ))}
                     </select>

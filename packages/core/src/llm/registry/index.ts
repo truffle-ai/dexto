@@ -17,6 +17,7 @@ import { LLMConfig } from '../schemas.js';
 import { LLMError } from '../errors.js';
 import { LLMErrorCode } from '../error-codes.js';
 import { DextoRuntimeError } from '../../errors/DextoRuntimeError.js';
+import { ErrorScope, ErrorType } from '../../errors/types.js';
 import {
     LLM_PROVIDERS,
     type LLMProvider,
@@ -35,6 +36,15 @@ import {
     MODELS_DEV_PROVIDER_METADATA_BY_PROVIDER,
 } from './models.generated.js';
 import { MANUAL_MODELS_BY_PROVIDER } from './models.manual.js';
+import { getOpenRouterCandidateModelIds, isOpenRouterGatewayProvider } from './model-origin.js';
+import { PROVIDERS_BY_ID, type ProviderSnapshotEntry } from './providers.generated.js';
+import {
+    PROVIDER_RUNTIME_FAMILIES,
+    type ProviderRuntimeFamily,
+    type ProviderRuntimeMetadata,
+} from './provider-runtime.js';
+
+export { getOpenRouterCandidateModelIds } from './model-origin.js';
 
 const LEGACY_MODEL_ID_ALIASES: Partial<Record<LLMProvider, Record<string, string>>> = {
     anthropic: {
@@ -44,6 +54,48 @@ const LEGACY_MODEL_ID_ALIASES: Partial<Record<LLMProvider, Record<string, string
         'claude-4-opus-20250514': 'claude-opus-4-20250514',
     },
 };
+
+// Provider inference should prefer canonical providers over resellers/proxies when model IDs overlap.
+// This keeps `--model gpt-5` and similar flows stable even as models.dev adds more providers.
+const PROVIDER_INFERENCE_PRIORITY: LLMProvider[] = [
+    'openai',
+    'anthropic',
+    'google',
+    'xai',
+    'groq',
+    'cohere',
+    'minimax',
+    'zhipuai',
+    'moonshotai',
+    'google-vertex',
+    'google-vertex-anthropic',
+    'amazon-bedrock',
+    // Gateways/proxies/local last
+    'openai-compatible',
+    'openrouter',
+    'dexto-nova',
+    'ollama',
+    'local',
+];
+
+const PROVIDERS_FOR_MODEL_INFERENCE: LLMProvider[] = (() => {
+    const seen = new Set<LLMProvider>();
+    const ordered: LLMProvider[] = [];
+
+    for (const provider of PROVIDER_INFERENCE_PRIORITY) {
+        if (seen.has(provider)) continue;
+        seen.add(provider);
+        ordered.push(provider);
+    }
+
+    for (const provider of LLM_PROVIDERS) {
+        if (seen.has(provider)) continue;
+        seen.add(provider);
+        ordered.push(provider);
+    }
+
+    return ordered;
+})();
 
 function getNormalizedModelIdForLookup(provider: LLMProvider, model: string): string {
     const stripped = stripBedrockRegionPrefix(model);
@@ -220,6 +272,7 @@ export interface ProviderInfo {
     supportedFileTypes: SupportedFileType[]; // Provider-level default, used when model doesn't specify
     supportsCustomModels?: boolean; // Allow arbitrary model IDs beyond fixed list
     modelsDev?: ModelsDevProviderMetadata;
+    runtime?: ProviderRuntimeMetadata;
     /**
      * When true, this provider can access all models from all other providers in the registry.
      * Used for gateway providers like 'dexto-nova' that route to multiple upstream providers.
@@ -242,138 +295,131 @@ export const DEFAULT_MAX_INPUT_TOKENS = 128000;
  * - DO NOT use empty arrays as "unknown" - research the model's actual capabilities
  * - The web UI directly reflects these capabilities without fallback logic
  */
-export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
-    openai: {
-        models: mergeModels(MODELS_BY_PROVIDER.openai, MANUAL_MODELS_BY_PROVIDER.openai),
-        baseURLSupport: 'none',
-        supportedFileTypes: [], // No defaults - models must explicitly specify support
-        modelsDev: MODELS_DEV_PROVIDER_METADATA_BY_PROVIDER.openai,
-    },
-    'openai-compatible': {
+export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = (() => {
+    const registry: Record<string, ProviderInfo> = {};
+    const modelsDevMetadataByProvider: Record<string, ModelsDevProviderMetadata | undefined> =
+        MODELS_DEV_PROVIDER_METADATA_BY_PROVIDER;
+    const providerSnapshotsByProvider: Record<string, ProviderSnapshotEntry | undefined> =
+        PROVIDERS_BY_ID;
+
+    for (const provider of LLM_PROVIDERS) {
+        const providerSnapshot = providerSnapshotsByProvider[provider];
+        registry[provider] = {
+            models: mergeModels(MODELS_BY_PROVIDER[provider], MANUAL_MODELS_BY_PROVIDER[provider]),
+            baseURLSupport: 'none',
+            supportedFileTypes: [], // No defaults - models must explicitly specify support
+            ...(modelsDevMetadataByProvider[provider]
+                ? { modelsDev: modelsDevMetadataByProvider[provider] }
+                : {}),
+            ...(providerSnapshot?.runtime ? { runtime: providerSnapshot.runtime } : {}),
+        };
+    }
+
+    registry['openai-compatible'] = {
+        ...registry['openai-compatible'],
         models: [], // Empty - accepts any model name for custom endpoints
         baseURLSupport: 'required',
         supportedFileTypes: GENERIC_UPLOAD_FILE_TYPES, // Allow all generic file categories for custom endpoints
         supportsCustomModels: true,
-    },
-    anthropic: {
-        models: MODELS_BY_PROVIDER.anthropic,
+    };
+
+    // OpenRouter is a unified API gateway providing access to many models.
+    const openrouterEntry = registry.openrouter;
+    if (!openrouterEntry) {
+        throw new DextoRuntimeError(
+            'llm_registry_provider_missing',
+            ErrorScope.LLM,
+            ErrorType.SYSTEM,
+            "Expected provider 'openrouter' to be initialized in the registry",
+            { provider: 'openrouter' }
+        );
+    }
+    registry.openrouter = {
+        ...openrouterEntry,
+        models: openrouterEntry.models,
         baseURLSupport: 'none',
-        supportedFileTypes: [], // No defaults - models must explicitly specify support
-        modelsDev: MODELS_DEV_PROVIDER_METADATA_BY_PROVIDER.anthropic,
-    },
-    google: {
-        models: MODELS_BY_PROVIDER.google,
-        baseURLSupport: 'none',
-        supportedFileTypes: [], // No defaults - models must explicitly specify support
-        modelsDev: MODELS_DEV_PROVIDER_METADATA_BY_PROVIDER.google,
-    },
-    // https://console.groq.com/docs/models
-    groq: {
-        models: MODELS_BY_PROVIDER.groq,
-        baseURLSupport: 'none',
-        supportedFileTypes: [], // Groq currently doesn't support file uploads
-        modelsDev: MODELS_DEV_PROVIDER_METADATA_BY_PROVIDER.groq,
-    },
-    // https://docs.x.ai/docs/models
-    // Note: XAI API only supports image uploads (JPG/PNG up to 20MB), not PDFs
-    xai: {
-        models: MODELS_BY_PROVIDER.xai,
-        baseURLSupport: 'none',
-        supportedFileTypes: [], // No defaults - models must explicitly specify support
-        modelsDev: MODELS_DEV_PROVIDER_METADATA_BY_PROVIDER.xai,
-    },
-    // https://docs.cohere.com/reference/models
-    cohere: {
-        models: MODELS_BY_PROVIDER.cohere,
-        baseURLSupport: 'none',
-        supportedFileTypes: [], // No defaults - models must explicitly specify support
-        modelsDev: MODELS_DEV_PROVIDER_METADATA_BY_PROVIDER.cohere,
-    },
-    // https://platform.minimax.io/docs/api-reference/text-openai-api
-    // MiniMax provides an OpenAI-compatible endpoint at https://api.minimax.chat/v1
-    minimax: {
-        models: MODELS_BY_PROVIDER.minimax,
-        baseURLSupport: 'none',
-        supportedFileTypes: [], // No defaults - models must explicitly specify support
-        modelsDev: MODELS_DEV_PROVIDER_METADATA_BY_PROVIDER.minimax,
-    },
-    // https://open.bigmodel.cn/dev/api/normal-model/glm-4
-    // GLM (Zhipu AI) provides an OpenAI-compatible endpoint
-    glm: {
-        models: MODELS_BY_PROVIDER.glm,
-        baseURLSupport: 'none',
-        supportedFileTypes: [], // No defaults - models must explicitly specify support
-        modelsDev: MODELS_DEV_PROVIDER_METADATA_BY_PROVIDER.glm,
-    },
-    // https://openrouter.ai/docs
-    // OpenRouter is a unified API gateway providing access to 100+ models from various providers.
-    // Model validation is handled dynamically via openrouter-model-registry.ts
-    openrouter: {
-        models: MODELS_BY_PROVIDER.openrouter,
-        baseURLSupport: 'none', // Fixed endpoint - baseURL auto-injected in resolver, no user override allowed
         supportedFileTypes: GENERIC_UPLOAD_FILE_TYPES, // Allow all generic file categories - user assumes responsibility
         supportsCustomModels: true,
-        supportsAllRegistryModels: true, // Can serve models from all other providers
-        modelsDev: MODELS_DEV_PROVIDER_METADATA_BY_PROVIDER.openrouter,
-    },
-    // https://docs.litellm.ai/
-    // LiteLLM is an OpenAI-compatible proxy that unifies 100+ LLM providers.
-    // User must host their own LiteLLM proxy and provide the baseURL.
-    litellm: {
+        supportsAllRegistryModels: true,
+    };
+
+    // LiteLLM: user-hosted OpenAI-compatible proxy (baseURL required)
+    registry.litellm = {
+        ...registry.litellm,
         models: [],
         baseURLSupport: 'required',
         supportedFileTypes: GENERIC_UPLOAD_FILE_TYPES,
         supportsCustomModels: true,
-    },
-    // https://glama.ai/
-    // Glama is an OpenAI-compatible gateway providing unified access to multiple LLM providers.
-    // Fixed endpoint: https://glama.ai/api/gateway/openai/v1
-    glama: {
+    };
+
+    // Glama: fixed OpenAI-compatible gateway
+    registry.glama = {
+        ...registry.glama,
         models: [],
         baseURLSupport: 'none',
         supportedFileTypes: GENERIC_UPLOAD_FILE_TYPES,
         supportsCustomModels: true,
-    },
-    // https://cloud.google.com/vertex-ai
-    vertex: {
-        models: MODELS_BY_PROVIDER.vertex,
-        baseURLSupport: 'none',
-        supportedFileTypes: [], // No defaults - models must explicitly specify support
-        modelsDev: MODELS_DEV_PROVIDER_METADATA_BY_PROVIDER.vertex,
-    },
-    // https://docs.aws.amazon.com/bedrock/latest/userguide/models.html
-    bedrock: {
-        models: MODELS_BY_PROVIDER.bedrock,
-        baseURLSupport: 'none',
-        supportedFileTypes: [], // No defaults - models must explicitly specify support
-        supportsCustomModels: true,
-        modelsDev: MODELS_DEV_PROVIDER_METADATA_BY_PROVIDER.bedrock,
-    },
+    };
+
+    // Amazon Bedrock: allow custom/unknown IDs (region prefixes, profile routing, etc.)
+    if (registry['amazon-bedrock']) {
+        const models = registry['amazon-bedrock'].models;
+        const hasDefault = models.some((m) => m.default);
+        if (!hasDefault) {
+            const preferredDefault =
+                models.find((m) => m.name === 'anthropic.claude-sonnet-4-5-20250929-v1:0') ??
+                models.find((m) => /^anthropic\.claude-sonnet/i.test(m.name)) ??
+                models.find((m) => /^anthropic\.claude/i.test(m.name)) ??
+                models[0];
+
+            if (preferredDefault) {
+                registry['amazon-bedrock'] = {
+                    ...registry['amazon-bedrock'],
+                    models: models.map((m) =>
+                        m.name === preferredDefault.name ? { ...m, default: true } : m
+                    ),
+                    supportsCustomModels: true,
+                };
+            } else {
+                registry['amazon-bedrock'] = {
+                    ...registry['amazon-bedrock'],
+                    supportsCustomModels: true,
+                };
+            }
+        } else {
+            registry['amazon-bedrock'] = {
+                ...registry['amazon-bedrock'],
+                supportsCustomModels: true,
+            };
+        }
+    }
+
     // Native local model execution via node-llama-cpp
-    local: {
+    registry.local = {
+        ...registry.local,
         models: [], // Populated dynamically from local model registry
         baseURLSupport: 'none',
         supportedFileTypes: ['image'],
         supportsCustomModels: true,
-    },
+    };
+
     // Ollama server integration
-    ollama: {
+    registry.ollama = {
+        ...registry.ollama,
         models: [], // Populated dynamically from Ollama API
         baseURLSupport: 'optional',
         supportedFileTypes: ['image'],
         supportsCustomModels: true,
-    },
-    // Dexto Gateway - OpenAI-compatible proxy through api.dexto.ai
-    // Routes to OpenRouter with per-request billing (balance decrement)
-    // Requires DEXTO_API_KEY from dexto login
-    //
-    // Model IDs are in OpenRouter format (e.g., 'anthropic/claude-sonnet-4.5')
-    'dexto-nova': {
+    };
+
+    // Dexto Gateway (OpenRouter proxy) - OpenAI-compatible proxy through api.dexto.ai
+    registry['dexto-nova'] = {
+        ...registry['dexto-nova'],
         models: [
             // Claude models (Anthropic via OpenRouter)
             {
                 name: 'anthropic/claude-haiku-4.5',
-                displayName: 'Claude Haiku 4.5',
+                displayName: 'Claude 4.5 Haiku',
                 maxInputTokens: 200000,
                 default: true,
                 supportedFileTypes: ['pdf', 'image'],
@@ -388,7 +434,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             },
             {
                 name: 'anthropic/claude-sonnet-4.5',
-                displayName: 'Claude Sonnet 4.5',
+                displayName: 'Claude 4.5 Sonnet',
                 maxInputTokens: 200000,
                 supportedFileTypes: ['pdf', 'image'],
                 pricing: {
@@ -402,7 +448,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             },
             {
                 name: 'anthropic/claude-opus-4.5',
-                displayName: 'Claude Opus 4.5',
+                displayName: 'Claude 4.5 Opus',
                 maxInputTokens: 200000,
                 supportedFileTypes: ['pdf', 'image'],
                 pricing: {
@@ -509,7 +555,56 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
         supportedFileTypes: GENERIC_UPLOAD_FILE_TYPES,
         supportsCustomModels: true,
         supportsAllRegistryModels: true,
-    },
+    };
+
+    return registry;
+})();
+
+const RUNTIME_SUPPORTED_PROVIDERS_BY_FAMILY = {
+    'openai-responses': ['openai'],
+    'openai-completions': [
+        'openai-compatible',
+        'glama',
+        'groq',
+        'litellm',
+        'moonshotai',
+        'moonshotai-cn',
+        'ollama',
+        'xai',
+        'zai',
+        'zai-coding-plan',
+        'zhipuai',
+        'zhipuai-coding-plan',
+    ],
+    'anthropic-messages': [
+        'anthropic',
+        'kimi-for-coding',
+        'minimax',
+        'minimax-cn',
+        'minimax-coding-plan',
+        'minimax-cn-coding-plan',
+    ],
+    'google-generative-ai': ['google'],
+    'google-vertex': ['google-vertex'],
+    'google-vertex-anthropic': ['google-vertex-anthropic'],
+    'bedrock-converse-stream': ['amazon-bedrock'],
+    openrouter: ['openrouter', 'dexto-nova'],
+    cohere: ['cohere'],
+    'local-native': ['local'],
+} as const satisfies Partial<Record<ProviderRuntimeFamily, readonly LLMProvider[]>>;
+
+const RUNTIME_SUPPORTED_FAMILY_SET = new Set<ProviderRuntimeFamily>(
+    PROVIDER_RUNTIME_FAMILIES.filter((family) => family in RUNTIME_SUPPORTED_PROVIDERS_BY_FAMILY)
+);
+
+const RUNTIME_SUPPORTED_PROVIDER_SET = new Set<LLMProvider>(
+    Object.values(RUNTIME_SUPPORTED_PROVIDERS_BY_FAMILY).flatMap((providers) => [...providers])
+);
+
+export type ProviderSupportInfo = {
+    isSupported: boolean;
+    runtime: ProviderRuntimeMetadata | null;
+    reason?: string;
 };
 
 /**
@@ -526,6 +621,49 @@ export function stripBedrockRegionPrefix(model: string): string {
         return model.slice(7);
     }
     return model;
+}
+
+export function getProviderRuntime(provider: LLMProvider): ProviderRuntimeMetadata | null {
+    return LLM_REGISTRY[provider].runtime ?? null;
+}
+
+export function getProviderSupportInfo(provider: LLMProvider): ProviderSupportInfo {
+    const runtime = getProviderRuntime(provider);
+    if (!runtime) {
+        return {
+            isSupported: false,
+            runtime: null,
+            reason: 'No Dexto runtime family mapping exists for this provider yet.',
+        };
+    }
+
+    if (!RUNTIME_SUPPORTED_FAMILY_SET.has(runtime.family)) {
+        return {
+            isSupported: false,
+            runtime,
+            reason: `Runtime family '${runtime.family}' is not enabled in Dexto yet.`,
+        };
+    }
+
+    if (!RUNTIME_SUPPORTED_PROVIDER_SET.has(provider)) {
+        const supportedProviders = RUNTIME_SUPPORTED_PROVIDERS_BY_FAMILY[runtime.family] ?? [];
+        return {
+            isSupported: false,
+            runtime,
+            reason:
+                `Runtime family '${runtime.family}' is enabled, but this provider is not yet ` +
+                `supported. Supported providers in this family: ${supportedProviders.join(', ')}`,
+        };
+    }
+
+    return {
+        isSupported: true,
+        runtime,
+    };
+}
+
+export function isProviderRuntimeSupported(provider: LLMProvider): boolean {
+    return getProviderSupportInfo(provider).isSupported;
 }
 
 /**
@@ -548,7 +686,7 @@ export function getDefaultModelForProvider(provider: LLMProvider): string | null
  * @returns An array of supported provider names.
  */
 export function getSupportedProviders(): LLMProvider[] {
-    return [...LLM_PROVIDERS];
+    return LLM_PROVIDERS.filter((provider) => isProviderRuntimeSupported(provider));
 }
 
 /**
@@ -579,7 +717,7 @@ export function getMaxInputTokensForModel(
     if (!modelInfo) {
         // Gateways can accept arbitrary OpenRouter-format IDs; fall back to OpenRouter's cached catalog
         // for a context length hint when possible.
-        if ((provider === 'openrouter' || provider === 'dexto-nova') && model.includes('/')) {
+        if (isOpenRouterGatewayProvider(provider) && model.includes('/')) {
             const contextLength = getOpenRouterModelContextLength(model);
             if (typeof contextLength === 'number') {
                 logger?.debug(
@@ -628,7 +766,7 @@ export function getProviderFromModel(model: string): LLMProvider {
         throw LLMError.modelProviderUnknown(model);
     }
 
-    for (const provider of LLM_PROVIDERS) {
+    for (const provider of PROVIDERS_FOR_MODEL_INFERENCE) {
         const info = LLM_REGISTRY[provider];
         const normalizedModel = getNormalizedModelIdForLookup(provider, model);
         if (info.models.some((m) => m.name.toLowerCase() === normalizedModel)) {
@@ -696,51 +834,8 @@ export function hasAllRegistryModelsSupport(provider: LLMProvider): boolean {
     return providerInfo.supportsAllRegistryModels === true;
 }
 
-/**
- * Prefix used for OpenRouter-format model IDs (e.g. "openai/gpt-4.1-mini").
- * This is intentionally kept small and deterministic.
- */
-const OPENROUTER_PREFIX_BY_PROVIDER: Partial<Record<LLMProvider, string>> = {
-    openai: 'openai',
-    anthropic: 'anthropic',
-    google: 'google',
-    xai: 'x-ai',
-    cohere: 'cohere',
-    minimax: 'minimax',
-    glm: 'z-ai',
-};
-
 function getOpenRouterModelIdSet(): Set<string> {
     return new Set(LLM_REGISTRY.openrouter.models.map((m) => m.name.toLowerCase()));
-}
-
-export function getOpenRouterCandidateModelIds(
-    model: string,
-    originalProvider: LLMProvider
-): string[] {
-    if (model.includes('/')) return [model];
-
-    const prefix = OPENROUTER_PREFIX_BY_PROVIDER[originalProvider];
-    if (!prefix) return [];
-
-    // Anthropic IDs include dates and use dashes in "X-Y" version segments.
-    // OpenRouter uses dotted versions and typically omits the date suffix.
-    if (originalProvider === 'anthropic') {
-        const noDate = model.replace(/-\d{8}.*$/i, '');
-        const dotted = noDate.replace(/-(\d)-(\d)\b/g, '-$1.$2');
-        return [`${prefix}/${dotted}`, `${prefix}/${noDate}`, `${prefix}/${model}`];
-    }
-
-    // Google Gemini: some models use a "-001" suffix on OpenRouter, but others don't.
-    // Prefer whichever exists in the OpenRouter catalog snapshot.
-    if (originalProvider === 'google') {
-        if (!/^gemini-/i.test(model)) {
-            return [`${prefix}/${model}`];
-        }
-        return [`${prefix}/${model}`, `${prefix}/${model}-001`];
-    }
-
-    return [`${prefix}/${model}`];
 }
 
 function pickExistingOpenRouterModelId(candidates: string[]): string | null {
@@ -1007,15 +1102,16 @@ export function isModelValidForProvider(provider: LLMProvider, model: string): b
  * - Native local providers (local for node-llama-cpp, ollama for Ollama server)
  * - Local/self-hosted providers (openai-compatible for vLLM, LocalAI)
  * - Proxies that handle auth internally (litellm)
- * - Cloud auth providers (vertex uses ADC, bedrock uses AWS credentials)
+ * - Cloud auth providers (Vertex uses ADC, Bedrock uses AWS credentials)
  */
 const API_KEY_OPTIONAL_PROVIDERS: Set<LLMProvider> = new Set([
     'local', // Native node-llama-cpp execution - no auth needed
     'ollama', // Ollama server - no auth needed by default
     'openai-compatible', // vLLM, LocalAI - often no auth needed
     'litellm', // Self-hosted proxy - handles auth internally
-    'vertex', // Uses Google Cloud ADC (Application Default Credentials)
-    'bedrock', // Uses AWS credentials (access key + secret or IAM role)
+    'google-vertex', // Uses Google Cloud ADC (Application Default Credentials)
+    'google-vertex-anthropic', // Uses Google Cloud ADC (Application Default Credentials)
+    'amazon-bedrock', // Uses AWS credentials (access key + secret or IAM role)
 ]);
 
 /**
@@ -1023,7 +1119,7 @@ const API_KEY_OPTIONAL_PROVIDERS: Set<LLMProvider> = new Set([
  * Returns false for:
  * - Local providers (openai-compatible for Ollama, vLLM, LocalAI)
  * - Self-hosted proxies (litellm)
- * - Cloud auth providers (vertex, bedrock)
+ * - Cloud auth providers (Vertex, Bedrock)
  *
  * @param provider The name of the provider.
  * @returns True if the provider requires an API key, false otherwise.
@@ -1300,18 +1396,12 @@ export function getModelDisplayName(model: string, provider?: LLMProvider): stri
 }
 
 /**
- * Checks if a model is flagged as "reasoning-capable" by the registry (models.dev).
- *
- * Note: This is distinct from "supports tunable reasoning knobs". Some providers/models may
- * have reasoning but limited/implicit tuning controls.
- *
- * @param model The model name to check.
- * @param provider Optional provider for context (defaults to detecting from model name).
- * @returns True if the registry marks this model as reasoning-capable.
+ * Checks if a model is flagged as reasoning-capable by the registry (models.dev).
+ * Falls back to a few heuristics for unknown/custom models.
  */
 export function isReasoningCapableModel(model: string, provider?: LLMProvider): boolean {
     const registryProvider = (() => {
-        if (model.includes('/')) return 'openrouter' as const;
+        if (model.includes('/')) return 'openrouter';
         if (provider) return provider;
         try {
             return getProviderFromModel(model);
@@ -1332,24 +1422,13 @@ export function isReasoningCapableModel(model: string, provider?: LLMProvider): 
         if (modelInfo?.reasoning === false) return false;
     }
 
-    // Fallback heuristics (for unknown/custom models).
-    //
-    // Strip OpenRouter-format provider prefix (e.g. "openai/o4-mini" → "o4-mini")
-    // so name-based checks work regardless of how the model ID was passed.
     const modelIdForHeuristics = model.includes('/') ? (model.split('/').pop() ?? model) : model;
     const modelLower = modelIdForHeuristics.toLowerCase();
 
-    // Codex models are optimized for complex coding with reasoning
-    if (modelLower.includes('codex')) {
-        return true;
-    }
-
-    // o1 and o3 are dedicated reasoning models
+    if (modelLower.includes('codex')) return true;
     if (modelLower.startsWith('o1') || modelLower.startsWith('o3') || modelLower.startsWith('o4')) {
         return true;
     }
-
-    // GPT-5 series support reasoning effort
     if (
         modelLower.includes('gpt-5') ||
         modelLower.includes('gpt-5.1') ||

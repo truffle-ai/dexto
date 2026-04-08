@@ -129,11 +129,11 @@ describe('buildProviderOptions', () => {
         });
     });
 
-    describe('vertex', () => {
+    describe('google-vertex', () => {
         it('maps Vertex Claude models to Anthropic options', () => {
             expect(
                 buildProviderOptions({
-                    provider: 'vertex',
+                    provider: 'google-vertex-anthropic',
                     model: 'claude-3-7-sonnet@20250219',
                     reasoning: { variant: 'enabled' },
                 })
@@ -149,7 +149,7 @@ describe('buildProviderOptions', () => {
         it('maps Vertex Gemini models to Google options', () => {
             expect(
                 buildProviderOptions({
-                    provider: 'vertex',
+                    provider: 'google-vertex',
                     model: 'gemini-3-flash-preview',
                     reasoning: { variant: 'minimal' },
                 })
@@ -159,7 +159,7 @@ describe('buildProviderOptions', () => {
 
             expect(
                 buildProviderOptions({
-                    provider: 'vertex',
+                    provider: 'google-vertex',
                     model: 'gemini-2.5-pro',
                     reasoning: undefined,
                 })
@@ -203,13 +203,40 @@ describe('buildProviderOptions', () => {
                 google: { thinkingConfig: { includeThoughts: false } },
             });
         });
+
+        it('keeps google and google-vertex reasoning translation aligned for shared Gemini models', () => {
+            const cases = [
+                {
+                    model: 'gemini-3-flash-preview',
+                    reasoning: { variant: 'minimal' as const },
+                },
+                {
+                    model: 'gemini-2.5-pro',
+                    reasoning: { variant: 'enabled' as const, budgetTokens: 987 },
+                },
+            ];
+
+            for (const testCase of cases) {
+                const fromGoogle = buildProviderOptions({
+                    provider: 'google',
+                    model: testCase.model,
+                    reasoning: testCase.reasoning,
+                });
+                const fromGoogleVertex = buildProviderOptions({
+                    provider: 'google-vertex',
+                    model: testCase.model,
+                    reasoning: testCase.reasoning,
+                });
+                expect(fromGoogleVertex).toEqual(fromGoogle);
+            }
+        });
     });
 
-    describe('bedrock', () => {
+    describe('amazon-bedrock', () => {
         it('uses Anthropic budget defaults for Bedrock Anthropic models', () => {
             expect(
                 buildProviderOptions({
-                    provider: 'bedrock',
+                    provider: 'amazon-bedrock',
                     model: 'anthropic.claude-haiku-4-5-20251001-v1:0',
                 })
             ).toEqual({
@@ -223,7 +250,7 @@ describe('buildProviderOptions', () => {
         it('maps Bedrock Anthropic disabled/enabled variants', () => {
             expect(
                 buildProviderOptions({
-                    provider: 'bedrock',
+                    provider: 'amazon-bedrock',
                     model: 'anthropic.claude-haiku-4-5-20251001-v1:0',
                     reasoning: { variant: 'disabled' },
                 })
@@ -231,7 +258,7 @@ describe('buildProviderOptions', () => {
 
             expect(
                 buildProviderOptions({
-                    provider: 'bedrock',
+                    provider: 'amazon-bedrock',
                     model: 'anthropic.claude-haiku-4-5-20251001-v1:0',
                     reasoning: { variant: 'enabled', budgetTokens: 987 },
                 })
@@ -246,7 +273,7 @@ describe('buildProviderOptions', () => {
         it('maps Bedrock Nova effort variants', () => {
             expect(
                 buildProviderOptions({
-                    provider: 'bedrock',
+                    provider: 'amazon-bedrock',
                     model: 'amazon.nova-premier-v1:0',
                 })
             ).toEqual({
@@ -255,7 +282,7 @@ describe('buildProviderOptions', () => {
 
             expect(
                 buildProviderOptions({
-                    provider: 'bedrock',
+                    provider: 'amazon-bedrock',
                     model: 'amazon.nova-premier-v1:0',
                     reasoning: { variant: 'high' },
                 })
@@ -390,6 +417,15 @@ describe('buildProviderOptions', () => {
                     provider: 'openrouter',
                     model: 'deepseek/deepseek-r1:free',
                     reasoning: { variant: 'medium' },
+                })
+            ).toBeUndefined();
+        });
+
+        it('does not guess reasoning controls for unknown gateway semantics', () => {
+            expect(
+                buildProviderOptions({
+                    provider: 'openrouter',
+                    model: 'deepseek/deepseek-r1:free',
                 })
             ).toBeUndefined();
         });

@@ -16,10 +16,11 @@ export const CUSTOM_MODEL_PROVIDERS = [
     'openrouter',
     'litellm',
     'glama',
-    'bedrock',
+    'amazon-bedrock',
     'ollama',
     'local',
-    'vertex',
+    'google-vertex',
+    'google-vertex-anthropic',
     'dexto-nova',
 ] as const;
 export type CustomModelProvider = (typeof CUSTOM_MODEL_PROVIDERS)[number];
@@ -30,10 +31,10 @@ export type CustomModelProvider = (typeof CUSTOM_MODEL_PROVIDERS)[number];
  * - openrouter: baseURL is auto-injected, maxInputTokens from registry
  * - litellm: requires baseURL, uses LITELLM_API_KEY or per-model override
  * - glama: fixed baseURL, uses GLAMA_API_KEY or per-model override
- * - bedrock: no baseURL, uses AWS credentials from environment
+ * - amazon-bedrock: no baseURL, uses AWS credentials from environment
  * - ollama: optional baseURL (defaults to http://localhost:11434)
  * - local: no baseURL, uses local GGUF files via node-llama-cpp
- * - vertex: no baseURL, uses Google Cloud ADC
+ * - google-vertex/google-vertex-anthropic: no baseURL, uses Google Cloud ADC
  * - dexto-nova: OpenRouter gateway using Dexto credits, requires auth login, uses OpenRouter model IDs
  *
  * TODO: For hosted deployments, API keys should be stored in a secure

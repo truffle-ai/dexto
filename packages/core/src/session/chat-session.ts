@@ -28,7 +28,8 @@ import type { UserMessageInput } from './message-queue.js';
 import type { ContentInput } from '../agent/types.js';
 import { getUsagePricingMetadata, hasMeaningfulTokenUsage } from '../llm/usage-metadata.js';
 import type { CompactionStrategy } from '../context/compaction/types.js';
-import { parseCodexBaseURL } from '../llm/providers/codex-base-url.js';
+import type { LlmAuthResolver } from '../llm/auth/types.js';
+import { isChatGptLoginConfig } from '../llm/providers/codex-base-url.js';
 
 /**
  * Represents an isolated conversation session within a Dexto agent.
@@ -147,6 +148,7 @@ export class ChatSession {
             sessionManager: import('./session-manager.js').SessionManager;
             workspaceManager?: import('../workspace/manager.js').WorkspaceManager;
             compactionStrategy: CompactionStrategy | null;
+            llmAuthResolver?: LlmAuthResolver | null;
         },
         public readonly id: string,
         logger: Logger
@@ -214,9 +216,7 @@ export class ChatSession {
         this.tokenAccumulatorListener = (payload: SessionEventMap['llm:response']) => {
             if (payload.tokenUsage) {
                 const llmConfig = this.services.stateManager.getLLMConfig(this.id);
-                const isChatGPTLogin =
-                    llmConfig.provider === 'openai-compatible' &&
-                    parseCodexBaseURL(llmConfig.baseURL)?.authMode === 'chatgpt';
+                const isChatGPTLogin = isChatGptLoginConfig(llmConfig.provider, llmConfig.baseURL);
                 const hasMeaningfulUsage = hasMeaningfulTokenUsage(payload.tokenUsage);
 
                 if (isChatGPTLogin && !hasMeaningfulUsage) {
@@ -295,6 +295,7 @@ export class ChatSession {
                 usageScopeId: runtimeConfig.usageScopeId,
                 compactionStrategy,
                 cwd: workspace?.path,
+                authResolver: this.services.llmAuthResolver ?? null,
             }
         );
 
@@ -688,6 +689,7 @@ export class ChatSession {
                     usageScopeId: runtimeConfig.usageScopeId,
                     compactionStrategy,
                     cwd: workspace?.path,
+                    authResolver: this.services.llmAuthResolver ?? null,
                 }
             );
 

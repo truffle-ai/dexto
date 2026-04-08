@@ -16,12 +16,13 @@ describe('resolveApiKeyForProvider', () => {
         delete process.env.DEXTO_API_KEY;
 
         tempDir = fs.mkdtempSync(path.join(tmpdir(), 'dexto-api-key-resolver-'));
-        authPath = path.join(tempDir, 'auth.json');
+        authPath = path.join(tempDir, 'auth', 'dexto.json');
+        fs.mkdirSync(path.dirname(authPath), { recursive: true });
 
         const pathUtils = await import('./path.js');
         vi.mocked(pathUtils.getDextoGlobalPath).mockImplementation(
-            (_type: string, filename?: string) =>
-                filename ? path.join(tempDir, filename) : tempDir
+            (type: string, filename?: string) =>
+                filename ? path.join(tempDir, type, filename) : path.join(tempDir, type)
         );
     });
 
@@ -30,7 +31,7 @@ describe('resolveApiKeyForProvider', () => {
         fs.rmSync(tempDir, { recursive: true, force: true });
     });
 
-    it('prefers the auth.json Dexto key over a stale env key', async () => {
+    it('prefers the dexto auth key over a stale env key', async () => {
         process.env.DEXTO_API_KEY = 'stale-env-key';
         fs.writeFileSync(
             authPath,

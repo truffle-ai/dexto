@@ -109,14 +109,10 @@ export async function startTestServer(
     port?: number,
     agentsContext?: CreateDextoAppOptions['agentsContext']
 ): Promise<TestServer> {
-    // Use provided port or find an available port
-    const serverPort = port ?? (await findAvailablePort());
-
-    // Create agent card
-    const agentCard = createAgentCard({
+    let agentCard = createAgentCard({
         defaultName: 'test-agent',
         defaultVersion: '1.0.0',
-        defaultBaseUrl: `http://localhost:${serverPort}`,
+        defaultBaseUrl: `http://localhost:${port ?? 0}`,
     });
 
     // Create getter functions
@@ -164,24 +160,27 @@ export async function startTestServer(
     // Create Node server bridge
     const bridge = createNodeServer(app, {
         getAgent: () => agent,
-        port: serverPort,
-    });
-
-    // Agent card (no updates needed after bridge creation in SSE migration)
-    const updatedAgentCard = createAgentCard({
-        defaultName: 'test-agent',
-        defaultVersion: '1.0.0',
-        defaultBaseUrl: `http://localhost:${serverPort}`,
     });
 
     // Start the server
     await new Promise<void>((resolve, reject) => {
-        bridge.server.listen(serverPort, '0.0.0.0', () => {
+        bridge.server.listen(port ?? 0, '0.0.0.0', () => {
             resolve();
         });
         bridge.server.on('error', reject);
     });
 
+    const address = bridge.server.address();
+    if (!address || typeof address === 'string') {
+        throw new Error('Expected test server to expose a numeric port');
+    }
+
+    const serverPort = address.port;
+    agentCard = createAgentCard({
+        defaultName: 'test-agent',
+        defaultVersion: '1.0.0',
+        defaultBaseUrl: `http://localhost:${serverPort}`,
+    });
     const baseUrl = `http://localhost:${serverPort}`;
 
     return {
@@ -190,7 +189,7 @@ export async function startTestServer(
         bridge,
         agent,
         approvalCoordinator,
-        agentCard: updatedAgentCard,
+        agentCard,
         baseUrl,
         port: serverPort,
         cleanup: async () => {
@@ -213,39 +212,6 @@ export async function startTestServer(
             }
         },
     };
-}
-
-/**
- * Finds an available port starting from a random port in the ephemeral range
- * Uses ports 49152-65535 (IANA ephemeral port range)
- */
-async function findAvailablePort(): Promise<number> {
-    const { createServer } = await import('node:http');
-    // Start from a random port in the ephemeral range to avoid conflicts
-    const startPort = 49152 + Math.floor(Math.random() * 1000);
-
-    for (let port = startPort; port < 65535; port++) {
-        try {
-            await new Promise<void>((resolve, reject) => {
-                const server = createServer();
-                server.on('error', (err: NodeJS.ErrnoException) => {
-                    if (err.code === 'EADDRINUSE') {
-                        reject(new Error(`Port ${port} is in use`));
-                    } else {
-                        reject(err);
-                    }
-                });
-                server.listen(port, () => {
-                    server.close(() => resolve());
-                });
-            });
-            return port;
-        } catch {
-            // Port is in use, try next
-            continue;
-        }
-    }
-    throw new Error(`Could not find an available port starting from ${startPort}`);
 }
 
 /**

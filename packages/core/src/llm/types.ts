@@ -1,23 +1,7 @@
-// Derive types from registry constants without creating runtime imports.
-export const LLM_PROVIDERS = [
-    'openai',
-    'openai-compatible',
-    'anthropic',
-    'google',
-    'groq',
-    'xai',
-    'cohere',
-    'minimax',
-    'glm',
-    'openrouter',
-    'litellm',
-    'glama',
-    'vertex',
-    'bedrock',
-    'local', // Native node-llama-cpp execution (GGUF models)
-    'ollama', // Ollama server integration
-    'dexto-nova', // Dexto gateway - routes through api.dexto.ai/v1 with billing
-] as const;
+import { LLM_PROVIDERS as GENERATED_LLM_PROVIDERS } from './registry/providers.generated.js';
+
+// Derived from a committed models.dev provider snapshot (plus a small Dexto overlay).
+export const LLM_PROVIDERS = GENERATED_LLM_PROVIDERS;
 export type LLMProvider = (typeof LLM_PROVIDERS)[number];
 
 export const LLM_PRICING_STATUSES = ['estimated', 'unpriced'] as const;

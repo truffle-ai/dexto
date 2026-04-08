@@ -85,11 +85,13 @@ vi.mock('@dexto/core', () => {
         getReasoningProfile: vi.fn((_provider: string, model: string) =>
             isReasoningModel(model)
                 ? {
+                      status: 'supported',
                       capable: true,
                       supportedVariants: ['enabled', 'disabled'],
                       defaultVariant: 'enabled',
                   }
                 : {
+                      status: 'unsupported',
                       capable: false,
                       supportedVariants: [],
                       defaultVariant: undefined,
@@ -107,6 +109,12 @@ vi.mock('@dexto/core', () => {
         createCodexBaseURL: vi.fn((mode: string = 'chatgpt') => `codex://${mode}`),
         isCodexBaseURL: vi.fn(
             (value: unknown) => typeof value === 'string' && value.startsWith('codex://')
+        ),
+        isCodexBackedOpenAiConfig: vi.fn(
+            (provider: string, baseURL: unknown) =>
+                provider === 'openai' &&
+                typeof baseURL === 'string' &&
+                baseURL.startsWith('codex://')
         ),
         parseCodexBaseURL: vi.fn((value: unknown) => {
             if (value === 'codex://chatgpt') {
@@ -544,7 +552,7 @@ describe('Setup Command', () => {
             mockCodexAppServerCreate.mockResolvedValue(codexClient);
 
             mockPrompts.select
-                .mockResolvedValueOnce('openai-codex')
+                .mockResolvedValueOnce('chatgpt-login')
                 .mockResolvedValueOnce('gpt-4o-mini')
                 .mockResolvedValueOnce('cli');
 
@@ -558,7 +566,7 @@ describe('Setup Command', () => {
             expect(mockOpen).toHaveBeenCalledWith('https://chatgpt.example/login');
             expect(mockCreateInitialPreferences).toHaveBeenCalledWith(
                 expect.objectContaining({
-                    provider: 'openai-compatible',
+                    provider: 'openai',
                     model: 'gpt-4o-mini',
                     baseURL: 'codex://chatgpt',
                     defaultMode: 'cli',
@@ -619,7 +627,7 @@ describe('Setup Command', () => {
                 .mockResolvedValueOnce(codexClient);
 
             mockPrompts.select
-                .mockResolvedValueOnce('openai-codex')
+                .mockResolvedValueOnce('chatgpt-login')
                 .mockResolvedValueOnce('gpt-4o-mini')
                 .mockResolvedValueOnce('cli');
 
@@ -656,7 +664,7 @@ describe('Setup Command', () => {
 
             const cancelToken = Symbol.for('cancel');
             mockPrompts.select
-                .mockResolvedValueOnce('openai-codex')
+                .mockResolvedValueOnce('chatgpt-login')
                 .mockResolvedValueOnce(cancelToken);
             mockPrompts.isCancel.mockImplementation((value: unknown) => value === cancelToken);
 
@@ -1085,7 +1093,7 @@ describe('Setup Command', () => {
             it('shows Codex-specific labels for a saved ChatGPT-backed config', async () => {
                 mockLoadGlobalPreferences.mockResolvedValue({
                     llm: {
-                        provider: 'openai-compatible',
+                        provider: 'openai',
                         model: 'gpt-4o-mini',
                         baseURL: 'codex://chatgpt',
                     },

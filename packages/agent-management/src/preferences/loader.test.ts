@@ -202,11 +202,11 @@ describe('Preferences Loader', () => {
             expect(loadedPreferences).toEqual(samplePreferences);
         });
 
-        it('should load Codex-backed openai-compatible preferences', async () => {
+        it('should load ChatGPT Login preferences under the openai provider', async () => {
             const codexPreferences: GlobalPreferences = {
                 ...samplePreferences,
                 llm: {
-                    provider: 'openai-compatible',
+                    provider: 'openai',
                     model: 'gpt-5.4',
                     baseURL: 'codex://chatgpt',
                 },
@@ -215,7 +215,7 @@ describe('Preferences Loader', () => {
             await saveGlobalPreferences(codexPreferences);
             const loadedPreferences = await loadGlobalPreferences();
 
-            expect(loadedPreferences.llm.provider).toBe('openai-compatible');
+            expect(loadedPreferences.llm.provider).toBe('openai');
             expect(loadedPreferences.llm.model).toBe('gpt-5.4');
             expect(loadedPreferences.llm.baseURL).toBe('codex://chatgpt');
         });

@@ -273,7 +273,7 @@ function getSupportedFileTypesFromModel(
     const supportsDocumentInputs =
         (provider === 'openai' &&
             (inputModalities.includes('image') || inputModalities.includes('pdf'))) ||
-        ((provider === 'google' || provider === 'vertex') &&
+        ((provider === 'google' || provider === 'google-vertex') &&
             (inputModalities.includes('image') ||
                 inputModalities.includes('audio') ||
                 inputModalities.includes('video') ||
@@ -424,7 +424,16 @@ export function buildModelsByProviderFromParsedSources(params: {
 }): Record<LLMProvider, ModelInfo[]> {
     const { modelsDevApi } = params;
 
-    const defaults: Partial<Record<LLMProvider, string>> = {
+    const overlayProviderIds: LLMProvider[] = [
+        'dexto-nova',
+        'openai-compatible',
+        'litellm',
+        'glama',
+        'local',
+        'ollama',
+    ];
+
+    const defaults: Partial<Record<string, string>> = {
         openai: 'gpt-5-mini',
         anthropic: 'claude-haiku-4-5-20251001',
         google: 'gemini-3-flash-preview',
@@ -432,144 +441,47 @@ export function buildModelsByProviderFromParsedSources(params: {
         xai: 'grok-4',
         cohere: 'command-a-03-2025',
         minimax: 'MiniMax-M2.1',
-        glm: 'glm-4.7',
-        vertex: 'gemini-3-flash-preview',
-        bedrock: 'anthropic.claude-sonnet-4-5-20250929-v1:0',
+        zhipuai: 'glm-4.7',
+        moonshotai: 'kimi-k2.5',
     };
 
-    const include = {
-        openai: (id: string) => id.startsWith('gpt-') || id.startsWith('o'),
-        anthropic: (id: string) => id.startsWith('claude-'),
-        google: (id: string) => id.startsWith('gemini-'),
-        groq: (_id: string) => true,
-        xai: (id: string) => id.startsWith('grok-'),
-        cohere: (id: string) => id.startsWith('command-'),
-        minimax: (_id: string) => true,
-        glm: (id: string) => id.startsWith('glm-'),
-        vertex: (_id: string) => true,
-        bedrock: (_id: string) => true,
-        openrouter: (_id: string) => true,
-    } as const;
+    function includeModel(providerId: string, modelId: string): boolean {
+        if (providerId === 'openai') return modelId.startsWith('gpt-') || modelId.startsWith('o');
+        if (providerId === 'anthropic') return modelId.startsWith('claude-');
+        if (providerId === 'google') return modelId.startsWith('gemini-');
+        if (providerId === 'xai') return modelId.startsWith('grok-');
+        if (providerId === 'cohere') return modelId.startsWith('command-');
+        return true;
+    }
 
-    const modelsByProvider: Record<LLMProvider, ModelInfo[]> = {
-        openai: buildModelsFromModelsDevProvider({
+    const providerIds = Object.keys(modelsDevApi).sort();
+    const modelsByProvider = {} as Record<LLMProvider, ModelInfo[]>;
+
+    for (const providerId of providerIds) {
+        const providerKey = providerId as LLMProvider;
+        const models = buildModelsFromModelsDevProvider({
             spec: {
-                provider: 'openai',
-                modelsDevProviderId: 'openai',
-                ...(defaults.openai ? { defaultModelId: defaults.openai } : {}),
-                includeModelId: include.openai,
+                provider: providerKey,
+                modelsDevProviderId: providerId,
+                ...(defaults[providerId] ? { defaultModelId: defaults[providerId] } : {}),
+                includeModelId: (id) => includeModel(providerId, id),
             },
             modelsDevApi,
-        }),
-        'openai-compatible': [],
-        anthropic: buildModelsFromModelsDevProvider({
-            spec: {
-                provider: 'anthropic',
-                modelsDevProviderId: 'anthropic',
-                ...(defaults.anthropic ? { defaultModelId: defaults.anthropic } : {}),
-                includeModelId: include.anthropic,
-            },
-            modelsDevApi,
-        }),
-        google: buildModelsFromModelsDevProvider({
-            spec: {
-                provider: 'google',
-                modelsDevProviderId: 'google',
-                ...(defaults.google ? { defaultModelId: defaults.google } : {}),
-                includeModelId: include.google,
-            },
-            modelsDevApi,
-        }),
-        groq: buildModelsFromModelsDevProvider({
-            spec: {
-                provider: 'groq',
-                modelsDevProviderId: 'groq',
-                ...(defaults.groq ? { defaultModelId: defaults.groq } : {}),
-                includeModelId: include.groq,
-            },
-            modelsDevApi,
-        }),
-        xai: buildModelsFromModelsDevProvider({
-            spec: {
-                provider: 'xai',
-                modelsDevProviderId: 'xai',
-                ...(defaults.xai ? { defaultModelId: defaults.xai } : {}),
-                includeModelId: include.xai,
-            },
-            modelsDevApi,
-        }),
-        cohere: buildModelsFromModelsDevProvider({
-            spec: {
-                provider: 'cohere',
-                modelsDevProviderId: 'cohere',
-                ...(defaults.cohere ? { defaultModelId: defaults.cohere } : {}),
-                includeModelId: include.cohere,
-            },
-            modelsDevApi,
-        }),
-        minimax: buildModelsFromModelsDevProvider({
-            spec: {
-                provider: 'minimax',
-                modelsDevProviderId: 'minimax',
-                ...(defaults.minimax ? { defaultModelId: defaults.minimax } : {}),
-                includeModelId: include.minimax,
-            },
-            modelsDevApi,
-        }),
-        glm: buildModelsFromModelsDevProvider({
-            spec: {
-                provider: 'glm',
-                modelsDevProviderId: 'zhipuai',
-                ...(defaults.glm ? { defaultModelId: defaults.glm } : {}),
-                includeModelId: include.glm,
-            },
-            modelsDevApi,
-        }),
-        openrouter: buildModelsFromModelsDevProvider({
-            spec: {
-                provider: 'openrouter',
-                modelsDevProviderId: 'openrouter',
-                includeModelId: include.openrouter,
-            },
-            modelsDevApi,
-        }),
-        litellm: [],
-        glama: [],
-        vertex: [
-            ...buildModelsFromModelsDevProvider({
-                spec: {
-                    provider: 'vertex',
-                    modelsDevProviderId: 'google-vertex',
-                    ...(defaults.vertex ? { defaultModelId: defaults.vertex } : {}),
-                    includeModelId: include.vertex,
-                },
-                modelsDevApi,
-            }),
-            ...buildModelsFromModelsDevProvider({
-                spec: {
-                    provider: 'vertex',
-                    modelsDevProviderId: 'google-vertex-anthropic',
-                    includeModelId: include.vertex,
-                },
-                modelsDevApi,
-            }),
-        ].sort((a, b) => a.name.localeCompare(b.name)),
-        bedrock: buildModelsFromModelsDevProvider({
-            spec: {
-                provider: 'bedrock',
-                modelsDevProviderId: 'amazon-bedrock',
-                ...(defaults.bedrock ? { defaultModelId: defaults.bedrock } : {}),
-                includeModelId: include.bedrock,
-            },
-            modelsDevApi,
-        })
-            .map((m) => ({ ...m, name: m.name.replace(/^(eu\.|us\.|global\.)/i, '') }))
-            .filter((m, idx, arr) => arr.findIndex((x) => x.name === m.name) === idx)
-            .sort((a, b) => a.name.localeCompare(b.name)),
-        local: [],
-        ollama: [],
-        'dexto-nova': [],
-    };
+        });
+
+        if (providerId === 'amazon-bedrock') {
+            modelsByProvider[providerKey] = models
+                .map((m) => ({ ...m, name: m.name.replace(/^(eu\.|us\.|global\.)/i, '') }))
+                .filter((m, idx, arr) => arr.findIndex((x) => x.name === m.name) === idx)
+                .sort((a, b) => a.name.localeCompare(b.name));
+        } else {
+            modelsByProvider[providerKey] = models;
+        }
+    }
+
+    for (const overlayId of overlayProviderIds) {
+        modelsByProvider[overlayId] = [];
+    }
 
     return modelsByProvider;
 }

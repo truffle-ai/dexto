@@ -5,6 +5,7 @@ import { getReasoningProfile, supportsReasoningVariant } from './profile.js';
 describe('getReasoningProfile', () => {
     it('returns non-capable profile for non-reasoning models', () => {
         expect(getReasoningProfile('openai', 'gpt-4o-mini')).toEqual({
+            status: 'unsupported',
             capable: false,
             paradigm: 'none',
             variants: [],
@@ -15,6 +16,7 @@ describe('getReasoningProfile', () => {
 
     it('returns exact OpenAI native efforts', () => {
         const profile = getReasoningProfile('openai', 'gpt-5.2-codex');
+        expect(profile.status).toBe('supported');
         expect(profile.capable).toBe(true);
         expect(profile.paradigm).toBe('effort');
         expect(profile.supportedVariants).toEqual(['low', 'medium', 'high', 'xhigh']);
@@ -23,6 +25,7 @@ describe('getReasoningProfile', () => {
 
     it('returns Anthropic budget profile for pre-adaptive models', () => {
         expect(getReasoningProfile('anthropic', 'claude-3-7-sonnet-20250219')).toMatchObject({
+            status: 'supported',
             capable: true,
             paradigm: 'budget',
             supportedVariants: ['disabled', 'enabled'],
@@ -33,6 +36,7 @@ describe('getReasoningProfile', () => {
 
     it('returns Anthropic adaptive profile for Claude >= 4.6', () => {
         expect(getReasoningProfile('anthropic', 'claude-sonnet-4-6')).toMatchObject({
+            status: 'supported',
             capable: true,
             paradigm: 'adaptive-effort',
             supportedVariants: ['disabled', 'low', 'medium', 'high'],
@@ -43,6 +47,7 @@ describe('getReasoningProfile', () => {
 
     it('includes max for Anthropic Opus adaptive models', () => {
         expect(getReasoningProfile('anthropic', 'claude-opus-4-6')).toMatchObject({
+            status: 'supported',
             capable: true,
             paradigm: 'adaptive-effort',
             supportedVariants: ['disabled', 'low', 'medium', 'high', 'max'],
@@ -51,6 +56,7 @@ describe('getReasoningProfile', () => {
 
     it('returns Gemini 3 thinking-level profile', () => {
         expect(getReasoningProfile('google', 'gemini-3-flash-preview')).toMatchObject({
+            status: 'supported',
             capable: true,
             paradigm: 'thinking-level',
             supportedVariants: ['disabled', 'minimal', 'low', 'medium', 'high'],
@@ -61,6 +67,7 @@ describe('getReasoningProfile', () => {
 
     it('returns Gemini 2.5 budget profile', () => {
         expect(getReasoningProfile('google', 'gemini-2.5-pro')).toMatchObject({
+            status: 'supported',
             capable: true,
             paradigm: 'budget',
             supportedVariants: ['disabled', 'enabled'],
@@ -71,6 +78,7 @@ describe('getReasoningProfile', () => {
 
     it('returns OpenRouter OpenAI-native effort profile', () => {
         expect(getReasoningProfile('openrouter', 'openai/gpt-5.2-codex')).toMatchObject({
+            status: 'supported',
             capable: true,
             paradigm: 'effort',
             supportedVariants: ['low', 'medium', 'high', 'xhigh'],
@@ -81,6 +89,7 @@ describe('getReasoningProfile', () => {
 
     it('returns OpenRouter Anthropic-native profile based on model generation', () => {
         expect(getReasoningProfile('openrouter', 'anthropic/claude-sonnet-4.5')).toMatchObject({
+            status: 'supported',
             capable: true,
             paradigm: 'budget',
             supportedVariants: ['disabled', 'enabled'],
@@ -89,6 +98,7 @@ describe('getReasoningProfile', () => {
         });
 
         expect(getReasoningProfile('openrouter', 'anthropic/claude-sonnet-4.6')).toMatchObject({
+            status: 'supported',
             capable: true,
             paradigm: 'adaptive-effort',
             supportedVariants: ['disabled', 'low', 'medium', 'high'],
@@ -99,6 +109,7 @@ describe('getReasoningProfile', () => {
 
     it('returns OpenRouter Gemini-3 thinking-level profile', () => {
         expect(getReasoningProfile('openrouter', 'google/gemini-3-pro-preview')).toMatchObject({
+            status: 'supported',
             capable: true,
             paradigm: 'thinking-level',
             supportedVariants: ['disabled', 'minimal', 'low', 'medium', 'high'],
@@ -143,6 +154,7 @@ describe('getReasoningProfile', () => {
 
     it('returns non-capable profile for OpenRouter excluded families', () => {
         expect(getReasoningProfile('openrouter', 'deepseek/deepseek-r1:free')).toEqual({
+            status: 'unknown',
             capable: false,
             paradigm: 'none',
             variants: [],
@@ -162,9 +174,13 @@ describe('getReasoningProfile', () => {
                 if (profile.defaultVariant !== undefined) {
                     expect(profile.supportedVariants).toContain(profile.defaultVariant);
                 }
-                if (!profile.capable) {
+                if (profile.status === 'supported') {
+                    expect(profile.capable).toBe(true);
+                } else {
+                    expect(profile.capable).toBe(false);
                     expect(profile.paradigm).toBe('none');
                     expect(profile.supportedVariants).toEqual([]);
+                    expect(profile.supportsBudgetTokens).toBe(false);
                 }
             }
         }
@@ -173,7 +189,7 @@ describe('getReasoningProfile', () => {
 
 describe('supportsReasoningVariant', () => {
     it('checks membership against profile variants', () => {
-        const profile = getReasoningProfile('vertex', 'gemini-3-flash-preview');
+        const profile = getReasoningProfile('google-vertex', 'gemini-3-flash-preview');
         expect(supportsReasoningVariant(profile, 'medium')).toBe(true);
         expect(supportsReasoningVariant(profile, 'xhigh')).toBe(false);
     });

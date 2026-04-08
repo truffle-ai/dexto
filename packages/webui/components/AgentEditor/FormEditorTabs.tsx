@@ -29,10 +29,15 @@ import {
 } from 'lucide-react';
 import type { AgentConfig, ToolFactoryEntry } from '@dexto/agent-config';
 import type { ContributorConfig } from '@dexto/core';
-import { LLM_PROVIDERS, MCP_SERVER_TYPES } from '@dexto/core';
+import { MCP_SERVER_TYPES } from '@dexto/core';
 import { cn } from '@/lib/utils';
 import { useDiscovery } from '../hooks/useDiscovery';
 import { useLLMCatalog, type LLMProvider } from '../hooks/useLLM';
+import {
+    formatProviderLabel,
+    getProviderSelectOptions,
+    getSupportedProviderIdsFromCatalog,
+} from '@/lib/llm/provider-select';
 
 // Providers that support custom baseURL
 const BASE_URL_PROVIDERS = ['openai-compatible', 'litellm'];
@@ -143,12 +148,34 @@ function ModelTab({ config, onChange, errors }: TabProps) {
     const [showAdvanced, setShowAdvanced] = useState(false);
 
     const currentProvider = config.llm?.provider || '';
+    const { data: providerCatalogData } = useLLMCatalog({
+        mode: 'grouped',
+        includeModels: false,
+    });
     const { data: catalogData, isLoading: catalogLoading } = useLLMCatalog({
         mode: 'grouped',
         scope: 'all',
         provider: currentProvider ? (currentProvider as LLMProvider) : undefined,
         enabled: !!currentProvider,
     });
+    const providerOptions = useMemo(() => {
+        if (!providerCatalogData) {
+            return currentProvider
+                ? [
+                      {
+                          value: currentProvider,
+                          label: formatProviderLabel(currentProvider),
+                          isUnsupported: false,
+                      },
+                  ]
+                : [];
+        }
+
+        return getProviderSelectOptions({
+            supportedProviders: getSupportedProviderIdsFromCatalog(providerCatalogData),
+            currentProvider,
+        });
+    }, [currentProvider, providerCatalogData]);
     const supportsBaseURL = BASE_URL_PROVIDERS.includes(currentProvider);
 
     const providerModels = useMemo(() => {
@@ -193,12 +220,9 @@ function ModelTab({ config, onChange, errors }: TabProps) {
                                     <SelectValue placeholder="Select provider..." />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    {LLM_PROVIDERS.map((p) => (
-                                        <SelectItem key={p} value={p}>
-                                            {p === 'dexto-nova'
-                                                ? 'Dexto Nova'
-                                                : p.charAt(0).toUpperCase() +
-                                                  p.slice(1).replace(/-/g, ' ')}
+                                    {providerOptions.map((provider) => (
+                                        <SelectItem key={provider.value} value={provider.value}>
+                                            {provider.label}
                                         </SelectItem>
                                     ))}
                                 </SelectContent>

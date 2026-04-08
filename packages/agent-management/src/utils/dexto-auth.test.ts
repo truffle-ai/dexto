@@ -22,12 +22,13 @@ describe('dexto auth utils', () => {
         delete process.env.DEXTO_API_KEY;
 
         tempDir = fs.mkdtempSync(path.join(tmpdir(), 'dexto-auth-test-'));
-        authPath = path.join(tempDir, 'auth.json');
+        authPath = path.join(tempDir, 'auth', 'dexto.json');
+        fs.mkdirSync(path.dirname(authPath), { recursive: true });
 
         const core = await import('@dexto/core');
         mockGetDextoGlobalPath = vi.mocked(core.getDextoGlobalPath);
         mockGetDextoGlobalPath.mockImplementation((_type: string, filename?: string) => {
-            return filename ? path.join(tempDir, filename) : tempDir;
+            return filename ? path.join(tempDir, _type, filename) : path.join(tempDir, _type);
         });
     });
 

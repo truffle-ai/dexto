@@ -45,14 +45,19 @@ export class LLMError {
         );
     }
 
-    static unsupportedProvider(provider: string) {
+    static unsupportedProvider(provider: string, reason?: string) {
         const availableProviders = getSupportedProviders();
         return new DextoRuntimeError(
             LLMErrorCode.PROVIDER_UNSUPPORTED,
             ErrorScope.LLM,
             ErrorType.USER,
-            `Provider '${provider}' is not supported. Available providers: ${availableProviders.join(', ')}`,
-            { provider, availableProviders }
+            `Provider '${provider}' is not supported.${reason ? ` ${reason}` : ''} ` +
+                `Available providers: ${availableProviders.join(', ')}`,
+            {
+                provider,
+                availableProviders,
+                ...(reason ? { reason } : {}),
+            }
         );
     }
 

@@ -12,6 +12,7 @@ import type { HookManager } from '../hooks/manager.js';
 import { SessionError } from './errors.js';
 import type { TokenUsage } from '../llm/types.js';
 import type { CompactionStrategy } from '../context/compaction/types.js';
+import type { LlmAuthResolver } from '../llm/auth/types.js';
 import { ZodError } from 'zod';
 import {
     SessionPromptContributorSchema,
@@ -141,6 +142,7 @@ export class SessionManager {
             hookManager: HookManager;
             mcpManager: import('../mcp/manager.js').MCPManager;
             compactionStrategy: CompactionStrategy | null;
+            llmAuthResolver?: LlmAuthResolver | null;
             workspaceManager?: import('../workspace/manager.js').WorkspaceManager;
         },
         config: SessionManagerConfig = {},

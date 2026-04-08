@@ -3,23 +3,31 @@ import { Button } from './ui/button';
 import { Checkbox } from './ui/checkbox';
 import { AlertTriangle, Wrench } from 'lucide-react';
 import type { ApprovalEvent } from './ApprovalRequestHandler';
+import type { ApprovalFormData } from './hooks/useApprovals';
 import type { JSONSchema7 } from 'json-schema';
 import { ApprovalType } from '@dexto/core';
 
 interface InlineApprovalCardProps {
     approval: ApprovalEvent;
-    onApprove: (formData?: Record<string, unknown>, rememberChoice?: boolean) => void;
+    onApprove: (formData?: ApprovalFormData, rememberChoice?: boolean) => void;
     onDeny: () => void;
 }
 
 export function InlineApprovalCard({ approval, onApprove, onDeny }: InlineApprovalCardProps) {
-    const [formData, setFormData] = useState<Record<string, unknown>>({});
+    const [formData, setFormData] = useState<ApprovalFormData>({});
     const [formErrors, setFormErrors] = useState<Record<string, string>>({});
     const [rememberChoice, setRememberChoice] = useState(false);
 
     // Update form field value
-    const updateFormField = (fieldName: string, value: unknown) => {
-        setFormData((prev) => ({ ...prev, [fieldName]: value }));
+    const updateFormField = (fieldName: string, value: ApprovalFormData[string] | undefined) => {
+        setFormData((prev): ApprovalFormData => {
+            if (value === undefined) {
+                const next = { ...prev };
+                delete next[fieldName];
+                return next;
+            }
+            return { ...prev, [fieldName]: value };
+        });
         if (formErrors[fieldName]) {
             setFormErrors((prev) => {
                 const newErrors = { ...prev };

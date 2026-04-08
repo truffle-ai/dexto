@@ -1,4 +1,6 @@
 export type ReasoningParadigm = 'effort' | 'adaptive-effort' | 'thinking-level' | 'budget' | 'none';
+export type ReasoningStatus = 'supported' | 'unsupported' | 'unknown';
+type NonCapableReasoningStatus = Exclude<ReasoningStatus, 'supported'>;
 
 export type ReasoningVariantOption = {
     id: string;
@@ -6,6 +8,7 @@ export type ReasoningVariantOption = {
 };
 
 export type ReasoningProfile = {
+    status: ReasoningStatus;
     capable: boolean;
     paradigm: ReasoningParadigm;
     variants: ReasoningVariantOption[];
@@ -19,20 +22,24 @@ export function option(id: string, label?: string): ReasoningVariantOption {
 }
 
 export function withDefault(
-    profile: Omit<ReasoningProfile, 'defaultVariant' | 'supportedVariants'>,
+    profile: Omit<ReasoningProfile, 'defaultVariant' | 'supportedVariants' | 'status'>,
     preferredDefault: string
 ): ReasoningProfile {
     const hasPreferred = profile.variants.some((variant) => variant.id === preferredDefault);
     const defaultVariant = hasPreferred ? preferredDefault : profile.variants[0]?.id;
     return {
+        status: 'supported',
         ...profile,
         supportedVariants: profile.variants.map((variant) => variant.id),
         ...(defaultVariant !== undefined && { defaultVariant }),
     };
 }
 
-export function nonCapableProfile(): ReasoningProfile {
+export function nonCapableProfile(
+    status: NonCapableReasoningStatus = 'unsupported'
+): ReasoningProfile {
     return {
+        status,
         capable: false,
         paradigm: 'none',
         variants: [],

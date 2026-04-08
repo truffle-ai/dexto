@@ -74,6 +74,7 @@ import {
     type ValidatedAgentConfig,
 } from '@dexto/agent-config';
 import {
+    createDefaultLlmAuthResolver,
     getDextoPackageRoot,
     resolveAgentPath,
     loadAgentConfig,
@@ -468,6 +469,7 @@ async function bootstrapAgentFromGlobalOpts(options: {
         toDextoAgentOptions({
             config: validatedConfig,
             services,
+            overrides: { llmAuthResolver: createDefaultLlmAuthResolver() },
         })
     );
     await agent.start();
@@ -1101,6 +1103,7 @@ program
                             overrides: {
                                 sessionLoggerFactory,
                                 mcpAuthProviderFactory,
+                                llmAuthResolver: createDefaultLlmAuthResolver(),
                             },
                         })
                     );

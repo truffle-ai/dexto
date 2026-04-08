@@ -7,15 +7,16 @@ import { buildGoogleReasoningProfile } from './profiles/google.js';
 import { buildOpenAICompatibleReasoningProfile } from './profiles/openai-compatible.js';
 import { buildOpenAIReasoningProfile } from './profiles/openai.js';
 import {
-    getOpenRouterReasoningTarget,
     isOpenRouterGatewayProvider,
-} from './profiles/openrouter.js';
+    resolveGatewayModelOrigin,
+} from '../registry/model-origin.js';
 import { buildVertexReasoningProfile } from './profiles/vertex.js';
 import { nonCapableProfile, type ReasoningProfile } from './profiles/shared.js';
 
 export type {
     ReasoningParadigm,
     ReasoningProfile,
+    ReasoningStatus,
     ReasoningVariantOption,
 } from './profiles/shared.js';
 
@@ -32,7 +33,7 @@ const GOOGLE_PROFILE_CONFIG = {
 } as const;
 
 function isAnthropicStyleReasoningCapable(
-    provider: 'anthropic' | 'vertex',
+    provider: 'anthropic' | 'google-vertex-anthropic',
     model: string
 ): boolean {
     return (
@@ -56,8 +57,8 @@ function getNativeReasoningProfile(provider: LLMProvider, model: string): Reason
             }
             return buildAnthropicReasoningProfile({ model, ...ANTHROPIC_PROFILE_CONFIG });
 
-        case 'bedrock':
-            if (!isReasoningCapableModel(model, 'bedrock')) {
+        case 'amazon-bedrock':
+            if (!isReasoningCapableModel(model, 'amazon-bedrock')) {
                 return nonCapableProfile();
             }
             return buildBedrockReasoningProfile(model);
@@ -68,8 +69,14 @@ function getNativeReasoningProfile(provider: LLMProvider, model: string): Reason
             }
             return buildGoogleReasoningProfile({ model, ...GOOGLE_PROFILE_CONFIG });
 
-        case 'vertex':
-            if (!isAnthropicStyleReasoningCapable('vertex', model)) {
+        case 'google-vertex':
+            if (!isReasoningCapableModel(model, 'google-vertex')) {
+                return nonCapableProfile();
+            }
+            return buildVertexReasoningProfile(model);
+
+        case 'google-vertex-anthropic':
+            if (!isAnthropicStyleReasoningCapable('google-vertex-anthropic', model)) {
                 return nonCapableProfile();
             }
             return buildVertexReasoningProfile(model);
@@ -87,7 +94,7 @@ function getNativeReasoningProfile(provider: LLMProvider, model: string): Reason
 
 function toGatewayReasoningProfile(nativeProfile: ReasoningProfile): ReasoningProfile {
     if (!nativeProfile.capable) {
-        return nonCapableProfile();
+        return nonCapableProfile(nativeProfile.status === 'unknown' ? 'unknown' : 'unsupported');
     }
 
     return {
@@ -106,14 +113,17 @@ function toGatewayReasoningProfile(nativeProfile: ReasoningProfile): ReasoningPr
  * - No guessed variants for unknown paradigms
  */
 export function getReasoningProfile(provider: LLMProvider, model: string): ReasoningProfile {
-    if (isOpenRouterGatewayProvider(provider)) {
-        const target = getOpenRouterReasoningTarget(model);
-        if (!target) {
-            return nonCapableProfile();
-        }
-
-        const nativeProfile = getNativeReasoningProfile(target.upstreamProvider, target.modelId);
+    const gatewayOrigin = resolveGatewayModelOrigin(provider, model);
+    if (gatewayOrigin) {
+        const nativeProfile = getNativeReasoningProfile(
+            gatewayOrigin.upstreamProvider,
+            gatewayOrigin.upstreamModelId
+        );
         return toGatewayReasoningProfile(nativeProfile);
+    }
+
+    if (isOpenRouterGatewayProvider(provider)) {
+        return nonCapableProfile('unknown');
     }
 
     return getNativeReasoningProfile(provider, model);

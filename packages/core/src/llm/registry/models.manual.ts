@@ -27,4 +27,4 @@ export const MANUAL_MODELS_BY_PROVIDER = {
             },
         } satisfies ManualModelInfo,
     ],
-} satisfies Partial<Record<LLMProvider, ModelInfo[]>>;
+} as Partial<Record<LLMProvider, ModelInfo[]>>;

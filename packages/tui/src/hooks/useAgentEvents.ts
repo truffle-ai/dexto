@@ -24,7 +24,7 @@ import { useEffect, useRef } from 'react';
 import { setMaxListeners } from 'events';
 import {
     getModelDisplayName,
-    parseCodexBaseURL,
+    isChatGptLoginConfig,
     type QueuedMessage,
     type ContentPart,
 } from '@dexto/core';
@@ -111,9 +111,10 @@ export function useAgentEvents({
                     }));
                 }
 
-                const nextIsChatGPTLogin =
-                    payload.newConfig?.provider === 'openai-compatible' &&
-                    parseCodexBaseURL(payload.newConfig?.baseURL)?.authMode === 'chatgpt';
+                const nextIsChatGPTLogin = isChatGptLoginConfig(
+                    payload.newConfig?.provider,
+                    payload.newConfig?.baseURL
+                );
 
                 if (!nextIsChatGPTLogin) {
                     setUi((prev) => ({

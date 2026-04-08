@@ -314,6 +314,7 @@ describe('ChatSession', () => {
                 {
                     usageScopeId: undefined,
                     compactionStrategy: null,
+                    authResolver: null,
                 }
             );
         });
@@ -343,6 +344,7 @@ describe('ChatSession', () => {
                 {
                     usageScopeId: undefined,
                     compactionStrategy: null,
+                    authResolver: null,
                 }
             );
         });
@@ -463,6 +465,7 @@ describe('ChatSession', () => {
                 {
                     usageScopeId: undefined,
                     compactionStrategy: null,
+                    authResolver: null,
                 }
             );
 
@@ -620,7 +623,7 @@ describe('ChatSession', () => {
         test('marks ChatGPT Login sessions as untracked instead of accumulating zero token usage', async () => {
             mockServices.stateManager.getLLMConfig = vi.fn().mockReturnValue(
                 LLMConfigSchema.parse({
-                    provider: 'openai-compatible',
+                    provider: 'openai',
                     model: 'gpt-5.4',
                     baseURL: 'codex://chatgpt',
                     apiKey: 'ignored-for-codex',

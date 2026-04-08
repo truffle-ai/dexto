@@ -2,6 +2,8 @@ import { hc } from 'hono/client';
 import type { AppType } from '@dexto/server';
 import type { ClientConfig } from './types.js';
 
+export type DextoClient = ReturnType<typeof hc<AppType>>;
+
 /**
  * Create a type-safe Dexto client using Hono's typed client
  *
@@ -46,7 +48,7 @@ import type { ClientConfig } from './types.js';
  * }
  * ```
  */
-export function createDextoClient(config: ClientConfig) {
+export function createDextoClient(config: ClientConfig): DextoClient {
     const options: { headers?: Record<string, string> } = {};
 
     if (config.apiKey) {

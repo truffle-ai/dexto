@@ -1,6 +1,6 @@
 import chalk from 'chalk';
 import * as p from '@clack/prompts';
-import type { DextoAgent } from '@dexto/core';
+import type { DextoAgent, LLMProvider } from '@dexto/core';
 import { logger } from '@dexto/core';
 import { safeExit, ExitSignal } from '../../analytics/wrapper.js';
 import { hasUsableCredentials } from '../../config/cli-overrides.js';
@@ -238,14 +238,19 @@ export async function runCliMode(context: MainModeContext): Promise<void> {
             ]);
 
             setTuiRuntimeServices({
-                registerGracefulShutdown,
+                registerGracefulShutdown: (getAgent, options) => {
+                    registerGracefulShutdown(() => getAgent() as DextoAgent, options);
+                },
                 capture: (event, properties) => {
                     capture(event as never, properties as never);
                 },
                 applyLayeredEnvironmentLoading,
-                getProviderDisplayName,
-                isValidApiKeyFormat,
-                getProviderInstructions,
+                getProviderDisplayName: (provider) =>
+                    getProviderDisplayName(provider as LLMProvider),
+                isValidApiKeyFormat: (apiKey, provider) =>
+                    isValidApiKeyFormat(apiKey, provider as LLMProvider),
+                getProviderInstructions: (provider) =>
+                    getProviderInstructions(provider as LLMProvider),
                 performDeviceCodeLogin,
                 persistOAuthLoginResult,
                 ensureDextoApiKeyForAuthToken,

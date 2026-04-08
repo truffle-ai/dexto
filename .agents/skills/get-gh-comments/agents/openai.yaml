@@ -1,0 +1,4 @@
+interface:
+    display_name: 'GitHub Review Comments'
+    short_description: 'Extract and triage GitHub PR review comments'
+    default_prompt: 'Use $get-gh-comments to pull GitHub PR review comments, summarize the actionable issues, and assess whether each suggested fix is valid.'

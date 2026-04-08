@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { TextDecoder } from 'node:util';
 import type { StreamingEvent } from '@dexto/core';
-import { ApprovalType } from '@dexto/core';
+import { ApprovalType, LLMErrorCode } from '@dexto/core';
 import {
     createTestAgent,
     startTestServer,
@@ -106,6 +106,17 @@ describe('Hono API Integration Tests', () => {
             expect(res.status).toBe(200);
         });
 
+        it('POST /api/llm/switch rejects unsupported providers early', async () => {
+            if (!testServer) throw new Error('Test server not initialized');
+            const res = await httpRequest(testServer.baseUrl, 'POST', '/api/llm/switch', {
+                provider: 'alibaba',
+                model: 'qwen-max',
+            });
+
+            expect(res.status).toBeGreaterThanOrEqual(400);
+            expect(JSON.stringify(res.body)).toContain(LLMErrorCode.PROVIDER_UNSUPPORTED);
+        });
+
         it('GET /api/llm/model-picker-state returns picker sections', async () => {
             if (!testServer) throw new Error('Test server not initialized');
             const res = await httpRequest(testServer.baseUrl, 'GET', '/api/llm/model-picker-state');
@@ -136,6 +147,32 @@ describe('Hono API Integration Tests', () => {
             });
         });
 
+        it('GET /api/llm/model-picker-state prunes unsupported favorites from persisted state', async () => {
+            if (!testServer) throw new Error('Test server not initialized');
+
+            const toggleRes = await httpRequest(
+                testServer.baseUrl,
+                'POST',
+                '/api/llm/model-picker-state/favorites/toggle',
+                {
+                    provider: 'alibaba',
+                    model: 'qwen-max',
+                }
+            );
+            expect(toggleRes.status).toBe(200);
+
+            const stateRes = await httpRequest(
+                testServer.baseUrl,
+                'GET',
+                '/api/llm/model-picker-state'
+            );
+            expect(stateRes.status).toBe(200);
+
+            const favorites = (stateRes.body as { favorites: Array<{ provider: string }> })
+                .favorites;
+            expect(favorites.some((entry) => entry.provider === 'alibaba')).toBe(false);
+        });
+
         it('GET /api/llm/capabilities returns reasoning support', async () => {
             if (!testServer) throw new Error('Test server not initialized');
 
@@ -154,6 +191,7 @@ describe('Hono API Integration Tests', () => {
 
             const reasoning = (res.body as { reasoning: unknown }).reasoning as {
                 capable: boolean;
+                status: string;
                 paradigm: string;
                 supportedVariants: string[];
                 defaultVariant?: string;
@@ -161,6 +199,7 @@ describe('Hono API Integration Tests', () => {
             };
 
             expect(reasoning.capable).toBe(true);
+            expect(reasoning.status).toBe('supported');
             expect(reasoning.paradigm).toBe('budget');
             expect(reasoning.supportedVariants).toContain('enabled');
             expect(reasoning.supportedVariants).toContain('disabled');
@@ -180,13 +219,41 @@ describe('Hono API Integration Tests', () => {
 
             const reasoning = (res.body as { reasoning: unknown }).reasoning as {
                 capable: boolean;
+                status: string;
                 supportedVariants: string[];
             };
 
             expect(reasoning.capable).toBe(true);
+            expect(reasoning.status).toBe('supported');
             expect(reasoning.supportedVariants).toContain('high');
             expect(reasoning.supportedVariants).not.toContain('max');
             expect(reasoning.supportedVariants).toContain('xhigh');
+        });
+
+        it('GET /api/llm/capabilities returns an explicit unsupported response for unsupported providers', async () => {
+            if (!testServer) throw new Error('Test server not initialized');
+
+            const res = await httpRequest(
+                testServer.baseUrl,
+                'GET',
+                '/api/llm/capabilities?provider=alibaba&model=qwen-max'
+            );
+            expect(res.status).toBe(200);
+            expectResponseStructure(res.body, {
+                provider: validators.string,
+                model: validators.string,
+                supportedFileTypes: validators.array,
+                reasoning: validators.object,
+            });
+
+            const body = res.body as {
+                supportedFileTypes: unknown[];
+                reasoning: { capable: boolean; status: string; supportedVariants: string[] };
+            };
+            expect(body.supportedFileTypes).toEqual([]);
+            expect(body.reasoning.capable).toBe(false);
+            expect(body.reasoning.status).toBe('unsupported');
+            expect(body.reasoning.supportedVariants).toEqual([]);
         });
     });
 
