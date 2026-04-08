@@ -203,6 +203,80 @@ function buildOpenRouterProviderOptions(config: {
     };
 }
 
+function buildGoogleProviderOptions(config: {
+    provider: 'google' | 'google-vertex';
+    model: string;
+    reasoningVariant: string | undefined;
+    budgetTokens: number | undefined;
+}): Record<string, Record<string, unknown>> {
+    const { provider, model, reasoningVariant, budgetTokens } = config;
+    const profile = getReasoningProfile(provider, model);
+    const includeThoughts = profile.capable && reasoningVariant !== 'disabled';
+    const isThinkingLevel = profile.paradigm === 'thinking-level';
+    const thinkingLevel =
+        includeThoughts &&
+        isThinkingLevel &&
+        (reasoningVariant === 'minimal' ||
+            reasoningVariant === 'low' ||
+            reasoningVariant === 'medium' ||
+            reasoningVariant === 'high')
+            ? reasoningVariant
+            : undefined;
+    const thinkingBudgetTokens = coerceBudgetTokens(
+        budgetTokens ?? GOOGLE_DEFAULT_BUDGET_TOKENS,
+        1
+    );
+
+    return {
+        google: {
+            thinkingConfig: {
+                includeThoughts,
+                ...(includeThoughts &&
+                    isThinkingLevel &&
+                    thinkingLevel !== undefined && {
+                        thinkingLevel,
+                    }),
+                ...(includeThoughts &&
+                    profile.paradigm === 'budget' &&
+                    thinkingBudgetTokens !== undefined && {
+                        thinkingBudget: thinkingBudgetTokens,
+                    }),
+            },
+        },
+    };
+}
+
+function buildOpenAIStyleProviderOptions(config: {
+    provider: 'openai' | 'openai-compatible';
+    model: string;
+    reasoningVariant: string | undefined;
+}): Record<string, Record<string, unknown>> | undefined {
+    if (config.provider === 'openai') {
+        const effortCandidate = toOpenAIReasoningEffort(config.reasoningVariant);
+
+        if (effortCandidate && supportsOpenAIReasoningEffort(config.model, effortCandidate)) {
+            return {
+                openai: {
+                    reasoningEffort: effortCandidate,
+                    ...(effortCandidate !== 'none' && { reasoningSummary: 'auto' }),
+                },
+            };
+        }
+
+        return undefined;
+    }
+
+    const profile = getReasoningProfile(config.provider, config.model);
+    if (!profile.capable) return undefined;
+
+    const reasoningEffort = toOpenAICompatibleReasoningEffort(config.reasoningVariant);
+    if (reasoningEffort === undefined) return undefined;
+
+    return {
+        openaiCompatible: { reasoningEffort },
+    };
+}
+
 function asRecord(value: unknown): Record<string, unknown> | undefined {
     if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
     return value as Record<string, unknown>;
@@ -258,8 +332,8 @@ export function buildProviderOptions(
         return undefined;
     }
 
-    if (provider === 'anthropic') {
-        const capable = isReasoningCapableModel(model, 'anthropic');
+    if (provider === 'anthropic' || provider === 'google-vertex-anthropic') {
+        const capable = isReasoningCapableModel(model, provider);
         return buildAnthropicProviderOptions({ model, reasoningVariant, budgetTokens, capable });
     }
 
@@ -312,58 +386,16 @@ export function buildProviderOptions(
         return { bedrock };
     }
 
-    if (provider === 'google-vertex-anthropic') {
-        const capable = isReasoningCapableModel(model, 'google-vertex-anthropic');
-        return buildAnthropicProviderOptions({ model, reasoningVariant, budgetTokens, capable });
+    if (provider === 'google') {
+        return buildGoogleProviderOptions({ provider, model, reasoningVariant, budgetTokens });
     }
 
-    if (provider === 'google' || provider === 'google-vertex') {
-        const profile = getReasoningProfile(provider, model);
-        const includeThoughts = profile.capable && reasoningVariant !== 'disabled';
-        const isThinkingLevel = profile.paradigm === 'thinking-level';
-        const thinkingLevel =
-            includeThoughts &&
-            isThinkingLevel &&
-            (reasoningVariant === 'minimal' ||
-                reasoningVariant === 'low' ||
-                reasoningVariant === 'medium' ||
-                reasoningVariant === 'high')
-                ? reasoningVariant
-                : undefined;
-        const thinkingBudgetTokens = coerceBudgetTokens(
-            budgetTokens ?? GOOGLE_DEFAULT_BUDGET_TOKENS,
-            1
-        );
-        return {
-            google: {
-                thinkingConfig: {
-                    includeThoughts,
-                    ...(includeThoughts &&
-                        isThinkingLevel &&
-                        thinkingLevel !== undefined && {
-                            thinkingLevel,
-                        }),
-                    ...(includeThoughts &&
-                        profile.paradigm === 'budget' &&
-                        thinkingBudgetTokens !== undefined && {
-                            thinkingBudget: thinkingBudgetTokens,
-                        }),
-                },
-            },
-        };
+    if (provider === 'google-vertex') {
+        return buildGoogleProviderOptions({ provider, model, reasoningVariant, budgetTokens });
     }
 
     if (provider === 'openai') {
-        const effortCandidate = toOpenAIReasoningEffort(reasoningVariant);
-
-        if (effortCandidate && supportsOpenAIReasoningEffort(model, effortCandidate)) {
-            return {
-                openai: {
-                    reasoningEffort: effortCandidate,
-                    ...(effortCandidate !== 'none' && { reasoningSummary: 'auto' }),
-                },
-            };
-        }
+        return buildOpenAIStyleProviderOptions({ provider, model, reasoningVariant });
     }
 
     if (isOpenRouterGatewayProvider(provider)) {
@@ -371,15 +403,7 @@ export function buildProviderOptions(
     }
 
     if (provider === 'openai-compatible') {
-        const profile = getReasoningProfile(provider, model);
-        if (!profile.capable) return undefined;
-
-        const reasoningEffort = toOpenAICompatibleReasoningEffort(reasoningVariant);
-        if (reasoningEffort === undefined) return undefined;
-
-        return {
-            openaiCompatible: { reasoningEffort },
-        };
+        return buildOpenAIStyleProviderOptions({ provider, model, reasoningVariant });
     }
 
     return undefined;

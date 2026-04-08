@@ -17,14 +17,14 @@
 
 ## Current Task
 
-**Task:** Task 8 - Runtime Hotspot Cleanup in `factory.ts` and `provider-options.ts`
+**Task:** Task 9 - Final Integration and Cleanup Pass
 **Status:** *Ready to implement*
 
 ### Plan
 
-- extract the highest-value runtime-family hotspots from [`packages/core/src/llm/services/factory.ts`](../../../packages/core/src/llm/services/factory.ts) and [`packages/core/src/llm/executor/provider-options.ts`](../../../packages/core/src/llm/executor/provider-options.ts)
-- keep the cleanup focused on painful branch clusters, not a blanket adapter layer
-- preserve Task 1-7 behavior while improving the runtime-family seam for the remaining cleanup task
+- audit the finalized runtime-family mapping, auth definitions, reasoning status, and supported-provider surfaces across core, CLI `/connect`, and server catalog/capability responses
+- add focused integration regressions for connected auth profile -> runtime auth resolution -> model construction, gateway model -> origin mapping -> reasoning semantics, and unsupported provider/family -> early validation failure
+- remove any leftover pre-v2 branching or comments that are now obsolete after Tasks 1-8
 
 ### Notes
 
@@ -157,7 +157,7 @@
   - OpenAI Codex and MiniMax Portal OAuth ownership now lives in `agent-management`, alongside the auth-definition surface that selects those methods
   - `createDefaultLlmAuthResolver()` now delegates OAuth refresh/runtime projection through auth definitions instead of hardcoded provider branches
   - the CLI `connect` flow still owns prompts/spinners/browser opening, but now starts OAuth via shared auth-definition hooks instead of importing provider-specific protocol modules directly
-  - Task 7 still remains: the CLI is not yet fully driven by auth definitions end to end, only the OAuth implementation ownership moved here
+  - Task 7 remains a follow-up cleanup on top of that new definition-owned seam rather than a second OAuth ownership move
 - Task 5 / Task 6 focused verification:
   - focused tests: `pnpm exec vitest run packages/agent-management/src/auth/provider-auth-definitions.test.ts packages/agent-management/src/auth/oauth/openai-codex.test.ts packages/agent-management/src/auth/oauth/minimax-portal.test.ts packages/agent-management/src/auth/runtime-auth-resolver.test.ts packages/cli/src/cli/commands/connect/index.test.ts`
   - targeted typecheck: `pnpm exec tsc -p packages/agent-management/tsconfig.json --noEmit && pnpm exec tsc -p packages/server/tsconfig.json --noEmit`
@@ -178,6 +178,21 @@
   - focused tests: `pnpm exec vitest run packages/cli/src/cli/commands/connect/index.test.ts packages/cli/src/cli/commands/connect/index.integration.test.ts packages/agent-management/src/auth/runtime-auth-resolver.test.ts`
   - targeted downstream checks: `pnpm exec tsc -p packages/agent-management/tsconfig.json --noEmit && pnpm exec tsc -p packages/server/tsconfig.json --noEmit`
   - touched-file CLI typecheck check: `pnpm exec tsc -p packages/cli/tsconfig.json --noEmit --pretty false 2>&1 | rg "packages/cli/src/cli/commands/connect/index(\\.integration)?\\.test\\.ts|packages/cli/src/cli/commands/connect/index\\.ts"`
+  - repo quality gate: `bash scripts/quality-checks.sh`
+- Task 8 extracts the highest-value runtime hotspots from `factory.ts` and `provider-options.ts` without turning the runtime-family direction into a blanket adapter layer.
+- Task 8 changed files:
+  - [`packages/core/src/llm/services/factory.ts`](../../../packages/core/src/llm/services/factory.ts)
+  - [`packages/core/src/llm/services/factory.test.ts`](../../../packages/core/src/llm/services/factory.test.ts)
+  - [`packages/core/src/llm/executor/provider-options.ts`](../../../packages/core/src/llm/executor/provider-options.ts)
+  - [`packages/core/src/llm/executor/provider-options.test.ts`](../../../packages/core/src/llm/executor/provider-options.test.ts)
+- Task 8 outcomes:
+  - `factory.ts` now routes the repeated Anthropic-compatible, OpenAI-chat-compatible, and OpenRouter-family constructor wiring through small shared helpers instead of repeating the same client setup in every provider branch
+  - the `openai-compatible` path now forwards runtime `headers` and `fetch` overrides alongside runtime `baseURL`, which closes the remaining runtime-auth override gap in model construction for that family
+  - `provider-options.ts` now shares the Google and OpenAI-style reasoning translation paths across the providers that actually use the same semantics, while Bedrock's more unique reasoning branch stays explicit
+  - a focused factory unit suite now covers representative runtime routing for `openai`, Anthropic-compatible providers, OpenAI-chat-compatible endpoints, `openai-compatible` runtime overrides, `dexto-nova` gateway headers, Bedrock region prefixing, and Vertex Anthropic beta headers
+- Task 8 verification:
+  - focused tests: `pnpm exec vitest run packages/core/src/llm/services/factory.test.ts packages/core/src/llm/executor/provider-options.test.ts`
+  - targeted typecheck: `pnpm exec tsc -p packages/core/tsconfig.json --noEmit`
   - repo quality gate: `bash scripts/quality-checks.sh`
 
 ---
@@ -235,3 +250,7 @@
 | 2026-04-03 | Completed Task 2.5 runtime-supported provider list alignment | Switched the affected WebUI provider selectors to use the runtime-supported catalog surface, kept legacy unsupported current values visible as temporary unsupported options during edit flows, and committed the slice as its own follow-up task. |
 | 2026-04-03 | Completed Task 3 gateway model-origin consolidation | Consolidated the OpenRouter-style gateway origin helpers under `registry/model-origin.ts`, reused that helper from both the registry transform path and the reasoning path, removed the old OpenRouter-specific reasoning helper module, and committed the slice as `0bbb8fa07`. |
 | 2026-04-03 | Completed Task 4 reasoning status rollout | Added `status` to `ReasoningProfile`, preserved the safe unknown-gateway fallback, exposed the new status via `/api/llm/capabilities`, reused the existing OpenRouter-family helper for shared gateway checks, and committed the slice as `6e4393ead`. |
+| 2026-04-03 | Completed Task 5 auth definition surface foundation | Added provider-grouped auth definitions in `agent-management`, made `CONNECT_PROVIDERS` a derived view instead of a parallel source of truth, and landed the slice as `ffd1511a0`. |
+| 2026-04-03 | Completed Task 6 OAuth method ownership move | Moved OpenAI Codex and MiniMax OAuth behavior into `agent-management`, made runtime auth resolution definition-driven, and landed the slice as `df0436d1c`. |
+| 2026-04-03 | Completed Task 7 CLI `/connect` on top of auth definitions | Drove the CLI provider/method selection flow from the shared auth-definition surface, added the focused connected-profile runtime-auth regression, and landed the slice as `c744576c0`. |
+| 2026-04-03 | Completed Task 8 runtime hotspot cleanup | Reduced the worst runtime branch duplication in `factory.ts` and `provider-options.ts`, added representative routing tests in `factory.test.ts`, and verified the slice through the full repo quality gate before moving to Task 9. |

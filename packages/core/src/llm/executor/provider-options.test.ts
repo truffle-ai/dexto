@@ -203,6 +203,33 @@ describe('buildProviderOptions', () => {
                 google: { thinkingConfig: { includeThoughts: false } },
             });
         });
+
+        it('keeps google and google-vertex reasoning translation aligned for shared Gemini models', () => {
+            const cases = [
+                {
+                    model: 'gemini-3-flash-preview',
+                    reasoning: { variant: 'minimal' as const },
+                },
+                {
+                    model: 'gemini-2.5-pro',
+                    reasoning: { variant: 'enabled' as const, budgetTokens: 987 },
+                },
+            ];
+
+            for (const testCase of cases) {
+                const fromGoogle = buildProviderOptions({
+                    provider: 'google',
+                    model: testCase.model,
+                    reasoning: testCase.reasoning,
+                });
+                const fromGoogleVertex = buildProviderOptions({
+                    provider: 'google-vertex',
+                    model: testCase.model,
+                    reasoning: testCase.reasoning,
+                });
+                expect(fromGoogleVertex).toEqual(fromGoogle);
+            }
+        });
     });
 
     describe('amazon-bedrock', () => {
