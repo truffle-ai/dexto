@@ -211,6 +211,74 @@
   - targeted typecheck: `pnpm exec tsc -p packages/agent-management/tsconfig.json --noEmit && pnpm exec tsc -p packages/server/tsconfig.json --noEmit`
   - repo quality gate: `bash scripts/quality-checks.sh`
 
+### Post-Plan Follow-Up: OpenAI ChatGPT Login Cleanup
+
+- A separate post-plan cleanup replaced the Dexto-owned OpenAI `oauth_codex` path with the working Codex-client-backed ChatGPT Login flow and intentionally did **not** preserve legacy `openai-compatible + codex://chatgpt` compatibility.
+- Follow-up commits:
+  - `dfe8aa9f1` `model openai chatgpt login as external account`
+  - `1386c1ef6` `route openai chatgpt login through codex runtime`
+  - `40bddeaf0` `rename chatgpt login setup choices`
+- Changed files:
+  - [`packages/agent-management/src/auth/provider-auth-definitions.ts`](../../../packages/agent-management/src/auth/provider-auth-definitions.ts)
+  - [`packages/agent-management/src/auth/provider-auth-definitions.test.ts`](../../../packages/agent-management/src/auth/provider-auth-definitions.test.ts)
+  - [`packages/agent-management/src/auth/llm-profiles.ts`](../../../packages/agent-management/src/auth/llm-profiles.ts)
+  - [`packages/agent-management/src/auth/llm-profiles.test.ts`](../../../packages/agent-management/src/auth/llm-profiles.test.ts)
+  - [`packages/agent-management/src/auth/runtime-auth-resolver.ts`](../../../packages/agent-management/src/auth/runtime-auth-resolver.ts)
+  - [`packages/agent-management/src/auth/runtime-auth-resolver.test.ts`](../../../packages/agent-management/src/auth/runtime-auth-resolver.test.ts)
+  - [`packages/agent-management/src/preferences/schemas.ts`](../../../packages/agent-management/src/preferences/schemas.ts)
+  - [`packages/agent-management/src/preferences/loader.test.ts`](../../../packages/agent-management/src/preferences/loader.test.ts)
+  - [`packages/agent-management/src/index.ts`](../../../packages/agent-management/src/index.ts)
+  - removed [`packages/agent-management/src/auth/oauth/openai-codex.ts`](../../../packages/agent-management/src/auth/oauth/openai-codex.ts)
+  - removed [`packages/agent-management/src/auth/oauth/openai-codex.test.ts`](../../../packages/agent-management/src/auth/oauth/openai-codex.test.ts)
+  - [`packages/cli/src/cli/commands/connect/index.ts`](../../../packages/cli/src/cli/commands/connect/index.ts)
+  - [`packages/cli/src/cli/commands/connect/index.test.ts`](../../../packages/cli/src/cli/commands/connect/index.test.ts)
+  - [`packages/cli/src/cli/commands/setup.ts`](../../../packages/cli/src/cli/commands/setup.ts)
+  - [`packages/cli/src/cli/commands/setup.test.ts`](../../../packages/cli/src/cli/commands/setup.test.ts)
+  - [`packages/cli/src/cli/utils/codex-chatgpt-login.ts`](../../../packages/cli/src/cli/utils/codex-chatgpt-login.ts)
+  - [`packages/cli/src/cli/utils/config-validation.test.ts`](../../../packages/cli/src/cli/utils/config-validation.test.ts)
+  - [`packages/core/src/llm/auth/types.ts`](../../../packages/core/src/llm/auth/types.ts)
+  - [`packages/core/src/llm/index.ts`](../../../packages/core/src/llm/index.ts)
+  - [`packages/core/src/llm/providers/codex-base-url.ts`](../../../packages/core/src/llm/providers/codex-base-url.ts)
+  - [`packages/core/src/llm/providers/codex-base-url.test.ts`](../../../packages/core/src/llm/providers/codex-base-url.test.ts)
+  - [`packages/core/src/llm/providers/codex-app-server.ts`](../../../packages/core/src/llm/providers/codex-app-server.ts)
+  - [`packages/core/src/llm/services/factory.ts`](../../../packages/core/src/llm/services/factory.ts)
+  - [`packages/core/src/llm/services/factory.test.ts`](../../../packages/core/src/llm/services/factory.test.ts)
+  - [`packages/core/src/llm/schemas.ts`](../../../packages/core/src/llm/schemas.ts)
+  - [`packages/core/src/llm/schemas.test.ts`](../../../packages/core/src/llm/schemas.test.ts)
+  - [`packages/core/src/session/chat-session.ts`](../../../packages/core/src/session/chat-session.ts)
+  - [`packages/core/src/session/chat-session.test.ts`](../../../packages/core/src/session/chat-session.test.ts)
+  - [`packages/tui/src/utils/llm-provider-display.ts`](../../../packages/tui/src/utils/llm-provider-display.ts)
+  - [`packages/tui/src/utils/llm-provider-display.test.ts`](../../../packages/tui/src/utils/llm-provider-display.test.ts)
+  - [`packages/tui/src/interactive-commands/general-commands.ts`](../../../packages/tui/src/interactive-commands/general-commands.ts)
+  - [`packages/tui/src/hooks/useAgentEvents.ts`](../../../packages/tui/src/hooks/useAgentEvents.ts)
+  - [`packages/tui/src/components/Footer.tsx`](../../../packages/tui/src/components/Footer.tsx)
+  - [`packages/tui/src/components/overlays/ModelSelectorRefactored.tsx`](../../../packages/tui/src/components/overlays/ModelSelectorRefactored.tsx)
+  - [`packages/server/src/hono/routes/llm-connect.ts`](../../../packages/server/src/hono/routes/llm-connect.ts)
+  - [`packages/server/src/hono/__tests__/llm-connect.integration.test.ts`](../../../packages/server/src/hono/__tests__/llm-connect.integration.test.ts)
+  - [`docs/static/openapi/openapi.json`](../../../docs/static/openapi/openapi.json)
+- Follow-up outcomes:
+  - `openai` now exposes `chatgpt_login` as an `external_account` auth method instead of a token-owning `oauth_codex` method.
+  - stored auth profiles gained an `external_account` credential kind; the Dexto-owned OpenAI OAuth client-ID flow was removed.
+  - both `/connect` and `setup` now use the Codex client to establish ChatGPT Login sessions.
+  - runtime auth resolution maps OpenAI ChatGPT Login profiles to `codex://chatgpt`, and `factory.ts` routes `openai + codex://...` through the Codex app-server path.
+  - `openai-compatible` is now only for custom endpoints; config validation rejects Codex base URLs there.
+  - no compatibility bridge remains for older `openai-compatible + codex://chatgpt` configs.
+- Follow-up verification:
+  - focused tests: `pnpm exec vitest run packages/agent-management/src/auth/provider-auth-definitions.test.ts packages/agent-management/src/auth/runtime-auth-resolver.test.ts packages/agent-management/src/auth/llm-profiles.test.ts packages/cli/src/cli/commands/connect/index.test.ts packages/cli/src/cli/commands/setup.test.ts packages/core/src/llm/providers/codex-base-url.test.ts packages/core/src/llm/services/factory.test.ts packages/core/src/llm/schemas.test.ts packages/core/src/session/chat-session.test.ts packages/server/src/hono/__tests__/llm-connect.integration.test.ts packages/tui/src/utils/llm-provider-display.test.ts`
+  - targeted typecheck and declaration refresh:
+    - `pnpm exec tsc -p packages/core/tsconfig.json --noEmit`
+    - `pnpm exec tsc -b packages/core/tsconfig.json --emitDeclarationOnly`
+    - `pnpm exec tsc -p packages/agent-management/tsconfig.json --noEmit`
+    - `pnpm exec tsc -b packages/agent-management/tsconfig.json --emitDeclarationOnly`
+    - `pnpm exec tsc -p packages/cli/tsconfig.json --noEmit`
+    - `pnpm exec tsc -p packages/server/tsconfig.json --noEmit`
+    - `pnpm exec tsc -p packages/tui/tsconfig.json --noEmit`
+  - OpenAPI regeneration:
+    - `pnpm --filter @dexto/server... build`
+    - `pnpm run sync-openapi-docs`
+    - `pnpm run sync-openapi-docs:check`
+  - repo quality gate: `bash scripts/quality-checks.sh`
+
 ---
 
 ## Key Decisions
@@ -243,6 +311,8 @@
 | 2026-04-02 | `cohere` should remain its own runtime family in phase 1.                                                                                                                                                                            | Dexto uses a dedicated Cohere SDK path today, and there is not yet a strong enough case to collapse it into another shared family.                                                           |
 | 2026-04-02 | Use Option A for the auth method object shape: provider-grouped definitions with OAuth-specific nested hooks only for OAuth methods.                                                                                                 | This keeps the contract explicit and extensible without introducing generic acquire/runtime buckets before they are needed.                                                                  |
 | 2026-04-02 | Phase 1 runtime families are: `openai-responses`, `openai-completions`, `anthropic-messages`, `google-generative-ai`, `google-vertex`, `google-vertex-anthropic`, `bedrock-converse-stream`, `openrouter`, `cohere`, `local-native`. | This is the smallest family set that matches the current code paths while preserving the hybrid cases that would otherwise require a second metadata field.                                  |
+| 2026-04-08 | Keep ChatGPT Login under provider `openai`, but model it as `external_account` state routed through the Codex app-server.                                                                                                           | This keeps the user-facing provider surface simple while removing the false assumption that Dexto owns refreshable OpenAI OAuth tokens for the Codex-backed path.                           |
+| 2026-04-08 | Do not preserve `openai-compatible + codex://chatgpt` compatibility.                                                                                                                                                                 | The old representation was the hack; preserving it would keep the same ambiguity alive in validation, runtime routing, and preferences.                                                      |
 
 
 ---
@@ -271,3 +341,4 @@
 | 2026-04-03 | Completed Task 7 CLI `/connect` on top of auth definitions | Drove the CLI provider/method selection flow from the shared auth-definition surface, added the focused connected-profile runtime-auth regression, and landed the slice as `c744576c0`. |
 | 2026-04-03 | Completed Task 8 runtime hotspot cleanup | Reduced the worst runtime branch duplication in `factory.ts` and `provider-options.ts`, added representative routing tests in `factory.test.ts`, and verified the slice through the full repo quality gate before moving to Task 9. |
 | 2026-04-08 | Completed Task 9 final integration and cleanup pass | Aligned the remaining server LLM/catalog surfaces with runtime support gating, added unsupported-provider API regressions, hardened the shared server test fixture against port-binding races, and cleared the full repo quality gate to close the planned v2 scope. |
+| 2026-04-08 | Completed post-plan OpenAI ChatGPT Login cleanup | Replaced the Dexto-owned OpenAI client-ID OAuth path with `openai` `chatgpt_login` external-account auth, routed OpenAI ChatGPT Login through the Codex app-server, removed the `openai-compatible + codex://chatgpt` compatibility path, and cleared the full repo quality gate again. |
