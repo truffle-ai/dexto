@@ -13,6 +13,7 @@ import {
 } from './llm-profiles.js';
 import {
     getAuthMethodDefinitionForProfile,
+    isExternalAccountAuthMethod,
     isOauthAuthMethod,
     type OAuthHeaderKind,
 } from './provider-auth-definitions.js';
@@ -164,11 +165,32 @@ export function createDefaultLlmAuthResolver(): LlmAuthResolver {
             const profile = getLlmAuthProfileSync(defaultProfileId);
             if (!profile) return null;
 
+            if (input.apiKey?.trim() || input.baseURL?.trim()) {
+                return null;
+            }
+
             if (profile.credential.type === 'api_key') {
                 return { apiKey: profile.credential.key };
             }
             if (profile.credential.type === 'token') {
                 return { apiKey: profile.credential.token };
+            }
+            if (profile.credential.type === 'external_account') {
+                const method = getAuthMethodDefinitionForProfile(profile);
+                if (!method || !isExternalAccountAuthMethod(method)) {
+                    return null;
+                }
+
+                const runtimeAuth = method.externalAccount.resolveRuntimeAuth({
+                    profile,
+                    credential: profile.credential,
+                });
+
+                return {
+                    ...(runtimeAuth.apiKey ? { apiKey: runtimeAuth.apiKey } : {}),
+                    ...(runtimeAuth.baseURL ? { baseURL: runtimeAuth.baseURL } : {}),
+                    ...(runtimeAuth.extraHeaders ? { headers: runtimeAuth.extraHeaders } : {}),
+                };
             }
 
             if (profile.credential.type === 'oauth') {

@@ -85,4 +85,38 @@ describe('llm-profiles store', () => {
         await deleteLlmAuthProfile('openai:default');
         expect(await getDefaultLlmAuthProfileId('openai')).toBe(null);
     });
+
+    it('persists external account credentials without coercing them to oauth tokens', async () => {
+        await upsertLlmAuthProfile({
+            profileId: 'openai:chatgpt_login',
+            providerId: 'openai',
+            methodId: 'chatgpt_login',
+            credential: {
+                type: 'external_account',
+                system: 'codex',
+                authMode: 'chatgpt',
+                metadata: {
+                    email: 'user@example.com',
+                    planType: 'plus',
+                },
+            },
+        });
+
+        const store = await loadLlmAuthProfilesStore();
+        expect(store.profiles['openai:chatgpt_login']).toEqual(
+            expect.objectContaining({
+                providerId: 'openai',
+                methodId: 'chatgpt_login',
+                credential: {
+                    type: 'external_account',
+                    system: 'codex',
+                    authMode: 'chatgpt',
+                    metadata: {
+                        email: 'user@example.com',
+                        planType: 'plus',
+                    },
+                },
+            })
+        );
+    });
 });

@@ -7,29 +7,29 @@ import {
     getAuthMethodDefinition,
     getAuthMethodDefinitionForProfile,
     getProviderAuthDefinition,
+    isExternalAccountAuthMethod,
     isOauthAuthMethod,
 } from './provider-auth-definitions.js';
 
 describe('provider auth definitions', () => {
-    it('keeps openai oauth and api_key methods available through the definition layer', () => {
+    it('keeps openai ChatGPT Login and api_key methods available through the definition layer', () => {
         const provider = getProviderAuthDefinition('openai');
 
         expect(provider?.methods.map((method) => [method.id, method.kind])).toEqual([
-            ['oauth_codex', 'oauth'],
+            ['chatgpt_login', 'external_account'],
             ['api_key', 'api_key'],
         ]);
 
-        const oauthMethod = getAuthMethodDefinition('openai', 'oauth_codex');
-        expect(oauthMethod).not.toBeNull();
-        expect(oauthMethod && isOauthAuthMethod(oauthMethod)).toBe(true);
+        const chatGptMethod = getAuthMethodDefinition('openai', 'chatgpt_login');
+        expect(chatGptMethod).not.toBeNull();
+        expect(chatGptMethod && isExternalAccountAuthMethod(chatGptMethod)).toBe(true);
+        expect(chatGptMethod && isOauthAuthMethod(chatGptMethod)).toBe(false);
 
-        if (!oauthMethod || !isOauthAuthMethod(oauthMethod)) {
-            throw new Error('Expected openai oauth method to be present');
+        if (!chatGptMethod || !isExternalAccountAuthMethod(chatGptMethod)) {
+            throw new Error('Expected openai ChatGPT Login method to be present');
         }
 
-        expect(typeof oauthMethod.oauth.start).toBe('function');
-        expect(typeof oauthMethod.oauth.refresh).toBe('function');
-        expect(typeof oauthMethod.oauth.resolveRuntimeAuth).toBe('function');
+        expect(typeof chatGptMethod.externalAccount.resolveRuntimeAuth).toBe('function');
     });
 
     it('keeps lightweight token and guidance methods free of oauth hooks', () => {

@@ -56,6 +56,14 @@ export const LlmAuthCredentialSchema = z
                 metadata: z.record(z.string(), z.string()).optional(),
             })
             .strict(),
+        z
+            .object({
+                type: z.literal('external_account'),
+                system: NonEmptyTrimmed.describe('External account system id (e.g., codex)'),
+                authMode: NonEmptyTrimmed.describe('External account auth mode (e.g., chatgpt)'),
+                metadata: z.record(z.string(), z.string()).optional(),
+            })
+            .strict(),
     ])
     .describe('Credential material for an auth profile');
 
@@ -65,7 +73,7 @@ export const LlmAuthProfileSchema = z
     .object({
         profileId: NonEmptyTrimmed.describe('Stable profile identifier (e.g., openai:default)'),
         providerId: NonEmptyTrimmed.describe('Provider id (LLM provider or preset id)'),
-        methodId: NonEmptyTrimmed.describe('Auth method id (e.g., api_key, oauth_codex)'),
+        methodId: NonEmptyTrimmed.describe('Auth method id (e.g., api_key, chatgpt_login)'),
         label: z.string().optional().describe('Human-friendly label'),
         credential: LlmAuthCredentialSchema,
         createdAt: z.number().int().positive(),

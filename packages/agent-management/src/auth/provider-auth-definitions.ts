@@ -1,3 +1,4 @@
+import { createCodexBaseURL } from '@dexto/core';
 import type { LlmAuthCredential, LlmAuthProfile } from './llm-profiles.js';
 import {
     refreshMiniMaxPortalOauth,
@@ -5,16 +6,18 @@ import {
     startMiniMaxPortalOauth,
     type MiniMaxRegion,
 } from './oauth/minimax-portal.js';
-import {
-    refreshOpenAiCodexOauth,
-    resolveOpenAiCodexRuntimeAuth,
-    startOpenAiCodexOauth,
-} from './oauth/openai-codex.js';
 
-export const AUTH_METHOD_KINDS = ['api_key', 'token', 'oauth', 'guidance'] as const;
+export const AUTH_METHOD_KINDS = [
+    'api_key',
+    'token',
+    'oauth',
+    'external_account',
+    'guidance',
+] as const;
 export type AuthMethodKind = (typeof AUTH_METHOD_KINDS)[number];
 
 type OAuthCredential = Extract<LlmAuthCredential, { type: 'oauth' }>;
+type ExternalAccountCredential = Extract<LlmAuthCredential, { type: 'external_account' }>;
 
 export type OAuthHeaderKind = 'authorization_bearer' | 'x_api_key';
 
@@ -45,6 +48,19 @@ export type OAuthMethodHooks = {
     }): OAuthRuntimeAuthProjection;
 };
 
+export type ExternalAccountRuntimeAuthProjection = {
+    apiKey?: string | undefined;
+    baseURL?: string | undefined;
+    extraHeaders?: Record<string, string> | undefined;
+};
+
+export type ExternalAccountMethodHooks = {
+    resolveRuntimeAuth(params: {
+        profile: LlmAuthProfile;
+        credential: ExternalAccountCredential;
+    }): ExternalAccountRuntimeAuthProjection;
+};
+
 type AuthMethodDefinitionBase = {
     id: string;
     label: string;
@@ -64,6 +80,11 @@ export type GuidanceAuthMethodDefinition = AuthMethodDefinitionBase & {
     kind: 'guidance';
 };
 
+export type ExternalAccountAuthMethodDefinition = AuthMethodDefinitionBase & {
+    kind: 'external_account';
+    externalAccount: ExternalAccountMethodHooks;
+};
+
 export type OAuthAuthMethodDefinition = AuthMethodDefinitionBase & {
     kind: 'oauth';
     oauth: OAuthMethodHooks;
@@ -72,6 +93,7 @@ export type OAuthAuthMethodDefinition = AuthMethodDefinitionBase & {
 export type AuthMethodDefinition =
     | ApiKeyAuthMethodDefinition
     | TokenAuthMethodDefinition
+    | ExternalAccountAuthMethodDefinition
     | GuidanceAuthMethodDefinition
     | OAuthAuthMethodDefinition;
 
@@ -162,6 +184,28 @@ function createMiniMaxProviderAuthDefinition(config: {
     };
 }
 
+function createOpenAiChatGptLoginMethod(): ExternalAccountAuthMethodDefinition {
+    return {
+        id: 'chatgpt_login',
+        label: 'ChatGPT Login',
+        kind: 'external_account',
+        hint: 'Uses your ChatGPT account through Codex',
+        externalAccount: {
+            resolveRuntimeAuth: ({ credential }) => {
+                const authMode =
+                    credential.system === 'codex' &&
+                    (credential.authMode === 'chatgpt' || credential.authMode === 'apikey')
+                        ? credential.authMode
+                        : 'auto';
+
+                return {
+                    baseURL: createCodexBaseURL(authMode),
+                };
+            },
+        },
+    };
+}
+
 const API_KEY_ONLY_PROVIDER_SPECS = [
     {
         providerId: 'moonshotai',
@@ -246,19 +290,7 @@ export const PROVIDER_AUTH_DEFINITIONS: readonly ProviderAuthDefinition[] = [
         providerId: 'openai',
         label: 'OpenAI',
         modelsDevProviderId: 'openai',
-        methods: [
-            {
-                id: 'oauth_codex',
-                label: 'ChatGPT Pro/Plus (OAuth)',
-                kind: 'oauth',
-                oauth: {
-                    start: async (params) => await startOpenAiCodexOauth(params),
-                    refresh: async (params) => await refreshOpenAiCodexOauth(params),
-                    resolveRuntimeAuth: (params) => resolveOpenAiCodexRuntimeAuth(params),
-                },
-            },
-            API_KEY_METHOD,
-        ],
+        methods: [createOpenAiChatGptLoginMethod(), API_KEY_METHOD],
     },
     {
         providerId: 'anthropic',
@@ -312,6 +344,12 @@ export function isOauthAuthMethod(
     method: AuthMethodDefinition
 ): method is OAuthAuthMethodDefinition {
     return method.kind === 'oauth';
+}
+
+export function isExternalAccountAuthMethod(
+    method: AuthMethodDefinition
+): method is ExternalAccountAuthMethodDefinition {
+    return method.kind === 'external_account';
 }
 
 export function getProviderAuthDefinition(providerId: string): ProviderAuthDefinition | null {

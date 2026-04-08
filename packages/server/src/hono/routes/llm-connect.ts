@@ -15,7 +15,7 @@ const ProfileRedactedSchema = z
         methodId: z.string().describe('Auth method id'),
         label: z.string().optional().describe('Optional display label'),
         credentialType: z
-            .enum(['api_key', 'token', 'oauth'])
+            .enum(['api_key', 'token', 'oauth', 'external_account'])
             .describe('Credential type (redacted)'),
         createdAt: z.number().describe('Profile creation time (unix ms)'),
         updatedAt: z.number().describe('Profile last update time (unix ms)'),

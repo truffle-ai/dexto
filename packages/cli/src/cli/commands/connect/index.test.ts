@@ -3,6 +3,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { handleConnectCommand } from './index.js';
 import type { LlmAuthProfile } from '@dexto/agent-management';
 
+const codexLoginMocks = vi.hoisted(() => ({
+    createCodexClientForChatGptLogin: vi.fn(),
+    ensureCodexChatGptSession: vi.fn(),
+    getCodexLoginErrorMessage: vi.fn((error: unknown) =>
+        error instanceof Error ? error.message : String(error)
+    ),
+}));
+
 vi.mock('open', () => ({ default: vi.fn() }));
 
 vi.mock('@clack/prompts', () => ({
@@ -22,7 +30,15 @@ vi.mock('@dexto/agent-management', () => {
         {
             providerId: 'openai',
             label: 'OpenAI',
-            methods: [{ id: 'api_key', label: 'API key', kind: 'api_key' }],
+            methods: [
+                {
+                    id: 'chatgpt_login',
+                    label: 'ChatGPT Login',
+                    kind: 'external_account',
+                    externalAccount: { resolveRuntimeAuth: vi.fn() },
+                },
+                { id: 'api_key', label: 'API key', kind: 'api_key' },
+            ],
         },
         {
             providerId: 'anthropic',
@@ -66,6 +82,8 @@ vi.mock('@dexto/agent-management', () => {
     };
 });
 
+vi.mock('../../utils/codex-chatgpt-login.js', () => codexLoginMocks);
+
 function makeProfile(params: {
     profileId: string;
     providerId: string;
@@ -94,7 +112,7 @@ describe('/connect command (auth slots)', () => {
         const prompts = await import('@clack/prompts');
         const agentManagement = await import('@dexto/agent-management');
 
-        vi.mocked(prompts.select).mockResolvedValueOnce('openai');
+        vi.mocked(prompts.select).mockResolvedValueOnce('openai').mockResolvedValueOnce('api_key');
         vi.mocked(prompts.password).mockResolvedValueOnce('sk-live-1234567890');
 
         vi.mocked(agentManagement.listLlmAuthProfiles).mockResolvedValueOnce([]);
@@ -122,6 +140,7 @@ describe('/connect command (auth slots)', () => {
 
         vi.mocked(prompts.select)
             .mockResolvedValueOnce('openai') // provider
+            .mockResolvedValueOnce('api_key') // method
             .mockResolvedValueOnce('use_existing'); // action
 
         vi.mocked(agentManagement.listLlmAuthProfiles).mockResolvedValueOnce([
@@ -145,6 +164,7 @@ describe('/connect command (auth slots)', () => {
 
         vi.mocked(prompts.select)
             .mockResolvedValueOnce('openai') // provider
+            .mockResolvedValueOnce('api_key') // method
             .mockResolvedValueOnce('replace'); // action
         vi.mocked(prompts.password).mockResolvedValueOnce('sk-new-1234567890');
 
@@ -171,6 +191,7 @@ describe('/connect command (auth slots)', () => {
 
         vi.mocked(prompts.select)
             .mockResolvedValueOnce('openai') // provider
+            .mockResolvedValueOnce('api_key') // method
             .mockResolvedValueOnce('delete'); // action
         vi.mocked(prompts.confirm).mockResolvedValueOnce(true);
 
@@ -211,6 +232,53 @@ describe('/connect command (auth slots)', () => {
             providerId: 'anthropic',
             profileId: 'anthropic:setup_token',
         });
+    });
+
+    it('persists ChatGPT Login as an external account credential', async () => {
+        const prompts = await import('@clack/prompts');
+        const agentManagement = await import('@dexto/agent-management');
+
+        const close = vi.fn().mockResolvedValue(undefined);
+        const client = { close };
+        codexLoginMocks.createCodexClientForChatGptLogin.mockResolvedValueOnce(client);
+        codexLoginMocks.ensureCodexChatGptSession.mockResolvedValueOnce({
+            account: {
+                type: 'chatgpt',
+                email: 'user@example.com',
+                planType: 'plus',
+            },
+            requiresOpenaiAuth: false,
+        });
+
+        vi.mocked(prompts.select)
+            .mockResolvedValueOnce('openai')
+            .mockResolvedValueOnce('chatgpt_login');
+        vi.mocked(agentManagement.listLlmAuthProfiles).mockResolvedValueOnce([]);
+        vi.mocked(agentManagement.getDefaultLlmAuthProfileId).mockResolvedValueOnce(null);
+
+        await handleConnectCommand({ interactive: true });
+
+        expect(agentManagement.upsertLlmAuthProfile).toHaveBeenCalledWith(
+            expect.objectContaining({
+                profileId: 'openai:chatgpt_login',
+                providerId: 'openai',
+                methodId: 'chatgpt_login',
+                credential: {
+                    type: 'external_account',
+                    system: 'codex',
+                    authMode: 'chatgpt',
+                    metadata: {
+                        email: 'user@example.com',
+                        planType: 'plus',
+                    },
+                },
+            })
+        );
+        expect(agentManagement.setDefaultLlmAuthProfile).toHaveBeenCalledWith({
+            providerId: 'openai',
+            profileId: 'openai:chatgpt_login',
+        });
+        expect(close).toHaveBeenCalled();
     });
 
     it('persists oauth credentials returned by the shared auth definition hooks', async () => {

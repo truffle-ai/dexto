@@ -28,9 +28,24 @@ describe('LLM Connect Routes', () => {
         expect(res.status).toBe(200);
         expectResponseStructure(res.body, { providers: validators.array });
 
-        const providers = (res.body as { providers: Array<{ providerId: string }> }).providers;
+        const providers = (
+            res.body as {
+                providers: Array<{
+                    providerId: string;
+                    methods: Array<{ id: string; kind: string }>;
+                }>;
+            }
+        ).providers;
         expect(providers.length).toBeGreaterThan(0);
         expect(providers.some((p) => p.providerId === 'openai')).toBe(true);
+        expect(providers.find((provider) => provider.providerId === 'openai')?.methods).toEqual(
+            expect.arrayContaining([
+                expect.objectContaining({
+                    id: 'chatgpt_login',
+                    kind: 'external_account',
+                }),
+            ])
+        );
     });
 
     it('GET /api/llm/connect/profiles returns redacted profile list', async () => {

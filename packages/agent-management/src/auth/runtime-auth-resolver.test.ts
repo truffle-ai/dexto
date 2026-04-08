@@ -15,7 +15,6 @@ describe('llm runtime auth resolver', () => {
     let previousHome: string | undefined;
     let originalFetch: typeof fetch | undefined;
     let previousMiniMaxClientId: string | undefined;
-    let previousOpenAiClientId: string | undefined;
 
     beforeEach(async () => {
         tempHomeDir = await fs.mkdtemp(path.join(tmpdir(), 'dexto-llm-auth-resolver-test-'));
@@ -23,7 +22,6 @@ describe('llm runtime auth resolver', () => {
         process.env.HOME = tempHomeDir;
         originalFetch = globalThis.fetch;
         previousMiniMaxClientId = process.env.DEXTO_MINIMAX_PORTAL_OAUTH_CLIENT_ID;
-        previousOpenAiClientId = process.env.DEXTO_OPENAI_CODEX_OAUTH_CLIENT_ID;
     });
 
     afterEach(async () => {
@@ -34,12 +32,6 @@ describe('llm runtime auth resolver', () => {
             delete process.env.DEXTO_MINIMAX_PORTAL_OAUTH_CLIENT_ID;
         } else {
             process.env.DEXTO_MINIMAX_PORTAL_OAUTH_CLIENT_ID = previousMiniMaxClientId;
-        }
-
-        if (previousOpenAiClientId === undefined) {
-            delete process.env.DEXTO_OPENAI_CODEX_OAUTH_CLIENT_ID;
-        } else {
-            process.env.DEXTO_OPENAI_CODEX_OAUTH_CLIENT_ID = previousOpenAiClientId;
         }
 
         if (previousHome === undefined) {
@@ -102,46 +94,66 @@ describe('llm runtime auth resolver', () => {
         expect(calls[0]!.headers.get('authorization')).toBe(null);
     });
 
-    it('adds the openai account header when oauth metadata includes accountId', async () => {
+    it('resolves openai ChatGPT Login profiles to the Codex app-server base URL', async () => {
         await upsertLlmAuthProfile({
-            profileId: 'openai:oauth_codex',
+            profileId: 'openai:chatgpt_login',
             providerId: 'openai',
-            methodId: 'oauth_codex',
+            methodId: 'chatgpt_login',
             credential: {
-                type: 'oauth',
-                accessToken: 'access-token',
-                refreshToken: 'refresh-token',
-                expiresAt: Date.now() + 60_000,
+                type: 'external_account',
+                system: 'codex',
+                authMode: 'chatgpt',
                 metadata: {
-                    clientId: 'client-id',
-                    accountId: 'acct_123',
+                    email: 'user@example.com',
+                    planType: 'plus',
                 },
             },
         });
         await setDefaultLlmAuthProfile({
             providerId: 'openai',
-            profileId: 'openai:oauth_codex',
+            profileId: 'openai:chatgpt_login',
         });
 
         const resolver = createDefaultLlmAuthResolver();
         const runtime = resolver.resolveRuntimeAuth({ provider: 'openai', model: 'gpt-4o-mini' });
-        expect(runtime?.apiKey).toBe('dexto-oauth-dummy-key');
-        expect(runtime?.baseURL).toBe('https://chatgpt.com/backend-api/codex');
-        expect(typeof runtime?.fetch).toBe('function');
+        expect(runtime).toEqual({
+            baseURL: 'codex://chatgpt',
+        });
+    });
 
-        const calls: Array<{ headers: globalThis.Headers }> = [];
-        globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
-            calls.push({ headers: new globalThis.Headers(init?.headers) });
-            return new Response('ok', { status: 200 });
-        }) satisfies typeof fetch;
-
-        await runtime!.fetch!('https://example.com', {
-            headers: { Authorization: 'Bearer placeholder' },
+    it('skips default auth profiles when explicit config already selects apiKey or baseURL', async () => {
+        await upsertLlmAuthProfile({
+            profileId: 'openai:chatgpt_login',
+            providerId: 'openai',
+            methodId: 'chatgpt_login',
+            credential: {
+                type: 'external_account',
+                system: 'codex',
+                authMode: 'chatgpt',
+            },
+        });
+        await setDefaultLlmAuthProfile({
+            providerId: 'openai',
+            profileId: 'openai:chatgpt_login',
         });
 
-        expect(calls).toHaveLength(1);
-        expect(calls[0]!.headers.get('authorization')).toBe('Bearer access-token');
-        expect(calls[0]!.headers.get('chatgpt-account-id')).toBe('acct_123');
+        const resolver = createDefaultLlmAuthResolver();
+
+        expect(
+            resolver.resolveRuntimeAuth({
+                provider: 'openai',
+                model: 'gpt-4o-mini',
+                apiKey: 'sk-explicit',
+            })
+        ).toBeNull();
+
+        expect(
+            resolver.resolveRuntimeAuth({
+                provider: 'openai',
+                model: 'gpt-4o-mini',
+                baseURL: 'https://api.openai.com/v1',
+            })
+        ).toBeNull();
     });
 
     it('preserves Request headers when init.headers is omitted', async () => {
@@ -451,78 +463,4 @@ describe('llm runtime auth resolver', () => {
             expect(typeof runtime?.fetch).toBe('function');
         }
     );
-
-    it('refreshes openai oauth tokens using the stored clientId', async () => {
-        delete process.env.DEXTO_OPENAI_CODEX_OAUTH_CLIENT_ID;
-
-        await upsertLlmAuthProfile({
-            profileId: 'openai:oauth_codex',
-            providerId: 'openai',
-            methodId: 'oauth_codex',
-            credential: {
-                type: 'oauth',
-                accessToken: 'stale-access',
-                refreshToken: 'stale-refresh',
-                expiresAt: Date.now() - 1,
-                metadata: { clientId: 'client-id' },
-            },
-        });
-        await setDefaultLlmAuthProfile({
-            providerId: 'openai',
-            profileId: 'openai:oauth_codex',
-        });
-
-        const resolver = createDefaultLlmAuthResolver();
-        const runtime = resolver.resolveRuntimeAuth({ provider: 'openai', model: 'gpt-4o-mini' });
-        expect(runtime?.apiKey).toBe('dexto-oauth-dummy-key');
-        expect(typeof runtime?.fetch).toBe('function');
-
-        const calls: Array<{ url: string; headers: globalThis.Headers; body?: string }> = [];
-        globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
-            const url =
-                input instanceof URL
-                    ? input.toString()
-                    : typeof input === 'string'
-                      ? input
-                      : input.url;
-            const body = init?.body?.toString();
-            calls.push({
-                url,
-                headers: new globalThis.Headers(init?.headers),
-                ...(body !== undefined ? { body } : {}),
-            });
-
-            if (url === 'https://auth.openai.com/oauth/token') {
-                expect(body).toContain('client_id=client-id');
-                expect(body).toContain('refresh_token=stale-refresh');
-                return new Response(
-                    JSON.stringify({
-                        access_token: 'fresh-access',
-                        refresh_token: 'fresh-refresh',
-                        expires_in: 3600,
-                    }),
-                    { status: 200 }
-                );
-            }
-
-            return new Response('ok', { status: 200 });
-        }) satisfies typeof fetch;
-
-        await runtime!.fetch!('https://example.com', {
-            headers: { Authorization: 'Bearer stale' },
-        });
-
-        expect(calls.some((c) => c.url === 'https://auth.openai.com/oauth/token')).toBe(true);
-        const requestCall = calls.find((c) => c.url === 'https://example.com');
-        expect(requestCall?.headers.get('authorization')).toBe('Bearer fresh-access');
-
-        const store = await loadLlmAuthProfilesStore();
-        const updated = store.profiles['openai:oauth_codex'];
-        expect(updated?.credential.type).toBe('oauth');
-        if (updated?.credential.type === 'oauth') {
-            expect(updated.credential.accessToken).toBe('fresh-access');
-            expect(updated.credential.refreshToken).toBe('fresh-refresh');
-            expect(updated.credential.expiresAt).toBeGreaterThan(Date.now());
-        }
-    });
 });

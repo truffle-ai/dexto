@@ -110,6 +110,12 @@ vi.mock('@dexto/core', () => {
         isCodexBaseURL: vi.fn(
             (value: unknown) => typeof value === 'string' && value.startsWith('codex://')
         ),
+        isCodexBackedOpenAiConfig: vi.fn(
+            (provider: string, baseURL: unknown) =>
+                provider === 'openai' &&
+                typeof baseURL === 'string' &&
+                baseURL.startsWith('codex://')
+        ),
         parseCodexBaseURL: vi.fn((value: unknown) => {
             if (value === 'codex://chatgpt') {
                 return { authMode: 'chatgpt' };
@@ -560,7 +566,7 @@ describe('Setup Command', () => {
             expect(mockOpen).toHaveBeenCalledWith('https://chatgpt.example/login');
             expect(mockCreateInitialPreferences).toHaveBeenCalledWith(
                 expect.objectContaining({
-                    provider: 'openai-compatible',
+                    provider: 'openai',
                     model: 'gpt-4o-mini',
                     baseURL: 'codex://chatgpt',
                     defaultMode: 'cli',
@@ -1087,7 +1093,7 @@ describe('Setup Command', () => {
             it('shows Codex-specific labels for a saved ChatGPT-backed config', async () => {
                 mockLoadGlobalPreferences.mockResolvedValue({
                     llm: {
-                        provider: 'openai-compatible',
+                        provider: 'openai',
                         model: 'gpt-4o-mini',
                         baseURL: 'codex://chatgpt',
                     },

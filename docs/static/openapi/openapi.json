@@ -64874,6 +64874,7 @@
                                     "api_key",
                                     "token",
                                     "oauth",
+                                    "external_account",
                                     "guidance"
                                   ]
                                 },
@@ -65124,7 +65125,8 @@
                             "enum": [
                               "api_key",
                               "token",
-                              "oauth"
+                              "oauth",
+                              "external_account"
                             ],
                             "description": "Credential type (redacted)"
                           },

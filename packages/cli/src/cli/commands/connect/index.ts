@@ -1,6 +1,7 @@
 import chalk from 'chalk';
 import * as p from '@clack/prompts';
 import open from 'open';
+import type { CodexAppServerClient } from '@dexto/core';
 
 import {
     PROVIDER_AUTH_DEFINITIONS,
@@ -14,6 +15,11 @@ import {
     type LlmAuthCredential,
     type ProviderAuthDefinition,
 } from '@dexto/agent-management';
+import {
+    createCodexClientForChatGptLogin,
+    ensureCodexChatGptSession,
+    getCodexLoginErrorMessage,
+} from '../../utils/codex-chatgpt-login.js';
 
 function isCancel<T>(value: T | symbol): value is symbol {
     return p.isCancel(value);
@@ -54,6 +60,38 @@ async function persistConnectedProfile(params: {
         label: params.method.label,
         credential: params.credential,
     });
+}
+
+async function connectExternalAccount(params: {
+    provider: ProviderAuthDefinition;
+    method: AuthMethodDefinition;
+}): Promise<LlmAuthCredential | null> {
+    if (params.provider.providerId !== 'openai' || params.method.id !== 'chatgpt_login') {
+        throw new Error(
+            `Unsupported external account method: ${params.provider.providerId}/${params.method.id}`
+        );
+    }
+
+    let client: CodexAppServerClient | null = null;
+    try {
+        client = await createCodexClientForChatGptLogin();
+        const account = await ensureCodexChatGptSession(client);
+        if (!account || account.account?.type !== 'chatgpt') {
+            return null;
+        }
+
+        return {
+            type: 'external_account',
+            system: 'codex',
+            authMode: 'chatgpt',
+            metadata: {
+                email: account.account.email,
+                planType: account.account.planType,
+            },
+        };
+    } finally {
+        await client?.close().catch(() => undefined);
+    }
 }
 
 export async function handleConnectCommand(options?: { interactive?: boolean }): Promise<void> {
@@ -233,6 +271,33 @@ export async function handleConnectCommand(options?: { interactive?: boolean }):
         return;
     }
 
+    if (method.kind === 'external_account') {
+        let credential: LlmAuthCredential | null;
+        try {
+            credential = await connectExternalAccount({ provider, method });
+        } catch (error) {
+            const message = getCodexLoginErrorMessage(error);
+            p.outro(chalk.red(`❌ ${provider.label} login failed: ${message}`));
+            return;
+        }
+
+        if (!credential) {
+            p.cancel('Connect cancelled');
+            return;
+        }
+
+        await persistConnectedProfile({
+            profileId,
+            credential,
+            provider,
+            method,
+        });
+        await setDefaultLlmAuthProfile({ providerId: provider.providerId, profileId });
+
+        p.outro(chalk.green(`✅ Connected ${provider.label} (${method.label})`));
+        return;
+    }
+
     if (method.kind === 'oauth') {
         const spinner = p.spinner();
         spinner.start(`Starting ${provider.label} OAuth…`);
@@ -269,15 +334,6 @@ export async function handleConnectCommand(options?: { interactive?: boolean }):
         } catch (error) {
             pollSpinner.stop('Failed');
             const message = error instanceof Error ? error.message : String(error);
-            if (provider.providerId === 'openai' && method.id === 'oauth_codex') {
-                console.log('');
-                console.log(
-                    chalk.yellow(
-                        'Note: OpenAI ChatGPT OAuth (Codex) may require allowlisting for our OAuth app.'
-                    )
-                );
-                console.log(chalk.dim('If this fails, use the OpenAI API key method instead.'));
-            }
             p.outro(chalk.red(`❌ ${provider.label} OAuth failed: ${message}`));
             return;
         }
