@@ -17,15 +17,15 @@
 
 ## Current Task
 
-**Task:** Task 4 - Reasoning Status Rollout
+**Task:** Task 6 - OAuth Method Ownership Move
 **Status:** *Implemented, Uncommitted*
 
 ### Plan
 
-- review the uncommitted Task 4 reasoning-status slice
-- keep `ReasoningProfile.status` descriptive only; do not change unknown gateway runtime fallback behavior
-- move to Task 5 after Task 4 approval/commit
-- keep the reasoning/source-of-truth path centered in [`packages/core/src/llm/reasoning/`](../../../packages/core/src/llm/reasoning/)
+- review the uncommitted Task 5 / Task 6 auth-definition and OAuth-ownership slice
+- keep the new auth-definition surface explicit by `(providerId, methodId)` without adding typed persisted metadata schemas
+- move OpenAI Codex and MiniMax Portal OAuth ownership into `agent-management`, while leaving the bigger CLI-thinning pass for Task 7
+- commit Task 5 and Task 6 separately after approval
 
 ### Notes
 
@@ -126,6 +126,45 @@
   - focused tests: `pnpm exec vitest run packages/core/src/llm/reasoning/profile.test.ts packages/core/src/llm/executor/provider-options.test.ts packages/server/src/hono/__tests__/api.integration.test.ts`
   - targeted typecheck: `pnpm exec tsc -p packages/core/tsconfig.json --noEmit && pnpm exec tsc -p packages/cli/tsconfig.json --noEmit`
   - public-type refresh for downstream server checks: `pnpm --filter @dexto/core build && pnpm exec tsc -p packages/server/tsconfig.json --noEmit`
+- Task 4 landed in commit `6e4393ead` (`roll out llm reasoning status reporting`).
+- Task 5 introduces provider-grouped auth definitions in `agent-management` and keeps the lightweight method kinds intentionally simple.
+- Task 5 changed files:
+  - [`packages/agent-management/src/auth/provider-auth-definitions.ts`](../../../packages/agent-management/src/auth/provider-auth-definitions.ts)
+  - [`packages/agent-management/src/auth/provider-auth-definitions.test.ts`](../../../packages/agent-management/src/auth/provider-auth-definitions.test.ts)
+  - [`packages/agent-management/src/auth/connect-catalog.ts`](../../../packages/agent-management/src/auth/connect-catalog.ts)
+  - [`packages/agent-management/src/index.ts`](../../../packages/agent-management/src/index.ts)
+- Task 5 outcomes:
+  - `ProviderAuthDefinition` / `AuthMethodDefinition` is now the source of truth for `/connect` provider-method metadata
+  - `CONNECT_PROVIDERS` is now a derived view, so the lightweight `/connect` catalog no longer owns its own parallel provider/method definitions
+  - `api_key`, `token`, and `guidance` methods stay lightweight; OAuth-specific behavior only exists on OAuth methods
+  - stored auth profiles still resolve through the new definition surface using the existing `(providerId, methodId)` persistence model
+- Task 6 moves the provider-specific OAuth protocol modules out of the CLI and makes runtime auth resolution definition-driven.
+- Task 6 changed files:
+  - [`packages/agent-management/src/auth/oauth/openai-codex.ts`](../../../packages/agent-management/src/auth/oauth/openai-codex.ts)
+  - [`packages/agent-management/src/auth/oauth/openai-codex.test.ts`](../../../packages/agent-management/src/auth/oauth/openai-codex.test.ts)
+  - [`packages/agent-management/src/auth/oauth/minimax-portal.ts`](../../../packages/agent-management/src/auth/oauth/minimax-portal.ts)
+  - [`packages/agent-management/src/auth/oauth/minimax-portal.test.ts`](../../../packages/agent-management/src/auth/oauth/minimax-portal.test.ts)
+  - [`packages/agent-management/src/auth/oauth/shared.ts`](../../../packages/agent-management/src/auth/oauth/shared.ts)
+  - [`packages/agent-management/src/auth/runtime-auth-resolver.ts`](../../../packages/agent-management/src/auth/runtime-auth-resolver.ts)
+  - [`packages/agent-management/src/auth/runtime-auth-resolver.test.ts`](../../../packages/agent-management/src/auth/runtime-auth-resolver.test.ts)
+  - [`packages/cli/src/cli/commands/connect/index.ts`](../../../packages/cli/src/cli/commands/connect/index.ts)
+  - [`packages/cli/src/cli/commands/connect/index.test.ts`](../../../packages/cli/src/cli/commands/connect/index.test.ts)
+  - removed [`packages/cli/src/cli/commands/connect/openai-codex.ts`](../../../packages/cli/src/cli/commands/connect/openai-codex.ts)
+  - removed [`packages/cli/src/cli/commands/connect/openai-codex.test.ts`](../../../packages/cli/src/cli/commands/connect/openai-codex.test.ts)
+  - removed [`packages/cli/src/cli/commands/connect/minimax-portal.ts`](../../../packages/cli/src/cli/commands/connect/minimax-portal.ts)
+  - removed [`packages/cli/src/cli/commands/connect/minimax-portal.test.ts`](../../../packages/cli/src/cli/commands/connect/minimax-portal.test.ts)
+  - removed [`packages/cli/src/cli/commands/connect/oauth-error.ts`](../../../packages/cli/src/cli/commands/connect/oauth-error.ts)
+- Task 6 outcomes:
+  - OpenAI Codex and MiniMax Portal OAuth ownership now lives in `agent-management`, alongside the auth-definition surface that selects those methods
+  - `createDefaultLlmAuthResolver()` now delegates OAuth refresh/runtime projection through auth definitions instead of hardcoded provider branches
+  - the CLI `connect` flow still owns prompts/spinners/browser opening, but now starts OAuth via shared auth-definition hooks instead of importing provider-specific protocol modules directly
+  - Task 7 still remains: the CLI is not yet fully driven by auth definitions end to end, only the OAuth implementation ownership moved here
+- Task 5 / Task 6 focused verification:
+  - focused tests: `pnpm exec vitest run packages/agent-management/src/auth/provider-auth-definitions.test.ts packages/agent-management/src/auth/oauth/openai-codex.test.ts packages/agent-management/src/auth/oauth/minimax-portal.test.ts packages/agent-management/src/auth/runtime-auth-resolver.test.ts packages/cli/src/cli/commands/connect/index.test.ts`
+  - targeted typecheck: `pnpm exec tsc -p packages/agent-management/tsconfig.json --noEmit && pnpm exec tsc -p packages/server/tsconfig.json --noEmit`
+  - downstream export refresh for CLI consumers: `pnpm --filter @dexto/agent-management build`
+  - package-wide `packages/cli` typecheck still has unrelated pre-existing failures outside the connect slice; the touched `connect/index.ts` path is clean under filtered checking
+  - repo quality gate: `bash scripts/quality-checks.sh`
 
 ---
 
@@ -181,4 +220,4 @@
 | 2026-04-03 | Completed Task 2 runtime metadata inference and support gating | Added a shared runtime-metadata inference helper, regenerated provider runtime metadata from it, introduced family-first provider support gating with clear unsupported-provider reasons, rejected unsupported providers earlier in schemas/runtime creation, and filtered server provider/model picker loops to runtime-supported providers. |
 | 2026-04-03 | Completed Task 2.5 runtime-supported provider list alignment | Switched the affected WebUI provider selectors to use the runtime-supported catalog surface, kept legacy unsupported current values visible as temporary unsupported options during edit flows, and committed the slice as its own follow-up task. |
 | 2026-04-03 | Completed Task 3 gateway model-origin consolidation | Consolidated the OpenRouter-style gateway origin helpers under `registry/model-origin.ts`, reused that helper from both the registry transform path and the reasoning path, removed the old OpenRouter-specific reasoning helper module, and committed the slice as `0bbb8fa07`. |
-| 2026-04-03 | Implemented Task 4 reasoning status rollout | Added `status` to `ReasoningProfile`, preserved the safe unknown-gateway fallback, exposed the new status via `/api/llm/capabilities`, and added focused profile/provider-options/API coverage; left the change uncommitted pending review. |
+| 2026-04-03 | Completed Task 4 reasoning status rollout | Added `status` to `ReasoningProfile`, preserved the safe unknown-gateway fallback, exposed the new status via `/api/llm/capabilities`, reused the existing OpenRouter-family helper for shared gateway checks, and committed the slice as `6e4393ead`. |

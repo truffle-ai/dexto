@@ -24,6 +24,11 @@ vi.mock('@dexto/agent-management', () => {
             label: 'OpenAI',
             methods: [{ id: 'api_key', label: 'API key', kind: 'api_key' }],
         },
+        {
+            providerId: 'minimax',
+            label: 'MiniMax',
+            methods: [{ id: 'portal_oauth_global', label: 'MiniMax Portal OAuth', kind: 'oauth' }],
+        },
     ];
 
     return {
@@ -31,6 +36,8 @@ vi.mock('@dexto/agent-management', () => {
         getConnectProvider: vi.fn((providerId: string) => {
             return CONNECT_PROVIDERS.find((p) => p.providerId === providerId) ?? null;
         }),
+        getAuthMethodDefinition: vi.fn(),
+        isOauthAuthMethod: vi.fn((method: { kind: string }) => method.kind === 'oauth'),
         listLlmAuthProfiles: vi.fn(),
         getDefaultLlmAuthProfileId: vi.fn(),
         setDefaultLlmAuthProfile: vi.fn(),
@@ -156,5 +163,63 @@ describe('/connect command (auth slots)', () => {
 
         expect(agentManagement.deleteLlmAuthProfile).toHaveBeenCalledWith('openai:api_key');
         expect(agentManagement.upsertLlmAuthProfile).not.toHaveBeenCalled();
+    });
+
+    it('persists oauth credentials returned by the shared auth definition hooks', async () => {
+        const prompts = await import('@clack/prompts');
+        const agentManagement = await import('@dexto/agent-management');
+        const openBrowser = await import('open');
+
+        const waitForCompletion = vi.fn().mockResolvedValue({
+            credential: {
+                type: 'oauth',
+                accessToken: 'access-token',
+                refreshToken: 'refresh-token',
+                expiresAt: Date.now() + 60_000,
+                metadata: { clientId: 'client-id', region: 'global' },
+            },
+            notificationMessage: 'Connected via portal',
+        });
+
+        vi.mocked(prompts.select).mockResolvedValueOnce('minimax');
+        vi.mocked(agentManagement.listLlmAuthProfiles).mockResolvedValueOnce([]);
+        vi.mocked(agentManagement.getDefaultLlmAuthProfileId).mockResolvedValueOnce(null);
+        vi.mocked(agentManagement.getAuthMethodDefinition).mockReturnValueOnce({
+            id: 'portal_oauth_global',
+            label: 'MiniMax Portal OAuth',
+            kind: 'oauth',
+            oauth: {
+                start: vi.fn().mockResolvedValue({
+                    verificationUrl: 'https://example.com/verify',
+                    userCode: 'USER-CODE',
+                    waitForCompletion,
+                }),
+                refresh: vi.fn(),
+                resolveRuntimeAuth: vi.fn(),
+            },
+        });
+
+        await handleConnectCommand({ interactive: true });
+
+        expect(openBrowser.default).toHaveBeenCalledWith('https://example.com/verify');
+        expect(waitForCompletion).toHaveBeenCalledWith({
+            onProgress: expect.any(Function),
+        });
+        expect(agentManagement.upsertLlmAuthProfile).toHaveBeenCalledWith(
+            expect.objectContaining({
+                profileId: 'minimax:portal_oauth_global',
+                providerId: 'minimax',
+                methodId: 'portal_oauth_global',
+                credential: expect.objectContaining({
+                    type: 'oauth',
+                    accessToken: 'access-token',
+                    refreshToken: 'refresh-token',
+                }),
+            })
+        );
+        expect(agentManagement.setDefaultLlmAuthProfile).toHaveBeenCalledWith({
+            providerId: 'minimax',
+            profileId: 'minimax:portal_oauth_global',
+        });
     });
 });

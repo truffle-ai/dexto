@@ -11,9 +11,13 @@ import {
     type LlmAuthProfile,
     type LlmAuthCredential,
 } from './llm-profiles.js';
+import {
+    getAuthMethodDefinitionForProfile,
+    isOauthAuthMethod,
+    type OAuthHeaderKind,
+} from './provider-auth-definitions.js';
 
 const OAUTH_DUMMY_KEY = 'dexto-oauth-dummy-key';
-const OPENAI_AUTH_ISSUER = 'https://auth.openai.com';
 
 type RefreshLock = {
     inFlight: Promise<void> | null;
@@ -69,267 +73,6 @@ function isOauthCredential(
     return cred.type === 'oauth';
 }
 
-function decodeJwtClaims(token: string): Record<string, unknown> | null {
-    const parts = token.split('.');
-    if (parts.length !== 3) return null;
-    try {
-        const json = Buffer.from(parts[1]!, 'base64url').toString('utf-8');
-        return JSON.parse(json) as Record<string, unknown>;
-    } catch {
-        return null;
-    }
-}
-
-function extractChatGptAccountIdFromClaims(claims: Record<string, unknown>): string | null {
-    const direct = claims['chatgpt_account_id'];
-    if (typeof direct === 'string' && direct.trim()) return direct;
-
-    const auth = claims['https://api.openai.com/auth'];
-    if (typeof auth === 'object' && auth !== null) {
-        const maybe = (auth as Record<string, unknown>)['chatgpt_account_id'];
-        if (typeof maybe === 'string' && maybe.trim()) return maybe;
-    }
-
-    const orgs = claims['organizations'];
-    if (Array.isArray(orgs) && orgs.length > 0) {
-        const first = orgs[0];
-        if (typeof first === 'object' && first !== null) {
-            const id = (first as Record<string, unknown>)['id'];
-            if (typeof id === 'string' && id.trim()) return id;
-        }
-    }
-
-    return null;
-}
-
-function extractChatGptAccountId(tokens: {
-    id_token?: string;
-    access_token?: string;
-}): string | null {
-    if (tokens.id_token) {
-        const claims = decodeJwtClaims(tokens.id_token);
-        if (claims) {
-            const id = extractChatGptAccountIdFromClaims(claims);
-            if (id) return id;
-        }
-    }
-    if (tokens.access_token) {
-        const claims = decodeJwtClaims(tokens.access_token);
-        if (claims) {
-            const id = extractChatGptAccountIdFromClaims(claims);
-            if (id) return id;
-        }
-    }
-    return null;
-}
-
-function toExpiresAt(expiresIn: number): number {
-    // Heuristic: duration seconds are small; epoch ms is ~1.7e12.
-    if (!Number.isFinite(expiresIn) || expiresIn <= 0) return Date.now();
-    if (expiresIn < 10_000_000_000) {
-        return Date.now() + expiresIn * 1000;
-    }
-    return expiresIn;
-}
-
-function normalizeAnthropicBaseUrl(url: string): string {
-    const trimmed = url.trim().replace(/\/$/, '');
-    if (!trimmed) return trimmed;
-    if (trimmed.endsWith('/v1')) return trimmed;
-    return `${trimmed}/v1`;
-}
-
-function toMiniMaxRegion(value: unknown): 'cn' | 'global' | null {
-    if (value === 'cn' || value === 'global') return value;
-    return null;
-}
-
-function toShortSingleLineText(value: string, maxLen: number): string {
-    const singleLine = value.replace(/\s+/g, ' ').trim();
-    if (singleLine.length <= maxLen) return singleLine;
-    return `${singleLine.slice(0, maxLen)}…`;
-}
-
-function toWhitelistedOauthErrorText(payload: unknown): string | null {
-    if (typeof payload !== 'object' || payload === null) return null;
-    const record = payload as Record<string, unknown>;
-
-    const parts: string[] = [];
-    function addField(key: string): void {
-        const value = record[key];
-        if (typeof value !== 'string') return;
-        const trimmed = value.trim();
-        if (!trimmed) return;
-        parts.push(`${key}: ${toShortSingleLineText(trimmed, 200)}`);
-    }
-
-    addField('error');
-    addField('error_description');
-    addField('message');
-    addField('status');
-    addField('status_msg');
-
-    return parts.length > 0 ? parts.join(', ') : null;
-}
-
-async function refreshOpenAiOauthTokens(params: {
-    refreshToken: string;
-    clientIdFromProfile?: string | undefined;
-}): Promise<{
-    accessToken: string;
-    refreshToken: string;
-    expiresAt: number;
-    accountId: string | null;
-}> {
-    const clientIdFromProfile = params.clientIdFromProfile?.trim();
-    const clientIdFromEnv = process.env.DEXTO_OPENAI_CODEX_OAUTH_CLIENT_ID?.trim();
-
-    if (clientIdFromProfile && clientIdFromEnv && clientIdFromProfile !== clientIdFromEnv) {
-        throw new Error(
-            'OpenAI OAuth clientId mismatch between profile and DEXTO_OPENAI_CODEX_OAUTH_CLIENT_ID; reconnect or unset the env var.'
-        );
-    }
-
-    const clientId = clientIdFromProfile || clientIdFromEnv;
-    if (!clientId) {
-        throw new Error(
-            'Missing OpenAI OAuth clientId (reconnect or set DEXTO_OPENAI_CODEX_OAUTH_CLIENT_ID)'
-        );
-    }
-
-    const response = await fetch(`${OPENAI_AUTH_ISSUER}/oauth/token`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({
-            grant_type: 'refresh_token',
-            refresh_token: params.refreshToken,
-            client_id: clientId,
-        }).toString(),
-        signal: AbortSignal.timeout(15_000),
-    });
-
-    if (!response.ok) {
-        const text = await response.text().catch(() => '');
-        let details: string | null = null;
-        try {
-            details = toWhitelistedOauthErrorText(JSON.parse(text) as unknown);
-        } catch {
-            details = null;
-        }
-        throw new Error(
-            `OpenAI OAuth refresh failed (${response.status}): ${details || response.statusText}`
-        );
-    }
-
-    const data = (await response.json()) as {
-        access_token?: string;
-        refresh_token?: string;
-        expires_in?: number;
-        id_token?: string;
-    };
-
-    if (!data.access_token) {
-        throw new Error('OpenAI OAuth refresh response missing access_token');
-    }
-
-    const expiresInSec =
-        typeof data.expires_in === 'number' && data.expires_in > 0 ? data.expires_in : 3600;
-    const accountId = extractChatGptAccountId({
-        access_token: data.access_token,
-        ...(data.id_token ? { id_token: data.id_token } : {}),
-    });
-
-    return {
-        accessToken: data.access_token,
-        refreshToken: data.refresh_token ?? params.refreshToken,
-        expiresAt: Date.now() + expiresInSec * 1000,
-        accountId,
-    };
-}
-
-async function refreshMiniMaxPortalOauthTokens(params: {
-    region: 'cn' | 'global';
-    refreshToken: string;
-    clientIdFromProfile?: string | undefined;
-}): Promise<{
-    accessToken: string;
-    refreshToken: string;
-    expiresAt: number;
-    resourceUrl?: string;
-    notificationMessage?: string;
-}> {
-    const clientIdFromProfile = params.clientIdFromProfile?.trim();
-    const clientIdFromEnv = process.env.DEXTO_MINIMAX_PORTAL_OAUTH_CLIENT_ID?.trim();
-
-    if (clientIdFromProfile && clientIdFromEnv && clientIdFromProfile !== clientIdFromEnv) {
-        throw new Error(
-            'MiniMax OAuth clientId mismatch between profile and DEXTO_MINIMAX_PORTAL_OAUTH_CLIENT_ID; reconnect or unset the env var.'
-        );
-    }
-
-    const clientId = clientIdFromProfile || clientIdFromEnv;
-    if (!clientId) {
-        throw new Error(
-            'Missing MiniMax OAuth clientId (reconnect or set DEXTO_MINIMAX_PORTAL_OAUTH_CLIENT_ID)'
-        );
-    }
-
-    const baseUrl = params.region === 'cn' ? 'https://api.minimaxi.com' : 'https://api.minimax.io';
-    const response = await fetch(`${baseUrl}/oauth/token`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-            Accept: 'application/json',
-        },
-        body: new URLSearchParams({
-            grant_type: 'refresh_token',
-            refresh_token: params.refreshToken,
-            client_id: clientId,
-        }).toString(),
-        signal: AbortSignal.timeout(15_000),
-    });
-
-    const text = await response.text().catch(() => '');
-    let payload: unknown;
-    try {
-        payload = text ? (JSON.parse(text) as unknown) : null;
-    } catch {
-        payload = null;
-    }
-
-    if (!response.ok) {
-        const details = toWhitelistedOauthErrorText(payload);
-        throw new Error(
-            `MiniMax OAuth refresh failed (${response.status}): ${details || response.statusText}`
-        );
-    }
-
-    const data = payload as {
-        status?: string;
-        access_token?: string | null;
-        refresh_token?: string | null;
-        expired_in?: number | null;
-        resource_url?: string | null;
-        notification_message?: string | null;
-    };
-
-    if (data?.status !== 'success') {
-        throw new Error('MiniMax OAuth refresh returned non-success status');
-    }
-
-    if (!data.access_token || !data.refresh_token || !data.expired_in) {
-        throw new Error('MiniMax OAuth refresh response missing required fields');
-    }
-
-    return {
-        accessToken: data.access_token,
-        refreshToken: data.refresh_token,
-        expiresAt: toExpiresAt(data.expired_in),
-        ...(data.resource_url ? { resourceUrl: data.resource_url } : {}),
-        ...(data.notification_message ? { notificationMessage: data.notification_message } : {}),
-    };
-}
-
 async function refreshOauthProfileIfNeeded(profile: LlmAuthProfile): Promise<LlmAuthProfile> {
     if (!isOauthCredential(profile.credential)) return profile;
 
@@ -351,72 +94,21 @@ async function refreshOauthProfileIfNeeded(profile: LlmAuthProfile): Promise<Llm
 
         if (latest.credential.expiresAt > Date.now() + safetyWindowMs) return;
 
-        if (latest.providerId === 'openai' && latest.methodId === 'oauth_codex') {
-            const refreshed = await refreshOpenAiOauthTokens({
-                refreshToken: latest.credential.refreshToken,
-                clientIdFromProfile: latest.credential.metadata?.clientId,
-            });
-            const nextCred: Extract<LlmAuthCredential, { type: 'oauth' }> = {
-                ...latest.credential,
-                accessToken: refreshed.accessToken,
-                refreshToken: refreshed.refreshToken,
-                expiresAt: refreshed.expiresAt,
-                ...(refreshed.accountId
-                    ? {
-                          metadata: {
-                              ...(latest.credential.metadata ?? {}),
-                              accountId: refreshed.accountId,
-                          },
-                      }
-                    : {}),
-            };
-            await upsertLlmAuthProfile({
-                profileId: latest.profileId,
-                providerId: latest.providerId,
-                methodId: latest.methodId,
-                label: latest.label,
-                credential: nextCred,
-            });
-            return;
-        }
+        const method = getAuthMethodDefinitionForProfile(latest);
+        if (!method || !isOauthAuthMethod(method)) return;
 
-        if (
-            latest.providerId.startsWith('minimax') &&
-            (latest.methodId === 'portal_oauth_global' || latest.methodId === 'portal_oauth_cn')
-        ) {
-            const region =
-                toMiniMaxRegion(latest.credential.metadata?.region) ??
-                (latest.methodId === 'portal_oauth_cn' ? 'cn' : 'global');
+        const nextCredential = await method.oauth.refresh({
+            profile: latest,
+            credential: latest.credential,
+        });
 
-            const refreshed = await refreshMiniMaxPortalOauthTokens({
-                region,
-                refreshToken: latest.credential.refreshToken,
-                clientIdFromProfile: latest.credential.metadata?.clientId,
-            });
-
-            const nextCred: Extract<LlmAuthCredential, { type: 'oauth' }> = {
-                ...latest.credential,
-                accessToken: refreshed.accessToken,
-                refreshToken: refreshed.refreshToken,
-                expiresAt: refreshed.expiresAt,
-                metadata: {
-                    ...(latest.credential.metadata ?? {}),
-                    region,
-                    ...(refreshed.resourceUrl ? { resourceUrl: refreshed.resourceUrl } : {}),
-                },
-            };
-
-            await upsertLlmAuthProfile({
-                profileId: latest.profileId,
-                providerId: latest.providerId,
-                methodId: latest.methodId,
-                label: latest.label,
-                credential: nextCred,
-            });
-            return;
-        }
-
-        // Unknown OAuth provider/method: no refresh implemented yet.
+        await upsertLlmAuthProfile({
+            profileId: latest.profileId,
+            providerId: latest.providerId,
+            methodId: latest.methodId,
+            label: latest.label,
+            credential: nextCredential,
+        });
     })().finally(() => {
         lock.inFlight = null;
     });
@@ -427,13 +119,12 @@ async function refreshOauthProfileIfNeeded(profile: LlmAuthProfile): Promise<Llm
 
 function buildOAuthFetchWrapper(params: {
     profileId: string;
-    headerKind: 'authorization_bearer' | 'x_api_key';
+    headerKind: OAuthHeaderKind;
     extraHeaders?: Record<string, string> | undefined;
 }): typeof fetch {
     return async (requestInput, init) => {
         const headers = mergeHeaders({ requestInput, initHeaders: init?.headers });
 
-        // Remove any SDK-injected auth header (dummy key).
         removeAuthHeader(headers);
         headers.delete('x-api-key');
 
@@ -460,14 +151,6 @@ function buildOAuthFetchWrapper(params: {
             }
         }
 
-        // Provider-specific metadata headers (best-effort)
-        if (refreshed.providerId === 'openai' && refreshed.methodId === 'oauth_codex') {
-            const accountId = cred.metadata?.accountId;
-            if (accountId) {
-                headers.set('ChatGPT-Account-Id', accountId);
-            }
-        }
-
         return fetch(requestInput, { ...init, headers });
     };
 }
@@ -481,7 +164,6 @@ export function createDefaultLlmAuthResolver(): LlmAuthResolver {
             const profile = getLlmAuthProfileSync(defaultProfileId);
             if (!profile) return null;
 
-            // Basic credential types
             if (profile.credential.type === 'api_key') {
                 return { apiKey: profile.credential.key };
             }
@@ -489,13 +171,11 @@ export function createDefaultLlmAuthResolver(): LlmAuthResolver {
                 return { apiKey: profile.credential.token };
             }
 
-            // OAuth methods (runtime-affecting)
             if (profile.credential.type === 'oauth') {
-                if (profile.providerId === 'openai' && profile.methodId === 'oauth_codex') {
-                    const baseURL = 'https://chatgpt.com/backend-api/codex';
+                const method = getAuthMethodDefinitionForProfile(profile);
+                if (!method || !isOauthAuthMethod(method)) {
                     return {
                         apiKey: OAUTH_DUMMY_KEY,
-                        baseURL,
                         fetch: buildOAuthFetchWrapper({
                             profileId: profile.profileId,
                             headerKind: 'authorization_bearer',
@@ -503,39 +183,18 @@ export function createDefaultLlmAuthResolver(): LlmAuthResolver {
                     };
                 }
 
-                if (
-                    profile.providerId.startsWith('minimax') &&
-                    (profile.methodId === 'portal_oauth_global' ||
-                        profile.methodId === 'portal_oauth_cn')
-                ) {
-                    const region =
-                        toMiniMaxRegion(profile.credential.metadata?.region) ??
-                        (profile.methodId === 'portal_oauth_cn' ? 'cn' : 'global');
+                const runtimeAuth = method.oauth.resolveRuntimeAuth({
+                    profile,
+                    credential: profile.credential,
+                });
 
-                    const fallbackResourceUrl =
-                        region === 'cn'
-                            ? 'https://api.minimaxi.com/anthropic/v1'
-                            : 'https://api.minimax.io/anthropic/v1';
-
-                    const resourceUrl =
-                        profile.credential.metadata?.resourceUrl?.trim() || fallbackResourceUrl;
-
-                    return {
-                        apiKey: OAUTH_DUMMY_KEY,
-                        baseURL: normalizeAnthropicBaseUrl(resourceUrl),
-                        fetch: buildOAuthFetchWrapper({
-                            profileId: profile.profileId,
-                            headerKind: 'x_api_key',
-                        }),
-                    };
-                }
-
-                // Default behavior for unknown OAuth provider/method: try bearer auth.
                 return {
                     apiKey: OAUTH_DUMMY_KEY,
+                    ...(runtimeAuth.baseURL ? { baseURL: runtimeAuth.baseURL } : {}),
                     fetch: buildOAuthFetchWrapper({
                         profileId: profile.profileId,
-                        headerKind: 'authorization_bearer',
+                        headerKind: runtimeAuth.headerKind,
+                        extraHeaders: runtimeAuth.extraHeaders,
                     }),
                 };
             }

@@ -102,6 +102,48 @@ describe('llm runtime auth resolver', () => {
         expect(calls[0]!.headers.get('authorization')).toBe(null);
     });
 
+    it('adds the openai account header when oauth metadata includes accountId', async () => {
+        await upsertLlmAuthProfile({
+            profileId: 'openai:oauth_codex',
+            providerId: 'openai',
+            methodId: 'oauth_codex',
+            credential: {
+                type: 'oauth',
+                accessToken: 'access-token',
+                refreshToken: 'refresh-token',
+                expiresAt: Date.now() + 60_000,
+                metadata: {
+                    clientId: 'client-id',
+                    accountId: 'acct_123',
+                },
+            },
+        });
+        await setDefaultLlmAuthProfile({
+            providerId: 'openai',
+            profileId: 'openai:oauth_codex',
+        });
+
+        const resolver = createDefaultLlmAuthResolver();
+        const runtime = resolver.resolveRuntimeAuth({ provider: 'openai', model: 'gpt-4o-mini' });
+        expect(runtime?.apiKey).toBe('dexto-oauth-dummy-key');
+        expect(runtime?.baseURL).toBe('https://chatgpt.com/backend-api/codex');
+        expect(typeof runtime?.fetch).toBe('function');
+
+        const calls: Array<{ headers: globalThis.Headers }> = [];
+        globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+            calls.push({ headers: new globalThis.Headers(init?.headers) });
+            return new Response('ok', { status: 200 });
+        }) satisfies typeof fetch;
+
+        await runtime!.fetch!('https://example.com', {
+            headers: { Authorization: 'Bearer placeholder' },
+        });
+
+        expect(calls).toHaveLength(1);
+        expect(calls[0]!.headers.get('authorization')).toBe('Bearer access-token');
+        expect(calls[0]!.headers.get('chatgpt-account-id')).toBe('acct_123');
+    });
+
     it('preserves Request headers when init.headers is omitted', async () => {
         await upsertLlmAuthProfile({
             profileId: 'minimax:portal_oauth_cn',
@@ -345,6 +387,70 @@ describe('llm runtime auth resolver', () => {
         expect(requestCalls[0]!.headers.get('x-api-key')).toBe('fresh-access');
         expect(requestCalls[1]!.headers.get('x-api-key')).toBe('fresh-access');
     });
+
+    const minimaxOauthVariants = [
+        {
+            providerId: 'minimax',
+            methodId: 'portal_oauth_global',
+            region: 'global',
+            expectedBaseUrl: 'https://api.minimax.io/anthropic/v1',
+        },
+        {
+            providerId: 'minimax-cn',
+            methodId: 'portal_oauth_cn',
+            region: 'cn',
+            expectedBaseUrl: 'https://api.minimaxi.com/anthropic/v1',
+        },
+        {
+            providerId: 'minimax-coding-plan',
+            methodId: 'portal_oauth_global',
+            region: 'global',
+            expectedBaseUrl: 'https://api.minimax.io/anthropic/v1',
+        },
+        {
+            providerId: 'minimax-cn-coding-plan',
+            methodId: 'portal_oauth_cn',
+            region: 'cn',
+            expectedBaseUrl: 'https://api.minimaxi.com/anthropic/v1',
+        },
+    ] as const satisfies ReadonlyArray<{
+        providerId: 'minimax' | 'minimax-cn' | 'minimax-coding-plan' | 'minimax-cn-coding-plan';
+        methodId: 'portal_oauth_global' | 'portal_oauth_cn';
+        region: 'global' | 'cn';
+        expectedBaseUrl: string;
+    }>;
+
+    it.each(minimaxOauthVariants)(
+        'resolves oauth-backed provider variant $providerId through shared auth definitions',
+        async ({ providerId, methodId, region, expectedBaseUrl }) => {
+            await upsertLlmAuthProfile({
+                profileId: `${providerId}:${methodId}`,
+                providerId,
+                methodId,
+                credential: {
+                    type: 'oauth',
+                    accessToken: 'access-token',
+                    refreshToken: 'refresh-token',
+                    expiresAt: Date.now() + 60_000,
+                    metadata: { region, clientId: 'client-id' },
+                },
+            });
+            await setDefaultLlmAuthProfile({
+                providerId,
+                profileId: `${providerId}:${methodId}`,
+            });
+
+            const resolver = createDefaultLlmAuthResolver();
+            const runtime = resolver.resolveRuntimeAuth({
+                provider: providerId,
+                model: 'MiniMax-M2.1',
+            });
+
+            expect(runtime?.apiKey).toBe('dexto-oauth-dummy-key');
+            expect(runtime?.baseURL).toBe(expectedBaseUrl);
+            expect(typeof runtime?.fetch).toBe('function');
+        }
+    );
 
     it('refreshes openai oauth tokens using the stored clientId', async () => {
         delete process.env.DEXTO_OPENAI_CODEX_OAUTH_CLIENT_ID;
