@@ -322,9 +322,9 @@ describe('LLMConfigSchema', () => {
             expect(result.success).toBe(true);
         });
 
-        it('should accept Codex baseURL for openai-compatible provider', () => {
+        it('should accept Codex baseURL for openai provider', () => {
             const config: LLMConfig = {
-                provider: 'openai-compatible',
+                provider: 'openai',
                 model: 'gpt-5.4',
                 baseURL: 'codex://chatgpt',
             };

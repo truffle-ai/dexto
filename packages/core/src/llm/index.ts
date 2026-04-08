@@ -26,6 +26,8 @@ export {
     createCodexBaseURL,
     getCodexAuthModeLabel,
     getCodexProviderDisplayName,
+    isChatGptLoginConfig,
+    isCodexBackedOpenAiConfig,
     isCodexBaseURL,
     parseCodexBaseURL,
     type CodexAuthMode,

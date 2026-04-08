@@ -45,7 +45,7 @@ describe('validateAgentConfig', () => {
         const config: AgentConfig = {
             systemPrompt: 'test agent',
             llm: {
-                provider: 'openai-compatible',
+                provider: 'openai',
                 model: 'gpt-5',
                 baseURL: 'codex://chatgpt',
             },
@@ -63,7 +63,7 @@ describe('validateAgentConfig', () => {
             success: true,
             config: expect.objectContaining({
                 llm: expect.objectContaining({
-                    provider: 'openai-compatible',
+                    provider: 'openai',
                     model: 'gpt-5',
                     baseURL: 'codex://chatgpt',
                 }),

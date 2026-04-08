@@ -3,6 +3,8 @@ import {
     createCodexBaseURL,
     getCodexAuthModeLabel,
     getCodexProviderDisplayName,
+    isChatGptLoginConfig,
+    isCodexBackedOpenAiConfig,
     isCodexBaseURL,
     parseCodexBaseURL,
 } from './codex-base-url.js';
@@ -39,5 +41,12 @@ describe('codex base URL helpers', () => {
         expect(getCodexProviderDisplayName('chatgpt')).toBe('ChatGPT Login');
         expect(getCodexProviderDisplayName('apikey')).toBe('ChatGPT Login (API key)');
         expect(getCodexProviderDisplayName()).toBe('ChatGPT Login');
+    });
+
+    it('recognizes Codex-backed OpenAI configs only through the openai provider', () => {
+        expect(isCodexBackedOpenAiConfig('openai', 'codex://chatgpt')).toBe(true);
+        expect(isChatGptLoginConfig('openai', 'codex://chatgpt')).toBe(true);
+        expect(isChatGptLoginConfig('openai-compatible', 'codex://chatgpt')).toBe(false);
+        expect(isChatGptLoginConfig('anthropic', 'codex://chatgpt')).toBe(false);
     });
 });

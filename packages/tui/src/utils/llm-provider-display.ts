@@ -1,4 +1,4 @@
-import { parseCodexBaseURL, type LLMProvider } from '@dexto/core';
+import { isCodexBackedOpenAiConfig, parseCodexBaseURL, type LLMProvider } from '@dexto/core';
 
 const LLM_PROVIDER_DISPLAY_NAMES: Partial<Record<LLMProvider, string>> = {
     openai: 'OpenAI',
@@ -31,7 +31,7 @@ const LLM_PROVIDER_DISPLAY_NAMES: Partial<Record<LLMProvider, string>> = {
 };
 
 export function getLLMProviderDisplayName(provider: LLMProvider, baseURL?: string): string {
-    if (provider === 'openai-compatible') {
+    if (isCodexBackedOpenAiConfig(provider, baseURL)) {
         const codex = parseCodexBaseURL(baseURL);
         if (codex?.authMode === 'chatgpt') {
             return 'via ChatGPT';

@@ -29,7 +29,7 @@ import type { ContentInput } from '../agent/types.js';
 import { getUsagePricingMetadata, hasMeaningfulTokenUsage } from '../llm/usage-metadata.js';
 import type { CompactionStrategy } from '../context/compaction/types.js';
 import type { LlmAuthResolver } from '../llm/auth/types.js';
-import { parseCodexBaseURL } from '../llm/providers/codex-base-url.js';
+import { isChatGptLoginConfig } from '../llm/providers/codex-base-url.js';
 
 /**
  * Represents an isolated conversation session within a Dexto agent.
@@ -216,9 +216,7 @@ export class ChatSession {
         this.tokenAccumulatorListener = (payload: SessionEventMap['llm:response']) => {
             if (payload.tokenUsage) {
                 const llmConfig = this.services.stateManager.getLLMConfig(this.id);
-                const isChatGPTLogin =
-                    llmConfig.provider === 'openai-compatible' &&
-                    parseCodexBaseURL(llmConfig.baseURL)?.authMode === 'chatgpt';
+                const isChatGPTLogin = isChatGptLoginConfig(llmConfig.provider, llmConfig.baseURL);
                 const hasMeaningfulUsage = hasMeaningfulTokenUsage(payload.tokenUsage);
 
                 if (isChatGPTLogin && !hasMeaningfulUsage) {

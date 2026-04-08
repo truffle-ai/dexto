@@ -25,6 +25,12 @@ export type LlmRuntimeAuthOverrides = {
 export type ResolveLlmRuntimeAuthInput = {
     provider: LLMProvider;
     model: string;
+    /**
+     * Explicit config values win over provider-default auth profiles.
+     * When callers pass either field, resolvers should avoid injecting an alternate auth mode.
+     */
+    apiKey?: string | undefined;
+    baseURL?: string | undefined;
 };
 
 export interface LlmAuthResolver {

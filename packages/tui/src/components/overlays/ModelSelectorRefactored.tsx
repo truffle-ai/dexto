@@ -28,6 +28,7 @@ import {
     getModelDisplayName,
     getOpenRouterModelCacheInfo,
     getReasoningProfile,
+    isChatGptLoginConfig,
     parseCodexBaseURL,
     refreshOpenRouterModelCache,
 } from '@dexto/core';
@@ -78,7 +79,7 @@ function isChatGPTCodexBaseURL(baseURL?: string): boolean {
 }
 
 function isChatGPTCodexConfig(provider: LLMProvider, baseURL?: string): boolean {
-    return provider === 'openai-compatible' && isChatGPTCodexBaseURL(baseURL);
+    return isChatGptLoginConfig(provider, baseURL);
 }
 
 function canonicalizeModelBaseURL(baseURL?: string): string | undefined {
@@ -677,7 +678,7 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                 }) => {
                     const existing = modelList.find(
                         (candidate) =>
-                            candidate.provider === 'openai-compatible' &&
+                            candidate.provider === 'openai' &&
                             candidate.name === input.model &&
                             candidate.baseURL === CODEX_CHATGPT_BASE_URL
                     );
@@ -701,7 +702,7 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                     }
 
                     modelList.push({
-                        provider: 'openai-compatible',
+                        provider: 'openai',
                         name: input.model,
                         displayName: input.displayName,
                         maxInputTokens: 128000,
@@ -827,7 +828,7 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                 // Add ChatGPT-backed Codex models dynamically when available.
                 for (const codexModel of codexModels) {
                     const candidate = {
-                        provider: 'openai-compatible' as const,
+                        provider: 'openai' as const,
                         name: codexModel.model,
                         baseURL: CODEX_CHATGPT_BASE_URL,
                     };
@@ -874,7 +875,7 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                         isDefault: defaultConfig
                             ? matchesConfiguredModel(
                                   {
-                                      provider: 'openai-compatible',
+                                      provider: 'openai',
                                       name: configured.model,
                                       baseURL: CODEX_CHATGPT_BASE_URL,
                                   },
@@ -883,7 +884,7 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                             : false,
                         isCurrent: matchesConfiguredModel(
                             {
-                                provider: 'openai-compatible',
+                                provider: 'openai',
                                 name: configured.model,
                                 baseURL: CODEX_CHATGPT_BASE_URL,
                             },
@@ -894,7 +895,7 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                         defaultReasoningVariant &&
                         matchesConfiguredModel(
                             {
-                                provider: 'openai-compatible',
+                                provider: 'openai',
                                 name: configured.model,
                                 baseURL: CODEX_CHATGPT_BASE_URL,
                             },

@@ -9,7 +9,7 @@ import { Box, Text } from 'ink';
 import {
     getModelDisplayName,
     getReasoningProfile,
-    parseCodexBaseURL,
+    isChatGptLoginConfig,
     type CodexRateLimitSnapshot,
 } from '@dexto/core';
 import { getLLMProviderDisplayName } from '../utils/llm-provider-display.js';
@@ -65,9 +65,7 @@ export function Footer({
         llmConfig?.reasoning?.variant ?? reasoningProfile?.defaultVariant ?? undefined;
     const showReasoningVariant =
         reasoningProfile?.capable === true && typeof reasoningVariant === 'string';
-    const isChatGPTLogin =
-        provider === 'openai-compatible' &&
-        parseCodexBaseURL(llmConfig?.baseURL)?.authMode === 'chatgpt';
+    const isChatGPTLogin = isChatGptLoginConfig(provider ?? undefined, llmConfig?.baseURL);
     const showChatGPTRateLimitHint =
         isChatGPTLogin && shouldShowChatGPTRateLimitHint(chatgptRateLimitStatus);
     const chatGPTRateLimitHint =

@@ -15,6 +15,7 @@ import {
 } from './registry/index.js';
 import { LLM_PROVIDERS, type LLMProvider } from './types.js';
 import { getReasoningProfile, supportsReasoningVariant } from './reasoning/profile.js';
+import { isCodexBackedOpenAiConfig, isCodexBaseURL } from './providers/codex-base-url.js';
 
 /**
  * Default-free field definitions for LLM configuration.
@@ -169,13 +170,30 @@ export const LLMConfigSchema = LLMConfigBaseSchema.superRefine((data, ctx) => {
     }
 
     if (baseURLIsSet) {
-        if (!supportsBaseURL(data.provider)) {
+        if (isCodexBaseURL(data.baseURL) && data.provider !== 'openai') {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ['provider'],
+                message:
+                    "Use provider 'openai' with ChatGPT Login instead of a codex:// baseURL on custom endpoint providers.",
+                params: {
+                    code: LLMErrorCode.BASE_URL_INVALID,
+                    scope: ErrorScope.LLM,
+                    type: ErrorType.USER,
+                },
+            });
+        }
+
+        if (
+            !supportsBaseURL(data.provider) &&
+            !isCodexBackedOpenAiConfig(data.provider, data.baseURL)
+        ) {
             ctx.addIssue({
                 code: z.ZodIssueCode.custom,
                 path: ['provider'],
                 message:
                     `Provider '${data.provider}' does not support baseURL. ` +
-                    `Use an 'openai-compatible' provider if you need a custom base URL.`,
+                    `Use an 'openai-compatible' provider for custom endpoints or 'openai' for ChatGPT Login.`,
                 params: {
                     code: LLMErrorCode.BASE_URL_INVALID,
                     scope: ErrorScope.LLM,
@@ -186,7 +204,11 @@ export const LLMConfigSchema = LLMConfigBaseSchema.superRefine((data, ctx) => {
     }
 
     // Model and token validation
-    if (!baseURLIsSet || supportsBaseURL(data.provider)) {
+    if (
+        !baseURLIsSet ||
+        supportsBaseURL(data.provider) ||
+        isCodexBackedOpenAiConfig(data.provider, data.baseURL)
+    ) {
         // Skip model validation for providers that accept any model OR support custom models
         if (!acceptsAnyModel(data.provider) && !supportsCustomModels(data.provider)) {
             const supportedModelsList = getSupportedModels(data.provider);

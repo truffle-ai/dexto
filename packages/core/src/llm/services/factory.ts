@@ -26,7 +26,7 @@ import {
     createCodexLanguageModel,
     type CodexRateLimitSnapshot,
 } from '../providers/codex-app-server.js';
-import { isCodexBaseURL } from '../providers/codex-base-url.js';
+import { isCodexBackedOpenAiConfig } from '../providers/codex-base-url.js';
 import { findDextoProjectRoot } from '../../utils/execution-context.js';
 import {
     ANTHROPIC_BETA_HEADER,
@@ -178,47 +178,52 @@ export function createVercelModel(
         throw LLMError.unsupportedProvider(provider, providerSupport.reason);
     }
 
-    const runtimeAuth = context?.authResolver?.resolveRuntimeAuth({ provider, model }) ?? null;
+    const runtimeAuth =
+        context?.authResolver?.resolveRuntimeAuth({
+            provider,
+            model,
+            apiKey: llmConfig.apiKey,
+            baseURL,
+        }) ?? null;
     const apiKey = llmConfig.apiKey || runtimeAuth?.apiKey || resolveApiKeyForProvider(provider);
     const extraHeaders = runtimeAuth?.headers;
     const runtimeFetch = runtimeAuth?.fetch;
     const runtimeBaseURL = runtimeAuth?.baseURL;
+    const effectiveBaseURL = runtimeBaseURL?.replace(/\/$/, '') || baseURL?.replace(/\/$/, '');
+    const usesCodexAppServer = isCodexBackedOpenAiConfig(provider, effectiveBaseURL);
 
     // Runtime check: if provider requires API key but none is configured, fail with helpful message
-    if (requiresApiKey(provider) && !apiKey?.trim()) {
+    if (requiresApiKey(provider) && !usesCodexAppServer && !apiKey?.trim()) {
         const envVar = getPrimaryApiKeyEnvVar(provider);
         throw LLMError.apiKeyMissing(provider, envVar);
     }
 
     switch (provider.toLowerCase()) {
         case 'openai': {
-            // Regular OpenAI - strict compatibility, no baseURL
-            // Explicitly use the Responses API (default in AI SDK 5+).
+            if (usesCodexAppServer && effectiveBaseURL) {
+                return createCodexLanguageModel({
+                    providerId: 'openai',
+                    modelId: model,
+                    baseURL: effectiveBaseURL,
+                    cwd: resolveProviderWorkingDirectory(context?.cwd),
+                    ...(context?.onCodexRateLimitStatus
+                        ? { onRateLimitStatus: context.onCodexRateLimitStatus }
+                        : {}),
+                });
+            }
+
             return createOpenAI({
                 apiKey: apiKey ?? '',
-                ...(runtimeBaseURL ? { baseURL: runtimeBaseURL } : {}),
+                ...(effectiveBaseURL ? { baseURL: effectiveBaseURL } : {}),
                 ...(extraHeaders ? { headers: extraHeaders } : {}),
                 ...(runtimeFetch ? { fetch: runtimeFetch } : {}),
             }).responses(model);
         }
         case 'openai-compatible': {
             const compatibleBaseURL =
-                baseURL?.replace(/\/$/, '') ||
-                runtimeBaseURL?.replace(/\/$/, '') ||
-                process.env.OPENAI_BASE_URL?.replace(/\/$/, '');
+                effectiveBaseURL || process.env.OPENAI_BASE_URL?.replace(/\/$/, '');
             if (!compatibleBaseURL) {
                 throw LLMError.baseUrlMissing('openai-compatible');
-            }
-
-            if (isCodexBaseURL(compatibleBaseURL)) {
-                return createCodexLanguageModel({
-                    modelId: model,
-                    baseURL: compatibleBaseURL,
-                    cwd: resolveProviderWorkingDirectory(context?.cwd),
-                    ...(context?.onCodexRateLimitStatus
-                        ? { onRateLimitStatus: context.onCodexRateLimitStatus }
-                        : {}),
-                });
             }
 
             // Use the OpenAI-compatible provider so providerOptions can be keyed per-endpoint.

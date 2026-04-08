@@ -156,6 +156,37 @@ describe('createVercelModel', () => {
         expect(sdkMocks.openAIChatModel).not.toHaveBeenCalled();
     });
 
+    it('routes openai ChatGPT Login configs through the Codex app-server without requiring an apiKey', () => {
+        const authResolver = {
+            resolveRuntimeAuth: vi.fn(() => ({
+                baseURL: 'codex://chatgpt',
+            })),
+        };
+
+        createVercelModel(
+            makeConfig({
+                provider: 'openai',
+                model: 'gpt-5.4',
+            }),
+            { authResolver }
+        );
+
+        expect(authResolver.resolveRuntimeAuth).toHaveBeenCalledWith({
+            provider: 'openai',
+            model: 'gpt-5.4',
+            apiKey: undefined,
+            baseURL: undefined,
+        });
+        expect(sdkMocks.createCodexLanguageModel).toHaveBeenCalledWith(
+            expect.objectContaining({
+                providerId: 'openai',
+                modelId: 'gpt-5.4',
+                baseURL: 'codex://chatgpt',
+            })
+        );
+        expect(sdkMocks.createOpenAI).not.toHaveBeenCalled();
+    });
+
     it('routes Anthropic-compatible providers through shared runtime-auth-aware construction', () => {
         const runtimeFetch = async (): Promise<Response> => new Response(null);
         const authResolver = {

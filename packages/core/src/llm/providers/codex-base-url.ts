@@ -1,3 +1,5 @@
+import type { LLMProvider } from '../types.js';
+
 export type CodexAuthMode = 'auto' | 'apikey' | 'chatgpt';
 
 const CODEX_BASE_URL_PROTOCOL = 'codex:';
@@ -61,6 +63,23 @@ export function parseCodexBaseURL(value: string | undefined): { authMode: CodexA
 
 export function isCodexBaseURL(value: string | undefined): boolean {
     return parseCodexBaseURL(value) !== null;
+}
+
+export function isCodexBackedOpenAiConfig(
+    provider: LLMProvider | string | undefined,
+    baseURL?: string
+): boolean {
+    return provider === 'openai' && isCodexBaseURL(baseURL);
+}
+
+export function isChatGptLoginConfig(
+    provider: LLMProvider | string | undefined,
+    baseURL?: string
+): boolean {
+    return (
+        isCodexBackedOpenAiConfig(provider, baseURL) &&
+        parseCodexBaseURL(baseURL)?.authMode === 'chatgpt'
+    );
 }
 
 export function getCodexAuthModeLabel(mode: CodexAuthMode): string {
