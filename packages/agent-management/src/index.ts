@@ -153,6 +153,24 @@ export {
     type ConnectMethod,
     type ConnectMethodKind,
 } from './auth/connect-catalog.js';
+export {
+    AUTH_METHOD_KINDS,
+    PROVIDER_AUTH_DEFINITIONS,
+    getProviderAuthDefinition,
+    getAuthMethodDefinition,
+    getAuthMethodDefinitionForProfile,
+    isOauthAuthMethod,
+    type AuthMethodKind,
+    type OAuthHeaderKind,
+    type OAuthRuntimeAuthProjection,
+    type StartedOAuthFlow,
+    type ApiKeyAuthMethodDefinition,
+    type TokenAuthMethodDefinition,
+    type GuidanceAuthMethodDefinition,
+    type OAuthAuthMethodDefinition,
+    type AuthMethodDefinition,
+    type ProviderAuthDefinition,
+} from './auth/provider-auth-definitions.js';
 
 export { createDefaultLlmAuthResolver } from './auth/runtime-auth-resolver.js';
 
