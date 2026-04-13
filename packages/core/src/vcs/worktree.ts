@@ -8,7 +8,6 @@ import { promisify } from 'util';
 import * as path from 'path';
 import { existsSync, mkdirSync } from 'fs';
 import { VCSError } from './errors.js';
-import type { DextoRuntimeError } from '../errors/index.js';
 
 const execFileAsync = promisify(execFile);
 
