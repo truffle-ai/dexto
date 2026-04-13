@@ -5,8 +5,14 @@
 import { walkUpDirectories } from './fs-walk.js';
 import { existsSync, readFileSync, realpathSync, readdirSync, statSync } from 'fs';
 import * as path from 'path';
+import {
+    isInWorktree,
+    getWorktreeRootFromPath,
+    getWorktreeName,
+    getParentProjectRoot,
+} from './path.js';
 
-export type ExecutionContext = 'dexto-source' | 'dexto-project' | 'global-cli';
+export type ExecutionContext = 'dexto-source' | 'dexto-project' | 'global-cli' | 'worktree';
 
 const DIRECT_PROJECT_ROOT_MARKERS = [
     path.join('.dexto', 'deploy.json'),
@@ -179,16 +185,58 @@ export function findDextoProjectRoot(startPath: string = process.cwd()): string 
 }
 
 /**
+ * Worktree context containing worktree information
+ */
+export interface WorktreeContextInfo {
+    /** Worktree name */
+    name: string;
+    /** Absolute path to the worktree root */
+    root: string;
+    /** Absolute path to the parent project root */
+    parentProjectRoot: string;
+}
+
+/**
+ * Detect if running inside a worktree and return context info
+ * @param startPath Starting directory path (defaults to process.cwd())
+ * @returns Worktree context or null if not in a worktree
+ */
+export function getWorktreeContext(startPath: string = process.cwd()): WorktreeContextInfo | null {
+    if (!isInWorktree(startPath)) {
+        return null;
+    }
+
+    const root = getWorktreeRootFromPath(startPath);
+    const name = getWorktreeName(startPath);
+    const parentProjectRoot = getParentProjectRoot(startPath);
+
+    if (!root || !name || !parentProjectRoot) {
+        return null;
+    }
+
+    return {
+        name,
+        root,
+        parentProjectRoot,
+    };
+}
+
+/**
  * Detect current execution context - standardized across codebase
  * @param startPath Starting directory path (defaults to process.cwd())
  * @returns Execution context
  */
 export function getExecutionContext(startPath: string = process.cwd()): ExecutionContext {
+    // Check for worktree context first (most specific)
+    if (isInWorktree(startPath)) {
+        return 'worktree';
+    }
+
     if (getForcedProjectRoot()) {
         return 'dexto-project';
     }
 
-    // Check for Dexto source context first (most specific)
+    // Check for Dexto source context
     if (findDextoSourceRoot(startPath)) {
         return 'dexto-source';
     }
