@@ -627,7 +627,7 @@ program
                             cwd: worktreePath,
                             stdio: 'inherit',
                             env: process.env,
-                        }).on('exit', (code) => safeExit('worktree', code ?? 0));
+                        });
 
                         return; // Exit parent process
                     } catch (err) {
