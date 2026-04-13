@@ -92,4 +92,7 @@ export * from './telemetry/index.js';
 // Runtime
 export * from './runtime/index.js';
 
+// VCS (Git operations, worktrees)
+export * from './vcs/index.js';
+
 // Note: Blob types, schemas, and errors are exported from './storage/index.js'
