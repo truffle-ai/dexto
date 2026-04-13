@@ -185,6 +185,10 @@ program
         '--dev',
         '[maintainers] Use local ./agents instead of ~/.dexto (for dexto repo development)'
     )
+    .option(
+        '-w, --worktree <name>',
+        'Create Git worktree and open Dexto session in .dexto/worktree/<name>'
+    )
     .enablePositionalOptions();
 
 // 2) `create-app` SUB-COMMAND
@@ -552,6 +556,84 @@ program
                 // Set dev mode early to use local repo agents instead of ~/.dexto
                 if (opts.dev) {
                     process.env.DEXTO_DEV_MODE = 'true';
+                }
+
+                // ——— WORKTREE CREATION ———
+                // Handle --worktree flag: create worktree and spawn new dexto process
+                if (opts.worktree !== undefined) {
+                    const worktreeName = String(opts.worktree).trim();
+
+                    // 1. Check if worktree name was provided
+                    if (!worktreeName) {
+                        console.error('❌ Worktree name is required.');
+                        console.error('Usage: dexto --worktree <name>');
+                        safeExit('worktree', 1, 'worktree-name-required');
+                    }
+
+                    // 2. Import worktree utilities
+                    const { isGitAvailable, isGitRepo, worktreeExists, createWorktree } =
+                        await import('@dexto/core');
+
+                    // 3. Check if git is available
+                    if (!(await isGitAvailable())) {
+                        console.error('❌ Git is not available. Please install git.');
+                        safeExit('worktree', 1, 'git-not-available');
+                    }
+
+                    // 4. Check if already in a worktree
+                    const { isInWorktree } = await import('@dexto/core');
+                    if (isInWorktree()) {
+                        console.error('❌ Already in a worktree. Run from main project directory.');
+                        safeExit('worktree', 1, 'already-in-worktree');
+                    }
+
+                    // 5. Check if in a git repo
+                    if (!(await isGitRepo(process.cwd()))) {
+                        console.error('❌ Not in a Git repository.');
+                        safeExit('worktree', 1, 'not-git-repo');
+                    }
+
+                    // 6. Check if worktree already exists
+                    if (worktreeExists(process.cwd(), worktreeName)) {
+                        console.error(`❌ Worktree '${worktreeName}' already exists.`);
+                        console.error(`💡 Run: dexto --worktree ${worktreeName} --continue`);
+                        safeExit('worktree', 1, 'worktree-exists');
+                    }
+
+                    // 7. Create worktree
+                    console.log(`Creating worktree '${worktreeName}'...`);
+                    try {
+                        const worktreePath = await createWorktree(process.cwd(), worktreeName);
+                        console.log(`✓ Worktree created at: ${worktreePath}`);
+                        console.log(`✓ Branch created: worktree-${worktreeName}`);
+
+                        // 8. Spawn new dexto process in worktree
+                        const { spawn } = await import('child_process');
+                        const dextoPath = process.argv[1] ?? 'dexto';
+                        // Filter out --worktree and its argument from child args
+                        const childArgs = process.argv.slice(2).filter((arg) => {
+                            if (arg === '--worktree' || arg === '-w') return false;
+                            if (arg.startsWith('--worktree=') || arg.startsWith('-w='))
+                                return false;
+                            // If previous arg was --worktree/-w, this is the value
+                            const prevArg = process.argv[process.argv.indexOf(arg) - 1];
+                            if (prevArg === '--worktree' || prevArg === '-w') return false;
+                            return true;
+                        });
+
+                        console.log(`\nSpawning Dexto in worktree...`);
+
+                        spawn(dextoPath, childArgs, {
+                            cwd: worktreePath,
+                            stdio: 'inherit',
+                            env: process.env,
+                        }).on('exit', (code) => safeExit('worktree', code ?? 0));
+
+                        return; // Exit parent process
+                    } catch (err) {
+                        console.error(`❌ Failed to create worktree: ${err}`);
+                        safeExit('worktree', 1, 'worktree-creation-failed');
+                    }
                 }
 
                 // ——— LOAD DEFAULT MODE FROM PREFERENCES ———
