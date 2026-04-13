@@ -13,6 +13,10 @@ import {
 } from './execution-context.js';
 import type { Logger } from '../logger/v2/types.js';
 
+/** Path segment for dexto worktrees directory */
+const WORKTREE_DIR = '.dexto';
+const WORKTREE_SUBDIR = 'worktree';
+
 /**
  * Standard path resolver for logs/db/config/anything in dexto projects
  * Context-aware with dev mode support:
@@ -205,4 +209,103 @@ export function getDextoEnvPath(startPath: string = process.cwd(), logger?: Logg
     }
     logger?.debug(`Dexto env path: ${envPath}, context: ${context}`);
     return envPath;
+}
+
+/**
+ * Check if a path is inside a Dexto worktree
+ * @param checkPath Path to check (defaults to process.cwd())
+ * @returns true if the path is inside a .dexto/worktree/ directory
+ */
+export function isInWorktree(checkPath: string = process.cwd()): boolean {
+    const worktreePattern = path.join(WORKTREE_DIR, WORKTREE_SUBDIR);
+    return checkPath.includes(worktreePattern);
+}
+
+/**
+ * Get the worktree root directory from a path
+ * Returns the .dexto/worktree/<name> directory containing the worktree
+ * @param checkPath Path to check
+ * @returns Worktree root path or null if not in a worktree
+ */
+export function getWorktreeRootFromPath(checkPath: string): string | null {
+    if (!isInWorktree(checkPath)) {
+        return null;
+    }
+
+    const parts = checkPath.split(path.sep);
+    const worktreeDirIndex = parts.findIndex(
+        (part, index) => part === WORKTREE_DIR && parts[index + 1] === WORKTREE_SUBDIR
+    );
+
+    if (worktreeDirIndex === -1) {
+        return null;
+    }
+
+    // Worktree root is the directory above worktree (the worktree name dir)
+    // e.g., /project/.dexto/worktree/feature-x/ -> /project/.dexto/worktree/feature-x
+    const rootParts = parts.slice(0, worktreeDirIndex + 3); // .dexto/worktree/<name>
+    return rootParts.join(path.sep);
+}
+
+/**
+ * Get the worktree name from a path
+ * @param checkPath Path to check
+ * @returns Worktree name or null if not in a worktree
+ */
+export function getWorktreeName(checkPath: string = process.cwd()): string | null {
+    const root = getWorktreeRootFromPath(checkPath);
+    if (!root) {
+        return null;
+    }
+
+    // Worktree name is the last segment of the root path
+    return path.basename(root);
+}
+
+/**
+ * Get the parent project root from a worktree path
+ * @param checkPath Path inside a worktree
+ * @returns Parent project root path or null if not in a worktree
+ */
+export function getParentProjectRoot(checkPath: string = process.cwd()): string | null {
+    const worktreeRoot = getWorktreeRootFromPath(checkPath);
+    if (!worktreeRoot) {
+        return null;
+    }
+
+    // Parent project is two levels up from the worktree root
+    // .dexto/worktree/<name>/<subpath> -> project root
+    const parts = worktreeRoot.split(path.sep);
+    const parentParts = parts.slice(0, parts.length - 3); // Remove .dexto/worktree/<name>
+    return parentParts.join(path.sep) || null;
+}
+
+/**
+ * Get the worktree context if in a worktree
+ * Returns null if not in a worktree
+ * @param checkPath Path to check
+ * @returns Worktree context or null
+ */
+export function getWorktreeContextFromPath(checkPath: string = process.cwd()): {
+    name: string;
+    root: string;
+    parentProjectRoot: string;
+} | null {
+    if (!isInWorktree(checkPath)) {
+        return null;
+    }
+
+    const root = getWorktreeRootFromPath(checkPath);
+    const name = getWorktreeName(checkPath);
+    const parentProjectRoot = getParentProjectRoot(checkPath);
+
+    if (!root || !name || !parentProjectRoot) {
+        return null;
+    }
+
+    return {
+        name,
+        root,
+        parentProjectRoot,
+    };
 }
