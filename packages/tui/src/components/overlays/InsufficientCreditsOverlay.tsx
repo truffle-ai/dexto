@@ -89,7 +89,7 @@ function formatBalance(balanceUsd: number | null): string | null {
 function getErrorMessage(error: unknown): string {
     const message = error instanceof Error ? error.message : String(error);
     if (message === 'Not logged in to Dexto') {
-        return 'Billing top-up requires an active Dexto login. Run `dexto login` again.';
+        return 'Billing top-up requires an active Dexto login. Run `/login` again.';
     }
     return message;
 }
