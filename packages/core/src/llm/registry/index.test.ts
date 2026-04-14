@@ -660,6 +660,17 @@ describe('Provider-Specific Tests', () => {
         });
     });
 
+    describe('Dexto Nova provider', () => {
+        it('allows optional baseURL overrides for non-production gateways', () => {
+            expect(getSupportedProviders()).toContain('dexto-nova');
+            expect(getSupportedModels('dexto-nova').length).toBeGreaterThan(0);
+            expect(getDefaultModelForProvider('dexto-nova')).not.toBeNull();
+            expect(supportsBaseURL('dexto-nova')).toBe(true);
+            expect(requiresBaseURL('dexto-nova')).toBe(false);
+            expect(acceptsAnyModel('dexto-nova')).toBe(false);
+        });
+    });
+
     describe('LiteLLM provider', () => {
         it('has correct capabilities for proxy routing', () => {
             expect(getSupportedProviders()).toContain('litellm');
