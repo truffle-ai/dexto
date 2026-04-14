@@ -1,6 +1,6 @@
 {
     "name": "@dexto/image-local",
-    "version": "1.6.22",
+    "version": "1.6.23",
     "description": "Local development base image for Dexto agents with filesystem and process tools",
     "type": "module",
     "main": "./dist/index.js",

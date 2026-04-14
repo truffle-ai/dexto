@@ -1,5 +1,25 @@
 # @dexto/webui
 
+## 1.6.23
+
+### Patch Changes
+
+- 8f6330b: Publish LLM usage analytics cost metrics.
+    - `dexto` / `@dexto/tui`: include estimated USD cost and per-bucket cost fields in CLI LLM usage analytics.
+    - `@dexto/webui`: include estimated USD cost and per-bucket cost fields in WebUI LLM usage analytics.
+    - `@dexto/analytics`: extend the shared `dexto_llm_tokens_consumed` event payload with cost fields.
+    - `@dexto/core`: emit `costBreakdown` alongside `estimatedCost` from shared LLM pricing metadata.
+    - `@dexto/server`: forward the emitted cost breakdown through usage delivery and A2A SSE events.
+
+- Updated dependencies [8f6330b]
+- Updated dependencies [4671d88]
+    - @dexto/analytics@1.6.23
+    - @dexto/core@1.6.23
+    - @dexto/agent-config@1.6.23
+    - @dexto/client-sdk@1.6.23
+    - @dexto/storage@1.6.23
+    - @dexto/registry@1.6.23
+
 ## 1.6.22
 
 ### Patch Changes
