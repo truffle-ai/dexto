@@ -19,6 +19,7 @@ export * from './schemas.js';
 
 // Presentation helpers
 export * from './presentation.js';
+export type { ToolCallMetadata, ToolCallMetaWrapper } from './tool-call-metadata.js';
 
 // Tool errors and error codes
 export { ToolError } from './errors.js';

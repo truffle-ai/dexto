@@ -1,9 +1,17 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type React from 'react';
 import { LLMErrorCode, type QueuedMessage, type StreamingEvent } from '@dexto/core';
 import type { Message, UIState, SessionState } from '../state/types.js';
 import { processStream } from './processStream.js';
 import type { ApprovalRequest } from '../components/ApprovalPrompt.js';
+
+const { captureAnalyticsMock } = vi.hoisted(() => ({
+    captureAnalyticsMock: vi.fn(),
+}));
+
+vi.mock('../host/index.js', () => ({
+    captureAnalytics: captureAnalyticsMock,
+}));
 
 type SetStateAction<T> = React.SetStateAction<T>;
 type Dispatch<T> = React.Dispatch<SetStateAction<T>>;
@@ -94,6 +102,10 @@ function createSetters() {
 }
 
 describe('processStream (reasoning)', () => {
+    beforeEach(() => {
+        captureAnalyticsMock.mockClear();
+    });
+
     it('attaches streamed reasoning chunks to the assistant message', async () => {
         const { getMessages, getPendingMessages, setters } = createSetters();
 
@@ -331,5 +343,93 @@ describe('processStream (reasoning)', () => {
         const latestMessage = getMessages().at(-1);
         expect(latestMessage?.content).toContain('Out of Dexto Nova credits');
         expect(latestMessage?.content).not.toContain('Error:');
+    });
+
+    it('shows the billing recovery overlay for raw insufficient-credits messages', async () => {
+        const { getMessages, getUi, setters } = createSetters();
+
+        const events: StreamingEvent[] = [
+            {
+                name: 'llm:error',
+                sessionId: 'test-session',
+                error: new Error(
+                    'Insufficient credits. Balance: $-0.04. Please top up at https://app.dexto.ai/dashboard/billing'
+                ),
+                recoverable: true,
+            },
+        ];
+
+        await processStream(eventStream(events), setters, {
+            useStreaming: true,
+            autoApproveEditsRef: { current: false },
+            bypassPermissionsRef: { current: false },
+            eventBus: { emit: vi.fn() },
+        });
+
+        const ui = getUi();
+        expect(ui.activeOverlay).toBe('insufficient-credits');
+        expect(ui.insufficientCredits).toEqual({ balanceUsd: -0.04 });
+        expect(ui.isProcessing).toBe(false);
+
+        const latestMessage = getMessages().at(-1);
+        expect(latestMessage?.content).toContain('Out of Dexto Nova credits');
+        expect(latestMessage?.content).not.toContain('Error:');
+    });
+
+    it('captures analytics cost fields for priced llm responses', async () => {
+        const { setters } = createSetters();
+
+        const events: StreamingEvent[] = [
+            { name: 'llm:thinking', sessionId: 'test-session' },
+            {
+                name: 'llm:response',
+                sessionId: 'test-session',
+                content: 'Priced response',
+                provider: 'openai',
+                model: 'gpt-4',
+                estimatedCost: 0.0015,
+                costBreakdown: {
+                    inputUsd: 0.001,
+                    outputUsd: 0.0005,
+                    reasoningUsd: 0,
+                    cacheReadUsd: 0,
+                    cacheWriteUsd: 0,
+                    totalUsd: 0.0015,
+                },
+                tokenUsage: {
+                    inputTokens: 10,
+                    outputTokens: 20,
+                    totalTokens: 30,
+                },
+            },
+            {
+                name: 'run:complete',
+                sessionId: 'test-session',
+                finishReason: 'stop',
+                stepCount: 1,
+                durationMs: 1,
+            },
+        ];
+
+        await processStream(eventStream(events), setters, {
+            useStreaming: false,
+            autoApproveEditsRef: { current: false },
+            bypassPermissionsRef: { current: false },
+            eventBus: { emit: vi.fn() },
+        });
+
+        expect(captureAnalyticsMock).toHaveBeenCalledWith(
+            'dexto_llm_tokens_consumed',
+            expect.objectContaining({
+                source: 'cli',
+                sessionId: 'test-session',
+                estimatedCostUsd: 0.0015,
+                inputCostUsd: 0.001,
+                outputCostUsd: 0.0005,
+                reasoningCostUsd: 0,
+                cacheReadCostUsd: 0,
+                cacheWriteCostUsd: 0,
+            })
+        );
     });
 });

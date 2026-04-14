@@ -24,6 +24,18 @@ export interface LLMTokensConsumedEvent {
     totalTokens?: number | undefined;
     cacheReadTokens?: number | undefined;
     cacheWriteTokens?: number | undefined;
+    /** Total estimated cost in USD for the response, when pricing is available. */
+    estimatedCostUsd?: number | undefined;
+    /** Estimated input-token cost in USD for the response, when pricing is available. */
+    inputCostUsd?: number | undefined;
+    /** Estimated output-token cost in USD for the response, when pricing is available. */
+    outputCostUsd?: number | undefined;
+    /** Estimated reasoning-token cost in USD for the response, when pricing is available. */
+    reasoningCostUsd?: number | undefined;
+    /** Estimated cache-read cost in USD for the response, when pricing is available. */
+    cacheReadCostUsd?: number | undefined;
+    /** Estimated cache-write cost in USD for the response, when pricing is available. */
+    cacheWriteCostUsd?: number | undefined;
     /** Estimated input tokens (before LLM call, using length/4 heuristic) */
     estimatedInputTokens?: number | undefined;
     /** Accuracy of estimate vs actual: (estimated - actual) / actual * 100 */

@@ -20,6 +20,7 @@ import type {
 import { ToolManager } from '../../tools/tool-manager.js';
 import { ToolSet } from '../../tools/types.js';
 import type { ToolPresentationSnapshotV1 } from '../../tools/types.js';
+import type { ToolCallMetadata } from '../../tools/tool-call-metadata.js';
 import { StreamProcessor } from './stream-processor.js';
 import { ExecutorResult } from './types.js';
 import { buildProviderOptions, getEffectiveReasoningBudgetTokens } from './provider-options.js';
@@ -88,6 +89,7 @@ export class TurnExecutor {
         string,
         {
             presentationSnapshot?: ToolPresentationSnapshotV1;
+            meta?: ToolCallMetadata;
             requireApproval?: boolean;
             approvalStatus?: 'approved' | 'rejected';
         }
@@ -703,12 +705,14 @@ export class TurnExecutor {
                                     const metadata:
                                         | {
                                               presentationSnapshot?: ToolPresentationSnapshotV1;
+                                              meta?: ToolCallMetadata;
                                               requireApproval?: boolean;
                                               approvalStatus?: 'approved' | 'rejected';
                                           }
                                         | undefined = (() => {
                                         const meta: {
                                             presentationSnapshot?: ToolPresentationSnapshotV1;
+                                            meta?: ToolCallMetadata;
                                             requireApproval?: boolean;
                                             approvalStatus?: 'approved' | 'rejected';
                                         } = {};
@@ -716,6 +720,9 @@ export class TurnExecutor {
                                         if (executionResult.presentationSnapshot !== undefined) {
                                             meta.presentationSnapshot =
                                                 executionResult.presentationSnapshot;
+                                        }
+                                        if (executionResult.meta !== undefined) {
+                                            meta.meta = executionResult.meta;
                                         }
 
                                         // Store approval metadata for later retrieval by StreamProcessor

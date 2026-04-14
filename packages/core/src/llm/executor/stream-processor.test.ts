@@ -5,6 +5,8 @@ import type { ContextManager } from '../../context/manager.js';
 import type { SessionEventBus } from '../../events/index.js';
 import type { ResourceManager } from '../../resources/index.js';
 import type { Logger } from '../../logger/v2/types.js';
+import type { ToolPresentationSnapshotV1 } from '../../tools/types.js';
+import type { ToolCallMetadata } from '../../tools/tool-call-metadata.js';
 
 /**
  * Creates a mock async generator that yields events
@@ -772,6 +774,84 @@ describe('StreamProcessor', () => {
                 })
             );
         });
+
+        test('propagates stored tool metadata for tool errors', async () => {
+            const mocks = createMocks();
+            const presentationSnapshot: ToolPresentationSnapshotV1 = {
+                version: 1,
+                header: { title: 'Command' },
+            };
+            const meta: ToolCallMetadata = {
+                reactiveUi: { type: 'open', surface: 'browser' },
+            };
+            const toolCallMetadata = new Map([
+                [
+                    'call-error',
+                    {
+                        presentationSnapshot,
+                        meta,
+                        requireApproval: true,
+                        approvalStatus: 'approved' as const,
+                    },
+                ],
+            ]);
+
+            const processor = new StreamProcessor(
+                mocks.contextManager,
+                mocks.eventBus,
+                mocks.resourceManager,
+                mocks.abortController.signal,
+                mocks.config,
+                mocks.logger,
+                true,
+                toolCallMetadata
+            );
+
+            const events = [
+                {
+                    type: 'tool-error',
+                    toolCallId: 'call-error',
+                    toolName: 'bash',
+                    error: new Error('boom'),
+                },
+                {
+                    type: 'finish',
+                    finishReason: 'stop',
+                    totalUsage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+                },
+            ];
+
+            await processor.process(() => createMockStream(events) as never);
+
+            expect(mocks.contextManager.addToolResult).toHaveBeenCalledWith(
+                'call-error',
+                'bash',
+                expect.objectContaining({
+                    meta: expect.objectContaining({
+                        success: false,
+                    }),
+                }),
+                expect.objectContaining({
+                    presentationSnapshot,
+                    meta,
+                    requireApproval: true,
+                    approvalStatus: 'approved',
+                })
+            );
+
+            const toolResultEvent = mocks.emittedEvents.find((e) => e.name === 'llm:tool-result');
+            expect(toolResultEvent?.payload).toMatchObject({
+                toolName: 'bash',
+                callId: 'call-error',
+                success: false,
+                error: 'boom',
+                meta,
+                presentationSnapshot,
+                requireApproval: true,
+                approvalStatus: 'approved',
+            });
+            expect(toolCallMetadata.size).toBe(0);
+        });
     });
 
     describe('Finish Event Handling', () => {
@@ -1105,6 +1185,11 @@ describe('StreamProcessor', () => {
                 messageId: 'msg-1',
                 provider: 'openai',
                 model: 'gpt-4',
+                costBreakdown: {
+                    inputUsd: expect.any(Number),
+                    outputUsd: expect.any(Number),
+                    totalUsd: expect.any(Number),
+                },
                 pricingStatus: 'estimated',
                 tokenUsage: {
                     inputTokens: 100,
@@ -1303,6 +1388,11 @@ describe('StreamProcessor', () => {
             const responseEvent = mocks.emittedEvents.find((e) => e.name === 'llm:response');
             expect(responseEvent?.payload).toMatchObject({
                 finishReason: 'cancelled',
+                costBreakdown: {
+                    inputUsd: expect.any(Number),
+                    outputUsd: expect.any(Number),
+                    totalUsd: expect.any(Number),
+                },
                 pricingStatus: 'estimated',
                 tokenUsage: {
                     inputTokens: 12,
@@ -1315,6 +1405,81 @@ describe('StreamProcessor', () => {
             expect(
                 (responseEvent?.payload as { estimatedCost?: number } | undefined)?.estimatedCost
             ).toBeGreaterThan(0);
+        });
+
+        test('propagates stored tool metadata for cancelled pending tool calls', async () => {
+            const mocks = createMocks();
+            const presentationSnapshot: ToolPresentationSnapshotV1 = {
+                version: 1,
+                header: { title: 'Preview App' },
+            };
+            const meta: ToolCallMetadata = {
+                reactiveUi: {
+                    type: 'open',
+                    surface: 'workspace',
+                    target: { kind: 'app', appId: 'smoke-app' },
+                },
+            };
+            const toolCallMetadata = new Map([
+                [
+                    'call-cancelled',
+                    {
+                        presentationSnapshot,
+                        meta,
+                    },
+                ],
+            ]);
+
+            const abortingStream = {
+                fullStream: (async function* () {
+                    yield {
+                        type: 'tool-call',
+                        toolCallId: 'call-cancelled',
+                        toolName: 'bash',
+                        input: { command: 'echo hi' },
+                    };
+                    yield { type: 'abort' };
+                })(),
+            };
+
+            const processor = new StreamProcessor(
+                mocks.contextManager,
+                mocks.eventBus,
+                mocks.resourceManager,
+                mocks.abortController.signal,
+                mocks.config,
+                mocks.logger,
+                true,
+                toolCallMetadata
+            );
+
+            await processor.process(() => abortingStream as never);
+
+            expect(mocks.contextManager.addToolResult).toHaveBeenCalledWith(
+                'call-cancelled',
+                'bash',
+                expect.objectContaining({
+                    content: [{ type: 'text', text: 'Cancelled by user' }],
+                    meta: expect.objectContaining({
+                        success: false,
+                    }),
+                }),
+                expect.objectContaining({
+                    presentationSnapshot,
+                    meta,
+                })
+            );
+
+            const toolResultEvent = mocks.emittedEvents.find((e) => e.name === 'llm:tool-result');
+            expect(toolResultEvent?.payload).toMatchObject({
+                toolName: 'bash',
+                callId: 'call-cancelled',
+                success: false,
+                error: 'Cancelled by user',
+                meta,
+                presentationSnapshot,
+            });
+            expect(toolCallMetadata.size).toBe(0);
         });
     });
 

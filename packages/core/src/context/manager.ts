@@ -20,6 +20,7 @@ import type { ConversationHistoryProvider } from '../session/history/types.js';
 import { ContextError } from './errors.js';
 import { ValidatedLLMConfig } from '../llm/schemas.js';
 import type { ToolPresentationSnapshotV1 } from '../tools/types.js';
+import type { ToolCallMetadata } from '../tools/tool-call-metadata.js';
 import { getResourceKind } from './media-helpers.js';
 
 /**
@@ -911,6 +912,7 @@ export class ContextManager<TMessage = unknown> {
             requireApproval?: boolean;
             approvalStatus?: 'approved' | 'rejected';
             presentationSnapshot?: ToolPresentationSnapshotV1;
+            meta?: ToolCallMetadata;
         }
     ): Promise<void> {
         if (!toolCallId || !name) {
@@ -947,6 +949,9 @@ export class ContextManager<TMessage = unknown> {
             name,
             ...(metadata?.presentationSnapshot !== undefined && {
                 presentationSnapshot: metadata.presentationSnapshot,
+            }),
+            ...(metadata?.meta !== undefined && {
+                meta: metadata.meta,
             }),
             // Success status comes from sanitizedResult.meta (single source of truth)
             success: sanitizedResult.meta.success,

@@ -108,6 +108,8 @@ export interface ToolExecutionResult {
     result: unknown;
     /** Optional UI-agnostic presentation snapshot for this call/result */
     presentationSnapshot?: ToolPresentationSnapshotV1;
+    /** Optional non-execution metadata carried through the tool lifecycle */
+    meta?: import('./tool-call-metadata.js').ToolCallMetadata;
     /** Whether this tool required user approval before execution */
     requireApproval?: boolean;
     /** The approval status (only present if requireApproval is true) */

@@ -1,6 +1,6 @@
 import type { JSONSchema7 } from 'json-schema';
 
-export type ToolCallMetadata = {
+export type ToolCallMetadata = Record<string, unknown> & {
     runInBackground?: boolean;
     timeoutMs?: number;
     notifyOnComplete?: boolean;
@@ -31,7 +31,7 @@ const META_SCHEMA: JSONSchema7 = {
             description: 'Optional description shown to the user when requesting approval.',
         },
     },
-    additionalProperties: false,
+    additionalProperties: true,
 };
 
 const META_KEY = '__meta';

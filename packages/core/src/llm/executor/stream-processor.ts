@@ -9,7 +9,9 @@ import type { SanitizedToolResult } from '../../context/types.js';
 import type { Logger } from '../../logger/v2/types.js';
 import { DextoLogComponent } from '../../logger/v2/types.js';
 import type { ToolPresentationSnapshotV1 } from '../../tools/types.js';
+import type { ToolCallMetadata } from '../../tools/tool-call-metadata.js';
 import { getUsagePricingMetadata } from '../usage-metadata.js';
+import type { TokenUsageCostBreakdown } from '../registry/index.js';
 import type { LLMProvider, LLMPricingStatus, ReasoningVariant, TokenUsage } from '../types.js';
 
 type UsageLike = {
@@ -105,6 +107,7 @@ export class StreamProcessor {
             string,
             {
                 presentationSnapshot?: ToolPresentationSnapshotV1;
+                meta?: ToolCallMetadata;
                 requireApproval?: boolean;
                 approvalStatus?: 'approved' | 'rejected';
             }
@@ -316,6 +319,9 @@ export class StreamProcessor {
                             ...(metadata?.presentationSnapshot !== undefined && {
                                 presentationSnapshot: metadata.presentationSnapshot,
                             }),
+                            ...(metadata?.meta !== undefined && {
+                                meta: metadata.meta,
+                            }),
                             callId: event.toolCallId,
                             success: true,
                             sanitized: truncated,
@@ -476,6 +482,7 @@ export class StreamProcessor {
                             event.error instanceof Error
                                 ? event.error.message
                                 : String(event.error);
+                        const metadata = this.toolCallMetadata?.get(event.toolCallId);
 
                         // CRITICAL: Must persist error result to history to maintain tool_use/tool_result pairing
                         // Without this, the conversation history has tool_use without tool_result,
@@ -493,14 +500,26 @@ export class StreamProcessor {
                             event.toolCallId,
                             event.toolName,
                             errorResult,
-                            undefined // No approval metadata for errors
+                            metadata
                         );
 
                         this.eventBus.emit('llm:tool-result', {
                             toolName: event.toolName,
+                            ...(metadata?.presentationSnapshot !== undefined && {
+                                presentationSnapshot: metadata.presentationSnapshot,
+                            }),
+                            ...(metadata?.meta !== undefined && {
+                                meta: metadata.meta,
+                            }),
                             callId: event.toolCallId,
                             success: false,
                             error: errorMessage,
+                            ...(metadata?.requireApproval !== undefined && {
+                                requireApproval: metadata.requireApproval,
+                            }),
+                            ...(metadata?.approvalStatus !== undefined && {
+                                approvalStatus: metadata.approvalStatus,
+                            }),
                         });
 
                         this.eventBus.emit('llm:error', {
@@ -512,6 +531,7 @@ export class StreamProcessor {
                             toolCallId: event.toolCallId,
                             recoverable: true, // Tool errors are typically recoverable
                         });
+                        this.toolCallMetadata?.delete(event.toolCallId);
                         // Remove from pending (tool failed but result was persisted)
                         this.pendingToolCalls.delete(event.toolCallId);
                         this.partialToolCalls.delete(event.toolCallId);
@@ -714,6 +734,7 @@ export class StreamProcessor {
         tokenUsage: TokenUsage;
         finishReason: LLMFinishReason;
         estimatedCost?: number;
+        costBreakdown?: TokenUsageCostBreakdown;
         pricingStatus?: LLMPricingStatus;
     }): void {
         this.eventBus.emit('llm:response', {
@@ -727,6 +748,9 @@ export class StreamProcessor {
             ...(this.usageScopeId && { usageScopeId: this.usageScopeId }),
             ...(config.estimatedCost !== undefined && {
                 estimatedCost: config.estimatedCost,
+            }),
+            ...(config.costBreakdown && {
+                costBreakdown: config.costBreakdown,
             }),
             ...(config.pricingStatus && { pricingStatus: config.pricingStatus }),
             ...(this.config.estimatedInputTokens !== undefined && {
@@ -827,6 +851,7 @@ export class StreamProcessor {
         );
 
         for (const [toolCallId, { toolName }] of this.pendingToolCalls) {
+            const metadata = this.toolCallMetadata?.get(toolCallId);
             const cancelledResult: SanitizedToolResult = {
                 content: [{ type: 'text', text: 'Cancelled by user' }],
                 meta: {
@@ -840,16 +865,29 @@ export class StreamProcessor {
                 toolCallId,
                 toolName,
                 cancelledResult,
-                undefined // No approval metadata for cancelled tools
+                metadata
             );
 
             // Emit tool-result event so CLI/WebUI can update UI
             this.eventBus.emit('llm:tool-result', {
                 toolName,
+                ...(metadata?.presentationSnapshot !== undefined && {
+                    presentationSnapshot: metadata.presentationSnapshot,
+                }),
+                ...(metadata?.meta !== undefined && {
+                    meta: metadata.meta,
+                }),
                 callId: toolCallId,
                 success: false,
                 error: 'Cancelled by user',
+                ...(metadata?.requireApproval !== undefined && {
+                    requireApproval: metadata.requireApproval,
+                }),
+                ...(metadata?.approvalStatus !== undefined && {
+                    approvalStatus: metadata.approvalStatus,
+                }),
             });
+            this.toolCallMetadata?.delete(toolCallId);
         }
 
         this.pendingToolCalls.clear();

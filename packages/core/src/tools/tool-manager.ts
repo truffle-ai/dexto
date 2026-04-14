@@ -31,7 +31,11 @@ import type { BeforeToolCallPayload, AfterToolResultPayload } from '../hooks/typ
 import type { WorkspaceManager } from '../workspace/manager.js';
 import type { WorkspaceContext } from '../workspace/types.js';
 import { InstrumentClass } from '../telemetry/decorators.js';
-import { extractToolCallMeta, wrapToolParametersSchema } from './tool-call-metadata.js';
+import {
+    extractToolCallMeta,
+    wrapToolParametersSchema,
+    type ToolCallMetadata,
+} from './tool-call-metadata.js';
 import { isBackgroundTasksEnabled } from '../utils/env.js';
 import type {
     DynamicContributorContext,
@@ -1346,6 +1350,8 @@ export class ToolManager {
         abortSignal?: AbortSignal
     ): Promise<import('./types.js').ToolExecutionResult> {
         const { toolArgs: rawToolArgs, meta } = extractToolCallMeta(args);
+        const eventMeta: ToolCallMetadata | undefined =
+            Object.keys(meta).length > 0 ? meta : undefined;
         let toolArgs = rawToolArgs;
         const callDescription =
             typeof meta.callDescription === 'string'
@@ -1378,6 +1384,7 @@ export class ToolManager {
                 toolName,
                 presentationSnapshot,
                 args: toolArgs,
+                ...(eventMeta !== undefined ? { meta: eventMeta } : {}),
                 ...(callDescription !== undefined && { callDescription }),
                 callId: toolCallId,
                 sessionId,
@@ -1597,6 +1604,7 @@ export class ToolManager {
             return {
                 result,
                 ...(presentationSnapshot !== undefined && { presentationSnapshot }),
+                ...(eventMeta !== undefined ? { meta: eventMeta } : {}),
                 ...(requireApproval && { requireApproval, approvalStatus }),
             };
         } catch (error) {

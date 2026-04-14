@@ -1,6 +1,7 @@
 import type { LLMProvider, LLMPricingStatus, TokenUsage } from '../llm/types.js';
 import type { ToolDisplayData } from '../tools/display-types.js';
 import type { ToolPresentationSnapshotV1 } from '../tools/types.js';
+import type { ToolCallMetadata } from '../tools/tool-call-metadata.js';
 
 // =============================================================================
 // Content Part Types
@@ -309,6 +310,8 @@ export interface ToolMessage extends MessageBase {
 
     /** Optional UI-agnostic presentation snapshot for this tool call/result */
     presentationSnapshot?: ToolPresentationSnapshotV1;
+    /** Optional non-execution metadata from the reserved __meta wrapper */
+    meta?: ToolCallMetadata;
 
     /** Whether the tool execution was successful */
     success?: boolean;

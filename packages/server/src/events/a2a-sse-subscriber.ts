@@ -149,6 +149,9 @@ export class A2ASseEventSubscriber {
                     ...(payload.estimatedCost !== undefined && {
                         estimatedCost: payload.estimatedCost,
                     }),
+                    ...(payload.costBreakdown && {
+                        costBreakdown: payload.costBreakdown,
+                    }),
                     ...(payload.pricingStatus && { pricingStatus: payload.pricingStatus }),
                 });
             },

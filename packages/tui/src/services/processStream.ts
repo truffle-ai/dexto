@@ -58,6 +58,39 @@ function getErrorCode(error: unknown): string | null {
     return typeof code === 'string' && code.length > 0 ? code : null;
 }
 
+function getErrorMessage(error: unknown): string {
+    return error instanceof Error ? error.message : String(error);
+}
+
+function isInsufficientCreditsError(error: unknown): boolean {
+    const code = getErrorCode(error);
+    if (code === LLMErrorCode.INSUFFICIENT_CREDITS || code === 'INSUFFICIENT_CREDITS') {
+        return true;
+    }
+
+    const message = getErrorMessage(error);
+    if (/insufficient(?:\s+\w+)?\s+credits/i.test(message) || /please top up at/i.test(message)) {
+        return true;
+    }
+
+    if (typeof error === 'object' && error !== null) {
+        const context = Reflect.get(error, 'context');
+        if (typeof context === 'object' && context !== null) {
+            const status = Reflect.get(context, 'status');
+            const body = Reflect.get(context, 'body');
+            if (
+                status === 402 &&
+                typeof body === 'string' &&
+                /INSUFFICIENT_CREDITS|insufficient(?:\s+\w+)?\s+credits/i.test(body)
+            ) {
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
 function extractInsufficientCreditsBalance(error: unknown): number | null {
     if (typeof error === 'object' && error !== null) {
         const context = Reflect.get(error, 'context');
@@ -66,11 +99,17 @@ function extractInsufficientCreditsBalance(error: unknown): number | null {
             if (typeof balance === 'number' && Number.isFinite(balance)) {
                 return balance;
             }
+            if (typeof balance === 'string') {
+                const parsed = Number.parseFloat(balance);
+                if (Number.isFinite(parsed)) {
+                    return parsed;
+                }
+            }
         }
     }
 
-    const message = error instanceof Error ? error.message : String(error);
-    const match = message.match(/Balance:\s*\$?([\d.]+)/i);
+    const message = getErrorMessage(error);
+    const match = message.match(/Balance:\s*\$?(-?[\d.]+)/i);
     if (!match) {
         return null;
     }
@@ -152,6 +191,28 @@ interface StreamState {
      */
     nonStreamingAccumulatedText: string;
     nonStreamingAccumulatedReasoning: string;
+}
+
+function hasMeaningfulTokenUsageForAnalytics(
+    tokenUsage: Extract<StreamingEvent, { name: 'llm:response' }>['tokenUsage'],
+    estimatedCost?: number
+): boolean {
+    if (estimatedCost !== undefined) {
+        return true;
+    }
+
+    if (!tokenUsage) {
+        return false;
+    }
+
+    return (
+        (tokenUsage.inputTokens ?? 0) > 0 ||
+        (tokenUsage.outputTokens ?? 0) > 0 ||
+        (tokenUsage.reasoningTokens ?? 0) > 0 ||
+        (tokenUsage.cacheReadTokens ?? 0) > 0 ||
+        (tokenUsage.cacheWriteTokens ?? 0) > 0 ||
+        (tokenUsage.totalTokens ?? 0) > 0
+    );
 }
 
 /**
@@ -584,19 +645,14 @@ export async function processStream(
 
                     // Track token usage analytics
                     if (
-                        event.tokenUsage &&
-                        (event.tokenUsage.inputTokens || event.tokenUsage.outputTokens)
+                        hasMeaningfulTokenUsageForAnalytics(event.tokenUsage, event.estimatedCost)
                     ) {
                         // Calculate estimate accuracy if both estimate and actual are available
                         let estimateAccuracyPercent: number | undefined;
-                        if (
-                            event.estimatedInputTokens !== undefined &&
-                            event.tokenUsage.inputTokens
-                        ) {
-                            const diff = event.estimatedInputTokens - event.tokenUsage.inputTokens;
-                            estimateAccuracyPercent = Math.round(
-                                (diff / event.tokenUsage.inputTokens) * 100
-                            );
+                        const actualInputTokens = event.tokenUsage?.inputTokens;
+                        if (event.estimatedInputTokens !== undefined && actualInputTokens) {
+                            const diff = event.estimatedInputTokens - actualInputTokens;
+                            estimateAccuracyPercent = Math.round((diff / actualInputTokens) * 100);
                         }
 
                         captureAnalytics('dexto_llm_tokens_consumed', {
@@ -606,12 +662,18 @@ export async function processStream(
                             model: event.model,
                             reasoningVariant: event.reasoningVariant ?? undefined,
                             reasoningBudgetTokens: event.reasoningBudgetTokens ?? undefined,
-                            inputTokens: event.tokenUsage.inputTokens,
-                            outputTokens: event.tokenUsage.outputTokens,
-                            reasoningTokens: event.tokenUsage.reasoningTokens,
-                            totalTokens: event.tokenUsage.totalTokens,
-                            cacheReadTokens: event.tokenUsage.cacheReadTokens,
-                            cacheWriteTokens: event.tokenUsage.cacheWriteTokens,
+                            inputTokens: event.tokenUsage?.inputTokens,
+                            outputTokens: event.tokenUsage?.outputTokens,
+                            reasoningTokens: event.tokenUsage?.reasoningTokens,
+                            totalTokens: event.tokenUsage?.totalTokens,
+                            cacheReadTokens: event.tokenUsage?.cacheReadTokens,
+                            cacheWriteTokens: event.tokenUsage?.cacheWriteTokens,
+                            estimatedCostUsd: event.estimatedCost,
+                            inputCostUsd: event.costBreakdown?.inputUsd,
+                            outputCostUsd: event.costBreakdown?.outputUsd,
+                            reasoningCostUsd: event.costBreakdown?.reasoningUsd,
+                            cacheReadCostUsd: event.costBreakdown?.cacheReadUsd,
+                            cacheWriteCostUsd: event.costBreakdown?.cacheWriteUsd,
                             estimatedInputTokens: event.estimatedInputTokens,
                             estimateAccuracyPercent,
                         });
@@ -909,8 +971,7 @@ export async function processStream(
                 }
 
                 case 'llm:error': {
-                    const insufficientCredits =
-                        getErrorCode(event.error) === LLMErrorCode.INSUFFICIENT_CREDITS;
+                    const insufficientCredits = isInsufficientCreditsError(event.error);
                     const insufficientCreditsBalance = insufficientCredits
                         ? extractInsufficientCreditsBalance(event.error)
                         : null;
@@ -931,7 +992,7 @@ export async function processStream(
 
                     // Only stop processing for non-recoverable errors (fatal)
                     // Tool errors are recoverable - agent continues after them
-                    if (event.recoverable !== true) {
+                    if (event.recoverable !== true || insufficientCredits) {
                         // Cancel any streaming message in pending
                         if (state.messageId) {
                             removeFromPending(state.messageId);

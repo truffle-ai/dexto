@@ -121,6 +121,28 @@ function getApprovalRequestToolContext(event: EventByName<'approval:request'>): 
     };
 }
 
+function hasMeaningfulTokenUsageForAnalytics(
+    tokenUsage: EventByName<'llm:response'>['tokenUsage'],
+    estimatedCost?: number
+): boolean {
+    if (estimatedCost !== undefined) {
+        return true;
+    }
+
+    if (!tokenUsage) {
+        return false;
+    }
+
+    return (
+        (tokenUsage.inputTokens ?? 0) > 0 ||
+        (tokenUsage.outputTokens ?? 0) > 0 ||
+        (tokenUsage.reasoningTokens ?? 0) > 0 ||
+        (tokenUsage.cacheReadTokens ?? 0) > 0 ||
+        (tokenUsage.cacheWriteTokens ?? 0) > 0 ||
+        (tokenUsage.totalTokens ?? 0) > 0
+    );
+}
+
 // =============================================================================
 // Handler Implementations
 // =============================================================================
@@ -195,6 +217,8 @@ function handleLLMResponse(event: EventByName<'llm:response'>): void {
         tokenUsage,
         model,
         provider,
+        estimatedCost,
+        costBreakdown,
         estimatedInputTokens,
         reasoningVariant,
         reasoningBudgetTokens,
@@ -215,12 +239,13 @@ function handleLLMResponse(event: EventByName<'llm:response'>): void {
         });
 
         // Track token usage analytics before returning
-        if (tokenUsage && (tokenUsage.inputTokens || tokenUsage.outputTokens)) {
+        if (hasMeaningfulTokenUsageForAnalytics(tokenUsage, estimatedCost)) {
             // Calculate estimate accuracy if both estimate and actual are available
             let estimateAccuracyPercent: number | undefined;
-            if (estimatedInputTokens !== undefined && tokenUsage.inputTokens) {
-                const diff = estimatedInputTokens - tokenUsage.inputTokens;
-                estimateAccuracyPercent = Math.round((diff / tokenUsage.inputTokens) * 100);
+            const actualInputTokens = tokenUsage?.inputTokens;
+            if (estimatedInputTokens !== undefined && actualInputTokens) {
+                const diff = estimatedInputTokens - actualInputTokens;
+                estimateAccuracyPercent = Math.round((diff / actualInputTokens) * 100);
             }
 
             captureTokenUsage({
@@ -229,12 +254,18 @@ function handleLLMResponse(event: EventByName<'llm:response'>): void {
                 model,
                 reasoningVariant,
                 reasoningBudgetTokens,
-                inputTokens: tokenUsage.inputTokens,
-                outputTokens: tokenUsage.outputTokens,
-                reasoningTokens: tokenUsage.reasoningTokens,
-                totalTokens: tokenUsage.totalTokens,
-                cacheReadTokens: tokenUsage.cacheReadTokens,
-                cacheWriteTokens: tokenUsage.cacheWriteTokens,
+                inputTokens: tokenUsage?.inputTokens,
+                outputTokens: tokenUsage?.outputTokens,
+                reasoningTokens: tokenUsage?.reasoningTokens,
+                totalTokens: tokenUsage?.totalTokens,
+                cacheReadTokens: tokenUsage?.cacheReadTokens,
+                cacheWriteTokens: tokenUsage?.cacheWriteTokens,
+                estimatedCostUsd: estimatedCost,
+                inputCostUsd: costBreakdown?.inputUsd,
+                outputCostUsd: costBreakdown?.outputUsd,
+                reasoningCostUsd: costBreakdown?.reasoningUsd,
+                cacheReadCostUsd: costBreakdown?.cacheReadUsd,
+                cacheWriteCostUsd: costBreakdown?.cacheWriteUsd,
                 estimatedInputTokens,
                 estimateAccuracyPercent,
             });
@@ -286,12 +317,13 @@ function handleLLMResponse(event: EventByName<'llm:response'>): void {
     }
 
     // Track token usage analytics (at end, after all processing)
-    if (tokenUsage && (tokenUsage.inputTokens || tokenUsage.outputTokens)) {
+    if (hasMeaningfulTokenUsageForAnalytics(tokenUsage, estimatedCost)) {
         // Calculate estimate accuracy if both estimate and actual are available
         let estimateAccuracyPercent: number | undefined;
-        if (estimatedInputTokens !== undefined && tokenUsage.inputTokens) {
-            const diff = estimatedInputTokens - tokenUsage.inputTokens;
-            estimateAccuracyPercent = Math.round((diff / tokenUsage.inputTokens) * 100);
+        const actualInputTokens = tokenUsage?.inputTokens;
+        if (estimatedInputTokens !== undefined && actualInputTokens) {
+            const diff = estimatedInputTokens - actualInputTokens;
+            estimateAccuracyPercent = Math.round((diff / actualInputTokens) * 100);
         }
 
         captureTokenUsage({
@@ -300,12 +332,18 @@ function handleLLMResponse(event: EventByName<'llm:response'>): void {
             model,
             reasoningVariant,
             reasoningBudgetTokens,
-            inputTokens: tokenUsage.inputTokens,
-            outputTokens: tokenUsage.outputTokens,
-            reasoningTokens: tokenUsage.reasoningTokens,
-            totalTokens: tokenUsage.totalTokens,
-            cacheReadTokens: tokenUsage.cacheReadTokens,
-            cacheWriteTokens: tokenUsage.cacheWriteTokens,
+            inputTokens: tokenUsage?.inputTokens,
+            outputTokens: tokenUsage?.outputTokens,
+            reasoningTokens: tokenUsage?.reasoningTokens,
+            totalTokens: tokenUsage?.totalTokens,
+            cacheReadTokens: tokenUsage?.cacheReadTokens,
+            cacheWriteTokens: tokenUsage?.cacheWriteTokens,
+            estimatedCostUsd: estimatedCost,
+            inputCostUsd: costBreakdown?.inputUsd,
+            outputCostUsd: costBreakdown?.outputUsd,
+            reasoningCostUsd: costBreakdown?.reasoningUsd,
+            cacheReadCostUsd: costBreakdown?.cacheReadUsd,
+            cacheWriteCostUsd: costBreakdown?.cacheWriteUsd,
             estimatedInputTokens,
             estimateAccuracyPercent,
         });

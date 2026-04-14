@@ -273,6 +273,13 @@ describe('ToolManager Integration Tests', () => {
                 properties?: Record<string, unknown>;
             };
             expect(mcpParams.properties?.__meta).toBeDefined();
+            expect(
+                (
+                    mcpParams.properties?.__meta as {
+                        additionalProperties?: boolean;
+                    }
+                ).additionalProperties
+            ).toBe(true);
 
             // Execute both types
             const mcpResult = await toolManager.executeTool(
