@@ -9,9 +9,7 @@ import {
     performDeviceCodeLogin,
     persistOAuthLoginResult,
     storeAuth,
-    ensureDextoApiKeyForAuthToken,
 } from '../../auth/index.js';
-import { logger } from '@dexto/core';
 
 export interface LoginCommandOptions {
     apiKey?: string;
@@ -162,35 +160,22 @@ async function handleTokenLogin(tokenInput?: string): Promise<boolean> {
     spinner.start('Verifying token...');
 
     try {
-        const isValid = await verifyToken(token);
-        if (!isValid) {
+        const apiClient = getDextoApiClient();
+        const user = await apiClient.fetchSupabaseUser(token);
+        if (!user) {
             spinner.stop('Invalid token');
             throw new Error('Token verification failed');
         }
 
         spinner.stop('Token verified!');
 
-        await storeAuth({
-            token,
-            createdAt: Date.now(),
+        await persistOAuthLoginResult({
+            accessToken: token,
+            user,
         });
-
-        await ensureDextoApiKeyForAuthToken(token);
         return true;
     } catch (error) {
         spinner.stop('Verification failed');
         throw error;
-    }
-}
-
-async function verifyToken(token: string): Promise<boolean> {
-    try {
-        const apiClient = getDextoApiClient();
-        return apiClient.validateSupabaseAccessToken(token);
-    } catch (error) {
-        logger.debug(
-            `Token verification failed: ${error instanceof Error ? error.message : String(error)}`
-        );
-        return false;
     }
 }

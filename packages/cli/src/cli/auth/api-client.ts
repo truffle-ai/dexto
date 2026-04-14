@@ -601,7 +601,7 @@ export class DextoApiClient {
         authToken: string,
         name: string = 'Dexto CLI Key',
         regenerate: boolean = false
-    ): Promise<{ dextoApiKey: string; keyId: string; isNewKey: boolean }> {
+    ): Promise<{ dextoApiKey: string; keyId: string }> {
         try {
             logger.debug(
                 `Provisioning DEXTO_API_KEY with name: ${name}, regenerate: ${regenerate}`
@@ -627,7 +627,6 @@ export class DextoApiClient {
             return {
                 dextoApiKey: createdKey.dextoApiKey,
                 keyId: createdKey.keyId,
-                isNewKey: true,
             };
         } catch (error) {
             logger.error(`Error provisioning Dexto API key: ${error}`);

@@ -175,7 +175,6 @@ describe('DextoApiClient', () => {
         expect(result).toEqual({
             dextoApiKey: 'dxt_new_key',
             keyId: 'key-2',
-            isNewKey: true,
         });
         expect(fetchMock).toHaveBeenNthCalledWith(
             1,
@@ -238,7 +237,6 @@ describe('DextoApiClient', () => {
         expect(result).toEqual({
             dextoApiKey: 'dxt_new_key',
             keyId: 'key-2',
-            isNewKey: true,
         });
         expect(fetchMock).toHaveBeenNthCalledWith(
             1,
