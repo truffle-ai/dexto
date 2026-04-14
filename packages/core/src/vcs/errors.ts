@@ -20,7 +20,8 @@ export class VCSError {
             ErrorScope.VCS,
             ErrorType.SYSTEM,
             'Git executable is not available. Please install git.',
-            { recovery: 'Install git from https://git-scm.com or your package manager' }
+            undefined,
+            'Install git from https://git-scm.com or your package manager'
         );
     }
 
@@ -59,6 +60,19 @@ export class VCSError {
             ErrorScope.VCS,
             ErrorType.NOT_FOUND,
             `Worktree '${name}' not found`,
+            { name }
+        );
+    }
+
+    /**
+     * Invalid worktree name (path traversal or invalid characters)
+     */
+    static invalidWorktreeName(name: string): DextoRuntimeError {
+        return new DextoRuntimeError(
+            VCErrorCode.INVALID_WORKTREE_NAME,
+            ErrorScope.VCS,
+            ErrorType.USER,
+            `Invalid worktree name '${name}'. Use only letters, numbers, dots, dashes, and underscores.`,
             { name }
         );
     }

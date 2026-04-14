@@ -68,6 +68,10 @@ export function getWorktreesDirPath(_projectPath?: string): string {
  * @returns Absolute path to the worktree
  */
 export function getWorktreePath(projectPath: string, name: string): string {
+    // Validate worktree name to prevent path traversal
+    if (!/^[a-zA-Z0-9._-]+$/.test(name)) {
+        throw VCSError.invalidWorktreeName(name);
+    }
     return path.join(projectPath, '.dexto', 'worktree', name);
 }
 
@@ -140,17 +144,37 @@ export async function createWorktree(
         // Branch doesn't exist remotely - that's okay, we'll create it
     }
 
-    // Step 2: Create the worktree
-    // Use --no-track to avoid setting upstream (we don't care about tracking)
-    // Use -b to create a new branch with the specified name
+    // Step 2: Check if branch already exists locally
+    let branchExistsLocally = false;
     try {
         await execFileAsync(
             'git',
-            ['worktree', 'add', '--no-track', '-b', branchName, worktreePath],
+            ['rev-parse', '--verify', `--quiet`, `refs/heads/${branchName}`],
             {
                 cwd: projectPath,
             }
         );
+        branchExistsLocally = true;
+    } catch {
+        branchExistsLocally = false;
+    }
+
+    // Step 3: Create the worktree
+    // Use --no-track to avoid setting upstream (we don't care about tracking)
+    // Use -b only if branch doesn't exist locally (otherwise git will fail)
+    try {
+        const args = ['worktree', 'add', '--no-track'];
+        if (!branchExistsLocally) {
+            args.push('-b', branchName);
+        }
+        args.push(worktreePath);
+        if (!branchExistsLocally) {
+            args.push(`refs/heads/${branchName}`); // Start point for new branch
+        }
+
+        await execFileAsync('git', args, {
+            cwd: projectPath,
+        });
     } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         throw VCSError.worktreeCreateFailed(name, message, {
@@ -181,10 +205,11 @@ export async function removeWorktree(
         throw VCSError.worktreeNotFound(name);
     }
 
-    const args = ['worktree', 'remove', worktreePath];
+    const args = ['worktree', 'remove'];
     if (options.force) {
         args.push('--force');
     }
+    args.push(worktreePath);
 
     try {
         await execFileAsync('git', args, { cwd: projectPath });

@@ -7,6 +7,7 @@ export enum VCErrorCode {
     WORKTREE_EXISTS = 'vcs_worktree_exists',
     WORKTREE_NOT_FOUND = 'vcs_worktree_not_found',
     WORKTREE_OPERATION_FAILED = 'vcs_worktree_operation_failed',
+    INVALID_WORKTREE_NAME = 'vcs_invalid_worktree_name',
 
     // Git availability
     GIT_NOT_AVAILABLE = 'vcs_git_not_available',

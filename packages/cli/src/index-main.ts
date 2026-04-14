@@ -588,13 +588,13 @@ program
                     }
 
                     // 5. Check if in a git repo
-                    if (!(await isGitRepo(process.cwd()))) {
+                    if (!(await isGitRepo(workspaceRoot))) {
                         console.error('❌ Not in a Git repository.');
                         safeExit('worktree', 1, 'not-git-repo');
                     }
 
                     // 6. Check if worktree already exists
-                    if (worktreeExists(process.cwd(), worktreeName)) {
+                    if (worktreeExists(workspaceRoot, worktreeName)) {
                         console.error(`❌ Worktree '${worktreeName}' already exists.`);
                         console.error(`💡 Run: dexto --worktree ${worktreeName} --continue`);
                         safeExit('worktree', 1, 'worktree-exists');
@@ -603,30 +603,42 @@ program
                     // 7. Create worktree
                     console.log(`Creating worktree '${worktreeName}'...`);
                     try {
-                        const worktreePath = await createWorktree(process.cwd(), worktreeName);
+                        const worktreePath = await createWorktree(workspaceRoot, worktreeName);
                         console.log(`✓ Worktree created at: ${worktreePath}`);
                         console.log(`✓ Branch created: worktree-${worktreeName}`);
 
                         // 8. Spawn new dexto process in worktree
                         const { spawn } = await import('child_process');
                         const dextoPath = process.argv[1] ?? 'dexto';
-                        // Filter out --worktree and its argument from child args
-                        const childArgs = process.argv.slice(2).filter((arg) => {
-                            if (arg === '--worktree' || arg === '-w') return false;
-                            if (arg.startsWith('--worktree=') || arg.startsWith('-w='))
-                                return false;
-                            // If previous arg was --worktree/-w, this is the value
-                            const prevArg = process.argv[process.argv.indexOf(arg) - 1];
-                            if (prevArg === '--worktree' || prevArg === '-w') return false;
-                            return true;
-                        });
+                        // Filter out --worktree and its argument from child args using index-based iteration
+                        const rawArgs = process.argv.slice(2);
+                        const childArgs: string[] = [];
+                        for (let i = 0; i < rawArgs.length; i += 1) {
+                            const arg = rawArgs[i];
+                            if (arg === undefined) {
+                                continue;
+                            }
+                            if (arg === '--worktree' || arg === '-w') {
+                                i += 1; // Skip the next arg (worktree name)
+                            } else if (arg.startsWith('--worktree=') || arg.startsWith('-w=')) {
+                                // Skip --worktree=value
+                            } else {
+                                childArgs.push(arg);
+                            }
+                        }
 
                         console.log(`\nSpawning Dexto in worktree...`);
 
-                        spawn(dextoPath, childArgs, {
+                        const child = spawn(dextoPath, childArgs, {
                             cwd: worktreePath,
                             stdio: 'inherit',
                             env: process.env,
+                        });
+
+                        child.on('exit', (code) => safeExit('worktree', code ?? 0));
+                        child.on('error', (err) => {
+                            console.error(`❌ Failed to spawn dexto process: ${err.message}`);
+                            safeExit('worktree', 1, 'spawn-failed');
                         });
 
                         return; // Exit parent process
