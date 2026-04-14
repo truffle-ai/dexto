@@ -17,7 +17,6 @@ export {
     getWorktreePath,
     worktreeExists,
     createWorktree,
-    listWorktrees,
     removeWorktree,
     pruneWorktrees,
     type WorktreeContext,

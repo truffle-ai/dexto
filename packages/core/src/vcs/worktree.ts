@@ -164,51 +164,6 @@ export async function createWorktree(
 }
 
 /**
- * List all worktrees for the repository
- * @param projectPath Project root directory
- * @returns Array of worktree information
- */
-export async function listWorktrees(
-    projectPath: string
-): Promise<Array<{ path: string; branch: string; head: string }>> {
-    try {
-        const { stdout } = await execFileAsync('git', ['worktree', 'list', '--porcelain'], {
-            cwd: projectPath,
-        });
-
-        const worktrees: Array<{ path: string; branch: string; head: string }> = [];
-        const lines = stdout.split('\n');
-        let current: { path: string; branch: string; head: string } | null = null;
-
-        for (const line of lines) {
-            if (line.startsWith('worktree ')) {
-                if (current) {
-                    worktrees.push(current);
-                }
-                current = {
-                    path: line.substring(9).trim(),
-                    branch: '',
-                    head: '',
-                };
-            } else if (current && line.startsWith('branch ')) {
-                current.branch = line.substring(8).trim();
-            } else if (current && line.startsWith('HEAD ')) {
-                current.head = line.substring(5).trim();
-            }
-        }
-
-        if (current) {
-            worktrees.push(current);
-        }
-
-        return worktrees;
-    } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        throw VCSError.worktreeOperationFailed('list', message);
-    }
-}
-
-/**
  * Remove a worktree
  * @param projectPath Project root directory
  * @param name Worktree name
