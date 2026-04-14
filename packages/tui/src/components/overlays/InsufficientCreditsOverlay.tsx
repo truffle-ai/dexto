@@ -16,7 +16,14 @@ type OverlayStep = 'select' | 'waiting';
 type OpenedBillingTarget = string | null;
 
 interface ActionOption {
-    id: 'top-up' | 'open-billing' | 'reopen' | 'different-amount' | 'done';
+    id:
+        | 'top-up-25'
+        | 'top-up-10'
+        | 'top-up-50'
+        | 'open-billing'
+        | 'reopen'
+        | 'different-amount'
+        | 'done';
     label: string;
     description: string;
     amountUsd?: number | undefined;
@@ -24,19 +31,19 @@ interface ActionOption {
 
 const TOP_UP_OPTIONS: ActionOption[] = [
     {
-        id: 'top-up',
+        id: 'top-up-25',
         label: 'Top up $25',
         description: 'Recommended quick recharge',
         amountUsd: 25,
     },
     {
-        id: 'top-up',
+        id: 'top-up-10',
         label: 'Top up $10',
         description: 'Small top-up',
         amountUsd: 10,
     },
     {
-        id: 'top-up',
+        id: 'top-up-50',
         label: 'Top up $50',
         description: 'Larger credit pack',
         amountUsd: 50,
@@ -81,7 +88,7 @@ function getErrorMessage(error: unknown): string {
 export interface InsufficientCreditsOverlayProps {
     isVisible: boolean;
     initialBalanceUsd: number | null;
-    onResolved: (balanceUsd: number | null) => void;
+    onResolved: () => void;
     onClose: () => void;
 }
 
@@ -149,7 +156,7 @@ const InsufficientCreditsOverlay = forwardRef<
             setLoadingMessage(options.loadingMessage);
 
             try {
-                await openDextoBillingPage(options.url);
+                await openDextoBillingPage({ url: options.url });
                 if (!isActiveRef.current) {
                     return;
                 }
@@ -204,7 +211,7 @@ const InsufficientCreditsOverlay = forwardRef<
         setLoadingMessage('Opening billing page...');
 
         try {
-            await openDextoBillingPage(openedBillingTarget ?? undefined);
+            await openDextoBillingPage({ url: openedBillingTarget ?? undefined });
         } catch (error) {
             if (!isActiveRef.current) {
                 return;
@@ -220,12 +227,12 @@ const InsufficientCreditsOverlay = forwardRef<
 
     const handleSelect = useCallback(
         (option: ActionOption) => {
+            if (typeof option.amountUsd === 'number') {
+                void openPrefilledBilling(option.amountUsd);
+                return;
+            }
+
             switch (option.id) {
-                case 'top-up':
-                    if (typeof option.amountUsd === 'number') {
-                        void openPrefilledBilling(option.amountUsd);
-                    }
-                    return;
                 case 'open-billing':
                     void openBillingDashboard();
                     return;
@@ -236,7 +243,7 @@ const InsufficientCreditsOverlay = forwardRef<
                     resetToSelection();
                     return;
                 case 'done':
-                    onResolved(null);
+                    onResolved();
                     return;
             }
         },

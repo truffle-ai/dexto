@@ -80,7 +80,7 @@ export async function persistOAuthLoginResult(
     return {
         email: result.user?.email,
         userId: result.user?.id,
-        keyId: ensured?.keyId ?? undefined,
-        hasDextoApiKey: Boolean(ensured?.dextoApiKey),
+        keyId: ensured?.keyId ?? preservedDextoApiKey?.dextoKeyId ?? undefined,
+        hasDextoApiKey: Boolean(ensured?.dextoApiKey ?? preservedDextoApiKey?.dextoApiKey),
     };
 }

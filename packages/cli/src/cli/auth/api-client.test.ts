@@ -85,7 +85,7 @@ describe('DextoApiClient', () => {
             platformBaseUrl: 'http://platform.local',
         });
 
-        const result = await client.getBillingBalance('jwt-token');
+        const result = await client.getBillingBalance('jwt-token', {});
 
         expect(result).toEqual({ creditsUsd: 17.5 });
         expect(fetchMock).toHaveBeenCalledWith(
@@ -135,6 +135,22 @@ describe('DextoApiClient', () => {
                 }),
             })
         );
+    });
+
+    it('rejects invalid checkout amounts before calling the billing API', async () => {
+        const fetchMock = vi.fn();
+        vi.stubGlobal('fetch', fetchMock);
+
+        const client = new DextoApiClient({
+            platformBaseUrl: 'http://platform.local',
+        });
+
+        await expect(
+            client.createBillingCheckoutSession('jwt-token', {
+                creditsUsd: 0,
+            })
+        ).rejects.toThrow('creditsUsd must be a positive number');
+        expect(fetchMock).not.toHaveBeenCalled();
     });
 
     it('rotates an existing CLI key to guarantee returning a key value', async () => {

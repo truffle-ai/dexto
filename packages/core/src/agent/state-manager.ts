@@ -199,6 +199,13 @@ export class AgentStateManager {
     }
 
     /**
+     * Check whether a session has an explicit LLM override.
+     */
+    public hasSessionLLMOverride(sessionId: string): boolean {
+        return this.sessionOverrides.get(sessionId)?.llm !== undefined;
+    }
+
+    /**
      * Clear all session overrides (private helper for resetToBaseline)
      */
     private clearAllSessionOverrides(): void {

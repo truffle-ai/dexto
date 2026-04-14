@@ -921,29 +921,23 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
             }));
         }, [setUi]);
 
-        const handleInsufficientCreditsResolved = useCallback(
-            (nextBalanceUsd: number | null) => {
-                setUi((prev) => ({
-                    ...prev,
-                    activeOverlay: 'none',
-                    insufficientCredits: null,
-                }));
+        const handleInsufficientCreditsResolved = useCallback(() => {
+            setUi((prev) => ({
+                ...prev,
+                activeOverlay: 'none',
+                insufficientCredits: null,
+            }));
 
-                setMessages((prev) => [
-                    ...prev,
-                    {
-                        id: generateMessageId('system'),
-                        role: 'system',
-                        content:
-                            nextBalanceUsd === null
-                                ? 'Billing opened in your browser. Retry your request when ready.'
-                                : `Balance updated to $${nextBalanceUsd.toFixed(2)}. Retry your request when ready.`,
-                        timestamp: new Date(),
-                    },
-                ]);
-            },
-            [setMessages, setUi]
-        );
+            setMessages((prev) => [
+                ...prev,
+                {
+                    id: generateMessageId('system'),
+                    role: 'system',
+                    content: 'Billing opened in your browser. Retry your request when ready.',
+                    timestamp: new Date(),
+                },
+            ]);
+        }, [setMessages, setUi]);
 
         const handleChatGPTUsageCapConfirm = useCallback(async () => {
             const currentLLMConfig = session.id

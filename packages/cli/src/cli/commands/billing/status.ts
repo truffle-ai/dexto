@@ -88,7 +88,7 @@ export async function handleBillingStatusCommand(options: { buy?: boolean } = {}
 
 async function openCreditsPage(): Promise<void> {
     try {
-        await openDextoBillingPage();
+        await openDextoBillingPage({});
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         console.log(chalk.yellow(`⚠️  Unable to open browser: ${errorMessage}`));

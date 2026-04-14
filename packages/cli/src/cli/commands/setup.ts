@@ -1195,7 +1195,7 @@ async function handleDextoProviderSetup(
 
 async function openCreditsPage(): Promise<void> {
     try {
-        await openDextoBillingPage();
+        await openDextoBillingPage({});
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         p.log.warn(`Unable to open browser: ${errorMessage}`);

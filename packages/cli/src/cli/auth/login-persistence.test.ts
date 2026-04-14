@@ -132,6 +132,38 @@ describe('persistOAuthLoginResult', () => {
         );
     });
 
+    it('keeps preserved managed-key metadata when ensure returns null', async () => {
+        loadAuthMock.mockResolvedValue({
+            token: 'old-token',
+            refreshToken: 'old-refresh',
+            userId: 'user-123',
+            email: 'rahul@trytruffle.ai',
+            createdAt: 1,
+            expiresAt: 2,
+            dextoApiKey: 'dxt_existing_key',
+            dextoKeyId: 'key-existing',
+            dextoApiKeySource: 'provisioned',
+        });
+        ensureDextoApiKeyForAuthTokenMock.mockResolvedValue(null);
+
+        const result = await persistOAuthLoginResult({
+            accessToken: 'new-access-token',
+            refreshToken: 'new-refresh-token',
+            expiresIn: 3600,
+            user: {
+                id: 'user-123',
+                email: 'rahul@trytruffle.ai',
+            },
+        });
+
+        expect(result).toEqual({
+            email: 'rahul@trytruffle.ai',
+            userId: 'user-123',
+            keyId: 'key-existing',
+            hasDextoApiKey: true,
+        });
+    });
+
     it('does not preserve user-supplied gateway keys across OAuth login', async () => {
         loadAuthMock.mockResolvedValue({
             userId: 'user-123',

@@ -19,6 +19,9 @@ describe('refreshDextoNovaAuthAfterLogin', () => {
             .mockImplementation((sessionId?: string) =>
                 sessionId ? createConfig('openai') : createConfig('openai')
             );
+        const hasSessionLLMOverride = vi
+            .fn<TuiAgentBackend['hasSessionLLMOverride']>()
+            .mockReturnValue(false);
         const switchLLM = vi
             .fn<TuiAgentBackend['switchLLM']>()
             .mockResolvedValue(
@@ -26,7 +29,7 @@ describe('refreshDextoNovaAuthAfterLogin', () => {
             );
 
         const refreshed = await refreshDextoNovaAuthAfterLogin(
-            { getCurrentLLMConfig, switchLLM },
+            { getCurrentLLMConfig, hasSessionLLMOverride, switchLLM },
             'session-1'
         );
 
@@ -40,6 +43,9 @@ describe('refreshDextoNovaAuthAfterLogin', () => {
             .mockImplementation((sessionId?: string) =>
                 sessionId ? createConfig('dexto-nova') : createConfig('dexto-nova')
             );
+        const hasSessionLLMOverride = vi
+            .fn<TuiAgentBackend['hasSessionLLMOverride']>()
+            .mockReturnValue(true);
         const switchLLM = vi
             .fn<TuiAgentBackend['switchLLM']>()
             .mockResolvedValue(
@@ -47,7 +53,7 @@ describe('refreshDextoNovaAuthAfterLogin', () => {
             );
 
         const refreshed = await refreshDextoNovaAuthAfterLogin(
-            { getCurrentLLMConfig, switchLLM },
+            { getCurrentLLMConfig, hasSessionLLMOverride, switchLLM },
             'session-1'
         );
 
@@ -69,12 +75,15 @@ describe('refreshDextoNovaAuthAfterLogin', () => {
         );
     });
 
-    it('refreshes only the active session when the global config uses another provider', async () => {
+    it('refreshes only the global config when the session inherits dexto-nova without an override', async () => {
         const getCurrentLLMConfig = vi
             .fn<TuiAgentBackend['getCurrentLLMConfig']>()
             .mockImplementation((sessionId?: string) =>
-                sessionId ? createConfig('dexto-nova') : createConfig('openai')
+                sessionId ? createConfig('dexto-nova') : createConfig('dexto-nova')
             );
+        const hasSessionLLMOverride = vi
+            .fn<TuiAgentBackend['hasSessionLLMOverride']>()
+            .mockReturnValue(false);
         const switchLLM = vi
             .fn<TuiAgentBackend['switchLLM']>()
             .mockResolvedValue(
@@ -82,7 +91,37 @@ describe('refreshDextoNovaAuthAfterLogin', () => {
             );
 
         const refreshed = await refreshDextoNovaAuthAfterLogin(
-            { getCurrentLLMConfig, switchLLM },
+            { getCurrentLLMConfig, hasSessionLLMOverride, switchLLM },
+            'session-1'
+        );
+
+        expect(refreshed).toBe(true);
+        expect(hasSessionLLMOverride).toHaveBeenCalledWith('session-1');
+        expect(switchLLM).toHaveBeenCalledTimes(1);
+        expect(switchLLM).toHaveBeenCalledWith({
+            provider: 'dexto-nova',
+            model: 'openai/gpt-5',
+            apiKey: '$DEXTO_API_KEY',
+        });
+    });
+
+    it('refreshes only the active session when the global config uses another provider', async () => {
+        const getCurrentLLMConfig = vi
+            .fn<TuiAgentBackend['getCurrentLLMConfig']>()
+            .mockImplementation((sessionId?: string) =>
+                sessionId ? createConfig('dexto-nova') : createConfig('openai')
+            );
+        const hasSessionLLMOverride = vi
+            .fn<TuiAgentBackend['hasSessionLLMOverride']>()
+            .mockReturnValue(true);
+        const switchLLM = vi
+            .fn<TuiAgentBackend['switchLLM']>()
+            .mockResolvedValue(
+                createConfig('dexto-nova') as ReturnType<TuiAgentBackend['getCurrentLLMConfig']>
+            );
+
+        const refreshed = await refreshDextoNovaAuthAfterLogin(
+            { getCurrentLLMConfig, hasSessionLLMOverride, switchLLM },
             'session-1'
         );
 
@@ -102,6 +141,7 @@ describe('refreshDextoNovaAuthAfterLogin', () => {
         const getCurrentLLMConfig = vi
             .fn<TuiAgentBackend['getCurrentLLMConfig']>()
             .mockImplementation(() => createConfig('dexto-nova'));
+        const hasSessionLLMOverride = vi.fn<TuiAgentBackend['hasSessionLLMOverride']>();
         const switchLLM = vi
             .fn<TuiAgentBackend['switchLLM']>()
             .mockResolvedValue(
@@ -110,6 +150,7 @@ describe('refreshDextoNovaAuthAfterLogin', () => {
 
         const refreshed = await refreshDextoNovaAuthAfterLogin({
             getCurrentLLMConfig,
+            hasSessionLLMOverride,
             switchLLM,
         });
 
@@ -120,5 +161,6 @@ describe('refreshDextoNovaAuthAfterLogin', () => {
             model: 'openai/gpt-5',
             apiKey: '$DEXTO_API_KEY',
         });
+        expect(hasSessionLLMOverride).not.toHaveBeenCalled();
     });
 });

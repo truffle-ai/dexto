@@ -2321,6 +2321,17 @@ export class DextoAgent {
     }
 
     /**
+     * Returns whether a session has an explicit LLM override instead of inheriting the global config.
+     */
+    public hasSessionLLMOverride(sessionId: string): boolean {
+        this.ensureStarted();
+        if (!sessionId || typeof sessionId !== 'string') {
+            throw AgentError.apiValidationError('sessionId must be a non-empty string');
+        }
+        return this.stateManager.hasSessionLLMOverride(sessionId);
+    }
+
+    /**
      * Switches the LLM service while preserving conversation history.
      * This is a comprehensive method that handles ALL validation, configuration building, and switching internally.
      *

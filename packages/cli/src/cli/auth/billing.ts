@@ -27,7 +27,7 @@ export async function getBillingBalanceForCurrentLogin(): Promise<number | null>
         return null;
     }
 
-    const response = await getDextoApiClient().getBillingBalance(authToken);
+    const response = await getDextoApiClient().getBillingBalance(authToken, {});
     return response.creditsUsd;
 }
 
@@ -46,6 +46,6 @@ export async function createBillingCheckoutForCurrentLogin(options: {
     });
 }
 
-export async function openDextoBillingPage(url: string = DEXTO_CREDITS_URL): Promise<void> {
-    await openBrowserUrl(url);
+export async function openDextoBillingPage(options: { url?: string | undefined }): Promise<void> {
+    await openBrowserUrl(options.url ?? DEXTO_CREDITS_URL);
 }

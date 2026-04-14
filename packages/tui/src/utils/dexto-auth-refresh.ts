@@ -11,7 +11,7 @@ function buildDextoNovaRefreshUpdate(model: string) {
 }
 
 export async function refreshDextoNovaAuthAfterLogin(
-    agent: Pick<TuiAgentBackend, 'getCurrentLLMConfig' | 'switchLLM'>,
+    agent: Pick<TuiAgentBackend, 'getCurrentLLMConfig' | 'hasSessionLLMOverride' | 'switchLLM'>,
     sessionId?: string
 ): Promise<boolean> {
     let refreshed = false;
@@ -23,6 +23,10 @@ export async function refreshDextoNovaAuthAfterLogin(
     }
 
     if (!sessionId) {
+        return refreshed;
+    }
+
+    if (!agent.hasSessionLLMOverride(sessionId)) {
         return refreshed;
     }
 

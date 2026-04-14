@@ -31,21 +31,26 @@ vi.mock('../commands/agents/sync.js', () => ({
 }));
 
 vi.mock('@dexto/agent-config', () => ({
-    AgentConfigSchema: z.object({
-        systemPrompt: z.string(),
-        llm: z.object({
-            provider: z.string(),
-            model: z.string(),
-            baseURL: z.string().optional(),
-            apiKey: z.string().optional(),
-        }),
-        permissions: z
-            .object({
-                mode: z.string(),
-                allowedToolsStorage: z.string(),
-            })
-            .optional(),
-    }),
+    AgentConfigSchema: z
+        .object({
+            systemPrompt: z.string(),
+            llm: z
+                .object({
+                    provider: z.string(),
+                    model: z.string(),
+                    baseURL: z.string().optional(),
+                    apiKey: z.string().optional(),
+                })
+                .strict(),
+            permissions: z
+                .object({
+                    mode: z.string(),
+                    allowedToolsStorage: z.string(),
+                })
+                .strict()
+                .optional(),
+        })
+        .strict(),
 }));
 
 vi.mock('@dexto/core', () => ({

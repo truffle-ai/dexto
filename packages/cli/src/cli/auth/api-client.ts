@@ -669,7 +669,7 @@ export class DextoApiClient {
      */
     async getBillingBalance(
         authToken: string,
-        options: RequestOptions = {}
+        options: RequestOptions
     ): Promise<BillingBalanceResponse> {
         try {
             logger.debug('Fetching billing balance');
@@ -692,7 +692,9 @@ export class DextoApiClient {
             const payload: unknown = await response.json();
             return parseBillingBalanceResponse(payload);
         } catch (error) {
-            logger.error(`Error fetching billing balance: ${error}`);
+            logger.error('Error fetching billing balance', {
+                error: error instanceof Error ? error.message : String(error),
+            });
             throw error;
         }
     }
@@ -709,7 +711,13 @@ export class DextoApiClient {
         }
     ): Promise<BillingCheckoutSessionResponse> {
         try {
-            logger.debug(`Creating billing checkout session for $${options.creditsUsd}`);
+            if (!Number.isFinite(options.creditsUsd) || options.creditsUsd <= 0) {
+                throw new Error('creditsUsd must be a positive number');
+            }
+
+            logger.debug('Creating billing checkout session', {
+                creditsUsd: options.creditsUsd,
+            });
 
             const response = await fetch(this.getPlatformUrl('/api/billing/checkout-session'), {
                 method: 'POST',
@@ -734,7 +742,10 @@ export class DextoApiClient {
             const payload: unknown = await response.json();
             return parseBillingCheckoutSessionResponse(payload);
         } catch (error) {
-            logger.error(`Error creating billing checkout session: ${error}`);
+            logger.error('Error creating billing checkout session', {
+                error: error instanceof Error ? error.message : String(error),
+                creditsUsd: options.creditsUsd,
+            });
             throw error;
         }
     }
