@@ -154,7 +154,8 @@ export class UsageEventSubscriber implements EventSubscriber {
         }
 
         const resolvedCostBreakdown =
-            payload.provider && payload.model
+            payload.costBreakdown ??
+            (payload.provider && payload.model
                 ? (() => {
                       const pricing = getModelPricing(payload.provider, payload.model);
                       if (!pricing) {
@@ -163,7 +164,7 @@ export class UsageEventSubscriber implements EventSubscriber {
 
                       return calculateCostBreakdown(payload.tokenUsage, pricing);
                   })()
-                : undefined;
+                : undefined);
         const resolvedEstimatedCost = payload.estimatedCost ?? resolvedCostBreakdown?.totalUsd;
 
         return {

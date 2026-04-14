@@ -116,6 +116,28 @@ interface StreamState {
     nonStreamingAccumulatedReasoning: string;
 }
 
+function hasMeaningfulTokenUsageForAnalytics(
+    tokenUsage: Extract<StreamingEvent, { name: 'llm:response' }>['tokenUsage'],
+    estimatedCost?: number
+): boolean {
+    if (estimatedCost !== undefined) {
+        return true;
+    }
+
+    if (!tokenUsage) {
+        return false;
+    }
+
+    return (
+        (tokenUsage.inputTokens ?? 0) > 0 ||
+        (tokenUsage.outputTokens ?? 0) > 0 ||
+        (tokenUsage.reasoningTokens ?? 0) > 0 ||
+        (tokenUsage.cacheReadTokens ?? 0) > 0 ||
+        (tokenUsage.cacheWriteTokens ?? 0) > 0 ||
+        (tokenUsage.totalTokens ?? 0) > 0
+    );
+}
+
 /**
  * Processes the async iterator from agent.stream() and updates UI state.
  *
@@ -546,19 +568,14 @@ export async function processStream(
 
                     // Track token usage analytics
                     if (
-                        event.tokenUsage &&
-                        (event.tokenUsage.inputTokens || event.tokenUsage.outputTokens)
+                        hasMeaningfulTokenUsageForAnalytics(event.tokenUsage, event.estimatedCost)
                     ) {
                         // Calculate estimate accuracy if both estimate and actual are available
                         let estimateAccuracyPercent: number | undefined;
-                        if (
-                            event.estimatedInputTokens !== undefined &&
-                            event.tokenUsage.inputTokens
-                        ) {
-                            const diff = event.estimatedInputTokens - event.tokenUsage.inputTokens;
-                            estimateAccuracyPercent = Math.round(
-                                (diff / event.tokenUsage.inputTokens) * 100
-                            );
+                        const actualInputTokens = event.tokenUsage?.inputTokens;
+                        if (event.estimatedInputTokens !== undefined && actualInputTokens) {
+                            const diff = event.estimatedInputTokens - actualInputTokens;
+                            estimateAccuracyPercent = Math.round((diff / actualInputTokens) * 100);
                         }
 
                         captureAnalytics('dexto_llm_tokens_consumed', {
@@ -568,12 +585,18 @@ export async function processStream(
                             model: event.model,
                             reasoningVariant: event.reasoningVariant ?? undefined,
                             reasoningBudgetTokens: event.reasoningBudgetTokens ?? undefined,
-                            inputTokens: event.tokenUsage.inputTokens,
-                            outputTokens: event.tokenUsage.outputTokens,
-                            reasoningTokens: event.tokenUsage.reasoningTokens,
-                            totalTokens: event.tokenUsage.totalTokens,
-                            cacheReadTokens: event.tokenUsage.cacheReadTokens,
-                            cacheWriteTokens: event.tokenUsage.cacheWriteTokens,
+                            inputTokens: event.tokenUsage?.inputTokens,
+                            outputTokens: event.tokenUsage?.outputTokens,
+                            reasoningTokens: event.tokenUsage?.reasoningTokens,
+                            totalTokens: event.tokenUsage?.totalTokens,
+                            cacheReadTokens: event.tokenUsage?.cacheReadTokens,
+                            cacheWriteTokens: event.tokenUsage?.cacheWriteTokens,
+                            estimatedCostUsd: event.estimatedCost,
+                            inputCostUsd: event.costBreakdown?.inputUsd,
+                            outputCostUsd: event.costBreakdown?.outputUsd,
+                            reasoningCostUsd: event.costBreakdown?.reasoningUsd,
+                            cacheReadCostUsd: event.costBreakdown?.cacheReadUsd,
+                            cacheWriteCostUsd: event.costBreakdown?.cacheWriteUsd,
                             estimatedInputTokens: event.estimatedInputTokens,
                             estimateAccuracyPercent,
                         });

@@ -1,9 +1,14 @@
-import { calculateCost, getModelPricing } from './registry/index.js';
+import {
+    calculateCostBreakdown,
+    getModelPricing,
+    type TokenUsageCostBreakdown,
+} from './registry/index.js';
 import type { LLMProvider, LLMPricingStatus, TokenUsage } from './types.js';
 
 export interface LLMUsagePricingMetadata {
     estimatedCost?: number;
     pricingStatus?: LLMPricingStatus;
+    costBreakdown?: TokenUsageCostBreakdown;
 }
 
 export function hasMeaningfulTokenUsage(tokenUsage: TokenUsage | undefined): boolean {
@@ -38,10 +43,12 @@ export function getUsagePricingMetadata(config: {
     }
 
     // TODO(llm-pricing): Handle totalTokens-only usage without reporting a false zero-cost
-    // estimate. calculateCost() prices detailed token buckets only, so this path should
+    // estimate. calculateCostBreakdown() prices detailed token buckets only, so this path should
     // eventually distinguish "insufficient token detail" from a real zero-cost estimate.
+    const costBreakdown = calculateCostBreakdown(tokenUsage, pricing);
     return {
-        estimatedCost: calculateCost(tokenUsage, pricing),
+        estimatedCost: costBreakdown.totalUsd,
         pricingStatus: 'estimated',
+        costBreakdown,
     };
 }

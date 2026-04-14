@@ -27,6 +27,14 @@ import {
 import { useChatStore } from '../stores/chatStore.js';
 import { useAgentStore } from '../stores/agentStore.js';
 
+const { captureTokenUsageMock } = vi.hoisted(() => ({
+    captureTokenUsageMock: vi.fn(),
+}));
+
+vi.mock('../analytics/capture.js', () => ({
+    captureTokenUsage: captureTokenUsageMock,
+}));
+
 // Mock generateMessageId to return predictable IDs
 vi.mock('../stores/chatStore.js', async () => {
     const actual = await vi.importActual('../stores/chatStore.js');
@@ -189,6 +197,51 @@ describe('Event Handler Registry', () => {
             expect(chatState.messages[0].tokenUsage).toEqual(event.tokenUsage);
             expect(chatState.messages[0].model).toBe('gpt-4');
             expect(chatState.messages[0].provider).toBe('openai');
+        });
+
+        it('should capture analytics cost fields for priced responses', () => {
+            useChatStore.getState().setStreamingMessage(TEST_SESSION_ID, {
+                id: 'msg-1',
+                role: 'assistant',
+                content: 'Response content',
+                createdAt: Date.now(),
+            });
+
+            const event: Extract<StreamingEvent, { name: 'llm:response' }> = {
+                name: 'llm:response',
+                sessionId: TEST_SESSION_ID,
+                content: 'Response content',
+                provider: 'openai',
+                model: 'gpt-4',
+                estimatedCost: 0.0015,
+                costBreakdown: {
+                    inputUsd: 0.001,
+                    outputUsd: 0.0005,
+                    reasoningUsd: 0,
+                    cacheReadUsd: 0,
+                    cacheWriteUsd: 0,
+                    totalUsd: 0.0015,
+                },
+                tokenUsage: {
+                    inputTokens: 10,
+                    outputTokens: 20,
+                    totalTokens: 30,
+                },
+            };
+
+            handleLLMResponse(event);
+
+            expect(captureTokenUsageMock).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    sessionId: TEST_SESSION_ID,
+                    estimatedCostUsd: 0.0015,
+                    inputCostUsd: 0.001,
+                    outputCostUsd: 0.0005,
+                    reasoningCostUsd: 0,
+                    cacheReadCostUsd: 0,
+                    cacheWriteCostUsd: 0,
+                })
+            );
         });
     });
 

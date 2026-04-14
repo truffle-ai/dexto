@@ -1,5 +1,6 @@
 import { EventEmitter } from 'events';
 import type { LLMProvider, LLMPricingStatus, ReasoningVariant, TokenUsage } from '../llm/types.js';
+import type { TokenUsageCostBreakdown } from '../llm/registry/index.js';
 import type { AgentRuntimeSettings } from '../agent/runtime-config.js';
 import type { ApprovalRequest, ApprovalResponse } from '../approval/types.js';
 import type { SanitizedToolResult } from '../context/types.js';
@@ -371,6 +372,8 @@ export interface AgentEventMap {
         usageScopeId?: string;
         /** Estimated cost in USD for this response, when pricing is available. */
         estimatedCost?: number;
+        /** Estimated token-cost breakdown in USD for this response, when pricing is available. */
+        costBreakdown?: TokenUsageCostBreakdown;
         /** Whether pricing was resolved for this response. */
         pricingStatus?: LLMPricingStatus;
         /** Estimated input tokens before LLM call (for analytics/calibration) */
@@ -649,6 +652,8 @@ export interface SessionEventMap {
         usageScopeId?: string;
         /** Estimated cost in USD for this response, when pricing is available. */
         estimatedCost?: number;
+        /** Estimated token-cost breakdown in USD for this response, when pricing is available. */
+        costBreakdown?: TokenUsageCostBreakdown;
         /** Whether pricing was resolved for this response. */
         pricingStatus?: LLMPricingStatus;
         /** Estimated input tokens before LLM call (for analytics/calibration) */
