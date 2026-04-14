@@ -222,8 +222,7 @@ export async function runCliMode(context: MainModeContext): Promise<void> {
                     storeAuth,
                     removeAuth,
                     removeDextoApiKeyFromEnv,
-                    getBillingBalanceForCurrentLogin,
-                    createBillingCheckoutForCurrentLogin,
+                    buildDextoBillingUrl,
                     openDextoBillingPage,
                 },
                 { isUsingDextoCredits },
@@ -258,8 +257,7 @@ export async function runCliMode(context: MainModeContext): Promise<void> {
                 removeDextoApiKeyFromEnv,
                 isUsingDextoCredits,
                 canUseDextoProvider,
-                getBillingBalanceForCurrentLogin,
-                createBillingCheckoutForCurrentLogin,
+                buildDextoBillingUrl,
                 openDextoBillingPage,
             });
 

@@ -936,7 +936,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         role: 'system',
                         content:
                             nextBalanceUsd === null
-                                ? 'Billing updated. Retry your request when ready.'
+                                ? 'Billing opened in your browser. Retry your request when ready.'
                                 : `Balance updated to $${nextBalanceUsd.toFixed(2)}. Retry your request when ready.`,
                         timestamp: new Date(),
                     },

@@ -10,17 +10,13 @@ import React, {
 import { Box, Text } from 'ink';
 import type { Key } from '../../hooks/useInputOrchestrator.js';
 import { BaseSelector, type BaseSelectorHandle } from '../base/BaseSelector.js';
-import {
-    createBillingCheckoutForCurrentLogin,
-    getBillingBalanceForCurrentLogin,
-    openDextoBillingPage,
-} from '../../host/index.js';
+import { buildDextoBillingUrl, openDextoBillingPage } from '../../host/index.js';
 
-type OverlayStep = 'select' | 'waiting' | 'success';
-type OpenedTarget = { kind: 'checkout'; url: string } | { kind: 'generic' } | null;
+type OverlayStep = 'select' | 'waiting';
+type OpenedBillingTarget = string | null;
 
 interface ActionOption {
-    id: 'top-up' | 'open-billing' | 'refresh' | 'reopen' | 'different-amount' | 'close';
+    id: 'top-up' | 'open-billing' | 'reopen' | 'different-amount' | 'done';
     label: string;
     description: string;
     amountUsd?: number | undefined;
@@ -54,27 +50,19 @@ const TOP_UP_OPTIONS: ActionOption[] = [
 
 const WAITING_OPTIONS: ActionOption[] = [
     {
-        id: 'refresh',
-        label: 'Refresh balance',
-        description: 'Check whether your credits have updated',
+        id: 'reopen',
+        label: 'Open billing page again',
+        description: 'Return to billing or sign in in your browser',
     },
     {
         id: 'different-amount',
         label: 'Choose a different amount',
-        description: 'Create another top-up session',
+        description: 'Open billing with another amount prefilled',
     },
     {
-        id: 'close',
-        label: 'Close',
-        description: 'Dismiss this prompt',
-    },
-];
-
-const SUCCESS_OPTIONS: ActionOption[] = [
-    {
-        id: 'close',
-        label: 'Close',
-        description: 'Return to the conversation',
+        id: 'done',
+        label: 'Close and retry manually',
+        description: 'Return to chat once billing is handled',
     },
 ];
 
@@ -87,11 +75,7 @@ function formatBalance(balanceUsd: number | null): string | null {
 }
 
 function getErrorMessage(error: unknown): string {
-    const message = error instanceof Error ? error.message : String(error);
-    if (message === 'Not logged in to Dexto') {
-        return 'Billing top-up requires an active Dexto login. Run `/login` again.';
-    }
-    return message;
+    return error instanceof Error ? error.message : String(error);
 }
 
 export interface InsufficientCreditsOverlayProps {
@@ -115,7 +99,7 @@ const InsufficientCreditsOverlay = forwardRef<
     const [step, setStep] = useState<OverlayStep>('select');
     const [selectedIndex, setSelectedIndex] = useState(0);
     const [balanceUsd, setBalanceUsd] = useState<number | null>(initialBalanceUsd);
-    const [openedTarget, setOpenedTarget] = useState<OpenedTarget>(null);
+    const [openedBillingTarget, setOpenedBillingTarget] = useState<OpenedBillingTarget>(null);
     const [statusMessage, setStatusMessage] = useState(
         'Choose a top-up option. Dexto will open billing in your browser.'
     );
@@ -124,49 +108,15 @@ const InsufficientCreditsOverlay = forwardRef<
     const [isLoading, setIsLoading] = useState(false);
 
     const options = useMemo(() => {
-        if (step === 'select') {
-            return TOP_UP_OPTIONS;
-        }
+        return step === 'select' ? TOP_UP_OPTIONS : WAITING_OPTIONS;
+    }, [step]);
 
-        if (step === 'success') {
-            return SUCCESS_OPTIONS;
-        }
+    const selectorTitle = step === 'select' ? 'Billing Options' : 'Next Step';
 
-        const reopenOption: ActionOption =
-            openedTarget?.kind === 'checkout'
-                ? {
-                      id: 'reopen',
-                      label: 'Reopen checkout',
-                      description: 'Open the current top-up checkout again',
-                  }
-                : {
-                      id: 'reopen',
-                      label: 'Open billing page',
-                      description: 'Open the billing dashboard again',
-                  };
-
-        return [WAITING_OPTIONS[0], reopenOption, WAITING_OPTIONS[1], WAITING_OPTIONS[2]].filter(
-            (option): option is ActionOption => option !== undefined
-        );
-    }, [openedTarget, step]);
-
-    const selectorTitle =
-        step === 'select'
-            ? 'Billing Options'
-            : step === 'success'
-              ? 'Next Step'
-              : 'Billing Actions';
-
-    const introMessage =
-        step === 'success'
-            ? 'Your credits are available again. Retry the request when you are ready.'
-            : 'This request stopped because your Dexto Nova balance ran out.';
-
-    const resetToSelection = useCallback((nextBalanceUsd: number | null) => {
+    const resetToSelection = useCallback(() => {
         setStep('select');
         setSelectedIndex(0);
-        setBalanceUsd(nextBalanceUsd);
-        setOpenedTarget(null);
+        setOpenedBillingTarget(null);
         setErrorMessage(null);
         setStatusMessage('Choose a top-up option. Dexto will open billing in your browser.');
         setIsLoading(false);
@@ -180,165 +130,81 @@ const InsufficientCreditsOverlay = forwardRef<
         }
 
         isActiveRef.current = true;
-        resetToSelection(initialBalanceUsd);
+        setBalanceUsd(initialBalanceUsd);
+        resetToSelection();
 
         return () => {
             isActiveRef.current = false;
         };
     }, [initialBalanceUsd, isVisible, resetToSelection]);
 
-    const refreshBalance = useCallback(async () => {
-        setErrorMessage(null);
-        setIsLoading(true);
-        setLoadingMessage('Refreshing balance...');
-
-        try {
-            const nextBalanceUsd = await getBillingBalanceForCurrentLogin();
-            if (!isActiveRef.current) {
-                return;
-            }
-
-            setBalanceUsd(nextBalanceUsd);
-            setIsLoading(false);
-
-            const previousBalanceUsd = balanceUsd;
-            const balanceIncreased =
-                nextBalanceUsd !== null &&
-                ((previousBalanceUsd === null && nextBalanceUsd > 0) ||
-                    (previousBalanceUsd !== null && nextBalanceUsd > previousBalanceUsd));
-
-            if (balanceIncreased) {
-                setStep('success');
-                setSelectedIndex(0);
-                setStatusMessage(
-                    `Balance updated to ${formatBalance(nextBalanceUsd)}. You can retry your request now.`
-                );
-                return;
-            }
-
-            setStep('waiting');
-            if (nextBalanceUsd === null) {
-                setStatusMessage(
-                    'Balance is still unavailable. Complete payment, then refresh again.'
-                );
-                return;
-            }
-
-            setStatusMessage(
-                `Current balance: ${formatBalance(nextBalanceUsd)}. Complete payment, then refresh again.`
-            );
-        } catch (error) {
-            if (!isActiveRef.current) {
-                return;
-            }
-
-            setIsLoading(false);
-            setStep('waiting');
-            setErrorMessage(getErrorMessage(error));
-        }
-    }, [balanceUsd]);
-
-    const openBillingDashboard = useCallback(async () => {
-        setErrorMessage(null);
-        setIsLoading(true);
-        setLoadingMessage('Opening billing page...');
-
-        try {
-            await openDextoBillingPage();
-            if (!isActiveRef.current) {
-                return;
-            }
-
-            setOpenedTarget({ kind: 'generic' });
-            setStep('waiting');
-            setSelectedIndex(0);
-            setStatusMessage(
-                'Billing opened in your browser. Complete payment, then refresh your balance.'
-            );
-        } catch (error) {
-            if (!isActiveRef.current) {
-                return;
-            }
-
-            setStep('waiting');
-            setOpenedTarget({ kind: 'generic' });
-            setErrorMessage(getErrorMessage(error));
-            setStatusMessage(
-                'Billing is ready to open again when your browser session is available.'
-            );
-        } finally {
-            if (isActiveRef.current) {
-                setIsLoading(false);
-            }
-        }
-    }, []);
-
-    const createCheckout = useCallback(async (creditsUsd: number) => {
-        setErrorMessage(null);
-        setIsLoading(true);
-        setLoadingMessage(`Creating $${creditsUsd} checkout...`);
-
-        try {
-            const checkout = await createBillingCheckoutForCurrentLogin({ creditsUsd });
-            if (!isActiveRef.current) {
-                return;
-            }
-
-            setOpenedTarget({ kind: 'checkout', url: checkout.checkoutUrl });
+    const openBillingTarget = useCallback(
+        async (options: {
+            url?: string | undefined;
+            loadingMessage: string;
+            statusMessage: string;
+        }) => {
+            setErrorMessage(null);
+            setIsLoading(true);
+            setLoadingMessage(options.loadingMessage);
 
             try {
-                await openDextoBillingPage(checkout.checkoutUrl);
+                await openDextoBillingPage(options.url);
                 if (!isActiveRef.current) {
                     return;
                 }
 
+                setOpenedBillingTarget(options.url ?? null);
                 setStep('waiting');
                 setSelectedIndex(0);
-                setStatusMessage(
-                    `Opened a $${creditsUsd} checkout in your browser. Complete payment, then refresh your balance.`
-                );
+                setStatusMessage(options.statusMessage);
             } catch (error) {
                 if (!isActiveRef.current) {
                     return;
                 }
 
+                setOpenedBillingTarget(options.url ?? null);
                 setStep('waiting');
                 setSelectedIndex(0);
                 setErrorMessage(getErrorMessage(error));
-                setStatusMessage(
-                    'Checkout was created successfully. Open it again once your browser is ready.'
-                );
+                setStatusMessage('Billing is ready to open again once your browser is available.');
+            } finally {
+                if (isActiveRef.current) {
+                    setIsLoading(false);
+                }
             }
-        } catch (error) {
-            if (!isActiveRef.current) {
-                return;
-            }
+        },
+        []
+    );
 
-            setStep('select');
-            setSelectedIndex(0);
-            setErrorMessage(getErrorMessage(error));
-        } finally {
-            if (isActiveRef.current) {
-                setIsLoading(false);
-            }
-        }
-    }, []);
+    const openBillingDashboard = useCallback(async () => {
+        await openBillingTarget({
+            loadingMessage: 'Opening billing page...',
+            statusMessage:
+                'Billing opened in your browser. If needed, the site will ask you to sign in before you continue. Once payment is complete, close this prompt and retry your request here.',
+        });
+    }, [openBillingTarget]);
+
+    const openPrefilledBilling = useCallback(
+        async (creditsUsd: number) => {
+            const billingUrl = buildDextoBillingUrl({ creditsUsd });
+
+            await openBillingTarget({
+                url: billingUrl,
+                loadingMessage: `Opening $${creditsUsd} billing page...`,
+                statusMessage: `Opened a $${creditsUsd} top-up flow in your browser. If needed, the site will ask you to sign in before you continue. Once payment is complete, close this prompt and retry your request here.`,
+            });
+        },
+        [openBillingTarget]
+    );
 
     const reopenBilling = useCallback(async () => {
-        if (!openedTarget) {
-            return;
-        }
-
         setErrorMessage(null);
         setIsLoading(true);
-        setLoadingMessage('Opening billing...');
+        setLoadingMessage('Opening billing page...');
 
         try {
-            if (openedTarget.kind === 'checkout') {
-                await openDextoBillingPage(openedTarget.url);
-            } else {
-                await openDextoBillingPage();
-            }
+            await openDextoBillingPage(openedBillingTarget ?? undefined);
         } catch (error) {
             if (!isActiveRef.current) {
                 return;
@@ -350,48 +216,31 @@ const InsufficientCreditsOverlay = forwardRef<
                 setIsLoading(false);
             }
         }
-    }, [openedTarget]);
+    }, [openedBillingTarget]);
 
     const handleSelect = useCallback(
         (option: ActionOption) => {
             switch (option.id) {
                 case 'top-up':
                     if (typeof option.amountUsd === 'number') {
-                        void createCheckout(option.amountUsd);
+                        void openPrefilledBilling(option.amountUsd);
                     }
                     return;
                 case 'open-billing':
                     void openBillingDashboard();
                     return;
-                case 'refresh':
-                    void refreshBalance();
-                    return;
                 case 'reopen':
                     void reopenBilling();
                     return;
                 case 'different-amount':
-                    resetToSelection(balanceUsd);
+                    resetToSelection();
                     return;
-                case 'close':
-                    if (step === 'success') {
-                        onResolved(balanceUsd);
-                        return;
-                    }
-                    onClose();
+                case 'done':
+                    onResolved(null);
                     return;
             }
         },
-        [
-            balanceUsd,
-            createCheckout,
-            onClose,
-            onResolved,
-            openBillingDashboard,
-            refreshBalance,
-            reopenBilling,
-            resetToSelection,
-            step,
-        ]
+        [onResolved, openBillingDashboard, openPrefilledBilling, reopenBilling, resetToSelection]
     );
 
     const formatItem = useCallback((option: ActionOption, isSelected: boolean) => {
@@ -413,15 +262,10 @@ const InsufficientCreditsOverlay = forwardRef<
                     return false;
                 }
 
-                if (step === 'success' && key.escape) {
-                    onResolved(balanceUsd);
-                    return true;
-                }
-
                 return selectorRef.current?.handleInput(input, key) ?? false;
             },
         }),
-        [balanceUsd, isVisible, onResolved, step]
+        [isVisible]
     );
 
     if (!isVisible) {
@@ -437,7 +281,9 @@ const InsufficientCreditsOverlay = forwardRef<
             </Box>
 
             <Box flexDirection="column" marginTop={1}>
-                <Text color="gray">{introMessage}</Text>
+                <Text color="gray">
+                    This request stopped because your Dexto Nova balance ran out.
+                </Text>
                 {formatBalance(balanceUsd) && (
                     <Text color="gray">Current balance: {formatBalance(balanceUsd)}</Text>
                 )}

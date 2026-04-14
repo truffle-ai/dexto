@@ -8,6 +8,19 @@ function notLoggedInError(): Error {
     return new Error('Not logged in to Dexto');
 }
 
+export function buildDextoBillingUrl(options: {
+    creditsUsd?: number | undefined;
+    baseUrl?: string | undefined;
+}): string {
+    const url = new URL(options.baseUrl ?? DEXTO_CREDITS_URL);
+
+    if (typeof options.creditsUsd === 'number' && Number.isFinite(options.creditsUsd)) {
+        url.searchParams.set('credits_usd', String(options.creditsUsd));
+    }
+
+    return url.toString();
+}
+
 export async function getBillingBalanceForCurrentLogin(): Promise<number | null> {
     const authToken = await getAuthTokenQuietly();
     if (!authToken) {

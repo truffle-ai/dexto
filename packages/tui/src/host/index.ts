@@ -51,11 +51,6 @@ export interface TuiPersistedLoginResult {
     hasDextoApiKey: boolean;
 }
 
-export interface TuiBillingCheckoutSession {
-    checkoutUrl: string;
-    checkoutSessionId: string;
-}
-
 export interface TuiRuntimeServices {
     registerGracefulShutdown?: (
         getAgent: () => TuiShutdownHandle,
@@ -92,11 +87,7 @@ export interface TuiRuntimeServices {
     }) => Promise<{ removed: boolean; targetEnvPath: string }>;
     isUsingDextoCredits?: () => Promise<boolean>;
     canUseDextoProvider?: () => Promise<boolean>;
-    getBillingBalanceForCurrentLogin?: () => Promise<number | null>;
-    createBillingCheckoutForCurrentLogin?: (options: {
-        creditsUsd: number;
-        returnUrl?: string | undefined;
-    }) => Promise<TuiBillingCheckoutSession>;
+    buildDextoBillingUrl?: (options: { creditsUsd: number }) => string;
     openDextoBillingPage?: (url?: string) => Promise<void>;
 }
 
@@ -221,21 +212,11 @@ export async function canUseDextoProvider(): Promise<boolean> {
     return runtimeServices.canUseDextoProvider();
 }
 
-export async function getBillingBalanceForCurrentLogin(): Promise<number | null> {
-    if (!runtimeServices.getBillingBalanceForCurrentLogin) {
-        throw missingHostMethod('getBillingBalanceForCurrentLogin');
+export function buildDextoBillingUrl(options: { creditsUsd: number }): string {
+    if (!runtimeServices.buildDextoBillingUrl) {
+        throw missingHostMethod('buildDextoBillingUrl');
     }
-    return runtimeServices.getBillingBalanceForCurrentLogin();
-}
-
-export async function createBillingCheckoutForCurrentLogin(options: {
-    creditsUsd: number;
-    returnUrl?: string | undefined;
-}): Promise<TuiBillingCheckoutSession> {
-    if (!runtimeServices.createBillingCheckoutForCurrentLogin) {
-        throw missingHostMethod('createBillingCheckoutForCurrentLogin');
-    }
-    return runtimeServices.createBillingCheckoutForCurrentLogin(options);
+    return runtimeServices.buildDextoBillingUrl(options);
 }
 
 export async function openDextoBillingPage(url?: string): Promise<void> {

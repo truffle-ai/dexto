@@ -28,6 +28,7 @@ export { type UsageSummaryResponse, DextoApiClient, getDextoApiClient } from './
 export { SUPABASE_URL, SUPABASE_ANON_KEY, DEXTO_API_URL, DEXTO_PLATFORM_URL } from './constants.js';
 
 export {
+    buildDextoBillingUrl,
     getBillingBalanceForCurrentLogin,
     createBillingCheckoutForCurrentLogin,
     openDextoBillingPage,
