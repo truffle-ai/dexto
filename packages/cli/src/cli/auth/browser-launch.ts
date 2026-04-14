@@ -1,6 +1,8 @@
 // packages/cli/src/cli/auth/browser-launch.ts
 // Environment checks for deciding whether automatic browser launch is likely to work.
 
+import open from 'open';
+
 export interface BrowserLaunchContext {
     env: NodeJS.ProcessEnv;
     platform: NodeJS.Platform;
@@ -35,4 +37,15 @@ export function shouldAttemptBrowserLaunch(
     }
 
     return true;
+}
+
+export async function openBrowserUrl(
+    url: string,
+    context: BrowserLaunchContext = { env: process.env, platform: process.platform }
+): Promise<void> {
+    if (!shouldAttemptBrowserLaunch(context)) {
+        throw new Error('Automatic browser launch is unavailable in this environment');
+    }
+
+    await open(url, { wait: false });
 }

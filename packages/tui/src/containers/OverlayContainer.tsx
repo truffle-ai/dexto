@@ -80,6 +80,9 @@ import CustomModelWizard, {
 import ChatGPTUsageCapOverlay, {
     type ChatGPTUsageCapOverlayHandle,
 } from '../components/overlays/ChatGPTUsageCapOverlay.js';
+import InsufficientCreditsOverlay, {
+    type InsufficientCreditsOverlayHandle,
+} from '../components/overlays/InsufficientCreditsOverlay.js';
 import { getLLMProviderDisplayName } from '../utils/llm-provider-display.js';
 import { resolveChatGPTFallbackModel } from '../utils/chatgpt-rate-limit.js';
 import {
@@ -267,6 +270,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
         const customModelWizardRef = useRef<CustomModelWizardHandle>(null);
         const sessionSubcommandSelectorRef = useRef<SessionSubcommandSelectorHandle>(null);
         const chatGPTUsageCapRef = useRef<ChatGPTUsageCapOverlayHandle>(null);
+        const insufficientCreditsRef = useRef<InsufficientCreditsOverlayHandle>(null);
         const apiKeyInputRef = useRef<ApiKeyInputHandle>(null);
         const loginOverlayRef = useRef<LoginOverlayHandle>(null);
         const logoutOverlayRef = useRef<LogoutOverlayHandle>(null);
@@ -369,6 +373,10 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             );
                         case 'chatgpt-usage-cap':
                             return chatGPTUsageCapRef.current?.handleInput(inputStr, key) ?? false;
+                        case 'insufficient-credits':
+                            return (
+                                insufficientCreditsRef.current?.handleInput(inputStr, key) ?? false
+                            );
                         case 'api-key-input':
                             return apiKeyInputRef.current?.handleInput(inputStr, key) ?? false;
                         case 'login':
@@ -903,6 +911,38 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                 activeOverlay: 'none',
             }));
         }, [setUi]);
+
+        const handleInsufficientCreditsClose = useCallback(() => {
+            setUi((prev) => ({
+                ...prev,
+                activeOverlay: 'none',
+                insufficientCredits: null,
+            }));
+        }, [setUi]);
+
+        const handleInsufficientCreditsResolved = useCallback(
+            (nextBalanceUsd: number | null) => {
+                setUi((prev) => ({
+                    ...prev,
+                    activeOverlay: 'none',
+                    insufficientCredits: null,
+                }));
+
+                setMessages((prev) => [
+                    ...prev,
+                    {
+                        id: generateMessageId('system'),
+                        role: 'system',
+                        content:
+                            nextBalanceUsd === null
+                                ? 'Billing updated. Retry your request when ready.'
+                                : `Balance updated to $${nextBalanceUsd.toFixed(2)}. Retry your request when ready.`,
+                        timestamp: new Date(),
+                    },
+                ]);
+            },
+            [setMessages, setUi]
+        );
 
         const handleChatGPTUsageCapConfirm = useCallback(async () => {
             const currentLLMConfig = session.id
@@ -1449,6 +1489,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                 activeOverlay: 'none',
                 mcpWizardServerType: null,
                 commandOutput: null,
+                insufficientCredits: null,
             }));
         }, [setUi]);
 
@@ -3004,6 +3045,18 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             status={ui.chatgptRateLimitStatus}
                             onConfirm={handleChatGPTUsageCapConfirm}
                             onClose={handleChatGPTUsageCapClose}
+                        />
+                    </Box>
+                )}
+
+                {ui.activeOverlay === 'insufficient-credits' && ui.insufficientCredits && (
+                    <Box marginTop={1}>
+                        <InsufficientCreditsOverlay
+                            ref={insufficientCreditsRef}
+                            isVisible={true}
+                            initialBalanceUsd={ui.insufficientCredits.balanceUsd}
+                            onResolved={handleInsufficientCreditsResolved}
+                            onClose={handleInsufficientCreditsClose}
                         />
                     </Box>
                 )}

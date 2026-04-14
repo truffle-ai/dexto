@@ -1,5 +1,6 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AgentConfig } from '@dexto/agent-config';
+import { z } from 'zod';
 
 const {
     mockSelect,
@@ -29,7 +30,51 @@ vi.mock('../commands/agents/sync.js', () => ({
     getBundledSyncTargetForAgentPath: mockGetBundledSyncTargetForAgentPath,
 }));
 
+vi.mock('@dexto/agent-config', () => ({
+    AgentConfigSchema: z.object({
+        systemPrompt: z.string(),
+        llm: z.object({
+            provider: z.string(),
+            model: z.string(),
+            baseURL: z.string().optional(),
+            apiKey: z.string().optional(),
+        }),
+        permissions: z
+            .object({
+                mode: z.string(),
+                allowedToolsStorage: z.string(),
+            })
+            .optional(),
+    }),
+}));
+
+vi.mock('@dexto/core', () => ({
+    getPrimaryApiKeyEnvVar: vi.fn((provider: string) => {
+        if (provider === 'openai-compatible') {
+            return 'OPENAI_API_KEY';
+        }
+        return 'TEST_API_KEY';
+    }),
+    logger: {
+        debug: vi.fn(),
+        warn: vi.fn(),
+    },
+    requiresApiKey: vi.fn((provider: string) => provider !== 'openai-compatible'),
+    requiresBaseURL: vi.fn((provider: string) => provider === 'openai-compatible'),
+    resolveApiKeyForProvider: vi.fn(() => undefined),
+}));
+
+vi.mock('@dexto/agent-management', () => ({
+    getGlobalPreferencesPath: vi.fn(() => '/tmp/.dexto/preferences.yml'),
+}));
+
 describe('validateAgentConfig', () => {
+    let validateAgentConfig: typeof import('./config-validation.js').validateAgentConfig;
+
+    beforeAll(async () => {
+        ({ validateAgentConfig } = await import('./config-validation.js'));
+    });
+
     beforeEach(() => {
         vi.clearAllMocks();
         mockIsCancel.mockReturnValue(false);
@@ -38,8 +83,6 @@ describe('validateAgentConfig', () => {
     });
 
     it('accepts ChatGPT Login codex base URLs during preflight validation', async () => {
-        const { validateAgentConfig } = await import('./config-validation.js');
-
         const config: AgentConfig = {
             systemPrompt: 'test agent',
             llm: {
@@ -71,8 +114,6 @@ describe('validateAgentConfig', () => {
     });
 
     it('does not offer sync when the active agent path is not a bundled installed agent', async () => {
-        const { validateAgentConfig } = await import('./config-validation.js');
-
         const invalidConfig = {
             systemPrompt: 'test agent',
             llm: {
@@ -97,8 +138,6 @@ describe('validateAgentConfig', () => {
     });
 
     it('offers sync when the active config is a bundled installed agent', async () => {
-        const { validateAgentConfig } = await import('./config-validation.js');
-
         mockGetBundledSyncTargetForAgentPath.mockReturnValue({
             agentId: 'coding-agent',
             agentEntry: {

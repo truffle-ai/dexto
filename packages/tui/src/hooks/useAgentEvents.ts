@@ -248,6 +248,7 @@ export function useAgentEvents({
                     ...prev,
                     activeOverlay: 'none',
                     chatgptRateLimitStatus: null,
+                    insufficientCredits: null,
                 }));
             },
             { signal }
@@ -300,6 +301,7 @@ export function useAgentEvents({
                         ...prev,
                         activeOverlay: 'none',
                         chatgptRateLimitStatus: null,
+                        insufficientCredits: null,
                         historySearch: {
                             isActive: false,
                             query: '',
@@ -326,6 +328,7 @@ export function useAgentEvents({
                     ...prev,
                     activeOverlay: 'none',
                     chatgptRateLimitStatus: null,
+                    insufficientCredits: null,
                 }));
             },
             { signal }

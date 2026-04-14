@@ -220,6 +220,8 @@ vi.mock('./auth/login.js', () => ({
 
 vi.mock('../auth/index.js', () => ({
     loadAuth: vi.fn().mockResolvedValue(null),
+    getBillingBalanceForCurrentLogin: vi.fn().mockResolvedValue(null),
+    openDextoBillingPage: vi.fn().mockResolvedValue(undefined),
     getDextoApiClient: vi.fn(() => ({
         getUsageSummary: vi.fn().mockResolvedValue({ credits_usd: 0 }),
     })),

@@ -130,6 +130,7 @@ export function useCLIState({
         backgroundTasksExpanded: false,
         backgroundTasks: [],
         chatgptRateLimitStatus: null,
+        insufficientCredits: null,
         planModeActive: false,
         planModeInitialized: false,
         commandOutput: null,

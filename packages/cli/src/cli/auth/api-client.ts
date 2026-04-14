@@ -81,6 +81,15 @@ export interface UsageSummaryResponse {
     }>;
 }
 
+export interface BillingBalanceResponse {
+    creditsUsd: number;
+}
+
+export interface BillingCheckoutSessionResponse {
+    checkoutUrl: string;
+    checkoutSessionId: string;
+}
+
 interface RequestOptions {
     signal?: AbortSignal | undefined;
 }
@@ -315,6 +324,44 @@ function parseUsageSummaryResponse(payload: unknown): UsageSummaryResponse {
             by_model: byModel,
         },
         recent,
+    };
+}
+
+function parseBillingBalanceResponse(payload: unknown): BillingBalanceResponse {
+    if (typeof payload !== 'object' || payload === null) {
+        throw new Error('Invalid response from API');
+    }
+
+    const creditsUsd =
+        parseNumber(Reflect.get(payload, 'credits_usd')) ??
+        parseNumber(Reflect.get(payload, 'creditsUsd'));
+
+    if (creditsUsd === null) {
+        throw new Error('Invalid response from API');
+    }
+
+    return { creditsUsd };
+}
+
+function parseBillingCheckoutSessionResponse(payload: unknown): BillingCheckoutSessionResponse {
+    if (typeof payload !== 'object' || payload === null) {
+        throw new Error('Invalid response from API');
+    }
+
+    const checkoutUrl =
+        parseString(Reflect.get(payload, 'checkout_url')) ??
+        parseString(Reflect.get(payload, 'checkoutUrl'));
+    const checkoutSessionId =
+        parseString(Reflect.get(payload, 'checkout_session_id')) ??
+        parseString(Reflect.get(payload, 'checkoutSessionId'));
+
+    if (!checkoutUrl || !checkoutSessionId) {
+        throw new Error('Invalid response from API');
+    }
+
+    return {
+        checkoutUrl,
+        checkoutSessionId,
     };
 }
 
@@ -614,6 +661,81 @@ export class DextoApiClient {
             return parseUsageSummaryResponse(payload);
         } catch (error) {
             logger.error(`Error fetching usage summary: ${error}`);
+            throw error;
+        }
+    }
+
+    /**
+     * Get the current Dexto billing balance for the authenticated user.
+     */
+    async getBillingBalance(
+        authToken: string,
+        options: RequestOptions = {}
+    ): Promise<BillingBalanceResponse> {
+        try {
+            logger.debug('Fetching billing balance');
+
+            const response = await fetch(this.getPlatformUrl('/api/billing/balance'), {
+                method: 'GET',
+                headers: {
+                    Authorization: `Bearer ${authToken}`,
+                },
+                signal: this.createRequestSignal(options.signal),
+            });
+
+            if (!response.ok) {
+                const rawText = await response.text();
+                throw new Error(
+                    `API request failed: ${formatHttpFailure(response.status, null, rawText)}`
+                );
+            }
+
+            const payload: unknown = await response.json();
+            return parseBillingBalanceResponse(payload);
+        } catch (error) {
+            logger.error(`Error fetching billing balance: ${error}`);
+            throw error;
+        }
+    }
+
+    /**
+     * Create a hosted top-up checkout session for the authenticated user.
+     */
+    async createBillingCheckoutSession(
+        authToken: string,
+        options: {
+            creditsUsd: number;
+            returnUrl?: string | undefined;
+            signal?: AbortSignal | undefined;
+        }
+    ): Promise<BillingCheckoutSessionResponse> {
+        try {
+            logger.debug(`Creating billing checkout session for $${options.creditsUsd}`);
+
+            const response = await fetch(this.getPlatformUrl('/api/billing/checkout-session'), {
+                method: 'POST',
+                headers: {
+                    Authorization: `Bearer ${authToken}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    credits_usd: options.creditsUsd,
+                    ...(options.returnUrl ? { return_url: options.returnUrl } : {}),
+                }),
+                signal: this.createRequestSignal(options.signal),
+            });
+
+            if (!response.ok) {
+                const rawText = await response.text();
+                throw new Error(
+                    `API request failed: ${formatHttpFailure(response.status, null, rawText)}`
+                );
+            }
+
+            const payload: unknown = await response.json();
+            return parseBillingCheckoutSessionResponse(payload);
+        } catch (error) {
+            logger.error(`Error creating billing checkout session: ${error}`);
             throw error;
         }
     }

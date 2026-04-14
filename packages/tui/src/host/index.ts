@@ -51,6 +51,11 @@ export interface TuiPersistedLoginResult {
     hasDextoApiKey: boolean;
 }
 
+export interface TuiBillingCheckoutSession {
+    checkoutUrl: string;
+    checkoutSessionId: string;
+}
+
 export interface TuiRuntimeServices {
     registerGracefulShutdown?: (
         getAgent: () => TuiShutdownHandle,
@@ -87,6 +92,12 @@ export interface TuiRuntimeServices {
     }) => Promise<{ removed: boolean; targetEnvPath: string }>;
     isUsingDextoCredits?: () => Promise<boolean>;
     canUseDextoProvider?: () => Promise<boolean>;
+    getBillingBalanceForCurrentLogin?: () => Promise<number | null>;
+    createBillingCheckoutForCurrentLogin?: (options: {
+        creditsUsd: number;
+        returnUrl?: string | undefined;
+    }) => Promise<TuiBillingCheckoutSession>;
+    openDextoBillingPage?: (url?: string) => Promise<void>;
 }
 
 let runtimeServices: TuiRuntimeServices = {};
@@ -208,4 +219,28 @@ export async function canUseDextoProvider(): Promise<boolean> {
         throw missingHostMethod('canUseDextoProvider');
     }
     return runtimeServices.canUseDextoProvider();
+}
+
+export async function getBillingBalanceForCurrentLogin(): Promise<number | null> {
+    if (!runtimeServices.getBillingBalanceForCurrentLogin) {
+        throw missingHostMethod('getBillingBalanceForCurrentLogin');
+    }
+    return runtimeServices.getBillingBalanceForCurrentLogin();
+}
+
+export async function createBillingCheckoutForCurrentLogin(options: {
+    creditsUsd: number;
+    returnUrl?: string | undefined;
+}): Promise<TuiBillingCheckoutSession> {
+    if (!runtimeServices.createBillingCheckoutForCurrentLogin) {
+        throw missingHostMethod('createBillingCheckoutForCurrentLogin');
+    }
+    return runtimeServices.createBillingCheckoutForCurrentLogin(options);
+}
+
+export async function openDextoBillingPage(url?: string): Promise<void> {
+    if (!runtimeServices.openDextoBillingPage) {
+        throw missingHostMethod('openDextoBillingPage');
+    }
+    return runtimeServices.openDextoBillingPage(url);
 }

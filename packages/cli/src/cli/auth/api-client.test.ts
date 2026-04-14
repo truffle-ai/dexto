@@ -73,6 +73,70 @@ describe('DextoApiClient', () => {
         );
     });
 
+    it('fetches billing balance with JWT auth', async () => {
+        const fetchMock = vi.fn().mockResolvedValue(
+            createJsonResponse({
+                credits_usd: 17.5,
+            })
+        );
+        vi.stubGlobal('fetch', fetchMock);
+
+        const client = new DextoApiClient({
+            platformBaseUrl: 'http://platform.local',
+        });
+
+        const result = await client.getBillingBalance('jwt-token');
+
+        expect(result).toEqual({ creditsUsd: 17.5 });
+        expect(fetchMock).toHaveBeenCalledWith(
+            'http://platform.local/api/billing/balance',
+            expect.objectContaining({
+                method: 'GET',
+                headers: {
+                    Authorization: 'Bearer jwt-token',
+                },
+            })
+        );
+    });
+
+    it('creates billing checkout sessions with JWT auth', async () => {
+        const fetchMock = vi.fn().mockResolvedValue(
+            createJsonResponse({
+                checkout_url: 'https://checkout.example/abc',
+                checkout_session_id: 'chk_123',
+            })
+        );
+        vi.stubGlobal('fetch', fetchMock);
+
+        const client = new DextoApiClient({
+            platformBaseUrl: 'http://platform.local',
+        });
+
+        const result = await client.createBillingCheckoutSession('jwt-token', {
+            creditsUsd: 25,
+            returnUrl: 'https://app.dexto.ai/dashboard/billing',
+        });
+
+        expect(result).toEqual({
+            checkoutUrl: 'https://checkout.example/abc',
+            checkoutSessionId: 'chk_123',
+        });
+        expect(fetchMock).toHaveBeenCalledWith(
+            'http://platform.local/api/billing/checkout-session',
+            expect.objectContaining({
+                method: 'POST',
+                headers: {
+                    Authorization: 'Bearer jwt-token',
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    credits_usd: 25,
+                    return_url: 'https://app.dexto.ai/dashboard/billing',
+                }),
+            })
+        );
+    });
+
     it('rotates an existing CLI key to guarantee returning a key value', async () => {
         const fetchMock = vi
             .fn()
