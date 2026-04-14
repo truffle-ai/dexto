@@ -1,5 +1,9 @@
 # @dexto/registry
 
+## 1.6.24
+
+## 1.6.23
+
 ## 1.6.22
 
 ### Patch Changes

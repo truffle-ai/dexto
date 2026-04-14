@@ -44,6 +44,30 @@ function isLanguageModel(value: unknown): value is LanguageModel {
     );
 }
 
+const DEFAULT_DEXTO_GATEWAY_BASE_URL = 'https://api.dexto.ai/v1';
+
+function trimTrailingSlash(value: string): string {
+    return value.trim().replace(/\/$/, '');
+}
+
+function resolveDextoGatewayBaseURL(baseURL?: string): string {
+    if (baseURL?.trim()) {
+        return trimTrailingSlash(baseURL);
+    }
+
+    const envBaseURL = process.env.DEXTO_API_URL?.trim();
+    if (!envBaseURL) {
+        return DEFAULT_DEXTO_GATEWAY_BASE_URL;
+    }
+
+    const normalizedEnvBaseURL = trimTrailingSlash(envBaseURL);
+    if (normalizedEnvBaseURL.endsWith('/v1')) {
+        return normalizedEnvBaseURL;
+    }
+
+    return `${normalizedEnvBaseURL}/v1`;
+}
+
 // Dexto Gateway headers for usage tracking
 const DEXTO_GATEWAY_HEADERS = {
     SESSION_ID: 'X-Dexto-Session-ID',
@@ -187,7 +211,7 @@ export function createVercelModel(
             // Users explicitly choose `provider: dexto-nova` in their config
             //
             // Note: 402 "insufficient credits" errors are handled in turn-executor.ts mapProviderError()
-            const dextoBaseURL = 'https://api.dexto.ai/v1';
+            const dextoBaseURL = resolveDextoGatewayBaseURL(baseURL);
 
             // Build headers for usage tracking
             const headers: Record<string, string> = {

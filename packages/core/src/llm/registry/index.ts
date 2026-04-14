@@ -505,7 +505,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
                 },
             },
         ],
-        baseURLSupport: 'none',
+        baseURLSupport: 'optional',
         supportedFileTypes: GENERIC_UPLOAD_FILE_TYPES,
         supportsCustomModels: true,
         supportsAllRegistryModels: true,

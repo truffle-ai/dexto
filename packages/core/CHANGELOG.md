@@ -1,5 +1,24 @@
 # @dexto/core
 
+## 1.6.24
+
+### Patch Changes
+
+- f2358d9: Allow `dexto-nova` to target non-production gateways via `llm.baseURL` or `DEXTO_API_URL`.
+
+## 1.6.23
+
+### Patch Changes
+
+- 8f6330b: Publish LLM usage analytics cost metrics.
+    - `dexto` / `@dexto/tui`: include estimated USD cost and per-bucket cost fields in CLI LLM usage analytics.
+    - `@dexto/webui`: include estimated USD cost and per-bucket cost fields in WebUI LLM usage analytics.
+    - `@dexto/analytics`: extend the shared `dexto_llm_tokens_consumed` event payload with cost fields.
+    - `@dexto/core`: emit `costBreakdown` alongside `estimatedCost` from shared LLM pricing metadata.
+    - `@dexto/server`: forward the emitted cost breakdown through usage delivery and A2A SSE events.
+
+- 4671d88: Support extensible `__meta` on tool calls and forward that metadata through tool lifecycle events without passing it to tool execution.
+
 ## 1.6.22
 
 ### Patch Changes

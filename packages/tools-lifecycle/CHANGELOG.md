@@ -1,5 +1,22 @@
 # @dexto/tools-lifecycle
 
+## 1.6.24
+
+### Patch Changes
+
+- Updated dependencies [f2358d9]
+    - @dexto/core@1.6.24
+    - @dexto/agent-config@1.6.24
+
+## 1.6.23
+
+### Patch Changes
+
+- Updated dependencies [8f6330b]
+- Updated dependencies [4671d88]
+    - @dexto/core@1.6.23
+    - @dexto/agent-config@1.6.23
+
 ## 1.6.22
 
 ### Patch Changes
