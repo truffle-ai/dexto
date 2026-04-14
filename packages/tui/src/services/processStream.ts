@@ -58,39 +58,6 @@ function getErrorCode(error: unknown): string | null {
     return typeof code === 'string' && code.length > 0 ? code : null;
 }
 
-function getErrorMessage(error: unknown): string {
-    return error instanceof Error ? error.message : String(error);
-}
-
-function isInsufficientCreditsError(error: unknown): boolean {
-    const code = getErrorCode(error);
-    if (code === LLMErrorCode.INSUFFICIENT_CREDITS || code === 'INSUFFICIENT_CREDITS') {
-        return true;
-    }
-
-    const message = getErrorMessage(error);
-    if (/insufficient(?:\s+\w+)?\s+credits/i.test(message) || /please top up at/i.test(message)) {
-        return true;
-    }
-
-    if (typeof error === 'object' && error !== null) {
-        const context = Reflect.get(error, 'context');
-        if (typeof context === 'object' && context !== null) {
-            const status = Reflect.get(context, 'status');
-            const body = Reflect.get(context, 'body');
-            if (
-                status === 402 &&
-                typeof body === 'string' &&
-                /INSUFFICIENT_CREDITS|insufficient(?:\s+\w+)?\s+credits/i.test(body)
-            ) {
-                return true;
-            }
-        }
-    }
-
-    return false;
-}
-
 function extractInsufficientCreditsBalance(error: unknown): number | null {
     if (typeof error === 'object' && error !== null) {
         const context = Reflect.get(error, 'context');
@@ -108,7 +75,7 @@ function extractInsufficientCreditsBalance(error: unknown): number | null {
         }
     }
 
-    const message = getErrorMessage(error);
+    const message = error instanceof Error ? error.message : String(error);
     const match = message.match(/Balance:\s*\$?(-?[\d.]+)/i);
     if (!match) {
         return null;
@@ -971,7 +938,8 @@ export async function processStream(
                 }
 
                 case 'llm:error': {
-                    const insufficientCredits = isInsufficientCreditsError(event.error);
+                    const insufficientCredits =
+                        getErrorCode(event.error) === LLMErrorCode.INSUFFICIENT_CREDITS;
                     const insufficientCreditsBalance = insufficientCredits
                         ? extractInsufficientCreditsBalance(event.error)
                         : null;
@@ -992,7 +960,7 @@ export async function processStream(
 
                     // Only stop processing for non-recoverable errors (fatal)
                     // Tool errors are recoverable - agent continues after them
-                    if (event.recoverable !== true || insufficientCredits) {
+                    if (event.recoverable !== true) {
                         // Cancel any streaming message in pending
                         if (state.messageId) {
                             removeFromPending(state.messageId);

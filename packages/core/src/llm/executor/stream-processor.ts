@@ -543,11 +543,7 @@ export class StreamProcessor {
                             event.error instanceof Error
                                 ? event.error
                                 : new Error(String(event.error));
-                        this.logger.error('LLM error', { error: err });
-                        this.eventBus.emit('llm:error', {
-                            error: err,
-                        });
-                        break;
+                        throw err;
                     }
 
                     case 'abort': {
@@ -623,14 +619,6 @@ export class StreamProcessor {
 
             // Non-abort errors are real failures
             this.logger.error('Stream processing failed', { error });
-
-            // Emit error event so UI knows about the failure
-            this.eventBus.emit('llm:error', {
-                error: error instanceof Error ? error : new Error(String(error)),
-                context: 'StreamProcessor',
-                recoverable: false,
-            });
-
             throw error;
         }
 

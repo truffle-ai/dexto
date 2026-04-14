@@ -345,37 +345,6 @@ describe('processStream (reasoning)', () => {
         expect(latestMessage?.content).not.toContain('Error:');
     });
 
-    it('shows the billing recovery overlay for raw insufficient-credits messages', async () => {
-        const { getMessages, getUi, setters } = createSetters();
-
-        const events: StreamingEvent[] = [
-            {
-                name: 'llm:error',
-                sessionId: 'test-session',
-                error: new Error(
-                    'Insufficient credits. Balance: $-0.04. Please top up at https://app.dexto.ai/dashboard/billing'
-                ),
-                recoverable: true,
-            },
-        ];
-
-        await processStream(eventStream(events), setters, {
-            useStreaming: true,
-            autoApproveEditsRef: { current: false },
-            bypassPermissionsRef: { current: false },
-            eventBus: { emit: vi.fn() },
-        });
-
-        const ui = getUi();
-        expect(ui.activeOverlay).toBe('insufficient-credits');
-        expect(ui.insufficientCredits).toEqual({ balanceUsd: -0.04 });
-        expect(ui.isProcessing).toBe(false);
-
-        const latestMessage = getMessages().at(-1);
-        expect(latestMessage?.content).toContain('Out of Dexto Nova credits');
-        expect(latestMessage?.content).not.toContain('Error:');
-    });
-
     it('captures analytics cost fields for priced llm responses', async () => {
         const { setters } = createSetters();
 

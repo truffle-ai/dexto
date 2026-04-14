@@ -1240,7 +1240,7 @@ describe('StreamProcessor', () => {
     });
 
     describe('Error Event Handling', () => {
-        test('emits llm:error with Error object', async () => {
+        test('throws Error objects from fatal stream events', async () => {
             const mocks = createMocks();
             const processor = new StreamProcessor(
                 mocks.contextManager,
@@ -1255,14 +1255,13 @@ describe('StreamProcessor', () => {
             const testError = new Error('Test error');
             const events = [{ type: 'error', error: testError }];
 
-            await processor.process(() => createMockStream(events) as never);
-
-            const errorEvent = mocks.emittedEvents.find((e) => e.name === 'llm:error');
-            expect(errorEvent).toBeDefined();
-            expect((errorEvent?.payload as { error: Error }).error).toBe(testError);
+            await expect(processor.process(() => createMockStream(events) as never)).rejects.toBe(
+                testError
+            );
+            expect(mocks.emittedEvents.find((e) => e.name === 'llm:error')).toBeUndefined();
         });
 
-        test('wraps non-Error in Error', async () => {
+        test('wraps non-Error fatal stream events before throwing', async () => {
             const mocks = createMocks();
             const processor = new StreamProcessor(
                 mocks.contextManager,
@@ -1276,14 +1275,12 @@ describe('StreamProcessor', () => {
 
             const events = [{ type: 'error', error: 'String error message' }];
 
-            await processor.process(() => createMockStream(events) as never);
-
-            const errorEvent = mocks.emittedEvents.find((e) => e.name === 'llm:error');
-            expect(errorEvent).toBeDefined();
-            expect((errorEvent?.payload as { error: Error }).error).toBeInstanceOf(Error);
-            expect((errorEvent?.payload as { error: Error }).error.message).toBe(
-                'String error message'
-            );
+            await expect(
+                processor.process(() => createMockStream(events) as never)
+            ).rejects.toMatchObject({
+                message: 'String error message',
+            });
+            expect(mocks.emittedEvents.find((e) => e.name === 'llm:error')).toBeUndefined();
         });
     });
 
