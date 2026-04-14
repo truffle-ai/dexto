@@ -1,5 +1,11 @@
 # @dexto/core
 
+## 1.6.24
+
+### Patch Changes
+
+- f2358d9: Allow `dexto-nova` to target non-production gateways via `llm.baseURL` or `DEXTO_API_URL`.
+
 ## 1.6.23
 
 ### Patch Changes
