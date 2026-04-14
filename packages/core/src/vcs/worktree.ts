@@ -165,11 +165,11 @@ export async function createWorktree(
     try {
         const args = ['worktree', 'add', '--no-track'];
         if (!branchExistsLocally) {
-            args.push('-b', branchName);
-        }
-        args.push(worktreePath);
-        if (!branchExistsLocally) {
-            args.push(`refs/heads/${branchName}`); // Start point for new branch
+            // Creating new branch: -b creates it from HEAD automatically
+            args.push('-b', branchName, worktreePath);
+        } else {
+            // Branch exists locally, use it directly (without -b)
+            args.push(worktreePath, branchName);
         }
 
         await execFileAsync('git', args, {

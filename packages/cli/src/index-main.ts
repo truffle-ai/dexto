@@ -601,11 +601,8 @@ program
                     }
 
                     // 7. Create worktree
-                    console.log(`Creating worktree '${worktreeName}'...`);
                     try {
                         const worktreePath = await createWorktree(workspaceRoot, worktreeName);
-                        console.log(`✓ Worktree created at: ${worktreePath}`);
-                        console.log(`✓ Branch created: worktree-${worktreeName}`);
 
                         // 8. Spawn new dexto process in worktree
                         const { spawn } = await import('child_process');
@@ -626,8 +623,6 @@ program
                                 childArgs.push(arg);
                             }
                         }
-
-                        console.log(`\nSpawning Dexto in worktree...`);
 
                         const child = spawn(dextoPath, childArgs, {
                             cwd: worktreePath,
