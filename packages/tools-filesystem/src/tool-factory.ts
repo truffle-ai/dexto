@@ -4,6 +4,8 @@ import { ToolError } from '@dexto/core';
 import { FileSystemService } from './filesystem-service.js';
 import { createReadFileTool } from './read-file-tool.js';
 import { createReadMediaFileTool } from './read-media-file-tool.js';
+import { createListDirectoryTool } from './list-directory-tool.js';
+import { createFindPathsTool } from './find-paths-tool.js';
 import { createWriteFileTool } from './write-file-tool.js';
 import { createEditFileTool } from './edit-file-tool.js';
 import { createGlobFilesTool } from './glob-files-tool.js';
@@ -21,7 +23,7 @@ export const fileSystemToolsFactory: ToolFactory<FileSystemToolsConfig> = {
     configSchema: FileSystemToolsConfigSchema,
     metadata: {
         displayName: 'Filesystem Tools',
-        description: 'File system operations (read text/media, write, edit, glob, grep)',
+        description: 'File system operations (read, list, find, search, write, edit, media reads)',
         category: 'filesystem',
     },
     create: (config) => {
@@ -119,6 +121,8 @@ export const fileSystemToolsFactory: ToolFactory<FileSystemToolsConfig> = {
         const toolCreators: Record<FileSystemToolName, () => Tool> = {
             read_file: () => createReadFileTool(getFileSystemService),
             read_media_file: () => createReadMediaFileTool(getFileSystemService),
+            list_directory: () => createListDirectoryTool(getFileSystemService),
+            find_paths: () => createFindPathsTool(getFileSystemService),
             write_file: () => createWriteFileTool(getFileSystemService),
             edit_file: () => createEditFileTool(getFileSystemService),
             glob_files: () => createGlobFilesTool(getFileSystemService),

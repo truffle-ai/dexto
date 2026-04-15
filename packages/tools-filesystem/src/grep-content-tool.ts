@@ -14,7 +14,12 @@ import { createDirectoryAccessApprovalHandlers } from './directory-approval.js';
 
 const GrepContentInputSchema = z
     .object({
-        pattern: z.string().describe('Regular expression pattern to search for'),
+        pattern: z.string().describe('Text or regex pattern to search for'),
+        mode: z
+            .enum(['literal', 'regex'])
+            .optional()
+            .default('literal')
+            .describe('Interpret pattern as literal text or regex (default: literal)'),
         path: z
             .string()
             .optional()
@@ -57,7 +62,7 @@ export function createGrepContentTool(
         id: 'grep_content',
         aliases: ['grep'],
         description:
-            'Search for text patterns in files using regular expressions. Returns matching lines with file path, line number, and optional context lines. Use glob parameter to filter specific file types (e.g., "*.ts"). Supports case-insensitive search. Great for finding code patterns, function definitions, or specific text across multiple files.',
+            'Search file contents. Literal matching is the default because it is faster and safer for common lookups; regex mode is available when you need pattern syntax.',
         inputSchema: GrepContentInputSchema,
 
         presentation: {
@@ -92,6 +97,7 @@ export function createGrepContentTool(
             // Input is validated by provider before reaching here
             const {
                 pattern,
+                mode,
                 path: searchPath,
                 glob,
                 context_lines,
@@ -105,6 +111,7 @@ export function createGrepContentTool(
             const result = await resolvedFileSystemService.searchContent(pattern, {
                 path: resolvedSearchPath,
                 glob,
+                literal: mode !== 'regex',
                 contextLines: context_lines,
                 caseInsensitive: case_insensitive,
                 maxResults: max_results,
@@ -141,6 +148,7 @@ export function createGrepContentTool(
                 total_matches: result.totalMatches,
                 files_searched: result.filesSearched,
                 truncated: result.truncated,
+                mode,
                 _display,
             };
         },

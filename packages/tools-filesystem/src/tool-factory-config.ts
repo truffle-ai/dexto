@@ -25,6 +25,8 @@ const DEFAULT_BACKUP_RETENTION_DAYS = 7;
 export const FILESYSTEM_TOOL_NAMES = [
     'read_file',
     'read_media_file',
+    'list_directory',
+    'find_paths',
     'write_file',
     'edit_file',
     'glob_files',

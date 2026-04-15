@@ -2,7 +2,7 @@
  * @dexto/tools-filesystem
  *
  * FileSystem tools factory for Dexto agents.
- * Provides file operation tools: read text, read media, write, edit, glob, grep.
+ * Provides file operation tools: read text, read media, list, find, write, edit, glob, grep.
  */
 
 // Main factory export (image-compatible)
@@ -24,6 +24,9 @@ export type {
     ReadFileOptions,
     GlobOptions,
     GlobResult,
+    FindPathsOptions,
+    FindPathsResult,
+    PathMatch,
     GrepOptions,
     SearchResult,
     SearchMatch,
@@ -48,6 +51,8 @@ export type {
 // Tool implementations (for custom integrations)
 export { createReadFileTool } from './read-file-tool.js';
 export { createReadMediaFileTool } from './read-media-file-tool.js';
+export { createListDirectoryTool } from './list-directory-tool.js';
+export { createFindPathsTool } from './find-paths-tool.js';
 export { createWriteFileTool } from './write-file-tool.js';
 export { createEditFileTool } from './edit-file-tool.js';
 export { createGlobFilesTool } from './glob-files-tool.js';

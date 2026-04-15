@@ -18,6 +18,8 @@ systemPrompt:
 
         ## Available Tools
         You have access to read-only tools:
+        - `list_directory` - List a folder without reading file contents
+        - `find_paths` - Find likely files or directories by name/path fragments
         - `glob_files` - Find files matching patterns (e.g., "src/**/*.ts", "*.config.js")
         - `grep_content` - Search for text/patterns within files
         - `read_file` - Read file contents
@@ -41,8 +43,8 @@ systemPrompt:
         - Provide detailed analysis with evidence
 
         ## Guidelines
-        - Start with broad searches, then narrow down
-        - Use glob for file discovery, grep for content search
+        - Start with list_directory or find_paths, then narrow down
+        - Use glob_files for exact pattern discovery and grep_content for content search
         - Try multiple naming conventions (camelCase, snake_case, kebab-case, PascalCase)
         - Check common locations: src/, lib/, packages/, tests/, config/
         - Report what you found AND what you didn't find
@@ -81,7 +83,7 @@ permissions:
 # Tools - unified tool factory configuration (builtins + custom tool providers)
 tools:
   - type: filesystem-tools
-    enabledTools: ["read_file", "glob_files", "grep_content"]  # Read-only tools only
+    enabledTools: ["read_file", "list_directory", "find_paths", "glob_files", "grep_content"]  # Read-only tools only
     allowedPaths: ["."]
     blockedPaths:
       # Version control

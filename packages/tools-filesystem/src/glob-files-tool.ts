@@ -28,6 +28,11 @@ const GlobFilesInputSchema = z
             .optional()
             .default(1000)
             .describe('Maximum number of results to return (default: 1000)'),
+        include_metadata: z
+            .boolean()
+            .optional()
+            .default(false)
+            .describe('Include size and modified-time metadata (default: false)'),
     })
     .strict();
 
@@ -41,7 +46,7 @@ export function createGlobFilesTool(
         id: 'glob_files',
         aliases: ['glob'],
         description:
-            'Find files matching a glob pattern. Supports standard glob syntax like **/*.js for recursive matches, *.ts for files in current directory, and src/**/*.tsx for nested paths. Returns array of file paths with metadata (size, modified date). Results are limited to allowed paths only.',
+            'Find files matching a glob pattern. Returns paths by default and can include metadata when requested.',
         inputSchema: GlobFilesInputSchema,
 
         presentation: {
@@ -73,7 +78,7 @@ export function createGlobFilesTool(
             const resolvedFileSystemService = await getFileSystemService(context);
 
             // Input is validated by provider before reaching here
-            const { pattern, path: searchPath, max_results } = input;
+            const { pattern, path: searchPath, max_results, include_metadata } = input;
 
             // Resolve the search directory consistently with directory-approval path handling
             const baseDir = resolvedFileSystemService.getWorkingDirectory();
@@ -83,7 +88,7 @@ export function createGlobFilesTool(
             const result = await resolvedFileSystemService.globFiles(pattern, {
                 cwd: resolvedSearchPath,
                 maxResults: max_results,
-                includeMetadata: true,
+                includeMetadata: include_metadata,
             });
 
             // Build display data (reuse SearchDisplayData for file list)
@@ -102,8 +107,12 @@ export function createGlobFilesTool(
             return {
                 files: result.files.map((file) => ({
                     path: file.path,
-                    size: file.size,
-                    modified: file.modified.toISOString(),
+                    ...(include_metadata
+                        ? {
+                              size: file.size,
+                              modified: file.modified.toISOString(),
+                          }
+                        : {}),
                 })),
                 total_found: result.totalFound,
                 truncated: result.truncated,

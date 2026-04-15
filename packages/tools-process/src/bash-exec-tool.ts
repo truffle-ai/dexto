@@ -57,17 +57,20 @@ export function createBashExecTool(
         description: `Execute a shell command in the project root directory.
 
 IMPORTANT: This tool is for terminal operations like git, npm, docker, etc. Do NOT use it for file operations - use the specialized tools instead:
-- File search: Use glob_files (NOT find or ls)
+- Directory listing: Use list_directory (NOT ls)
+- Path discovery: Use find_paths or glob_files (NOT find)
 - Content search: Use grep_content (NOT grep or rg)
 - Read files: Use read_file (NOT cat/head/tail)
 - Edit files: Use edit_file (NOT sed/awk)
 - Write files: Use write_file (NOT echo/cat with heredoc)
 
+These are strong defaults because the specialized tools return structured, validated results and lead to higher success rates for repo exploration. Only use shell equivalents when shell behavior itself is required for the task.
+
 Before executing the command, follow these steps:
 
 1. Directory Verification:
-   - If the command will create new directories or files, first use ls to verify the parent directory exists and is the correct location
-   - For example, before running "mkdir foo/bar", first use ls foo to check that "foo" exists
+   - If the command will create new directories or files, first use list_directory to verify the parent directory exists and is the correct location
+   - For example, before running "mkdir foo/bar", first use list_directory on "foo" to check that "foo" exists
 
 2. Command Execution:
    - Always quote file paths that contain spaces with double quotes

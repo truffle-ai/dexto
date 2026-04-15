@@ -72,7 +72,7 @@ systemPrompt:
         
         ## Guidelines
         - Always read relevant code before making changes to understand context
-        - Use glob_files to find files and grep_content to search within files
+        - Use list_directory to map folders, find_paths to locate likely targets, glob_files for precise patterns, and grep_content for content search
         - Test changes when possible using bash_exec
         - Follow the project's existing code style and conventions
         - Provide clear explanations for your code decisions
@@ -119,6 +119,8 @@ permissions:
       - ask_user
       - read_file      # Read files without approval
       - read_media_file      # Read files without approval
+      - list_directory # List folders without approval
+      - find_paths     # Find likely paths without approval
       - glob_files     # Search for files without approval
       - grep_content   # Search within files without approval
       - bash_output    # Check background process output

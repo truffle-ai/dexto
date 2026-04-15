@@ -89,6 +89,10 @@ export function createReadFileTool(
                 encoding: result.encoding,
                 truncated: result.truncated,
                 size: result.size,
+                ...(typeof result.startLine === 'number' ? { start_line: result.startLine } : {}),
+                ...(typeof result.nextOffset === 'number'
+                    ? { next_offset: result.nextOffset }
+                    : {}),
                 ...(result.mimeType && { mimeType: result.mimeType }),
                 _display,
             };

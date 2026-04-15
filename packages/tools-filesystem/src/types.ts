@@ -29,6 +29,8 @@ export interface FileContent {
     mimeType?: string;
     truncated: boolean;
     size: number;
+    startLine?: number | undefined;
+    nextOffset?: number | undefined;
 }
 
 /**
@@ -179,6 +181,8 @@ export interface GrepOptions {
     path?: string | undefined;
     /** Glob pattern to filter files */
     glob?: string | undefined;
+    /** Treat pattern as literal text instead of regex */
+    literal?: boolean | undefined;
     /** Number of context lines before/after match */
     contextLines?: number | undefined;
     /** Case-insensitive search */
@@ -197,6 +201,37 @@ export interface SearchResult {
     totalMatches: number;
     truncated: boolean;
     filesSearched: number;
+}
+
+/**
+ * Match result for path discovery.
+ */
+export interface PathMatch {
+    path: string;
+    pathType: 'file' | 'directory';
+    score: number;
+}
+
+/**
+ * Options for path discovery.
+ */
+export interface FindPathsOptions {
+    /** Base directory to search */
+    path?: string | undefined;
+    /** Restrict results to a specific path type */
+    pathType?: 'file' | 'directory' | 'all' | undefined;
+    /** Maximum number of matches to return */
+    maxResults?: number | undefined;
+}
+
+/**
+ * Path discovery result.
+ */
+export interface FindPathsResult {
+    matches: PathMatch[];
+    totalMatches: number;
+    truncated: boolean;
+    searchPath: string;
 }
 
 /**

@@ -176,6 +176,214 @@ describe('FileSystemService', () => {
                 /Use read_file instead/
             );
         });
+
+        it('paginates text reads with startLine and nextOffset metadata', async () => {
+            const fileSystemService = new FileSystemService(
+                {
+                    allowedPaths: [tempDir],
+                    blockedPaths: [],
+                    blockedExtensions: [],
+                    maxFileSize: 10 * 1024 * 1024,
+                    workingDirectory: tempDir,
+                    enableBackups: false,
+                    backupRetentionDays: 7,
+                },
+                mockLogger
+            );
+            await fileSystemService.initialize();
+
+            const testFile = path.join(tempDir, 'paged.txt');
+            await fs.writeFile(testFile, 'one\ntwo\nthree\nfour');
+
+            const result = await fileSystemService.readFile(testFile, {
+                offset: 2,
+                limit: 2,
+            });
+
+            expect(result.content).toBe('two\nthree\n');
+            expect(result.lines).toBe(2);
+            expect(result.truncated).toBe(true);
+            expect(result.startLine).toBe(2);
+            expect(result.nextOffset).toBe(4);
+        });
+
+        it('preserves CRLF and trailing newline for full-file reads', async () => {
+            const fileSystemService = new FileSystemService(
+                {
+                    allowedPaths: [tempDir],
+                    blockedPaths: [],
+                    blockedExtensions: [],
+                    maxFileSize: 10 * 1024 * 1024,
+                    workingDirectory: tempDir,
+                    enableBackups: false,
+                    backupRetentionDays: 7,
+                },
+                mockLogger
+            );
+            await fileSystemService.initialize();
+
+            const testFile = path.join(tempDir, 'crlf.txt');
+            await fs.writeFile(testFile, 'a\r\nb\r\n', 'utf-8');
+
+            const result = await fileSystemService.readFile(testFile);
+
+            expect(result.content).toBe('a\r\nb\r\n');
+            expect(result.lines).toBe(2);
+            expect(result.truncated).toBe(false);
+        });
+
+        it('preserves exact separators for paginated CRLF reads', async () => {
+            const fileSystemService = new FileSystemService(
+                {
+                    allowedPaths: [tempDir],
+                    blockedPaths: [],
+                    blockedExtensions: [],
+                    maxFileSize: 10 * 1024 * 1024,
+                    workingDirectory: tempDir,
+                    enableBackups: false,
+                    backupRetentionDays: 7,
+                },
+                mockLogger
+            );
+            await fileSystemService.initialize();
+
+            const testFile = path.join(tempDir, 'crlf-paged.txt');
+            await fs.writeFile(testFile, 'a\r\nb\r\nc\r\n', 'utf-8');
+
+            const result = await fileSystemService.readFile(testFile, {
+                offset: 2,
+                limit: 1,
+            });
+
+            expect(result.content).toBe('b\r\n');
+            expect(result.lines).toBe(1);
+            expect(result.truncated).toBe(true);
+            expect(result.startLine).toBe(2);
+            expect(result.nextOffset).toBe(3);
+        });
+    });
+
+    describe('Path Discovery', () => {
+        it('finds likely file and directory matches from path fragments', async () => {
+            const fileSystemService = new FileSystemService(
+                {
+                    allowedPaths: [tempDir],
+                    blockedPaths: [],
+                    blockedExtensions: [],
+                    maxFileSize: 10 * 1024 * 1024,
+                    workingDirectory: tempDir,
+                    enableBackups: false,
+                    backupRetentionDays: 7,
+                },
+                mockLogger
+            );
+            await fileSystemService.initialize();
+
+            const featureDir = path.join(tempDir, 'src', 'feature-area');
+            const targetFile = path.join(featureDir, 'target-service.ts');
+            await fs.mkdir(featureDir, { recursive: true });
+            await fs.writeFile(targetFile, 'export const value = 1;\n');
+
+            const fileResult = await fileSystemService.findPaths('target service');
+            expect(
+                fileResult.matches.some(
+                    (match) => match.path === targetFile && match.pathType === 'file'
+                )
+            ).toBe(true);
+
+            const directoryResult = await fileSystemService.findPaths('feature-area', {
+                pathType: 'directory',
+            });
+            expect(
+                directoryResult.matches.some(
+                    (match) => match.path === featureDir && match.pathType === 'directory'
+                )
+            ).toBe(true);
+        });
+
+        it('returns empty directories when searching for directory paths', async () => {
+            const fileSystemService = new FileSystemService(
+                {
+                    allowedPaths: [tempDir],
+                    blockedPaths: [],
+                    blockedExtensions: [],
+                    maxFileSize: 10 * 1024 * 1024,
+                    workingDirectory: tempDir,
+                    enableBackups: false,
+                    backupRetentionDays: 7,
+                },
+                mockLogger
+            );
+            await fileSystemService.initialize();
+
+            const emptyDir = path.join(tempDir, 'src', 'empty-feature');
+            await fs.mkdir(emptyDir, { recursive: true });
+
+            const result = await fileSystemService.findPaths('empty feature', {
+                pathType: 'directory',
+            });
+
+            expect(
+                result.matches.some(
+                    (match) => match.path === emptyDir && match.pathType === 'directory'
+                )
+            ).toBe(true);
+        });
+    });
+
+    describe('Search Semantics', () => {
+        it('treats patterns as literal text by default and supports regex mode', async () => {
+            const fileSystemService = new FileSystemService(
+                {
+                    allowedPaths: [tempDir],
+                    blockedPaths: [],
+                    blockedExtensions: [],
+                    maxFileSize: 10 * 1024 * 1024,
+                    workingDirectory: tempDir,
+                    enableBackups: false,
+                    backupRetentionDays: 7,
+                },
+                mockLogger
+            );
+            await fileSystemService.initialize();
+
+            const testFile = path.join(tempDir, 'search.txt');
+            await fs.writeFile(testFile, 'foo.bar\nfooXbar\n');
+
+            const literalResult = await fileSystemService.searchContent('foo.bar');
+            expect(literalResult.matches).toHaveLength(1);
+            expect(literalResult.matches[0]?.line).toBe('foo.bar');
+
+            const regexResult = await fileSystemService.searchContent('foo.bar', {
+                literal: false,
+            });
+            expect(regexResult.matches).toHaveLength(2);
+        });
+
+        it('rejects unsafe regex patterns before invoking search backends', async () => {
+            const fileSystemService = new FileSystemService(
+                {
+                    allowedPaths: [tempDir],
+                    blockedPaths: [],
+                    blockedExtensions: [],
+                    maxFileSize: 10 * 1024 * 1024,
+                    workingDirectory: tempDir,
+                    enableBackups: false,
+                    backupRetentionDays: 7,
+                },
+                mockLogger
+            );
+            await fileSystemService.initialize();
+
+            const testFile = path.join(tempDir, 'unsafe-search.txt');
+            await fs.writeFile(testFile, 'aaaaaaaaaaaaaaaaaaaa\n');
+
+            await expect(
+                fileSystemService.searchContent('(a+)+$', {
+                    literal: false,
+                })
+            ).rejects.toThrow(/catastrophic backtracking|Invalid pattern/i);
+        });
     });
 
     describe('Backup Behavior', () => {
@@ -413,6 +621,33 @@ describe('FileSystemService', () => {
 
                 expect(result.success).toBe(true);
                 expect(result.backupPath).toBeDefined();
+            });
+
+            it('preserves original line endings and final newline when editing', async () => {
+                const fileSystemService = new FileSystemService(
+                    {
+                        allowedPaths: [tempDir],
+                        blockedPaths: [],
+                        blockedExtensions: [],
+                        maxFileSize: 10 * 1024 * 1024,
+                        workingDirectory: tempDir,
+                        enableBackups: false,
+                        backupRetentionDays: 7,
+                    },
+                    mockLogger
+                );
+                await fileSystemService.initialize();
+
+                const testFile = path.join(tempDir, 'crlf-edit.txt');
+                await fs.writeFile(testFile, 'a\r\nb\r\n', 'utf-8');
+
+                await fileSystemService.editFile(testFile, {
+                    oldString: 'a',
+                    newString: 'A',
+                });
+
+                const updatedContent = await fs.readFile(testFile, 'utf-8');
+                expect(updatedContent).toBe('A\r\nb\r\n');
             });
         });
     });
