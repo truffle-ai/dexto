@@ -1973,8 +1973,9 @@ export class DextoAgent {
     }
 
     /**
-     * Resets the conversation history for a specific session.
-     * Keeps the session alive but the conversation history is cleared.
+     * Resets the conversation and session-scoped interaction state for a specific session.
+     * Keeps the session alive, but clears persisted mid-session state such as queued follow-ups,
+     * approval memory, tool preferences, and session-level LLM overrides.
      * @param sessionId Session ID (required)
      */
     public async resetConversation(sessionId: string): Promise<void> {

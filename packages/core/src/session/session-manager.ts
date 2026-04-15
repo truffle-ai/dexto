@@ -700,7 +700,7 @@ export class SessionManager {
     }
 
     /**
-     * Resets the conversation history for a session while keeping the session alive.
+     * Resets conversation and session-scoped interaction state while keeping the session alive.
      *
      * @param sessionId The session ID to reset
      * @throws Error if session doesn't exist
