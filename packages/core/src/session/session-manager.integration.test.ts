@@ -382,107 +382,124 @@ describe('Session Integration: Core-owned Interaction State Persistence', () => 
     });
 
     test('restores queued messages, session overrides, approvals, and tool preferences after agent restart', async () => {
-        const sharedStorage = {
-            blob: createInMemoryBlobStore(),
-            cache: createInMemoryCache(),
-            database: createInMemoryDatabase(),
-        };
-        const sessionId = 'persisted-interaction-session';
-        const approvedDirectory = path.join(os.tmpdir(), 'dexto-persisted-approval');
+        const originalOpenAiApiKey = process.env.OPENAI_API_KEY;
+        process.env.OPENAI_API_KEY = 'test-key-123';
 
-        const agent1 = await createAgentWithSharedStorage(
-            'interaction-state-agent-1',
-            sharedStorage
-        );
-        await agent1.createSession(sessionId);
-        await agent1.switchLLM({ model: 'gpt-5' }, sessionId);
-        await agent1.queueMessage(sessionId, {
-            content: [{ type: 'text', text: 'resume with plan B' }],
-            metadata: { source: 'integration-test' },
-        });
-        await agent1.setSessionAutoApproveTools(sessionId, ['allowed_tool']);
-        await agent1.setSessionDisabledTools(sessionId, ['disabled_tool']);
-        await agent1.services.approvalManager.addPattern('bash_exec', 'git *', sessionId);
-        await agent1.services.approvalManager.addApprovedDirectory(
-            approvedDirectory,
-            'session',
-            sessionId
-        );
+        try {
+            const sharedStorage = {
+                blob: createInMemoryBlobStore(),
+                cache: createInMemoryCache(),
+                database: createInMemoryDatabase(),
+            };
+            const sessionId = 'persisted-interaction-session';
+            const approvedDirectory = path.join(os.tmpdir(), 'dexto-persisted-approval');
 
-        const persistedSession = await agent1.services.storageManager
-            .getDatabase()
-            .get<SessionData>(`session:${sessionId}`);
-        expect(persistedSession?.llmOverride).toEqual(
-            expect.objectContaining({
-                provider: 'openai',
-                model: 'gpt-5',
-            })
-        );
-
-        const persistedQueue = await agent1.services.storageManager
-            .getDatabase()
-            .get<
-                Array<{ content: Array<{ type: string; text?: string }> }>
-            >(`session-message-queue:${sessionId}`);
-        expect(persistedQueue).toHaveLength(1);
-        expect(persistedQueue?.[0]?.content).toEqual([
-            { type: 'text', text: 'resume with plan B' },
-        ]);
-
-        expect(
-            await agent1.services.storageManager
-                .getDatabase()
-                .get(`session-tool-preferences:${sessionId}`)
-        ).toEqual({
-            userAutoApproveTools: ['allowed_tool'],
-            disabledTools: ['disabled_tool'],
-        });
-
-        const persistedApprovals = await agent1.services.storageManager.getDatabase().get<{
-            toolPatterns?: Record<string, string[]>;
-            approvedDirectories?: Array<{ path: string; type: string }>;
-        }>(`session-approvals:${sessionId}`);
-        expect(persistedApprovals?.toolPatterns).toEqual({
-            bash_exec: ['git *'],
-        });
-        expect(
-            persistedApprovals?.approvedDirectories?.some(
-                (entry) =>
-                    entry.type === 'session' &&
-                    entry.path.endsWith(path.normalize('dexto-persisted-approval'))
-            )
-        ).toBe(true);
-
-        const agent2 = await createAgentWithSharedStorage(
-            'interaction-state-agent-2',
-            sharedStorage
-        );
-
-        expect(agent2.services.stateManager.getLLMConfig(sessionId).model).toBe('gpt-5-mini');
-
-        const restoredSession = await agent2.getSession(sessionId);
-        expect(restoredSession).toBeDefined();
-        expect(agent2.services.stateManager.getLLMConfig(sessionId).model).toBe('gpt-5');
-
-        const queuedMessages = await agent2.getQueuedMessages(sessionId);
-        expect(queuedMessages).toHaveLength(1);
-        expect(queuedMessages[0]?.content).toEqual([{ type: 'text', text: 'resume with plan B' }]);
-
-        expect(await agent2.getSessionAutoApproveTools(sessionId)).toEqual(['allowed_tool']);
-
-        const enabledTools = await agent2.getEnabledTools(sessionId);
-        expect(Object.keys(enabledTools)).toContain('allowed_tool');
-        expect(Object.keys(enabledTools)).not.toContain('disabled_tool');
-
-        expect(
-            agent2.services.approvalManager.matchesPattern('bash_exec', 'git status *', sessionId)
-        ).toBe(true);
-        expect(
-            agent2.services.approvalManager.isDirectorySessionApproved(
-                path.join(approvedDirectory, 'file.ts'),
+            const agent1 = await createAgentWithSharedStorage(
+                'interaction-state-agent-1',
+                sharedStorage
+            );
+            await agent1.createSession(sessionId);
+            await agent1.switchLLM({ model: 'gpt-5' }, sessionId);
+            await agent1.queueMessage(sessionId, {
+                content: [{ type: 'text', text: 'resume with plan B' }],
+                metadata: { source: 'integration-test' },
+            });
+            await agent1.setSessionAutoApproveTools(sessionId, ['allowed_tool']);
+            await agent1.setSessionDisabledTools(sessionId, ['disabled_tool']);
+            await agent1.services.approvalManager.addPattern('bash_exec', 'git *', sessionId);
+            await agent1.services.approvalManager.addApprovedDirectory(
+                approvedDirectory,
+                'session',
                 sessionId
-            )
-        ).toBe(true);
+            );
+
+            const persistedSession = await agent1.services.storageManager
+                .getDatabase()
+                .get<SessionData>(`session:${sessionId}`);
+            expect(persistedSession?.llmOverride).toEqual(
+                expect.objectContaining({
+                    provider: 'openai',
+                    model: 'gpt-5',
+                })
+            );
+
+            const persistedQueue = await agent1.services.storageManager
+                .getDatabase()
+                .get<
+                    Array<{ content: Array<{ type: string; text?: string }> }>
+                >(`session-message-queue:${sessionId}`);
+            expect(persistedQueue).toHaveLength(1);
+            expect(persistedQueue?.[0]?.content).toEqual([
+                { type: 'text', text: 'resume with plan B' },
+            ]);
+
+            expect(
+                await agent1.services.storageManager
+                    .getDatabase()
+                    .get(`session-tool-preferences:${sessionId}`)
+            ).toEqual({
+                userAutoApproveTools: ['allowed_tool'],
+                disabledTools: ['disabled_tool'],
+            });
+
+            const persistedApprovals = await agent1.services.storageManager.getDatabase().get<{
+                toolPatterns?: Record<string, string[]>;
+                approvedDirectories?: Array<{ path: string; type: string }>;
+            }>(`session-approvals:${sessionId}`);
+            expect(persistedApprovals?.toolPatterns).toEqual({
+                bash_exec: ['git *'],
+            });
+            expect(
+                persistedApprovals?.approvedDirectories?.some(
+                    (entry) =>
+                        entry.type === 'session' &&
+                        entry.path.endsWith(path.normalize('dexto-persisted-approval'))
+                )
+            ).toBe(true);
+
+            const agent2 = await createAgentWithSharedStorage(
+                'interaction-state-agent-2',
+                sharedStorage
+            );
+
+            expect(agent2.services.stateManager.getLLMConfig(sessionId).model).toBe('gpt-5-mini');
+
+            const restoredSession = await agent2.getSession(sessionId);
+            expect(restoredSession).toBeDefined();
+            expect(agent2.services.stateManager.getLLMConfig(sessionId).model).toBe('gpt-5');
+
+            const queuedMessages = await agent2.getQueuedMessages(sessionId);
+            expect(queuedMessages).toHaveLength(1);
+            expect(queuedMessages[0]?.content).toEqual([
+                { type: 'text', text: 'resume with plan B' },
+            ]);
+
+            expect(await agent2.getSessionAutoApproveTools(sessionId)).toEqual(['allowed_tool']);
+
+            const enabledTools = await agent2.getEnabledTools(sessionId);
+            expect(Object.keys(enabledTools)).toContain('allowed_tool');
+            expect(Object.keys(enabledTools)).not.toContain('disabled_tool');
+
+            expect(
+                agent2.services.approvalManager.matchesPattern(
+                    'bash_exec',
+                    'git status *',
+                    sessionId
+                )
+            ).toBe(true);
+            expect(
+                agent2.services.approvalManager.isDirectorySessionApproved(
+                    path.join(approvedDirectory, 'file.ts'),
+                    sessionId
+                )
+            ).toBe(true);
+        } finally {
+            if (originalOpenAiApiKey === undefined) {
+                delete process.env.OPENAI_API_KEY;
+            } else {
+                process.env.OPENAI_API_KEY = originalOpenAiApiKey;
+            }
+        }
     });
 });
 
