@@ -46,6 +46,24 @@ export const fileSystemToolsFactory: ToolFactory<FileSystemToolsConfig> = {
             service.setWorkingDirectory(workingDirectory);
         };
 
+        const configureFileSystemService = (
+            context: ToolExecutionContext,
+            service: FileSystemService
+        ): FileSystemService => {
+            const approvalManager = context.services?.approval;
+            if (!approvalManager) {
+                throw ToolError.configInvalid(
+                    'filesystem-tools requires ToolExecutionContext.services.approval'
+                );
+            }
+
+            service.setDirectoryApprovalChecker((filePath: string) =>
+                approvalManager.isDirectoryApproved(filePath, context.sessionId)
+            );
+            applyWorkspace(context, service);
+            return service;
+        };
+
         const resolveInjectedService = (
             context: ToolExecutionContext
         ): FileSystemService | null => {
@@ -66,47 +84,18 @@ export const fileSystemToolsFactory: ToolFactory<FileSystemToolsConfig> = {
         ): Promise<FileSystemService> => {
             const injectedService = resolveInjectedService(context);
             if (injectedService) {
-                const approvalManager = context.services?.approval;
-                if (!approvalManager) {
-                    throw ToolError.configInvalid(
-                        'filesystem-tools requires ToolExecutionContext.services.approval'
-                    );
-                }
-                injectedService.setDirectoryApprovalChecker((filePath: string) =>
-                    approvalManager.isDirectoryApproved(filePath)
-                );
-                applyWorkspace(context, injectedService);
-                return injectedService;
+                return configureFileSystemService(context, injectedService);
             }
 
             if (fileSystemService) {
-                const approvalManager = context.services?.approval;
-                if (!approvalManager) {
-                    throw ToolError.configInvalid(
-                        'filesystem-tools requires ToolExecutionContext.services.approval'
-                    );
-                }
-                fileSystemService.setDirectoryApprovalChecker((filePath: string) =>
-                    approvalManager.isDirectoryApproved(filePath)
-                );
-                applyWorkspace(context, fileSystemService);
-                return fileSystemService;
+                return configureFileSystemService(context, fileSystemService);
             }
 
             const logger = context.logger;
 
             fileSystemService = new FileSystemService(fileSystemConfig, logger);
 
-            const approvalManager = context.services?.approval;
-            if (!approvalManager) {
-                throw ToolError.configInvalid(
-                    'filesystem-tools requires ToolExecutionContext.services.approval'
-                );
-            }
-            fileSystemService.setDirectoryApprovalChecker((filePath: string) =>
-                approvalManager.isDirectoryApproved(filePath)
-            );
-            applyWorkspace(context, fileSystemService);
+            configureFileSystemService(context, fileSystemService);
 
             fileSystemService.initialize().catch((error) => {
                 const message = error instanceof Error ? error.message : String(error);

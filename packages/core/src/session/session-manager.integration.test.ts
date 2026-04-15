@@ -154,6 +154,21 @@ describe('Session Integration: Chat History Preservation', () => {
         expect(finalHistory![4]).toEqual(newMessage);
     });
 
+    test('session LLM overrides stay visible after ending a session', async () => {
+        const sessionId = 'override-visible-after-end';
+
+        await agent.createSession(sessionId);
+        await agent.switchLLM({ model: 'gpt-5' }, sessionId);
+
+        expect(agent.hasSessionLLMOverride(sessionId)).toBe(true);
+        expect(agent.getCurrentLLMConfig(sessionId).model).toBe('gpt-5');
+
+        await agent.endSession(sessionId);
+
+        expect(agent.hasSessionLLMOverride(sessionId)).toBe(true);
+        expect(agent.getCurrentLLMConfig(sessionId).model).toBe('gpt-5');
+    });
+
     test('full integration: explicit session deletion removes everything', async () => {
         const sessionId = 'deletion-test-session';
 
@@ -500,6 +515,69 @@ describe('Session Integration: Core-owned Interaction State Persistence', () => 
                 process.env.OPENAI_API_KEY = originalOpenAiApiKey;
             }
         }
+    });
+
+    test('drops persisted interaction state when startup cleanup purges an expired session', async () => {
+        const sharedStorage = {
+            blob: createInMemoryBlobStore(),
+            cache: createInMemoryCache(),
+            database: createInMemoryDatabase(),
+        };
+        const sessionId = 'expired-persisted-interaction-session';
+        const approvedDirectory = path.join(os.tmpdir(), 'dexto-expired-persisted-approval');
+
+        const agent1 = await createAgentWithSharedStorage('expired-state-agent-1', sharedStorage);
+        await agent1.createSession(sessionId);
+        await agent1.switchLLM({ model: 'gpt-5' }, sessionId);
+        await agent1.queueMessage(sessionId, {
+            content: [{ type: 'text', text: 'stale queued follow-up' }],
+        });
+        await agent1.setSessionAutoApproveTools(sessionId, ['allowed_tool']);
+        await agent1.setSessionDisabledTools(sessionId, ['disabled_tool']);
+        await agent1.services.approvalManager.addPattern('bash_exec', 'git *', sessionId);
+        await agent1.services.approvalManager.addApprovedDirectory(
+            approvedDirectory,
+            'session',
+            sessionId
+        );
+
+        const database = agent1.services.storageManager.getDatabase();
+        const expiredSession = await database.get<SessionData>(`session:${sessionId}`);
+        if (!expiredSession) {
+            throw new Error(`Expected session '${sessionId}' to exist`);
+        }
+
+        expiredSession.lastActivity = Date.now() - 120000;
+        await database.set(`session:${sessionId}`, expiredSession);
+        await agent1.stop();
+
+        const agent2 = await createAgentWithSharedStorage('expired-state-agent-2', sharedStorage);
+
+        expect(await database.get(`session:${sessionId}`)).toBeUndefined();
+        expect(await database.get(`session-message-queue:${sessionId}`)).toBeUndefined();
+        expect(await database.get(`session-tool-preferences:${sessionId}`)).toBeUndefined();
+        expect(await database.get(`session-approvals:${sessionId}`)).toBeUndefined();
+
+        await agent2.createSession(sessionId);
+
+        expect(agent2.hasSessionLLMOverride(sessionId)).toBe(false);
+        expect(agent2.getCurrentLLMConfig(sessionId).model).toBe('gpt-5-mini');
+        expect(await agent2.getQueuedMessages(sessionId)).toEqual([]);
+        expect(await agent2.getSessionAutoApproveTools(sessionId)).toEqual([]);
+
+        const enabledTools = await agent2.getEnabledTools(sessionId);
+        expect(Object.keys(enabledTools)).toContain('allowed_tool');
+        expect(Object.keys(enabledTools)).toContain('disabled_tool');
+
+        expect(
+            agent2.services.approvalManager.matchesPattern('bash_exec', 'git status *', sessionId)
+        ).toBe(false);
+        expect(
+            agent2.services.approvalManager.isDirectorySessionApproved(
+                path.join(approvedDirectory, 'file.ts'),
+                sessionId
+            )
+        ).toBe(false);
     });
 });
 

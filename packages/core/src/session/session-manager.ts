@@ -225,8 +225,13 @@ export class SessionManager {
                         // Session is still valid, but don't create ChatSession until requested
                         this.logger.debug(`Session ${sessionId} restored from storage`);
                     } else {
-                        // Session expired, clean it up
-                        await this.services.storageManager.getDatabase().delete(sessionKey);
+                        // Session expired, purge the session record plus any persisted
+                        // interaction state keyed off the same session ID.
+                        await Promise.all([
+                            this.services.storageManager.getDatabase().delete(sessionKey),
+                            this.services.storageManager.getCache().delete(sessionKey),
+                            this.deleteSessionInteractionState(sessionId),
+                        ]);
                         this.logger.debug(`Expired session ${sessionId} cleaned up during restore`);
                     }
                 }
@@ -686,12 +691,7 @@ export class SessionManager {
         const sessionKey = `session:${sessionId}`;
         await this.services.storageManager.getDatabase().delete(sessionKey);
         await this.services.storageManager.getCache().delete(sessionKey);
-        await Promise.all([
-            this.services.toolManager.deleteSessionState(sessionId),
-            this.services.approvalManager.deleteSessionState(sessionId),
-            this.services.messageQueueStore.delete(sessionId),
-        ]);
-        this.services.stateManager.clearSessionOverride(sessionId);
+        await this.deleteSessionInteractionState(sessionId);
 
         const messagesKey = `messages:${sessionId}`;
         await this.services.storageManager.getDatabase().delete(messagesKey);
@@ -1267,10 +1267,18 @@ export class SessionManager {
         });
     }
 
+    private async deleteSessionInteractionState(sessionId: string): Promise<void> {
+        this.services.stateManager.clearSessionOverride(sessionId);
+        await Promise.all([
+            this.services.toolManager.deleteSessionState(sessionId),
+            this.services.approvalManager.deleteSessionState(sessionId),
+            this.services.messageQueueStore.delete(sessionId),
+        ]);
+    }
+
     private evictSessionInteractionState(sessionId: string): void {
         this.services.toolManager.evictSessionState(sessionId);
         this.services.approvalManager.evictSessionState(sessionId);
-        this.services.stateManager.clearSessionOverride(sessionId);
     }
 
     private async runWithSessionDataLock<T>(

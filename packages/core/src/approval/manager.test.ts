@@ -330,6 +330,38 @@ describe('ApprovalManager', () => {
                 expect((error as Error).message).toContain('agent configuration');
             }
         });
+
+        it('should treat approved elicitations without formData as an empty object', async () => {
+            const manager = createApprovalManager(
+                {
+                    permissions: {
+                        mode: 'auto-approve',
+                        timeout: 120000,
+                    },
+                    elicitation: {
+                        enabled: true,
+                        timeout: 120000,
+                    },
+                },
+                mockLogger
+            );
+
+            manager.setHandler(async (request) => ({
+                approvalId: request.approvalId,
+                status: ApprovalStatus.APPROVED,
+            }));
+
+            await expect(
+                manager.getElicitationData({
+                    schema: {
+                        type: 'object' as const,
+                        properties: {},
+                    },
+                    prompt: 'Anything to add?',
+                    serverName: 'Test Server',
+                })
+            ).resolves.toEqual({});
+        });
     });
 
     describe('Timeout Configuration', () => {

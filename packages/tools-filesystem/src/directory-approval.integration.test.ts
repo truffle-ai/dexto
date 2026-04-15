@@ -17,6 +17,7 @@ import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import {
     ApprovalManager,
+    ApprovalStatus,
     DextoRuntimeError,
     type Logger,
     type ToolExecutionContext,
@@ -25,6 +26,7 @@ import { FileSystemService } from './filesystem-service.js';
 import { createReadFileTool } from './read-file-tool.js';
 import { createWriteFileTool } from './write-file-tool.js';
 import { createEditFileTool } from './edit-file-tool.js';
+import { fileSystemToolsFactory } from './tool-factory.js';
 
 type ToolServices = NonNullable<ToolExecutionContext['services']>;
 type SessionApprovalStore = ConstructorParameters<typeof ApprovalManager>[2];
@@ -83,9 +85,14 @@ function createInMemorySessionApprovalStore(): SessionApprovalStore {
     } as SessionApprovalStore;
 }
 
-function createToolContext(logger: Logger, approval: ApprovalManager): ToolExecutionContext {
+function createToolContext(
+    logger: Logger,
+    approval: ApprovalManager,
+    sessionId?: string
+): ToolExecutionContext {
     return {
         logger,
+        ...(sessionId !== undefined ? { sessionId } : {}),
         services: {
             approval,
             search: {} as unknown as ToolServices['search'],
@@ -190,7 +197,7 @@ describe('Directory Approval Integration Tests', () => {
         });
 
         it('should return null when external path is session-approved', async () => {
-            approvalManager.addApprovedDirectory('/external/project', 'session');
+            await approvalManager.addApprovedDirectory('/external/project', 'session');
 
             const tool = createReadFileTool(getFileSystemService);
             const overrideFn = tool.approval?.override;
@@ -205,7 +212,7 @@ describe('Directory Approval Integration Tests', () => {
         });
 
         it('should still return metadata when external path is once-approved (prompt again)', async () => {
-            approvalManager.addApprovedDirectory('/external/project', 'once');
+            await approvalManager.addApprovedDirectory('/external/project', 'once');
 
             const tool = createReadFileTool(getFileSystemService);
             const overrideFn = tool.approval?.override;
@@ -217,6 +224,47 @@ describe('Directory Approval Integration Tests', () => {
                 toolContext
             );
             expect(metadata).not.toBeNull();
+        });
+
+        it('should remember directory approvals only for the granting session', async () => {
+            const tool = createReadFileTool(getFileSystemService);
+            const overrideFn = tool.approval?.override;
+            const onGrantedFn = tool.approval?.onGranted;
+            expect(overrideFn).toBeDefined();
+            expect(onGrantedFn).toBeDefined();
+
+            const externalPath = '/external/project/file.ts';
+            const sessionAContext = createToolContext(mockLogger, approvalManager, 'session-a');
+            const sessionBContext = createToolContext(mockLogger, approvalManager, 'session-b');
+
+            const approvalRequest = await overrideFn!(
+                tool.inputSchema.parse({ file_path: externalPath }),
+                sessionAContext
+            );
+            expect(approvalRequest).not.toBeNull();
+
+            await onGrantedFn!(
+                {
+                    approvalId: 'approval-1',
+                    status: ApprovalStatus.APPROVED,
+                    data: { rememberDirectory: true },
+                },
+                sessionAContext,
+                approvalRequest!
+            );
+
+            expect(
+                await overrideFn!(
+                    tool.inputSchema.parse({ file_path: externalPath }),
+                    sessionAContext
+                )
+            ).toBeNull();
+            expect(
+                await overrideFn!(
+                    tool.inputSchema.parse({ file_path: externalPath }),
+                    sessionBContext
+                )
+            ).not.toBeNull();
         });
     });
 
@@ -277,7 +325,7 @@ describe('Directory Approval Integration Tests', () => {
             const tool = createReadFileTool(getFileSystemService);
             const overrideFn = tool.approval?.override;
             expect(overrideFn).toBeDefined();
-            approvalManager.addApprovedDirectory('/external/project', 'session');
+            await approvalManager.addApprovedDirectory('/external/project', 'session');
 
             const metadata1 = await overrideFn!(
                 tool.inputSchema.parse({ file_path: '/external/project/file.ts' }),
@@ -296,7 +344,7 @@ describe('Directory Approval Integration Tests', () => {
             const tool = createReadFileTool(getFileSystemService);
             const overrideFn = tool.approval?.override;
             expect(overrideFn).toBeDefined();
-            approvalManager.addApprovedDirectory('/external/sub', 'session');
+            await approvalManager.addApprovedDirectory('/external/sub', 'session');
 
             const metadata1 = await overrideFn!(
                 tool.inputSchema.parse({ file_path: '/external/sub/file.ts' }),
@@ -309,6 +357,61 @@ describe('Directory Approval Integration Tests', () => {
                 toolContext
             );
             expect(metadata2).not.toBeNull();
+        });
+    });
+
+    describe('Execution approval scoping', () => {
+        it('should allow execution only for the session that holds the approved directory', async () => {
+            const tools = fileSystemToolsFactory.create({
+                type: 'filesystem-tools',
+                allowedPaths: [tempDir],
+                blockedPaths: [],
+                blockedExtensions: [],
+                maxFileSize: 10 * 1024 * 1024,
+                workingDirectory: tempDir,
+                enableBackups: false,
+                backupRetentionDays: 7,
+            });
+            const writeTool = tools.find((tool) => tool.id === 'write_file');
+            expect(writeTool).toBeDefined();
+
+            const externalDir = await fs.mkdtemp(path.join(os.tmpdir(), 'dexto-fs-external-'));
+            try {
+                const externalFile = path.join(externalDir, 'approved.txt');
+
+                await approvalManager.addApprovedDirectory(externalDir, 'once', 'session-a');
+
+                await expect(
+                    writeTool!.execute!(
+                        writeTool!.inputSchema.parse({
+                            file_path: externalFile,
+                            content: 'session-scoped write',
+                        }),
+                        createToolContext(mockLogger, approvalManager, 'session-a')
+                    )
+                ).resolves.toEqual(
+                    expect.objectContaining({
+                        success: true,
+                        path: path.resolve(externalFile),
+                    })
+                );
+
+                await expect(fs.readFile(externalFile, 'utf8')).resolves.toBe(
+                    'session-scoped write'
+                );
+
+                await expect(
+                    writeTool!.execute!(
+                        writeTool!.inputSchema.parse({
+                            file_path: path.join(externalDir, 'blocked.txt'),
+                            content: 'should fail',
+                        }),
+                        createToolContext(mockLogger, approvalManager, 'session-b')
+                    )
+                ).rejects.toBeInstanceOf(DextoRuntimeError);
+            } finally {
+                await fs.rm(externalDir, { recursive: true, force: true });
+            }
         });
     });
 

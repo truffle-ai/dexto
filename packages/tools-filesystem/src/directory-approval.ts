@@ -63,7 +63,7 @@ export function createDirectoryAccessApprovalHandlers<const TSchema extends ZodT
                         `${options.toolName} requires ToolExecutionContext.services.approval`
                     );
                 }
-                if (approvalManager.isDirectorySessionApproved(paths.path)) {
+                if (approvalManager.isDirectorySessionApproved(paths.path, context.sessionId)) {
                     return null;
                 }
 
@@ -96,9 +96,10 @@ export function createDirectoryAccessApprovalHandlers<const TSchema extends ZodT
                     return;
                 }
 
-                approvalManager.addApprovedDirectory(
+                await approvalManager.addApprovedDirectory(
                     metadata.parentDir,
-                    rememberDirectory ? 'session' : 'once'
+                    rememberDirectory ? 'session' : 'once',
+                    context.sessionId
                 );
             },
         },

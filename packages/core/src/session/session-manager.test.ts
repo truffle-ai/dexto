@@ -291,6 +291,17 @@ describe('SessionManager', () => {
             expect(mockStorageManager.database.delete).toHaveBeenCalledWith(
                 'session:expired-session'
             );
+            expect(mockStorageManager.cache.delete).toHaveBeenCalledWith('session:expired-session');
+            expect(mockServices.toolManager.deleteSessionState).toHaveBeenCalledWith(
+                'expired-session'
+            );
+            expect(mockServices.approvalManager.deleteSessionState).toHaveBeenCalledWith(
+                'expired-session'
+            );
+            expect(mockServices.messageQueueStore.delete).toHaveBeenCalledWith('expired-session');
+            expect(mockServices.stateManager.clearSessionOverride).toHaveBeenCalledWith(
+                'expired-session'
+            );
         });
     });
 
@@ -1118,7 +1129,9 @@ describe('SessionManager', () => {
 
             expect(mockServices.toolManager.evictSessionState).toHaveBeenCalledWith(sessionId);
             expect(mockServices.approvalManager.evictSessionState).toHaveBeenCalledWith(sessionId);
-            expect(mockServices.stateManager.clearSessionOverride).toHaveBeenCalledWith(sessionId);
+            expect(mockServices.stateManager.clearSessionOverride).not.toHaveBeenCalledWith(
+                sessionId
+            );
         });
 
         test('should handle deleting non-existent sessions gracefully', async () => {
@@ -1537,7 +1550,9 @@ describe('SessionManager', () => {
             expect(sessionManager['sessions'].has(sessionId)).toBe(false);
             expect(mockServices.toolManager.evictSessionState).toHaveBeenCalledWith(sessionId);
             expect(mockServices.approvalManager.evictSessionState).toHaveBeenCalledWith(sessionId);
-            expect(mockServices.stateManager.clearSessionOverride).toHaveBeenCalledWith(sessionId);
+            expect(mockServices.stateManager.clearSessionOverride).not.toHaveBeenCalledWith(
+                sessionId
+            );
 
             // But session should still exist in storage (not deleted)
             expect(mockStorageManager.database.delete).not.toHaveBeenCalledWith(sessionKey);

@@ -614,6 +614,15 @@ export class ApprovalManager {
             return (response.data as { formData: Record<string, unknown> }).formData;
         }
 
+        if (
+            response.data === undefined ||
+            (typeof response.data === 'object' &&
+                response.data !== null &&
+                !('formData' in response.data))
+        ) {
+            return {};
+        }
+
         throw ApprovalError.invalidResponse('Approved elicitation response is missing formData', {
             approvalId: response.approvalId,
             type: ApprovalType.ELICITATION,
