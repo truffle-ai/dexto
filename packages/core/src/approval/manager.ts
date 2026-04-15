@@ -25,6 +25,11 @@ import {
 
 const GLOBAL_APPROVAL_SCOPE = '__global__';
 
+type ApprovalScopeState = {
+    toolPatterns: Map<string, Set<string>>;
+    approvedDirectories: Map<string, 'session' | 'once'>;
+};
+
 function tryRealpathSync(targetPath: string): string | null {
     try {
         return realpathSync(targetPath);
@@ -106,23 +111,7 @@ export class ApprovalManager {
     private logger: Logger;
     private readonly loadedScopes = new Set<string>();
     private readonly scopeLocks = new Map<string, Promise<void>>();
-
-    /**
-     * Tool approval patterns, keyed by tool id.
-     *
-     * Patterns use simple glob syntax (e.g. "git *", "npm install *") and are matched
-     * using pattern-to-pattern covering (see {@link patternCovers}).
-     */
-    private toolPatterns: Map<string, Map<string, Set<string>>> = new Map();
-
-    /**
-     * Directories approved for file access for the current session.
-     * Stores normalized absolute paths mapped to their approval type:
-     * - 'session': No directory prompt, follows tool config (working dir + user session-approved)
-     * - 'once': Prompts each time, but tool can execute
-     * Cleared when session ends.
-     */
-    private approvedDirectories: Map<string, Map<string, 'session' | 'once'>> = new Map();
+    private readonly scopes = new Map<string, ApprovalScopeState>();
 
     constructor(
         config: ApprovalManagerConfig,
@@ -145,28 +134,23 @@ export class ApprovalManager {
         return sessionId ?? 'global';
     }
 
-    private getOrCreateToolPatternScope(scopeKey: string): Map<string, Set<string>> {
-        const existing = this.toolPatterns.get(scopeKey);
+    private createEmptyScopeState(): ApprovalScopeState {
+        return {
+            toolPatterns: new Map(),
+            approvedDirectories: new Map(),
+        };
+    }
+
+    private getOrCreateScope(scopeKey: string): ApprovalScopeState {
+        const existing = this.scopes.get(scopeKey);
         if (existing) return existing;
-        const created = new Map<string, Set<string>>();
-        this.toolPatterns.set(scopeKey, created);
+        const created = this.createEmptyScopeState();
+        this.scopes.set(scopeKey, created);
         return created;
     }
 
-    private getOrCreateApprovedDirectoryScope(scopeKey: string): Map<string, 'session' | 'once'> {
-        const existing = this.approvedDirectories.get(scopeKey);
-        if (existing) return existing;
-        const created = new Map<string, 'session' | 'once'>();
-        this.approvedDirectories.set(scopeKey, created);
-        return created;
-    }
-
-    private getToolPatternScope(scopeKey: string): Map<string, Set<string>> {
-        return this.toolPatterns.get(scopeKey) ?? new Map<string, Set<string>>();
-    }
-
-    private getApprovedDirectoryScope(scopeKey: string): Map<string, 'session' | 'once'> {
-        return this.approvedDirectories.get(scopeKey) ?? new Map<string, 'session' | 'once'>();
+    private getScope(scopeKey: string): ApprovalScopeState {
+        return this.scopes.get(scopeKey) ?? this.createEmptyScopeState();
     }
 
     private async runWithScopeLock<T>(scopeKey: string, fn: () => Promise<T>): Promise<T> {
@@ -190,14 +174,14 @@ export class ApprovalManager {
 
     private snapshotToolPatterns(scopeKey: string): Record<string, string[]> {
         const snapshot: Record<string, string[]> = {};
-        for (const [toolName, patterns] of this.getToolPatternScope(scopeKey)) {
+        for (const [toolName, patterns] of this.getScope(scopeKey).toolPatterns) {
             snapshot[toolName] = Array.from(patterns);
         }
         return snapshot;
     }
 
     private snapshotApprovedDirectories(scopeKey: string): PersistedApprovedDirectory[] {
-        return Array.from(this.getApprovedDirectoryScope(scopeKey).entries()).map(
+        return Array.from(this.getScope(scopeKey).approvedDirectories.entries()).map(
             ([path, type]) => ({
                 path,
                 type,
@@ -221,17 +205,20 @@ export class ApprovalManager {
     private hydrateScope(sessionId: string | undefined, state: SessionApprovalState): void {
         const scopeKey = this.getScopeKey(sessionId);
 
-        const patternScope = new Map<string, Set<string>>();
+        const toolPatterns = new Map<string, Set<string>>();
         for (const [toolName, patterns] of Object.entries(state.toolPatterns)) {
-            patternScope.set(toolName, new Set(patterns));
+            toolPatterns.set(toolName, new Set(patterns));
         }
-        this.toolPatterns.set(scopeKey, patternScope);
 
-        const directoryScope = new Map<string, 'session' | 'once'>();
+        const approvedDirectories = new Map<string, 'session' | 'once'>();
         for (const entry of state.approvedDirectories) {
-            directoryScope.set(entry.path, entry.type);
+            approvedDirectories.set(entry.path, entry.type);
         }
-        this.approvedDirectories.set(scopeKey, directoryScope);
+
+        this.scopes.set(scopeKey, {
+            toolPatterns,
+            approvedDirectories,
+        });
     }
 
     async restoreSessionState(sessionId?: string): Promise<void> {
@@ -258,8 +245,7 @@ export class ApprovalManager {
 
     evictSessionState(sessionId?: string): void {
         const scopeKey = this.getScopeKey(sessionId);
-        this.toolPatterns.delete(scopeKey);
-        this.approvedDirectories.delete(scopeKey);
+        this.scopes.delete(scopeKey);
         this.loadedScopes.delete(scopeKey);
     }
 
@@ -273,7 +259,7 @@ export class ApprovalManager {
     // ==================== Pattern Methods ====================
 
     private getOrCreateToolPatternSet(toolName: string, scopeKey: string): Set<string> {
-        const scope = this.getOrCreateToolPatternScope(scopeKey);
+        const scope = this.getOrCreateScope(scopeKey).toolPatterns;
         const existing = scope.get(toolName);
         if (existing) return existing;
         const created = new Set<string>();
@@ -306,7 +292,7 @@ export class ApprovalManager {
      */
     matchesPattern(toolName: string, patternKey: string, sessionId?: string): boolean {
         const scopeKey = this.getScopeKey(sessionId);
-        const patterns = this.getToolPatternScope(scopeKey).get(toolName);
+        const patterns = this.getScope(scopeKey).toolPatterns.get(toolName);
         if (!patterns || patterns.size === 0) return false;
 
         for (const storedPattern of patterns) {
@@ -328,7 +314,7 @@ export class ApprovalManager {
         const scopeKey = this.getScopeKey(sessionId);
 
         await this.runWithScopeLock(scopeKey, async () => {
-            const scope = this.getOrCreateToolPatternScope(scopeKey);
+            const scope = this.getOrCreateScope(scopeKey).toolPatterns;
             if (toolName) {
                 const patterns = scope.get(toolName);
                 if (!patterns) return;
@@ -344,7 +330,7 @@ export class ApprovalManager {
             }
 
             const count = Array.from(scope.values()).reduce((sum, set) => sum + set.size, 0);
-            this.toolPatterns.set(scopeKey, new Map());
+            scope.clear();
             await this.persistScope(sessionId);
             if (count > 0) {
                 this.logger.debug(
@@ -359,7 +345,7 @@ export class ApprovalManager {
      */
     getToolPatterns(toolName: string, sessionId?: string): ReadonlySet<string> {
         const scopeKey = this.getScopeKey(sessionId);
-        return this.getToolPatternScope(scopeKey).get(toolName) ?? new Set<string>();
+        return this.getScope(scopeKey).toolPatterns.get(toolName) ?? new Set<string>();
     }
 
     /**
@@ -367,7 +353,7 @@ export class ApprovalManager {
      */
     getAllToolPatterns(sessionId?: string): ReadonlyMap<string, Set<string>> {
         const scopeKey = this.getScopeKey(sessionId);
-        return this.getToolPatternScope(scopeKey);
+        return this.getScope(scopeKey).toolPatterns;
     }
 
     // ==================== Directory Access Methods ====================
@@ -435,7 +421,7 @@ export class ApprovalManager {
 
         await this.runWithScopeLock(scopeKey, async () => {
             const keys = this.getDirectoryApprovalKeys(directory);
-            const directoryScope = this.getOrCreateApprovedDirectoryScope(scopeKey);
+            const directoryScope = this.getOrCreateScope(scopeKey).approvedDirectories;
 
             const existingTypes = keys
                 .map((key) => directoryScope.get(key))
@@ -483,7 +469,7 @@ export class ApprovalManager {
      */
     isDirectorySessionApproved(filePath: string, sessionId?: string): boolean {
         const scopeKey = this.getScopeKey(sessionId);
-        const directoryScope = this.getApprovedDirectoryScope(scopeKey);
+        const directoryScope = this.getScope(scopeKey).approvedDirectories;
         for (const normalized of this.getFileApprovalKeys(filePath)) {
             for (const [approvedDir, type] of directoryScope) {
                 // Only check 'session' type directories for prompting decisions
@@ -511,7 +497,7 @@ export class ApprovalManager {
      */
     isDirectoryApproved(filePath: string, sessionId?: string): boolean {
         const scopeKey = this.getScopeKey(sessionId);
-        const directoryScope = this.getApprovedDirectoryScope(scopeKey);
+        const directoryScope = this.getScope(scopeKey).approvedDirectories;
         for (const normalized of this.getFileApprovalKeys(filePath)) {
             for (const [approvedDir] of directoryScope) {
                 const relative = path.relative(approvedDir, normalized);
@@ -535,8 +521,9 @@ export class ApprovalManager {
         const scopeKey = this.getScopeKey(sessionId);
 
         await this.runWithScopeLock(scopeKey, async () => {
-            const count = this.getApprovedDirectoryScope(scopeKey).size;
-            this.approvedDirectories.set(scopeKey, new Map());
+            const scope = this.getOrCreateScope(scopeKey).approvedDirectories;
+            const count = scope.size;
+            scope.clear();
             await this.persistScope(sessionId);
             if (count > 0) {
                 this.logger.debug(
@@ -551,7 +538,7 @@ export class ApprovalManager {
      */
     getApprovedDirectories(sessionId?: string): ReadonlyMap<string, 'session' | 'once'> {
         const scopeKey = this.getScopeKey(sessionId);
-        return this.getApprovedDirectoryScope(scopeKey);
+        return this.getScope(scopeKey).approvedDirectories;
     }
 
     /**
