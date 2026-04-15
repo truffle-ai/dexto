@@ -2390,9 +2390,15 @@ export class DextoAgent {
         }
         const validatedUpdates = parseResult.data;
 
+        if (sessionId !== undefined && sessionId !== '*' && sessionId.trim() === '') {
+            throw AgentError.apiValidationError(
+                'sessionId must be a non-empty string when provided'
+            );
+        }
+
         // Get current config for the session
         const currentLLMConfig =
-            sessionId && sessionId !== '*'
+            sessionId !== undefined && sessionId !== '*'
                 ? this.stateManager.getRuntimeConfig(sessionId).llm
                 : this.stateManager.getRuntimeConfig().llm;
 
@@ -2436,13 +2442,12 @@ export class DextoAgent {
         // Switch LLM in session(s)
         if (sessionScope === '*') {
             await this.sessionManager.switchLLMForAllSessions(validatedConfig);
-        } else if (sessionScope) {
+        } else if (sessionScope !== undefined) {
             // Verify session exists before switching LLM
             const session = await this.sessionManager.getSession(sessionScope);
             if (!session) {
                 throw SessionError.notFound(sessionScope);
             }
-            this.stateManager.updateLLM(validatedConfig, sessionScope);
             await this.sessionManager.switchLLMForSpecificSession(validatedConfig, sessionScope);
         } else {
             // No sessionScope provided - this is a configuration-level switch only

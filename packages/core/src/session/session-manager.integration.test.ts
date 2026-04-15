@@ -579,6 +579,64 @@ describe('Session Integration: Core-owned Interaction State Persistence', () => 
             )
         ).toBe(false);
     });
+
+    test('newly created sessions do not inherit orphaned persisted interaction state', async () => {
+        const sharedStorage = {
+            blob: createInMemoryBlobStore(),
+            cache: createInMemoryCache(),
+            database: createInMemoryDatabase(),
+        };
+        const sessionId = 'orphaned-interaction-session';
+        const approvedDirectory = path.join(os.tmpdir(), 'dexto-orphaned-persisted-approval');
+
+        const agent1 = await createAgentWithSharedStorage('orphaned-state-agent-1', sharedStorage);
+        await agent1.createSession(sessionId);
+        await agent1.switchLLM({ model: 'gpt-5' }, sessionId);
+        await agent1.queueMessage(sessionId, {
+            content: [{ type: 'text', text: 'stale orphaned follow-up' }],
+        });
+        await agent1.setSessionAutoApproveTools(sessionId, ['allowed_tool']);
+        await agent1.setSessionDisabledTools(sessionId, ['disabled_tool']);
+        await agent1.services.approvalManager.addPattern('bash_exec', 'git *', sessionId);
+        await agent1.services.approvalManager.addApprovedDirectory(
+            approvedDirectory,
+            'session',
+            sessionId
+        );
+
+        await sharedStorage.database.delete(`session:${sessionId}`);
+        await agent1.stop();
+
+        const agent2 = await createAgentWithSharedStorage('orphaned-state-agent-2', sharedStorage);
+        await agent2.createSession(sessionId);
+
+        expect(agent2.hasSessionLLMOverride(sessionId)).toBe(false);
+        expect(agent2.getCurrentLLMConfig(sessionId).model).toBe('gpt-5-mini');
+        expect(await agent2.getQueuedMessages(sessionId)).toEqual([]);
+        expect(await agent2.getSessionAutoApproveTools(sessionId)).toEqual([]);
+
+        const enabledTools = await agent2.getEnabledTools(sessionId);
+        expect(Object.keys(enabledTools)).toContain('allowed_tool');
+        expect(Object.keys(enabledTools)).toContain('disabled_tool');
+
+        expect(
+            agent2.services.approvalManager.matchesPattern('bash_exec', 'git status *', sessionId)
+        ).toBe(false);
+        expect(
+            agent2.services.approvalManager.isDirectorySessionApproved(
+                path.join(approvedDirectory, 'file.ts'),
+                sessionId
+            )
+        ).toBe(false);
+
+        expect(
+            await sharedStorage.database.get(`session-message-queue:${sessionId}`)
+        ).toBeUndefined();
+        expect(
+            await sharedStorage.database.get(`session-tool-preferences:${sessionId}`)
+        ).toBeUndefined();
+        expect(await sharedStorage.database.get(`session-approvals:${sessionId}`)).toBeUndefined();
+    });
 });
 
 describe('Session Integration: Multi-Model Token Tracking', () => {

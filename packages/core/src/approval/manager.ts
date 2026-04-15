@@ -257,8 +257,11 @@ export class ApprovalManager {
     }
 
     async deleteSessionState(sessionId?: string): Promise<void> {
-        this.evictSessionState(sessionId);
-        await this.sessionApprovalStore.delete(sessionId);
+        const scopeKey = this.getScopeKey(sessionId);
+        await this.runWithScopeLock(scopeKey, async () => {
+            this.evictSessionState(sessionId);
+            await this.sessionApprovalStore.delete(sessionId);
+        });
     }
 
     // ==================== Pattern Methods ====================

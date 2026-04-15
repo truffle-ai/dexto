@@ -510,6 +510,10 @@ export class SessionManager {
             throw SessionError.maxSessionsExceeded(activeSessionKeys.length, this.maxSessions);
         }
 
+        // A newly-created session claims a clean interaction-state namespace.
+        // If stale per-session buckets exist without metadata, they belong to an orphaned session.
+        await this.deleteSessionInteractionState(id);
+
         const workspace = await this.services.workspaceManager?.getWorkspace();
 
         // Create new session metadata first to "reserve" the session slot
@@ -545,8 +549,6 @@ export class SessionManager {
             });
             session = new ChatSession(this.getChatSessionServices(), id, sessionLogger);
             await session.init();
-            await this.services.toolManager.restoreSessionState(id);
-            await this.services.approvalManager.restoreSessionState(id);
             this.sessions.set(id, session);
 
             // Also store in cache with TTL for faster access
@@ -1184,12 +1186,7 @@ export class SessionManager {
             const session = await this.getSession(sId);
             if (session) {
                 try {
-                    // Update state with validated config (validation already done by DextoAgent)
-                    // Using exceptions here for session-specific runtime failures (corruption, disposal, etc.)
-                    // This is different from input validation which uses Result<T,C> pattern
-                    this.services.stateManager.updateLLM(newLLMConfig, sId);
-                    await session.switchLLM(newLLMConfig);
-                    await this.persistSessionLLMOverride(sId, newLLMConfig);
+                    await this.applySessionLLMSwitch(sId, session, newLLMConfig);
                 } catch (error) {
                     // Session-level failure - continue processing other sessions (isolation)
                     failedSessions.push(sId);
@@ -1234,8 +1231,7 @@ export class SessionManager {
             throw SessionError.notFound(sessionId);
         }
 
-        await session.switchLLM(newLLMConfig);
-        await this.persistSessionLLMOverride(sessionId, newLLMConfig);
+        await this.applySessionLLMSwitch(sessionId, session, newLLMConfig);
 
         this.services.agentEventBus.emit('llm:switched', {
             newConfig: newLLMConfig,
@@ -1248,9 +1244,64 @@ export class SessionManager {
         return { message, warnings: [] };
     }
 
-    private async persistSessionLLMOverride(
+    private async applySessionLLMSwitch(
         sessionId: string,
+        session: ChatSession,
         newLLMConfig: ValidatedLLMConfig
+    ): Promise<void> {
+        const previousLLMConfig = this.services.stateManager.getRuntimeConfig(sessionId).llm;
+        const previousHadOverride = this.services.stateManager.hasSessionLLMOverride(sessionId);
+        const previousPersistedOverride = await this.getPersistedSessionLLMOverride(sessionId);
+
+        await this.setPersistedSessionLLMOverride(
+            sessionId,
+            this.toPersistedLLMConfig(newLLMConfig)
+        );
+
+        try {
+            this.services.stateManager.updateLLM(newLLMConfig, sessionId);
+            await session.switchLLM(newLLMConfig);
+        } catch (error) {
+            await this.setPersistedSessionLLMOverride(sessionId, previousPersistedOverride);
+
+            if (previousHadOverride) {
+                this.services.stateManager.updateLLM(previousLLMConfig, sessionId);
+            } else {
+                this.services.stateManager.clearSessionOverride(sessionId);
+            }
+
+            try {
+                await session.switchLLM(previousLLMConfig);
+            } catch (rollbackError) {
+                this.logger.error(
+                    `Failed to roll back LLM switch for session ${sessionId}: ${
+                        rollbackError instanceof Error
+                            ? rollbackError.message
+                            : String(rollbackError)
+                    }`
+                );
+            }
+
+            throw error;
+        }
+    }
+
+    private async getPersistedSessionLLMOverride(
+        sessionId: string
+    ): Promise<PersistedLLMConfig | undefined> {
+        const sessionData = await this.getSessionData(sessionId);
+        return sessionData?.llmOverride;
+    }
+
+    private toPersistedLLMConfig(newLLMConfig: ValidatedLLMConfig): PersistedLLMConfig {
+        // SECURITY: Don't persist API keys - they should be resolved from environment variables.
+        const { apiKey: _apiKey, ...configWithoutApiKey } = newLLMConfig;
+        return configWithoutApiKey;
+    }
+
+    private async setPersistedSessionLLMOverride(
+        sessionId: string,
+        llmOverride: PersistedLLMConfig | undefined
     ): Promise<void> {
         await this.runWithSessionDataLock(sessionId, async (sessionKey) => {
             const sessionData = await this.services.storageManager
@@ -1260,9 +1311,11 @@ export class SessionManager {
                 return;
             }
 
-            // SECURITY: Don't persist API keys - they should be resolved from environment variables.
-            const { apiKey: _apiKey, ...configWithoutApiKey } = newLLMConfig;
-            sessionData.llmOverride = configWithoutApiKey;
+            if (llmOverride !== undefined) {
+                sessionData.llmOverride = llmOverride;
+            } else {
+                delete sessionData.llmOverride;
+            }
             await this.persistSessionData(sessionKey, sessionData);
         });
     }

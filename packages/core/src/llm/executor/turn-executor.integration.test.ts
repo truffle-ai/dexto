@@ -427,13 +427,21 @@ describe('TurnExecutor Integration Tests', () => {
             vi.mocked(streamText).mockImplementation(() => {
                 callCount++;
                 if (callCount === 1) {
-                    void messageQueue.enqueue({
+                    const queuedFollowUp = messageQueue.enqueue({
                         content: [{ type: 'text', text: 'Follow-up question' }],
                     });
-                    return createMockStream({
+                    const firstStream = createMockStream({
                         text: 'First response',
                         finishReason: 'stop',
-                    }) as unknown as ReturnType<typeof streamText>;
+                    });
+                    return {
+                        fullStream: (async function* () {
+                            await queuedFollowUp;
+                            for await (const event of firstStream.fullStream) {
+                                yield event;
+                            }
+                        })(),
+                    } as unknown as ReturnType<typeof streamText>;
                 }
                 return createMockStream({
                     text: 'Second response',

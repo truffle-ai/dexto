@@ -499,6 +499,29 @@ describe('DextoAgent Lifecycle Management', () => {
             expect(updateLLM).not.toHaveBeenCalled();
             expect(switchLLMForSpecificSession).not.toHaveBeenCalled();
         });
+
+        test('switchLLM should reject empty session ids instead of falling back to global state', async () => {
+            const agent = createTestAgent(mockValidatedConfig);
+            await agent.start();
+
+            const updateLLM = mockServices.stateManager.updateLLM as ReturnType<typeof vi.fn>;
+            const getSession = mockServices.sessionManager.getSession as ReturnType<typeof vi.fn>;
+            const switchLLMForSpecificSession = mockServices.sessionManager
+                .switchLLMForSpecificSession as ReturnType<typeof vi.fn>;
+            const switchLLMForAllSessions = mockServices.sessionManager
+                .switchLLMForAllSessions as ReturnType<typeof vi.fn>;
+
+            await expect(agent.switchLLM({ model: 'gpt-5-nano' }, '')).rejects.toMatchObject({
+                code: AgentErrorCode.API_VALIDATION_ERROR,
+                scope: ErrorScope.AGENT,
+                type: ErrorType.USER,
+            });
+
+            expect(updateLLM).not.toHaveBeenCalled();
+            expect(getSession).not.toHaveBeenCalled();
+            expect(switchLLMForSpecificSession).not.toHaveBeenCalled();
+            expect(switchLLMForAllSessions).not.toHaveBeenCalled();
+        });
     });
 
     describe('Session Auto-Approve Tools Cleanup (Memory Leak Fix)', () => {

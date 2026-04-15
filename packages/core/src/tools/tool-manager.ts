@@ -204,7 +204,11 @@ export class ToolManager {
         sessionId: string,
         preferences: SessionToolPreferences
     ): void {
-        this.sessionUserAutoApproveTools.set(sessionId, [...preferences.userAutoApproveTools]);
+        if (preferences.userAutoApproveTools.length > 0) {
+            this.sessionUserAutoApproveTools.set(sessionId, [...preferences.userAutoApproveTools]);
+        } else {
+            this.sessionUserAutoApproveTools.delete(sessionId);
+        }
         if (preferences.disabledTools.length > 0) {
             this.sessionDisabledTools.set(sessionId, [...preferences.disabledTools]);
         } else {
@@ -249,8 +253,10 @@ export class ToolManager {
     }
 
     async deleteSessionState(sessionId: string): Promise<void> {
-        this.evictSessionState(sessionId);
-        await this.sessionToolPreferencesStore.delete(sessionId);
+        await this.runWithSessionPreferenceLock(sessionId, async () => {
+            this.evictSessionState(sessionId);
+            await this.sessionToolPreferencesStore.delete(sessionId);
+        });
     }
 
     private async persistSessionToolPreferences(sessionId: string): Promise<void> {

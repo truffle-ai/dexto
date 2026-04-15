@@ -13,6 +13,17 @@ import { ApprovalStatus, ApprovalType } from '../approval/types.js';
 import { createMockLogger } from '../logger/v2/test-utils.js';
 import { SessionError } from '../session/errors.js';
 import { createInMemorySessionToolPreferencesStore } from '../test-utils/session-state-stores.js';
+import type { SessionToolPreferences } from './session-tool-preferences-store.js';
+
+function createDeferred<T>() {
+    let resolve!: (value: T | PromiseLike<T>) => void;
+    let reject!: (reason?: unknown) => void;
+    const promise = new Promise<T>((res, rej) => {
+        resolve = res;
+        reject = rej;
+    });
+    return { promise, resolve, reject };
+}
 
 type ToolManagerFactoryArgs =
     ConstructorParameters<typeof ToolManager> extends [
@@ -2506,6 +2517,107 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
 
                 expect(toolManager.hasSessionAutoApproveTools(sessionId)).toBe(false);
                 expect(toolManager.getSessionAutoApproveTools(sessionId)).toBeUndefined();
+            });
+
+            it('should not keep an empty user auto-approve key when restored state has no tools', async () => {
+                const emptyPreferencesStore = {
+                    load: vi.fn().mockResolvedValue({
+                        userAutoApproveTools: [],
+                        disabledTools: [],
+                    } satisfies SessionToolPreferences),
+                    save: vi.fn().mockResolvedValue(undefined),
+                    delete: vi.fn().mockResolvedValue(undefined),
+                };
+                const toolManager = new ToolManager(
+                    mockMcpManager,
+                    mockApprovalManager,
+                    mockAllowedToolsProvider,
+                    'manual',
+                    mockAgentEventBus,
+                    { alwaysAllow: [], alwaysDeny: [] },
+                    [],
+                    mockLogger,
+                    emptyPreferencesStore as unknown as ConstructorParameters<typeof ToolManager>[8]
+                );
+
+                await toolManager.restoreSessionState('restored-session');
+
+                expect(toolManager.hasSessionUserAutoApproveTools('restored-session')).toBe(false);
+                expect(
+                    toolManager.getSessionUserAutoApproveTools('restored-session')
+                ).toBeUndefined();
+            });
+
+            it('should serialize deleteSessionState with in-flight preference persistence', async () => {
+                const sessionId = 'locked-delete-session';
+                const saveStarted = createDeferred<void>();
+                const releaseSave = createDeferred<void>();
+                const persistedPreferences = new Map<string, SessionToolPreferences>();
+                const emptyPreferences: SessionToolPreferences = {
+                    userAutoApproveTools: [],
+                    disabledTools: [],
+                };
+                const controlledStore = {
+                    load: vi.fn().mockImplementation(async (requestedSessionId: string) => {
+                        return structuredClone(
+                            persistedPreferences.get(requestedSessionId) ?? emptyPreferences
+                        );
+                    }),
+                    save: vi
+                        .fn()
+                        .mockImplementation(
+                            async (
+                                requestedSessionId: string,
+                                preferences: SessionToolPreferences
+                            ) => {
+                                saveStarted.resolve();
+                                await releaseSave.promise;
+                                persistedPreferences.set(
+                                    requestedSessionId,
+                                    structuredClone(preferences)
+                                );
+                            }
+                        ),
+                    delete: vi.fn().mockImplementation(async (requestedSessionId: string) => {
+                        persistedPreferences.delete(requestedSessionId);
+                    }),
+                };
+                const toolManager = new ToolManager(
+                    mockMcpManager,
+                    mockApprovalManager,
+                    mockAllowedToolsProvider,
+                    'manual',
+                    mockAgentEventBus,
+                    { alwaysAllow: [], alwaysDeny: [] },
+                    [],
+                    mockLogger,
+                    controlledStore as unknown as ConstructorParameters<typeof ToolManager>[8]
+                );
+
+                const setDisabledPromise = toolManager.setSessionDisabledTools(sessionId, [
+                    'bash_exec',
+                ]);
+                await saveStarted.promise;
+
+                let deleteFinished = false;
+                const deletePromise = toolManager.deleteSessionState(sessionId).then(() => {
+                    deleteFinished = true;
+                });
+
+                await Promise.resolve();
+                expect(deleteFinished).toBe(false);
+
+                releaseSave.resolve();
+                await setDisabledPromise;
+                await deletePromise;
+
+                expect(
+                    persistedPreferences.get(sessionId) ?? {
+                        userAutoApproveTools: [],
+                        disabledTools: [],
+                    }
+                ).toEqual(emptyPreferences);
+                expect(toolManager.getDisabledTools(sessionId)).toEqual([]);
             });
 
             it('should merge tools when adding to session auto-approve list', () => {

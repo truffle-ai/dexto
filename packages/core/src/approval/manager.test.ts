@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import * as path from 'node:path';
 import * as os from 'node:os';
 import { mkdtempSync, mkdirSync, rmSync, symlinkSync } from 'node:fs';
@@ -9,7 +9,18 @@ import { DextoRuntimeError } from '../errors/index.js';
 import { ApprovalErrorCode } from './error-codes.js';
 import { createMockLogger } from '../logger/v2/test-utils.js';
 import type { Logger } from '../logger/v2/types.js';
+import type { SessionApprovalState } from './session-approval-store.js';
 import { createInMemorySessionApprovalStore } from '../test-utils/session-state-stores.js';
+
+function createDeferred<T>() {
+    let resolve!: (value: T | PromiseLike<T>) => void;
+    let reject!: (reason?: unknown) => void;
+    const promise = new Promise<T>((res, rej) => {
+        resolve = res;
+        reject = rej;
+    });
+    return { promise, resolve, reject };
+}
 
 describe('ApprovalManager', () => {
     let agentEventBus: AgentEventBus;
@@ -767,6 +778,79 @@ describe('ApprovalManager', () => {
                 await manager.addPattern('tool-a', 'git *');
                 expect(manager.matchesPattern('tool-a', 'git push *')).toBe(true);
                 expect(manager.matchesPattern('tool-b', 'git push *')).toBe(false);
+            });
+
+            it('should serialize deleteSessionState with in-flight pattern persistence', async () => {
+                const sessionId = 'locked-delete-session';
+                const saveStarted = createDeferred<void>();
+                const releaseSave = createDeferred<void>();
+                const persistedState = new Map<string, SessionApprovalState>();
+                const emptyState: SessionApprovalState = {
+                    toolPatterns: {},
+                    approvedDirectories: [],
+                };
+                const store = {
+                    load: vi.fn().mockImplementation(async (requestedSessionId?: string) => {
+                        return structuredClone(
+                            persistedState.get(requestedSessionId ?? '__global__') ?? emptyState
+                        );
+                    }),
+                    save: vi
+                        .fn()
+                        .mockImplementation(
+                            async (
+                                requestedSessionId: string | undefined,
+                                state: SessionApprovalState
+                            ) => {
+                                saveStarted.resolve();
+                                await releaseSave.promise;
+                                persistedState.set(
+                                    requestedSessionId ?? '__global__',
+                                    structuredClone(state)
+                                );
+                            }
+                        ),
+                    delete: vi.fn().mockImplementation(async (requestedSessionId?: string) => {
+                        persistedState.delete(requestedSessionId ?? '__global__');
+                    }),
+                };
+                const manager = new ApprovalManager(
+                    {
+                        permissions: {
+                            mode: 'auto-approve',
+                            timeout: 120000,
+                        },
+                        elicitation: {
+                            enabled: true,
+                            timeout: 120000,
+                        },
+                    },
+                    mockLogger,
+                    store as unknown as ConstructorParameters<typeof ApprovalManager>[2]
+                );
+
+                const addPatternPromise = manager.addPattern('bash_exec', 'git *', sessionId);
+                await saveStarted.promise;
+
+                let deleteFinished = false;
+                const deletePromise = manager.deleteSessionState(sessionId).then(() => {
+                    deleteFinished = true;
+                });
+
+                await Promise.resolve();
+                expect(deleteFinished).toBe(false);
+
+                releaseSave.resolve();
+                await addPatternPromise;
+                await deletePromise;
+
+                expect(
+                    persistedState.get(sessionId) ?? {
+                        toolPatterns: {},
+                        approvedDirectories: [],
+                    }
+                ).toEqual(emptyState);
+                expect(manager.matchesPattern('bash_exec', 'git status *', sessionId)).toBe(false);
             });
         });
 

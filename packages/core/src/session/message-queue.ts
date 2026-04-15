@@ -75,6 +75,7 @@ export class MessageQueueService {
     private queue: QueuedMessage[] = [];
     private mutationLock: Promise<void> = Promise.resolve();
     private initialized = false;
+    private initializationPromise: Promise<void> | null = null;
 
     static createEphemeral(
         eventBus: SessionEventBus,
@@ -97,18 +98,25 @@ export class MessageQueueService {
     ) {}
 
     async initialize(): Promise<void> {
-        if (this.initialized) {
-            return;
-        }
+        this.initializationPromise ??= this.runWithMutationLock(async () => {
+            if (this.initialized) {
+                return;
+            }
 
-        this.queue = await this.store.load(this.sessionId);
-        if (this.queue.length > 0) {
-            this.logger.debug(
-                `Restored ${this.queue.length} queued message(s) for session ${this.sessionId}`
-            );
-        }
+            this.queue = await this.store.load(this.sessionId);
+            if (this.queue.length > 0) {
+                this.logger.debug(
+                    `Restored ${this.queue.length} queued message(s) for session ${this.sessionId}`
+                );
+            }
 
-        this.initialized = true;
+            this.initialized = true;
+        }).catch((error) => {
+            this.initializationPromise = null;
+            throw error;
+        });
+
+        await this.initializationPromise;
     }
 
     private async persistQueue(): Promise<void> {

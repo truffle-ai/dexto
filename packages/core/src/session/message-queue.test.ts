@@ -6,6 +6,16 @@ import { createMockLogger } from '../logger/v2/test-utils.js';
 import type { Logger } from '../logger/v2/types.js';
 import { createInMemoryMessageQueueStore } from '../test-utils/session-state-stores.js';
 
+function createDeferred<T>() {
+    let resolve!: (value: T | PromiseLike<T>) => void;
+    let reject!: (reason?: unknown) => void;
+    const promise = new Promise<T>((res, rej) => {
+        resolve = res;
+        reject = rej;
+    });
+    return { promise, resolve, reject };
+}
+
 // Create a mock SessionEventBus
 function createMockEventBus(): SessionEventBus {
     return {
@@ -283,6 +293,54 @@ describe('MessageQueueService', () => {
 
             expect(queue.hasPending()).toBe(false);
             expect(queue.pendingCount()).toBe(0);
+        });
+    });
+
+    describe('initialize()', () => {
+        it('should serialize initialization with concurrent queued mutations', async () => {
+            const loadStarted = createDeferred<void>();
+            const releaseLoad =
+                createDeferred<Array<{ id: string; content: ContentPart[]; queuedAt: number }>>();
+            const savedQueues: Array<
+                Array<{ id: string; content: ContentPart[]; queuedAt: number }>
+            > = [];
+            const serializedQueue = new MessageQueueService(eventBus, logger, 'session-2', {
+                load: vi.fn().mockImplementation(async () => {
+                    loadStarted.resolve();
+                    return await releaseLoad.promise;
+                }),
+                save: vi.fn().mockImplementation(async (_sessionId, nextQueue) => {
+                    savedQueues.push(structuredClone(nextQueue));
+                }),
+                delete: vi.fn().mockResolvedValue(undefined),
+            });
+
+            const initializePromise = serializedQueue.initialize();
+            await loadStarted.promise;
+
+            const enqueuePromise = serializedQueue.enqueue({
+                content: [{ type: 'text', text: 'new follow-up' }],
+            });
+
+            releaseLoad.resolve([
+                {
+                    id: 'restored-message',
+                    content: [{ type: 'text', text: 'restored follow-up' }],
+                    queuedAt: 1,
+                },
+            ]);
+
+            await initializePromise;
+            const enqueued = await enqueuePromise;
+
+            expect(serializedQueue.getAll().map((message) => message.id)).toEqual([
+                'restored-message',
+                enqueued.id,
+            ]);
+            expect(savedQueues.at(-1)?.map((message) => message.id)).toEqual([
+                'restored-message',
+                enqueued.id,
+            ]);
         });
     });
 
