@@ -99,9 +99,23 @@ describe('toDextoAgentOptions', () => {
         const options = toDextoAgentOptions({
             config: validated,
             services,
-            runtimeOverrides: { usageScopeId: 'cloud-agent-1' },
+            runtimeOverrides: {
+                usageScopeId: 'cloud-agent-1',
+                hostRuntime: {
+                    ids: {
+                        runId: 'run-1',
+                        attemptId: 'attempt-1',
+                    },
+                },
+            },
         });
 
         expect(options.usageScopeId).toBe('cloud-agent-1');
+        expect(options.hostRuntime).toEqual({
+            ids: {
+                runId: 'run-1',
+                attemptId: 'attempt-1',
+            },
+        });
     });
 });

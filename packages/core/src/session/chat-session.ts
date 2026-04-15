@@ -153,7 +153,9 @@ export class ChatSession {
     ) {
         this.logger = logger.createChild(DextoLogComponent.SESSION);
         // Create session-specific event bus
-        this.eventBus = new SessionEventBus();
+        this.eventBus = new SessionEventBus(
+            this.services.stateManager.getRuntimeConfig().hostRuntime
+        );
 
         // Set up event forwarding to agent's global bus
         this.setupEventForwarding();

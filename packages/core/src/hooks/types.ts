@@ -6,6 +6,7 @@ import type { ToolManager } from '../tools/tool-manager.js';
 import type { AgentStateManager } from '../agent/state-manager.js';
 import type { AgentEventBus } from '../events/index.js';
 import type { StorageManager } from '../storage/index.js';
+import type { HostRuntimeContext } from '../runtime/index.js';
 
 /**
  * Extension point names - fixed for MVP
@@ -60,6 +61,9 @@ export interface HookExecutionContext {
 
     /** Tenant ID (set by application layer for multi-tenant deployments via AsyncLocalStorage) */
     tenantId?: string | undefined;
+
+    /** Host-owned runtime IDs for orchestration and correlation */
+    hostRuntime?: HostRuntimeContext | undefined;
 
     /** Current LLM configuration */
     llmConfig: ValidatedLLMConfig;

@@ -17,16 +17,19 @@ import {
     SessionPromptContributorSchema,
     type SessionPromptContributor,
 } from '../systemPrompt/schemas.js';
+import type { HostRuntimeContext } from '../runtime/index.js';
 export type SessionLoggerFactory = (options: {
     baseLogger: Logger;
     agentId: string;
     sessionId: string;
+    hostRuntime?: HostRuntimeContext | undefined;
 }) => Logger;
 
 function defaultSessionLoggerFactory(options: {
     baseLogger: Logger;
     agentId: string;
     sessionId: string;
+    hostRuntime?: HostRuntimeContext | undefined;
 }): Logger {
     // Default behavior (no filesystem assumptions): just a child logger.
     // Hosts (CLI/server) can inject a SessionLoggerFactory that writes to a file.
@@ -445,6 +448,7 @@ export class SessionManager {
                 baseLogger: this.logger,
                 agentId,
                 sessionId: id,
+                hostRuntime: runtimeConfig.hostRuntime,
             });
 
             // Restore LLM override BEFORE session init so the service is created with correct config
@@ -520,6 +524,7 @@ export class SessionManager {
                 baseLogger: this.logger,
                 agentId,
                 sessionId: id,
+                hostRuntime: runtimeConfig.hostRuntime,
             });
             session = new ChatSession(
                 { ...this.services, sessionManager: this },
@@ -585,6 +590,7 @@ export class SessionManager {
                     baseLogger: this.logger,
                     agentId,
                     sessionId,
+                    hostRuntime: runtimeConfig.hostRuntime,
                 });
 
                 // Restore LLM override BEFORE session init so the service is created with correct config

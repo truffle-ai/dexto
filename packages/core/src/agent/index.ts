@@ -10,6 +10,7 @@ export * from './errors.js';
 export * from './error-codes.js';
 export type { DextoAgentOptions } from './agent-options.js';
 export type { AgentRuntimeSettings, DextoAgentConfigInput } from './runtime-config.js';
+export type { HostRuntimeContext, HostRuntimeIds } from '../runtime/index.js';
 
 // New generate/stream API types
 export type {

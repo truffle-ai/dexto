@@ -13,6 +13,7 @@ import type {
 import type { PromptsConfig, ValidatedPromptsConfig } from '../prompts/schemas.js';
 import type { OtelConfiguration } from '../telemetry/schemas.js';
 import type { AgentCard, ValidatedAgentCard } from './schemas.js';
+import type { HostRuntimeContext } from '../runtime/index.js';
 
 /**
  * Core runtime settings shape (validated + defaulted).
@@ -39,6 +40,7 @@ export interface AgentRuntimeSettings {
     resources: ValidatedResourcesConfig;
     prompts: ValidatedPromptsConfig;
     usageScopeId?: string | undefined;
+    hostRuntime?: HostRuntimeContext | undefined;
 }
 
 /**
@@ -66,4 +68,5 @@ export interface DextoAgentConfigInput {
     resources?: ResourcesConfig | undefined;
     prompts?: PromptsConfig | undefined;
     usageScopeId?: string | undefined;
+    hostRuntime?: HostRuntimeContext | undefined;
 }

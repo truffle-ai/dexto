@@ -22,6 +22,15 @@ function createExecutionContextOptions(): HookExecutionContextOptions {
         toolManager: {} as unknown as HookExecutionContextOptions['toolManager'],
         stateManager: {
             getLLMConfig: () => llmConfig,
+            getRuntimeConfig: () => ({
+                llm: llmConfig,
+                hostRuntime: {
+                    ids: {
+                        runId: 'run-1',
+                        attemptId: 'attempt-1',
+                    },
+                },
+            }),
         } as unknown as HookExecutionContextOptions['stateManager'],
         sessionId: 'session-1',
     };
@@ -190,5 +199,42 @@ describe('HookManager', () => {
 
         expect(thrown).toBeInstanceOf(DextoRuntimeError);
         expect(thrown).toMatchObject({ code: HookErrorCode.HOOK_EXECUTION_FAILED });
+    });
+
+    it('surfaces host runtime IDs in hook execution context', async () => {
+        const logger = createMockLogger();
+        const observedContexts: HookExecutionContext[] = [];
+
+        const hook: Hook = {
+            async beforeResponse(payload, context): Promise<HookResult> {
+                observedContexts.push(context);
+                return { ok: true, modify: { ...payload } };
+            },
+        };
+
+        const hookManager = new HookManager(
+            {
+                agentEventBus: {} as unknown as import('../events/index.js').AgentEventBus,
+                storageManager: {} as unknown as import('../storage/index.js').StorageManager,
+            },
+            [hook],
+            logger
+        );
+        await hookManager.initialize();
+
+        await hookManager.executeHooks(
+            'beforeResponse',
+            { content: 'orig', provider: 'openai' },
+            createExecutionContextOptions()
+        );
+
+        expect(observedContexts[0]).toMatchObject({
+            hostRuntime: {
+                ids: {
+                    runId: 'run-1',
+                    attemptId: 'attempt-1',
+                },
+            },
+        });
     });
 });

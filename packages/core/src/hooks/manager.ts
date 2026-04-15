@@ -168,12 +168,14 @@ export class HookManager {
 
         // Build execution context
         const asyncCtx = getContext();
-        const llmConfig = options.stateManager.getLLMConfig(options.sessionId);
+        const runtimeConfig = options.stateManager.getRuntimeConfig(options.sessionId);
+        const llmConfig = runtimeConfig.llm;
 
         const context: HookExecutionContext = {
             sessionId: options.sessionId ?? undefined,
             userId: asyncCtx?.userId ?? undefined,
             tenantId: asyncCtx?.tenantId ?? undefined,
+            hostRuntime: runtimeConfig.hostRuntime,
             llmConfig,
             logger: this.logger,
             abortSignal: options.abortSignal ?? undefined,

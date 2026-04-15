@@ -205,6 +205,48 @@ describe('DextoAgent Lifecycle Management', () => {
             );
         });
 
+        test('should expose host runtime IDs through tool execution context', async () => {
+            mockValidatedConfig = {
+                ...mockValidatedConfig,
+                hostRuntime: {
+                    ids: {
+                        runId: 'run-1',
+                        attemptId: 'attempt-1',
+                    },
+                },
+            };
+            const agent = createTestAgent(mockValidatedConfig);
+
+            await agent.start();
+
+            const setFactoryMock = vi.mocked(
+                mockServices.toolManager.setToolExecutionContextFactory
+            );
+            const factory = setFactoryMock.mock.calls[0]?.[0];
+            expect(factory).toBeDefined();
+
+            const context = factory?.({
+                sessionId: 'session-1',
+                logger: createLogger({
+                    config: LoggerConfigSchema.parse({
+                        level: 'error',
+                        transports: [{ type: 'silent' }],
+                    }),
+                    agentId: 'test-agent',
+                }),
+            });
+
+            expect(context).toMatchObject({
+                sessionId: 'session-1',
+                hostRuntime: {
+                    ids: {
+                        runId: 'run-1',
+                        attemptId: 'attempt-1',
+                    },
+                },
+            });
+        });
+
         test('should start with per-server connection modes in config', async () => {
             const validatedConfigWithServerModes: AgentRuntimeSettings = {
                 ...mockValidatedConfig,

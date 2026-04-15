@@ -6,7 +6,7 @@ export interface ToDextoAgentOptionsInput {
     config: ValidatedAgentConfig;
     services: ResolvedServices;
     overrides?: InitializeServicesOptions | undefined;
-    runtimeOverrides?: Pick<DextoAgentOptions, 'usageScopeId'> | undefined;
+    runtimeOverrides?: Pick<DextoAgentOptions, 'usageScopeId' | 'hostRuntime'> | undefined;
 }
 
 export function toDextoAgentOptions(options: ToDextoAgentOptionsInput): DextoAgentOptions {

@@ -7,6 +7,7 @@
 import type { ContentPart } from '../context/types.js';
 import type { LLMTokenUsage } from '../llm/services/types.js';
 import type { LLMProvider, LLMPricingStatus } from '../llm/types.js';
+import type { HostRuntimeContext } from '../runtime/index.js';
 
 /**
  * Re-export content part types for API consumers
@@ -80,6 +81,7 @@ export interface GenerateResponse {
     model?: string;
     estimatedCost?: number;
     pricingStatus?: LLMPricingStatus;
+    hostRuntime?: HostRuntimeContext;
 }
 
 /**

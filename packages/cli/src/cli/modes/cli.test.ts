@@ -1,7 +1,8 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MainModeContext } from './context.js';
 
 const applyWorkspaceToAgent = vi.fn();
+let runCliMode: typeof import('./cli.js').runCliMode;
 
 vi.mock('../../utils/workspace.js', () => ({
     applyWorkspaceToAgent,
@@ -13,6 +14,10 @@ vi.mock('../../analytics/wrapper.js', () => ({
 }));
 
 describe('runCliMode', () => {
+    beforeAll(async () => {
+        ({ runCliMode } = await import('./cli.js'));
+    });
+
     beforeEach(() => {
         applyWorkspaceToAgent.mockReset();
     });
@@ -38,8 +43,6 @@ describe('runCliMode', () => {
             initialPrompt: undefined,
             getVersionCheckResult: vi.fn().mockResolvedValue(null),
         } as unknown as MainModeContext;
-
-        const { runCliMode } = await import('./cli.js');
 
         await expect(runCliMode(context)).rejects.toThrow('workspace sync failed');
         expect(agent.start).toHaveBeenCalledOnce();

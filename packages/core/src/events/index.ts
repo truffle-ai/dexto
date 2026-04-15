@@ -8,6 +8,7 @@ import type { CodexRateLimitSnapshot } from '../llm/providers/codex-app-server.j
 import type { WorkspaceContext } from '../workspace/types.js';
 import type { ToolPresentationSnapshotV1 } from '../tools/types.js';
 import type { ToolCallMetadata } from '../tools/tool-call-metadata.js';
+import type { HostRuntimeContext } from '../runtime/index.js';
 
 /**
  * LLM finish reason - why the LLM stopped generating
@@ -229,7 +230,17 @@ export type IntegrationEvent =
  * Combined event map for the agent bus - includes agent events and session events with sessionId
  * This is what the global agent event bus uses to aggregate all events
  */
-export interface AgentEventMap {
+export type HostRuntimeEventContext = {
+    hostRuntime?: HostRuntimeContext | undefined;
+};
+
+type WithHostRuntime<TEventMap extends Record<string, any>> = {
+    [K in keyof TEventMap]: TEventMap[K] extends object
+        ? TEventMap[K] & HostRuntimeEventContext
+        : TEventMap[K];
+};
+
+interface AgentEventMapBase {
     // Session events
     /** Fired when session conversation is reset */
     'session:reset': {
@@ -629,7 +640,7 @@ export type ToolBackgroundEvent = AgentEventMap['tool:background'];
  * Session-level events - these occur within individual sessions without session context
  * (since they're already scoped to a session)
  */
-export interface SessionEventMap {
+interface SessionEventMapBase {
     /** LLM service started thinking */
     'llm:thinking': void;
 
@@ -805,6 +816,9 @@ export interface SessionEventMap {
         error?: Error;
     };
 }
+
+export type AgentEventMap = WithHostRuntime<AgentEventMapBase>;
+export type SessionEventMap = WithHostRuntime<SessionEventMapBase>;
 
 export type AgentEventName = keyof AgentEventMap;
 export type SessionEventName = keyof SessionEventMap;
@@ -1016,20 +1030,52 @@ export class BaseTypedEventEmitter<TEventMap extends Record<string, any>> {
     }
 }
 
+function isEventPayloadObject(value: unknown): value is Record<string, unknown> {
+    return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+class HostRuntimeTypedEventEmitter<
+    TEventMap extends Record<string, any>,
+> extends BaseTypedEventEmitter<TEventMap> {
+    constructor(private readonly hostRuntime?: HostRuntimeContext) {
+        super();
+    }
+
+    override emit<K extends keyof TEventMap>(
+        event: K,
+        ...args: TEventMap[K] extends void ? [] : [TEventMap[K]]
+    ): boolean {
+        if (this.hostRuntime === undefined || args.length === 0) {
+            return super.emit(event, ...args);
+        }
+
+        const [payload] = args as [unknown];
+        if (!isEventPayloadObject(payload) || 'hostRuntime' in payload) {
+            return super.emit(event, ...args);
+        }
+
+        const argsWithHostRuntime = [
+            { ...payload, hostRuntime: this.hostRuntime } as TEventMap[K],
+        ] as TEventMap[K] extends void ? [] : [TEventMap[K]];
+
+        return super.emit(event, ...argsWithHostRuntime);
+    }
+}
+
 /**
  * Agent-level typed event emitter for global agent events
  */
-export class AgentEventBus extends BaseTypedEventEmitter<AgentEventMap> {}
+export class AgentEventBus extends HostRuntimeTypedEventEmitter<AgentEventMap> {}
 
 /**
  * Session-level typed event emitter for session-scoped events
  */
-export class SessionEventBus extends BaseTypedEventEmitter<SessionEventMap> {}
+export class SessionEventBus extends HostRuntimeTypedEventEmitter<SessionEventMap> {}
 
 /**
  * Combined typed event emitter for backward compatibility
  */
-export class TypedEventEmitter extends BaseTypedEventEmitter<AgentEventMap> {}
+export class TypedEventEmitter extends HostRuntimeTypedEventEmitter<AgentEventMap> {}
 
 /**
  * Global shared event bus (backward compatibility)

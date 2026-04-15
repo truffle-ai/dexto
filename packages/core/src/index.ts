@@ -89,4 +89,7 @@ export * from './workspace/index.js';
 // Telemetry
 export * from './telemetry/index.js';
 
+// Runtime
+export * from './runtime/index.js';
+
 // Note: Blob types, schemas, and errors are exported from './storage/index.js'

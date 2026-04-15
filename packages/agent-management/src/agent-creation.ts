@@ -24,7 +24,7 @@ type CreateDextoAgentFromConfigOptions = {
     imageNameOverride?: string | undefined;
     agentContext?: 'subagent' | undefined;
     overrides?: InitializeServicesOptions | undefined;
-    runtimeOverrides?: Pick<DextoAgentConfigInput, 'usageScopeId'> | undefined;
+    runtimeOverrides?: Pick<DextoAgentConfigInput, 'usageScopeId' | 'hostRuntime'> | undefined;
 };
 
 async function loadImageForConfig(options: {

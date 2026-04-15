@@ -2,6 +2,7 @@ import { propagation } from '@opentelemetry/api';
 import type { Context, Span } from '@opentelemetry/api';
 import { Telemetry } from './telemetry.js';
 import type { Logger } from '../logger/v2/types.js';
+import { getHostRuntimeAttributes, getHostRuntimeContextFromBaggage } from '../runtime/index.js';
 
 // Helper function to check if telemetry is active
 export function hasActiveTelemetry(logger?: Logger): boolean {
@@ -34,8 +35,9 @@ export function getBaggageValues(ctx: Context, logger?: Logger) {
     const threadId = currentBaggage?.getEntry('threadId')?.value;
     const resourceId = currentBaggage?.getEntry('resourceId')?.value;
     const sessionId = currentBaggage?.getEntry('sessionId')?.value;
+    const hostRuntime = getHostRuntimeContextFromBaggage(ctx);
     logger?.silly(
-        `getBaggageValues: Extracted - requestId: ${requestId}, componentName: ${componentName}, runId: ${runId}, threadId: ${threadId}, resourceId: ${resourceId}, sessionId: ${sessionId}`
+        `getBaggageValues: Extracted - requestId: ${requestId}, componentName: ${componentName}, runId: ${runId}, threadId: ${threadId}, resourceId: ${resourceId}, sessionId: ${sessionId}, hostRuntimeIds: ${JSON.stringify(hostRuntime?.ids ?? {})}`
     );
     return {
         requestId,
@@ -44,6 +46,7 @@ export function getBaggageValues(ctx: Context, logger?: Logger) {
         threadId,
         resourceId,
         sessionId,
+        hostRuntime,
     };
 }
 
@@ -55,10 +58,8 @@ export function getBaggageValues(ctx: Context, logger?: Logger) {
  */
 export function addBaggageAttributesToSpan(span: Span, ctx: Context, logger?: Logger): void {
     logger?.debug('addBaggageAttributesToSpan called.');
-    const { requestId, componentName, runId, threadId, resourceId, sessionId } = getBaggageValues(
-        ctx,
-        logger
-    );
+    const { requestId, componentName, runId, threadId, resourceId, sessionId, hostRuntime } =
+        getBaggageValues(ctx, logger);
 
     if (componentName) {
         span.setAttribute('componentName', componentName);
@@ -77,6 +78,9 @@ export function addBaggageAttributesToSpan(span: Span, ctx: Context, logger?: Lo
     }
     if (sessionId) {
         span.setAttribute('sessionId', sessionId);
+    }
+    for (const [key, value] of Object.entries(getHostRuntimeAttributes(hostRuntime))) {
+        span.setAttribute(key, value);
     }
     logger?.debug('addBaggageAttributesToSpan: Baggage attributes added to span.');
 }

@@ -17,6 +17,7 @@ import type { PromptManager } from '../prompts/prompt-manager.js';
 import type { ResourceManager } from '../resources/manager.js';
 import type { SearchService } from '../search/search-service.js';
 import type { Logger } from '../logger/v2/types.js';
+import type { HostRuntimeContext } from '../runtime/index.js';
 
 /**
  * Interface for forking execution to an isolated sub-agent context.
@@ -69,6 +70,8 @@ export interface ToolExecutionContextBase {
     abortSignal?: AbortSignal | undefined;
     /** Unique tool call ID for tracking parallel tool calls */
     toolCallId?: string | undefined;
+    /** Host-owned runtime IDs for orchestration and correlation */
+    hostRuntime?: HostRuntimeContext | undefined;
 
     /**
      * Logger scoped to the tool execution.

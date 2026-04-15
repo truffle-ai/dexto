@@ -53,7 +53,7 @@ export interface CreateAgentOptions {
     /** Whether this is interactive CLI mode (affects logger defaults) */
     isInteractiveCli?: boolean;
     /** Explicit runtime overrides applied outside the validated agent config */
-    runtimeOverrides?: Pick<DextoAgentConfigInput, 'usageScopeId'> | undefined;
+    runtimeOverrides?: Pick<DextoAgentConfigInput, 'usageScopeId' | 'hostRuntime'> | undefined;
 }
 
 /**
