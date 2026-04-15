@@ -653,6 +653,8 @@ export function createCloudAgentBackend(
         getCurrentLLMConfig: ((sessionId) =>
             currentLLMConfig(sessionId)) as CloudChatBackend['getCurrentLLMConfig'],
 
+        hasSessionLLMOverride: (() => false) as CloudChatBackend['hasSessionLLMOverride'],
+
         switchLLM: (async () => {
             throw unsupportedCloudFeature('Model switching');
         }) as CloudChatBackend['switchLLM'],

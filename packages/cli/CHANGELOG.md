@@ -1,5 +1,26 @@
 # dexto
 
+## 1.6.25
+
+### Patch Changes
+
+- 0e00c51: Improve the Ink CLI insufficient-credits experience with an interactive billing recovery flow.
+
+    Users can now open billing directly from the TUI, choose a top-up amount, launch a hosted checkout session, and refresh their balance after payment instead of seeing a raw insufficient-balance exception.
+
+- Updated dependencies [0e00c51]
+    - @dexto/tui@1.6.25
+    - @dexto/core@1.6.25
+    - @dexto/storage@1.6.25
+    - @dexto/agent-config@1.6.25
+    - @dexto/client-sdk@1.6.25
+    - @dexto/agent-management@1.6.25
+    - @dexto/analytics@1.6.25
+    - @dexto/registry@1.6.25
+    - @dexto/server@1.6.25
+    - @dexto/image-local@1.6.25
+    - @dexto/image-logger-agent@1.6.25
+
 ## 1.6.24
 
 ### Patch Changes

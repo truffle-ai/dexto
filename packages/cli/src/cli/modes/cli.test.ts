@@ -16,7 +16,7 @@ vi.mock('../../analytics/wrapper.js', () => ({
 describe('runCliMode', () => {
     beforeAll(async () => {
         ({ runCliMode } = await import('./cli.js'));
-    });
+    }, 20_000);
 
     beforeEach(() => {
         applyWorkspaceToAgent.mockReset();

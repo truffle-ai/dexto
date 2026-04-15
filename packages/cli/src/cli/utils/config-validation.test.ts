@@ -1,5 +1,6 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AgentConfig } from '@dexto/agent-config';
+import { z } from 'zod';
 
 const {
     mockSelect,
@@ -30,10 +31,53 @@ vi.mock('../commands/agents/sync.js', () => ({
     getBundledSyncTargetForAgentPath: mockGetBundledSyncTargetForAgentPath,
 }));
 
+vi.mock('@dexto/agent-config', () => ({
+    AgentConfigSchema: z
+        .object({
+            systemPrompt: z.string(),
+            llm: z
+                .object({
+                    provider: z.string(),
+                    model: z.string(),
+                    baseURL: z.string().optional(),
+                    apiKey: z.string().optional(),
+                })
+                .strict(),
+            permissions: z
+                .object({
+                    mode: z.string(),
+                    allowedToolsStorage: z.string(),
+                })
+                .strict()
+                .optional(),
+        })
+        .strict(),
+}));
+
+vi.mock('@dexto/core', () => ({
+    getPrimaryApiKeyEnvVar: vi.fn((provider: string) => {
+        if (provider === 'openai-compatible') {
+            return 'OPENAI_API_KEY';
+        }
+        return 'TEST_API_KEY';
+    }),
+    logger: {
+        debug: vi.fn(),
+        warn: vi.fn(),
+    },
+    requiresApiKey: vi.fn((provider: string) => provider !== 'openai-compatible'),
+    requiresBaseURL: vi.fn((provider: string) => provider === 'openai-compatible'),
+    resolveApiKeyForProvider: vi.fn(() => undefined),
+}));
+
+vi.mock('@dexto/agent-management', () => ({
+    getGlobalPreferencesPath: vi.fn(() => '/tmp/.dexto/preferences.yml'),
+}));
+
 describe('validateAgentConfig', () => {
     beforeAll(async () => {
         ({ validateAgentConfig } = await import('./config-validation.js'));
-    });
+    }, 20_000);
 
     beforeEach(() => {
         vi.clearAllMocks();

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type React from 'react';
-import type { QueuedMessage, StreamingEvent } from '@dexto/core';
+import { LLMErrorCode, type QueuedMessage, type StreamingEvent } from '@dexto/core';
 import type { Message, UIState, SessionState } from '../state/types.js';
 import { processStream } from './processStream.js';
 import type { ApprovalRequest } from '../components/ApprovalPrompt.js';
@@ -67,6 +67,7 @@ function createSetters() {
         backgroundTasksExpanded: false,
         backgroundTasks: [],
         chatgptRateLimitStatus: null,
+        insufficientCredits: null,
         planModeActive: false,
         planModeInitialized: false,
         commandOutput: null,
@@ -306,6 +307,42 @@ describe('processStream (reasoning)', () => {
 
         expect(assistantMessages[1]?.content).toBe('Final');
         expect(assistantMessages[1]?.reasoning).toBeUndefined();
+    });
+
+    it('shows the billing recovery overlay for insufficient credits', async () => {
+        const { getMessages, getUi, setters } = createSetters();
+
+        const error = Object.assign(new Error('Insufficient Dexto credits. Balance: $0.00'), {
+            code: LLMErrorCode.INSUFFICIENT_CREDITS,
+            context: {
+                balance: 0,
+            },
+            recovery: 'Run `dexto billing` to check your balance',
+        });
+
+        const events: StreamingEvent[] = [
+            {
+                name: 'llm:error',
+                sessionId: 'test-session',
+                error,
+            },
+        ];
+
+        await processStream(eventStream(events), setters, {
+            useStreaming: true,
+            autoApproveEditsRef: { current: false },
+            bypassPermissionsRef: { current: false },
+            eventBus: { emit: vi.fn() },
+        });
+
+        const ui = getUi();
+        expect(ui.activeOverlay).toBe('insufficient-credits');
+        expect(ui.insufficientCredits).toEqual({ balanceUsd: 0 });
+        expect(ui.isProcessing).toBe(false);
+
+        const latestMessage = getMessages().at(-1);
+        expect(latestMessage?.content).toContain('Out of Dexto Nova credits');
+        expect(latestMessage?.content).not.toContain('Error:');
     });
 
     it('captures analytics cost fields for priced llm responses', async () => {
