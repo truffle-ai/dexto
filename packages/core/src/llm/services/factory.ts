@@ -19,6 +19,7 @@ import { createLocalLanguageModel } from '../providers/local/ai-sdk-adapter.js';
 import type { ConversationHistoryProvider } from '../../session/history/types.js';
 import type { SystemPromptManager } from '../../systemPrompt/manager.js';
 import type { Logger } from '../../logger/v2/types.js';
+import type { CreateLLMServiceOptions } from './types.js';
 import { requiresApiKey } from '../registry/index.js';
 import { getPrimaryApiKeyEnvVar, resolveApiKeyForProvider } from '../../utils/api-key-resolver.js';
 import {
@@ -32,7 +33,6 @@ import {
     ANTHROPIC_INTERLEAVED_THINKING_BETA,
 } from '../reasoning/anthropic-betas.js';
 import { supportsAnthropicInterleavedThinking } from '../reasoning/anthropic-thinking.js';
-import type { CompactionStrategy } from '../../context/compaction/types.js';
 
 function isLanguageModel(value: unknown): value is LanguageModel {
     if (!value || typeof value !== 'object') return false;
@@ -87,12 +87,6 @@ export interface DextoProviderContext {
     cwd?: string;
     /** Optional callback for ChatGPT Login rate-limit status updates from Codex. */
     onCodexRateLimitStatus?: (snapshot: CodexRateLimitSnapshot) => void;
-}
-
-export interface CreateLLMServiceOptions {
-    usageScopeId?: string | undefined;
-    compactionStrategy?: CompactionStrategy | null | undefined;
-    cwd?: string | undefined;
 }
 
 function resolveProviderWorkingDirectory(explicitCwd?: string): string {

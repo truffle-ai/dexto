@@ -11,6 +11,7 @@ import type { StorageManager } from '../storage/index.js';
 import type { HookManager } from '../hooks/manager.js';
 import { SessionError } from './errors.js';
 import type { TokenUsage } from '../llm/types.js';
+import type { LLMServiceFactory } from '../llm/services/types.js';
 import type { CompactionStrategy } from '../context/compaction/types.js';
 import { ZodError } from 'zod';
 import {
@@ -74,6 +75,8 @@ export interface SessionManagerConfig {
     sessionTTL?: number;
     /** Host hook for creating a session-scoped logger (e.g. file logger) */
     sessionLoggerFactory?: SessionLoggerFactory;
+    /** Host hook for constructing session-scoped LLM service instances */
+    llmServiceFactory?: LLMServiceFactory;
 }
 
 type PersistedLLMConfig = Omit<ValidatedLLMConfig, 'apiKey'>;
@@ -129,6 +132,7 @@ export class SessionManager {
     private static readonly FORK_PARENT_ID_PREVIEW_LENGTH = 8;
 
     private readonly sessionLoggerFactory: SessionLoggerFactory;
+    private readonly llmServiceFactory: LLMServiceFactory | undefined;
 
     constructor(
         private services: {
@@ -149,7 +153,18 @@ export class SessionManager {
         this.maxSessions = config.maxSessions ?? 100;
         this.sessionTTL = config.sessionTTL ?? 3600000; // 1 hour
         this.sessionLoggerFactory = config.sessionLoggerFactory ?? defaultSessionLoggerFactory;
+        this.llmServiceFactory = config.llmServiceFactory;
         this.logger = logger.createChild(DextoLogComponent.SESSION);
+    }
+
+    private getChatSessionServices(): ConstructorParameters<typeof ChatSession>[0] {
+        return {
+            ...this.services,
+            sessionManager: this,
+            ...(this.llmServiceFactory !== undefined && {
+                llmServiceFactory: this.llmServiceFactory,
+            }),
+        };
     }
 
     /**
@@ -469,11 +484,7 @@ export class SessionManager {
                 }
             }
 
-            const session = new ChatSession(
-                { ...this.services, sessionManager: this },
-                id,
-                sessionLogger
-            );
+            const session = new ChatSession(this.getChatSessionServices(), id, sessionLogger);
             await session.init();
 
             this.sessions.set(id, session);
@@ -521,11 +532,7 @@ export class SessionManager {
                 agentId,
                 sessionId: id,
             });
-            session = new ChatSession(
-                { ...this.services, sessionManager: this },
-                id,
-                sessionLogger
-            );
+            session = new ChatSession(this.getChatSessionServices(), id, sessionLogger);
             await session.init();
             this.sessions.set(id, session);
 
@@ -609,7 +616,7 @@ export class SessionManager {
                 }
 
                 const session = new ChatSession(
-                    { ...this.services, sessionManager: this },
+                    this.getChatSessionServices(),
                     sessionId,
                     sessionLogger
                 );

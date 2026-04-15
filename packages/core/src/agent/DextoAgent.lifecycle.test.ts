@@ -26,8 +26,18 @@ vi.mock('../utils/service-initializer.js', () => ({
     createAgentServices: vi.fn(),
 }));
 
+vi.mock('../session/title-generator.js', async (importOriginal) => {
+    const actual = (await importOriginal()) as typeof import('../session/title-generator.js');
+    return {
+        ...actual,
+        generateSessionTitle: vi.fn(),
+    };
+});
+
 import { createAgentServices } from '../utils/service-initializer.js';
+import { generateSessionTitle } from '../session/title-generator.js';
 const mockCreateAgentServices = vi.mocked(createAgentServices);
+const mockGenerateSessionTitle = vi.mocked(generateSessionTitle);
 
 describe('DextoAgent Lifecycle Management', () => {
     let mockValidatedConfig: AgentRuntimeSettings;
@@ -109,6 +119,8 @@ describe('DextoAgent Lifecycle Management', () => {
                 cleanup: vi.fn(),
                 init: vi.fn().mockResolvedValue(undefined),
                 getSession: vi.fn().mockResolvedValue(undefined),
+                getSessionMetadata: vi.fn().mockResolvedValue(undefined),
+                setSessionTitle: vi.fn().mockResolvedValue(undefined),
                 createSession: vi.fn().mockResolvedValue({ id: 'test-session' }),
                 incrementMessageCount: vi.fn().mockResolvedValue(undefined),
                 switchLLMForSpecificSession: vi.fn().mockResolvedValue(undefined),
@@ -141,6 +153,7 @@ describe('DextoAgent Lifecycle Management', () => {
         };
 
         mockCreateAgentServices.mockResolvedValue(mockServices);
+        mockGenerateSessionTitle.mockResolvedValue({ title: 'Generated title' });
 
         // Set up default behaviors for mock functions that will be overridden in tests
         (mockServices.sessionManager.cleanup as any).mockResolvedValue(undefined);
@@ -185,6 +198,63 @@ describe('DextoAgent Lifecycle Management', () => {
                 type: ErrorType.USER,
             });
             expect(mockServices.toolManager.buildContributorContext).not.toHaveBeenCalled();
+        });
+    });
+
+    describe('Session Title Generation', () => {
+        test('passes llmServiceFactory overrides to title generation', async () => {
+            const llmServiceFactory = vi.fn();
+            const agent = new DextoAgent({
+                ...mockValidatedConfig,
+                logger: createLogger({
+                    config: LoggerConfigSchema.parse({
+                        level: 'error',
+                        transports: [{ type: 'silent' }],
+                    }),
+                    agentId: mockValidatedConfig.agentId,
+                }),
+                storage: {
+                    blob: createInMemoryBlobStore(),
+                    database: createInMemoryDatabase(),
+                    cache: createInMemoryCache(),
+                },
+                tools: [],
+                hooks: [],
+                overrides: {
+                    llmServiceFactory,
+                },
+            });
+
+            (mockServices.sessionManager.getSessionMetadata as any).mockResolvedValue({
+                createdAt: Date.now(),
+                lastActivity: Date.now(),
+                messageCount: 1,
+            });
+            (mockServices.sessionManager.getSession as any).mockResolvedValue({
+                getHistory: vi.fn().mockResolvedValue([
+                    {
+                        role: 'user',
+                        content: 'Need a title for this session',
+                    },
+                ]),
+            });
+
+            await agent.start();
+
+            await expect(agent.generateSessionTitle('session-123')).resolves.toBe(
+                'Generated title'
+            );
+            expect(mockGenerateSessionTitle).toHaveBeenCalledWith(
+                mockValidatedConfig.llm,
+                mockServices.toolManager,
+                mockServices.systemPromptManager,
+                mockServices.resourceManager,
+                'Need a title for this session',
+                expect.any(Object),
+                {
+                    llmServiceFactory,
+                }
+            );
         });
     });
 

@@ -3,6 +3,11 @@ import type { ToolManager } from '../tools/tool-manager.js';
 import type { SystemPromptManager } from '../systemPrompt/manager.js';
 import type { ResourceManager } from '../resources/index.js';
 import type { Logger } from '../logger/v2/types.js';
+import type {
+    CreateLLMServiceOptions,
+    LLMService,
+    LLMServiceFactory,
+} from '../llm/services/types.js';
 import { createLLMService } from '../llm/services/factory.js';
 import { SessionEventBus } from '../events/index.js';
 import { MemoryHistoryProvider } from './history/memory.js';
@@ -24,7 +29,7 @@ export async function generateSessionTitle(
     resourceManager: ResourceManager,
     userText: string,
     logger: Logger,
-    opts: { timeoutMs?: number } = {}
+    opts: { timeoutMs?: number; llmServiceFactory?: LLMServiceFactory } = {}
 ): Promise<GenerateSessionTitleResult> {
     const timeoutMs = opts.timeoutMs;
     const controller = timeoutMs !== undefined ? new AbortController() : undefined;
@@ -36,16 +41,33 @@ export async function generateSessionTitle(
     try {
         const history = new MemoryHistoryProvider(logger);
         const bus = new SessionEventBus();
-        const tempService = createLLMService(
-            config,
-            toolManager,
-            systemPromptManager,
-            history,
-            bus,
-            `titlegen-${Math.random().toString(36).slice(2)}`,
-            resourceManager,
-            logger
-        );
+        const sessionId = `titlegen-${Math.random().toString(36).slice(2)}`;
+        const options: CreateLLMServiceOptions = {};
+        const createDefaultLLMService = (): LLMService =>
+            createLLMService(
+                config,
+                toolManager,
+                systemPromptManager,
+                history,
+                bus,
+                sessionId,
+                resourceManager,
+                logger,
+                options
+            );
+        const tempService =
+            opts.llmServiceFactory?.({
+                config,
+                toolManager,
+                systemPromptManager,
+                historyProvider: history,
+                sessionEventBus: bus,
+                sessionId,
+                resourceManager,
+                logger,
+                options,
+                createDefaultLLMService,
+            }) ?? createDefaultLLMService();
 
         const instruction = [
             'Generate a short conversation title from the following user message.',

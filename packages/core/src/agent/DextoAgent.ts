@@ -1745,7 +1745,12 @@ export class DextoAgent {
             this.systemPromptManager,
             this.resourceManager,
             userText,
-            this.logger
+            this.logger,
+            {
+                ...(this.overrides.llmServiceFactory !== undefined && {
+                    llmServiceFactory: this.overrides.llmServiceFactory,
+                }),
+            }
         );
 
         let title = result.title;

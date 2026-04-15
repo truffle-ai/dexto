@@ -234,6 +234,40 @@ describe('ChatSession', () => {
             );
         });
 
+        test('uses a host-provided llmServiceFactory override when one is configured', async () => {
+            const customLLMService = {
+                ...mockLLMService,
+                stream: vi.fn().mockResolvedValue({ text: 'Custom response' }),
+            };
+            const llmServiceFactory = vi.fn().mockReturnValue(customLLMService);
+
+            mockServices.llmServiceFactory = llmServiceFactory;
+            chatSession.dispose();
+            chatSession = new ChatSession(mockServices, sessionId, mockLogger);
+
+            await chatSession.init();
+
+            expect(llmServiceFactory).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    config: mockLLMConfig,
+                    toolManager: mockServices.toolManager,
+                    systemPromptManager: mockServices.systemPromptManager,
+                    historyProvider: mockHistoryProvider,
+                    sessionEventBus: chatSession.eventBus,
+                    sessionId,
+                    resourceManager: mockServices.resourceManager,
+                    logger: mockLogger,
+                    options: {
+                        usageScopeId: undefined,
+                        compactionStrategy: null,
+                    },
+                    createDefaultLLMService: expect.any(Function),
+                })
+            );
+            expect(mockCreateLLMService).not.toHaveBeenCalled();
+            expect(chatSession.getLLMService()).toBe(customLLMService);
+        });
+
         test('should properly dispose resources to prevent memory leaks', () => {
             const eventSpy = vi.spyOn(chatSession.eventBus, 'off');
 

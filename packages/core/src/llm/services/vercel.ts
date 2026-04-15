@@ -1,6 +1,6 @@
 import { LanguageModel, type ModelMessage } from 'ai';
 import { ToolManager } from '../../tools/tool-manager.js';
-import { LLMServiceConfig } from './types.js';
+import type { LLMService, LLMServiceConfig } from './types.js';
 import type { Logger } from '../../logger/v2/types.js';
 import { DextoLogComponent } from '../../logger/v2/types.js';
 import { ToolSet } from '../../tools/types.js';
@@ -40,7 +40,7 @@ import type { ContentInput } from '../../agent/types.js';
     prefix: 'llm.vercel',
     excludeMethods: ['getModelId', 'getAllTools', 'createTurnExecutor'],
 })
-export class VercelLLMService {
+export class VercelLLMService implements LLMService {
     private model: LanguageModel;
     private config: ValidatedLLMConfig;
     private toolManager: ToolManager;

@@ -200,6 +200,32 @@ describe('SessionManager', () => {
             expect(customManager).toBeDefined();
         });
 
+        test('passes llmServiceFactory overrides through to ChatSession instances', async () => {
+            const llmServiceFactory = vi.fn();
+            const customManager = new SessionManager(
+                mockServices,
+                {
+                    llmServiceFactory,
+                },
+                mockLogger
+            );
+
+            await customManager.init();
+            await customManager.createSession('override-session');
+
+            expect(MockChatSession).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    ...mockServices,
+                    sessionManager: expect.anything(),
+                    llmServiceFactory,
+                }),
+                'override-session',
+                mockLogger
+            );
+
+            await customManager.cleanup();
+        });
+
         test('should initialize storage layer on first use', async () => {
             await sessionManager.init();
 

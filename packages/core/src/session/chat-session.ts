@@ -3,7 +3,11 @@ import { createDatabaseHistoryProvider } from './history/factory.js';
 import { createLLMService } from '../llm/services/factory.js';
 import type { ContextManager } from '../context/index.js';
 import type { ConversationHistoryProvider } from './history/types.js';
-import type { VercelLLMService } from '../llm/services/vercel.js';
+import type {
+    CreateLLMServiceOptions,
+    LLMService,
+    LLMServiceFactory,
+} from '../llm/services/types.js';
 import type { SystemPromptManager } from '../systemPrompt/manager.js';
 import type { ToolManager } from '../tools/tool-manager.js';
 import type { ValidatedLLMConfig } from '../llm/schemas.js';
@@ -72,7 +76,7 @@ import { parseCodexBaseURL } from '../llm/providers/codex-base-url.js';
  *
  * @see {@link SessionManager} for session lifecycle management
  * @see {@link ContextManager} for conversation history management
- * @see {@link VercelLLMService} for AI model interaction
+ * @see {@link createLLMService} for the default AI model integration path
  */
 export class ChatSession {
     /**
@@ -100,7 +104,7 @@ export class ChatSession {
      * Each session has its own LLMService instance that uses the session's
      * ContextManager and event bus.
      */
-    private llmService!: VercelLLMService;
+    private llmService!: LLMService;
 
     /**
      * Map of event forwarder functions for cleanup.
@@ -145,6 +149,7 @@ export class ChatSession {
             hookManager: HookManager;
             mcpManager: MCPManager;
             sessionManager: import('./session-manager.js').SessionManager;
+            llmServiceFactory?: LLMServiceFactory;
             workspaceManager?: import('../workspace/manager.js').WorkspaceManager;
             compactionStrategy: CompactionStrategy | null;
         },
@@ -268,7 +273,6 @@ export class ChatSession {
         // Get current effective configuration for this session from state manager
         const runtimeConfig = this.services.stateManager.getRuntimeConfig(this.id);
         const llmConfig = runtimeConfig.llm;
-        const workspace = await this.services.workspaceManager?.getWorkspace();
 
         // Create session-specific history provider directly with database backend
         // This persists across LLM switches to maintain conversation history
@@ -278,27 +282,49 @@ export class ChatSession {
             this.logger
         );
 
-        const compactionStrategy = this.services.compactionStrategy;
-
-        // Create session-specific LLM service
-        // The service will create its own properly-typed ContextManager internally
-        this.llmService = createLLMService(
-            llmConfig,
-            this.services.toolManager,
-            this.services.systemPromptManager,
-            this.historyProvider, // Pass history provider for service to use
-            this.eventBus, // Use session event bus
-            this.id,
-            this.services.resourceManager, // Pass ResourceManager for blob storage
-            this.logger, // Pass logger for dependency injection
-            {
-                usageScopeId: runtimeConfig.usageScopeId,
-                compactionStrategy,
-                cwd: workspace?.path,
-            }
-        );
+        this.llmService = await this.createSessionLLMService(llmConfig, runtimeConfig.usageScopeId);
 
         this.logger.debug(`ChatSession ${this.id}: Services initialized with storage`);
+    }
+
+    private async createSessionLLMService(
+        llmConfig: ValidatedLLMConfig,
+        usageScopeId?: string
+    ): Promise<LLMService> {
+        const workspace = await this.services.workspaceManager?.getWorkspace();
+        const options: CreateLLMServiceOptions = {
+            usageScopeId,
+            compactionStrategy: this.services.compactionStrategy,
+            ...(workspace?.path !== undefined && { cwd: workspace.path }),
+        };
+
+        const createDefaultLLMService = (): LLMService =>
+            createLLMService(
+                llmConfig,
+                this.services.toolManager,
+                this.services.systemPromptManager,
+                this.historyProvider,
+                this.eventBus,
+                this.id,
+                this.services.resourceManager,
+                this.logger,
+                options
+            );
+
+        return (
+            this.services.llmServiceFactory?.({
+                config: llmConfig,
+                toolManager: this.services.toolManager,
+                systemPromptManager: this.services.systemPromptManager,
+                historyProvider: this.historyProvider,
+                sessionEventBus: this.eventBus,
+                sessionId: this.id,
+                resourceManager: this.services.resourceManager,
+                logger: this.logger,
+                options,
+                createDefaultLLMService,
+            }) ?? createDefaultLLMService()
+        );
     }
 
     /**
@@ -643,7 +669,7 @@ export class ChatSession {
      *
      * @returns The LLMService for this session
      */
-    public getLLMService(): VercelLLMService {
+    public getLLMService(): LLMService {
         return this.llmService;
     }
 
@@ -669,30 +695,10 @@ export class ChatSession {
     public async switchLLM(newLLMConfig: ValidatedLLMConfig): Promise<void> {
         try {
             const runtimeConfig = this.services.stateManager.getRuntimeConfig(this.id);
-            const workspace = await this.services.workspaceManager?.getWorkspace();
-            // Reuse the agent-provided compaction strategy (if any)
-            const compactionStrategy = this.services.compactionStrategy;
-
-            // Create new LLM service with new config but SAME history provider
-            // The service will create its own new ContextManager internally
-            const newLLMService = createLLMService(
+            this.llmService = await this.createSessionLLMService(
                 newLLMConfig,
-                this.services.toolManager,
-                this.services.systemPromptManager,
-                this.historyProvider, // Pass the SAME history provider - preserves conversation!
-                this.eventBus, // Use session event bus
-                this.id,
-                this.services.resourceManager,
-                this.logger,
-                {
-                    usageScopeId: runtimeConfig.usageScopeId,
-                    compactionStrategy,
-                    cwd: workspace?.path,
-                }
+                runtimeConfig.usageScopeId
             );
-
-            // Replace the LLM service
-            this.llmService = newLLMService;
 
             this.logger.info(
                 `ChatSession ${this.id}: LLM switched to ${newLLMConfig.provider}/${newLLMConfig.model}`
