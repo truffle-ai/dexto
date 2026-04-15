@@ -415,6 +415,139 @@ describe('Directory Approval Integration Tests', () => {
         });
     });
 
+    describe('Factory service scoping', () => {
+        it('should keep working directories isolated across concurrent executions', async () => {
+            const workspaceA = path.join(tempDir, 'workspace-a');
+            const workspaceB = path.join(tempDir, 'workspace-b');
+            await fs.mkdir(workspaceA, { recursive: true });
+            await fs.mkdir(workspaceB, { recursive: true });
+            await fs.writeFile(path.join(workspaceA, 'same.txt'), 'from workspace A');
+            await fs.writeFile(path.join(workspaceB, 'same.txt'), 'from workspace B');
+
+            const tools = fileSystemToolsFactory.create({
+                type: 'filesystem-tools',
+                allowedPaths: [workspaceA, workspaceB],
+                blockedPaths: [],
+                blockedExtensions: [],
+                maxFileSize: 10 * 1024 * 1024,
+                workingDirectory: tempDir,
+                enableBackups: false,
+                backupRetentionDays: 7,
+                enabledTools: ['read_file'],
+            });
+            const readTool = tools.find((tool) => tool.id === 'read_file');
+            expect(readTool).toBeDefined();
+
+            const baseContext = createToolContext(mockLogger, approvalManager);
+            const contextA: ToolExecutionContext = {
+                ...baseContext,
+                sessionId: 'session-a',
+                workspace: {
+                    id: 'workspace-a',
+                    path: workspaceA,
+                    createdAt: Date.now(),
+                    lastActiveAt: Date.now(),
+                },
+            };
+            const contextB: ToolExecutionContext = {
+                ...baseContext,
+                sessionId: 'session-b',
+                workspace: {
+                    id: 'workspace-b',
+                    path: workspaceB,
+                    createdAt: Date.now(),
+                    lastActiveAt: Date.now(),
+                },
+            };
+
+            const [resultA, resultB] = await Promise.all([
+                readTool!.execute!(
+                    readTool!.inputSchema.parse({ file_path: 'same.txt' }),
+                    contextA
+                ),
+                readTool!.execute!(
+                    readTool!.inputSchema.parse({ file_path: 'same.txt' }),
+                    contextB
+                ),
+            ]);
+
+            expect(resultA).toEqual(
+                expect.objectContaining({
+                    content: 'from workspace A',
+                })
+            );
+            expect(resultB).toEqual(
+                expect.objectContaining({
+                    content: 'from workspace B',
+                })
+            );
+        });
+
+        it('should not mutate an injected filesystem service with session-specific state', async () => {
+            const workspace = path.join(tempDir, 'workspace-injected');
+            await fs.mkdir(workspace, { recursive: true });
+            await fs.writeFile(path.join(workspace, 'same.txt'), 'from injected config');
+
+            const tools = fileSystemToolsFactory.create({
+                type: 'filesystem-tools',
+                allowedPaths: [workspace],
+                blockedPaths: [],
+                blockedExtensions: [],
+                maxFileSize: 10 * 1024 * 1024,
+                workingDirectory: tempDir,
+                enableBackups: false,
+                backupRetentionDays: 7,
+                enabledTools: ['read_file'],
+            });
+            const readTool = tools.find((tool) => tool.id === 'read_file');
+            expect(readTool).toBeDefined();
+
+            const injectedService = {
+                getConfig: vi.fn().mockReturnValue({
+                    allowedPaths: [workspace],
+                    blockedPaths: [],
+                    blockedExtensions: [],
+                    maxFileSize: 10 * 1024 * 1024,
+                    workingDirectory: workspace,
+                    enableBackups: false,
+                    backupRetentionDays: 7,
+                }),
+                readFile: vi.fn(),
+                writeFile: vi.fn(),
+                setWorkingDirectory: vi.fn(),
+                setDirectoryApprovalChecker: vi.fn(),
+            };
+
+            const baseContext = createToolContext(mockLogger, approvalManager, 'session-a');
+            const context: ToolExecutionContext = {
+                ...baseContext,
+                workspace: {
+                    id: 'workspace-injected',
+                    path: workspace,
+                    createdAt: Date.now(),
+                    lastActiveAt: Date.now(),
+                },
+                services: {
+                    ...baseContext.services,
+                    filesystemService: injectedService,
+                } as ToolExecutionContext['services'],
+            };
+
+            const result = await readTool!.execute!(
+                readTool!.inputSchema.parse({ file_path: 'same.txt' }),
+                context
+            );
+
+            expect(result).toEqual(
+                expect.objectContaining({
+                    content: 'from injected config',
+                })
+            );
+            expect(injectedService.setWorkingDirectory).not.toHaveBeenCalled();
+            expect(injectedService.setDirectoryApprovalChecker).not.toHaveBeenCalled();
+        });
+    });
+
     describe('Without ApprovalManager in context', () => {
         it('should throw for external paths', async () => {
             const tool = createReadFileTool(getFileSystemService);
