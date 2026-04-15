@@ -5,7 +5,6 @@ import { ToolManager } from '../../tools/tool-manager.js';
 import { SessionEventBus, AgentEventBus } from '../../events/index.js';
 import { ResourceManager } from '../../resources/index.js';
 import { MessageQueueService } from '../../session/message-queue.js';
-import { InMemoryMessageQueueStore } from '../../session/message-queue-store.js';
 import { SystemPromptManager } from '../../systemPrompt/manager.js';
 import { VercelMessageFormatter } from '../formatters/vercel.js';
 import { MemoryHistoryProvider } from '../../session/history/memory.js';
@@ -20,6 +19,11 @@ import type { LanguageModel, ModelMessage } from 'ai';
 import type { LLMContext } from '../types.js';
 import type { ValidatedLLMConfig } from '../schemas.js';
 import type { Logger } from '../../logger/v2/types.js';
+import {
+    createInMemoryMessageQueueStore,
+    createInMemorySessionApprovalStore,
+    createInMemorySessionToolPreferencesStore,
+} from '../../test-utils/session-state-stores.js';
 
 // Only mock the AI SDK's streamText/generateText - everything else is real
 vi.mock('ai', async (importOriginal) => {
@@ -207,7 +211,8 @@ describe('TurnExecutor Integration Tests', () => {
                 permissions: { mode: 'auto-approve', timeout: 120000 },
                 elicitation: { enabled: false, timeout: 120000 },
             },
-            logger
+            logger,
+            createInMemorySessionApprovalStore(logger)
         );
 
         // Create real tool manager (minimal setup - no internal tools)
@@ -225,7 +230,8 @@ describe('TurnExecutor Integration Tests', () => {
             agentEventBus,
             { alwaysAllow: [], alwaysDeny: [] },
             [],
-            logger
+            logger,
+            createInMemorySessionToolPreferencesStore(logger)
         );
         await toolManager.initialize();
 
@@ -234,7 +240,7 @@ describe('TurnExecutor Integration Tests', () => {
             sessionEventBus,
             logger,
             sessionId,
-            new InMemoryMessageQueueStore()
+            createInMemoryMessageQueueStore()
         );
 
         // Default streamText mock - simple text response
@@ -479,7 +485,7 @@ describe('TurnExecutor Integration Tests', () => {
                 sessionEventBus,
                 logger,
                 'session-2',
-                new InMemoryMessageQueueStore()
+                createInMemoryMessageQueueStore()
             );
             const executor2 = new TurnExecutor(
                 createMockModel(),

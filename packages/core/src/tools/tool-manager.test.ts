@@ -12,6 +12,36 @@ import type { AllowedToolsProvider } from './confirmation/allowed-tools-provider
 import { ApprovalStatus, ApprovalType } from '../approval/types.js';
 import { createMockLogger } from '../logger/v2/test-utils.js';
 import { SessionError } from '../session/errors.js';
+import { createInMemorySessionToolPreferencesStore } from '../test-utils/session-state-stores.js';
+
+type ToolManagerFactoryArgs =
+    ConstructorParameters<typeof ToolManager> extends [
+        infer McpManager,
+        infer ApprovalManager,
+        infer AllowedToolsProvider,
+        infer ApprovalMode,
+        infer AgentEventBus,
+        infer ToolPolicies,
+        infer Tools,
+        infer Logger,
+        infer _SessionToolPreferencesStore,
+    ]
+        ? [
+              McpManager,
+              ApprovalManager,
+              AllowedToolsProvider,
+              ApprovalMode,
+              AgentEventBus,
+              ToolPolicies,
+              Tools,
+              Logger,
+          ]
+        : never;
+
+function createToolManager(...args: ToolManagerFactoryArgs): ToolManager {
+    const logger = args[7];
+    return new ToolManager(...args, createInMemorySessionToolPreferencesStore(logger));
+}
 
 // Mock logger
 vi.mock('../logger/index.js', () => ({
@@ -77,7 +107,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
 
     describe('Tool Source Detection Logic', () => {
         it('should correctly identify MCP tools', () => {
-            const toolManager = new ToolManager(
+            const toolManager = createToolManager(
                 mockMcpManager,
                 mockApprovalManager,
                 mockAllowedToolsProvider,
@@ -93,7 +123,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
         });
 
         it('should correctly identify local tools', () => {
-            const toolManager = new ToolManager(
+            const toolManager = createToolManager(
                 mockMcpManager,
                 mockApprovalManager,
                 mockAllowedToolsProvider,
@@ -122,7 +152,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
         });
 
         it('should identify unknown tools', () => {
-            const toolManager = new ToolManager(
+            const toolManager = createToolManager(
                 mockMcpManager,
                 mockApprovalManager,
                 mockAllowedToolsProvider,
@@ -139,7 +169,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
         });
 
         it('should handle edge cases with empty tool names', () => {
-            const toolManager = new ToolManager(
+            const toolManager = createToolManager(
                 mockMcpManager,
                 mockApprovalManager,
                 mockAllowedToolsProvider,
@@ -156,7 +186,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
 
     describe('Contributor Context', () => {
         it('includes session context when a session id is provided', async () => {
-            const toolManager = new ToolManager(
+            const toolManager = createToolManager(
                 mockMcpManager,
                 mockApprovalManager,
                 mockAllowedToolsProvider,
@@ -175,7 +205,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
         });
 
         it('preserves session context when contributor overrides add environment data', async () => {
-            const toolManager = new ToolManager(
+            const toolManager = createToolManager(
                 mockMcpManager,
                 mockApprovalManager,
                 mockAllowedToolsProvider,
@@ -205,7 +235,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
         });
 
         it('includes session prompt contributors when session manager support is configured', async () => {
-            const toolManager = new ToolManager(
+            const toolManager = createToolManager(
                 mockMcpManager,
                 mockApprovalManager,
                 mockAllowedToolsProvider,
@@ -247,7 +277,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
         });
 
         it('gracefully ignores missing sessions when building contributor context', async () => {
-            const toolManager = new ToolManager(
+            const toolManager = createToolManager(
                 mockMcpManager,
                 mockApprovalManager,
                 mockAllowedToolsProvider,
@@ -300,7 +330,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
         it('should return not found for unknown tools', async () => {
             mockMcpManager.getAllTools = vi.fn().mockResolvedValue({});
 
-            const toolManager = new ToolManager(
+            const toolManager = createToolManager(
                 mockMcpManager,
                 mockApprovalManager,
                 mockAllowedToolsProvider,
@@ -321,7 +351,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
         });
 
         it('should reject MCP tools with prefix but no name', async () => {
-            const toolManager = new ToolManager(
+            const toolManager = createToolManager(
                 mockMcpManager,
                 mockApprovalManager,
                 mockAllowedToolsProvider,
@@ -345,7 +375,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
         });
 
         it('should return not found when local tool is not registered', async () => {
-            const toolManager = new ToolManager(
+            const toolManager = createToolManager(
                 mockMcpManager,
                 mockApprovalManager,
                 mockAllowedToolsProvider,
@@ -370,7 +400,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
         it('should execute local tools provided to ToolManager', async () => {
             mockMcpManager.getAllTools = vi.fn().mockResolvedValue({});
 
-            const toolManager = new ToolManager(
+            const toolManager = createToolManager(
                 mockMcpManager,
                 mockApprovalManager,
                 mockAllowedToolsProvider,
@@ -417,7 +447,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 execute: vi.fn().mockResolvedValue('ok'),
             });
 
-            const toolManager = new ToolManager(
+            const toolManager = createToolManager(
                 mockMcpManager,
                 mockApprovalManager,
                 mockAllowedToolsProvider,
@@ -462,7 +492,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 execute: vi.fn().mockResolvedValue('ok'),
             });
 
-            const toolManager = new ToolManager(
+            const toolManager = createToolManager(
                 mockMcpManager,
                 mockApprovalManager,
                 mockAllowedToolsProvider,
@@ -523,7 +553,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
         it('should emit callDescription on llm:tool-call events when args.description is provided', async () => {
             mockMcpManager.executeTool = vi.fn().mockResolvedValue('result');
 
-            const toolManager = new ToolManager(
+            const toolManager = createToolManager(
                 mockMcpManager,
                 mockApprovalManager,
                 mockAllowedToolsProvider,
@@ -576,7 +606,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 execute: vi.fn().mockResolvedValue('ok'),
             });
 
-            const toolManager = new ToolManager(
+            const toolManager = createToolManager(
                 mockMcpManager,
                 mockApprovalManager,
                 mockAllowedToolsProvider,
@@ -669,7 +699,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 callOrder.push('addApprovedDirectory');
             });
 
-            const toolManager = new ToolManager(
+            const toolManager = createToolManager(
                 mockMcpManager,
                 mockApprovalManager,
                 mockAllowedToolsProvider,
@@ -846,7 +876,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 }
             );
 
-            const toolManager = new ToolManager(
+            const toolManager = createToolManager(
                 mockMcpManager,
                 mockApprovalManager,
                 mockAllowedToolsProvider,
@@ -871,7 +901,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
         it('should request approval via ApprovalManager with correct parameters', async () => {
             mockMcpManager.executeTool = vi.fn().mockResolvedValue('result');
 
-            const toolManager = new ToolManager(
+            const toolManager = createToolManager(
                 mockMcpManager,
                 mockApprovalManager,
                 mockAllowedToolsProvider,
@@ -929,7 +959,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 status: ApprovalStatus.APPROVED,
             });
 
-            const toolManager = new ToolManager(
+            const toolManager = createToolManager(
                 mockMcpManager,
                 mockApprovalManager,
                 mockAllowedToolsProvider,
@@ -962,7 +992,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
         it('should fall back to args.description for approval description when __meta.callDescription is missing', async () => {
             mockMcpManager.executeTool = vi.fn().mockResolvedValue('result');
 
-            const toolManager = new ToolManager(
+            const toolManager = createToolManager(
                 mockMcpManager,
                 mockApprovalManager,
                 mockAllowedToolsProvider,
@@ -1000,7 +1030,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 const emitSpy = vi.fn();
                 mockAgentEventBus.emit = emitSpy as typeof mockAgentEventBus.emit;
 
-                const toolManager = new ToolManager(
+                const toolManager = createToolManager(
                     mockMcpManager,
                     mockApprovalManager,
                     mockAllowedToolsProvider,
@@ -1055,7 +1085,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 const emitSpy = vi.fn();
                 mockAgentEventBus.emit = emitSpy as typeof mockAgentEventBus.emit;
 
-                const toolManager = new ToolManager(
+                const toolManager = createToolManager(
                     mockMcpManager,
                     mockApprovalManager,
                     mockAllowedToolsProvider,
@@ -1092,7 +1122,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
         it('should request approval without sessionId when not provided', async () => {
             mockMcpManager.executeTool = vi.fn().mockResolvedValue('result');
 
-            const toolManager = new ToolManager(
+            const toolManager = createToolManager(
                 mockMcpManager,
                 mockApprovalManager,
                 mockAllowedToolsProvider,
@@ -1121,7 +1151,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 status: ApprovalStatus.DENIED,
             });
 
-            const toolManager = new ToolManager(
+            const toolManager = createToolManager(
                 mockMcpManager,
                 mockApprovalManager,
                 mockAllowedToolsProvider,
@@ -1146,7 +1176,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
         it('should proceed with execution when approval granted', async () => {
             mockMcpManager.executeTool = vi.fn().mockResolvedValue('success');
 
-            const toolManager = new ToolManager(
+            const toolManager = createToolManager(
                 mockMcpManager,
                 mockApprovalManager,
                 mockAllowedToolsProvider,
@@ -1181,7 +1211,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             mockAllowedToolsProvider.isToolAllowed = vi.fn().mockResolvedValue(true);
             mockMcpManager.executeTool = vi.fn().mockResolvedValue('success');
 
-            const toolManager = new ToolManager(
+            const toolManager = createToolManager(
                 mockMcpManager,
                 mockApprovalManager,
                 mockAllowedToolsProvider,
@@ -1209,7 +1239,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
         it('should auto-approve when mode is auto-approve', async () => {
             mockMcpManager.executeTool = vi.fn().mockResolvedValue('success');
 
-            const toolManager = new ToolManager(
+            const toolManager = createToolManager(
                 mockMcpManager,
                 mockApprovalManager,
                 mockAllowedToolsProvider,
@@ -1232,7 +1262,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
         });
 
         it('should auto-deny when mode is auto-deny', async () => {
-            const toolManager = new ToolManager(
+            const toolManager = createToolManager(
                 mockMcpManager,
                 mockApprovalManager,
                 mockAllowedToolsProvider,
@@ -1259,7 +1289,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             const getDescription = vi.fn().mockReturnValue('Dynamic description');
             mockMcpManager.getAllTools = vi.fn().mockResolvedValue({});
 
-            const toolManager = new ToolManager(
+            const toolManager = createToolManager(
                 mockMcpManager,
                 mockApprovalManager,
                 mockAllowedToolsProvider,
@@ -1296,7 +1326,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             };
             mockMcpManager.getAllTools = vi.fn().mockResolvedValue(tools);
 
-            const toolManager = new ToolManager(
+            const toolManager = createToolManager(
                 mockMcpManager,
                 mockApprovalManager,
                 mockAllowedToolsProvider,
@@ -1322,7 +1352,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 .mockResolvedValueOnce('Workspace agents: explore-agent');
             mockMcpManager.getAllTools = vi.fn().mockResolvedValue({});
 
-            const toolManager = new ToolManager(
+            const toolManager = createToolManager(
                 mockMcpManager,
                 mockApprovalManager,
                 mockAllowedToolsProvider,
@@ -1363,7 +1393,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 .mockResolvedValueOnce('   ');
             mockMcpManager.getAllTools = vi.fn().mockResolvedValue({});
 
-            const toolManager = new ToolManager(
+            const toolManager = createToolManager(
                 mockMcpManager,
                 mockApprovalManager,
                 mockAllowedToolsProvider,
@@ -1401,7 +1431,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             };
             mockMcpManager.getAllTools = vi.fn().mockResolvedValue(tools);
 
-            const toolManager = new ToolManager(
+            const toolManager = createToolManager(
                 mockMcpManager,
                 mockApprovalManager,
                 mockAllowedToolsProvider,
@@ -1443,7 +1473,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 return mockAgentEventBus;
             }) as any;
 
-            const toolManager = new ToolManager(
+            const toolManager = createToolManager(
                 mockMcpManager,
                 mockApprovalManager,
                 mockAllowedToolsProvider,
@@ -1491,7 +1521,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
 
             mockMcpManager.getAllTools = vi.fn().mockResolvedValue(mcpTools);
 
-            const toolManager = new ToolManager(
+            const toolManager = createToolManager(
                 mockMcpManager,
                 mockApprovalManager,
                 mockAllowedToolsProvider,
@@ -1514,7 +1544,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
         it('should handle empty tool sets', async () => {
             mockMcpManager.getAllTools = vi.fn().mockResolvedValue({});
 
-            const toolManager = new ToolManager(
+            const toolManager = createToolManager(
                 mockMcpManager,
                 mockApprovalManager,
                 mockAllowedToolsProvider,
@@ -1537,7 +1567,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
         it('should handle MCP errors gracefully in statistics', async () => {
             mockMcpManager.getAllTools = vi.fn().mockRejectedValue(new Error('MCP failed'));
 
-            const toolManager = new ToolManager(
+            const toolManager = createToolManager(
                 mockMcpManager,
                 mockApprovalManager,
                 mockAllowedToolsProvider,
@@ -1562,7 +1592,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
         it('should check MCP tool existence correctly', async () => {
             mockMcpManager.getToolClient = vi.fn().mockReturnValue({});
 
-            const toolManager = new ToolManager(
+            const toolManager = createToolManager(
                 mockMcpManager,
                 mockApprovalManager,
                 mockAllowedToolsProvider,
@@ -1582,7 +1612,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
         it('should return false for non-existent MCP tools', async () => {
             mockMcpManager.getToolClient = vi.fn().mockReturnValue(undefined);
 
-            const toolManager = new ToolManager(
+            const toolManager = createToolManager(
                 mockMcpManager,
                 mockApprovalManager,
                 mockAllowedToolsProvider,
@@ -1599,7 +1629,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
         });
 
         it('should return false for tools without proper prefix', async () => {
-            const toolManager = new ToolManager(
+            const toolManager = createToolManager(
                 mockMcpManager,
                 mockApprovalManager,
                 mockAllowedToolsProvider,
@@ -1621,7 +1651,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             const executionError = new Error('Tool execution failed');
             mockMcpManager.executeTool = vi.fn().mockRejectedValue(executionError);
 
-            const toolManager = new ToolManager(
+            const toolManager = createToolManager(
                 mockMcpManager,
                 mockApprovalManager,
                 mockAllowedToolsProvider,
@@ -1641,7 +1671,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             const approvalError = new Error('Approval request failed');
             mockApprovalManager.requestToolApproval = vi.fn().mockRejectedValue(approvalError);
 
-            const toolManager = new ToolManager(
+            const toolManager = createToolManager(
                 mockMcpManager,
                 mockApprovalManager,
                 mockAllowedToolsProvider,
@@ -1672,7 +1702,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     alwaysDeny: ['mcp--filesystem--delete_file'],
                 };
 
-                const toolManager = new ToolManager(
+                const toolManager = createToolManager(
                     mockMcpManager,
                     mockApprovalManager,
                     mockAllowedToolsProvider,
@@ -1702,7 +1732,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     alwaysDeny: ['mcp--filesystem--delete_file'], // Deny takes precedence
                 };
 
-                const toolManager = new ToolManager(
+                const toolManager = createToolManager(
                     mockMcpManager,
                     mockApprovalManager,
                     mockAllowedToolsProvider,
@@ -1730,7 +1760,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     alwaysDeny: [],
                 };
 
-                const toolManager = new ToolManager(
+                const toolManager = createToolManager(
                     mockMcpManager,
                     mockApprovalManager,
                     mockAllowedToolsProvider,
@@ -1766,7 +1796,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     alwaysDeny: [],
                 };
 
-                const toolManager = new ToolManager(
+                const toolManager = createToolManager(
                     mockMcpManager,
                     mockApprovalManager,
                     mockAllowedToolsProvider,
@@ -1803,7 +1833,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     alwaysDeny: ['mcp--filesystem--delete_file'],
                 };
 
-                const toolManager = new ToolManager(
+                const toolManager = createToolManager(
                     mockMcpManager,
                     mockApprovalManager,
                     mockAllowedToolsProvider,
@@ -1838,7 +1868,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     alwaysDeny: ['mcp--filesystem--delete_file'],
                 };
 
-                const toolManager = new ToolManager(
+                const toolManager = createToolManager(
                     mockMcpManager,
                     mockApprovalManager,
                     mockAllowedToolsProvider,
@@ -1866,7 +1896,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     alwaysDeny: ['mcp--filesystem--delete_file'],
                 };
 
-                const toolManager = new ToolManager(
+                const toolManager = createToolManager(
                     mockMcpManager,
                     mockApprovalManager,
                     mockAllowedToolsProvider,
@@ -1895,7 +1925,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     alwaysDeny: [],
                 };
 
-                const toolManager = new ToolManager(
+                const toolManager = createToolManager(
                     mockMcpManager,
                     mockApprovalManager,
                     mockAllowedToolsProvider,
@@ -1922,7 +1952,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     alwaysDeny: [],
                 };
 
-                const toolManager = new ToolManager(
+                const toolManager = createToolManager(
                     mockMcpManager,
                     mockApprovalManager,
                     mockAllowedToolsProvider,
@@ -1953,7 +1983,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     data: {},
                 });
 
-                const toolManager = new ToolManager(
+                const toolManager = createToolManager(
                     mockMcpManager,
                     mockApprovalManager,
                     mockAllowedToolsProvider,
@@ -1992,7 +2022,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     alwaysDeny: [],
                 };
 
-                const toolManager = new ToolManager(
+                const toolManager = createToolManager(
                     mockMcpManager,
                     mockApprovalManager,
                     mockAllowedToolsProvider,
@@ -2027,7 +2057,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     alwaysDeny: [],
                 };
 
-                const toolManager = new ToolManager(
+                const toolManager = createToolManager(
                     mockMcpManager,
                     mockApprovalManager,
                     mockAllowedToolsProvider,
@@ -2065,7 +2095,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     alwaysDeny: [],
                 };
 
-                const toolManager = new ToolManager(
+                const toolManager = createToolManager(
                     mockMcpManager,
                     mockApprovalManager,
                     mockAllowedToolsProvider,
@@ -2092,7 +2122,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     alwaysDeny: [],
                 };
 
-                const toolManager = new ToolManager(
+                const toolManager = createToolManager(
                     mockMcpManager,
                     mockApprovalManager,
                     mockAllowedToolsProvider,
@@ -2127,7 +2157,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     alwaysDeny: ['mcp--delete_file'],
                 };
 
-                const toolManager = new ToolManager(
+                const toolManager = createToolManager(
                     mockMcpManager,
                     mockApprovalManager,
                     mockAllowedToolsProvider,
@@ -2151,7 +2181,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     alwaysDeny: ['mcp--delete_file'], // Simple policy
                 };
 
-                const toolManager = new ToolManager(
+                const toolManager = createToolManager(
                     mockMcpManager,
                     mockApprovalManager,
                     mockAllowedToolsProvider,
@@ -2186,7 +2216,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     alwaysDeny: [],
                 };
 
-                const toolManager = new ToolManager(
+                const toolManager = createToolManager(
                     mockMcpManager,
                     mockApprovalManager,
                     mockAllowedToolsProvider,
@@ -2228,7 +2258,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     alwaysDeny: [],
                 };
 
-                const toolManager = new ToolManager(
+                const toolManager = createToolManager(
                     mockMcpManager,
                     mockApprovalManager,
                     mockAllowedToolsProvider,
@@ -2265,7 +2295,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     alwaysDeny: ['mcp--delete_file', 'mcp--execute_script'],
                 };
 
-                const toolManager = new ToolManager(
+                const toolManager = createToolManager(
                     mockMcpManager,
                     mockApprovalManager,
                     mockAllowedToolsProvider,
@@ -2312,7 +2342,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
     describe('Session Auto-Approve Tools (Skill allowed-tools)', () => {
         describe('Basic CRUD Operations', () => {
             it('should set and get session auto-approve tools', () => {
-                const toolManager = new ToolManager(
+                const toolManager = createToolManager(
                     mockMcpManager,
                     mockApprovalManager,
                     mockAllowedToolsProvider,
@@ -2333,7 +2363,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             });
 
             it('should normalize local tool aliases when setting auto-approve tools', () => {
-                const toolManager = new ToolManager(
+                const toolManager = createToolManager(
                     mockMcpManager,
                     mockApprovalManager,
                     mockAllowedToolsProvider,
@@ -2359,7 +2389,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             });
 
             it('should return false/undefined for non-existent sessions', () => {
-                const toolManager = new ToolManager(
+                const toolManager = createToolManager(
                     mockMcpManager,
                     mockApprovalManager,
                     mockAllowedToolsProvider,
@@ -2375,7 +2405,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             });
 
             it('should clear session auto-approve tools', () => {
-                const toolManager = new ToolManager(
+                const toolManager = createToolManager(
                     mockMcpManager,
                     mockApprovalManager,
                     mockAllowedToolsProvider,
@@ -2398,7 +2428,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             });
 
             it('should handle multiple sessions independently', () => {
-                const toolManager = new ToolManager(
+                const toolManager = createToolManager(
                     mockMcpManager,
                     mockApprovalManager,
                     mockAllowedToolsProvider,
@@ -2432,7 +2462,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             });
 
             it('should overwrite existing tools when setting again', () => {
-                const toolManager = new ToolManager(
+                const toolManager = createToolManager(
                     mockMcpManager,
                     mockApprovalManager,
                     mockAllowedToolsProvider,
@@ -2454,7 +2484,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             });
 
             it('should clear auto-approvals when setting empty array', () => {
-                const toolManager = new ToolManager(
+                const toolManager = createToolManager(
                     mockMcpManager,
                     mockApprovalManager,
                     mockAllowedToolsProvider,
@@ -2479,7 +2509,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             });
 
             it('should merge tools when adding to session auto-approve list', () => {
-                const toolManager = new ToolManager(
+                const toolManager = createToolManager(
                     mockMcpManager,
                     mockApprovalManager,
                     mockAllowedToolsProvider,
@@ -2501,7 +2531,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             });
 
             it('should normalize aliases and ignore duplicates when adding auto-approve tools', () => {
-                const toolManager = new ToolManager(
+                const toolManager = createToolManager(
                     mockMcpManager,
                     mockApprovalManager,
                     mockAllowedToolsProvider,
@@ -2541,7 +2571,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     'success'
                 );
 
-                const toolManager = new ToolManager(
+                const toolManager = createToolManager(
                     mockMcpManager,
                     mockApprovalManager,
                     mockAllowedToolsProvider,
@@ -2580,7 +2610,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     'success'
                 );
 
-                const toolManager = new ToolManager(
+                const toolManager = createToolManager(
                     mockMcpManager,
                     mockApprovalManager,
                     mockAllowedToolsProvider,
@@ -2610,7 +2640,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     },
                 });
 
-                const toolManager = new ToolManager(
+                const toolManager = createToolManager(
                     mockMcpManager,
                     mockApprovalManager,
                     mockAllowedToolsProvider,
@@ -2644,7 +2674,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     'success'
                 );
 
-                const toolManager = new ToolManager(
+                const toolManager = createToolManager(
                     mockMcpManager,
                     mockApprovalManager,
                     mockAllowedToolsProvider,
@@ -2677,7 +2707,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     'success'
                 );
 
-                const toolManager = new ToolManager(
+                const toolManager = createToolManager(
                     mockMcpManager,
                     mockApprovalManager,
                     mockAllowedToolsProvider,

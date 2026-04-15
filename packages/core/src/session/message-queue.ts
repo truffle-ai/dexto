@@ -2,7 +2,25 @@ import type { SessionEventBus } from '../events/index.js';
 import type { QueuedMessage, CoalescedMessage } from './types.js';
 import type { ContentPart } from '../context/types.js';
 import type { Logger } from '../logger/v2/types.js';
-import type { MessageQueueStoreLike } from './message-queue-store.js';
+import type { MessageQueueStore } from './message-queue-store.js';
+
+type MessageQueueBackingStore = Pick<MessageQueueStore, 'load' | 'save' | 'delete'>;
+
+class EphemeralMessageQueueStore implements MessageQueueBackingStore {
+    async load(sessionId: string): Promise<QueuedMessage[]> {
+        void sessionId;
+        return [];
+    }
+
+    async save(sessionId: string, queue: QueuedMessage[]): Promise<void> {
+        void sessionId;
+        void queue;
+    }
+
+    async delete(sessionId: string): Promise<void> {
+        void sessionId;
+    }
+}
 
 /**
  * Generates a unique ID for queued messages.
@@ -58,11 +76,24 @@ export class MessageQueueService {
     private mutationLock: Promise<void> = Promise.resolve();
     private initialized = false;
 
+    static createEphemeral(
+        eventBus: SessionEventBus,
+        logger: Logger,
+        sessionId: string
+    ): MessageQueueService {
+        return new MessageQueueService(
+            eventBus,
+            logger,
+            sessionId,
+            new EphemeralMessageQueueStore()
+        );
+    }
+
     constructor(
         private eventBus: SessionEventBus,
         private logger: Logger,
         private sessionId: string,
-        private store: MessageQueueStoreLike
+        private store: MessageQueueBackingStore
     ) {}
 
     async initialize(): Promise<void> {

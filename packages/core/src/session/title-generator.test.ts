@@ -71,7 +71,9 @@ describe('generateSessionTitle', () => {
             expect.stringMatching(/^titlegen-/),
             mockResourceManager,
             logger,
-            {},
+            expect.objectContaining({
+                messageQueue: expect.any(Object),
+            }),
             languageModelFactory
         );
     });
@@ -96,7 +98,9 @@ describe('generateSessionTitle', () => {
             expect.stringMatching(/^titlegen-/),
             mockResourceManager,
             logger,
-            {},
+            expect.objectContaining({
+                messageQueue: expect.any(Object),
+            }),
             undefined
         );
     });

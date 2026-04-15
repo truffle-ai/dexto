@@ -147,7 +147,7 @@ export class SessionManager {
             resourceManager: import('../resources/index.js').ResourceManager;
             hookManager: HookManager;
             mcpManager: import('../mcp/manager.js').MCPManager;
-            messageQueueStore: MessageQueueStore;
+            messageQueueStore: Pick<MessageQueueStore, 'load' | 'save' | 'delete'>;
             compactionStrategy: CompactionStrategy | null;
             workspaceManager?: import('../workspace/manager.js').WorkspaceManager;
         },

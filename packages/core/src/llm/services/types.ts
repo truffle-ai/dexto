@@ -19,7 +19,7 @@ export interface CreateLLMServiceOptions {
     usageScopeId?: string | undefined;
     compactionStrategy?: CompactionStrategy | null | undefined;
     cwd?: string | undefined;
-    messageQueue?: MessageQueueService | undefined;
+    messageQueue: MessageQueueService;
 }
 
 /**

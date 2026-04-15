@@ -153,7 +153,7 @@ export class ChatSession {
             hookManager: HookManager;
             mcpManager: MCPManager;
             sessionManager: import('./session-manager.js').SessionManager;
-            messageQueueStore: MessageQueueStore;
+            messageQueueStore: Pick<MessageQueueStore, 'load' | 'save' | 'delete'>;
             languageModelFactory?: LanguageModelFactory;
             workspaceManager?: import('../workspace/manager.js').WorkspaceManager;
             compactionStrategy: CompactionStrategy | null;
@@ -164,6 +164,12 @@ export class ChatSession {
         this.logger = logger.createChild(DextoLogComponent.SESSION);
         // Create session-specific event bus
         this.eventBus = new SessionEventBus();
+        this.messageQueue = new MessageQueueService(
+            this.eventBus,
+            this.logger,
+            this.id,
+            this.services.messageQueueStore
+        );
 
         // Set up event forwarding to agent's global bus
         this.setupEventForwarding();
@@ -279,15 +285,7 @@ export class ChatSession {
         const runtimeConfig = this.services.stateManager.getRuntimeConfig(this.id);
         const llmConfig = runtimeConfig.llm;
 
-        if (!this.messageQueue) {
-            this.messageQueue = new MessageQueueService(
-                this.eventBus,
-                this.logger,
-                this.id,
-                this.services.messageQueueStore
-            );
-            await this.messageQueue.initialize();
-        }
+        await this.messageQueue.initialize();
 
         // Create session-specific history provider directly with database backend
         // This persists across LLM switches to maintain conversation history

@@ -140,6 +140,8 @@ describe('SessionManager', () => {
                 cleanup: vi.fn(),
             },
             messageQueueStore: {
+                load: vi.fn().mockResolvedValue([]),
+                save: vi.fn().mockResolvedValue(undefined),
                 delete: vi.fn().mockResolvedValue(undefined),
             },
         };

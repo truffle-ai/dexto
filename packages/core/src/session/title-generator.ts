@@ -7,6 +7,7 @@ import type { CreateLLMServiceOptions, LanguageModelFactory } from '../llm/servi
 import { createLLMService } from '../llm/services/factory.js';
 import { SessionEventBus } from '../events/index.js';
 import { MemoryHistoryProvider } from './history/memory.js';
+import { MessageQueueService } from './message-queue.js';
 
 export interface GenerateSessionTitleResult {
     title?: string;
@@ -38,7 +39,9 @@ export async function generateSessionTitle(
         const history = new MemoryHistoryProvider(logger);
         const bus = new SessionEventBus();
         const sessionId = `titlegen-${Math.random().toString(36).slice(2)}`;
-        const options: CreateLLMServiceOptions = {};
+        const options: CreateLLMServiceOptions = {
+            messageQueue: MessageQueueService.createEphemeral(bus, logger, sessionId),
+        };
         const tempService = createLLMService(
             config,
             toolManager,

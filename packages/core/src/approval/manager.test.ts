@@ -8,10 +8,19 @@ import { AgentEventBus } from '../events/index.js';
 import { DextoRuntimeError } from '../errors/index.js';
 import { ApprovalErrorCode } from './error-codes.js';
 import { createMockLogger } from '../logger/v2/test-utils.js';
+import type { Logger } from '../logger/v2/types.js';
+import { createInMemorySessionApprovalStore } from '../test-utils/session-state-stores.js';
 
 describe('ApprovalManager', () => {
     let agentEventBus: AgentEventBus;
     const mockLogger = createMockLogger();
+
+    function createApprovalManager(
+        config: ConstructorParameters<typeof ApprovalManager>[0],
+        logger: Logger = mockLogger
+    ) {
+        return new ApprovalManager(config, logger, createInMemorySessionApprovalStore(logger));
+    }
 
     beforeEach(() => {
         agentEventBus = new AgentEventBus();
@@ -19,7 +28,7 @@ describe('ApprovalManager', () => {
 
     describe('Configuration - Separate tool and elicitation control', () => {
         it('should allow auto-approve for tools while elicitation is enabled', async () => {
-            const manager = new ApprovalManager(
+            const manager = createApprovalManager(
                 {
                     permissions: {
                         mode: 'auto-approve',
@@ -44,7 +53,7 @@ describe('ApprovalManager', () => {
         });
 
         it('should reject elicitation when disabled, even if tools are auto-approved', async () => {
-            const manager = new ApprovalManager(
+            const manager = createApprovalManager(
                 {
                     permissions: {
                         mode: 'auto-approve',
@@ -87,7 +96,7 @@ describe('ApprovalManager', () => {
         });
 
         it('should auto-deny tools while elicitation is enabled', async () => {
-            const manager = new ApprovalManager(
+            const manager = createApprovalManager(
                 {
                     permissions: {
                         mode: 'auto-deny',
@@ -112,7 +121,7 @@ describe('ApprovalManager', () => {
         });
 
         it('should use separate timeouts for tools and elicitation', () => {
-            const manager = new ApprovalManager(
+            const manager = createApprovalManager(
                 {
                     permissions: {
                         mode: 'manual',
@@ -134,7 +143,7 @@ describe('ApprovalManager', () => {
 
     describe('Approval routing by type', () => {
         it('should route tool approvals to tool approval handler', async () => {
-            const manager = new ApprovalManager(
+            const manager = createApprovalManager(
                 {
                     permissions: {
                         mode: 'auto-approve',
@@ -158,7 +167,7 @@ describe('ApprovalManager', () => {
         });
 
         it('should route command confirmations to tool confirmation handler', async () => {
-            const manager = new ApprovalManager(
+            const manager = createApprovalManager(
                 {
                     permissions: {
                         mode: 'auto-approve',
@@ -182,7 +191,7 @@ describe('ApprovalManager', () => {
         });
 
         it('should route elicitation to elicitation provider when enabled', async () => {
-            const manager = new ApprovalManager(
+            const manager = createApprovalManager(
                 {
                     permissions: {
                         mode: 'auto-deny', // Different mode for tools
@@ -216,7 +225,7 @@ describe('ApprovalManager', () => {
 
     describe('Pending approvals tracking', () => {
         it('should track pending approvals across both providers', () => {
-            const manager = new ApprovalManager(
+            const manager = createApprovalManager(
                 {
                     permissions: {
                         mode: 'manual',
@@ -238,7 +247,7 @@ describe('ApprovalManager', () => {
         });
 
         it('should cancel approvals in both providers', () => {
-            const manager = new ApprovalManager(
+            const manager = createApprovalManager(
                 {
                     permissions: {
                         mode: 'manual',
@@ -260,7 +269,7 @@ describe('ApprovalManager', () => {
 
     describe('Error handling', () => {
         it('should throw clear error when elicitation is disabled', async () => {
-            const manager = new ApprovalManager(
+            const manager = createApprovalManager(
                 {
                     permissions: {
                         mode: 'auto-approve',
@@ -289,7 +298,7 @@ describe('ApprovalManager', () => {
         });
 
         it('should provide helpful error message about enabling elicitation', async () => {
-            const manager = new ApprovalManager(
+            const manager = createApprovalManager(
                 {
                     permissions: {
                         mode: 'auto-approve',
@@ -325,7 +334,7 @@ describe('ApprovalManager', () => {
 
     describe('Timeout Configuration', () => {
         it('should allow undefined timeout (infinite wait) for tool confirmation', () => {
-            const manager = new ApprovalManager(
+            const manager = createApprovalManager(
                 {
                     permissions: {
                         mode: 'manual',
@@ -344,7 +353,7 @@ describe('ApprovalManager', () => {
         });
 
         it('should allow undefined timeout (infinite wait) for elicitation', () => {
-            const manager = new ApprovalManager(
+            const manager = createApprovalManager(
                 {
                     permissions: {
                         mode: 'manual',
@@ -363,7 +372,7 @@ describe('ApprovalManager', () => {
         });
 
         it('should allow both timeouts to be undefined (infinite wait for all approvals)', () => {
-            const manager = new ApprovalManager(
+            const manager = createApprovalManager(
                 {
                     permissions: {
                         mode: 'manual',
@@ -383,7 +392,7 @@ describe('ApprovalManager', () => {
         });
 
         it('should use per-request timeout override when provided', async () => {
-            const manager = new ApprovalManager(
+            const manager = createApprovalManager(
                 {
                     permissions: {
                         mode: 'auto-approve', // Auto-approve so we can test immediately
@@ -410,7 +419,7 @@ describe('ApprovalManager', () => {
         });
 
         it('should not timeout when timeout is undefined in auto-approve mode', async () => {
-            const manager = new ApprovalManager(
+            const manager = createApprovalManager(
                 {
                     permissions: {
                         mode: 'auto-approve',
@@ -433,7 +442,7 @@ describe('ApprovalManager', () => {
         });
 
         it('should not timeout when timeout is undefined in auto-deny mode', async () => {
-            const manager = new ApprovalManager(
+            const manager = createApprovalManager(
                 {
                     permissions: {
                         mode: 'auto-deny',
@@ -459,7 +468,7 @@ describe('ApprovalManager', () => {
 
     describe('Backward compatibility', () => {
         it('should work with manual mode for both tools and elicitation', () => {
-            const manager = new ApprovalManager(
+            const manager = createApprovalManager(
                 {
                     permissions: {
                         mode: 'manual',
@@ -486,7 +495,7 @@ describe('ApprovalManager', () => {
         });
 
         it('should respect explicitly set elicitation enabled value', () => {
-            const manager = new ApprovalManager(
+            const manager = createApprovalManager(
                 {
                     permissions: {
                         mode: 'manual',
@@ -506,7 +515,7 @@ describe('ApprovalManager', () => {
 
     describe('Denial Reasons', () => {
         it('should include system_denied reason in auto-deny mode', async () => {
-            const manager = new ApprovalManager(
+            const manager = createApprovalManager(
                 {
                     permissions: {
                         mode: 'auto-deny',
@@ -532,7 +541,7 @@ describe('ApprovalManager', () => {
         });
 
         it('should throw error with specific reason when tool is denied', async () => {
-            const manager = new ApprovalManager(
+            const manager = createApprovalManager(
                 {
                     permissions: {
                         mode: 'auto-deny',
@@ -564,7 +573,7 @@ describe('ApprovalManager', () => {
         });
 
         it('should handle user_denied reason in error message', async () => {
-            const _manager = new ApprovalManager(
+            const _manager = createApprovalManager(
                 {
                     permissions: {
                         mode: 'manual',
@@ -628,7 +637,7 @@ describe('ApprovalManager', () => {
         const toolName = 'bash_exec';
 
         beforeEach(() => {
-            manager = new ApprovalManager(
+            manager = createApprovalManager(
                 {
                     permissions: {
                         mode: 'manual',
@@ -766,7 +775,7 @@ describe('ApprovalManager', () => {
         let manager: ApprovalManager;
 
         beforeEach(() => {
-            manager = new ApprovalManager(
+            manager = createApprovalManager(
                 {
                     permissions: {
                         mode: 'manual',

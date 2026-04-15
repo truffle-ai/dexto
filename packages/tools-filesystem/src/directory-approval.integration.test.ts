@@ -27,6 +27,7 @@ import { createWriteFileTool } from './write-file-tool.js';
 import { createEditFileTool } from './edit-file-tool.js';
 
 type ToolServices = NonNullable<ToolExecutionContext['services']>;
+type SessionApprovalStore = ConstructorParameters<typeof ApprovalManager>[2];
 
 const createMockLogger = (): Logger => {
     const noopAsync = async () => undefined;
@@ -48,6 +49,39 @@ const createMockLogger = (): Logger => {
 
     return logger;
 };
+
+function createInMemorySessionApprovalStore(): SessionApprovalStore {
+    const states = new Map<
+        string,
+        {
+            toolPatterns: Record<string, string[]>;
+            approvedDirectories: Array<{ path: string; type: 'session' | 'once' }>;
+        }
+    >();
+
+    return {
+        async load(sessionId?: string) {
+            return structuredClone(
+                states.get(sessionId ?? '__global__') ?? {
+                    toolPatterns: {},
+                    approvedDirectories: [],
+                }
+            );
+        },
+        async save(
+            sessionId: string | undefined,
+            state: {
+                toolPatterns: Record<string, string[]>;
+                approvedDirectories: Array<{ path: string; type: 'session' | 'once' }>;
+            }
+        ) {
+            states.set(sessionId ?? '__global__', structuredClone(state));
+        },
+        async delete(sessionId?: string) {
+            states.delete(sessionId ?? '__global__');
+        },
+    } as SessionApprovalStore;
+}
 
 function createToolContext(logger: Logger, approval: ApprovalManager): ToolExecutionContext {
     return {
@@ -98,7 +132,8 @@ describe('Directory Approval Integration Tests', () => {
                 permissions: { mode: 'manual' },
                 elicitation: { enabled: true },
             },
-            mockLogger
+            mockLogger,
+            createInMemorySessionApprovalStore()
         );
 
         toolContext = createToolContext(mockLogger, approvalManager);

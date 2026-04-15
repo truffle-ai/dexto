@@ -31,7 +31,10 @@ import type { BeforeToolCallPayload, AfterToolResultPayload } from '../hooks/typ
 import type { WorkspaceManager } from '../workspace/manager.js';
 import type { WorkspaceContext } from '../workspace/types.js';
 import { InstrumentClass } from '../telemetry/decorators.js';
-import type { SessionToolPreferencesStore } from './session-tool-preferences-store.js';
+import type {
+    SessionToolPreferences,
+    SessionToolPreferencesStore,
+} from './session-tool-preferences-store.js';
 import {
     extractToolCallMeta,
     wrapToolParametersSchema,
@@ -153,7 +156,7 @@ export class ToolManager {
         toolPolicies: ToolPolicies,
         tools: Tool[],
         logger: Logger,
-        private readonly sessionToolPreferencesStore?: SessionToolPreferencesStore
+        private readonly sessionToolPreferencesStore: SessionToolPreferencesStore
     ) {
         this.mcpManager = mcpManager;
         this.approvalManager = approvalManager;
@@ -197,29 +200,44 @@ export class ToolManager {
         }
     }
 
-    async restoreSessionState(sessionId: string): Promise<void> {
-        if (this.restoredSessionPreferences.has(sessionId)) {
-            return;
-        }
-
-        if (!this.sessionToolPreferencesStore) {
-            this.restoredSessionPreferences.add(sessionId);
-            return;
-        }
-
-        const preferences = await this.sessionToolPreferencesStore.load(sessionId);
+    private applySessionToolPreferences(
+        sessionId: string,
+        preferences: SessionToolPreferences
+    ): void {
         this.sessionUserAutoApproveTools.set(sessionId, [...preferences.userAutoApproveTools]);
         if (preferences.disabledTools.length > 0) {
             this.sessionDisabledTools.set(sessionId, [...preferences.disabledTools]);
         } else {
             this.sessionDisabledTools.delete(sessionId);
         }
-        this.restoredSessionPreferences.add(sessionId);
+    }
 
-        this.logger.debug('Restored persisted session tool preferences', {
-            sessionId,
-            autoApproveCount: preferences.userAutoApproveTools.length,
-            disabledCount: preferences.disabledTools.length,
+    private getSessionToolPreferencesSnapshot(sessionId: string): SessionToolPreferences {
+        return {
+            userAutoApproveTools: [...(this.sessionUserAutoApproveTools.get(sessionId) ?? [])],
+            disabledTools: [...(this.sessionDisabledTools.get(sessionId) ?? [])],
+        };
+    }
+
+    async restoreSessionState(sessionId: string): Promise<void> {
+        if (this.restoredSessionPreferences.has(sessionId)) {
+            return;
+        }
+
+        await this.runWithSessionPreferenceLock(sessionId, async () => {
+            if (this.restoredSessionPreferences.has(sessionId)) {
+                return;
+            }
+
+            const preferences = await this.sessionToolPreferencesStore.load(sessionId);
+            this.applySessionToolPreferences(sessionId, preferences);
+            this.restoredSessionPreferences.add(sessionId);
+
+            this.logger.debug('Restored persisted session tool preferences', {
+                sessionId,
+                autoApproveCount: preferences.userAutoApproveTools.length,
+                disabledCount: preferences.disabledTools.length,
+            });
         });
     }
 
@@ -232,20 +250,14 @@ export class ToolManager {
 
     async deleteSessionState(sessionId: string): Promise<void> {
         this.evictSessionState(sessionId);
-        if (this.sessionToolPreferencesStore) {
-            await this.sessionToolPreferencesStore.delete(sessionId);
-        }
+        await this.sessionToolPreferencesStore.delete(sessionId);
     }
 
     private async persistSessionToolPreferences(sessionId: string): Promise<void> {
-        if (!this.sessionToolPreferencesStore) {
-            return;
-        }
-
-        await this.sessionToolPreferencesStore.save(sessionId, {
-            userAutoApproveTools: [...(this.sessionUserAutoApproveTools.get(sessionId) ?? [])],
-            disabledTools: [...(this.sessionDisabledTools.get(sessionId) ?? [])],
-        });
+        await this.sessionToolPreferencesStore.save(
+            sessionId,
+            this.getSessionToolPreferencesSnapshot(sessionId)
+        );
     }
 
     /**

@@ -4,7 +4,7 @@ import type { SessionEventBus } from '../events/index.js';
 import type { ContentPart } from '../context/types.js';
 import { createMockLogger } from '../logger/v2/test-utils.js';
 import type { Logger } from '../logger/v2/types.js';
-import { InMemoryMessageQueueStore } from './message-queue-store.js';
+import { createInMemoryMessageQueueStore } from '../test-utils/session-state-stores.js';
 
 // Create a mock SessionEventBus
 function createMockEventBus(): SessionEventBus {
@@ -29,7 +29,7 @@ describe('MessageQueueService', () => {
             eventBus,
             logger,
             'session-1',
-            new InMemoryMessageQueueStore()
+            createInMemoryMessageQueueStore()
         );
     });
 

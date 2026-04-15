@@ -10,6 +10,46 @@ import { AgentEventBus } from '../events/index.js';
 import { ApprovalManager } from '../approval/manager.js';
 import type { AllowedToolsProvider } from './confirmation/allowed-tools-provider/types.js';
 import { createMockLogger } from '../logger/v2/test-utils.js';
+import {
+    createInMemorySessionApprovalStore,
+    createInMemorySessionToolPreferencesStore,
+} from '../test-utils/session-state-stores.js';
+
+type ToolManagerFactoryArgs =
+    ConstructorParameters<typeof ToolManager> extends [
+        infer McpManager,
+        infer ApprovalManager,
+        infer AllowedToolsProvider,
+        infer ApprovalMode,
+        infer AgentEventBus,
+        infer ToolPolicies,
+        infer Tools,
+        infer Logger,
+        infer _SessionToolPreferencesStore,
+    ]
+        ? [
+              McpManager,
+              ApprovalManager,
+              AllowedToolsProvider,
+              ApprovalMode,
+              AgentEventBus,
+              ToolPolicies,
+              Tools,
+              Logger,
+          ]
+        : never;
+
+function createToolManager(...args: ToolManagerFactoryArgs): ToolManager {
+    const logger = args[7];
+    return new ToolManager(...args, createInMemorySessionToolPreferencesStore(logger));
+}
+
+function createApprovalManager(
+    config: ConstructorParameters<typeof ApprovalManager>[0],
+    logger: ConstructorParameters<typeof ApprovalManager>[1]
+): ApprovalManager {
+    return new ApprovalManager(config, logger, createInMemorySessionApprovalStore(logger));
+}
 
 // Mock logger
 vi.mock('../logger/index.js', () => ({
@@ -113,7 +153,7 @@ describe('ToolManager Integration Tests', () => {
         } as any;
 
         // Create ApprovalManager in auto-approve mode for integration tests
-        approvalManager = new ApprovalManager(
+        approvalManager = createApprovalManager(
             {
                 permissions: {
                     mode: 'auto-approve',
@@ -166,7 +206,7 @@ describe('ToolManager Integration Tests', () => {
             await (mcpManager as any).updateClientCache('test-server', mockClient);
 
             // Create ToolManager with real components
-            const toolManager = new ToolManager(
+            const toolManager = createToolManager(
                 mcpManager,
                 approvalManager,
                 allowedToolsProvider,
@@ -191,7 +231,7 @@ describe('ToolManager Integration Tests', () => {
 
         it('should execute local tools through the complete pipeline', async () => {
             // Create ToolManager with local tools
-            const toolManager = new ToolManager(
+            const toolManager = createToolManager(
                 mcpManager,
                 approvalManager,
                 allowedToolsProvider,
@@ -245,7 +285,7 @@ describe('ToolManager Integration Tests', () => {
             await (mcpManager as any).updateClientCache('file-server', mockClient);
 
             // Create ToolManager with both MCP and local tools
-            const toolManager = new ToolManager(
+            const toolManager = createToolManager(
                 mcpManager,
                 approvalManager,
                 allowedToolsProvider,
@@ -304,7 +344,7 @@ describe('ToolManager Integration Tests', () => {
 
     describe('Confirmation Flow Integration', () => {
         it('should work with auto-approve mode', async () => {
-            const autoApproveManager = new ApprovalManager(
+            const autoApproveManager = createApprovalManager(
                 {
                     permissions: {
                         mode: 'auto-approve',
@@ -334,7 +374,7 @@ describe('ToolManager Integration Tests', () => {
             mcpMgr.registerClient('test-server', mockClient);
             await (mcpMgr as any).updateClientCache('test-server', mockClient);
 
-            const toolManager = new ToolManager(
+            const toolManager = createToolManager(
                 mcpMgr,
                 autoApproveManager,
                 allowedToolsProvider,
@@ -350,7 +390,7 @@ describe('ToolManager Integration Tests', () => {
         });
 
         it('should work with auto-deny mode', async () => {
-            const autoDenyManager = new ApprovalManager(
+            const autoDenyManager = createApprovalManager(
                 {
                     permissions: {
                         mode: 'auto-deny',
@@ -380,7 +420,7 @@ describe('ToolManager Integration Tests', () => {
             mcpMgr.registerClient('test-server', mockClient);
             await (mcpMgr as any).updateClientCache('test-server', mockClient);
 
-            const toolManager = new ToolManager(
+            const toolManager = createToolManager(
                 mcpMgr,
                 autoDenyManager,
                 allowedToolsProvider,
@@ -414,7 +454,7 @@ describe('ToolManager Integration Tests', () => {
 
             mcpManager.registerClient('failing-server', failingClient);
 
-            const toolManager = new ToolManager(
+            const toolManager = createToolManager(
                 mcpManager,
                 approvalManager,
                 allowedToolsProvider,
@@ -453,7 +493,7 @@ describe('ToolManager Integration Tests', () => {
             mcpManager.registerClient('failing-server', failingClient);
             await (mcpManager as any).updateClientCache('failing-server', failingClient);
 
-            const toolManager = new ToolManager(
+            const toolManager = createToolManager(
                 mcpManager,
                 approvalManager,
                 allowedToolsProvider,
@@ -476,7 +516,7 @@ describe('ToolManager Integration Tests', () => {
                 searchSessions: vi.fn().mockRejectedValue(new Error('Search service failed')),
             } as any;
 
-            const toolManager = new ToolManager(
+            const toolManager = createToolManager(
                 mcpManager,
                 approvalManager,
                 allowedToolsProvider,
@@ -522,7 +562,7 @@ describe('ToolManager Integration Tests', () => {
             expect(mockClient.getTools).toHaveBeenCalledTimes(1);
             vi.mocked(mockClient.getTools).mockClear();
 
-            const toolManager = new ToolManager(
+            const toolManager = createToolManager(
                 mcpManager,
                 approvalManager,
                 allowedToolsProvider,
@@ -564,7 +604,7 @@ describe('ToolManager Integration Tests', () => {
             expect(mockClient.getTools).toHaveBeenCalledTimes(1);
             vi.mocked(mockClient.getTools).mockClear();
 
-            const toolManager = new ToolManager(
+            const toolManager = createToolManager(
                 mcpManager,
                 approvalManager,
                 allowedToolsProvider,
@@ -610,7 +650,7 @@ describe('ToolManager Integration Tests', () => {
             mcpManager.registerClient('test-server', mockClient);
             await (mcpManager as any).updateClientCache('test-server', mockClient);
 
-            const toolManager = new ToolManager(
+            const toolManager = createToolManager(
                 mcpManager,
                 approvalManager,
                 allowedToolsProvider,
