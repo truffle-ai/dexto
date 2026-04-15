@@ -85,13 +85,11 @@ describe('grep_content tool', () => {
             await fs.writeFile(filePath, 'alpha\nneedle\nomega\n');
 
             const tool = createGrepContentTool(async () => fileSystemServiceForHome);
-            const result = (await tool.execute(
-                {
-                    pattern: 'needle',
-                    path: `~/${path.basename(homeTempDir)}`,
-                },
-                createToolContext(mockLogger)
-            )) as {
+            const parsedInput = tool.inputSchema.parse({
+                pattern: 'needle',
+                path: `~/${path.basename(homeTempDir)}`,
+            });
+            const result = (await tool.execute(parsedInput, createToolContext(mockLogger))) as {
                 matches: Array<{ file: string; line_number: number; line: string }>;
                 files_searched: number;
             };

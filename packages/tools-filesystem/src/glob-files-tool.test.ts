@@ -85,13 +85,11 @@ describe('glob_files tool', () => {
             await fs.writeFile(filePath, 'hello');
 
             const tool = createGlobFilesTool(async () => fileSystemServiceForHome);
-            const result = (await tool.execute(
-                {
-                    pattern: '**/*.txt',
-                    path: `~/${path.basename(homeTempDir)}`,
-                },
-                createToolContext(mockLogger)
-            )) as {
+            const parsedInput = tool.inputSchema.parse({
+                pattern: '**/*.txt',
+                path: `~/${path.basename(homeTempDir)}`,
+            });
+            const result = (await tool.execute(parsedInput, createToolContext(mockLogger))) as {
                 files: Array<{ path: string }>;
                 total_found: number;
             };
