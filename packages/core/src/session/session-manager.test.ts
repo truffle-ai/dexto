@@ -126,10 +126,21 @@ describe('SessionManager', () => {
             },
             toolManager: {
                 getAllTools: vi.fn().mockReturnValue([]),
+                restoreSessionState: vi.fn().mockResolvedValue(undefined),
+                deleteSessionState: vi.fn().mockResolvedValue(undefined),
+                evictSessionState: vi.fn(),
+            },
+            approvalManager: {
+                restoreSessionState: vi.fn().mockResolvedValue(undefined),
+                deleteSessionState: vi.fn().mockResolvedValue(undefined),
+                evictSessionState: vi.fn(),
             },
             hookManager: {
                 executeHooks: vi.fn().mockImplementation(async (_point, payload) => payload),
                 cleanup: vi.fn(),
+            },
+            messageQueueStore: {
+                delete: vi.fn().mockResolvedValue(undefined),
             },
         };
 

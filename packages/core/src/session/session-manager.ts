@@ -9,6 +9,7 @@ import type { AgentStateManager } from '../agent/state-manager.js';
 import type { ValidatedLLMConfig } from '../llm/schemas.js';
 import type { StorageManager } from '../storage/index.js';
 import type { HookManager } from '../hooks/manager.js';
+import type { ApprovalManager } from '../approval/manager.js';
 import { SessionError } from './errors.js';
 import type { TokenUsage } from '../llm/types.js';
 import type { CompactionStrategy } from '../context/compaction/types.js';
@@ -17,6 +18,7 @@ import {
     SessionPromptContributorSchema,
     type SessionPromptContributor,
 } from '../systemPrompt/schemas.js';
+import type { MessageQueueStore } from './message-queue-store.js';
 export type SessionLoggerFactory = (options: {
     baseLogger: Logger;
     agentId: string;
@@ -135,11 +137,13 @@ export class SessionManager {
             stateManager: AgentStateManager;
             systemPromptManager: SystemPromptManager;
             toolManager: ToolManager;
+            approvalManager: ApprovalManager;
             agentEventBus: AgentEventBus;
             storageManager: StorageManager;
             resourceManager: import('../resources/index.js').ResourceManager;
             hookManager: HookManager;
             mcpManager: import('../mcp/manager.js').MCPManager;
+            messageQueueStore: MessageQueueStore;
             compactionStrategy: CompactionStrategy | null;
             workspaceManager?: import('../workspace/manager.js').WorkspaceManager;
         },
@@ -475,6 +479,8 @@ export class SessionManager {
                 sessionLogger
             );
             await session.init();
+            await this.services.toolManager.restoreSessionState(id);
+            await this.services.approvalManager.restoreSessionState(id);
 
             this.sessions.set(id, session);
             this.logger.info(`Restored session from storage: ${id}`);
@@ -527,6 +533,8 @@ export class SessionManager {
                 sessionLogger
             );
             await session.init();
+            await this.services.toolManager.restoreSessionState(id);
+            await this.services.approvalManager.restoreSessionState(id);
             this.sessions.set(id, session);
 
             // Also store in cache with TTL for faster access
@@ -614,6 +622,8 @@ export class SessionManager {
                     sessionLogger
                 );
                 await session.init();
+                await this.services.toolManager.restoreSessionState(sessionId);
+                await this.services.approvalManager.restoreSessionState(sessionId);
 
                 this.sessions.set(sessionId, session);
                 return session;
@@ -642,6 +652,8 @@ export class SessionManager {
         // Remove from cache but preserve database storage
         const sessionKey = `session:${sessionId}`;
         await this.services.storageManager.getCache().delete(sessionKey);
+        this.services.toolManager.evictSessionState(sessionId);
+        this.services.approvalManager.evictSessionState(sessionId);
 
         this.logger.debug(
             `Ended session (removed from memory, chat history preserved): ${sessionId}`
@@ -668,6 +680,11 @@ export class SessionManager {
         const sessionKey = `session:${sessionId}`;
         await this.services.storageManager.getDatabase().delete(sessionKey);
         await this.services.storageManager.getCache().delete(sessionKey);
+        await Promise.all([
+            this.services.toolManager.deleteSessionState(sessionId),
+            this.services.approvalManager.deleteSessionState(sessionId),
+            this.services.messageQueueStore.delete(sessionId),
+        ]);
 
         const messagesKey = `messages:${sessionId}`;
         await this.services.storageManager.getDatabase().delete(messagesKey);
@@ -1153,6 +1170,7 @@ export class SessionManager {
                     // This is different from input validation which uses Result<T,C> pattern
                     this.services.stateManager.updateLLM(newLLMConfig, sId);
                     await session.switchLLM(newLLMConfig);
+                    await this.persistSessionLLMOverride(sId, newLLMConfig);
                 } catch (error) {
                     // Session-level failure - continue processing other sessions (isolation)
                     failedSessions.push(sId);
@@ -1198,21 +1216,7 @@ export class SessionManager {
         }
 
         await session.switchLLM(newLLMConfig);
-
-        // Persist the LLM override to storage so it survives restarts
-        // SECURITY: Don't persist API keys - they should be resolved from environment variables
-        await this.runWithSessionDataLock(sessionId, async (sessionKey) => {
-            const sessionData = await this.services.storageManager
-                .getDatabase()
-                .get<SessionData>(sessionKey);
-            if (!sessionData) {
-                return;
-            }
-
-            const { apiKey: _apiKey, ...configWithoutApiKey } = newLLMConfig;
-            sessionData.llmOverride = configWithoutApiKey;
-            await this.persistSessionData(sessionKey, sessionData);
-        });
+        await this.persistSessionLLMOverride(sessionId, newLLMConfig);
 
         this.services.agentEventBus.emit('llm:switched', {
             newConfig: newLLMConfig,
@@ -1223,6 +1227,25 @@ export class SessionManager {
         const message = `Successfully switched to ${newLLMConfig.provider}/${newLLMConfig.model} for session ${sessionId}`;
 
         return { message, warnings: [] };
+    }
+
+    private async persistSessionLLMOverride(
+        sessionId: string,
+        newLLMConfig: ValidatedLLMConfig
+    ): Promise<void> {
+        await this.runWithSessionDataLock(sessionId, async (sessionKey) => {
+            const sessionData = await this.services.storageManager
+                .getDatabase()
+                .get<SessionData>(sessionKey);
+            if (!sessionData) {
+                return;
+            }
+
+            // SECURITY: Don't persist API keys - they should be resolved from environment variables.
+            const { apiKey: _apiKey, ...configWithoutApiKey } = newLLMConfig;
+            sessionData.llmOverride = configWithoutApiKey;
+            await this.persistSessionData(sessionKey, sessionData);
+        });
     }
 
     private async runWithSessionDataLock<T>(

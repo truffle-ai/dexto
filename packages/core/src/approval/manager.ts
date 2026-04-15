@@ -17,6 +17,13 @@ import { DextoLogComponent } from '../logger/v2/types.js';
 import { ApprovalError } from './errors.js';
 import { patternCovers } from '../tools/pattern-utils.js';
 import type { PermissionsMode } from '../tools/schemas.js';
+import {
+    SessionApprovalStore,
+    type PersistedApprovedDirectory,
+    type SessionApprovalState,
+} from './session-approval-store.js';
+
+const GLOBAL_APPROVAL_SCOPE = '__global__';
 
 function tryRealpathSync(targetPath: string): string | null {
     try {
@@ -97,6 +104,8 @@ export class ApprovalManager {
     private handler: ApprovalHandler | undefined;
     private config: ApprovalManagerConfig;
     private logger: Logger;
+    private readonly loadedScopes = new Set<string>();
+    private readonly scopeLocks = new Map<string, Promise<void>>();
 
     /**
      * Tool approval patterns, keyed by tool id.
@@ -104,7 +113,7 @@ export class ApprovalManager {
      * Patterns use simple glob syntax (e.g. "git *", "npm install *") and are matched
      * using pattern-to-pattern covering (see {@link patternCovers}).
      */
-    private toolPatterns: Map<string, Set<string>> = new Map();
+    private toolPatterns: Map<string, Map<string, Set<string>>> = new Map();
 
     /**
      * Directories approved for file access for the current session.
@@ -113,9 +122,13 @@ export class ApprovalManager {
      * - 'once': Prompts each time, but tool can execute
      * Cleared when session ends.
      */
-    private approvedDirectories: Map<string, 'session' | 'once'> = new Map();
+    private approvedDirectories: Map<string, Map<string, 'session' | 'once'>> = new Map();
 
-    constructor(config: ApprovalManagerConfig, logger: Logger) {
+    constructor(
+        config: ApprovalManagerConfig,
+        logger: Logger,
+        private readonly sessionApprovalStore?: SessionApprovalStore
+    ) {
         this.config = config;
         this.logger = logger.createChild(DextoLogComponent.APPROVAL);
 
@@ -124,22 +137,165 @@ export class ApprovalManager {
         );
     }
 
+    private getScopeKey(sessionId?: string): string {
+        return sessionId ?? GLOBAL_APPROVAL_SCOPE;
+    }
+
+    private getScopeLabel(sessionId?: string): string {
+        return sessionId ?? 'global';
+    }
+
+    private getOrCreateToolPatternScope(scopeKey: string): Map<string, Set<string>> {
+        const existing = this.toolPatterns.get(scopeKey);
+        if (existing) return existing;
+        const created = new Map<string, Set<string>>();
+        this.toolPatterns.set(scopeKey, created);
+        return created;
+    }
+
+    private getOrCreateApprovedDirectoryScope(scopeKey: string): Map<string, 'session' | 'once'> {
+        const existing = this.approvedDirectories.get(scopeKey);
+        if (existing) return existing;
+        const created = new Map<string, 'session' | 'once'>();
+        this.approvedDirectories.set(scopeKey, created);
+        return created;
+    }
+
+    private getToolPatternScope(scopeKey: string): Map<string, Set<string>> {
+        return this.toolPatterns.get(scopeKey) ?? new Map<string, Set<string>>();
+    }
+
+    private getApprovedDirectoryScope(scopeKey: string): Map<string, 'session' | 'once'> {
+        return this.approvedDirectories.get(scopeKey) ?? new Map<string, 'session' | 'once'>();
+    }
+
+    private async runWithScopeLock<T>(scopeKey: string, fn: () => Promise<T>): Promise<T> {
+        const previousLock = this.scopeLocks.get(scopeKey) ?? Promise.resolve();
+        const currentResult = previousLock.catch(() => {}).then(() => fn());
+        const currentLock = currentResult.then(
+            () => undefined,
+            () => undefined
+        );
+
+        this.scopeLocks.set(scopeKey, currentLock);
+
+        try {
+            return await currentResult;
+        } finally {
+            if (this.scopeLocks.get(scopeKey) === currentLock) {
+                this.scopeLocks.delete(scopeKey);
+            }
+        }
+    }
+
+    private snapshotToolPatterns(scopeKey: string): Record<string, string[]> {
+        const snapshot: Record<string, string[]> = {};
+        for (const [toolName, patterns] of this.getToolPatternScope(scopeKey)) {
+            snapshot[toolName] = Array.from(patterns);
+        }
+        return snapshot;
+    }
+
+    private snapshotApprovedDirectories(scopeKey: string): PersistedApprovedDirectory[] {
+        return Array.from(this.getApprovedDirectoryScope(scopeKey).entries()).map(
+            ([path, type]) => ({
+                path,
+                type,
+            })
+        );
+    }
+
+    private async persistScope(sessionId?: string): Promise<void> {
+        if (!this.sessionApprovalStore) {
+            return;
+        }
+
+        const scopeKey = this.getScopeKey(sessionId);
+        const state: SessionApprovalState = {
+            toolPatterns: this.snapshotToolPatterns(scopeKey),
+            approvedDirectories: this.snapshotApprovedDirectories(scopeKey),
+        };
+        await this.sessionApprovalStore.save(sessionId, state);
+    }
+
+    private hydrateScope(sessionId: string | undefined, state: SessionApprovalState): void {
+        const scopeKey = this.getScopeKey(sessionId);
+
+        const patternScope = new Map<string, Set<string>>();
+        for (const [toolName, patterns] of Object.entries(state.toolPatterns)) {
+            patternScope.set(toolName, new Set(patterns));
+        }
+        this.toolPatterns.set(scopeKey, patternScope);
+
+        const directoryScope = new Map<string, 'session' | 'once'>();
+        for (const entry of state.approvedDirectories) {
+            directoryScope.set(entry.path, entry.type);
+        }
+        this.approvedDirectories.set(scopeKey, directoryScope);
+    }
+
+    async restoreSessionState(sessionId?: string): Promise<void> {
+        const scopeKey = this.getScopeKey(sessionId);
+        if (this.loadedScopes.has(scopeKey)) {
+            return;
+        }
+
+        if (!this.sessionApprovalStore) {
+            this.loadedScopes.add(scopeKey);
+            return;
+        }
+
+        const state = await this.sessionApprovalStore.load(sessionId);
+        this.hydrateScope(sessionId, state);
+        this.loadedScopes.add(scopeKey);
+
+        this.logger.debug('Restored persisted approval state', {
+            sessionId: this.getScopeLabel(sessionId),
+            toolCount: Object.keys(state.toolPatterns).length,
+            directoryCount: state.approvedDirectories.length,
+        });
+    }
+
+    evictSessionState(sessionId?: string): void {
+        const scopeKey = this.getScopeKey(sessionId);
+        this.toolPatterns.delete(scopeKey);
+        this.approvedDirectories.delete(scopeKey);
+        this.loadedScopes.delete(scopeKey);
+    }
+
+    async deleteSessionState(sessionId?: string): Promise<void> {
+        this.evictSessionState(sessionId);
+        if (this.sessionApprovalStore) {
+            await this.sessionApprovalStore.delete(sessionId);
+        }
+    }
+
     // ==================== Pattern Methods ====================
 
-    private getOrCreateToolPatternSet(toolName: string): Set<string> {
-        const existing = this.toolPatterns.get(toolName);
+    private getOrCreateToolPatternSet(toolName: string, scopeKey: string): Set<string> {
+        const scope = this.getOrCreateToolPatternScope(scopeKey);
+        const existing = scope.get(toolName);
         if (existing) return existing;
         const created = new Set<string>();
-        this.toolPatterns.set(toolName, created);
+        scope.set(toolName, created);
         return created;
     }
 
     /**
      * Add an approval pattern for a tool.
      */
-    addPattern(toolName: string, pattern: string): void {
-        this.getOrCreateToolPatternSet(toolName).add(pattern);
-        this.logger.debug(`Added pattern for '${toolName}': "${pattern}"`);
+    async addPattern(toolName: string, pattern: string, sessionId?: string): Promise<void> {
+        await this.restoreSessionState(sessionId);
+        const scopeKey = this.getScopeKey(sessionId);
+
+        await this.runWithScopeLock(scopeKey, async () => {
+            this.getOrCreateToolPatternSet(toolName, scopeKey).add(pattern);
+            await this.persistScope(sessionId);
+        });
+
+        this.logger.debug(
+            `Added pattern for '${toolName}' in '${this.getScopeLabel(sessionId)}': "${pattern}"`
+        );
     }
 
     /**
@@ -148,8 +304,9 @@ export class ApprovalManager {
      * Note: This expects a pattern key (e.g. "git push *"), not raw arguments.
      * Tools are responsible for generating the key via `tool.approval.patternKey()`.
      */
-    matchesPattern(toolName: string, patternKey: string): boolean {
-        const patterns = this.toolPatterns.get(toolName);
+    matchesPattern(toolName: string, patternKey: string, sessionId?: string): boolean {
+        const scopeKey = this.getScopeKey(sessionId);
+        const patterns = this.getToolPatternScope(scopeKey).get(toolName);
         if (!patterns || patterns.size === 0) return false;
 
         for (const storedPattern of patterns) {
@@ -166,40 +323,51 @@ export class ApprovalManager {
     /**
      * Clear all patterns for a tool (or all tools when omitted).
      */
-    clearPatterns(toolName?: string): void {
-        if (toolName) {
-            const patterns = this.toolPatterns.get(toolName);
-            if (!patterns) return;
-            const count = patterns.size;
-            patterns.clear();
-            if (count > 0) {
-                this.logger.debug(`Cleared ${count} pattern(s) for '${toolName}'`);
-            }
-            return;
-        }
+    async clearPatterns(toolName?: string, sessionId?: string): Promise<void> {
+        await this.restoreSessionState(sessionId);
+        const scopeKey = this.getScopeKey(sessionId);
 
-        const count = Array.from(this.toolPatterns.values()).reduce(
-            (sum, set) => sum + set.size,
-            0
-        );
-        this.toolPatterns.clear();
-        if (count > 0) {
-            this.logger.debug(`Cleared ${count} total tool pattern(s)`);
-        }
+        await this.runWithScopeLock(scopeKey, async () => {
+            const scope = this.getOrCreateToolPatternScope(scopeKey);
+            if (toolName) {
+                const patterns = scope.get(toolName);
+                if (!patterns) return;
+                const count = patterns.size;
+                scope.delete(toolName);
+                await this.persistScope(sessionId);
+                if (count > 0) {
+                    this.logger.debug(
+                        `Cleared ${count} pattern(s) for '${toolName}' in '${this.getScopeLabel(sessionId)}'`
+                    );
+                }
+                return;
+            }
+
+            const count = Array.from(scope.values()).reduce((sum, set) => sum + set.size, 0);
+            this.toolPatterns.set(scopeKey, new Map());
+            await this.persistScope(sessionId);
+            if (count > 0) {
+                this.logger.debug(
+                    `Cleared ${count} total tool pattern(s) in '${this.getScopeLabel(sessionId)}'`
+                );
+            }
+        });
     }
 
     /**
      * Get patterns for a tool (for debugging/display).
      */
-    getToolPatterns(toolName: string): ReadonlySet<string> {
-        return this.toolPatterns.get(toolName) ?? new Set<string>();
+    getToolPatterns(toolName: string, sessionId?: string): ReadonlySet<string> {
+        const scopeKey = this.getScopeKey(sessionId);
+        return this.getToolPatternScope(scopeKey).get(toolName) ?? new Set<string>();
     }
 
     /**
      * Get all tool patterns (for debugging/display).
      */
-    getAllToolPatterns(): ReadonlyMap<string, Set<string>> {
-        return this.toolPatterns;
+    getAllToolPatterns(sessionId?: string): ReadonlyMap<string, Set<string>> {
+        const scopeKey = this.getScopeKey(sessionId);
+        return this.getToolPatternScope(scopeKey);
     }
 
     // ==================== Directory Access Methods ====================
@@ -236,8 +404,8 @@ export class ApprovalManager {
      *
      * @param workingDir The working directory path
      */
-    initializeWorkingDirectory(workingDir: string): void {
-        this.addApprovedDirectory(workingDir, 'session');
+    async initializeWorkingDirectory(workingDir: string, sessionId?: string): Promise<void> {
+        await this.addApprovedDirectory(workingDir, 'session', sessionId);
     }
 
     /**
@@ -257,40 +425,52 @@ export class ApprovalManager {
      * // Tool can access, but will prompt again next time
      * ```
      */
-    addApprovedDirectory(directory: string, type: 'session' | 'once' = 'session'): void {
-        const keys = this.getDirectoryApprovalKeys(directory);
+    async addApprovedDirectory(
+        directory: string,
+        type: 'session' | 'once' = 'session',
+        sessionId?: string
+    ): Promise<void> {
+        await this.restoreSessionState(sessionId);
+        const scopeKey = this.getScopeKey(sessionId);
 
-        const existingTypes = keys
-            .map((key) => this.approvedDirectories.get(key))
-            .filter((value): value is 'session' | 'once' => value !== undefined);
-        const hasSessionApproval = existingTypes.includes('session');
+        await this.runWithScopeLock(scopeKey, async () => {
+            const keys = this.getDirectoryApprovalKeys(directory);
+            const directoryScope = this.getOrCreateApprovedDirectoryScope(scopeKey);
 
-        // Never downgrade from session to once, even across realpath aliases
-        const effectiveType: 'session' | 'once' =
-            type === 'session' || hasSessionApproval ? 'session' : 'once';
+            const existingTypes = keys
+                .map((key) => directoryScope.get(key))
+                .filter((value): value is 'session' | 'once' => value !== undefined);
+            const hasSessionApproval = existingTypes.includes('session');
 
-        for (const key of keys) {
-            const existing = this.approvedDirectories.get(key);
-            if (existing === 'session') {
-                continue;
+            // Never downgrade from session to once, even across realpath aliases
+            const effectiveType: 'session' | 'once' =
+                type === 'session' || hasSessionApproval ? 'session' : 'once';
+
+            for (const key of keys) {
+                const existing = directoryScope.get(key);
+                if (existing === 'session') {
+                    continue;
+                }
+                directoryScope.set(key, effectiveType);
             }
-            this.approvedDirectories.set(key, effectiveType);
-        }
 
-        const resolvedKey = keys[0]!;
-        if (effectiveType === 'session' && type === 'once' && hasSessionApproval) {
+            await this.persistScope(sessionId);
+
+            const resolvedKey = keys[0]!;
+            if (effectiveType === 'session' && type === 'once' && hasSessionApproval) {
+                this.logger.debug(
+                    `Directory "${resolvedKey}" already approved as 'session', not downgrading to 'once'`
+                );
+                return;
+            }
+
+            const realKey = keys.length > 1 ? keys[1] : null;
             this.logger.debug(
-                `Directory "${resolvedKey}" already approved as 'session', not downgrading to 'once'`
+                `Added approved directory in '${this.getScopeLabel(sessionId)}': "${resolvedKey}" (type: ${effectiveType})${
+                    realKey ? `, realpath: "${realKey}"` : ''
+                }`
             );
-            return;
-        }
-
-        const realKey = keys.length > 1 ? keys[1] : null;
-        this.logger.debug(
-            `Added approved directory: "${resolvedKey}" (type: ${effectiveType})${
-                realKey ? `, realpath: "${realKey}"` : ''
-            }`
-        );
+        });
     }
 
     /**
@@ -301,9 +481,11 @@ export class ApprovalManager {
      * @param filePath The file path to check (can be relative or absolute)
      * @returns true if the path is within a session-approved directory
      */
-    isDirectorySessionApproved(filePath: string): boolean {
+    isDirectorySessionApproved(filePath: string, sessionId?: string): boolean {
+        const scopeKey = this.getScopeKey(sessionId);
+        const directoryScope = this.getApprovedDirectoryScope(scopeKey);
         for (const normalized of this.getFileApprovalKeys(filePath)) {
-            for (const [approvedDir, type] of this.approvedDirectories) {
+            for (const [approvedDir, type] of directoryScope) {
                 // Only check 'session' type directories for prompting decisions
                 if (type !== 'session') continue;
 
@@ -327,9 +509,11 @@ export class ApprovalManager {
      * @param filePath The file path to check (can be relative or absolute)
      * @returns true if the path is within any approved directory
      */
-    isDirectoryApproved(filePath: string): boolean {
+    isDirectoryApproved(filePath: string, sessionId?: string): boolean {
+        const scopeKey = this.getScopeKey(sessionId);
+        const directoryScope = this.getApprovedDirectoryScope(scopeKey);
         for (const normalized of this.getFileApprovalKeys(filePath)) {
-            for (const [approvedDir] of this.approvedDirectories) {
+            for (const [approvedDir] of directoryScope) {
                 const relative = path.relative(approvedDir, normalized);
                 if (!relative.startsWith('..') && !path.isAbsolute(relative)) {
                     this.logger.debug(
@@ -346,35 +530,44 @@ export class ApprovalManager {
      * Clear all approved directories.
      * Should be called when session ends.
      */
-    clearApprovedDirectories(): void {
-        const count = this.approvedDirectories.size;
-        this.approvedDirectories.clear();
-        if (count > 0) {
-            this.logger.debug(`Cleared ${count} approved directories`);
-        }
+    async clearApprovedDirectories(sessionId?: string): Promise<void> {
+        await this.restoreSessionState(sessionId);
+        const scopeKey = this.getScopeKey(sessionId);
+
+        await this.runWithScopeLock(scopeKey, async () => {
+            const count = this.getApprovedDirectoryScope(scopeKey).size;
+            this.approvedDirectories.set(scopeKey, new Map());
+            await this.persistScope(sessionId);
+            if (count > 0) {
+                this.logger.debug(
+                    `Cleared ${count} approved directories in '${this.getScopeLabel(sessionId)}'`
+                );
+            }
+        });
     }
 
     /**
      * Get the current map of approved directories with their types (for debugging/display).
      */
-    getApprovedDirectories(): ReadonlyMap<string, 'session' | 'once'> {
-        return this.approvedDirectories;
+    getApprovedDirectories(sessionId?: string): ReadonlyMap<string, 'session' | 'once'> {
+        const scopeKey = this.getScopeKey(sessionId);
+        return this.getApprovedDirectoryScope(scopeKey);
     }
 
     /**
      * Get just the directory paths that are approved (for debugging/display).
      */
-    getApprovedDirectoryPaths(): string[] {
-        return Array.from(this.approvedDirectories.keys());
+    getApprovedDirectoryPaths(sessionId?: string): string[] {
+        return Array.from(this.getApprovedDirectories(sessionId).keys());
     }
 
     /**
      * Clear all session-scoped approvals (tool patterns and directories).
      * Convenience method for clearing all session state at once.
      */
-    clearSessionApprovals(): void {
-        this.clearPatterns();
-        this.clearApprovedDirectories();
+    async clearSessionApprovals(sessionId?: string): Promise<void> {
+        await this.clearPatterns(undefined, sessionId);
+        await this.clearApprovedDirectories(sessionId);
         this.logger.debug('Cleared all session approvals');
     }
 

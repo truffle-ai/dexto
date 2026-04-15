@@ -392,7 +392,7 @@ describe('TurnExecutor Integration Tests', () => {
 
     describe('Message Queue Injection', () => {
         it('should inject queued messages into context', async () => {
-            messageQueue.enqueue({
+            await messageQueue.enqueue({
                 content: [{ type: 'text', text: 'User guidance: focus on performance' }],
             });
 
@@ -415,7 +415,7 @@ describe('TurnExecutor Integration Tests', () => {
             vi.mocked(streamText).mockImplementation(() => {
                 callCount++;
                 if (callCount === 1) {
-                    messageQueue.enqueue({
+                    void messageQueue.enqueue({
                         content: [{ type: 'text', text: 'Follow-up question' }],
                     });
                     return createMockStream({
@@ -668,16 +668,16 @@ describe('TurnExecutor Integration Tests', () => {
 
     describe('Cleanup and Resource Management', () => {
         it('should clear message queue on normal completion', async () => {
-            messageQueue.enqueue({ content: [{ type: 'text', text: 'Pending' }] });
+            await messageQueue.enqueue({ content: [{ type: 'text', text: 'Pending' }] });
 
             await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
             await executor.execute({ mcpManager }, true);
 
-            expect(messageQueue.dequeueAll()).toBeNull();
+            await expect(messageQueue.dequeueAll()).resolves.toBeNull();
         });
 
         it('should clear message queue on error', async () => {
-            messageQueue.enqueue({ content: [{ type: 'text', text: 'Pending' }] });
+            await messageQueue.enqueue({ content: [{ type: 'text', text: 'Pending' }] });
 
             vi.mocked(streamText).mockImplementation(() => {
                 throw new Error('Failed');
@@ -686,7 +686,7 @@ describe('TurnExecutor Integration Tests', () => {
             await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
             await expect(executor.execute({ mcpManager }, true)).rejects.toThrow();
 
-            expect(messageQueue.dequeueAll()).toBeNull();
+            await expect(messageQueue.dequeueAll()).resolves.toBeNull();
         });
     });
 

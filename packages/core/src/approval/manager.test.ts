@@ -643,15 +643,15 @@ describe('ApprovalManager', () => {
         });
 
         describe('addPattern', () => {
-            it('should add a pattern to the approved list', () => {
-                manager.addPattern(toolName, 'git *');
+            it('should add a pattern to the approved list', async () => {
+                await manager.addPattern(toolName, 'git *');
                 expect(manager.getToolPatterns(toolName).has('git *')).toBe(true);
             });
 
-            it('should add multiple patterns', () => {
-                manager.addPattern(toolName, 'git *');
-                manager.addPattern(toolName, 'npm *');
-                manager.addPattern(toolName, 'ls *');
+            it('should add multiple patterns', async () => {
+                await manager.addPattern(toolName, 'git *');
+                await manager.addPattern(toolName, 'npm *');
+                await manager.addPattern(toolName, 'ls *');
 
                 const patterns = manager.getToolPatterns(toolName);
                 expect(patterns.size).toBe(3);
@@ -660,9 +660,9 @@ describe('ApprovalManager', () => {
                 expect(patterns.has('ls *')).toBe(true);
             });
 
-            it('should not duplicate patterns', () => {
-                manager.addPattern(toolName, 'git *');
-                manager.addPattern(toolName, 'git *');
+            it('should not duplicate patterns', async () => {
+                await manager.addPattern(toolName, 'git *');
+                await manager.addPattern(toolName, 'git *');
 
                 expect(manager.getToolPatterns(toolName).size).toBe(1);
             });
@@ -672,32 +672,32 @@ describe('ApprovalManager', () => {
             // Note: matchesPattern expects pattern keys (e.g., "git push *"),
             // not raw commands. ToolManager generates pattern keys from commands.
 
-            it('should match exact pattern against exact stored pattern', () => {
-                manager.addPattern(toolName, 'git status *');
+            it('should match exact pattern against exact stored pattern', async () => {
+                await manager.addPattern(toolName, 'git status *');
                 expect(manager.matchesPattern(toolName, 'git status *')).toBe(true);
                 expect(manager.matchesPattern(toolName, 'git push *')).toBe(false);
             });
 
-            it('should cover narrower pattern with broader pattern', () => {
+            it('should cover narrower pattern with broader pattern', async () => {
                 // "git *" is broader and should cover "git push *", "git status *", etc.
-                manager.addPattern(toolName, 'git *');
+                await manager.addPattern(toolName, 'git *');
                 expect(manager.matchesPattern(toolName, 'git *')).toBe(true);
                 expect(manager.matchesPattern(toolName, 'git push *')).toBe(true);
                 expect(manager.matchesPattern(toolName, 'git status *')).toBe(true);
                 expect(manager.matchesPattern(toolName, 'npm *')).toBe(false);
             });
 
-            it('should not let narrower pattern cover broader pattern', () => {
+            it('should not let narrower pattern cover broader pattern', async () => {
                 // "git push *" should NOT cover "git *"
-                manager.addPattern(toolName, 'git push *');
+                await manager.addPattern(toolName, 'git push *');
                 expect(manager.matchesPattern(toolName, 'git push *')).toBe(true);
                 expect(manager.matchesPattern(toolName, 'git *')).toBe(false);
                 expect(manager.matchesPattern(toolName, 'git status *')).toBe(false);
             });
 
-            it('should match against multiple patterns', () => {
-                manager.addPattern(toolName, 'git *');
-                manager.addPattern(toolName, 'npm install *');
+            it('should match against multiple patterns', async () => {
+                await manager.addPattern(toolName, 'git *');
+                await manager.addPattern(toolName, 'npm install *');
 
                 expect(manager.matchesPattern(toolName, 'git status *')).toBe(true);
                 expect(manager.matchesPattern(toolName, 'npm install *')).toBe(true);
@@ -709,40 +709,40 @@ describe('ApprovalManager', () => {
                 expect(manager.matchesPattern(toolName, 'git status *')).toBe(false);
             });
 
-            it('should not cross-match unrelated commands', () => {
-                manager.addPattern(toolName, 'npm *');
+            it('should not cross-match unrelated commands', async () => {
+                await manager.addPattern(toolName, 'npm *');
                 // "npx" starts with "np" but is not "npm " + something
                 expect(manager.matchesPattern(toolName, 'npx *')).toBe(false);
             });
 
-            it('should handle multi-level subcommands', () => {
-                manager.addPattern(toolName, 'docker compose *');
+            it('should handle multi-level subcommands', async () => {
+                await manager.addPattern(toolName, 'docker compose *');
                 expect(manager.matchesPattern(toolName, 'docker compose *')).toBe(true);
                 expect(manager.matchesPattern(toolName, 'docker compose up *')).toBe(true);
                 expect(manager.matchesPattern(toolName, 'docker *')).toBe(false);
             });
 
-            it('should isolate patterns by tool', () => {
-                manager.addPattern('tool-a', 'git *');
+            it('should isolate patterns by tool', async () => {
+                await manager.addPattern('tool-a', 'git *');
                 expect(manager.matchesPattern('tool-a', 'git push *')).toBe(true);
                 expect(manager.matchesPattern('tool-b', 'git push *')).toBe(false);
             });
         });
 
         describe('clearPatterns', () => {
-            it('should clear patterns for a tool', () => {
-                manager.addPattern(toolName, 'git *');
-                manager.addPattern(toolName, 'npm *');
+            it('should clear patterns for a tool', async () => {
+                await manager.addPattern(toolName, 'git *');
+                await manager.addPattern(toolName, 'npm *');
                 expect(manager.getToolPatterns(toolName).size).toBe(2);
 
-                manager.clearPatterns(toolName);
+                await manager.clearPatterns(toolName);
                 expect(manager.getToolPatterns(toolName).size).toBe(0);
             });
 
-            it('should allow adding patterns after clearing', () => {
-                manager.addPattern(toolName, 'git *');
-                manager.clearPatterns(toolName);
-                manager.addPattern(toolName, 'npm *');
+            it('should allow adding patterns after clearing', async () => {
+                await manager.addPattern(toolName, 'git *');
+                await manager.clearPatterns(toolName);
+                await manager.addPattern(toolName, 'npm *');
 
                 expect(manager.getToolPatterns(toolName).size).toBe(1);
                 expect(manager.getToolPatterns(toolName).has('npm *')).toBe(true);
@@ -754,8 +754,8 @@ describe('ApprovalManager', () => {
                 expect(manager.getToolPatterns(toolName).size).toBe(0);
             });
 
-            it('should return a copy that reflects current patterns', () => {
-                manager.addPattern(toolName, 'git *');
+            it('should return a copy that reflects current patterns', async () => {
+                await manager.addPattern(toolName, 'git *');
                 const patterns = manager.getToolPatterns(toolName);
                 expect(patterns.has('git *')).toBe(true);
             });
@@ -781,26 +781,26 @@ describe('ApprovalManager', () => {
         });
 
         describe('initializeWorkingDirectory', () => {
-            it('should add working directory as session-approved', () => {
-                manager.initializeWorkingDirectory('/home/user/project');
+            it('should add working directory as session-approved', async () => {
+                await manager.initializeWorkingDirectory('/home/user/project');
                 expect(manager.isDirectorySessionApproved('/home/user/project/src/file.ts')).toBe(
                     true
                 );
             });
 
-            it('should normalize the path before adding', () => {
-                manager.initializeWorkingDirectory('/home/user/../user/project');
+            it('should normalize the path before adding', async () => {
+                await manager.initializeWorkingDirectory('/home/user/../user/project');
                 expect(manager.isDirectorySessionApproved('/home/user/project/file.ts')).toBe(true);
             });
         });
 
         describe('addApprovedDirectory', () => {
-            it('should add directory with session type by default', () => {
-                manager.addApprovedDirectory('/external/project');
+            it('should add directory with session type by default', async () => {
+                await manager.addApprovedDirectory('/external/project');
                 expect(manager.isDirectorySessionApproved('/external/project/file.ts')).toBe(true);
             });
 
-            it('should treat symlink-approved directory as approved for its realpath', () => {
+            it('should treat symlink-approved directory as approved for its realpath', async () => {
                 const baseDir = mkdtempSync(path.join(os.tmpdir(), 'dexto-approval-symlink-'));
                 try {
                     const actualDir = path.join(baseDir, 'actual');
@@ -810,7 +810,7 @@ describe('ApprovalManager', () => {
                     const symlinkType = process.platform === 'win32' ? 'junction' : 'dir';
                     symlinkSync(actualDir, linkDir, symlinkType);
 
-                    manager.addApprovedDirectory(linkDir, 'session');
+                    await manager.addApprovedDirectory(linkDir, 'session');
 
                     expect(manager.isDirectoryApproved(path.join(actualDir, 'file.ts'))).toBe(true);
                     expect(
@@ -821,7 +821,7 @@ describe('ApprovalManager', () => {
                 }
             });
 
-            it('should treat approved directory as approved for its realpath even if the directory did not exist yet', () => {
+            it('should treat approved directory as approved for its realpath even if the directory did not exist yet', async () => {
                 const baseDir = mkdtempSync(
                     path.join(os.tmpdir(), 'dexto-approval-symlink-missing-leaf-')
                 );
@@ -837,7 +837,7 @@ describe('ApprovalManager', () => {
                     const approvedDir = path.join(linkDir, 'child');
 
                     // Approve a directory that doesn't exist yet (common for write/create flows).
-                    manager.addApprovedDirectory(approvedDir, 'session');
+                    await manager.addApprovedDirectory(approvedDir, 'session');
 
                     const actualChildDir = path.join(actualDir, 'child');
                     mkdirSync(actualChildDir);
@@ -850,69 +850,69 @@ describe('ApprovalManager', () => {
                 }
             });
 
-            it('should add directory with explicit session type', () => {
-                manager.addApprovedDirectory('/external/project', 'session');
+            it('should add directory with explicit session type', async () => {
+                await manager.addApprovedDirectory('/external/project', 'session');
                 expect(manager.isDirectorySessionApproved('/external/project/file.ts')).toBe(true);
             });
 
-            it('should add directory with once type', () => {
-                manager.addApprovedDirectory('/external/project', 'once');
+            it('should add directory with once type', async () => {
+                await manager.addApprovedDirectory('/external/project', 'once');
                 // 'once' type should NOT be session-approved (requires prompt each time)
                 expect(manager.isDirectorySessionApproved('/external/project/file.ts')).toBe(false);
                 // But should be generally approved for execution
                 expect(manager.isDirectoryApproved('/external/project/file.ts')).toBe(true);
             });
 
-            it('should not downgrade from session to once', () => {
-                manager.addApprovedDirectory('/external/project', 'session');
-                manager.addApprovedDirectory('/external/project', 'once');
+            it('should not downgrade from session to once', async () => {
+                await manager.addApprovedDirectory('/external/project', 'session');
+                await manager.addApprovedDirectory('/external/project', 'once');
                 // Should still be session-approved
                 expect(manager.isDirectorySessionApproved('/external/project/file.ts')).toBe(true);
             });
 
-            it('should upgrade from once to session', () => {
-                manager.addApprovedDirectory('/external/project', 'once');
+            it('should upgrade from once to session', async () => {
+                await manager.addApprovedDirectory('/external/project', 'once');
                 expect(manager.isDirectorySessionApproved('/external/project/file.ts')).toBe(false);
 
-                manager.addApprovedDirectory('/external/project', 'session');
+                await manager.addApprovedDirectory('/external/project', 'session');
                 expect(manager.isDirectorySessionApproved('/external/project/file.ts')).toBe(true);
             });
 
-            it('should normalize paths before adding', () => {
-                manager.addApprovedDirectory('/external/../external/project');
+            it('should normalize paths before adding', async () => {
+                await manager.addApprovedDirectory('/external/../external/project');
                 expect(manager.isDirectoryApproved('/external/project/file.ts')).toBe(true);
             });
         });
 
         describe('isDirectorySessionApproved', () => {
-            it('should return true for files within session-approved directory', () => {
-                manager.addApprovedDirectory('/external/project', 'session');
+            it('should return true for files within session-approved directory', async () => {
+                await manager.addApprovedDirectory('/external/project', 'session');
                 expect(manager.isDirectorySessionApproved('/external/project/file.ts')).toBe(true);
                 expect(
                     manager.isDirectorySessionApproved('/external/project/src/deep/file.ts')
                 ).toBe(true);
             });
 
-            it('should return false for files within once-approved directory', () => {
-                manager.addApprovedDirectory('/external/project', 'once');
+            it('should return false for files within once-approved directory', async () => {
+                await manager.addApprovedDirectory('/external/project', 'once');
                 expect(manager.isDirectorySessionApproved('/external/project/file.ts')).toBe(false);
             });
 
-            it('should return false for files outside approved directories', () => {
-                manager.addApprovedDirectory('/external/project', 'session');
+            it('should return false for files outside approved directories', async () => {
+                await manager.addApprovedDirectory('/external/project', 'session');
                 expect(manager.isDirectorySessionApproved('/other/file.ts')).toBe(false);
             });
 
-            it('should handle path containment correctly', () => {
-                manager.addApprovedDirectory('/external', 'session');
+            it('should handle path containment correctly', async () => {
+                await manager.addApprovedDirectory('/external', 'session');
                 // Approving /external should cover /external/sub/file.ts
                 expect(manager.isDirectorySessionApproved('/external/sub/file.ts')).toBe(true);
                 // But not /external-other/file.ts (different directory)
                 expect(manager.isDirectorySessionApproved('/external-other/file.ts')).toBe(false);
             });
 
-            it('should return true when working directory is initialized', () => {
-                manager.initializeWorkingDirectory('/home/user/project');
+            it('should return true when working directory is initialized', async () => {
+                await manager.initializeWorkingDirectory('/home/user/project');
                 expect(manager.isDirectorySessionApproved('/home/user/project/any/file.ts')).toBe(
                     true
                 );
@@ -920,32 +920,32 @@ describe('ApprovalManager', () => {
         });
 
         describe('isDirectoryApproved', () => {
-            it('should return true for files within session-approved directory', () => {
-                manager.addApprovedDirectory('/external/project', 'session');
+            it('should return true for files within session-approved directory', async () => {
+                await manager.addApprovedDirectory('/external/project', 'session');
                 expect(manager.isDirectoryApproved('/external/project/file.ts')).toBe(true);
             });
 
-            it('should return true for files within once-approved directory', () => {
-                manager.addApprovedDirectory('/external/project', 'once');
+            it('should return true for files within once-approved directory', async () => {
+                await manager.addApprovedDirectory('/external/project', 'once');
                 expect(manager.isDirectoryApproved('/external/project/file.ts')).toBe(true);
             });
 
-            it('should return false for files outside approved directories', () => {
-                manager.addApprovedDirectory('/external/project', 'session');
+            it('should return false for files outside approved directories', async () => {
+                await manager.addApprovedDirectory('/external/project', 'session');
                 expect(manager.isDirectoryApproved('/other/file.ts')).toBe(false);
             });
 
-            it('should handle multiple approved directories', () => {
-                manager.addApprovedDirectory('/external/project1', 'session');
-                manager.addApprovedDirectory('/external/project2', 'once');
+            it('should handle multiple approved directories', async () => {
+                await manager.addApprovedDirectory('/external/project1', 'session');
+                await manager.addApprovedDirectory('/external/project2', 'once');
 
                 expect(manager.isDirectoryApproved('/external/project1/file.ts')).toBe(true);
                 expect(manager.isDirectoryApproved('/external/project2/file.ts')).toBe(true);
                 expect(manager.isDirectoryApproved('/external/project3/file.ts')).toBe(false);
             });
 
-            it('should handle nested directory approvals', () => {
-                manager.addApprovedDirectory('/external', 'session');
+            it('should handle nested directory approvals', async () => {
+                await manager.addApprovedDirectory('/external', 'session');
                 // Approving /external should cover all subdirectories
                 expect(manager.isDirectoryApproved('/external/sub/deep/file.ts')).toBe(true);
             });
@@ -956,9 +956,9 @@ describe('ApprovalManager', () => {
                 expect(manager.getApprovedDirectories().size).toBe(0);
             });
 
-            it('should return map with type information', () => {
-                manager.addApprovedDirectory('/external/project1', 'session');
-                manager.addApprovedDirectory('/external/project2', 'once');
+            it('should return map with type information', async () => {
+                await manager.addApprovedDirectory('/external/project1', 'session');
+                await manager.addApprovedDirectory('/external/project2', 'once');
 
                 const dirs = manager.getApprovedDirectories();
                 expect(dirs.size).toBeGreaterThanOrEqual(2);
@@ -968,8 +968,8 @@ describe('ApprovalManager', () => {
                 expect(keys.some((k) => k.includes('project2'))).toBe(true);
             });
 
-            it('should include working directory after initialization', () => {
-                manager.initializeWorkingDirectory('/home/user/project');
+            it('should include working directory after initialization', async () => {
+                await manager.initializeWorkingDirectory('/home/user/project');
                 const dirs = manager.getApprovedDirectories();
                 expect(dirs.size).toBeGreaterThanOrEqual(1);
                 expect(dirs.get(path.resolve('/home/user/project'))).toBe('session');
@@ -980,22 +980,22 @@ describe('ApprovalManager', () => {
         describe('Session vs Once Prompting Behavior', () => {
             // These tests verify the expected prompting flow
 
-            it('working directory should not require prompt (session-approved)', () => {
-                manager.initializeWorkingDirectory('/home/user/project');
+            it('working directory should not require prompt (session-approved)', async () => {
+                await manager.initializeWorkingDirectory('/home/user/project');
                 // isDirectorySessionApproved returns true → no directory prompt needed
                 expect(manager.isDirectorySessionApproved('/home/user/project/src/file.ts')).toBe(
                     true
                 );
             });
 
-            it('external dir after session approval should not require prompt', () => {
-                manager.addApprovedDirectory('/external', 'session');
+            it('external dir after session approval should not require prompt', async () => {
+                await manager.addApprovedDirectory('/external', 'session');
                 // isDirectorySessionApproved returns true → no directory prompt needed
                 expect(manager.isDirectorySessionApproved('/external/file.ts')).toBe(true);
             });
 
-            it('external dir after once approval should require prompt each time', () => {
-                manager.addApprovedDirectory('/external', 'once');
+            it('external dir after once approval should require prompt each time', async () => {
+                await manager.addApprovedDirectory('/external', 'once');
                 // isDirectorySessionApproved returns false → directory prompt needed
                 expect(manager.isDirectorySessionApproved('/external/file.ts')).toBe(false);
                 // But isDirectoryApproved returns true → execution allowed

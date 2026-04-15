@@ -224,7 +224,7 @@ export class TurnExecutor {
                 }
 
                 // 1. Check for queued messages (mid-loop injection)
-                const coalesced = this.messageQueue.dequeueAll();
+                const coalesced = await this.messageQueue.dequeueAll();
                 if (coalesced) {
                     await this.injectQueuedMessages(coalesced);
                 }
@@ -435,7 +435,7 @@ export class TurnExecutor {
                     // Check queue before terminating - process queued messages if any
                     // Note: Hard cancel clears the queue BEFORE aborting, so if messages exist
                     // here it means soft cancel - we should continue processing them
-                    const queuedOnTerminate = this.messageQueue.dequeueAll();
+                    const queuedOnTerminate = await this.messageQueue.dequeueAll();
                     if (queuedOnTerminate) {
                         this.logger.debug(
                             `Continuing: ${queuedOnTerminate.messages.length} queued message(s) to process`
@@ -1022,7 +1022,13 @@ export class TurnExecutor {
         }
 
         // Clear any pending queued messages
-        this.messageQueue.clear();
+        void this.messageQueue.clear().catch((error) => {
+            this.logger.warn(
+                `Failed to clear queued follow-up messages during cleanup: ${
+                    error instanceof Error ? error.message : String(error)
+                }`
+            );
+        });
     }
 
     /**

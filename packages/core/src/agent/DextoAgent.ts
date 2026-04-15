@@ -2360,9 +2360,10 @@ export class DextoAgent {
         const validatedUpdates = parseResult.data;
 
         // Get current config for the session
-        const currentLLMConfig = sessionId
-            ? this.stateManager.getRuntimeConfig(sessionId).llm
-            : this.stateManager.getRuntimeConfig().llm;
+        const currentLLMConfig =
+            sessionId && sessionId !== '*'
+                ? this.stateManager.getRuntimeConfig(sessionId).llm
+                : this.stateManager.getRuntimeConfig().llm;
 
         // Build and validate the new configuration using Result pattern internally
         const result = await resolveAndValidateLLMConfig(
@@ -2403,8 +2404,6 @@ export class DextoAgent {
     ): Promise<void> {
         // Switch LLM in session(s)
         if (sessionScope === '*') {
-            // Update state manager (no validation needed - already validated)
-            this.stateManager.updateLLM(validatedConfig, sessionScope);
             await this.sessionManager.switchLLMForAllSessions(validatedConfig);
         } else if (sessionScope) {
             // Verify session exists before switching LLM
@@ -2957,6 +2956,9 @@ export class DextoAgent {
         if (sessionId !== undefined && (!sessionId || typeof sessionId !== 'string')) {
             throw AgentError.apiValidationError('sessionId must be a non-empty string');
         }
+        if (sessionId !== undefined) {
+            await this.toolManager.restoreSessionState(sessionId);
+        }
         return this.toolManager.filterToolsForSession(
             await this.toolManager.getAllTools(),
             sessionId
@@ -2988,7 +2990,7 @@ export class DextoAgent {
     /**
      * Set session-level disabled tools (session override).
      */
-    public setSessionDisabledTools(sessionId: string, toolNames: string[]): void {
+    public async setSessionDisabledTools(sessionId: string, toolNames: string[]): Promise<void> {
         this.ensureStarted();
         if (!sessionId || typeof sessionId !== 'string') {
             throw AgentError.apiValidationError(
@@ -3001,39 +3003,40 @@ export class DextoAgent {
         ) {
             throw AgentError.apiValidationError('toolNames must be an array of non-empty strings');
         }
-        this.toolManager.setSessionDisabledTools(sessionId, toolNames);
+        await this.toolManager.setSessionDisabledTools(sessionId, toolNames);
     }
 
     /**
      * Clear session-level disabled tools (session override).
      */
-    public clearSessionDisabledTools(sessionId: string): void {
+    public async clearSessionDisabledTools(sessionId: string): Promise<void> {
         this.ensureStarted();
         if (!sessionId || typeof sessionId !== 'string') {
             throw AgentError.apiValidationError(
                 'sessionId is required and must be a non-empty string'
             );
         }
-        this.toolManager.clearSessionDisabledTools(sessionId);
+        await this.toolManager.clearSessionDisabledTools(sessionId);
     }
 
     /**
      * Get session-level auto-approve tools.
      */
-    public getSessionAutoApproveTools(sessionId: string): string[] {
+    public async getSessionAutoApproveTools(sessionId: string): Promise<string[]> {
         this.ensureStarted();
         if (!sessionId || typeof sessionId !== 'string') {
             throw AgentError.apiValidationError(
                 'sessionId is required and must be a non-empty string'
             );
         }
+        await this.toolManager.restoreSessionState(sessionId);
         return this.toolManager.getSessionUserAutoApproveTools(sessionId) ?? [];
     }
 
     /**
      * Set session-level auto-approve tools (user selection).
      */
-    public setSessionAutoApproveTools(sessionId: string, toolNames: string[]): void {
+    public async setSessionAutoApproveTools(sessionId: string, toolNames: string[]): Promise<void> {
         this.ensureStarted();
         if (!sessionId || typeof sessionId !== 'string') {
             throw AgentError.apiValidationError(
@@ -3046,7 +3049,7 @@ export class DextoAgent {
         ) {
             throw AgentError.apiValidationError('toolNames must be an array of non-empty strings');
         }
-        this.toolManager.setSessionUserAutoApproveTools(sessionId, toolNames);
+        await this.toolManager.setSessionUserAutoApproveTools(sessionId, toolNames);
     }
 
     /**

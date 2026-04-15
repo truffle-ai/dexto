@@ -27,6 +27,7 @@ import {
 } from '../providers/codex-app-server.js';
 import { isCodexBaseURL } from '../providers/codex-base-url.js';
 import { findDextoProjectRoot } from '../../utils/execution-context.js';
+import type { MessageQueueService } from '../../session/message-queue.js';
 import {
     ANTHROPIC_BETA_HEADER,
     ANTHROPIC_INTERLEAVED_THINKING_BETA,
@@ -93,6 +94,7 @@ export interface CreateLLMServiceOptions {
     usageScopeId?: string | undefined;
     compactionStrategy?: CompactionStrategy | null | undefined;
     cwd?: string | undefined;
+    messageQueue?: MessageQueueService | undefined;
 }
 
 function resolveProviderWorkingDirectory(explicitCwd?: string): string {
@@ -377,7 +379,7 @@ export function createLLMService(
     logger: Logger,
     options: CreateLLMServiceOptions = {}
 ): VercelLLMService {
-    const { usageScopeId, compactionStrategy } = options;
+    const { usageScopeId, compactionStrategy, messageQueue } = options;
 
     const model = createVercelModel(config, {
         sessionId,
@@ -401,6 +403,7 @@ export function createLLMService(
         sessionId,
         resourceManager,
         logger,
+        messageQueue,
         usageScopeId,
         compactionStrategy
     );

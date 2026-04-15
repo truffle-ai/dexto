@@ -163,6 +163,11 @@ describe('ChatSession', () => {
             toolManager: {
                 getAllTools: vi.fn().mockReturnValue([]),
             },
+            messageQueueStore: {
+                load: vi.fn().mockResolvedValue([]),
+                save: vi.fn().mockResolvedValue(undefined),
+                delete: vi.fn().mockResolvedValue(undefined),
+            },
             hookManager: {
                 executeHooks: vi.fn().mockImplementation(async (_point, payload) => payload),
                 cleanup: vi.fn(),
@@ -311,10 +316,12 @@ describe('ChatSession', () => {
                 sessionId,
                 mockServices.resourceManager,
                 mockLogger,
-                {
+                expect.objectContaining({
                     usageScopeId: undefined,
                     compactionStrategy: null,
-                }
+                    cwd: undefined,
+                    messageQueue: expect.any(Object),
+                })
             );
         });
 
@@ -340,10 +347,12 @@ describe('ChatSession', () => {
                 sessionId,
                 mockServices.resourceManager,
                 mockLogger,
-                {
+                expect.objectContaining({
                     usageScopeId: undefined,
                     compactionStrategy: null,
-                }
+                    cwd: undefined,
+                    messageQueue: expect.any(Object),
+                })
             );
         });
 
@@ -460,10 +469,12 @@ describe('ChatSession', () => {
                 sessionId,
                 mockServices.resourceManager, // ResourceManager parameter
                 mockLogger, // Logger parameter
-                {
+                expect.objectContaining({
                     usageScopeId: undefined,
                     compactionStrategy: null,
-                }
+                    cwd: undefined,
+                    messageQueue: expect.any(Object),
+                })
             );
 
             // Verify session-specific history provider creation
