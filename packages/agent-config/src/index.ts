@@ -4,8 +4,12 @@ export type {
     CompactionFactory,
     DatabaseFactory,
     DextoImage,
+    DextoHostContext,
+    DextoImageRuntimeConfigOverrides,
     ImageDefaults,
+    ImageResolutionContext,
     LoggerFactory,
+    ResolveImageRuntimeConfigOptions,
     HookFactory,
     ToolFactory,
 } from './image/types.js';

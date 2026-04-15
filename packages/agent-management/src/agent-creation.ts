@@ -1,4 +1,4 @@
-import type { AgentConfig, DextoImage } from '@dexto/agent-config';
+import type { AgentConfig, DextoHostContext, DextoImage } from '@dexto/agent-config';
 import {
     AgentConfigSchema,
     applyImageDefaults,
@@ -23,6 +23,7 @@ type CreateDextoAgentFromConfigOptions = {
     agentIdOverride?: string | undefined;
     imageNameOverride?: string | undefined;
     agentContext?: 'subagent' | undefined;
+    hostContext?: DextoHostContext | undefined;
     overrides?: InitializeServicesOptions | undefined;
     runtimeOverrides?: Pick<DextoAgentConfigInput, 'usageScopeId'> | undefined;
 };
@@ -86,7 +87,8 @@ function applySubAgentToolConstraints(config: AgentConfig): AgentConfig {
 export async function createDextoAgentFromConfig(
     options: CreateDextoAgentFromConfigOptions
 ): Promise<DextoAgent> {
-    const { configPath, enrichOptions, agentIdOverride, overrides, runtimeOverrides } = options;
+    const { configPath, enrichOptions, agentIdOverride, hostContext, overrides, runtimeOverrides } =
+        options;
 
     const cleanedConfig = cleanNullValues(options.config);
     const { image } = await loadImageForConfig({
@@ -111,7 +113,7 @@ export async function createDextoAgentFromConfig(
     }
 
     const validatedConfig = AgentConfigSchema.parse(enrichedConfig);
-    const services = await resolveServicesFromConfig(validatedConfig, image);
+    const services = await resolveServicesFromConfig(validatedConfig, image, hostContext);
     const mergedOverrides: InitializeServicesOptions | undefined = overrides
         ? { ...overrides }
         : undefined;
@@ -120,6 +122,8 @@ export async function createDextoAgentFromConfig(
         toDextoAgentOptions({
             config: validatedConfig,
             services,
+            image,
+            ...(hostContext ? { hostContext } : {}),
             ...(runtimeOverrides ? { runtimeOverrides } : {}),
             overrides: mergedOverrides,
         })
