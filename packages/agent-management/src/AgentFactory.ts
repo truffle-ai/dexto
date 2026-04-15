@@ -25,7 +25,7 @@
  */
 
 import { promises as fs } from 'fs';
-import type { AgentConfig } from '@dexto/agent-config';
+import type { AgentConfig, DextoHostContext } from '@dexto/agent-config';
 import type { DextoAgent, DextoAgentConfigInput } from '@dexto/core';
 import { getDextoGlobalPath } from './utils/path.js';
 import { deriveDisplayName } from './registry/types.js';
@@ -52,6 +52,8 @@ export interface CreateAgentOptions {
     agentId?: string;
     /** Whether this is interactive CLI mode (affects logger defaults) */
     isInteractiveCli?: boolean;
+    /** Optional host-owned resolution context for hosted runtimes */
+    hostContext?: DextoHostContext | undefined;
     /** Explicit runtime overrides applied outside the validated agent config */
     runtimeOverrides?: Pick<DextoAgentConfigInput, 'usageScopeId'> | undefined;
 }
@@ -193,6 +195,7 @@ export const AgentFactory = {
         return await createDextoAgentFromConfig({
             config: configToEnrich,
             enrichOptions: { isInteractiveCli: options?.isInteractiveCli ?? false },
+            hostContext: options?.hostContext,
             runtimeOverrides: options?.runtimeOverrides,
         });
     },

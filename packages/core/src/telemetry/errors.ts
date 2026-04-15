@@ -69,9 +69,9 @@ export class TelemetryError {
             TelemetryErrorCode.NOT_INITIALIZED,
             ErrorScope.TELEMETRY,
             ErrorType.USER,
-            'Telemetry not initialized. Call Telemetry.init() first.',
+            'Telemetry not initialized. Call Telemetry.init() or Telemetry.registerGlobal() first.',
             {
-                hint: 'Ensure telemetry is initialized before accessing the global instance.',
+                hint: 'Ensure telemetry is initialized via Telemetry.init() or Telemetry.registerGlobal() before accessing the global instance.',
             }
         );
     }

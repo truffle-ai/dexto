@@ -3,6 +3,7 @@ import type { ToolManager } from '../tools/tool-manager.js';
 import type { SystemPromptManager } from '../systemPrompt/manager.js';
 import type { ResourceManager } from '../resources/index.js';
 import type { Logger } from '../logger/v2/types.js';
+import type { CreateLLMServiceOptions, LanguageModelFactory } from '../llm/services/types.js';
 import { createLLMService } from '../llm/services/factory.js';
 import { SessionEventBus } from '../events/index.js';
 import { MemoryHistoryProvider } from './history/memory.js';
@@ -24,7 +25,7 @@ export async function generateSessionTitle(
     resourceManager: ResourceManager,
     userText: string,
     logger: Logger,
-    opts: { timeoutMs?: number } = {}
+    opts: { timeoutMs?: number; languageModelFactory?: LanguageModelFactory } = {}
 ): Promise<GenerateSessionTitleResult> {
     const timeoutMs = opts.timeoutMs;
     const controller = timeoutMs !== undefined ? new AbortController() : undefined;
@@ -36,15 +37,19 @@ export async function generateSessionTitle(
     try {
         const history = new MemoryHistoryProvider(logger);
         const bus = new SessionEventBus();
+        const sessionId = `titlegen-${Math.random().toString(36).slice(2)}`;
+        const options: CreateLLMServiceOptions = {};
         const tempService = createLLMService(
             config,
             toolManager,
             systemPromptManager,
             history,
             bus,
-            `titlegen-${Math.random().toString(36).slice(2)}`,
+            sessionId,
             resourceManager,
-            logger
+            logger,
+            options,
+            opts.languageModelFactory
         );
 
         const instruction = [

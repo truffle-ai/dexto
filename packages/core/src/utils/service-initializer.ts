@@ -31,6 +31,7 @@ import type { Hook } from '../hooks/types.js';
 import type { CompactionStrategy } from '../context/compaction/types.js';
 import { MessageQueueStore } from '../session/message-queue-store.js';
 import { SessionToolPreferencesStore } from '../tools/session-tool-preferences-store.js';
+import type { LanguageModelFactory } from '../llm/services/types.js';
 
 /**
  * Type for the core agent services returned by createAgentServices
@@ -66,14 +67,45 @@ export type ToolManagerFactory = (options: ToolManagerFactoryOptions) => ToolMan
 
 export type ToolkitLoader = (toolkits: string[]) => Promise<Tool[]>;
 
+export type TelemetryBootstrapContext = Readonly<{
+    agentId: string;
+    config: AgentRuntimeSettings['telemetry'];
+    logger: Logger;
+}>;
+
+export type TelemetryBootstrap = (context: TelemetryBootstrapContext) => Promise<void> | void;
+
 export type InitializeServicesOptions = {
     sessionLoggerFactory?: import('../session/session-manager.js').SessionLoggerFactory;
+    languageModelFactory?: LanguageModelFactory;
     mcpAuthProviderFactory?: import('../mcp/types.js').McpAuthProviderFactory | null;
     toolManager?: ToolManager;
     toolManagerFactory?: ToolManagerFactory;
     storageManager?: StorageManager;
     hooks?: Hook[] | undefined;
+    telemetryBootstrap?: TelemetryBootstrap | undefined;
 };
+
+export async function initializeAgentTelemetry(
+    config: AgentRuntimeSettings,
+    logger: Logger,
+    telemetryBootstrap?: TelemetryBootstrap | undefined
+): Promise<void> {
+    if (telemetryBootstrap) {
+        await telemetryBootstrap({
+            agentId: config.agentId,
+            config: config.telemetry,
+            logger,
+        });
+        return;
+    }
+
+    if (config.telemetry?.enabled) {
+        const { Telemetry } = await import('../telemetry/telemetry.js');
+        await Telemetry.init(config.telemetry);
+        logger.debug('Telemetry initialized');
+    }
+}
 
 // High-level factory to load, validate, and wire up all agent services in one call
 /**
@@ -81,7 +113,7 @@ export type InitializeServicesOptions = {
  * @param config The validated agent configuration object
  * @param logger Logger instance for this agent (dependency injection)
  * @param agentEventBus Pre-created event bus from DextoAgent constructor
- * @param overrides Optional service overrides for customization (e.g., sessionLoggerFactory)
+ * @param overrides Optional service overrides for customization (e.g., sessionLoggerFactory, languageModelFactory)
  * @returns All the initialized services required for a Dexto agent
  */
 export async function createAgentServices(
@@ -93,11 +125,7 @@ export async function createAgentServices(
 ): Promise<AgentServices> {
     // 0. Initialize telemetry FIRST (before any decorated classes are instantiated)
     // This must happen before creating any services that use @InstrumentClass decorator
-    if (config.telemetry?.enabled) {
-        const { Telemetry } = await import('../telemetry/telemetry.js');
-        await Telemetry.init(config.telemetry);
-        logger.debug('Telemetry initialized');
-    }
+    await initializeAgentTelemetry(config, logger, overrides?.telemetryBootstrap);
 
     // 1. Use the event bus provided by DextoAgent constructor
     logger.debug('Using pre-created agent event bus');
@@ -283,6 +311,9 @@ export async function createAgentServices(
             sessionTTL: config.sessions?.sessionTTL,
             ...(overrides?.sessionLoggerFactory !== undefined && {
                 sessionLoggerFactory: overrides.sessionLoggerFactory,
+            }),
+            ...(overrides?.languageModelFactory !== undefined && {
+                languageModelFactory: overrides.languageModelFactory,
             }),
         },
         logger

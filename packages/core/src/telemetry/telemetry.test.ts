@@ -1,4 +1,4 @@
-import { describe, test, expect, afterEach } from 'vitest';
+import { describe, test, expect, afterEach, vi } from 'vitest';
 import { Telemetry } from './telemetry.js';
 import type { OtelConfiguration } from './schemas.js';
 
@@ -144,6 +144,20 @@ describe.sequential('Telemetry Core', () => {
             await Telemetry.shutdownGlobal();
             expect(Telemetry.hasGlobalInstance()).toBe(false);
         });
+
+        test('registerGlobal() marks host-owned telemetry as initialized without the Node bootstrap path', async () => {
+            const telemetry = await Telemetry.registerGlobal({
+                config: {
+                    serviceName: 'hosted-service',
+                    tracerName: 'hosted-tracer',
+                },
+            });
+
+            expect(telemetry).toBeDefined();
+            expect(telemetry.isInitialized()).toBe(true);
+            expect(telemetry.name).toBe('hosted-service');
+            expect(Telemetry.hasGlobalInstance()).toBe(true);
+        });
     });
 
     describe('Shutdown', () => {
@@ -191,6 +205,33 @@ describe.sequential('Telemetry Core', () => {
 
             await telemetry.shutdown();
             expect(telemetry.isInitialized()).toBe(false);
+        });
+
+        test('shutdown() clears host-registered telemetry even when no SDK is owned by core', async () => {
+            const telemetry = await Telemetry.registerGlobal({
+                config: { serviceName: 'hosted-service' },
+            });
+
+            expect(Telemetry.hasGlobalInstance()).toBe(true);
+
+            await telemetry.shutdown();
+
+            expect(telemetry.isInitialized()).toBe(false);
+            expect(Telemetry.hasGlobalInstance()).toBe(false);
+        });
+
+        test('shutdownGlobal() calls a host-provided shutdown hook when registered', async () => {
+            const shutdown = vi.fn().mockResolvedValue(undefined);
+
+            await Telemetry.registerGlobal({
+                config: { serviceName: 'hosted-service' },
+                shutdown,
+            });
+
+            await Telemetry.shutdownGlobal();
+
+            expect(shutdown).toHaveBeenCalledTimes(1);
+            expect(Telemetry.hasGlobalInstance()).toBe(false);
         });
     });
 

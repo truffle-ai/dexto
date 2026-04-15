@@ -457,8 +457,8 @@ export class DextoAgent {
             // Initialize search service from services
             this.searchService = services.searchService;
 
-            // Note: Telemetry is initialized in createAgentServices() before services are created
-            // This ensures decorators work correctly on all services
+            // Note: Telemetry bootstrap runs in createAgentServices() before services are created.
+            // Hosts may override that bootstrap path while keeping core instrumentation intact.
 
             this._isStarted = true;
             this._isStopped = false; // Reset stopped flag to allow restart
@@ -1759,7 +1759,12 @@ export class DextoAgent {
             this.systemPromptManager,
             this.resourceManager,
             userText,
-            this.logger
+            this.logger,
+            {
+                ...(this.overrides.languageModelFactory !== undefined && {
+                    languageModelFactory: this.overrides.languageModelFactory,
+                }),
+            }
         );
 
         let title = result.title;
