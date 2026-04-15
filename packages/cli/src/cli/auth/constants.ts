@@ -36,4 +36,4 @@ export const DEXTO_PLATFORM_URL = process.env.DEXTO_PLATFORM_URL || 'https://pla
  * Dexto Nova credits purchase URL
  */
 export const DEXTO_CREDITS_URL =
-    process.env.DEXTO_CREDITS_URL || 'https://app.dexto.ai/dashboard/billing';
+    process.env.DEXTO_CREDITS_URL || 'https://app.dexto.ai/dashboard/settings/billing';

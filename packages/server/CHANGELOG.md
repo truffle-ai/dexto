@@ -1,5 +1,16 @@
 # @dexto/server
 
+## 1.6.25
+
+### Patch Changes
+
+- @dexto/core@1.6.25
+- @dexto/storage@1.6.25
+- @dexto/agent-config@1.6.25
+- @dexto/agent-management@1.6.25
+- @dexto/image-local@1.6.25
+- @dexto/tools-scheduler@1.6.25
+
 ## 1.6.24
 
 ### Patch Changes

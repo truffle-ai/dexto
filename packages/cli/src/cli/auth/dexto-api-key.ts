@@ -124,8 +124,8 @@ export async function removeDextoApiKeyFromEnv(options: { expectedValue?: string
  *
  * - If a local key exists and validates, it is re-saved to .env (sync) and returned.
  * - If a local key exists but is invalid, it is rotated (regenerated) and returned.
- * - If no local key exists, a key is provisioned. If one exists server-side but can't
- *   be returned, it is regenerated to obtain the value.
+ * - If no local key exists, a managed key is provisioned. If a same-name managed key
+ *   already exists server-side, provisioning rotates it to obtain a fresh secret value.
  *
  * Returns `null` if provisioning fails (OAuth login can still succeed without it).
  */
@@ -175,12 +175,7 @@ export async function ensureDextoApiKeyForAuthToken(
         }
 
         status('info', 'Provisioning Dexto API key...');
-        let provisioned = await apiClient.provisionDextoApiKey(authToken);
-
-        if (!provisioned.isNewKey) {
-            status('warning', 'Key exists on server, regenerating...');
-            provisioned = await apiClient.provisionDextoApiKey(authToken, 'Dexto CLI Key', true);
-        }
+        const provisioned = await apiClient.provisionDextoApiKey(authToken);
 
         await storeAuth({
             ...auth,

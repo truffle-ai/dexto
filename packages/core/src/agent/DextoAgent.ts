@@ -916,6 +916,8 @@ export class DextoAgent {
         // Event queue for aggregation - now holds core events directly
         const eventQueue: StreamingEvent[] = [];
         let completed = false;
+        let sawFatalErrorEvent = false;
+        let sawRunCompleteEvent = false;
 
         // Create AbortController for cleanup
         const controller = new AbortController();
@@ -1018,10 +1020,10 @@ export class DextoAgent {
 
         const errorListener = (data: AgentEventMap['llm:error']) => {
             if (data.sessionId !== sessionId) return;
-            eventQueue.push({ name: 'llm:error', ...data });
-            if (!data.recoverable) {
-                completed = true;
+            if (data.recoverable !== true) {
+                sawFatalErrorEvent = true;
             }
+            eventQueue.push({ name: 'llm:error', ...data });
         };
         this.agentEventBus.on('llm:error', errorListener, { signal: cleanupSignal });
         listeners.push({ event: 'llm:error', listener: errorListener });
@@ -1124,6 +1126,7 @@ export class DextoAgent {
         // This is when we close the iterator (not on llm:response)
         const runCompleteListener = (data: AgentEventMap['run:complete']) => {
             if (data.sessionId !== sessionId) return;
+            sawRunCompleteEvent = true;
             eventQueue.push({ name: 'run:complete', ...data });
             completed = true; // NOW close the iterator
         };
@@ -1365,6 +1368,17 @@ export class DextoAgent {
                             : err instanceof Error
                               ? err
                               : AgentError.streamFailed(String(err));
+
+                    if (sawFatalErrorEvent || sawRunCompleteEvent) {
+                        if (!sawRunCompleteEvent) {
+                            completed = true;
+                        }
+                        this.logger.debug(
+                            `Suppressing duplicate terminal stream error: ${error.message}`
+                        );
+                        return;
+                    }
+
                     completed = true;
                     this.logger.error(`Error in DextoAgent.stream: ${error.message}`);
 
@@ -2304,6 +2318,17 @@ export class DextoAgent {
             );
         }
         return structuredClone(this.stateManager.getLLMConfig(sessionId));
+    }
+
+    /**
+     * Returns whether a session has an explicit LLM override instead of inheriting the global config.
+     */
+    public hasSessionLLMOverride(sessionId: string): boolean {
+        this.ensureStarted();
+        if (!sessionId || typeof sessionId !== 'string') {
+            throw AgentError.apiValidationError('sessionId must be a non-empty string');
+        }
+        return this.stateManager.hasSessionLLMOverride(sessionId);
     }
 
     /**

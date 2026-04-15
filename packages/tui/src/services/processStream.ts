@@ -23,7 +23,7 @@
 import type React from 'react';
 import type { StreamingEvent, SanitizedToolResult } from '@dexto/core';
 import { createDebugLogger } from '../utils/debugLog.js';
-import { ApprovalType as ApprovalTypeEnum, ApprovalStatus } from '@dexto/core';
+import { ApprovalType as ApprovalTypeEnum, ApprovalStatus, LLMErrorCode } from '@dexto/core';
 import type { Message, UIState, ToolStatus } from '../state/types.js';
 import type { ApprovalRequest } from '../components/ApprovalPrompt.js';
 import { generateMessageId } from '../utils/idGenerator.js';
@@ -47,6 +47,50 @@ function buildErrorContent(error: unknown, prefix: string): string {
     }
 
     return errorContent;
+}
+
+function getErrorCode(error: unknown): string | null {
+    if (typeof error !== 'object' || error === null) {
+        return null;
+    }
+
+    const code = Reflect.get(error, 'code');
+    return typeof code === 'string' && code.length > 0 ? code : null;
+}
+
+function extractInsufficientCreditsBalance(error: unknown): number | null {
+    if (typeof error === 'object' && error !== null) {
+        const context = Reflect.get(error, 'context');
+        if (typeof context === 'object' && context !== null) {
+            const balance = Reflect.get(context, 'balance');
+            if (typeof balance === 'number' && Number.isFinite(balance)) {
+                return balance;
+            }
+            if (typeof balance === 'string') {
+                const parsed = Number.parseFloat(balance);
+                if (Number.isFinite(parsed)) {
+                    return parsed;
+                }
+            }
+        }
+    }
+
+    const message = error instanceof Error ? error.message : String(error);
+    const match = message.match(/Balance:\s*\$?(-?[\d.]+)/i);
+    if (!match) {
+        return null;
+    }
+
+    const parsed = Number.parseFloat(match[1] ?? '');
+    return Number.isFinite(parsed) ? parsed : null;
+}
+
+function buildInsufficientCreditsContent(balance: number | null): string {
+    if (balance === null) {
+        return 'Out of Dexto Nova credits.\nUse the billing prompt to top up and retry your request.';
+    }
+
+    return `Out of Dexto Nova credits. Current balance: $${balance.toFixed(2)}.\nUse the billing prompt to top up and retry your request.`;
 }
 
 /**
@@ -894,7 +938,14 @@ export async function processStream(
                 }
 
                 case 'llm:error': {
-                    const errorContent = buildErrorContent(event.error, 'Error: ');
+                    const insufficientCredits =
+                        getErrorCode(event.error) === LLMErrorCode.INSUFFICIENT_CREDITS;
+                    const insufficientCreditsBalance = insufficientCredits
+                        ? extractInsufficientCreditsBalance(event.error)
+                        : null;
+                    const errorContent = insufficientCredits
+                        ? buildInsufficientCreditsContent(insufficientCreditsBalance)
+                        : buildErrorContent(event.error, 'Error: ');
 
                     // Add error message to finalized
                     setMessages((prev) => [
@@ -925,6 +976,14 @@ export async function processStream(
                             isProcessing: false,
                             isCancelling: false,
                             isThinking: false,
+                            ...(insufficientCredits
+                                ? {
+                                      activeOverlay: 'insufficient-credits' as const,
+                                      insufficientCredits: {
+                                          balanceUsd: insufficientCreditsBalance,
+                                      },
+                                  }
+                                : {}),
                         }));
                     }
                     break;

@@ -543,11 +543,8 @@ export class StreamProcessor {
                             event.error instanceof Error
                                 ? event.error
                                 : new Error(String(event.error));
-                        this.logger.error('LLM error', { error: err });
-                        this.eventBus.emit('llm:error', {
-                            error: err,
-                        });
-                        break;
+                        await this.persistFailedToolResults(err.message);
+                        throw err;
                     }
 
                     case 'abort': {
@@ -623,14 +620,6 @@ export class StreamProcessor {
 
             // Non-abort errors are real failures
             this.logger.error('Stream processing failed', { error });
-
-            // Emit error event so UI knows about the failure
-            this.eventBus.emit('llm:error', {
-                error: error instanceof Error ? error : new Error(String(error)),
-                context: 'StreamProcessor',
-                recoverable: false,
-            });
-
             throw error;
         }
 
@@ -844,16 +833,39 @@ export class StreamProcessor {
      * Called on abort/cancel to prevent "tool_use ids were found without tool_result" errors.
      */
     private async persistCancelledToolResults(): Promise<void> {
+        await this.persistPendingToolResults({
+            logLabel: 'cancelled',
+            resultText: 'Cancelled by user',
+            errorMessage: 'Cancelled by user',
+        });
+    }
+
+    /**
+     * Persist synthetic failed results for pending tool calls before surfacing a fatal stream error.
+     */
+    private async persistFailedToolResults(errorMessage: string): Promise<void> {
+        await this.persistPendingToolResults({
+            logLabel: 'failed',
+            resultText: `Error: ${errorMessage}`,
+            errorMessage,
+        });
+    }
+
+    private async persistPendingToolResults(options: {
+        logLabel: 'cancelled' | 'failed';
+        resultText: string;
+        errorMessage: string;
+    }): Promise<void> {
         if (this.pendingToolCalls.size === 0) return;
 
         this.logger.debug(
-            `Persisting cancelled results for ${this.pendingToolCalls.size} pending tool call(s)`
+            `Persisting ${options.logLabel} results for ${this.pendingToolCalls.size} pending tool call(s)`
         );
 
         for (const [toolCallId, { toolName }] of this.pendingToolCalls) {
             const metadata = this.toolCallMetadata?.get(toolCallId);
-            const cancelledResult: SanitizedToolResult = {
-                content: [{ type: 'text', text: 'Cancelled by user' }],
+            const syntheticResult: SanitizedToolResult = {
+                content: [{ type: 'text', text: options.resultText }],
                 meta: {
                     toolName,
                     toolCallId,
@@ -864,7 +876,7 @@ export class StreamProcessor {
             await this.contextManager.addToolResult(
                 toolCallId,
                 toolName,
-                cancelledResult,
+                syntheticResult,
                 metadata
             );
 
@@ -879,7 +891,7 @@ export class StreamProcessor {
                 }),
                 callId: toolCallId,
                 success: false,
-                error: 'Cancelled by user',
+                error: options.errorMessage,
                 ...(metadata?.requireApproval !== undefined && {
                     requireApproval: metadata.requireApproval,
                 }),
