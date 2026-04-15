@@ -331,6 +331,10 @@ export interface InputState {
     pasteCounter: number;
 }
 
+export interface InsufficientCreditsState {
+    balanceUsd: number | null;
+}
+
 /**
  * Available overlay types
  */
@@ -354,6 +358,7 @@ export type OverlayType =
     | 'session-subcommand-selector'
     | 'api-key-input'
     | 'chatgpt-usage-cap'
+    | 'insufficient-credits'
     | 'login'
     | 'logout'
     | 'search'
@@ -463,6 +468,7 @@ export interface UIState {
     }>; // Snapshot of background tasks
     /** Best-effort ChatGPT Login usage-cap status for the current session. */
     chatgptRateLimitStatus: CodexRateLimitSnapshot | null;
+    insufficientCredits: InsufficientCreditsState | null;
     // Plan mode state (Shift+Tab toggle)
     planModeActive: boolean; // True when plan mode indicator is shown
     planModeInitialized: boolean; // True after first message sent in plan mode (prevents re-injection)

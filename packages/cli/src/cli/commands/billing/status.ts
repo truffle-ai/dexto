@@ -1,8 +1,7 @@
 // packages/cli/src/cli/commands/billing/status.ts
 
 import chalk from 'chalk';
-import open from 'open';
-import { loadAuth, getDextoApiClient } from '../../auth/index.js';
+import { loadAuth, getDextoApiClient, openDextoBillingPage } from '../../auth/index.js';
 import { DEXTO_CREDITS_URL } from '../../auth/constants.js';
 
 /**
@@ -89,7 +88,7 @@ export async function handleBillingStatusCommand(options: { buy?: boolean } = {}
 
 async function openCreditsPage(): Promise<void> {
     try {
-        await open(DEXTO_CREDITS_URL);
+        await openDextoBillingPage({});
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         console.log(chalk.yellow(`⚠️  Unable to open browser: ${errorMessage}`));

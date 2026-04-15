@@ -546,7 +546,7 @@ export const PROVIDER_CONFIGS: Record<CustomModelProvider, ProviderConfig> = {
         setupInfo: {
             title: 'Dexto Nova Setup',
             description:
-                'Add OpenRouter-format models that use your Dexto Nova credits. Requires login: run `dexto login` first.',
+                'Add OpenRouter-format models that use your Dexto Nova credits. Requires login: run `/login` first.',
             docsUrl: 'https://openrouter.ai/models',
         },
     },

@@ -15,6 +15,7 @@ import { ErrorScope, ErrorType } from '../errors/types.js';
 import { AgentErrorCode } from './error-codes.js';
 import { LLMErrorCode } from '../llm/error-codes.js';
 import { createLogger } from '../logger/factory.js';
+import { AgentEventBus, type StreamingEvent } from '../events/index.js';
 import {
     createInMemoryBlobStore,
     createInMemoryCache,
@@ -96,10 +97,7 @@ describe('DextoAgent Lifecycle Management', () => {
             systemPromptManager: {
                 build: vi.fn().mockResolvedValue('resolved system prompt'),
             } as any,
-            agentEventBus: {
-                on: vi.fn(),
-                emit: vi.fn(),
-            } as any,
+            agentEventBus: new AgentEventBus() as any,
             stateManager: {
                 getRuntimeConfig: vi.fn().mockReturnValue(mockValidatedConfig),
                 getLLMConfig: vi.fn().mockReturnValue(mockValidatedConfig.llm),
@@ -448,6 +446,90 @@ describe('DextoAgent Lifecycle Management', () => {
             await agent.endSession('test-session');
 
             expect(callOrder).toEqual(['clearSessionAutoApproveTools', 'endSession']);
+        });
+    });
+
+    describe('Stream Error Lifecycle', () => {
+        test('should prefer the terminal fatal event emitted on the agent bus over a fallback run_failed error', async () => {
+            const agent = createTestAgent(mockValidatedConfig);
+            const mappedError = new DextoRuntimeError(
+                LLMErrorCode.INSUFFICIENT_CREDITS,
+                ErrorScope.LLM,
+                ErrorType.USER,
+                'Insufficient Dexto credits. Balance: $0.00',
+                { balance: 0 },
+                'Run `dexto billing` to check your balance'
+            );
+            const sessionStream = vi.fn().mockImplementation(async () => {
+                agent.emit('llm:error', {
+                    sessionId: 'test-session',
+                    error: mappedError,
+                    recoverable: false,
+                    context: 'TurnExecutor',
+                });
+                agent.emit('run:complete', {
+                    sessionId: 'test-session',
+                    finishReason: 'error',
+                    stepCount: 0,
+                    durationMs: 1,
+                    error: mappedError,
+                });
+                throw mappedError;
+            });
+            mockServices.sessionManager.getSession = vi.fn().mockResolvedValue({
+                id: 'test-session',
+                stream: sessionStream,
+            });
+
+            await agent.start();
+
+            const events: StreamingEvent[] = [];
+            for await (const event of await agent.stream('hello', 'test-session')) {
+                events.push(event);
+            }
+
+            expect(events.map((event) => event.name)).toEqual(['llm:error', 'run:complete']);
+            expect(events[0]).toMatchObject({
+                name: 'llm:error',
+                error: mappedError,
+                context: 'TurnExecutor',
+            });
+            expect(events[1]).toMatchObject({
+                name: 'run:complete',
+                error: mappedError,
+                finishReason: 'error',
+            });
+            expect(
+                events.some((event) => event.name === 'llm:error' && event.context === 'run_failed')
+            ).toBe(false);
+        });
+
+        test('should still emit a fallback run_failed error when session streaming fails before any terminal event', async () => {
+            const agent = createTestAgent(mockValidatedConfig);
+            const streamError = new Error('Session stream failed before event emission');
+            const sessionStream = vi.fn().mockRejectedValue(streamError);
+            mockServices.sessionManager.getSession = vi.fn().mockResolvedValue({
+                id: 'test-session',
+                stream: sessionStream,
+            });
+
+            await agent.start();
+
+            const events: StreamingEvent[] = [];
+            for await (const event of await agent.stream('hello', 'test-session')) {
+                events.push(event);
+            }
+
+            expect(events).toHaveLength(1);
+            expect(events[0]).toMatchObject({
+                name: 'llm:error',
+                context: 'run_failed',
+                recoverable: false,
+            });
+            if (events[0]?.name !== 'llm:error') {
+                throw new Error('Expected llm:error event');
+            }
+            expect(events[0].error).toBe(streamError);
         });
     });
 

@@ -21,4 +21,12 @@ describe('auth constants', () => {
 
         expect(DEXTO_PLATFORM_URL).toBe('https://platform.preview.dexto.ai');
     });
+
+    it('defaults the billing url to the dashboard settings route', async () => {
+        delete process.env.DEXTO_CREDITS_URL;
+
+        const { DEXTO_CREDITS_URL } = await import('./constants.js');
+
+        expect(DEXTO_CREDITS_URL).toBe('https://app.dexto.ai/dashboard/settings/billing');
+    });
 });

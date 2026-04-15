@@ -1240,7 +1240,7 @@ describe('StreamProcessor', () => {
     });
 
     describe('Error Event Handling', () => {
-        test('emits llm:error with Error object', async () => {
+        test('throws Error objects from fatal stream events', async () => {
             const mocks = createMocks();
             const processor = new StreamProcessor(
                 mocks.contextManager,
@@ -1255,14 +1255,13 @@ describe('StreamProcessor', () => {
             const testError = new Error('Test error');
             const events = [{ type: 'error', error: testError }];
 
-            await processor.process(() => createMockStream(events) as never);
-
-            const errorEvent = mocks.emittedEvents.find((e) => e.name === 'llm:error');
-            expect(errorEvent).toBeDefined();
-            expect((errorEvent?.payload as { error: Error }).error).toBe(testError);
+            await expect(processor.process(() => createMockStream(events) as never)).rejects.toBe(
+                testError
+            );
+            expect(mocks.emittedEvents.find((e) => e.name === 'llm:error')).toBeUndefined();
         });
 
-        test('wraps non-Error in Error', async () => {
+        test('wraps non-Error fatal stream events before throwing', async () => {
             const mocks = createMocks();
             const processor = new StreamProcessor(
                 mocks.contextManager,
@@ -1276,14 +1275,69 @@ describe('StreamProcessor', () => {
 
             const events = [{ type: 'error', error: 'String error message' }];
 
-            await processor.process(() => createMockStream(events) as never);
+            await expect(
+                processor.process(() => createMockStream(events) as never)
+            ).rejects.toMatchObject({
+                message: 'String error message',
+            });
+            expect(mocks.emittedEvents.find((e) => e.name === 'llm:error')).toBeUndefined();
+        });
 
-            const errorEvent = mocks.emittedEvents.find((e) => e.name === 'llm:error');
-            expect(errorEvent).toBeDefined();
-            expect((errorEvent?.payload as { error: Error }).error).toBeInstanceOf(Error);
-            expect((errorEvent?.payload as { error: Error }).error.message).toBe(
-                'String error message'
+        test('persists failed tool results before throwing fatal stream errors', async () => {
+            const mocks = createMocks();
+            const processor = new StreamProcessor(
+                mocks.contextManager,
+                mocks.eventBus,
+                mocks.resourceManager,
+                mocks.abortController.signal,
+                mocks.config,
+                mocks.logger,
+                true
             );
+
+            const testError = new Error('Test error');
+            const events = [
+                {
+                    type: 'tool-call',
+                    toolCallId: 'call-1',
+                    toolName: 'bash',
+                    input: { command: 'echo hi' },
+                },
+                { type: 'error', error: testError },
+            ];
+
+            await expect(processor.process(() => createMockStream(events) as never)).rejects.toBe(
+                testError
+            );
+
+            expect(mocks.contextManager.addToolCall).toHaveBeenCalledWith(expect.any(String), {
+                id: 'call-1',
+                type: 'function',
+                function: {
+                    name: 'bash',
+                    arguments: JSON.stringify({ command: 'echo hi' }),
+                },
+            });
+            expect(mocks.contextManager.addToolResult).toHaveBeenCalledWith(
+                'call-1',
+                'bash',
+                expect.objectContaining({
+                    content: [{ type: 'text', text: 'Error: Test error' }],
+                    meta: expect.objectContaining({
+                        success: false,
+                    }),
+                }),
+                undefined
+            );
+            expect(mocks.emittedEvents.find((e) => e.name === 'llm:error')).toBeUndefined();
+
+            const toolResultEvent = mocks.emittedEvents.find((e) => e.name === 'llm:tool-result');
+            expect(toolResultEvent?.payload).toMatchObject({
+                toolName: 'bash',
+                callId: 'call-1',
+                success: false,
+                error: 'Test error',
+            });
         });
     });
 
