@@ -31,6 +31,7 @@ vi.mock('../commands/agents/sync.js', () => ({
 
 describe('validateAgentConfig', () => {
     beforeEach(() => {
+        vi.resetModules();
         vi.clearAllMocks();
         mockIsCancel.mockReturnValue(false);
         mockSelect.mockResolvedValue('skip');
