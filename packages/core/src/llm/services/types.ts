@@ -1,20 +1,11 @@
-import type { LanguageModel } from 'ai';
-import type { ContentInput } from '../../agent/types.js';
-import type { ContextManager } from '../../context/manager.js';
 import type { CompactionStrategy } from '../../context/compaction/types.js';
-import type { SessionEventBus } from '../../events/index.js';
-import type { Logger } from '../../logger/v2/types.js';
-import type { ResourceManager } from '../../resources/index.js';
-import type { ConversationHistoryProvider } from '../../session/history/types.js';
-import type { MessageQueueService } from '../../session/message-queue.js';
-import type { SystemPromptManager } from '../../systemPrompt/manager.js';
-import type { ToolManager } from '../../tools/tool-manager.js';
-import type { ToolSet } from '../../tools/types.js';
-import type { LLMProvider } from '../types.js';
+import type { LanguageModel } from 'ai';
+import type { CodexRateLimitSnapshot } from '../providers/codex-app-server.js';
 import type { ValidatedLLMConfig } from '../schemas.js';
+import type { LLMProvider } from '../types.js';
 
 /**
- * Configuration object returned by LLMService.getConfig()
+ * Configuration object returned by the default session LLM service.
  */
 export type LLMServiceConfig = {
     provider: LLMProvider;
@@ -29,34 +20,30 @@ export interface CreateLLMServiceOptions {
     cwd?: string | undefined;
 }
 
-export interface LLMService {
-    stream(content: ContentInput, options?: { signal?: AbortSignal }): Promise<{ text: string }>;
-    getAllTools(): Promise<ToolSet>;
-    getEnabledTools(): Promise<ToolSet>;
-    getConfig(): LLMServiceConfig;
-    getContextManager(): ContextManager<unknown>;
-    getMessageQueue(): MessageQueueService;
-    getCompactionStrategy(): CompactionStrategy | null;
-    getLanguageModel(): LanguageModel;
+/**
+ * Context for model creation, including session info for usage tracking.
+ */
+export interface DextoProviderContext {
+    /** Session ID for usage tracking */
+    sessionId?: string;
+    /** Client source for usage attribution (cli, web, sdk) */
+    clientSource?: 'cli' | 'web' | 'sdk';
+    /** Working directory for providers that need an explicit workspace root. */
+    cwd?: string;
+    /** Optional callback for ChatGPT Login rate-limit status updates from Codex. */
+    onCodexRateLimitStatus?: (snapshot: CodexRateLimitSnapshot) => void;
 }
 
-export interface LLMServiceFactoryInput {
+export interface LanguageModelFactoryInput {
     config: ValidatedLLMConfig;
-    toolManager: ToolManager;
-    systemPromptManager: SystemPromptManager;
-    historyProvider: ConversationHistoryProvider;
-    sessionEventBus: SessionEventBus;
-    sessionId: string;
-    resourceManager: ResourceManager;
-    logger: Logger;
-    options: CreateLLMServiceOptions;
+    context: DextoProviderContext;
 }
 
-export interface LLMServiceFactoryContext extends LLMServiceFactoryInput {
-    createDefaultLLMService: () => LLMService;
+export interface LanguageModelFactoryContext extends LanguageModelFactoryInput {
+    createDefaultLanguageModel: () => LanguageModel;
 }
 
-export type LLMServiceFactory = (context: LLMServiceFactoryContext) => LLMService;
+export type LanguageModelFactory = (context: LanguageModelFactoryContext) => LanguageModel;
 
 /**
  * Token usage statistics from LLM

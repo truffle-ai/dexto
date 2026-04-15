@@ -3,11 +3,7 @@ import { createDatabaseHistoryProvider } from './history/factory.js';
 import { createLLMService } from '../llm/services/factory.js';
 import type { ContextManager } from '../context/index.js';
 import type { ConversationHistoryProvider } from './history/types.js';
-import type {
-    CreateLLMServiceOptions,
-    LLMService,
-    LLMServiceFactory,
-} from '../llm/services/types.js';
+import type { CreateLLMServiceOptions, LanguageModelFactory } from '../llm/services/types.js';
 import type { SystemPromptManager } from '../systemPrompt/manager.js';
 import type { ToolManager } from '../tools/tool-manager.js';
 import type { ValidatedLLMConfig } from '../llm/schemas.js';
@@ -33,6 +29,7 @@ import type { ContentInput } from '../agent/types.js';
 import { getUsagePricingMetadata, hasMeaningfulTokenUsage } from '../llm/usage-metadata.js';
 import type { CompactionStrategy } from '../context/compaction/types.js';
 import { parseCodexBaseURL } from '../llm/providers/codex-base-url.js';
+import type { VercelLLMService } from '../llm/services/vercel.js';
 
 /**
  * Represents an isolated conversation session within a Dexto agent.
@@ -46,7 +43,7 @@ import { parseCodexBaseURL } from '../llm/providers/codex-base-url.js';
  * The ChatSession acts as a lightweight wrapper around core Dexto services, providing
  * session-specific instances of:
  * - **ContextManager**: Handles conversation history and message formatting
- * - **LLMService**: Manages AI model interactions and tool execution
+ * - **VercelLLMService**: Manages AI model interactions and tool execution
  * - **TypedEventEmitter**: Provides session-scoped event handling
  *
  * ## Event Handling
@@ -101,10 +98,10 @@ export class ChatSession {
     /**
      * Handles AI model interactions, tool execution, and response generation for this session.
      *
-     * Each session has its own LLMService instance that uses the session's
+     * Each session has its own LLM runtime instance that uses the session's
      * ContextManager and event bus.
      */
-    private llmService!: LLMService;
+    private llmService!: VercelLLMService;
 
     /**
      * Map of event forwarder functions for cleanup.
@@ -131,7 +128,7 @@ export class ChatSession {
      *
      * Each session creates its own isolated services:
      * - ConversationHistoryProvider (with session-specific storage, shared across LLM switches)
-     * - LLMService (creates its own properly-typed ContextManager internally)
+     * - LLM service (creates its own properly-typed ContextManager internally)
      * - SessionEventBus (session-local event handling with forwarding)
      *
      * @param services - The shared services from the agent (state manager, prompt, client managers, etc.)
@@ -149,7 +146,7 @@ export class ChatSession {
             hookManager: HookManager;
             mcpManager: MCPManager;
             sessionManager: import('./session-manager.js').SessionManager;
-            llmServiceFactory?: LLMServiceFactory;
+            languageModelFactory?: LanguageModelFactory;
             workspaceManager?: import('../workspace/manager.js').WorkspaceManager;
             compactionStrategy: CompactionStrategy | null;
         },
@@ -290,7 +287,7 @@ export class ChatSession {
     private async createSessionLLMService(
         llmConfig: ValidatedLLMConfig,
         usageScopeId?: string
-    ): Promise<LLMService> {
+    ): Promise<VercelLLMService> {
         const workspace = await this.services.workspaceManager?.getWorkspace();
         const options: CreateLLMServiceOptions = {
             usageScopeId,
@@ -298,32 +295,17 @@ export class ChatSession {
             ...(workspace?.path !== undefined && { cwd: workspace.path }),
         };
 
-        const createDefaultLLMService = (): LLMService =>
-            createLLMService(
-                llmConfig,
-                this.services.toolManager,
-                this.services.systemPromptManager,
-                this.historyProvider,
-                this.eventBus,
-                this.id,
-                this.services.resourceManager,
-                this.logger,
-                options
-            );
-
-        return (
-            this.services.llmServiceFactory?.({
-                config: llmConfig,
-                toolManager: this.services.toolManager,
-                systemPromptManager: this.services.systemPromptManager,
-                historyProvider: this.historyProvider,
-                sessionEventBus: this.eventBus,
-                sessionId: this.id,
-                resourceManager: this.services.resourceManager,
-                logger: this.logger,
-                options,
-                createDefaultLLMService,
-            }) ?? createDefaultLLMService()
+        return createLLMService(
+            llmConfig,
+            this.services.toolManager,
+            this.services.systemPromptManager,
+            this.historyProvider,
+            this.eventBus,
+            this.id,
+            this.services.resourceManager,
+            this.logger,
+            options,
+            this.services.languageModelFactory
         );
     }
 
@@ -665,11 +647,11 @@ export class ChatSession {
     }
 
     /**
-     * Gets the session's LLMService instance.
+     * Gets the session's LLM service instance.
      *
-     * @returns The LLMService for this session
+     * @returns The session LLM service for this session
      */
-    public getLLMService(): LLMService {
+    public getLLMService(): VercelLLMService {
         return this.llmService;
     }
 

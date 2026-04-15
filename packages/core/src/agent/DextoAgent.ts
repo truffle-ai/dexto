@@ -1761,8 +1761,8 @@ export class DextoAgent {
             userText,
             this.logger,
             {
-                ...(this.overrides.llmServiceFactory !== undefined && {
-                    llmServiceFactory: this.overrides.llmServiceFactory,
+                ...(this.overrides.languageModelFactory !== undefined && {
+                    languageModelFactory: this.overrides.languageModelFactory,
                 }),
             }
         );

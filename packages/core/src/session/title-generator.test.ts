@@ -47,11 +47,9 @@ describe('generateSessionTitle', () => {
         mockCreateLLMService.mockReturnValue(mockLLMService);
     });
 
-    test('uses a host-provided llmServiceFactory override when one is configured', async () => {
-        const customLLMService = {
-            stream: vi.fn().mockResolvedValue({ text: 'Hosted transport title' }),
-        };
-        const llmServiceFactory = vi.fn().mockReturnValue(customLLMService);
+    test('passes a host-provided languageModelFactory through to createLLMService', async () => {
+        const languageModelFactory = vi.fn();
+        mockLLMService.stream.mockResolvedValue({ text: 'Hosted transport title' });
 
         const result = await generateSessionTitle(
             llmConfig,
@@ -60,25 +58,22 @@ describe('generateSessionTitle', () => {
             mockResourceManager,
             'help me debug this session',
             logger,
-            { llmServiceFactory }
+            { languageModelFactory }
         );
 
         expect(result).toEqual({ title: 'Hosted transport title' });
-        expect(llmServiceFactory).toHaveBeenCalledWith(
-            expect.objectContaining({
-                config: llmConfig,
-                toolManager: mockToolManager,
-                systemPromptManager: mockSystemPromptManager,
-                historyProvider: expect.any(Object),
-                sessionEventBus: expect.any(Object),
-                sessionId: expect.stringMatching(/^titlegen-/),
-                resourceManager: mockResourceManager,
-                logger,
-                options: {},
-                createDefaultLLMService: expect.any(Function),
-            })
+        expect(mockCreateLLMService).toHaveBeenCalledWith(
+            llmConfig,
+            mockToolManager,
+            mockSystemPromptManager,
+            expect.any(Object),
+            expect.any(Object),
+            expect.stringMatching(/^titlegen-/),
+            mockResourceManager,
+            logger,
+            {},
+            languageModelFactory
         );
-        expect(mockCreateLLMService).not.toHaveBeenCalled();
     });
 
     test('falls back to createLLMService when no override is provided', async () => {
@@ -101,7 +96,8 @@ describe('generateSessionTitle', () => {
             expect.stringMatching(/^titlegen-/),
             mockResourceManager,
             logger,
-            {}
+            {},
+            undefined
         );
     });
 });

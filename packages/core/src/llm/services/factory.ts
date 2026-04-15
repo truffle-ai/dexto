@@ -19,13 +19,14 @@ import { createLocalLanguageModel } from '../providers/local/ai-sdk-adapter.js';
 import type { ConversationHistoryProvider } from '../../session/history/types.js';
 import type { SystemPromptManager } from '../../systemPrompt/manager.js';
 import type { Logger } from '../../logger/v2/types.js';
-import type { CreateLLMServiceOptions } from './types.js';
+import type {
+    CreateLLMServiceOptions,
+    DextoProviderContext,
+    LanguageModelFactory,
+} from './types.js';
 import { requiresApiKey } from '../registry/index.js';
 import { getPrimaryApiKeyEnvVar, resolveApiKeyForProvider } from '../../utils/api-key-resolver.js';
-import {
-    createCodexLanguageModel,
-    type CodexRateLimitSnapshot,
-} from '../providers/codex-app-server.js';
+import { createCodexLanguageModel } from '../providers/codex-app-server.js';
 import { isCodexBaseURL } from '../providers/codex-base-url.js';
 import { findDextoProjectRoot } from '../../utils/execution-context.js';
 import {
@@ -74,20 +75,6 @@ const DEXTO_GATEWAY_HEADERS = {
     CLIENT_SOURCE: 'X-Dexto-Source',
     CLIENT_VERSION: 'X-Dexto-Version',
 } as const;
-
-/**
- * Context for model creation, including session info for usage tracking.
- */
-export interface DextoProviderContext {
-    /** Session ID for usage tracking */
-    sessionId?: string;
-    /** Client source for usage attribution (cli, web, sdk) */
-    clientSource?: 'cli' | 'web' | 'sdk';
-    /** Working directory for providers that need an explicit workspace root. */
-    cwd?: string;
-    /** Optional callback for ChatGPT Login rate-limit status updates from Codex. */
-    onCodexRateLimitStatus?: (snapshot: CodexRateLimitSnapshot) => void;
-}
 
 function resolveProviderWorkingDirectory(explicitCwd?: string): string {
     if (explicitCwd && explicitCwd.trim().length > 0) {
@@ -369,11 +356,12 @@ export function createLLMService(
     sessionId: string,
     resourceManager: import('../../resources/index.js').ResourceManager,
     logger: Logger,
-    options: CreateLLMServiceOptions = {}
+    options: CreateLLMServiceOptions = {},
+    languageModelFactory?: LanguageModelFactory
 ): VercelLLMService {
     const { usageScopeId, compactionStrategy } = options;
 
-    const model = createVercelModel(config, {
+    const providerContext: DextoProviderContext = {
         sessionId,
         ...(options.cwd !== undefined ? { cwd: options.cwd } : {}),
         onCodexRateLimitStatus: (snapshot) => {
@@ -383,7 +371,14 @@ export function createLLMService(
                 snapshot,
             });
         },
-    });
+    };
+
+    const model =
+        languageModelFactory?.({
+            config,
+            context: providerContext,
+            createDefaultLanguageModel: () => createVercelModel(config, providerContext),
+        }) ?? createVercelModel(config, providerContext);
 
     return new VercelLLMService(
         toolManager,

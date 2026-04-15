@@ -200,8 +200,8 @@ describe('DextoAgent Lifecycle Management', () => {
     });
 
     describe('Session Title Generation', () => {
-        test('passes llmServiceFactory overrides to title generation', async () => {
-            const llmServiceFactory = vi.fn();
+        test('passes languageModelFactory overrides to title generation', async () => {
+            const languageModelFactory = vi.fn();
             const agent = new DextoAgent({
                 ...mockValidatedConfig,
                 logger: createLogger({
@@ -219,7 +219,7 @@ describe('DextoAgent Lifecycle Management', () => {
                 tools: [],
                 hooks: [],
                 overrides: {
-                    llmServiceFactory,
+                    languageModelFactory,
                 },
             });
 
@@ -250,7 +250,7 @@ describe('DextoAgent Lifecycle Management', () => {
                 'Need a title for this session',
                 expect.any(Object),
                 {
-                    llmServiceFactory,
+                    languageModelFactory,
                 }
             );
         });

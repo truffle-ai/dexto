@@ -28,7 +28,7 @@ import { MemoryManager } from '../memory/index.js';
 import { HookManager } from '../hooks/manager.js';
 import type { Hook } from '../hooks/types.js';
 import type { CompactionStrategy } from '../context/compaction/types.js';
-import type { LLMServiceFactory } from '../llm/services/types.js';
+import type { LanguageModelFactory } from '../llm/services/types.js';
 
 /**
  * Type for the core agent services returned by createAgentServices
@@ -66,7 +66,7 @@ export type ToolkitLoader = (toolkits: string[]) => Promise<Tool[]>;
 
 export type InitializeServicesOptions = {
     sessionLoggerFactory?: import('../session/session-manager.js').SessionLoggerFactory;
-    llmServiceFactory?: LLMServiceFactory;
+    languageModelFactory?: LanguageModelFactory;
     mcpAuthProviderFactory?: import('../mcp/types.js').McpAuthProviderFactory | null;
     toolManager?: ToolManager;
     toolManagerFactory?: ToolManagerFactory;
@@ -80,7 +80,7 @@ export type InitializeServicesOptions = {
  * @param config The validated agent configuration object
  * @param logger Logger instance for this agent (dependency injection)
  * @param agentEventBus Pre-created event bus from DextoAgent constructor
- * @param overrides Optional service overrides for customization (e.g., sessionLoggerFactory, llmServiceFactory)
+ * @param overrides Optional service overrides for customization (e.g., sessionLoggerFactory, languageModelFactory)
  * @returns All the initialized services required for a Dexto agent
  */
 export async function createAgentServices(
@@ -268,8 +268,8 @@ export async function createAgentServices(
             ...(overrides?.sessionLoggerFactory !== undefined && {
                 sessionLoggerFactory: overrides.sessionLoggerFactory,
             }),
-            ...(overrides?.llmServiceFactory !== undefined && {
-                llmServiceFactory: overrides.llmServiceFactory,
+            ...(overrides?.languageModelFactory !== undefined && {
+                languageModelFactory: overrides.languageModelFactory,
             }),
         },
         logger

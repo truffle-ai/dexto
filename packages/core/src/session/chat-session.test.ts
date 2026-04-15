@@ -229,43 +229,39 @@ describe('ChatSession', () => {
                 mockServices.resourceManager,
                 expect.any(Object),
                 expect.objectContaining({
+                    usageScopeId: undefined,
+                    compactionStrategy: null,
                     cwd: '/tmp/dexto-cloud',
-                })
+                }),
+                undefined
             );
         });
 
-        test('uses a host-provided llmServiceFactory override when one is configured', async () => {
-            const customLLMService = {
-                ...mockLLMService,
-                stream: vi.fn().mockResolvedValue({ text: 'Custom response' }),
-            };
-            const llmServiceFactory = vi.fn().mockReturnValue(customLLMService);
+        test('passes a host-provided languageModelFactory through to createLLMService', async () => {
+            const languageModelFactory = vi.fn();
 
-            mockServices.llmServiceFactory = llmServiceFactory;
+            mockServices.languageModelFactory = languageModelFactory;
             chatSession.dispose();
             chatSession = new ChatSession(mockServices, sessionId, mockLogger);
 
             await chatSession.init();
 
-            expect(llmServiceFactory).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    config: mockLLMConfig,
-                    toolManager: mockServices.toolManager,
-                    systemPromptManager: mockServices.systemPromptManager,
-                    historyProvider: mockHistoryProvider,
-                    sessionEventBus: chatSession.eventBus,
-                    sessionId,
-                    resourceManager: mockServices.resourceManager,
-                    logger: mockLogger,
-                    options: {
-                        usageScopeId: undefined,
-                        compactionStrategy: null,
-                    },
-                    createDefaultLLMService: expect.any(Function),
-                })
+            expect(mockCreateLLMService).toHaveBeenCalledWith(
+                mockLLMConfig,
+                mockServices.toolManager,
+                mockServices.systemPromptManager,
+                mockHistoryProvider,
+                chatSession.eventBus,
+                sessionId,
+                mockServices.resourceManager,
+                expect.any(Object),
+                {
+                    usageScopeId: undefined,
+                    compactionStrategy: null,
+                },
+                languageModelFactory
             );
-            expect(mockCreateLLMService).not.toHaveBeenCalled();
-            expect(chatSession.getLLMService()).toBe(customLLMService);
+            expect(chatSession.getLLMService()).toBe(mockLLMService);
         });
 
         test('should properly dispose resources to prevent memory leaks', () => {
@@ -344,11 +340,12 @@ describe('ChatSession', () => {
                 chatSession.eventBus,
                 sessionId,
                 mockServices.resourceManager,
-                mockLogger,
+                expect.any(Object),
                 {
                     usageScopeId: undefined,
                     compactionStrategy: null,
-                }
+                },
+                undefined
             );
         });
 
@@ -373,11 +370,12 @@ describe('ChatSession', () => {
                 chatSession.eventBus,
                 sessionId,
                 mockServices.resourceManager,
-                mockLogger,
+                expect.any(Object),
                 {
                     usageScopeId: undefined,
                     compactionStrategy: null,
-                }
+                },
+                undefined
             );
         });
 
@@ -493,11 +491,12 @@ describe('ChatSession', () => {
                 chatSession.eventBus, // Session-specific event bus
                 sessionId,
                 mockServices.resourceManager, // ResourceManager parameter
-                mockLogger, // Logger parameter
+                expect.any(Object), // Logger parameter
                 {
                     usageScopeId: undefined,
                     compactionStrategy: null,
-                }
+                },
+                undefined
             );
 
             // Verify session-specific history provider creation
