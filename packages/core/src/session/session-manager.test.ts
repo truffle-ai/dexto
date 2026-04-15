@@ -108,6 +108,8 @@ describe('SessionManager', () => {
                     agentCard: { name: 'test-agent' },
                 })),
                 updateLLM: vi.fn().mockReturnValue({ isValid: true, errors: [], warnings: [] }),
+                clearSessionOverride: vi.fn(),
+                hasSessionLLMOverride: vi.fn().mockReturnValue(false),
             },
             systemPromptManager: {
                 getSystemPrompt: vi.fn().mockReturnValue('System prompt'),
@@ -173,6 +175,7 @@ describe('SessionManager', () => {
                 run: vi.fn().mockResolvedValue('Mock response'),
                 reset: vi.fn().mockResolvedValue(undefined),
                 dispose: vi.fn(),
+                clearMessageQueue: vi.fn().mockResolvedValue(0),
                 cleanup: vi.fn().mockImplementation(async () => {
                     // Simulate the new cleanup behavior - only call dispose, not reset
                     mockSession.dispose();
@@ -1104,6 +1107,18 @@ describe('SessionManager', () => {
 
             expect(session.cleanup).toHaveBeenCalled();
             expect(mockStorageManager.database.delete).toHaveBeenCalledWith(`session:${sessionId}`);
+            expect(mockServices.stateManager.clearSessionOverride).toHaveBeenCalledWith(sessionId);
+        });
+
+        test('should evict restored interaction state when ending a session', async () => {
+            const sessionId = 'test-session';
+
+            await sessionManager.createSession(sessionId);
+            await sessionManager.endSession(sessionId);
+
+            expect(mockServices.toolManager.evictSessionState).toHaveBeenCalledWith(sessionId);
+            expect(mockServices.approvalManager.evictSessionState).toHaveBeenCalledWith(sessionId);
+            expect(mockServices.stateManager.clearSessionOverride).toHaveBeenCalledWith(sessionId);
         });
 
         test('should handle deleting non-existent sessions gracefully', async () => {
@@ -1388,6 +1403,41 @@ describe('SessionManager', () => {
             // The expired session should have been cleaned up from memory
             // This is tested indirectly through the cleanup process
         });
+
+        test('should reset persisted interaction state alongside conversation history', async () => {
+            const sessionId = 'reset-session';
+            const session = await sessionManager.createSession(sessionId);
+            mockServices.stateManager.hasSessionLLMOverride.mockReturnValue(true);
+            mockStorageManager.database.get.mockImplementation(async (key: string) => {
+                if (key === `session:${sessionId}`) {
+                    return {
+                        ...mockSessionData,
+                        id: sessionId,
+                        llmOverride: {
+                            provider: 'openai',
+                            model: 'gpt-5',
+                            maxInputTokens: 128000,
+                        },
+                    };
+                }
+                return null;
+            });
+
+            await sessionManager.resetSession(sessionId);
+
+            expect(session.reset).toHaveBeenCalled();
+            expect(session.clearMessageQueue).toHaveBeenCalled();
+            expect(mockServices.toolManager.deleteSessionState).toHaveBeenCalledWith(sessionId);
+            expect(mockServices.approvalManager.deleteSessionState).toHaveBeenCalledWith(sessionId);
+            expect(mockServices.stateManager.clearSessionOverride).toHaveBeenCalledWith(sessionId);
+            expect(session.switchLLM).toHaveBeenCalledWith(mockLLMConfig);
+            expect(mockStorageManager.database.set).toHaveBeenCalledWith(
+                `session:${sessionId}`,
+                expect.not.objectContaining({
+                    llmOverride: expect.anything(),
+                })
+            );
+        });
     });
 
     describe('Periodic Cleanup', () => {
@@ -1485,6 +1535,9 @@ describe('SessionManager', () => {
 
             // Session should be removed from memory
             expect(sessionManager['sessions'].has(sessionId)).toBe(false);
+            expect(mockServices.toolManager.evictSessionState).toHaveBeenCalledWith(sessionId);
+            expect(mockServices.approvalManager.evictSessionState).toHaveBeenCalledWith(sessionId);
+            expect(mockServices.stateManager.clearSessionOverride).toHaveBeenCalledWith(sessionId);
 
             // But session should still exist in storage (not deleted)
             expect(mockStorageManager.database.delete).not.toHaveBeenCalledWith(sessionKey);

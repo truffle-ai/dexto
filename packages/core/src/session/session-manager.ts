@@ -659,8 +659,7 @@ export class SessionManager {
         // Remove from cache but preserve database storage
         const sessionKey = `session:${sessionId}`;
         await this.services.storageManager.getCache().delete(sessionKey);
-        this.services.toolManager.evictSessionState(sessionId);
-        this.services.approvalManager.evictSessionState(sessionId);
+        this.evictSessionInteractionState(sessionId);
 
         this.logger.debug(
             `Ended session (removed from memory, chat history preserved): ${sessionId}`
@@ -692,6 +691,7 @@ export class SessionManager {
             this.services.approvalManager.deleteSessionState(sessionId),
             this.services.messageQueueStore.delete(sessionId),
         ]);
+        this.services.stateManager.clearSessionOverride(sessionId);
 
         const messagesKey = `messages:${sessionId}`;
         await this.services.storageManager.getDatabase().delete(messagesKey);
@@ -714,6 +714,16 @@ export class SessionManager {
         }
 
         await session.reset();
+        await session.clearMessageQueue();
+        await Promise.all([
+            this.services.toolManager.deleteSessionState(sessionId),
+            this.services.approvalManager.deleteSessionState(sessionId),
+        ]);
+
+        if (this.services.stateManager.hasSessionLLMOverride(sessionId)) {
+            this.services.stateManager.clearSessionOverride(sessionId);
+            await session.switchLLM(this.services.stateManager.getRuntimeConfig().llm);
+        }
 
         // Reset message count in metadata
         await this.runWithSessionDataLock(sessionId, async (sessionKey) => {
@@ -726,6 +736,7 @@ export class SessionManager {
 
             sessionData.messageCount = 0;
             sessionData.lastActivity = Date.now();
+            delete sessionData.llmOverride;
             await this.persistSessionData(sessionKey, sessionData);
         });
 
@@ -1142,6 +1153,7 @@ export class SessionManager {
                 // Only dispose memory resources, don't delete chat history
                 session.dispose();
                 this.sessions.delete(sessionId);
+                this.evictSessionInteractionState(sessionId);
                 this.logger.debug(
                     `Removed expired session from memory: ${sessionId} (chat history preserved)`
                 );
@@ -1253,6 +1265,12 @@ export class SessionManager {
             sessionData.llmOverride = configWithoutApiKey;
             await this.persistSessionData(sessionKey, sessionData);
         });
+    }
+
+    private evictSessionInteractionState(sessionId: string): void {
+        this.services.toolManager.evictSessionState(sessionId);
+        this.services.approvalManager.evictSessionState(sessionId);
+        this.services.stateManager.clearSessionOverride(sessionId);
     }
 
     private async runWithSessionDataLock<T>(
