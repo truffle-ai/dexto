@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AgentConfig } from '@dexto/agent-config';
 
 const {
@@ -12,6 +12,7 @@ const {
     mockHandleSyncAgentsCommand: vi.fn(),
     mockGetBundledSyncTargetForAgentPath: vi.fn(),
 }));
+let validateAgentConfig: typeof import('./config-validation.js').validateAgentConfig;
 
 vi.mock('@clack/prompts', () => ({
     select: mockSelect,
@@ -30,6 +31,10 @@ vi.mock('../commands/agents/sync.js', () => ({
 }));
 
 describe('validateAgentConfig', () => {
+    beforeAll(async () => {
+        ({ validateAgentConfig } = await import('./config-validation.js'));
+    });
+
     beforeEach(() => {
         vi.clearAllMocks();
         mockIsCancel.mockReturnValue(false);
@@ -38,8 +43,6 @@ describe('validateAgentConfig', () => {
     });
 
     it('accepts ChatGPT Login codex base URLs during preflight validation', async () => {
-        const { validateAgentConfig } = await import('./config-validation.js');
-
         const config: AgentConfig = {
             systemPrompt: 'test agent',
             llm: {
@@ -71,8 +74,6 @@ describe('validateAgentConfig', () => {
     });
 
     it('does not offer sync when the active agent path is not a bundled installed agent', async () => {
-        const { validateAgentConfig } = await import('./config-validation.js');
-
         const invalidConfig = {
             systemPrompt: 'test agent',
             llm: {
@@ -97,8 +98,6 @@ describe('validateAgentConfig', () => {
     });
 
     it('offers sync when the active config is a bundled installed agent', async () => {
-        const { validateAgentConfig } = await import('./config-validation.js');
-
         mockGetBundledSyncTargetForAgentPath.mockReturnValue({
             agentId: 'coding-agent',
             agentEntry: {
