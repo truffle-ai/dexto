@@ -59,7 +59,7 @@ import { executeCommand } from '../utils/self-management.js';
 import { requiresSetup } from '../utils/setup-utils.js';
 import { canUseDextoProvider } from '../utils/dexto-setup.js';
 import { handleAutoLogin } from './auth/login.js';
-import { loadAuth, getDextoApiClient } from '../auth/index.js';
+import { loadAuth, getBillingBalanceForCurrentLogin, openDextoBillingPage } from '../auth/index.js';
 import { DEXTO_CREDITS_URL } from '../auth/constants.js';
 import * as p from '@clack/prompts';
 import { capture } from '../../analytics/index.js';
@@ -1195,7 +1195,7 @@ async function handleDextoProviderSetup(
 
 async function openCreditsPage(): Promise<void> {
     try {
-        await open(DEXTO_CREDITS_URL);
+        await openDextoBillingPage({});
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         p.log.warn(`Unable to open browser: ${errorMessage}`);
@@ -1205,11 +1205,7 @@ async function openCreditsPage(): Promise<void> {
 
 async function getCreditsBalance(): Promise<number | null> {
     try {
-        const auth = await loadAuth();
-        if (!auth?.dextoApiKey) return null;
-        const apiClient = getDextoApiClient();
-        const usage = await apiClient.getUsageSummary(auth.dextoApiKey);
-        return usage.credits_usd;
+        return await getBillingBalanceForCurrentLogin();
     } catch {
         return null;
     }

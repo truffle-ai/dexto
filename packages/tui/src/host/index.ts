@@ -87,6 +87,8 @@ export interface TuiRuntimeServices {
     }) => Promise<{ removed: boolean; targetEnvPath: string }>;
     isUsingDextoCredits?: () => Promise<boolean>;
     canUseDextoProvider?: () => Promise<boolean>;
+    buildDextoBillingUrl?: (options: { creditsUsd: number }) => string;
+    openDextoBillingPage?: (options: { url?: string | undefined }) => Promise<void>;
 }
 
 let runtimeServices: TuiRuntimeServices = {};
@@ -208,4 +210,18 @@ export async function canUseDextoProvider(): Promise<boolean> {
         throw missingHostMethod('canUseDextoProvider');
     }
     return runtimeServices.canUseDextoProvider();
+}
+
+export function buildDextoBillingUrl(options: { creditsUsd: number }): string {
+    if (!runtimeServices.buildDextoBillingUrl) {
+        throw missingHostMethod('buildDextoBillingUrl');
+    }
+    return runtimeServices.buildDextoBillingUrl(options);
+}
+
+export async function openDextoBillingPage(options: { url?: string | undefined }): Promise<void> {
+    if (!runtimeServices.openDextoBillingPage) {
+        throw missingHostMethod('openDextoBillingPage');
+    }
+    return runtimeServices.openDextoBillingPage(options);
 }

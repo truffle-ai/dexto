@@ -93,7 +93,7 @@ export async function isAuthenticated(): Promise<boolean> {
     return auth !== null;
 }
 
-export async function getAuthToken(): Promise<string | null> {
+async function resolveAuthToken(options: { quiet: boolean }): Promise<string | null> {
     const auth = await loadAuth();
 
     if (!auth) {
@@ -115,13 +115,17 @@ export async function getAuthToken(): Promise<string | null> {
     }
 
     logger.debug('Access token expired or expiring soon, refreshing...');
-    console.log(chalk.cyan('🔄 Access token expiring soon, refreshing...'));
+    if (!options.quiet) {
+        console.log(chalk.cyan('🔄 Access token expiring soon, refreshing...'));
+    }
 
     const refreshResult = await refreshAccessToken(auth.refreshToken);
 
     if (!refreshResult) {
         logger.debug('Token refresh failed, removing auth');
-        console.log(chalk.red('❌ Token refresh failed. Please login again.'));
+        if (!options.quiet) {
+            console.log(chalk.red('❌ Token refresh failed. Please login again.'));
+        }
         await removeAuth();
         return null;
     }
@@ -135,8 +139,18 @@ export async function getAuthToken(): Promise<string | null> {
     });
 
     logger.debug('Token refreshed successfully');
-    console.log(chalk.green('✅ Access token refreshed successfully'));
+    if (!options.quiet) {
+        console.log(chalk.green('✅ Access token refreshed successfully'));
+    }
     return refreshResult.accessToken;
+}
+
+export async function getAuthToken(): Promise<string | null> {
+    return resolveAuthToken({ quiet: false });
+}
+
+export async function getAuthTokenQuietly(): Promise<string | null> {
+    return resolveAuthToken({ quiet: true });
 }
 
 export async function getDextoApiKey(): Promise<string | null> {

@@ -222,6 +222,8 @@ export async function runCliMode(context: MainModeContext): Promise<void> {
                     storeAuth,
                     removeAuth,
                     removeDextoApiKeyFromEnv,
+                    buildDextoBillingUrl,
+                    openDextoBillingPage,
                 },
                 { isUsingDextoCredits },
                 { canUseDextoProvider },
@@ -255,6 +257,8 @@ export async function runCliMode(context: MainModeContext): Promise<void> {
                 removeDextoApiKeyFromEnv,
                 isUsingDextoCredits,
                 canUseDextoProvider,
+                buildDextoBillingUrl,
+                openDextoBillingPage,
             });
 
             await startInkCliRefactored(agent, cliSessionId, {
