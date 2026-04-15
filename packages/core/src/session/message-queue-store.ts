@@ -2,7 +2,13 @@ import type { Logger } from '../logger/v2/types.js';
 import type { StorageManager } from '../storage/index.js';
 import type { QueuedMessage } from './types.js';
 
-export class MessageQueueStore {
+export interface MessageQueueStoreLike {
+    load(sessionId: string): Promise<QueuedMessage[]>;
+    save(sessionId: string, queue: QueuedMessage[]): Promise<void>;
+    delete(sessionId: string): Promise<void>;
+}
+
+export class MessageQueueStore implements MessageQueueStoreLike {
     private readonly cacheTtlSeconds: number;
 
     constructor(
@@ -58,5 +64,26 @@ export class MessageQueueStore {
             this.storageManager.getDatabase().delete(key),
             this.storageManager.getCache().delete(key),
         ]);
+    }
+}
+
+export class InMemoryMessageQueueStore implements MessageQueueStoreLike {
+    private readonly queues = new Map<string, QueuedMessage[]>();
+
+    async load(sessionId: string): Promise<QueuedMessage[]> {
+        return structuredClone(this.queues.get(sessionId) ?? []);
+    }
+
+    async save(sessionId: string, queue: QueuedMessage[]): Promise<void> {
+        if (queue.length === 0) {
+            this.queues.delete(sessionId);
+            return;
+        }
+
+        this.queues.set(sessionId, structuredClone(queue));
+    }
+
+    async delete(sessionId: string): Promise<void> {
+        this.queues.delete(sessionId);
     }
 }

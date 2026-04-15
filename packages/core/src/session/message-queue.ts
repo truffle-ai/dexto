@@ -2,7 +2,7 @@ import type { SessionEventBus } from '../events/index.js';
 import type { QueuedMessage, CoalescedMessage } from './types.js';
 import type { ContentPart } from '../context/types.js';
 import type { Logger } from '../logger/v2/types.js';
-import type { MessageQueueStore } from './message-queue-store.js';
+import type { MessageQueueStoreLike } from './message-queue-store.js';
 
 /**
  * Generates a unique ID for queued messages.
@@ -61,8 +61,8 @@ export class MessageQueueService {
     constructor(
         private eventBus: SessionEventBus,
         private logger: Logger,
-        private sessionId?: string,
-        private store?: MessageQueueStore
+        private sessionId: string,
+        private store: MessageQueueStoreLike
     ) {}
 
     async initialize(): Promise<void> {
@@ -70,23 +70,17 @@ export class MessageQueueService {
             return;
         }
 
-        if (this.store && this.sessionId) {
-            this.queue = await this.store.load(this.sessionId);
-            if (this.queue.length > 0) {
-                this.logger.debug(
-                    `Restored ${this.queue.length} queued message(s) for session ${this.sessionId}`
-                );
-            }
+        this.queue = await this.store.load(this.sessionId);
+        if (this.queue.length > 0) {
+            this.logger.debug(
+                `Restored ${this.queue.length} queued message(s) for session ${this.sessionId}`
+            );
         }
 
         this.initialized = true;
     }
 
     private async persistQueue(): Promise<void> {
-        if (!this.store || !this.sessionId) {
-            return;
-        }
-
         await this.store.save(this.sessionId, this.queue);
     }
 

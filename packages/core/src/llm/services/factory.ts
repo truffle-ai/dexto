@@ -34,6 +34,8 @@ import {
     ANTHROPIC_INTERLEAVED_THINKING_BETA,
 } from '../reasoning/anthropic-betas.js';
 import { supportsAnthropicInterleavedThinking } from '../reasoning/anthropic-thinking.js';
+import { MessageQueueService } from '../../session/message-queue.js';
+import { InMemoryMessageQueueStore } from '../../session/message-queue-store.js';
 
 function isLanguageModel(value: unknown): value is LanguageModel {
     if (!value || typeof value !== 'object') return false;
@@ -380,6 +382,15 @@ export function createLLMService(
             createDefaultLanguageModel: () => createVercelModel(config, providerContext),
         }) ?? createVercelModel(config, providerContext);
 
+    const resolvedMessageQueue =
+        messageQueue ??
+        new MessageQueueService(
+            sessionEventBus,
+            logger,
+            sessionId,
+            new InMemoryMessageQueueStore()
+        );
+
     return new VercelLLMService(
         toolManager,
         model,
@@ -390,7 +401,7 @@ export function createLLMService(
         sessionId,
         resourceManager,
         logger,
-        messageQueue,
+        resolvedMessageQueue,
         usageScopeId,
         compactionStrategy
     );

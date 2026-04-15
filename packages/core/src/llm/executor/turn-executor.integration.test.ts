@@ -5,6 +5,7 @@ import { ToolManager } from '../../tools/tool-manager.js';
 import { SessionEventBus, AgentEventBus } from '../../events/index.js';
 import { ResourceManager } from '../../resources/index.js';
 import { MessageQueueService } from '../../session/message-queue.js';
+import { InMemoryMessageQueueStore } from '../../session/message-queue-store.js';
 import { SystemPromptManager } from '../../systemPrompt/manager.js';
 import { VercelMessageFormatter } from '../formatters/vercel.js';
 import { MemoryHistoryProvider } from '../../session/history/memory.js';
@@ -229,7 +230,12 @@ describe('TurnExecutor Integration Tests', () => {
         await toolManager.initialize();
 
         // Create real message queue
-        messageQueue = new MessageQueueService(sessionEventBus, logger);
+        messageQueue = new MessageQueueService(
+            sessionEventBus,
+            logger,
+            sessionId,
+            new InMemoryMessageQueueStore()
+        );
 
         // Default streamText mock - simple text response
         vi.mocked(streamText).mockImplementation(
@@ -469,7 +475,12 @@ describe('TurnExecutor Integration Tests', () => {
             expect(generateText).toHaveBeenCalledTimes(1);
 
             // Second executor with same baseURL should use cache
-            const newMessageQueue = new MessageQueueService(sessionEventBus, logger);
+            const newMessageQueue = new MessageQueueService(
+                sessionEventBus,
+                logger,
+                'session-2',
+                new InMemoryMessageQueueStore()
+            );
             const executor2 = new TurnExecutor(
                 createMockModel(),
                 toolManager,
