@@ -60,7 +60,7 @@ export type ToolExecutionContextFactory = (
  * - Handle cross-source naming conflicts (MCP tools are prefixed with `mcp--`)
  *
  * Architecture:
- * LLMService → ToolManager → [MCPManager, local tools]
+ * LLM runtime → ToolManager → [MCPManager, local tools]
  *                ↓
  *          ApprovalManager (for approvals)
  *

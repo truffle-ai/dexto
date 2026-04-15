@@ -468,6 +468,7 @@ async function bootstrapAgentFromGlobalOpts(options: {
         toDextoAgentOptions({
             config: validatedConfig,
             services,
+            image,
         })
     );
     await agent.start();
@@ -1098,6 +1099,7 @@ program
                         toDextoAgentOptions({
                             config: validatedConfig,
                             services,
+                            image,
                             overrides: {
                                 sessionLoggerFactory,
                                 mcpAuthProviderFactory,

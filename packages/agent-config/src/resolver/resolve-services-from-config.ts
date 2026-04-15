@@ -1,6 +1,6 @@
 import type { Hook, Logger, Tool } from '@dexto/core';
 import type { ToolFactoryEntry, ValidatedAgentConfig } from '../schemas/agent-config.js';
-import type { DextoImage } from '../image/types.js';
+import type { DextoHostContext, DextoImage, ImageResolutionContext } from '../image/types.js';
 import type { ResolvedServices } from './types.js';
 import type { PlainObject } from './utils.js';
 import { isPlainObject } from './utils.js';
@@ -38,9 +38,14 @@ function resolveByType<TFactory>(options: {
 
 export async function resolveServicesFromConfig(
     config: ValidatedAgentConfig,
-    image: DextoImage
+    image: DextoImage,
+    hostContext?: DextoHostContext
 ): Promise<ResolvedServices> {
     const imageName = image.metadata.name;
+    const resolutionContext: ImageResolutionContext = {
+        agentId: config.agentId,
+        ...(hostContext ? { hostContext } : {}),
+    };
 
     // 1) Logger
     const loggerFactoryInput = {
@@ -48,7 +53,7 @@ export async function resolveServicesFromConfig(
         config: config.logger,
     };
     const loggerConfig = image.logger.configSchema.parse(loggerFactoryInput);
-    const logger = image.logger.create(loggerConfig);
+    const logger = image.logger.create(loggerConfig, resolutionContext);
 
     // 2) Storage
     const blobFactory = resolveByType({
@@ -75,17 +80,27 @@ export async function resolveServicesFromConfig(
     const cacheConfig = cacheFactory.configSchema.parse(config.storage.cache);
 
     const storage = {
-        blob: await blobFactory.create(blobConfig, logger),
-        database: await databaseFactory.create(databaseConfig, logger),
-        cache: await cacheFactory.create(cacheConfig, logger),
+        blob: await blobFactory.create(blobConfig, logger, resolutionContext),
+        database: await databaseFactory.create(databaseConfig, logger, resolutionContext),
+        cache: await cacheFactory.create(cacheConfig, logger, resolutionContext),
     };
 
     // 3) Tools
     const toolEntries = config.tools ?? image.defaults?.tools ?? [];
-    const tools = resolveToolsFromEntries({ entries: toolEntries, image, logger });
+    const tools = resolveToolsFromEntries({
+        entries: toolEntries,
+        image,
+        logger,
+        resolutionContext,
+    });
     const toolkitLoader = async (toolkits: string[]) => {
         const entries: ToolFactoryEntry[] = toolkits.map((type) => ({ type }));
-        return resolveToolsFromEntries({ entries, image, logger });
+        return resolveToolsFromEntries({
+            entries,
+            image,
+            logger,
+            resolutionContext,
+        });
     };
 
     // 4) Hooks
@@ -104,7 +119,7 @@ export async function resolveServicesFromConfig(
         });
 
         const parsedConfig = factory.configSchema.parse(stripEnabled(entry as PlainObject));
-        const hook = factory.create(parsedConfig);
+        const hook = factory.create(parsedConfig, resolutionContext);
         if (hook.initialize) {
             if (!isPlainObject(parsedConfig)) {
                 throw new Error(`Invalid hook config for '${entry.type}': expected an object`);
@@ -126,7 +141,7 @@ export async function resolveServicesFromConfig(
             imageName,
         });
         const parsedConfig = factory.configSchema.parse(compactionConfig);
-        compaction = await factory.create(parsedConfig);
+        compaction = await factory.create(parsedConfig, resolutionContext);
     }
 
     return { logger, storage, tools, toolkitLoader, hooks, compaction };
@@ -136,8 +151,9 @@ export function resolveToolsFromEntries(options: {
     entries: ToolFactoryEntry[];
     image: DextoImage;
     logger: Logger;
+    resolutionContext?: ImageResolutionContext | undefined;
 }): Tool[] {
-    const { entries, image, logger } = options;
+    const { entries, image, logger, resolutionContext } = options;
     const imageName = image.metadata.name;
     const tools: Tool[] = [];
     const toolIds = new Set<string>();
@@ -155,7 +171,7 @@ export function resolveToolsFromEntries(options: {
         });
 
         const validatedConfig = factory.configSchema.parse(stripEnabled(entry));
-        for (const tool of factory.create(validatedConfig)) {
+        for (const tool of factory.create(validatedConfig, resolutionContext)) {
             if (tool.id.startsWith(MCP_TOOL_PREFIX)) {
                 throw new Error(
                     `Invalid local tool id '${tool.id}': '${MCP_TOOL_PREFIX}' prefix is reserved for MCP tools.`

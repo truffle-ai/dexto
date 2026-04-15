@@ -124,4 +124,34 @@ describe('createDextoAgentFromConfig', () => {
         expect(agent).toBeDefined();
         expect(agent).toHaveProperty('options.usageScopeId', 'cloud-agent-1');
     });
+
+    it('passes host context through service and runtime resolution', async () => {
+        const { createDextoAgentFromConfig } = await import('./agent-creation.js');
+
+        const config = {
+            llm: { provider: 'openai', model: 'gpt-4o', apiKey: 'test' },
+        } as unknown as AgentConfig;
+        const hostContext = {
+            mode: 'hosted' as const,
+            sessionId: 'session-1',
+            workspaceId: 'workspace-1',
+        };
+
+        await createDextoAgentFromConfig({
+            config,
+            hostContext,
+        });
+
+        expect(resolveServicesFromConfigMock).toHaveBeenLastCalledWith(
+            expect.anything(),
+            expect.anything(),
+            hostContext
+        );
+        expect(toDextoAgentOptionsMock).toHaveBeenLastCalledWith(
+            expect.objectContaining({
+                image: expect.anything(),
+                hostContext,
+            })
+        );
+    });
 });

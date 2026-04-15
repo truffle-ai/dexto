@@ -1,6 +1,6 @@
 import { LanguageModel, type ModelMessage } from 'ai';
 import { ToolManager } from '../../tools/tool-manager.js';
-import { LLMServiceConfig } from './types.js';
+import type { LLMServiceConfig } from './types.js';
 import type { Logger } from '../../logger/v2/types.js';
 import { DextoLogComponent } from '../../logger/v2/types.js';
 import { ToolSet } from '../../tools/types.js';
@@ -23,7 +23,7 @@ import { LLMErrorCode } from '../error-codes.js';
 import type { ContentInput } from '../../agent/types.js';
 
 /**
- * Vercel AI SDK implementation of LLMService
+ * Vercel AI SDK implementation of the core session LLM runtime
  *
  * This service delegates actual LLM execution to TurnExecutor, which handles:
  * - Tool execution with multimodal support

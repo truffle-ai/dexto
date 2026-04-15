@@ -229,9 +229,39 @@ describe('ChatSession', () => {
                 mockServices.resourceManager,
                 expect.any(Object),
                 expect.objectContaining({
+                    usageScopeId: undefined,
+                    compactionStrategy: null,
                     cwd: '/tmp/dexto-cloud',
-                })
+                }),
+                undefined
             );
+        });
+
+        test('passes a host-provided languageModelFactory through to createLLMService', async () => {
+            const languageModelFactory = vi.fn();
+
+            mockServices.languageModelFactory = languageModelFactory;
+            chatSession.dispose();
+            chatSession = new ChatSession(mockServices, sessionId, mockLogger);
+
+            await chatSession.init();
+
+            expect(mockCreateLLMService).toHaveBeenCalledWith(
+                mockLLMConfig,
+                mockServices.toolManager,
+                mockServices.systemPromptManager,
+                mockHistoryProvider,
+                chatSession.eventBus,
+                sessionId,
+                mockServices.resourceManager,
+                expect.any(Object),
+                {
+                    usageScopeId: undefined,
+                    compactionStrategy: null,
+                },
+                languageModelFactory
+            );
+            expect(chatSession.getLLMService()).toBe(mockLLMService);
         });
 
         test('should properly dispose resources to prevent memory leaks', () => {
@@ -310,11 +340,12 @@ describe('ChatSession', () => {
                 chatSession.eventBus,
                 sessionId,
                 mockServices.resourceManager,
-                mockLogger,
+                expect.any(Object),
                 {
                     usageScopeId: undefined,
                     compactionStrategy: null,
-                }
+                },
+                undefined
             );
         });
 
@@ -339,11 +370,12 @@ describe('ChatSession', () => {
                 chatSession.eventBus,
                 sessionId,
                 mockServices.resourceManager,
-                mockLogger,
+                expect.any(Object),
                 {
                     usageScopeId: undefined,
                     compactionStrategy: null,
-                }
+                },
+                undefined
             );
         });
 
@@ -459,11 +491,12 @@ describe('ChatSession', () => {
                 chatSession.eventBus, // Session-specific event bus
                 sessionId,
                 mockServices.resourceManager, // ResourceManager parameter
-                mockLogger, // Logger parameter
+                expect.any(Object), // Logger parameter
                 {
                     usageScopeId: undefined,
                     compactionStrategy: null,
-                }
+                },
+                undefined
             );
 
             // Verify session-specific history provider creation

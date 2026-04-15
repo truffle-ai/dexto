@@ -75,6 +75,7 @@ export async function createTestAgent(
         toDextoAgentOptions({
             config: validatedConfig,
             services,
+            image: imageLocal,
             ...(options?.runtimeOverrides ? { runtimeOverrides: options.runtimeOverrides } : {}),
         })
     );

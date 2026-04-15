@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { z } from 'zod';
-import type { Hook } from '@dexto/core';
+import type { CompactionStrategy, Hook } from '@dexto/core';
 import type { DextoImage } from '../image/types.js';
 import { AgentConfigSchema, type AgentConfig } from '../schemas/agent-config.js';
 import { resolveServicesFromConfig } from './resolve-services-from-config.js';
@@ -71,6 +71,120 @@ describe('resolveServicesFromConfig', () => {
         return image;
     }
 
+    it('passes host context through factory resolution when provided', async () => {
+        const hostContext = {
+            mode: 'hosted' as const,
+            sessionId: 'session-1',
+            workspaceId: 'workspace-1',
+            runId: 'run-1',
+        };
+
+        const logger = createMockLogger();
+        const loggerCreate = vi.fn(() => logger);
+        const blobCreate = vi.fn(() => createMockBlobStore('in-memory'));
+        const databaseCreate = vi.fn(() => createMockDatabase('in-memory'));
+        const cacheCreate = vi.fn(() => createMockCache('in-memory'));
+        const toolCreate = vi.fn(() => [createMockTool('foo')]);
+        const hookCreate = vi.fn(() => ({
+            beforeResponse: async () => ({ ok: true }),
+        }));
+        const compactionCreate = vi.fn(
+            () => ({ execute: vi.fn(async () => null) }) as unknown as CompactionStrategy
+        );
+
+        const image = createMockImage({
+            logger: {
+                configSchema: z
+                    .object({
+                        agentId: z.string(),
+                        config: z.unknown(),
+                    })
+                    .strict(),
+                create: loggerCreate,
+            },
+            storage: {
+                blob: {
+                    'in-memory': {
+                        configSchema: z.any(),
+                        create: blobCreate,
+                    },
+                },
+                database: {
+                    'in-memory': {
+                        configSchema: z.any(),
+                        create: databaseCreate,
+                    },
+                },
+                cache: {
+                    'in-memory': {
+                        configSchema: z.any(),
+                        create: cacheCreate,
+                    },
+                },
+            },
+            tools: {
+                'foo-tools': {
+                    configSchema: z.object({ type: z.literal('foo-tools') }).strict(),
+                    create: toolCreate,
+                },
+            },
+            hooks: {
+                'content-policy': {
+                    configSchema: z.object({ type: z.literal('content-policy') }).strict(),
+                    create: hookCreate,
+                },
+            },
+            compaction: {
+                noop: {
+                    configSchema: z.object({ type: z.literal('noop') }).passthrough(),
+                    create: compactionCreate,
+                },
+            },
+        });
+
+        const validated = AgentConfigSchema.parse({
+            ...baseConfig,
+            tools: [{ type: 'foo-tools' }],
+            hooks: [{ type: 'content-policy' }],
+            compaction: { type: 'noop', enabled: true },
+        } satisfies AgentConfig);
+
+        const services = await resolveServicesFromConfig(validated, image, hostContext);
+        const expectedContext = { agentId: validated.agentId, hostContext };
+
+        expect(loggerCreate).toHaveBeenCalledWith(
+            {
+                agentId: validated.agentId,
+                config: validated.logger,
+            },
+            expectedContext
+        );
+        expect(blobCreate).toHaveBeenCalledWith(
+            { type: 'in-memory' },
+            services.logger,
+            expectedContext
+        );
+        expect(databaseCreate).toHaveBeenCalledWith(
+            { type: 'in-memory' },
+            services.logger,
+            expectedContext
+        );
+        expect(cacheCreate).toHaveBeenCalledWith(
+            { type: 'in-memory' },
+            services.logger,
+            expectedContext
+        );
+        expect(toolCreate).toHaveBeenNthCalledWith(1, { type: 'foo-tools' }, expectedContext);
+        expect(hookCreate).toHaveBeenCalledWith({ type: 'content-policy' }, expectedContext);
+        expect(compactionCreate).toHaveBeenCalledWith(
+            { type: 'noop', enabled: true, thresholdPercent: 0.9 },
+            expectedContext
+        );
+
+        await services.toolkitLoader?.(['foo-tools']);
+        expect(toolCreate).toHaveBeenNthCalledWith(2, { type: 'foo-tools' }, expectedContext);
+    });
+
     it('resolves storage + tools and skips tools with enabled:false', async () => {
         const fooFactoryCreate = vi.fn(() => [createMockTool('foo')]);
         const barFactoryCreate = vi.fn(() => [createMockTool('bar')]);
@@ -106,7 +220,10 @@ describe('resolveServicesFromConfig', () => {
 
         expect(services.tools.map((t) => t.id)).toEqual(['foo']);
         expect(fooFactoryCreate).toHaveBeenCalledTimes(1);
-        expect(fooFactoryCreate).toHaveBeenCalledWith({ type: 'foo-tools', foo: 123 });
+        expect(fooFactoryCreate).toHaveBeenCalledWith(
+            { type: 'foo-tools', foo: 123 },
+            { agentId: validated.agentId }
+        );
         expect(barFactoryCreate).not.toHaveBeenCalled();
     });
 

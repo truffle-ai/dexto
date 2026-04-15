@@ -1,6 +1,7 @@
 import type {
     BlobStore,
     Cache,
+    DextoAgentConfigInput,
     Database,
     Hook,
     Logger,
@@ -8,7 +9,7 @@ import type {
     Tool,
 } from '@dexto/core';
 import type { z } from 'zod';
-import type { AgentConfig } from '../schemas/agent-config.js';
+import type { AgentConfig, ValidatedAgentConfig } from '../schemas/agent-config.js';
 
 /**
  * Image defaults are a partial, *unvalidated* agent config that is merged into the raw YAML config
@@ -32,6 +33,43 @@ export interface ToolFactoryMetadata {
 }
 
 /**
+ * Optional host-owned context that can influence image/service resolution in hosted runtimes.
+ *
+ * This stays generic on purpose: hosts may pass clients, capability flags, and runtime metadata
+ * without changing the public agent YAML shape.
+ */
+export interface DextoHostContext {
+    mode?: 'local' | 'server' | 'hosted';
+    sessionId?: string;
+    workspaceId?: string;
+    runId?: string;
+    attemptId?: string;
+    clients?: Record<string, unknown>;
+    capabilities?: Record<string, unknown>;
+    runtime?: Record<string, unknown>;
+}
+
+/**
+ * Shared resolver context passed to image factories.
+ */
+export interface ImageResolutionContext {
+    agentId: string;
+    hostContext?: DextoHostContext | undefined;
+}
+
+/**
+ * Optional runtime-setting overrides an image may derive from validated config + host context.
+ *
+ * This lets hosted images adapt LLM/MCP-facing settings without changing the YAML surface.
+ */
+export type DextoImageRuntimeConfigOverrides = Partial<Omit<DextoAgentConfigInput, 'agentId'>>;
+
+export interface ResolveImageRuntimeConfigOptions {
+    config: ValidatedAgentConfig;
+    context: ImageResolutionContext;
+}
+
+/**
  * Tool factories are keyed by `type` in the agent config (`tools: [{ type: "..." }]`).
  *
  * A single factory entry can produce multiple tools, which is useful for "tool packs" where a single
@@ -41,7 +79,7 @@ export interface ToolFactory<TConfig = unknown> {
     /** Zod schema for validating factory-specific configuration. */
     configSchema: z.ZodType<TConfig, z.ZodTypeDef, unknown>;
     /** Create one or more tool instances from validated config. */
-    create(config: TConfig): Tool[];
+    create(config: TConfig, context?: ImageResolutionContext): Tool[];
     metadata?: ToolFactoryMetadata;
 }
 
@@ -52,19 +90,31 @@ export interface ToolFactory<TConfig = unknown> {
  */
 export interface BlobStoreFactory<TConfig = unknown> {
     configSchema: z.ZodType<TConfig, z.ZodTypeDef, unknown>;
-    create(config: TConfig, logger: Logger): BlobStore | Promise<BlobStore>;
+    create(
+        config: TConfig,
+        logger: Logger,
+        context?: ImageResolutionContext
+    ): BlobStore | Promise<BlobStore>;
     metadata?: Record<string, unknown> | undefined;
 }
 
 export interface DatabaseFactory<TConfig = unknown> {
     configSchema: z.ZodType<TConfig, z.ZodTypeDef, unknown>;
-    create(config: TConfig, logger: Logger): Database | Promise<Database>;
+    create(
+        config: TConfig,
+        logger: Logger,
+        context?: ImageResolutionContext
+    ): Database | Promise<Database>;
     metadata?: Record<string, unknown> | undefined;
 }
 
 export interface CacheFactory<TConfig = unknown> {
     configSchema: z.ZodType<TConfig, z.ZodTypeDef, unknown>;
-    create(config: TConfig, logger: Logger): Cache | Promise<Cache>;
+    create(
+        config: TConfig,
+        logger: Logger,
+        context?: ImageResolutionContext
+    ): Cache | Promise<Cache>;
     metadata?: Record<string, unknown> | undefined;
 }
 
@@ -73,7 +123,7 @@ export interface CacheFactory<TConfig = unknown> {
  */
 export interface HookFactory<TConfig = unknown> {
     configSchema: z.ZodType<TConfig, z.ZodTypeDef, unknown>;
-    create(config: TConfig): Hook;
+    create(config: TConfig, context?: ImageResolutionContext): Hook;
     metadata?: Record<string, unknown> | undefined;
 }
 
@@ -82,7 +132,10 @@ export interface HookFactory<TConfig = unknown> {
  */
 export interface CompactionFactory<TConfig = unknown> {
     configSchema: z.ZodType<TConfig, z.ZodTypeDef, unknown>;
-    create(config: TConfig): CompactionStrategy | Promise<CompactionStrategy>;
+    create(
+        config: TConfig,
+        context?: ImageResolutionContext
+    ): CompactionStrategy | Promise<CompactionStrategy>;
     metadata?: Record<string, unknown> | undefined;
 }
 
@@ -93,7 +146,7 @@ export interface CompactionFactory<TConfig = unknown> {
  */
 export interface LoggerFactory<TConfig = unknown> {
     configSchema: z.ZodType<TConfig, z.ZodTypeDef, unknown>;
-    create(config: TConfig): Logger;
+    create(config: TConfig, context?: ImageResolutionContext): Logger;
     metadata?: Record<string, unknown> | undefined;
 }
 
@@ -137,4 +190,7 @@ export interface DextoImage {
     hooks: Record<string, HookFactory>;
     compaction: Record<string, CompactionFactory>;
     logger: LoggerFactory;
+    resolveRuntimeConfig?(
+        options: ResolveImageRuntimeConfigOptions
+    ): DextoImageRuntimeConfigOverrides | undefined;
 }
