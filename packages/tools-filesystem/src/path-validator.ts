@@ -8,6 +8,7 @@ import * as path from 'node:path';
 import * as fs from 'node:fs/promises';
 import { FileSystemConfig, PathValidation } from './types.js';
 import type { Logger } from '@dexto/core';
+import { expandHomeShorthand, resolveUserPath } from './path-utils.js';
 
 /**
  * Callback type for checking if a path is in an approved directory.
@@ -41,11 +42,15 @@ export class PathValidator {
         this.logger = logger;
 
         // Normalize allowed paths to absolute paths
-        const workingDir = config.workingDirectory || process.cwd();
-        this.normalizedAllowedPaths = config.allowedPaths.map((p) => path.resolve(workingDir, p));
+        const workingDir = resolveUserPath(process.cwd(), config.workingDirectory || process.cwd());
+        this.normalizedAllowedPaths = config.allowedPaths.map((p) =>
+            resolveUserPath(workingDir, p)
+        );
 
         // Normalize blocked paths
-        this.normalizedBlockedPaths = config.blockedPaths.map((p) => path.normalize(p));
+        this.normalizedBlockedPaths = config.blockedPaths.map((p) =>
+            path.normalize(expandHomeShorthand(p))
+        );
 
         // Normalize blocked extensions: ensure leading dot and lowercase
         this.normalizedBlockedExtensions = (config.blockedExtensions || []).map((ext) => {
@@ -105,15 +110,16 @@ export class PathValidator {
         }
 
         // 2. Normalize the path to absolute
-        const workingDir = this.config.workingDirectory || process.cwd();
+        const workingDir = resolveUserPath(
+            process.cwd(),
+            this.config.workingDirectory || process.cwd()
+        );
         let resolvedPath: string;
         let normalizedPath: string;
 
         try {
             // Handle both absolute and relative paths
-            resolvedPath = path.isAbsolute(filePath)
-                ? path.resolve(filePath)
-                : path.resolve(workingDir, filePath);
+            resolvedPath = resolveUserPath(workingDir, filePath);
             normalizedPath = resolvedPath;
 
             // Canonicalize to handle symlinks and resolve real paths (async, non-blocking)
@@ -188,7 +194,10 @@ export class PathValidator {
         // Check for ../ patterns in original path
         if (originalPath.includes('../') || originalPath.includes('..\\')) {
             // Verify the normalized path still escapes allowed boundaries
-            const workingDir = this.config.workingDirectory || process.cwd();
+            const workingDir = resolveUserPath(
+                process.cwd(),
+                this.config.workingDirectory || process.cwd()
+            );
             const relative = path.relative(workingDir, normalizedPath);
             if (relative.startsWith('..')) {
                 return true;
@@ -213,7 +222,7 @@ export class PathValidator {
         const roots =
             this.normalizedAllowedPaths.length > 0
                 ? this.normalizedAllowedPaths
-                : [this.config.workingDirectory || process.cwd()];
+                : [resolveUserPath(process.cwd(), this.config.workingDirectory || process.cwd())];
 
         for (const blocked of this.normalizedBlockedPaths) {
             for (const root of roots) {
@@ -287,13 +296,14 @@ export class PathValidator {
         }
 
         // Normalize the path to absolute
-        const workingDir = this.config.workingDirectory || process.cwd();
+        const workingDir = resolveUserPath(
+            process.cwd(),
+            this.config.workingDirectory || process.cwd()
+        );
         let normalizedPath: string;
 
         try {
-            normalizedPath = path.isAbsolute(filePath)
-                ? path.resolve(filePath)
-                : path.resolve(workingDir, filePath);
+            normalizedPath = resolveUserPath(workingDir, filePath);
 
             // Try to resolve symlinks for existing files (async, non-blocking)
             try {

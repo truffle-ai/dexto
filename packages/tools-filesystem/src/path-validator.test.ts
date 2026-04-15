@@ -5,6 +5,8 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import * as os from 'node:os';
+import * as path from 'node:path';
 import { PathValidator, DirectoryApprovalChecker } from './path-validator.js';
 
 // Create mock logger
@@ -101,6 +103,25 @@ describe('PathValidator', () => {
 
                 const result = await validator.validatePath('src/file.ts');
                 expect(result.isValid).toBe(true);
+            });
+
+            it('should expand home-directory shorthand before validation', async () => {
+                const validator = new PathValidator(
+                    {
+                        allowedPaths: ['~'],
+                        blockedPaths: [],
+                        blockedExtensions: [],
+                        maxFileSize: 10 * 1024 * 1024,
+                        enableBackups: false,
+                        backupRetentionDays: 7,
+                        workingDirectory: '/workspace/project',
+                    },
+                    mockLogger as any
+                );
+
+                const result = await validator.validatePath('~/notes/file.ts');
+                expect(result.isValid).toBe(true);
+                expect(result.normalizedPath).toBe(path.join(os.homedir(), 'notes', 'file.ts'));
             });
 
             it('should reject paths outside allowed directories', async () => {

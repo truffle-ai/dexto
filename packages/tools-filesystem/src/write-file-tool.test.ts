@@ -229,6 +229,46 @@ describe('write_file tool', () => {
     });
 
     describe('File Modification Detection - New Files', () => {
+        it('should expand home-directory shorthand when creating a file', async () => {
+            const homeTempDir = await fs.mkdtemp(
+                path.join(os.homedir(), '.dexto-write-home-test-')
+            );
+            const homeRelativeDir = `~/${path.basename(homeTempDir)}`;
+            const fileSystemServiceForHome = new FileSystemService(
+                {
+                    allowedPaths: [homeTempDir],
+                    blockedPaths: [],
+                    blockedExtensions: [],
+                    maxFileSize: 10 * 1024 * 1024,
+                    workingDirectory: tempDir,
+                    enableBackups: false,
+                    backupRetentionDays: 7,
+                },
+                mockLogger
+            );
+            await fileSystemServiceForHome.initialize();
+            const tool = createWriteFileTool(async () => fileSystemServiceForHome);
+
+            try {
+                const parsedInput = tool.inputSchema.parse({
+                    file_path: `${homeRelativeDir}/nested/new-file.txt`,
+                    content: 'brand new content',
+                    create_dirs: true,
+                });
+
+                const result = (await tool.execute(parsedInput, createToolContext(mockLogger))) as {
+                    success: boolean;
+                    path: string;
+                };
+
+                expect(result.success).toBe(true);
+                expect(result.path).toBe(path.join(homeTempDir, 'nested', 'new-file.txt'));
+                expect(await fs.readFile(result.path, 'utf-8')).toBe('brand new content');
+            } finally {
+                await fs.rm(homeTempDir, { recursive: true, force: true });
+            }
+        });
+
         it('should succeed when creating new file that still does not exist', async () => {
             const tool = createWriteFileTool(async () => fileSystemService);
             const testFile = path.join(tempDir, 'new-file.txt');

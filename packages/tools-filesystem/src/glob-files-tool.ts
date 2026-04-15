@@ -4,13 +4,13 @@
  * Internal tool for finding files using glob patterns
  */
 
-import * as path from 'node:path';
 import { z } from 'zod';
 import { createLocalToolCallHeader, defineTool, truncateForHeader } from '@dexto/core';
 import type { SearchDisplayData } from '@dexto/core';
 import type { Tool, ToolExecutionContext } from '@dexto/core';
 import type { FileSystemServiceGetter } from './file-tool-types.js';
 import { createDirectoryAccessApprovalHandlers } from './directory-approval.js';
+import { resolveUserPath } from './path-utils.js';
 
 const GlobFilesInputSchema = z
     .object({
@@ -64,7 +64,7 @@ export function createGlobFilesTool(
             getFileSystemService,
             resolvePaths: (input, fileSystemService) => {
                 const baseDir = fileSystemService.getWorkingDirectory();
-                const searchDir = path.resolve(baseDir, input.path || '.');
+                const searchDir = resolveUserPath(baseDir, input.path || '.');
                 return { path: searchDir, parentDir: searchDir };
             },
         }),
@@ -77,7 +77,7 @@ export function createGlobFilesTool(
 
             // Resolve the search directory consistently with directory-approval path handling
             const baseDir = resolvedFileSystemService.getWorkingDirectory();
-            const resolvedSearchPath = path.resolve(baseDir, searchPath || '.');
+            const resolvedSearchPath = resolveUserPath(baseDir, searchPath || '.');
 
             // Search for files using FileSystemService
             const result = await resolvedFileSystemService.globFiles(pattern, {
