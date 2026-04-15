@@ -80,6 +80,9 @@ import CustomModelWizard, {
 import ChatGPTUsageCapOverlay, {
     type ChatGPTUsageCapOverlayHandle,
 } from '../components/overlays/ChatGPTUsageCapOverlay.js';
+import InsufficientCreditsOverlay, {
+    type InsufficientCreditsOverlayHandle,
+} from '../components/overlays/InsufficientCreditsOverlay.js';
 import { getLLMProviderDisplayName } from '../utils/llm-provider-display.js';
 import { resolveChatGPTFallbackModel } from '../utils/chatgpt-rate-limit.js';
 import {
@@ -162,6 +165,7 @@ import { generateMessageId } from '../utils/idGenerator.js';
 import { canUseDextoProvider, captureAnalytics } from '../host/index.js';
 import { FocusOverlayFrame } from '../components/shared/FocusOverlayFrame.js';
 import { shouldHideCliChrome } from '../utils/overlayPresentation.js';
+import { refreshDextoNovaAuthAfterLogin } from '../utils/dexto-auth-refresh.js';
 
 function isLLMProvider(value: unknown): value is LLMProvider {
     if (typeof value !== 'string') return false;
@@ -267,6 +271,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
         const customModelWizardRef = useRef<CustomModelWizardHandle>(null);
         const sessionSubcommandSelectorRef = useRef<SessionSubcommandSelectorHandle>(null);
         const chatGPTUsageCapRef = useRef<ChatGPTUsageCapOverlayHandle>(null);
+        const insufficientCreditsRef = useRef<InsufficientCreditsOverlayHandle>(null);
         const apiKeyInputRef = useRef<ApiKeyInputHandle>(null);
         const loginOverlayRef = useRef<LoginOverlayHandle>(null);
         const logoutOverlayRef = useRef<LogoutOverlayHandle>(null);
@@ -369,6 +374,10 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             );
                         case 'chatgpt-usage-cap':
                             return chatGPTUsageCapRef.current?.handleInput(inputStr, key) ?? false;
+                        case 'insufficient-credits':
+                            return (
+                                insufficientCreditsRef.current?.handleInput(inputStr, key) ?? false
+                            );
                         case 'api-key-input':
                             return apiKeyInputRef.current?.handleInput(inputStr, key) ?? false;
                         case 'login':
@@ -903,6 +912,32 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                 activeOverlay: 'none',
             }));
         }, [setUi]);
+
+        const handleInsufficientCreditsClose = useCallback(() => {
+            setUi((prev) => ({
+                ...prev,
+                activeOverlay: 'none',
+                insufficientCredits: null,
+            }));
+        }, [setUi]);
+
+        const handleInsufficientCreditsResolved = useCallback(() => {
+            setUi((prev) => ({
+                ...prev,
+                activeOverlay: 'none',
+                insufficientCredits: null,
+            }));
+
+            setMessages((prev) => [
+                ...prev,
+                {
+                    id: generateMessageId('system'),
+                    role: 'system',
+                    content: 'Billing opened in your browser. Retry your request when ready.',
+                    timestamp: new Date(),
+                },
+            ]);
+        }, [setMessages, setUi]);
 
         const handleChatGPTUsageCapConfirm = useCallback(async () => {
             const currentLLMConfig = session.id
@@ -1449,46 +1484,65 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                 activeOverlay: 'none',
                 mcpWizardServerType: null,
                 commandOutput: null,
+                insufficientCredits: null,
             }));
         }, [setUi]);
 
         const handleLoginDone = useCallback(
             (outcome: LoginOverlayOutcome) => {
-                handleClose();
+                void (async () => {
+                    handleClose();
 
-                if (outcome.outcome === 'closed') {
-                    return;
-                }
+                    if (outcome.outcome === 'closed') {
+                        return;
+                    }
 
-                if (outcome.outcome === 'cancelled') {
+                    if (outcome.outcome === 'cancelled') {
+                        setMessages((prev) => [
+                            ...prev,
+                            {
+                                id: generateMessageId('system'),
+                                role: 'system',
+                                content: 'Login cancelled.',
+                                timestamp: new Date(),
+                            },
+                        ]);
+                        return;
+                    }
+
+                    let refreshWarning: string | null = null;
+                    if (outcome.hasDextoApiKey) {
+                        try {
+                            await refreshDextoNovaAuthAfterLogin(agent, session.id || undefined);
+                        } catch (error) {
+                            refreshWarning = `Logged in, but failed to refresh the active Dexto Nova session: ${
+                                error instanceof Error ? error.message : String(error)
+                            }`;
+                        }
+                    }
+
+                    const userLabel = outcome.email ? ` as ${outcome.email}` : '';
+                    const keyLine = outcome.hasDextoApiKey
+                        ? `🔑 DEXTO_API_KEY ready${outcome.keyId ? ` (Key ID: ${outcome.keyId})` : ''}`
+                        : '⚠️ Failed to provision DEXTO_API_KEY (you can still use your own API keys)';
+                    const content = [
+                        `✅ Logged in${userLabel}`,
+                        keyLine,
+                        ...(refreshWarning ? [`⚠️ ${refreshWarning}`] : []),
+                    ].join('\n');
+
                     setMessages((prev) => [
                         ...prev,
                         {
                             id: generateMessageId('system'),
                             role: 'system',
-                            content: 'Login cancelled.',
+                            content,
                             timestamp: new Date(),
                         },
                     ]);
-                    return;
-                }
-
-                const userLabel = outcome.email ? ` as ${outcome.email}` : '';
-                const keyLine = outcome.hasDextoApiKey
-                    ? `🔑 DEXTO_API_KEY ready${outcome.keyId ? ` (Key ID: ${outcome.keyId})` : ''}`
-                    : '⚠️ Failed to provision DEXTO_API_KEY (you can still use your own API keys)';
-
-                setMessages((prev) => [
-                    ...prev,
-                    {
-                        id: generateMessageId('system'),
-                        role: 'system',
-                        content: `✅ Logged in${userLabel}\n${keyLine}`,
-                        timestamp: new Date(),
-                    },
-                ]);
+                })();
             },
-            [handleClose, setMessages]
+            [agent, handleClose, session.id, setMessages]
         );
 
         const handleLogoutDone = useCallback(
@@ -3004,6 +3058,18 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             status={ui.chatgptRateLimitStatus}
                             onConfirm={handleChatGPTUsageCapConfirm}
                             onClose={handleChatGPTUsageCapClose}
+                        />
+                    </Box>
+                )}
+
+                {ui.activeOverlay === 'insufficient-credits' && ui.insufficientCredits && (
+                    <Box marginTop={1}>
+                        <InsufficientCreditsOverlay
+                            ref={insufficientCreditsRef}
+                            isVisible={true}
+                            initialBalanceUsd={ui.insufficientCredits.balanceUsd}
+                            onResolved={handleInsufficientCreditsResolved}
+                            onClose={handleInsufficientCreditsClose}
                         />
                     </Box>
                 )}

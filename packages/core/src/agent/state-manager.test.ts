@@ -152,6 +152,22 @@ describe('AgentStateManager Events', () => {
         });
     });
 
+    it('reports whether a session has an explicit llm override', () => {
+        expect(stateManager.hasSessionLLMOverride('session-123')).toBe(false);
+
+        const sessionConfig = LLMConfigSchema.parse({
+            ...validatedConfig.llm,
+            model: 'gpt-5',
+        });
+        stateManager.updateLLM(sessionConfig, 'session-123');
+
+        expect(stateManager.hasSessionLLMOverride('session-123')).toBe(true);
+
+        stateManager.clearSessionOverride('session-123');
+
+        expect(stateManager.hasSessionLLMOverride('session-123')).toBe(false);
+    });
+
     it('emits dexto:stateReset when resetting to baseline', () => {
         const eventSpy = vi.fn();
         eventBus.on('state:reset', eventSpy);

@@ -1,5 +1,12 @@
 # @dexto/tools-filesystem
 
+## 1.6.25
+
+### Patch Changes
+
+- @dexto/core@1.6.25
+- @dexto/agent-config@1.6.25
+
 ## 1.6.24
 
 ### Patch Changes

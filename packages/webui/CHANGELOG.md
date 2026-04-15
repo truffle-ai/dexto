@@ -1,5 +1,16 @@
 # @dexto/webui
 
+## 1.6.25
+
+### Patch Changes
+
+- @dexto/core@1.6.25
+- @dexto/storage@1.6.25
+- @dexto/agent-config@1.6.25
+- @dexto/client-sdk@1.6.25
+- @dexto/analytics@1.6.25
+- @dexto/registry@1.6.25
+
 ## 1.6.24
 
 ### Patch Changes

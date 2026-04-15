@@ -57,6 +57,7 @@ export interface TuiAgentBackend
         | 'generateSessionTitle'
         | 'forkSession'
         | 'getCurrentLLMConfig'
+        | 'hasSessionLLMOverride'
         | 'switchLLM'
         | 'getSupportedProviders'
         | 'getSupportedModels'

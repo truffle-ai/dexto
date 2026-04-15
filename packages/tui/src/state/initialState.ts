@@ -51,6 +51,7 @@ export function createInitialState(initialModelName: string = ''): CLIState {
             planModeActive: false,
             planModeInitialized: false,
             chatgptRateLimitStatus: null,
+            insufficientCredits: null,
             commandOutput: null,
         },
         session: {
