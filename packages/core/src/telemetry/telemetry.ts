@@ -10,6 +10,19 @@ type NodeSDKType = import('@opentelemetry/sdk-node').NodeSDK;
 type ConsoleSpanExporterType = import('@opentelemetry/sdk-trace-base').ConsoleSpanExporter;
 type OTLPHttpExporterType = import('@opentelemetry/exporter-trace-otlp-http').OTLPTraceExporter;
 type OTLPGrpcExporterType = import('@opentelemetry/exporter-trace-otlp-grpc').OTLPTraceExporter;
+export type TelemetryShutdownHandler = () => Promise<void>;
+
+export type TelemetryRegistrationOptions = {
+    config?: OtelConfiguration | undefined;
+    initialized?: boolean | undefined;
+    shutdown?: TelemetryShutdownHandler | undefined;
+};
+
+type TelemetryInstanceOptions = {
+    initialized: boolean;
+    sdk?: NodeSDKType | undefined;
+    shutdown?: TelemetryShutdownHandler | undefined;
+};
 
 // Add type declaration for global namespace
 declare global {
@@ -30,19 +43,19 @@ export class Telemetry {
     name: string = 'dexto-service';
     private _isInitialized: boolean = false;
     private _sdk?: NodeSDKType | undefined;
+    private _shutdownHandler?: TelemetryShutdownHandler | undefined;
     private static _initPromise?: Promise<Telemetry> | undefined;
     private static _signalHandlers?: { sigterm: () => void; sigint: () => void } | undefined;
 
-    private constructor(config: OtelConfiguration, enabled: boolean, sdk?: NodeSDKType) {
+    private constructor(config: OtelConfiguration, options: TelemetryInstanceOptions) {
         const serviceName = config.serviceName ?? 'dexto-service';
         const tracerName = config.tracerName ?? serviceName;
 
         this.name = serviceName;
         this.tracer = trace.getTracer(tracerName);
-        if (sdk) {
-            this._sdk = sdk;
-        }
-        this._isInitialized = enabled && !!sdk;
+        this._sdk = options.sdk;
+        this._shutdownHandler = options.shutdown;
+        this._isInitialized = options.initialized;
     }
 
     private static async buildTraceExporter(
@@ -216,7 +229,10 @@ export class Telemetry {
                         Telemetry._signalHandlers = { sigterm, sigint };
                     }
 
-                    globalThis.__TELEMETRY__ = new Telemetry(config, enabled, sdk);
+                    globalThis.__TELEMETRY__ = new Telemetry(config, {
+                        initialized: enabled && !!sdk,
+                        ...(sdk !== undefined && { sdk }),
+                    });
                 }
                 return globalThis.__TELEMETRY__!;
             })();
@@ -228,6 +244,44 @@ export class Telemetry {
             // Clear init promise so subsequent calls can retry
             Telemetry._initPromise = undefined;
             // Re-throw typed errors as-is, wrap unknown errors
+            if (error instanceof DextoRuntimeError) {
+                throw error;
+            }
+            throw TelemetryError.initializationFailed(
+                error instanceof Error ? error.message : String(error),
+                error
+            );
+        }
+    }
+
+    /**
+     * Register a global telemetry instance after a host installs its own provider/exporter lifecycle.
+     *
+     * This keeps core instrumentation active without forcing the default Node SDK bootstrap path.
+     */
+    static async registerGlobal(options: TelemetryRegistrationOptions = {}): Promise<Telemetry> {
+        try {
+            if (globalThis.__TELEMETRY__) return globalThis.__TELEMETRY__;
+
+            if (Telemetry._initPromise) return Telemetry._initPromise;
+
+            const config = options.config ?? {};
+            const initialized = options.initialized ?? true;
+
+            Telemetry._initPromise = Promise.resolve().then(() => {
+                if (!globalThis.__TELEMETRY__) {
+                    globalThis.__TELEMETRY__ = new Telemetry(config, {
+                        initialized,
+                        ...(options.shutdown !== undefined && { shutdown: options.shutdown }),
+                    });
+                }
+
+                return globalThis.__TELEMETRY__!;
+            });
+
+            return await Telemetry._initPromise;
+        } catch (error) {
+            Telemetry._initPromise = undefined;
             if (error instanceof DextoRuntimeError) {
                 throw error;
             }
@@ -329,33 +383,39 @@ export class Telemetry {
      * This ensures agent switching works even when telemetry export fails.
      */
     public async shutdown(): Promise<void> {
-        if (this._sdk) {
-            try {
+        try {
+            if (this._shutdownHandler) {
+                await this._shutdownHandler();
+            } else if (this._sdk) {
                 // Phase 1: Best-effort flush pending spans to backend
                 // This can fail if Jaeger/OTLP collector is unreachable
                 await this._sdk.shutdown();
-            } catch (error) {
-                // Don't throw - log warning and continue with cleanup
-                // Telemetry is observability infrastructure, not core functionality
-                const errorMsg = error instanceof Error ? error.message : String(error);
-                logger.warn(`Telemetry shutdown failed to flush spans (non-blocking): ${errorMsg}`);
-            } finally {
-                // Phase 2: Force cleanup - MUST always happen regardless of flush success
-                // This ensures we can reinitialize telemetry for agent switching
-                this._isInitialized = false;
-                globalThis.__TELEMETRY__ = undefined; // Clear the global instance
-
-                // Cleanup signal handlers to prevent leaks
-                if (Telemetry._signalHandlers) {
-                    process.off('SIGTERM', Telemetry._signalHandlers.sigterm);
-                    process.off('SIGINT', Telemetry._signalHandlers.sigint);
-                    Telemetry._signalHandlers = undefined;
-                }
-
-                // Clear references for GC and re-initialization
-                this._sdk = undefined;
-                Telemetry._initPromise = undefined;
             }
+        } catch (error) {
+            // Don't throw - log warning and continue with cleanup
+            // Telemetry is observability infrastructure, not core functionality
+            const errorMsg = error instanceof Error ? error.message : String(error);
+            logger.warn(`Telemetry shutdown failed to flush spans (non-blocking): ${errorMsg}`);
+        } finally {
+            this.cleanupAfterShutdown();
         }
+    }
+
+    private cleanupAfterShutdown(): void {
+        // This ensures we can reinitialize telemetry for agent switching
+        this._isInitialized = false;
+        globalThis.__TELEMETRY__ = undefined;
+
+        // Cleanup signal handlers to prevent leaks
+        if (Telemetry._signalHandlers) {
+            process.off('SIGTERM', Telemetry._signalHandlers.sigterm);
+            process.off('SIGINT', Telemetry._signalHandlers.sigint);
+            Telemetry._signalHandlers = undefined;
+        }
+
+        // Clear references for GC and re-initialization
+        this._sdk = undefined;
+        this._shutdownHandler = undefined;
+        Telemetry._initPromise = undefined;
     }
 }

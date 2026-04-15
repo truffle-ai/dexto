@@ -63,6 +63,14 @@ export type ToolManagerFactory = (options: ToolManagerFactoryOptions) => ToolMan
 
 export type ToolkitLoader = (toolkits: string[]) => Promise<Tool[]>;
 
+export type TelemetryBootstrapContext = Readonly<{
+    agentId: string;
+    config: AgentRuntimeSettings['telemetry'];
+    logger: Logger;
+}>;
+
+export type TelemetryBootstrap = (context: TelemetryBootstrapContext) => Promise<void> | void;
+
 export type InitializeServicesOptions = {
     sessionLoggerFactory?: import('../session/session-manager.js').SessionLoggerFactory;
     mcpAuthProviderFactory?: import('../mcp/types.js').McpAuthProviderFactory | null;
@@ -70,7 +78,29 @@ export type InitializeServicesOptions = {
     toolManagerFactory?: ToolManagerFactory;
     storageManager?: StorageManager;
     hooks?: Hook[] | undefined;
+    telemetryBootstrap?: TelemetryBootstrap | undefined;
 };
+
+export async function initializeAgentTelemetry(
+    config: AgentRuntimeSettings,
+    logger: Logger,
+    telemetryBootstrap?: TelemetryBootstrap | undefined
+): Promise<void> {
+    if (telemetryBootstrap) {
+        await telemetryBootstrap({
+            agentId: config.agentId,
+            config: config.telemetry,
+            logger,
+        });
+        return;
+    }
+
+    if (config.telemetry?.enabled) {
+        const { Telemetry } = await import('../telemetry/telemetry.js');
+        await Telemetry.init(config.telemetry);
+        logger.debug('Telemetry initialized');
+    }
+}
 
 // High-level factory to load, validate, and wire up all agent services in one call
 /**
@@ -90,11 +120,7 @@ export async function createAgentServices(
 ): Promise<AgentServices> {
     // 0. Initialize telemetry FIRST (before any decorated classes are instantiated)
     // This must happen before creating any services that use @InstrumentClass decorator
-    if (config.telemetry?.enabled) {
-        const { Telemetry } = await import('../telemetry/telemetry.js');
-        await Telemetry.init(config.telemetry);
-        logger.debug('Telemetry initialized');
-    }
+    await initializeAgentTelemetry(config, logger, overrides?.telemetryBootstrap);
 
     // 1. Use the event bus provided by DextoAgent constructor
     logger.debug('Using pre-created agent event bus');

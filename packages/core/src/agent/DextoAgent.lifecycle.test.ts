@@ -232,6 +232,44 @@ describe('DextoAgent Lifecycle Management', () => {
             );
         });
 
+        test('should pass a telemetry bootstrap override through service initialization', async () => {
+            const telemetryBootstrap = vi.fn();
+            const loggerConfig = LoggerConfigSchema.parse({
+                level: 'error',
+                transports: [{ type: 'silent' }],
+            });
+            const agentLogger = createLogger({
+                config: loggerConfig,
+                agentId: mockValidatedConfig.agentId,
+            });
+            const agent = new DextoAgent({
+                ...mockValidatedConfig,
+                logger: agentLogger,
+                storage: {
+                    blob: createInMemoryBlobStore(),
+                    database: createInMemoryDatabase(),
+                    cache: createInMemoryCache(),
+                },
+                tools: [],
+                hooks: [],
+                overrides: {
+                    telemetryBootstrap,
+                },
+            });
+
+            await agent.start();
+
+            expect(mockCreateAgentServices).toHaveBeenCalledWith(
+                mockValidatedConfig,
+                expect.anything(),
+                expect.anything(),
+                expect.objectContaining({
+                    telemetryBootstrap,
+                }),
+                null
+            );
+        });
+
         test('should throw error when starting twice', async () => {
             const agent = createTestAgent(mockValidatedConfig);
 
