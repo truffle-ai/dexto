@@ -328,12 +328,14 @@ export function createApprovalsRouter(
             }
 
             // Construct response payload
-            // Get sessionId from coordinator's mapping (stored when request was emitted)
+            // Get approval context from coordinator's mapping (stored when request was emitted)
             const sessionId = approvalCoordinator.getSessionId(approvalId);
+            const hostRuntime = approvalCoordinator.getHostRuntime(approvalId);
             const responsePayload = {
                 approvalId,
                 status,
                 sessionId, // Attach sessionId for SSE routing to correct client streams
+                ...(hostRuntime !== undefined ? { hostRuntime } : {}),
                 ...(status === ApprovalStatus.DENIED
                     ? {
                           reason: reason ?? DenialReason.USER_DENIED,

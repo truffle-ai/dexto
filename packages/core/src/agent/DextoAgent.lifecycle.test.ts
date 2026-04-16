@@ -15,7 +15,7 @@ import { ErrorScope, ErrorType } from '../errors/types.js';
 import { AgentErrorCode } from './error-codes.js';
 import { LLMErrorCode } from '../llm/error-codes.js';
 import { createLogger } from '../logger/factory.js';
-import { AgentEventBus, type AgentEventMap, type StreamingEvent } from '../events/index.js';
+import { AgentEventBus, type StreamingEvent } from '../events/index.js';
 import {
     createInMemoryBlobStore,
     createInMemoryCache,
@@ -323,60 +323,6 @@ describe('DextoAgent Lifecycle Management', () => {
                     ids: {
                         runId: 'run-1',
                         attemptId: 'attempt-1',
-                    },
-                },
-            });
-        });
-
-        test('should attach active execution context to session-bound agent events without overwriting explicit payload values', async () => {
-            mockServices.sessionManager.getExecutionContext = vi.fn().mockReturnValue({
-                ids: {
-                    runId: 'run-1',
-                    attemptId: 'attempt-1',
-                },
-            });
-            const agent = createTestAgent(mockValidatedConfig);
-            const received: AgentEventMap['approval:response'][] = [];
-
-            await agent.start();
-
-            agent.on('approval:response', (payload) => {
-                received.push(payload);
-            });
-
-            agent.emit('approval:response', {
-                approvalId: 'approval-1',
-                status: 'approved',
-                sessionId: 'session-1',
-            });
-            agent.emit('approval:response', {
-                approvalId: 'approval-2',
-                status: 'approved',
-                sessionId: 'session-1',
-                hostRuntime: {
-                    ids: {
-                        runId: 'explicit-run',
-                    },
-                },
-            });
-
-            expect(received).toHaveLength(2);
-            expect(received[0]).toMatchObject({
-                approvalId: 'approval-1',
-                sessionId: 'session-1',
-                hostRuntime: {
-                    ids: {
-                        runId: 'run-1',
-                        attemptId: 'attempt-1',
-                    },
-                },
-            });
-            expect(received[1]).toMatchObject({
-                approvalId: 'approval-2',
-                sessionId: 'session-1',
-                hostRuntime: {
-                    ids: {
-                        runId: 'explicit-run',
                     },
                 },
             });

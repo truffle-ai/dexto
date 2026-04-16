@@ -15,9 +15,12 @@ import type { BeforeLLMRequestPayload, BeforeResponsePayload } from '../hooks/ty
 import {
     SessionEventBus,
     AgentEventBus,
+    EventArgs,
     SessionEventNames,
     SessionEventName,
+    AgentEventMap,
     SessionEventMap,
+    withHostRuntimeEventContext,
 } from '../events/index.js';
 import type { Logger } from '../logger/v2/types.js';
 import { DextoLogComponent } from '../logger/v2/types.js';
@@ -111,10 +114,9 @@ export class ChatSession {
     private messageQueue!: MessageQueueService;
 
     /**
-     * Map of event forwarder functions for cleanup.
-     * Stores the bound functions so they can be removed from the event bus.
+     * Cleanup callbacks for event forwarders attached to the session event bus.
      */
-    private forwarders: Map<SessionEventName, (payload?: any) => void> = new Map();
+    private forwarders: Map<SessionEventName, () => void> = new Map();
 
     /**
      * Token accumulator listener for cleanup.
@@ -190,6 +192,31 @@ export class ChatSession {
         return this.services.sessionManager.getExecutionContext?.(this.id);
     }
 
+    private createForwardedEventPayload<K extends SessionEventName>(
+        payload: SessionEventMap[K]
+    ): Exclude<AgentEventMap[K], void> {
+        const basePayload =
+            payload === undefined ? { sessionId: this.id } : { ...payload, sessionId: this.id };
+
+        return withHostRuntimeEventContext(basePayload, this.getExecutionContext()) as Exclude<
+            AgentEventMap[K],
+            void
+        >;
+    }
+
+    private attachEventForwarder<K extends SessionEventName>(eventName: K): void {
+        const forwarder = (payload: SessionEventMap[K]) => {
+            const forwardedPayload = this.createForwardedEventPayload(payload);
+            const args = [forwardedPayload] as EventArgs<AgentEventMap[K]>;
+            this.services.agentEventBus.emit(eventName, ...args);
+        };
+
+        this.eventBus.on(eventName, forwarder);
+        this.forwarders.set(eventName, () => {
+            this.eventBus.off(eventName, forwarder);
+        });
+    }
+
     /**
      * Sets up event forwarding from session bus to global agent bus.
      *
@@ -200,28 +227,9 @@ export class ChatSession {
      */
     private setupEventForwarding(): void {
         // Forward each session event type to the agent bus with session context
-        SessionEventNames.forEach((eventName) => {
-            const forwarder = (payload?: any) => {
-                const hostRuntime = this.getExecutionContext();
-                // Create payload with sessionId - handle both void and object payloads
-                const payloadWithSession =
-                    payload && typeof payload === 'object'
-                        ? { ...payload, sessionId: this.id }
-                        : { sessionId: this.id };
-                const forwardedPayload =
-                    hostRuntime === undefined || 'hostRuntime' in payloadWithSession
-                        ? payloadWithSession
-                        : { ...payloadWithSession, hostRuntime };
-                // Forward to agent bus with session context
-                this.services.agentEventBus.emit(eventName as any, forwardedPayload);
-            };
-
-            // Store the forwarder function for later cleanup
-            this.forwarders.set(eventName, forwarder);
-
-            // Attach the forwarder to the session event bus
-            this.eventBus.on(eventName, forwarder);
-        });
+        for (const eventName of SessionEventNames) {
+            this.attachEventForwarder(eventName);
+        }
 
         // Set up token usage accumulation on llm:response
         this.setupTokenAccumulation();
@@ -766,8 +774,8 @@ export class ChatSession {
         this.logger.debug(`Disposing session ${this.id} - cleaning up event listeners`);
 
         // Remove all event forwarders from the session event bus
-        this.forwarders.forEach((forwarder, eventName) => {
-            this.eventBus.off(eventName, forwarder);
+        this.forwarders.forEach((cleanup) => {
+            cleanup();
         });
 
         // Clear the forwarders map

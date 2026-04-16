@@ -1989,6 +1989,9 @@ export class ToolManager {
                         if (sessionId && !approvalRequest.sessionId) {
                             approvalRequest.sessionId = sessionId;
                         }
+                        if (sessionId && approvalRequest.hostRuntime === undefined) {
+                            approvalRequest.hostRuntime = this.getSessionHostRuntime(sessionId);
+                        }
 
                         const response =
                             await this.approvalManager.requestApproval(approvalRequest);
@@ -2154,6 +2157,8 @@ export class ToolManager {
                 toolCallId,
                 sessionId
             );
+            const hostRuntime =
+                sessionId === undefined ? undefined : this.getSessionHostRuntime(sessionId);
 
             // Get suggested patterns if applicable
             const suggestedPatterns = this.getToolSuggestedPatterns(toolName, args);
@@ -2166,6 +2171,7 @@ export class ToolManager {
                 args,
                 ...(callDescription !== undefined && { description: callDescription }),
                 ...(sessionId !== undefined && { sessionId }),
+                ...(hostRuntime !== undefined && { hostRuntime }),
                 ...(displayPreview !== undefined && { displayPreview }),
                 ...(directoryAccess !== undefined && { directoryAccess }),
                 ...(suggestedPatterns !== undefined && { suggestedPatterns }),

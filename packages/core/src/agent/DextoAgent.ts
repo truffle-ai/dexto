@@ -104,10 +104,6 @@ export interface AgentEventSubscriber {
     subscribe(eventBus: AgentEventBus): void;
 }
 
-function isEventPayloadObject(value: unknown): value is Record<string, unknown> {
-    return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
 /**
  * The main entry point into Dexto's core functionality.
  *
@@ -652,30 +648,7 @@ export class DextoAgent {
         event: K,
         ...args: AgentEventMap[K] extends void ? [] : [AgentEventMap[K]]
     ): boolean {
-        if (args.length === 0) {
-            return this.agentEventBus.emit(event, ...args);
-        }
-
-        const [payload] = args as [unknown];
-        if (!isEventPayloadObject(payload) || 'hostRuntime' in payload) {
-            return this.agentEventBus.emit(event, ...args);
-        }
-
-        const sessionId = payload.sessionId;
-        if (typeof sessionId !== 'string' || sessionId.length === 0) {
-            return this.agentEventBus.emit(event, ...args);
-        }
-
-        const hostRuntime = this.sessionManager?.getExecutionContext(sessionId);
-        if (hostRuntime === undefined) {
-            return this.agentEventBus.emit(event, ...args);
-        }
-
-        const argsWithHostRuntime = [
-            { ...payload, hostRuntime } as AgentEventMap[K],
-        ] as AgentEventMap[K] extends void ? [] : [AgentEventMap[K]];
-
-        return this.agentEventBus.emit(event, ...argsWithHostRuntime);
+        return this.agentEventBus.emit(event, ...args);
     }
 
     /**

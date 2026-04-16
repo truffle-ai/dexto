@@ -61,6 +61,7 @@ export function createManualApprovalHandler(coordinator: ApprovalCoordinator): A
                         approvalId: request.approvalId,
                         status: ApprovalStatus.CANCELLED,
                         sessionId: request.sessionId,
+                        hostRuntime: request.hostRuntime,
                         reason: DenialReason.TIMEOUT,
                         message: `Approval request timed out after ${effectiveTimeout}ms`,
                         timeoutMs: effectiveTimeout,
@@ -124,6 +125,7 @@ export function createManualApprovalHandler(coordinator: ApprovalCoordinator): A
                     approvalId,
                     status: ApprovalStatus.CANCELLED,
                     sessionId: pending.request.sessionId,
+                    hostRuntime: pending.request.hostRuntime,
                     reason: DenialReason.SYSTEM_CANCELLED,
                     message: 'Approval request was cancelled',
                 };
@@ -174,6 +176,7 @@ export function createManualApprovalHandler(coordinator: ApprovalCoordinator): A
                         approvalId,
                         status: ApprovalStatus.APPROVED,
                         sessionId: pending.request.sessionId,
+                        hostRuntime: pending.request.hostRuntime,
                         message: 'Auto-approved due to matching remembered pattern',
                         data: responseData,
                     };

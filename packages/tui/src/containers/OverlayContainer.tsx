@@ -477,6 +477,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                     approvalId: approval.approvalId,
                     status: ApprovalStatus.APPROVED,
                     sessionId: approval.sessionId,
+                    hostRuntime: approval.hostRuntime,
                     data: {
                         rememberChoice: options.rememberChoice,
                         rememberPattern: options.rememberPattern,
@@ -503,6 +504,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                     approvalId: approval.approvalId,
                     status: ApprovalStatus.DENIED,
                     sessionId: approval.sessionId,
+                    hostRuntime: approval.hostRuntime,
                     reason: DenialReason.USER_DENIED,
                     message,
                 });
@@ -519,6 +521,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                 approvalId: approval.approvalId,
                 status: ApprovalStatus.CANCELLED,
                 sessionId: approval.sessionId,
+                hostRuntime: approval.hostRuntime,
                 reason: DenialReason.USER_CANCELLED,
                 message: 'User cancelled the approval request',
             });

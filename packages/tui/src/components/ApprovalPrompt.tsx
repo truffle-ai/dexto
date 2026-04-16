@@ -7,7 +7,12 @@ import React, {
     useMemo,
 } from 'react';
 import { Box, Text } from 'ink';
-import type { ToolDisplayData, ElicitationMetadata, ToolPresentationSnapshotV1 } from '@dexto/core';
+import type {
+    HostRuntimeContext,
+    ToolDisplayData,
+    ElicitationMetadata,
+    ToolPresentationSnapshotV1,
+} from '@dexto/core';
 import type { Key } from '../hooks/useInputOrchestrator.js';
 import { ElicitationForm, type ElicitationFormHandle } from './ElicitationForm.js';
 import { DiffPreview, CreateFilePreview } from './renderers/index.js';
@@ -18,6 +23,7 @@ export interface ApprovalRequest {
     approvalId: string;
     type: string;
     sessionId?: string;
+    hostRuntime?: HostRuntimeContext;
     timeout?: number;
     timestamp: Date;
     metadata: Record<string, unknown>;

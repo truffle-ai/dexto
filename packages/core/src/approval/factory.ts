@@ -15,6 +15,7 @@ export function createApprovalRequest(details: ApprovalRequestDetails): Approval
         approvalId: randomUUID(),
         type: details.type,
         sessionId: details.sessionId,
+        hostRuntime: details.hostRuntime,
         timeout: details.timeout,
         timestamp: new Date(),
         metadata: details.metadata,

@@ -8,7 +8,7 @@ import type { CodexRateLimitSnapshot } from '../llm/providers/codex-app-server.j
 import type { WorkspaceContext } from '../workspace/types.js';
 import type { ToolPresentationSnapshotV1 } from '../tools/types.js';
 import type { ToolCallMetadata } from '../tools/tool-call-metadata.js';
-import { normalizeHostRuntimeContext, type HostRuntimeContext } from '../runtime/index.js';
+import type { HostRuntimeContext } from '../runtime/index.js';
 
 /**
  * LLM finish reason - why the LLM stopped generating
@@ -234,11 +234,25 @@ export type HostRuntimeEventContext = {
     hostRuntime?: HostRuntimeContext | undefined;
 };
 
-type WithHostRuntime<TEventMap extends Record<string, any>> = {
-    [K in keyof TEventMap]: TEventMap[K] extends object
-        ? TEventMap[K] & HostRuntimeEventContext
-        : TEventMap[K];
+export type EventArgs<TEvent> = TEvent extends void ? [] : [TEvent];
+export type EventListener<TEvent> = (payload: TEvent) => void;
+
+type WithHostRuntime<TEventMap extends object> = {
+    [K in keyof TEventMap]: TEventMap[K] extends void
+        ? void
+        : TEventMap[K] & HostRuntimeEventContext;
 };
+
+export function withHostRuntimeEventContext<TPayload extends object>(
+    payload: TPayload,
+    hostRuntime?: HostRuntimeContext
+): TPayload & HostRuntimeEventContext {
+    if (hostRuntime === undefined) {
+        return payload;
+    }
+
+    return { hostRuntime, ...payload };
+}
 
 interface AgentEventMapBase {
     // Session events
@@ -859,7 +873,7 @@ export const EventNames: readonly EventName[] = Object.freeze([...EVENT_NAMES]);
  *
  * Exported for extension by packages like multi-agent-server that need custom event buses.
  */
-export class BaseTypedEventEmitter<TEventMap extends Record<string, any>> {
+export class BaseTypedEventEmitter<TEventMap extends object> {
     // Wrapped EventEmitter instance
     private _emitter = new EventEmitter();
 
@@ -870,10 +884,7 @@ export class BaseTypedEventEmitter<TEventMap extends Record<string, any>> {
     /**
      * Emit an event with type-safe payload
      */
-    emit<K extends keyof TEventMap>(
-        event: K,
-        ...args: TEventMap[K] extends void ? [] : [TEventMap[K]]
-    ): boolean {
+    emit<K extends keyof TEventMap>(event: K, ...args: EventArgs<TEventMap[K]>): boolean {
         return this._emitter.emit(event as string, ...args);
     }
 
@@ -882,7 +893,7 @@ export class BaseTypedEventEmitter<TEventMap extends Record<string, any>> {
      */
     on<K extends keyof TEventMap>(
         event: K,
-        listener: TEventMap[K] extends void ? () => void : (payload: TEventMap[K]) => void,
+        listener: EventListener<TEventMap[K]>,
         options?: { signal?: AbortSignal }
     ): this {
         // If signal is already aborted, don't add the listener
@@ -938,7 +949,7 @@ export class BaseTypedEventEmitter<TEventMap extends Record<string, any>> {
      */
     once<K extends keyof TEventMap>(
         event: K,
-        listener: TEventMap[K] extends void ? () => void : (payload: TEventMap[K]) => void,
+        listener: EventListener<TEventMap[K]>,
         options?: { signal?: AbortSignal }
     ): this {
         // If signal is already aborted, don't add the listener
@@ -947,7 +958,7 @@ export class BaseTypedEventEmitter<TEventMap extends Record<string, any>> {
         }
 
         // Create a wrapper that handles both once and abort cleanup
-        const onceWrapper = (...args: any[]) => {
+        const onceWrapper: EventListener<TEventMap[K]> = (payload) => {
             // Clean up abort tracking before calling the original listener
             if (options?.signal) {
                 const eventMap = this._abortListeners.get(options.signal);
@@ -964,7 +975,7 @@ export class BaseTypedEventEmitter<TEventMap extends Record<string, any>> {
                     }
                 }
             }
-            (listener as any)(...args);
+            listener(payload);
         };
 
         // Add the wrapped listener
@@ -1013,10 +1024,7 @@ export class BaseTypedEventEmitter<TEventMap extends Record<string, any>> {
     /**
      * Unsubscribe from an event
      */
-    off<K extends keyof TEventMap>(
-        event: K,
-        listener: TEventMap[K] extends void ? () => void : (payload: TEventMap[K]) => void
-    ): this {
+    off<K extends keyof TEventMap>(event: K, listener: EventListener<TEventMap[K]>): this {
         this._emitter.off(event as string, listener);
         return this;
     }
@@ -1030,55 +1038,20 @@ export class BaseTypedEventEmitter<TEventMap extends Record<string, any>> {
     }
 }
 
-function isEventPayloadObject(value: unknown): value is Record<string, unknown> {
-    return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-class HostRuntimeTypedEventEmitter<
-    TEventMap extends Record<string, any>,
-> extends BaseTypedEventEmitter<TEventMap> {
-    private readonly hostRuntime: HostRuntimeContext | undefined;
-
-    constructor(hostRuntime?: HostRuntimeContext) {
-        super();
-        this.hostRuntime = normalizeHostRuntimeContext(hostRuntime);
-    }
-
-    override emit<K extends keyof TEventMap>(
-        event: K,
-        ...args: TEventMap[K] extends void ? [] : [TEventMap[K]]
-    ): boolean {
-        if (this.hostRuntime === undefined || args.length === 0) {
-            return super.emit(event, ...args);
-        }
-
-        const [payload] = args as [unknown];
-        if (!isEventPayloadObject(payload) || 'hostRuntime' in payload) {
-            return super.emit(event, ...args);
-        }
-
-        const argsWithHostRuntime = [
-            { ...payload, hostRuntime: this.hostRuntime } as TEventMap[K],
-        ] as TEventMap[K] extends void ? [] : [TEventMap[K]];
-
-        return super.emit(event, ...argsWithHostRuntime);
-    }
-}
-
 /**
  * Agent-level typed event emitter for global agent events
  */
-export class AgentEventBus extends HostRuntimeTypedEventEmitter<AgentEventMap> {}
+export class AgentEventBus extends BaseTypedEventEmitter<AgentEventMap> {}
 
 /**
  * Session-level typed event emitter for session-scoped events
  */
-export class SessionEventBus extends HostRuntimeTypedEventEmitter<SessionEventMap> {}
+export class SessionEventBus extends BaseTypedEventEmitter<SessionEventMap> {}
 
 /**
  * Combined typed event emitter for backward compatibility
  */
-export class TypedEventEmitter extends HostRuntimeTypedEventEmitter<AgentEventMap> {}
+export class TypedEventEmitter extends BaseTypedEventEmitter<AgentEventMap> {}
 
 /**
  * Global shared event bus (backward compatibility)

@@ -111,54 +111,29 @@ describe('EventBus AbortController Support', () => {
         expect(listener3).toHaveBeenCalledTimes(3);
     });
 
-    it('attaches host runtime IDs to emitted payloads', () => {
-        const eventBus = new AgentEventBus({
+    it('accepts explicit host runtime IDs on emitted payloads', () => {
+        const eventBus = new AgentEventBus();
+        const listener = vi.fn();
+        const hostRuntime = {
             ids: {
                 runId: 'run-1',
                 attemptId: 'attempt-1',
             },
-        });
-        const listener = vi.fn();
+        };
 
         eventBus.on('tool:running', listener);
         eventBus.emit('tool:running', {
             toolName: 'search_history',
             toolCallId: 'call-1',
             sessionId: 'session-1',
+            hostRuntime,
         });
 
         expect(listener).toHaveBeenCalledWith({
             toolName: 'search_history',
             toolCallId: 'call-1',
             sessionId: 'session-1',
-            hostRuntime: {
-                ids: {
-                    runId: 'run-1',
-                    attemptId: 'attempt-1',
-                },
-            },
+            hostRuntime,
         });
-    });
-
-    it('freezes host runtime IDs on emitted payloads', () => {
-        const eventBus = new AgentEventBus({
-            ids: {
-                runId: 'run-1',
-                attemptId: 'attempt-1',
-            },
-        });
-        const listener = vi.fn();
-
-        eventBus.on('tool:running', listener);
-        eventBus.emit('tool:running', {
-            toolName: 'search_history',
-            toolCallId: 'call-1',
-            sessionId: 'session-1',
-        });
-
-        const payload = listener.mock.calls[0]?.[0];
-        expect(payload).toBeDefined();
-        expect(Object.isFrozen(payload.hostRuntime)).toBe(true);
-        expect(Object.isFrozen(payload.hostRuntime.ids)).toBe(true);
     });
 });

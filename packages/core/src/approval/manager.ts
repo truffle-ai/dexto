@@ -580,6 +580,7 @@ export class ApprovalManager {
         type: ApprovalType,
         metadata: ApprovalRequestDetails['metadata'],
         sessionId: string | undefined,
+        hostRuntime?: ApprovalRequestDetails['hostRuntime'],
         timeout?: number
     ): ApprovalRequestDetails {
         const details: ApprovalRequestDetails = {
@@ -590,6 +591,9 @@ export class ApprovalManager {
 
         if (sessionId !== undefined) {
             details.sessionId = sessionId;
+        }
+        if (hostRuntime !== undefined) {
+            details.hostRuntime = hostRuntime;
         }
 
         return details;
@@ -602,6 +606,7 @@ export class ApprovalManager {
         return {
             approvalId: request.approvalId,
             ...(request.sessionId !== undefined ? { sessionId: request.sessionId } : {}),
+            ...(request.hostRuntime !== undefined ? { hostRuntime: request.hostRuntime } : {}),
             ...response,
         };
     }
@@ -649,14 +654,19 @@ export class ApprovalManager {
      * ```
      */
     async requestDirectoryAccess(
-        metadata: DirectoryAccessMetadata & { sessionId?: string; timeout?: number }
+        metadata: DirectoryAccessMetadata & {
+            sessionId?: string;
+            hostRuntime?: ApprovalRequestDetails['hostRuntime'];
+            timeout?: number;
+        }
     ): Promise<ApprovalResponse> {
-        const { sessionId, timeout, ...directoryMetadata } = metadata;
+        const { sessionId, hostRuntime, timeout, ...directoryMetadata } = metadata;
         return this.requestApproval(
             this.createApprovalDetails(
                 ApprovalType.DIRECTORY_ACCESS,
                 directoryMetadata,
                 sessionId,
+                hostRuntime,
                 timeout
             )
         );
@@ -734,11 +744,21 @@ export class ApprovalManager {
      * Tool confirmations always happen in session context during LLM execution
      */
     async requestToolApproval(
-        metadata: ToolApprovalMetadata & { sessionId?: string; timeout?: number }
+        metadata: ToolApprovalMetadata & {
+            sessionId?: string;
+            hostRuntime?: ApprovalRequestDetails['hostRuntime'];
+            timeout?: number;
+        }
     ): Promise<ApprovalResponse> {
-        const { sessionId, timeout, ...toolMetadata } = metadata;
+        const { sessionId, hostRuntime, timeout, ...toolMetadata } = metadata;
         return this.requestApproval(
-            this.createApprovalDetails(ApprovalType.TOOL_APPROVAL, toolMetadata, sessionId, timeout)
+            this.createApprovalDetails(
+                ApprovalType.TOOL_APPROVAL,
+                toolMetadata,
+                sessionId,
+                hostRuntime,
+                timeout
+            )
         );
     }
 
@@ -764,14 +784,19 @@ export class ApprovalManager {
      * ```
      */
     async requestCommandConfirmation(
-        metadata: CommandConfirmationMetadata & { sessionId?: string; timeout?: number }
+        metadata: CommandConfirmationMetadata & {
+            sessionId?: string;
+            hostRuntime?: ApprovalRequestDetails['hostRuntime'];
+            timeout?: number;
+        }
     ): Promise<ApprovalResponse> {
-        const { sessionId, timeout, ...commandMetadata } = metadata;
+        const { sessionId, hostRuntime, timeout, ...commandMetadata } = metadata;
         return this.requestApproval(
             this.createApprovalDetails(
                 ApprovalType.COMMAND_CONFIRMATION,
                 commandMetadata,
                 sessionId,
+                hostRuntime,
                 timeout
             )
         );
@@ -785,14 +810,19 @@ export class ApprovalManager {
      * and the MCP protocol doesn't include session context in elicitation requests.
      */
     async requestElicitation(
-        metadata: ElicitationMetadata & { sessionId?: string; timeout?: number }
+        metadata: ElicitationMetadata & {
+            sessionId?: string;
+            hostRuntime?: ApprovalRequestDetails['hostRuntime'];
+            timeout?: number;
+        }
     ): Promise<ApprovalResponse> {
-        const { sessionId, timeout, ...elicitationMetadata } = metadata;
+        const { sessionId, hostRuntime, timeout, ...elicitationMetadata } = metadata;
         return this.requestApproval(
             this.createApprovalDetails(
                 ApprovalType.ELICITATION,
                 elicitationMetadata,
                 sessionId,
+                hostRuntime,
                 timeout
             )
         );

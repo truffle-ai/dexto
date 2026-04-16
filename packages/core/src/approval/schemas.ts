@@ -8,6 +8,7 @@ import { APPROVAL_TYPES, APPROVAL_STATUSES, DENIAL_REASONS, ApprovalType } from 
 import type { ToolDisplayData } from '../tools/display-types.js';
 import { isValidDisplayData } from '../tools/display-types.js';
 import type { ToolPresentationSnapshotV1 } from '../tools/types.js';
+import { HostRuntimeContextSchema } from '../runtime/index.js';
 
 // Zod schema that validates as object but types as JSONSchema7
 const JsonSchema7Schema = z.record(z.unknown()) as z.ZodType<JSONSchema7>;
@@ -125,6 +126,9 @@ export const BaseApprovalRequestSchema = z
         approvalId: z.string().uuid().describe('Unique approval identifier'),
         type: ApprovalTypeSchema.describe('Type of approval'),
         sessionId: z.string().optional().describe('Session identifier'),
+        hostRuntime: HostRuntimeContextSchema.optional().describe(
+            'Optional host-owned runtime IDs for correlating the approval flow to a single execution.'
+        ),
         timeout: z
             .number()
             .int()
@@ -261,6 +265,9 @@ export const BaseApprovalResponseSchema = z
         approvalId: z.string().uuid().describe('Must match request approvalId'),
         status: ApprovalStatusSchema.describe('Approval status'),
         sessionId: z.string().optional().describe('Session identifier'),
+        hostRuntime: HostRuntimeContextSchema.optional().describe(
+            'Optional host-owned runtime IDs for correlating the approval flow to a single execution.'
+        ),
         reason: DenialReasonSchema.optional().describe(
             'Reason for denial/cancellation (only present when status is denied or cancelled)'
         ),
@@ -330,6 +337,9 @@ export const ApprovalRequestDetailsSchema = z
     .object({
         type: ApprovalTypeSchema,
         sessionId: z.string().optional(),
+        hostRuntime: HostRuntimeContextSchema.optional().describe(
+            'Optional host-owned runtime IDs for correlating the approval flow to a single execution.'
+        ),
         timeout: z
             .number()
             .int()

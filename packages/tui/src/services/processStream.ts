@@ -1145,6 +1145,7 @@ export async function processStream(
                             approvalId: event.approvalId,
                             status: ApprovalStatus.APPROVED,
                             sessionId: event.sessionId,
+                            hostRuntime: event.hostRuntime,
                             data: {},
                         });
                         break;
@@ -1163,6 +1164,7 @@ export async function processStream(
                                 approvalId: event.approvalId,
                                 status: ApprovalStatus.APPROVED,
                                 sessionId: event.sessionId,
+                                hostRuntime: event.hostRuntime,
                                 data: {},
                             });
                             break;
@@ -1196,6 +1198,9 @@ export async function processStream(
 
                         if (event.sessionId !== undefined) {
                             newApproval.sessionId = event.sessionId;
+                        }
+                        if (event.hostRuntime !== undefined) {
+                            newApproval.hostRuntime = event.hostRuntime;
                         }
                         if (event.timeout !== undefined) {
                             newApproval.timeout = event.timeout;

@@ -72,6 +72,7 @@ export function createCLIApprovalHandler(eventBus: ApprovalEventBus): ApprovalHa
                         approvalId: request.approvalId,
                         status: ApprovalStatus.CANCELLED,
                         sessionId: request.sessionId,
+                        hostRuntime: request.hostRuntime,
                         reason: DenialReason.TIMEOUT,
                         message: `Approval request timed out after ${effectiveTimeout}ms`,
                         timeoutMs: effectiveTimeout,
@@ -130,6 +131,7 @@ export function createCLIApprovalHandler(eventBus: ApprovalEventBus): ApprovalHa
                     approvalId,
                     status: ApprovalStatus.CANCELLED,
                     sessionId: pending.request.sessionId,
+                    hostRuntime: pending.request.hostRuntime,
                     reason: DenialReason.SYSTEM_CANCELLED,
                     message: 'Approval request was cancelled',
                 };
@@ -179,6 +181,7 @@ export function createCLIApprovalHandler(eventBus: ApprovalEventBus): ApprovalHa
                         approvalId,
                         status: ApprovalStatus.APPROVED,
                         sessionId: pending.request.sessionId,
+                        hostRuntime: pending.request.hostRuntime,
                         message: 'Auto-approved due to matching remembered pattern',
                         data: responseData,
                     };

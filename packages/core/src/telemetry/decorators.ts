@@ -10,16 +10,12 @@ import {
 import type { Logger } from '../logger/v2/types.js';
 import { hasActiveTelemetry, getBaggageValues } from './utils.js';
 import { safeStringify } from '../utils/safe-stringify.js';
-import {
-    getHostRuntimeAttributes,
-    getHostRuntimeBaggageEntries,
-    resolveHostRuntimeContext,
-    type HostRuntimeContext,
-} from '../runtime/index.js';
+import { getHostRuntimeAttributes, getHostRuntimeBaggageEntries } from '../runtime/index.js';
 
 // Decorator factory that takes optional spanName
 export function withSpan(options: {
     spanName?: string;
+    componentName?: string;
     skipIfNoTelemetry?: boolean;
     spanKind?: SpanKind;
     tracerName?: string;
@@ -115,28 +111,15 @@ export function withSpan(options: {
                 span.setAttribute(key, value);
             }
 
-            const contextObj =
-                this && typeof this === 'object'
-                    ? (this as {
-                          name?: string;
-                          runId?: string;
-                          hostRuntime?: HostRuntimeContext | undefined;
-                          constructor?: { name?: string };
-                      })
-                    : undefined;
-            const inferredName = contextObj?.name ?? contextObj?.constructor?.name;
-            const effectiveHostRuntime = resolveHostRuntimeContext({
-                inherited: hostRuntime,
-                explicit: contextObj?.hostRuntime,
-                runId: contextObj?.runId,
-            });
+            const inferredComponentName = options?.componentName;
+            const effectiveHostRuntime = hostRuntime;
             const effectiveRunId = effectiveHostRuntime?.ids?.runId ?? runId;
 
             if (componentName) {
                 span.setAttribute('componentName', componentName);
                 span.setAttribute('baggage.componentName', componentName);
-            } else if (inferredName) {
-                span.setAttribute('componentName', inferredName);
+            } else if (inferredComponentName) {
+                span.setAttribute('componentName', inferredComponentName);
             }
 
             if (effectiveRunId !== undefined) {
@@ -184,10 +167,10 @@ export function withSpan(options: {
                     value: String(resourceId),
                 };
             }
-            if (componentName === undefined && inferredName !== undefined) {
+            if (componentName === undefined && inferredComponentName !== undefined) {
                 baggageEntries.componentName = {
                     ...baggageEntries.componentName,
-                    value: String(inferredName),
+                    value: String(inferredComponentName),
                 };
             }
             if (effectiveRunId !== undefined) {
@@ -265,6 +248,7 @@ export function withSpan(options: {
 // class-telemetry.decorator.ts
 export function InstrumentClass(options?: {
     prefix?: string;
+    componentName?: string;
     spanKind?: SpanKind;
     excludeMethods?: string[];
     methodFilter?: (methodName: string) => boolean;
@@ -289,6 +273,7 @@ export function InstrumentClass(options?: {
                         spanName: options?.prefix ? `${options.prefix}.${method}` : method,
                         skipIfNoTelemetry: true,
                         spanKind: options?.spanKind || SpanKind.INTERNAL,
+                        componentName: options?.componentName ?? target.name,
                         ...(options?.tracerName !== undefined && {
                             tracerName: options.tracerName,
                         }),
