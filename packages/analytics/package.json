@@ -1,6 +1,6 @@
 {
   "name": "@dexto/analytics",
-  "version": "1.6.25",
+  "version": "1.6.26",
   "type": "module",
   "main": "./dist/index.js",
   "module": "./dist/index.js",

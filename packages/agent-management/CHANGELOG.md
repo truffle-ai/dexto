@@ -1,5 +1,21 @@
 # @dexto/agent-management
 
+## 1.6.26
+
+### Patch Changes
+
+- ef83053: Add optional host-context plumbing to image and service resolution so hosted runtimes can
+  adapt resolved services and runtime config without changing the local agent YAML shape.
+- Updated dependencies [f996287]
+- Updated dependencies [ef83053]
+- Updated dependencies [e5b1437]
+- Updated dependencies [0682d85]
+- Updated dependencies [b5f04bc]
+    - @dexto/core@1.6.26
+    - @dexto/agent-config@1.6.26
+    - @dexto/orchestration@1.6.26
+    - @dexto/tools-builtins@1.6.26
+
 ## 1.6.25
 
 ### Patch Changes

@@ -1,5 +1,30 @@
 # dexto
 
+## 1.6.26
+
+### Patch Changes
+
+- f996287: Persist core-owned interaction state with the existing storage layers and update the TUI/CLI call sites for the new async session tool preference APIs.
+- ef83053: Add optional host-context plumbing to image and service resolution so hosted runtimes can
+  adapt resolved services and runtime config without changing the local agent YAML shape.
+- e5b1437: Allow hosts to override telemetry bootstrap during agent startup while preserving the default Node bootstrap path, and add the supporting hosted-telemetry registration seam in core.
+- Updated dependencies [f996287]
+- Updated dependencies [ef83053]
+- Updated dependencies [e5b1437]
+- Updated dependencies [0682d85]
+- Updated dependencies [b5f04bc]
+    - @dexto/core@1.6.26
+    - @dexto/tui@1.6.26
+    - @dexto/agent-config@1.6.26
+    - @dexto/agent-management@1.6.26
+    - @dexto/server@1.6.26
+    - @dexto/analytics@1.6.26
+    - @dexto/client-sdk@1.6.26
+    - @dexto/image-local@1.6.26
+    - @dexto/image-logger-agent@1.6.26
+    - @dexto/storage@1.6.26
+    - @dexto/registry@1.6.26
+
 ## 1.6.25
 
 ### Patch Changes

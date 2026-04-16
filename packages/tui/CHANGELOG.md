@@ -1,5 +1,19 @@
 # @dexto/tui
 
+## 1.6.26
+
+### Patch Changes
+
+- f996287: Persist core-owned interaction state with the existing storage layers and update the TUI/CLI call sites for the new async session tool preference APIs.
+- Updated dependencies [f996287]
+- Updated dependencies [ef83053]
+- Updated dependencies [e5b1437]
+- Updated dependencies [0682d85]
+- Updated dependencies [b5f04bc]
+    - @dexto/core@1.6.26
+    - @dexto/agent-management@1.6.26
+    - @dexto/registry@1.6.26
+
 ## 1.6.25
 
 ### Patch Changes

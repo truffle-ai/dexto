@@ -1,6 +1,6 @@
 {
   "name": "@dexto/webui",
-  "version": "1.6.25",
+  "version": "1.6.26",
   "private": true,
   "type": "module",
   "scripts": {

@@ -1,5 +1,14 @@
 # @dexto/core
 
+## 1.6.26
+
+### Patch Changes
+
+- f996287: Persist core-owned interaction state with the existing storage layers and update the TUI/CLI call sites for the new async session tool preference APIs.
+- e5b1437: Allow hosts to override telemetry bootstrap during agent startup while preserving the default Node bootstrap path, and add the supporting hosted-telemetry registration seam in core.
+- 0682d85: Add a host-only LLM service factory override seam for hosted runtimes without changing local config.
+- b5f04bc: Drop persisted queued follow-up state on startup and best-effort shutdown so stale interrupted messages do not survive an agent restart.
+
 ## 1.6.25
 
 ## 1.6.24
