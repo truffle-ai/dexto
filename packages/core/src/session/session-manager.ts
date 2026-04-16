@@ -25,14 +25,12 @@ export type SessionLoggerFactory = (options: {
     baseLogger: Logger;
     agentId: string;
     sessionId: string;
-    hostRuntime?: HostRuntimeContext | undefined;
 }) => Logger;
 
 function defaultSessionLoggerFactory(options: {
     baseLogger: Logger;
     agentId: string;
     sessionId: string;
-    hostRuntime?: HostRuntimeContext | undefined;
 }): Logger {
     // Default behavior (no filesystem assumptions): just a child logger.
     // Hosts (CLI/server) can inject a SessionLoggerFactory that writes to a file.
@@ -121,6 +119,7 @@ export interface SessionData {
  */
 export class SessionManager {
     private sessions: Map<string, ChatSession> = new Map();
+    private readonly executionContexts = new Map<string, HostRuntimeContext>();
     private readonly maxSessions: number;
     private readonly sessionTTL: number;
     private initialized = false;
@@ -172,6 +171,34 @@ export class SessionManager {
                 languageModelFactory: this.languageModelFactory,
             }),
         };
+    }
+
+    public getExecutionContext(sessionId: string): HostRuntimeContext | undefined {
+        return this.executionContexts.get(sessionId);
+    }
+
+    public async withExecutionContext<T>(
+        sessionId: string,
+        executionContext: HostRuntimeContext | undefined,
+        run: () => Promise<T>
+    ): Promise<T> {
+        const previous = this.executionContexts.get(sessionId);
+
+        if (executionContext === undefined) {
+            this.executionContexts.delete(sessionId);
+        } else {
+            this.executionContexts.set(sessionId, executionContext);
+        }
+
+        try {
+            return await run();
+        } finally {
+            if (previous === undefined) {
+                this.executionContexts.delete(sessionId);
+            } else {
+                this.executionContexts.set(sessionId, previous);
+            }
+        }
     }
 
     /**
@@ -472,7 +499,6 @@ export class SessionManager {
                 baseLogger: this.logger,
                 agentId,
                 sessionId: id,
-                hostRuntime: runtimeConfig.hostRuntime,
             });
 
             // Restore LLM override BEFORE session init so the service is created with correct config
@@ -550,7 +576,6 @@ export class SessionManager {
                 baseLogger: this.logger,
                 agentId,
                 sessionId: id,
-                hostRuntime: runtimeConfig.hostRuntime,
             });
             session = new ChatSession(this.getChatSessionServices(), id, sessionLogger);
             await session.init();
@@ -612,7 +637,6 @@ export class SessionManager {
                     baseLogger: this.logger,
                     agentId,
                     sessionId,
-                    hostRuntime: runtimeConfig.hostRuntime,
                 });
 
                 // Restore LLM override BEFORE session init so the service is created with correct config
@@ -1327,6 +1351,7 @@ export class SessionManager {
     }
 
     private async deleteSessionInteractionState(sessionId: string): Promise<void> {
+        this.executionContexts.delete(sessionId);
         this.services.stateManager.clearSessionOverride(sessionId);
         await Promise.all([
             this.services.toolManager.deleteSessionState(sessionId),
@@ -1336,8 +1361,10 @@ export class SessionManager {
     }
 
     private evictSessionInteractionState(sessionId: string): void {
+        this.executionContexts.delete(sessionId);
         this.services.toolManager.evictSessionState(sessionId);
         this.services.approvalManager.evictSessionState(sessionId);
+        this.services.stateManager.clearSessionOverride(sessionId);
     }
 
     private async runWithSessionDataLock<T>(

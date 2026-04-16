@@ -57,6 +57,14 @@ export interface AgentToolCall {
 export type ContentInput = string | ContentPart[];
 
 /**
+ * Host-owned execution-scoped correlation IDs for a single generate/stream invocation.
+ *
+ * These values should be supplied by the host per run/attempt and are intentionally
+ * separate from agent/session configuration.
+ */
+export type AgentExecutionContext = HostRuntimeContext;
+
+/**
  * Options for generate() and stream() methods
  */
 export interface GenerateOptions {
@@ -64,6 +72,8 @@ export interface GenerateOptions {
     signal?: AbortSignal;
     /** Optional signal to stop streaming to the caller without cancelling the run itself */
     disconnectSignal?: AbortSignal;
+    /** Optional host-owned execution context for this single invocation */
+    executionContext?: AgentExecutionContext;
 }
 
 /**

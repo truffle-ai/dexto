@@ -117,6 +117,12 @@ describe('DextoAgent Lifecycle Management', () => {
                 cleanup: vi.fn(),
                 init: vi.fn().mockResolvedValue(undefined),
                 getSession: vi.fn().mockResolvedValue(undefined),
+                getExecutionContext: vi.fn().mockReturnValue(undefined),
+                withExecutionContext: vi
+                    .fn()
+                    .mockImplementation(async (_sessionId, _context, run) => {
+                        return await run();
+                    }),
                 getSessionMetadata: vi.fn().mockResolvedValue(undefined),
                 setSessionTitle: vi.fn().mockResolvedValue(undefined),
                 createSession: vi.fn().mockResolvedValue({ id: 'test-session' }),
@@ -274,15 +280,12 @@ describe('DextoAgent Lifecycle Management', () => {
         });
 
         test('should expose host runtime IDs through tool execution context', async () => {
-            mockValidatedConfig = {
-                ...mockValidatedConfig,
-                hostRuntime: {
-                    ids: {
-                        runId: 'run-1',
-                        attemptId: 'attempt-1',
-                    },
+            mockServices.sessionManager.getExecutionContext = vi.fn().mockReturnValue({
+                ids: {
+                    runId: 'run-1',
+                    attemptId: 'attempt-1',
                 },
-            };
+            });
             const agent = createTestAgent(mockValidatedConfig);
 
             await agent.start();

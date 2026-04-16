@@ -80,7 +80,6 @@ import type { SetWorkspaceInput, WorkspaceContext } from '../workspace/types.js'
 import {
     buildHostRuntimeBaggageEntries as _buildHostRuntimeBaggageEntries,
     normalizeHostRuntimeContext,
-    type HostRuntimeContext,
 } from '../runtime/index.js';
 
 const buildHostRuntimeBaggageEntries = _buildHostRuntimeBaggageEntries;
@@ -231,7 +230,6 @@ export class DextoAgent {
 
     // Logger instance for this agent (dependency injection)
     public readonly logger: Logger;
-    private readonly hostRuntime: HostRuntimeContext | undefined;
 
     /**
      * Validate + normalize runtime settings.
@@ -241,7 +239,6 @@ export class DextoAgent {
      * runtime settings before use.
      */
     public static validateConfig(options: DextoAgentConfigInput): AgentRuntimeSettings {
-        const hostRuntime = normalizeHostRuntimeContext(options.hostRuntime);
         return {
             agentId: options.agentId,
             llm: LLMConfigSchema.parse(options.llm),
@@ -265,7 +262,6 @@ export class DextoAgent {
             ...(options.memories !== undefined && {
                 memories: MemoriesConfigSchema.parse(options.memories),
             }),
-            ...(hostRuntime !== undefined && { hostRuntime }),
         };
     }
 
@@ -292,7 +288,6 @@ export class DextoAgent {
         const hooks = hooksInput ?? [];
 
         this.config = DextoAgent.validateConfig(runtimeSettings);
-        this.hostRuntime = this.config.hostRuntime;
 
         // Agent logger is always provided by the host (typically created from config).
         this.logger = logger;
@@ -325,7 +320,7 @@ export class DextoAgent {
         }
 
         // Create event bus early so it's available for approval handler creation
-        this.agentEventBus = new AgentEventBus(this.hostRuntime);
+        this.agentEventBus = new AgentEventBus();
 
         // call start() to initialize services
         this.logger.info('DextoAgent created.');
@@ -440,7 +435,9 @@ export class DextoAgent {
             };
             services.toolManager.setToolExecutionContextFactory((baseContext) => ({
                 ...baseContext,
-                ...(this.hostRuntime !== undefined && { hostRuntime: this.hostRuntime }),
+                ...(baseContext.sessionId !== undefined && {
+                    hostRuntime: this.sessionManager.getExecutionContext(baseContext.sessionId),
+                }),
                 agent: this,
                 storage: toolExecutionStorage,
                 services: toolExecutionServices,
@@ -921,6 +918,7 @@ export class DextoAgent {
 
         const signal = options?.signal;
         const disconnectSignal = options?.disconnectSignal ?? signal;
+        const executionContext = normalizeHostRuntimeContext(options?.executionContext);
 
         // Normalize content: string -> [{ type: 'text', text: string }]
         let contentParts: import('./types.js').ContentPart[] =
@@ -1167,7 +1165,7 @@ export class DextoAgent {
                     baggageEntries[key] = { ...entry };
                 });
             }
-            Object.assign(baggageEntries, buildHostRuntimeBaggageEntries(this.hostRuntime));
+            Object.assign(baggageEntries, buildHostRuntimeBaggageEntries(executionContext));
             baggageEntries.sessionId = { ...baggageEntries.sessionId, value: sessionId };
 
             const updatedContext = propagation.setBaggage(
@@ -1361,9 +1359,11 @@ export class DextoAgent {
                         (await this.sessionManager.createSession(sessionId));
 
                     // Call session.stream() directly with ALL content parts
-                    const _streamResult = await session.stream(
-                        contentParts,
-                        signal ? { signal } : undefined
+                    const _streamResult = await this.sessionManager.withExecutionContext(
+                        sessionId,
+                        executionContext,
+                        async () =>
+                            await session.stream(contentParts, signal ? { signal } : undefined)
                     );
 
                     // Increment message count
@@ -1402,6 +1402,7 @@ export class DextoAgent {
                         recoverable: false,
                         context: 'run_failed',
                         sessionId,
+                        ...(executionContext !== undefined && { hostRuntime: executionContext }),
                     };
                     eventQueue.push(errorEvent);
                 }

@@ -249,46 +249,6 @@ describe('SessionManager', () => {
             expect(mockStorageManager.database.list).toHaveBeenCalledWith('session:');
         });
 
-        test('passes host runtime IDs to the session logger factory', async () => {
-            const sessionLoggerFactory = vi.fn().mockReturnValue(mockLogger);
-            mockServices.stateManager.getRuntimeConfig = vi.fn(() => ({
-                llm: mockLLMConfig,
-                agentCard: { name: 'test-agent' },
-                hostRuntime: {
-                    ids: {
-                        runId: 'run-1',
-                        attemptId: 'attempt-1',
-                    },
-                },
-            }));
-
-            sessionManager = new SessionManager(
-                mockServices,
-                {
-                    maxSessions: 10,
-                    sessionTTL: 1800000,
-                    sessionLoggerFactory,
-                },
-                mockLogger
-            );
-
-            await sessionManager.init();
-            await sessionManager.createSession('host-runtime-session');
-
-            expect(sessionLoggerFactory).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    agentId: 'test-agent',
-                    sessionId: 'host-runtime-session',
-                    hostRuntime: {
-                        ids: {
-                            runId: 'run-1',
-                            attemptId: 'attempt-1',
-                        },
-                    },
-                })
-            );
-        });
-
         test('should prevent duplicate initialization', async () => {
             await sessionManager.init();
             await sessionManager.init(); // Second call
@@ -1172,9 +1132,7 @@ describe('SessionManager', () => {
 
             expect(mockServices.toolManager.evictSessionState).toHaveBeenCalledWith(sessionId);
             expect(mockServices.approvalManager.evictSessionState).toHaveBeenCalledWith(sessionId);
-            expect(mockServices.stateManager.clearSessionOverride).not.toHaveBeenCalledWith(
-                sessionId
-            );
+            expect(mockServices.stateManager.clearSessionOverride).toHaveBeenCalledWith(sessionId);
         });
 
         test('should handle deleting non-existent sessions gracefully', async () => {
@@ -1694,9 +1652,7 @@ describe('SessionManager', () => {
             expect(sessionManager['sessions'].has(sessionId)).toBe(false);
             expect(mockServices.toolManager.evictSessionState).toHaveBeenCalledWith(sessionId);
             expect(mockServices.approvalManager.evictSessionState).toHaveBeenCalledWith(sessionId);
-            expect(mockServices.stateManager.clearSessionOverride).not.toHaveBeenCalledWith(
-                sessionId
-            );
+            expect(mockServices.stateManager.clearSessionOverride).toHaveBeenCalledWith(sessionId);
 
             // But session should still exist in storage (not deleted)
             expect(mockStorageManager.database.delete).not.toHaveBeenCalledWith(sessionKey);

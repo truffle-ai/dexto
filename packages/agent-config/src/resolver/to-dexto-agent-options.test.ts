@@ -103,22 +103,10 @@ describe('toDextoAgentOptions', () => {
             services,
             runtimeOverrides: {
                 usageScopeId: 'cloud-agent-1',
-                hostRuntime: {
-                    ids: {
-                        runId: 'run-1',
-                        attemptId: 'attempt-1',
-                    },
-                },
             },
         });
 
         expect(options.usageScopeId).toBe('cloud-agent-1');
-        expect(options.hostRuntime).toEqual({
-            ids: {
-                runId: 'run-1',
-                attemptId: 'attempt-1',
-            },
-        });
     });
 
     it('applies image runtime overrides resolved from host context', () => {

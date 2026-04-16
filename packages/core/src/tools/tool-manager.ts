@@ -1302,6 +1302,10 @@ export class ToolManager {
         return this.toolExecutionContextFactory(baseContext);
     }
 
+    private getSessionHostRuntime(sessionId: string): ToolExecutionContext['hostRuntime'] {
+        return this.sessionManager?.getExecutionContext(sessionId);
+    }
+
     private validateLocalToolArgs(
         toolName: string,
         args: Record<string, unknown>
@@ -1508,6 +1512,7 @@ export class ToolManager {
                 toolCallId,
                 sessionId
             );
+            const hostRuntime = this.getSessionHostRuntime(sessionId);
             this.agentEventBus.emit('llm:tool-call', {
                 toolName,
                 presentationSnapshot,
@@ -1516,6 +1521,7 @@ export class ToolManager {
                 ...(callDescription !== undefined && { callDescription }),
                 callId: toolCallId,
                 sessionId,
+                ...(hostRuntime !== undefined && { hostRuntime }),
             });
         }
 
@@ -1542,10 +1548,12 @@ export class ToolManager {
         // Emit tool:running event - tool is now actually executing (after approval if needed)
         // Only emit when sessionId is provided (LLM flow) - direct API calls don't need UI updates
         if (sessionId) {
+            const hostRuntime = this.getSessionHostRuntime(sessionId);
             this.agentEventBus.emit('tool:running', {
                 toolName,
                 toolCallId,
                 sessionId,
+                ...(hostRuntime !== undefined && { hostRuntime }),
             });
         }
 
@@ -1567,6 +1575,9 @@ export class ToolManager {
                     mcpManager: this.mcpManager,
                     toolManager: this,
                     stateManager: this.stateManager,
+                    ...(sessionId !== undefined && {
+                        hostRuntime: this.getSessionHostRuntime(sessionId),
+                    }),
                     ...(sessionId !== undefined && { sessionId }),
                 }
             );
@@ -1626,12 +1637,14 @@ export class ToolManager {
                         this.mcpManager.executeTool(actualToolName, toolArgs, backgroundSessionId),
                         `MCP tool ${actualToolName}`
                     );
+                    const hostRuntime = this.getSessionHostRuntime(backgroundSessionId);
                     this.agentEventBus.emit('tool:background', {
                         toolName,
                         toolCallId: backgroundResult.taskId,
                         sessionId: backgroundSessionId,
                         description: backgroundResult.description,
                         promise,
+                        ...(hostRuntime !== undefined && { hostRuntime }),
                         ...(meta.timeoutMs !== undefined && { timeoutMs: meta.timeoutMs }),
                         ...(meta.notifyOnComplete !== undefined && {
                             notifyOnComplete: meta.notifyOnComplete,
@@ -1666,12 +1679,14 @@ export class ToolManager {
                         ),
                         `Tool ${toolName}`
                     );
+                    const hostRuntime = this.getSessionHostRuntime(backgroundSessionId);
                     this.agentEventBus.emit('tool:background', {
                         toolName,
                         toolCallId: backgroundResult.taskId,
                         sessionId: backgroundSessionId,
                         description: backgroundResult.description,
                         promise,
+                        ...(hostRuntime !== undefined && { hostRuntime }),
                         ...(meta.timeoutMs !== undefined && { timeoutMs: meta.timeoutMs }),
                         ...(meta.notifyOnComplete !== undefined && {
                             notifyOnComplete: meta.notifyOnComplete,
@@ -1712,6 +1727,9 @@ export class ToolManager {
                         mcpManager: this.mcpManager,
                         toolManager: this,
                         stateManager: this.stateManager,
+                        ...(sessionId !== undefined && {
+                            hostRuntime: this.getSessionHostRuntime(sessionId),
+                        }),
                         ...(sessionId !== undefined && { sessionId }),
                     }
                 );
@@ -1757,6 +1775,9 @@ export class ToolManager {
                     mcpManager: this.mcpManager,
                     toolManager: this,
                     stateManager: this.stateManager,
+                    ...(sessionId !== undefined && {
+                        hostRuntime: this.getSessionHostRuntime(sessionId),
+                    }),
                     ...(sessionId !== undefined && { sessionId }),
                 });
             }

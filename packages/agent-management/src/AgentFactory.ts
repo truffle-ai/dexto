@@ -55,7 +55,7 @@ export interface CreateAgentOptions {
     /** Optional host-owned resolution context for hosted runtimes */
     hostContext?: DextoHostContext | undefined;
     /** Explicit runtime overrides applied outside the validated agent config */
-    runtimeOverrides?: Pick<DextoAgentConfigInput, 'usageScopeId' | 'hostRuntime'> | undefined;
+    runtimeOverrides?: Pick<DextoAgentConfigInput, 'usageScopeId'> | undefined;
 }
 
 /**

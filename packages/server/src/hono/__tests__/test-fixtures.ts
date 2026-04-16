@@ -57,7 +57,7 @@ export function createTestAgentConfig(): AgentConfig {
 }
 
 interface CreateTestAgentOptions {
-    runtimeOverrides?: Pick<DextoAgentConfigInput, 'usageScopeId' | 'hostRuntime'> | undefined;
+    runtimeOverrides?: Pick<DextoAgentConfigInput, 'usageScopeId'> | undefined;
 }
 
 /**

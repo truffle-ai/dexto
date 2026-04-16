@@ -24,14 +24,14 @@ function createExecutionContextOptions(): HookExecutionContextOptions {
             getLLMConfig: () => llmConfig,
             getRuntimeConfig: () => ({
                 llm: llmConfig,
-                hostRuntime: {
-                    ids: {
-                        runId: 'run-1',
-                        attemptId: 'attempt-1',
-                    },
-                },
             }),
         } as unknown as HookExecutionContextOptions['stateManager'],
+        hostRuntime: {
+            ids: {
+                runId: 'run-1',
+                attemptId: 'attempt-1',
+            },
+        },
         sessionId: 'session-1',
     };
 }

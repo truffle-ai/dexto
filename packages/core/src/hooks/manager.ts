@@ -10,6 +10,7 @@ import type { ToolManager } from '../tools/tool-manager.js';
 import type { AgentStateManager } from '../agent/state-manager.js';
 import type { Logger } from '../logger/v2/types.js';
 import { DextoLogComponent } from '../logger/v2/types.js';
+import type { HostRuntimeContext } from '../runtime/index.js';
 
 /**
  * Options for HookManager construction.
@@ -28,6 +29,7 @@ export interface HookExecutionContextOptions {
     mcpManager: MCPManager;
     toolManager: ToolManager;
     stateManager: AgentStateManager;
+    hostRuntime?: HostRuntimeContext | undefined;
     sessionId?: string;
     abortSignal?: AbortSignal;
 }
@@ -175,7 +177,7 @@ export class HookManager {
             sessionId: options.sessionId ?? undefined,
             userId: asyncCtx?.userId ?? undefined,
             tenantId: asyncCtx?.tenantId ?? undefined,
-            hostRuntime: runtimeConfig.hostRuntime,
+            hostRuntime: options.hostRuntime,
             llmConfig,
             logger: this.logger,
             abortSignal: options.abortSignal ?? undefined,

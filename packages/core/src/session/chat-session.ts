@@ -163,9 +163,7 @@ export class ChatSession {
     ) {
         this.logger = logger.createChild(DextoLogComponent.SESSION);
         // Create session-specific event bus
-        this.eventBus = new SessionEventBus(
-            this.services.stateManager.getRuntimeConfig().hostRuntime
-        );
+        this.eventBus = new SessionEventBus();
         this.messageQueue = new MessageQueueService(
             this.eventBus,
             this.logger,
@@ -200,13 +198,18 @@ export class ChatSession {
         // Forward each session event type to the agent bus with session context
         SessionEventNames.forEach((eventName) => {
             const forwarder = (payload?: any) => {
+                const hostRuntime = this.services.sessionManager.getExecutionContext(this.id);
                 // Create payload with sessionId - handle both void and object payloads
                 const payloadWithSession =
                     payload && typeof payload === 'object'
                         ? { ...payload, sessionId: this.id }
                         : { sessionId: this.id };
+                const forwardedPayload =
+                    hostRuntime === undefined || 'hostRuntime' in payloadWithSession
+                        ? payloadWithSession
+                        : { ...payloadWithSession, hostRuntime };
                 // Forward to agent bus with session context
-                this.services.agentEventBus.emit(eventName as any, payloadWithSession);
+                this.services.agentEventBus.emit(eventName as any, forwardedPayload);
             };
 
             // Store the forwarder function for later cleanup
@@ -465,6 +468,7 @@ export class ChatSession {
                     mcpManager: this.services.mcpManager,
                     toolManager: this.services.toolManager,
                     stateManager: this.services.stateManager,
+                    hostRuntime: this.services.sessionManager.getExecutionContext(this.id),
                     sessionId: this.id,
                     abortSignal: signal,
                 }
@@ -498,6 +502,7 @@ export class ChatSession {
                     mcpManager: this.services.mcpManager,
                     toolManager: this.services.toolManager,
                     stateManager: this.services.stateManager,
+                    hostRuntime: this.services.sessionManager.getExecutionContext(this.id),
                     sessionId: this.id,
                     abortSignal: signal,
                 }

@@ -9,7 +9,7 @@ export interface ToDextoAgentOptionsInput {
     image?: DextoImage | undefined;
     hostContext?: DextoHostContext | undefined;
     overrides?: InitializeServicesOptions | undefined;
-    runtimeOverrides?: Pick<DextoAgentOptions, 'usageScopeId' | 'hostRuntime'> | undefined;
+    runtimeOverrides?: Pick<DextoAgentOptions, 'usageScopeId'> | undefined;
 }
 
 export function toDextoAgentOptions(options: ToDextoAgentOptionsInput): DextoAgentOptions {
