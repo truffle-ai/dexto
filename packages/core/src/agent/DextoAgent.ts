@@ -1341,10 +1341,11 @@ export class DextoAgent {
                     // Validate the final prompt projection after any @resource expansion.
                     validatePromptContentParts(contentParts);
 
-                    // Get or create session
-                    const session: ChatSession =
-                        (await this.sessionManager.getSession(sessionId)) ||
-                        (await this.sessionManager.createSession(sessionId));
+                    const session: ChatSession | undefined =
+                        await this.sessionManager.getSession(sessionId);
+                    if (!session) {
+                        throw SessionError.notFound(sessionId);
+                    }
 
                     // Call session.stream() directly with ALL content parts
                     const _streamResult = await session.stream(
