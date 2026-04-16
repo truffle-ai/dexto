@@ -582,27 +582,13 @@ describe('DextoAgent Lifecycle Management', () => {
     });
 
     describe('Stream Error Lifecycle', () => {
-        test('should emit session not found when streaming an unknown session', async () => {
+        test('should throw session not found when streaming an unknown session', async () => {
             const agent = createTestAgent(mockValidatedConfig);
             mockServices.sessionManager.getSession = vi.fn().mockResolvedValue(undefined);
 
             await agent.start();
 
-            const events: StreamingEvent[] = [];
-            for await (const event of await agent.stream('hello', 'missing-session')) {
-                events.push(event);
-            }
-
-            expect(events).toHaveLength(1);
-            expect(events[0]).toMatchObject({
-                name: 'llm:error',
-                context: 'run_failed',
-                recoverable: false,
-            });
-            if (events[0]?.name !== 'llm:error') {
-                throw new Error('Expected llm:error event');
-            }
-            expect(events[0].error).toMatchObject({
+            await expect(agent.stream('hello', 'missing-session')).rejects.toMatchObject({
                 code: SessionErrorCode.SESSION_NOT_FOUND,
                 scope: ErrorScope.SESSION,
                 type: ErrorType.NOT_FOUND,

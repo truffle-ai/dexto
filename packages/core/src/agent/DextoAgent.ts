@@ -919,6 +919,25 @@ export class DextoAgent {
         let completed = false;
         let sawFatalErrorEvent = false;
         let sawRunCompleteEvent = false;
+        let streamStartupState: 'pending' | 'resolved' | 'rejected' = 'pending';
+        let resolveStreamStartup!: () => void;
+        let rejectStreamStartup!: (error: Error) => void;
+        const streamStartup = new Promise<void>((resolve, reject) => {
+            resolveStreamStartup = () => {
+                if (streamStartupState !== 'pending') {
+                    return;
+                }
+                streamStartupState = 'resolved';
+                resolve();
+            };
+            rejectStreamStartup = (error: Error) => {
+                if (streamStartupState !== 'pending') {
+                    return;
+                }
+                streamStartupState = 'rejected';
+                reject(error);
+            };
+        });
 
         // Create AbortController for cleanup
         const controller = new AbortController();
@@ -1348,6 +1367,8 @@ export class DextoAgent {
                         throw SessionError.notFound(sessionId);
                     }
 
+                    resolveStreamStartup();
+
                     // Call session.stream() directly with ALL content parts
                     const _streamResult = await session.stream(
                         contentParts,
@@ -1370,6 +1391,14 @@ export class DextoAgent {
                             : err instanceof Error
                               ? err
                               : AgentError.streamFailed(String(err));
+
+                    if (streamStartupState === 'pending') {
+                        completed = true;
+                        cleanupListeners();
+                        controller.abort();
+                        rejectStreamStartup(error);
+                        return;
+                    }
 
                     if (sawFatalErrorEvent || sawRunCompleteEvent) {
                         if (!sawRunCompleteEvent) {
@@ -1440,6 +1469,7 @@ export class DextoAgent {
             },
         };
 
+        await streamStartup;
         return iterator;
     }
 
