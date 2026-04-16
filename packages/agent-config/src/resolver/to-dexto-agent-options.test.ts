@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { z } from 'zod';
 import type {
     DextoImage,
     DextoHostContext,
@@ -7,7 +8,6 @@ import type {
 import { AgentConfigSchema } from '../schemas/agent-config.js';
 import type { ResolvedServices } from './types.js';
 import { toDextoAgentOptions } from './to-dexto-agent-options.js';
-import validImage from './__fixtures__/valid-image.js';
 import {
     createMockBlobStore,
     createMockCache,
@@ -17,6 +17,49 @@ import {
 } from './__fixtures__/test-mocks.js';
 
 describe('toDextoAgentOptions', () => {
+    function createMockImage<THostContext extends DextoHostContext = DextoHostContext>(
+        overrides?: Partial<DextoImage<THostContext>>
+    ): DextoImage<THostContext> {
+        const image: DextoImage<THostContext> = {
+            metadata: { name: 'mock-image', version: '0.0.0', description: 'mock' },
+            tools: {
+                'noop-tools': {
+                    configSchema: z.object({ type: z.literal('noop-tools') }).passthrough(),
+                    create: () => [],
+                },
+            },
+            storage: {
+                blob: {
+                    'in-memory': {
+                        configSchema: z.any(),
+                        create: () => createMockBlobStore('in-memory'),
+                    },
+                },
+                database: {
+                    'in-memory': {
+                        configSchema: z.any(),
+                        create: () => createMockDatabase('in-memory'),
+                    },
+                },
+                cache: {
+                    'in-memory': {
+                        configSchema: z.any(),
+                        create: () => createMockCache('in-memory'),
+                    },
+                },
+            },
+            hooks: {},
+            compaction: {},
+            logger: {
+                configSchema: z.object({}).passthrough(),
+                create: () => createMockLogger(),
+            },
+            ...(overrides ?? {}),
+        };
+
+        return image;
+    }
+
     it('combines validated config + resolved services into DextoAgentOptions', () => {
         const validated = AgentConfigSchema.parse({
             systemPrompt: 'You are a helpful assistant',
@@ -175,10 +218,9 @@ describe('toDextoAgentOptions', () => {
                 };
             }
         );
-        const image: DextoImage<HostedContext> = {
-            ...validImage,
+        const image = createMockImage<HostedContext>({
             resolveRuntimeConfig,
-        };
+        });
 
         const options = toDextoAgentOptions({
             config: validated,
