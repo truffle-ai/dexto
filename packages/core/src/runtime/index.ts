@@ -6,6 +6,7 @@ export {
     getHostRuntimeBaggageEntries,
     getHostRuntimeContextFromBaggage,
     normalizeHostRuntimeContext,
+    resolveHostRuntimeContext,
     type HostRuntimeContext,
     type HostRuntimeIds,
 } from './host-runtime.js';

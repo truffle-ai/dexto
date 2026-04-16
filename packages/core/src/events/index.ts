@@ -8,7 +8,7 @@ import type { CodexRateLimitSnapshot } from '../llm/providers/codex-app-server.j
 import type { WorkspaceContext } from '../workspace/types.js';
 import type { ToolPresentationSnapshotV1 } from '../tools/types.js';
 import type { ToolCallMetadata } from '../tools/tool-call-metadata.js';
-import type { HostRuntimeContext } from '../runtime/index.js';
+import { normalizeHostRuntimeContext, type HostRuntimeContext } from '../runtime/index.js';
 
 /**
  * LLM finish reason - why the LLM stopped generating
@@ -1037,8 +1037,11 @@ function isEventPayloadObject(value: unknown): value is Record<string, unknown> 
 class HostRuntimeTypedEventEmitter<
     TEventMap extends Record<string, any>,
 > extends BaseTypedEventEmitter<TEventMap> {
-    constructor(private readonly hostRuntime?: HostRuntimeContext) {
+    private readonly hostRuntime: HostRuntimeContext | undefined;
+
+    constructor(hostRuntime?: HostRuntimeContext) {
         super();
+        this.hostRuntime = normalizeHostRuntimeContext(hostRuntime);
     }
 
     override emit<K extends keyof TEventMap>(

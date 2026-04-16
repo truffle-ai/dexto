@@ -33,6 +33,12 @@ export const HostRuntimeContextSchema = z
 export type HostRuntimeIds = z.output<typeof HostRuntimeIdsSchema>;
 export type HostRuntimeContext = z.output<typeof HostRuntimeContextSchema>;
 
+function freezeHostRuntimeContext(hostRuntime: HostRuntimeContext): HostRuntimeContext {
+    return Object.freeze({
+        ids: Object.freeze({ ...hostRuntime.ids }),
+    });
+}
+
 export function normalizeHostRuntimeContext(
     input: z.input<typeof HostRuntimeContextSchema> | undefined
 ): HostRuntimeContext | undefined {
@@ -45,7 +51,29 @@ export function normalizeHostRuntimeContext(
         return undefined;
     }
 
-    return parsed;
+    return freezeHostRuntimeContext({ ids: parsed.ids });
+}
+
+export function resolveHostRuntimeContext({
+    inherited,
+    explicit,
+    runId,
+}: {
+    inherited?: HostRuntimeContext | undefined;
+    explicit?: HostRuntimeContext | undefined;
+    runId?: string | undefined;
+}): HostRuntimeContext | undefined {
+    const ids = {
+        ...(inherited?.ids ?? {}),
+        ...(explicit?.ids ?? {}),
+        ...(runId !== undefined ? { runId } : {}),
+    };
+
+    if (Object.keys(ids).length === 0) {
+        return undefined;
+    }
+
+    return normalizeHostRuntimeContext({ ids });
 }
 
 function isWellKnownHostRuntimeIdKey(
@@ -120,5 +148,5 @@ export function getHostRuntimeContextFromBaggage(ctx: Context): HostRuntimeConte
         return undefined;
     }
 
-    return { ids };
+    return normalizeHostRuntimeContext({ ids });
 }

@@ -13,6 +13,7 @@ import { safeStringify } from '../utils/safe-stringify.js';
 import {
     getHostRuntimeAttributes,
     getHostRuntimeBaggageEntries,
+    resolveHostRuntimeContext,
     type HostRuntimeContext,
 } from '../runtime/index.js';
 
@@ -124,6 +125,12 @@ export function withSpan(options: {
                       })
                     : undefined;
             const inferredName = contextObj?.name ?? contextObj?.constructor?.name;
+            const effectiveHostRuntime = resolveHostRuntimeContext({
+                inherited: hostRuntime,
+                explicit: contextObj?.hostRuntime,
+                runId: contextObj?.runId,
+            });
+            const effectiveRunId = effectiveHostRuntime?.ids?.runId ?? runId;
 
             if (componentName) {
                 span.setAttribute('componentName', componentName);
@@ -132,13 +139,13 @@ export function withSpan(options: {
                 span.setAttribute('componentName', inferredName);
             }
 
-            if (contextObj?.runId) {
-                span.setAttribute('runId', contextObj.runId);
-                span.setAttribute('baggage.runId', contextObj.runId);
+            if (effectiveRunId !== undefined) {
+                span.setAttribute('runId', String(effectiveRunId));
+                span.setAttribute('baggage.runId', String(effectiveRunId));
             }
 
             for (const [key, value] of Object.entries(
-                getHostRuntimeAttributes(contextObj?.hostRuntime)
+                getHostRuntimeAttributes(effectiveHostRuntime)
             )) {
                 span.setAttribute(key, value);
             }
@@ -183,14 +190,14 @@ export function withSpan(options: {
                     value: String(inferredName),
                 };
             }
-            if (contextObj?.runId !== undefined) {
+            if (effectiveRunId !== undefined) {
                 baggageEntries.runId = {
                     ...baggageEntries.runId,
-                    value: String(contextObj.runId),
+                    value: String(effectiveRunId),
                 };
             }
 
-            Object.assign(baggageEntries, getHostRuntimeBaggageEntries(contextObj?.hostRuntime));
+            Object.assign(baggageEntries, getHostRuntimeBaggageEntries(effectiveHostRuntime));
 
             if (Object.keys(baggageEntries).length > 0) {
                 ctx = propagation.setBaggage(ctx, propagation.createBaggage(baggageEntries));

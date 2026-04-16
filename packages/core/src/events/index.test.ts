@@ -139,4 +139,26 @@ describe('EventBus AbortController Support', () => {
             },
         });
     });
+
+    it('freezes host runtime IDs on emitted payloads', () => {
+        const eventBus = new AgentEventBus({
+            ids: {
+                runId: 'run-1',
+                attemptId: 'attempt-1',
+            },
+        });
+        const listener = vi.fn();
+
+        eventBus.on('tool:running', listener);
+        eventBus.emit('tool:running', {
+            toolName: 'search_history',
+            toolCallId: 'call-1',
+            sessionId: 'session-1',
+        });
+
+        const payload = listener.mock.calls[0]?.[0];
+        expect(payload).toBeDefined();
+        expect(Object.isFrozen(payload.hostRuntime)).toBe(true);
+        expect(Object.isFrozen(payload.hostRuntime.ids)).toBe(true);
+    });
 });
