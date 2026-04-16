@@ -147,6 +147,32 @@ export class ToolManager {
         return this.resolveLocalToolIdOrAlias(pattern) ?? pattern;
     }
 
+    private requireApprovalSessionId(
+        toolName: string,
+        sessionId: string | undefined,
+        reason: string
+    ): string {
+        if (typeof sessionId === 'string' && sessionId.length > 0) {
+            return sessionId;
+        }
+
+        throw ToolError.validationFailed(toolName, reason);
+    }
+
+    private assertExecutableToolName(toolName: string): void {
+        if (toolName.startsWith(ToolManager.MCP_TOOL_PREFIX)) {
+            const actualToolName = toolName.substring(ToolManager.MCP_TOOL_PREFIX.length);
+            if (actualToolName.length === 0) {
+                throw ToolError.invalidName(toolName, 'tool name cannot be empty after prefix');
+            }
+            return;
+        }
+
+        if (!this.agentTools.has(toolName)) {
+            throw ToolError.notFound(toolName);
+        }
+    }
+
     constructor(
         mcpManager: MCPManager,
         approvalManager: ApprovalManager,
@@ -1056,7 +1082,7 @@ export class ToolManager {
      * @param toolName The tool name that was just remembered
      * @param sessionId The session ID for which the tool was allowed
      */
-    private autoApprovePendingToolRequests(toolName: string, sessionId?: string): void {
+    private autoApprovePendingToolRequests(toolName: string, sessionId: string): void {
         const count = this.approvalManager.autoApprovePendingRequests(
             (request: ApprovalRequest) => {
                 // Only match tool approval requests
@@ -1092,7 +1118,7 @@ export class ToolManager {
      * Auto-approve pending tool approval requests that are now covered by a remembered pattern.
      * Called after a user selects "remember pattern" for a tool.
      */
-    private autoApprovePendingPatternRequests(toolName: string, sessionId?: string): void {
+    private autoApprovePendingPatternRequests(toolName: string, sessionId: string): void {
         if (toolName.startsWith(ToolManager.MCP_TOOL_PREFIX)) {
             return;
         }
@@ -1160,7 +1186,7 @@ export class ToolManager {
      * Auto-approve pending tool approval requests that are now covered by a remembered directory.
      * Called after a user selects "remember directory" for a directory-access prompt.
      */
-    private autoApprovePendingDirectoryRequests(toolName: string, sessionId?: string): void {
+    private autoApprovePendingDirectoryRequests(toolName: string, sessionId: string): void {
         const count = this.approvalManager.autoApprovePendingRequests(
             (request: ApprovalRequest) => {
                 if (request.type !== ApprovalType.TOOL_APPROVAL) {
@@ -1491,6 +1517,8 @@ export class ToolManager {
 
         this.logger.debug(`🔧 Tool execution requested: '${toolName}' (toolCallId: ${toolCallId})`);
         this.logger.debug(`Tool args: ${JSON.stringify(toolArgs, null, 2)}`);
+
+        this.assertExecutableToolName(toolName);
 
         // IMPORTANT: Emit llm:tool-call FIRST, before approval handling.
         // This ensures correct event ordering - llm:tool-call must arrive before approval:request
@@ -1964,9 +1992,16 @@ export class ToolManager {
                             `Tool '${toolName}' requested custom approval: type=${approvalRequest.type}`
                         );
 
-                        // Add sessionId to the approval request if not already present
-                        if (sessionId && !approvalRequest.sessionId) {
-                            approvalRequest.sessionId = sessionId;
+                        const approvalSessionId =
+                            approvalRequest.sessionId ??
+                            this.requireApprovalSessionId(
+                                toolName,
+                                sessionId,
+                                'sessionId is required for tool approval flows'
+                            );
+
+                        if (approvalRequest.sessionId !== approvalSessionId) {
+                            approvalRequest.sessionId = approvalSessionId;
                         }
 
                         const response =
@@ -1981,7 +2016,7 @@ export class ToolManager {
                             }
 
                             this.logger.info(
-                                `Custom approval granted for '${toolName}', type=${approvalRequest.type}, session=${sessionId ?? 'global'}`
+                                `Custom approval granted for '${toolName}', type=${approvalRequest.type}, session=${approvalSessionId}`
                             );
                             return {
                                 requireApproval: true,
@@ -2049,12 +2084,20 @@ export class ToolManager {
         // This bypasses remembered-tool approvals and edit-mode auto-approvals for outside-root paths.
         if (directoryAccess) {
             if (this.approvalMode === 'auto-approve') {
+                const approvalSessionId = this.requireApprovalSessionId(
+                    toolName,
+                    sessionId,
+                    'sessionId is required for directory approval flows'
+                );
                 await this.approvalManager.addApprovedDirectory(
                     directoryAccess.parentDir,
                     'once',
-                    sessionId
+                    approvalSessionId
                 );
                 return { requireApproval: false };
+            }
+            if (this.approvalMode === 'auto-deny') {
+                throw ToolError.executionDenied(toolName, sessionId);
             }
             return null;
         }
@@ -2070,22 +2113,29 @@ export class ToolManager {
         // 4. Check static alwaysAllow list
         if (this.isInAlwaysAllowList(toolName)) {
             this.logger.info(
-                `Tool '${toolName}' is in static allow list – skipping confirmation (session: ${sessionId ?? 'global'})`
+                `Tool '${toolName}' is in static allow list – skipping confirmation (session: ${sessionId ?? 'none'})`
             );
             return { requireApproval: false };
         }
 
         // 5. Check dynamic "remembered" allowed list
-        if (await this.allowedToolsProvider.isToolAllowed(toolName, sessionId)) {
+        if (
+            sessionId !== undefined &&
+            (await this.allowedToolsProvider.isToolAllowed(toolName, sessionId))
+        ) {
             this.logger.info(
-                `Tool '${toolName}' already allowed for session '${sessionId ?? 'global'}' – skipping confirmation.`
+                `Tool '${toolName}' already allowed for session '${sessionId}' – skipping confirmation.`
             );
             return { requireApproval: false };
         }
 
         // 6. Check tool approval patterns
         const patternKey = this.getToolPatternKey(toolName, args);
-        if (patternKey && this.approvalManager.matchesPattern(toolName, patternKey, sessionId)) {
+        if (
+            sessionId !== undefined &&
+            patternKey &&
+            this.approvalManager.matchesPattern(toolName, patternKey, sessionId)
+        ) {
             this.logger.info(
                 `Tool '${toolName}' matched approved pattern key '${patternKey}' – skipping confirmation.`
             );
@@ -2121,8 +2171,13 @@ export class ToolManager {
         callDescription?: string,
         presentationSnapshot?: ToolPresentationSnapshotV1
     ): Promise<{ requireApproval: boolean; approvalStatus: 'approved' | 'rejected' }> {
+        const approvalSessionId = this.requireApprovalSessionId(
+            toolName,
+            sessionId,
+            'sessionId is required for tool approvals'
+        );
         this.logger.info(
-            `Tool approval requested for ${toolName}, sessionId: ${sessionId ?? 'global'}`
+            `Tool approval requested for ${toolName}, sessionId: ${approvalSessionId}`
         );
 
         try {
@@ -2131,7 +2186,7 @@ export class ToolManager {
                 toolName,
                 args,
                 toolCallId,
-                sessionId
+                approvalSessionId
             );
 
             // Get suggested patterns if applicable
@@ -2144,7 +2199,7 @@ export class ToolManager {
                 toolCallId,
                 args,
                 ...(callDescription !== undefined && { description: callDescription }),
-                ...(sessionId !== undefined && { sessionId }),
+                sessionId: approvalSessionId,
                 ...(displayPreview !== undefined && { displayPreview }),
                 ...(directoryAccess !== undefined && { directoryAccess }),
                 ...(suggestedPatterns !== undefined && { suggestedPatterns }),
@@ -2157,7 +2212,10 @@ export class ToolManager {
             ) {
                 const onGranted = this.getToolApprovalOnGrantedFn(toolName);
                 if (onGranted) {
-                    const context = this.buildToolExecutionContext({ sessionId, toolCallId });
+                    const context = this.buildToolExecutionContext({
+                        sessionId: approvalSessionId,
+                        toolCallId,
+                    });
                     await Promise.resolve(
                         onGranted(response, context, directoryAccessApprovalRequest)
                     );
@@ -2166,16 +2224,16 @@ export class ToolManager {
 
             // Handle "remember" choices if approved
             if (response.status === ApprovalStatus.APPROVED && response.data) {
-                await this.handleRememberChoice(toolName, response, sessionId);
+                await this.handleRememberChoice(toolName, response, approvalSessionId);
             }
 
             // Process response
             if (response.status !== ApprovalStatus.APPROVED) {
-                this.handleApprovalDenied(toolName, response, sessionId);
+                this.handleApprovalDenied(toolName, response, approvalSessionId);
             }
 
             this.logger.info(
-                `Tool approval approved for ${toolName}, sessionId: ${sessionId ?? 'global'}`
+                `Tool approval approved for ${toolName}, sessionId: ${approvalSessionId}`
             );
             return { requireApproval: true, approvalStatus: 'approved' };
         } catch (error) {
@@ -2228,7 +2286,7 @@ export class ToolManager {
     private async handleRememberChoice(
         toolName: string,
         response: { status: ApprovalStatus; data?: unknown; sessionId?: string | undefined },
-        sessionId?: string
+        sessionId: string
     ): Promise<void> {
         const data = response.data as Record<string, unknown> | undefined;
         if (!data) return;
@@ -2238,19 +2296,17 @@ export class ToolManager {
         const rememberDirectory = data.rememberDirectory as boolean | undefined;
 
         if (rememberChoice) {
-            const allowSessionId = sessionId ?? response.sessionId;
-            await this.allowedToolsProvider.allowTool(toolName, allowSessionId);
+            await this.allowedToolsProvider.allowTool(toolName, sessionId);
             this.logger.info(
-                `Tool '${toolName}' added to allowed tools for session '${allowSessionId ?? 'global'}' (remember choice selected)`
+                `Tool '${toolName}' added to allowed tools for session '${sessionId}' (remember choice selected)`
             );
-            this.autoApprovePendingToolRequests(toolName, allowSessionId);
+            this.autoApprovePendingToolRequests(toolName, sessionId);
         } else if (rememberPattern && this.getToolApprovalPatternKeyFn(toolName)) {
             await this.approvalManager.addPattern(toolName, rememberPattern, sessionId);
             this.logger.info(`Pattern '${rememberPattern}' added for tool '${toolName}' approval`);
             this.autoApprovePendingPatternRequests(toolName, sessionId);
         } else if (rememberDirectory) {
-            const allowSessionId = sessionId ?? response.sessionId;
-            this.autoApprovePendingDirectoryRequests(toolName, allowSessionId);
+            this.autoApprovePendingDirectoryRequests(toolName, sessionId);
         }
     }
 

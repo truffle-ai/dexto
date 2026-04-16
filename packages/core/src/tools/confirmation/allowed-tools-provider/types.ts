@@ -17,20 +17,18 @@
  */
 export type AllowedToolsProvider = {
     /**
-     * Persist an approval for a tool. If `sessionId` is provided the approval is
-     * scoped to that session. When omitted the approval is treated as global.
+     * Persist an approval for a tool within a session.
      */
-    allowTool(toolName: string, sessionId?: string): Promise<void>;
+    allowTool(toolName: string, sessionId: string): Promise<void>;
 
     /** Remove an approval. */
-    disallowTool(toolName: string, sessionId?: string): Promise<void>;
+    disallowTool(toolName: string, sessionId: string): Promise<void>;
 
     /**
-     * Check whether the given tool is currently allowed. If `sessionId` is
-     * provided the session-scoped list is checked first, then any global entry.
+     * Check whether the given tool is currently allowed within the session.
      */
-    isToolAllowed(toolName: string, sessionId?: string): Promise<boolean>;
+    isToolAllowed(toolName: string, sessionId: string): Promise<boolean>;
 
     /** Optional helper to introspect all approvals for debugging. */
-    getAllowedTools?(sessionId?: string): Promise<Set<string>>;
+    getAllowedTools?(sessionId: string): Promise<Set<string>>;
 };

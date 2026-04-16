@@ -62,25 +62,25 @@ function createInMemorySessionApprovalStore(): SessionApprovalStore {
     >();
 
     return {
-        async load(sessionId?: string) {
+        async load(sessionId: string) {
             return structuredClone(
-                states.get(sessionId ?? '__global__') ?? {
+                states.get(sessionId) ?? {
                     toolPatterns: {},
                     approvedDirectories: [],
                 }
             );
         },
         async save(
-            sessionId: string | undefined,
+            sessionId: string,
             state: {
                 toolPatterns: Record<string, string[]>;
                 approvedDirectories: Array<{ path: string; type: 'session' | 'once' }>;
             }
         ) {
-            states.set(sessionId ?? '__global__', structuredClone(state));
+            states.set(sessionId, structuredClone(state));
         },
-        async delete(sessionId?: string) {
-            states.delete(sessionId ?? '__global__');
+        async delete(sessionId: string) {
+            states.delete(sessionId);
         },
     } as SessionApprovalStore;
 }
@@ -105,6 +105,7 @@ function createToolContext(
 }
 
 describe('Directory Approval Integration Tests', () => {
+    const defaultSessionId = 'session-1';
     let mockLogger: Logger;
     let tempDir: string;
     let fileSystemService: FileSystemService;
@@ -143,7 +144,7 @@ describe('Directory Approval Integration Tests', () => {
             createInMemorySessionApprovalStore()
         );
 
-        toolContext = createToolContext(mockLogger, approvalManager);
+        toolContext = createToolContext(mockLogger, approvalManager, defaultSessionId);
 
         vi.clearAllMocks();
     });
@@ -197,7 +198,11 @@ describe('Directory Approval Integration Tests', () => {
         });
 
         it('should return null when external path is session-approved', async () => {
-            await approvalManager.addApprovedDirectory('/external/project', 'session');
+            await approvalManager.addApprovedDirectory(
+                '/external/project',
+                'session',
+                defaultSessionId
+            );
 
             const tool = createReadFileTool(getFileSystemService);
             const overrideFn = tool.approval?.override;
@@ -212,7 +217,11 @@ describe('Directory Approval Integration Tests', () => {
         });
 
         it('should still return metadata when external path is once-approved (prompt again)', async () => {
-            await approvalManager.addApprovedDirectory('/external/project', 'once');
+            await approvalManager.addApprovedDirectory(
+                '/external/project',
+                'once',
+                defaultSessionId
+            );
 
             const tool = createReadFileTool(getFileSystemService);
             const overrideFn = tool.approval?.override;
@@ -325,7 +334,11 @@ describe('Directory Approval Integration Tests', () => {
             const tool = createReadFileTool(getFileSystemService);
             const overrideFn = tool.approval?.override;
             expect(overrideFn).toBeDefined();
-            await approvalManager.addApprovedDirectory('/external/project', 'session');
+            await approvalManager.addApprovedDirectory(
+                '/external/project',
+                'session',
+                defaultSessionId
+            );
 
             const metadata1 = await overrideFn!(
                 tool.inputSchema.parse({ file_path: '/external/project/file.ts' }),
@@ -344,7 +357,11 @@ describe('Directory Approval Integration Tests', () => {
             const tool = createReadFileTool(getFileSystemService);
             const overrideFn = tool.approval?.override;
             expect(overrideFn).toBeDefined();
-            await approvalManager.addApprovedDirectory('/external/sub', 'session');
+            await approvalManager.addApprovedDirectory(
+                '/external/sub',
+                'session',
+                defaultSessionId
+            );
 
             const metadata1 = await overrideFn!(
                 tool.inputSchema.parse({ file_path: '/external/sub/file.ts' }),

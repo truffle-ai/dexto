@@ -1,12 +1,12 @@
 import type { StorageManager } from '../../../storage/index.js';
 import type { AllowedToolsProvider } from './types.js';
 import type { Logger } from '../../../logger/v2/types.js';
+import { ToolError } from '../../errors.js';
 
 /**
  * Storage-backed implementation that persists allowed tools in the Dexto
  * storage manager. The key scheme is:
  *   allowedTools:<sessionId>          – approvals scoped to a session
- *   allowedTools:global               – global approvals (sessionId undefined)
  *
  * Using the database backend for persistence.
  */
@@ -20,11 +20,18 @@ export class StorageAllowedToolsProvider implements AllowedToolsProvider {
         this.logger = logger;
     }
 
-    private buildKey(sessionId?: string) {
-        return sessionId ? `allowedTools:${sessionId}` : 'allowedTools:global';
+    private buildKey(sessionId: string | undefined) {
+        if (typeof sessionId !== 'string' || sessionId.length === 0) {
+            throw ToolError.validationFailed(
+                'tool_approval_memory',
+                'sessionId is required for remembered tool approvals'
+            );
+        }
+
+        return `allowedTools:${sessionId}`;
     }
 
-    async allowTool(toolName: string, sessionId?: string): Promise<void> {
+    async allowTool(toolName: string, sessionId: string): Promise<void> {
         const key = this.buildKey(sessionId);
         this.logger.debug(`Adding allowed tool '${toolName}' for key '${key}'`);
 
@@ -38,7 +45,7 @@ export class StorageAllowedToolsProvider implements AllowedToolsProvider {
         this.logger.debug(`Added allowed tool '${toolName}' for key '${key}'`);
     }
 
-    async disallowTool(toolName: string, sessionId?: string): Promise<void> {
+    async disallowTool(toolName: string, sessionId: string): Promise<void> {
         const key = this.buildKey(sessionId);
         this.logger.debug(`Removing allowed tool '${toolName}' for key '${key}'`);
 
@@ -50,24 +57,18 @@ export class StorageAllowedToolsProvider implements AllowedToolsProvider {
         await this.storageManager.getDatabase().set(key, Array.from(newSet));
     }
 
-    async isToolAllowed(toolName: string, sessionId?: string): Promise<boolean> {
+    async isToolAllowed(toolName: string, sessionId: string): Promise<boolean> {
         const sessionArr = await this.storageManager
             .getDatabase()
             .get<string[]>(this.buildKey(sessionId));
-        if (Array.isArray(sessionArr) && sessionArr.includes(toolName)) return true;
-
-        // Fallback to global approvals
-        const globalArr = await this.storageManager
-            .getDatabase()
-            .get<string[]>(this.buildKey(undefined));
-        const allowed = Array.isArray(globalArr) ? globalArr.includes(toolName) : false;
+        const allowed = Array.isArray(sessionArr) ? sessionArr.includes(toolName) : false;
         this.logger.debug(
-            `Checked allowed tool '${toolName}' in session '${sessionId ?? 'global'}' – allowed=${allowed}`
+            `Checked allowed tool '${toolName}' in session '${sessionId}' – allowed=${allowed}`
         );
         return allowed;
     }
 
-    async getAllowedTools(sessionId?: string): Promise<Set<string>> {
+    async getAllowedTools(sessionId: string): Promise<Set<string>> {
         const arr = await this.storageManager.getDatabase().get<string[]>(this.buildKey(sessionId));
         return new Set<string>(Array.isArray(arr) ? arr : []);
     }
