@@ -6,13 +6,14 @@ This repo is reviewed by automated agents (including CodeRabbit). This file is t
 
 ## Code Quality Requirements
 
-Before completing significant tasks, prompt the user to ask if they want to run:
+Before completing significant tasks, run:
 
 ```bash
 /quality-checks
 ```
 
 This runs `scripts/quality-checks.sh` for build, tests, lint, typecheck, and Hono client inference. See `.claude/commands/quality-checks.md`.
+Do not ask the user whether to run quality checks first; run them proactively.
 
 ## General Rules
 
@@ -276,7 +277,8 @@ Browser safety:
 ## Documentation Changes
 
 - Always request user review before committing documentation changes.
-- Never auto-commit documentation updates.
+- Generated OpenAPI sync output in `docs/static/openapi/openapi.json` is exempt from that review requirement and may be committed alongside the route/schema change that produced it.
+- Never auto-commit documentation updates unless they are generated OpenAPI sync output.
 - Keep documentation user-focused; avoid exposing unnecessary internal complexity.
 
 ## Testing
@@ -295,6 +297,12 @@ Common commands:
 - `pnpm run test:integ`
 
 When fixing bugs, add regression coverage where feasible.
+
+## Feature Development Workflow
+
+- For feature development, always use the `tdd` skill and work in vertical red-green-refactor slices.
+- Start by defining the public or behavioral boundary, then add one failing test for one behavior at a time.
+- Do not batch large sets of tests before implementation, and do not start implementation before the slice plan is clear.
 
 ## Maintaining This File
 

@@ -26,13 +26,17 @@ function createExecutionContextOptions(): HookExecutionContextOptions {
                 llm: llmConfig,
             }),
         } as unknown as HookExecutionContextOptions['stateManager'],
-        hostRuntime: {
-            ids: {
-                runId: 'run-1',
-                attemptId: 'attempt-1',
-            },
-        },
         sessionId: 'session-1',
+        runContext: {
+            sessionId: 'session-1',
+            hostRuntime: {
+                ids: {
+                    runId: 'run-1',
+                    attemptId: 'attempt-1',
+                },
+            },
+            telemetryContext: {} as any,
+        },
     };
 }
 

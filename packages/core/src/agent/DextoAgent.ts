@@ -22,7 +22,7 @@ import {
 import type { Logger, LogLevel } from '../logger/v2/types.js';
 import { Telemetry } from '../telemetry/telemetry.js';
 import { InstrumentClass } from '../telemetry/decorators.js';
-import { trace, context, propagation, type BaggageEntry } from '@opentelemetry/api';
+import { trace, context } from '@opentelemetry/api';
 import { resolveAndValidateLLMConfig } from '../llm/resolver.js';
 import { validateInputForLLM } from '../llm/validation.js';
 import { LLMError } from '../llm/errors.js';
@@ -77,12 +77,7 @@ import type { ApprovalHandler } from '../approval/types.js';
 import type { DextoAgentOptions } from './agent-options.js';
 import type { WorkspaceManager } from '../workspace/manager.js';
 import type { SetWorkspaceInput, WorkspaceContext } from '../workspace/types.js';
-import {
-    buildHostRuntimeBaggageEntries as _buildHostRuntimeBaggageEntries,
-    normalizeHostRuntimeContext,
-} from '../runtime/index.js';
-
-const buildHostRuntimeBaggageEntries = _buildHostRuntimeBaggageEntries;
+import { createAgentRunContext } from '../runtime/run-context.js';
 
 const requiredServices: (keyof AgentServices)[] = [
     'mcpManager',
@@ -435,8 +430,8 @@ export class DextoAgent {
             };
             services.toolManager.setToolExecutionContextFactory((baseContext) => ({
                 ...baseContext,
-                ...(baseContext.sessionId !== undefined && {
-                    hostRuntime: this.sessionManager.getExecutionContext(baseContext.sessionId),
+                ...(baseContext.runContext?.hostRuntime !== undefined && {
+                    hostRuntime: baseContext.runContext.hostRuntime,
                 }),
                 agent: this,
                 storage: toolExecutionStorage,
@@ -922,7 +917,12 @@ export class DextoAgent {
 
         const signal = options?.signal;
         const disconnectSignal = options?.disconnectSignal ?? signal;
-        const executionContext = normalizeHostRuntimeContext(options?.executionContext);
+        const runContext = createAgentRunContext({
+            sessionId,
+            hostRuntime: options?.executionContext,
+            parentContext: context.active(),
+        });
+        const executionContext = runContext.hostRuntime;
 
         // Normalize content: string -> [{ type: 'text', text: string }]
         let contentParts: import('./types.js').ContentPart[] =
@@ -1163,8 +1163,6 @@ export class DextoAgent {
 
         // Start streaming in background (fire-and-forget)
         (async () => {
-            // Propagate sessionId through OpenTelemetry context for distributed tracing
-            const activeContext = context.active();
             const activeSpan = trace.getActiveSpan();
 
             // Add sessionId to span attributes
@@ -1172,24 +1170,8 @@ export class DextoAgent {
                 activeSpan.setAttribute('sessionId', sessionId);
             }
 
-            // Preserve existing baggage entries and add sessionId
-            const existingBaggage = propagation.getBaggage(activeContext);
-            const baggageEntries: Record<string, BaggageEntry> = {};
-            if (existingBaggage) {
-                existingBaggage.getAllEntries().forEach(([key, entry]) => {
-                    baggageEntries[key] = { ...entry };
-                });
-            }
-            Object.assign(baggageEntries, buildHostRuntimeBaggageEntries(executionContext));
-            baggageEntries.sessionId = { ...baggageEntries.sessionId, value: sessionId };
-
-            const updatedContext = propagation.setBaggage(
-                activeContext,
-                propagation.createBaggage(baggageEntries)
-            );
-
             // Execute within updated OpenTelemetry context
-            await context.with(updatedContext, async () => {
+            await context.with(runContext.telemetryContext, async () => {
                 try {
                     // Get session-specific LLM config for validation
                     const llmConfig = this.stateManager.getLLMConfig(sessionId);
@@ -1374,12 +1356,10 @@ export class DextoAgent {
                         (await this.sessionManager.createSession(sessionId));
 
                     // Call session.stream() directly with ALL content parts
-                    const _streamResult = await this.sessionManager.withExecutionContext(
-                        sessionId,
-                        executionContext,
-                        async () =>
-                            await session.stream(contentParts, signal ? { signal } : undefined)
-                    );
+                    await session.stream(contentParts, {
+                        ...(signal ? { signal } : {}),
+                        runContext,
+                    });
 
                     // Increment message count
                     this.sessionManager

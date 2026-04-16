@@ -649,6 +649,76 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             );
         });
 
+        it('should propagate host runtime through explicit run context during tool execution', async () => {
+            mockMcpManager.getAllTools = vi.fn().mockResolvedValue({});
+            const executeSpy = vi.fn().mockResolvedValue('ok');
+
+            const tool = defineTool({
+                id: 'typed',
+                description: 'Typed tool',
+                inputSchema: z
+                    .object({
+                        count: z.coerce.number().int().default(0),
+                    })
+                    .strict(),
+                execute: executeSpy,
+            });
+
+            const toolManager = createToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'manual',
+                mockAgentEventBus,
+                { alwaysAllow: [], alwaysDeny: [] },
+                [tool],
+                mockLogger
+            );
+            const runContext = {
+                sessionId: 'session-1',
+                hostRuntime: {
+                    ids: {
+                        runId: 'run-1',
+                        attemptId: 'attempt-1',
+                    },
+                },
+                telemetryContext: {} as any,
+            };
+
+            toolManager.setToolExecutionContextFactory((baseContext) => baseContext);
+
+            await toolManager.executeToolInRun('typed', { count: '5' }, 'call-1', runContext);
+
+            expect(executeSpy).toHaveBeenCalledWith(
+                { count: 5 },
+                expect.objectContaining({
+                    sessionId: 'session-1',
+                    runContext,
+                    hostRuntime: runContext.hostRuntime,
+                })
+            );
+            expect(mockAgentEventBus.emit).toHaveBeenCalledWith(
+                'llm:tool-call',
+                expect.objectContaining({
+                    sessionId: 'session-1',
+                    hostRuntime: runContext.hostRuntime,
+                })
+            );
+            expect(mockAgentEventBus.emit).toHaveBeenCalledWith(
+                'tool:running',
+                expect.objectContaining({
+                    sessionId: 'session-1',
+                    hostRuntime: runContext.hostRuntime,
+                })
+            );
+            expect(mockApprovalManager.requestToolApproval).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    sessionId: 'session-1',
+                    hostRuntime: runContext.hostRuntime,
+                })
+            );
+        });
+
         it('should include directory access metadata in tool approval and remember directory when approved', async () => {
             mockMcpManager.getAllTools = vi.fn().mockResolvedValue({});
 

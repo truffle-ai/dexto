@@ -18,6 +18,7 @@ import type { ResourceManager } from '../resources/manager.js';
 import type { SearchService } from '../search/search-service.js';
 import type { Logger } from '../logger/v2/types.js';
 import type { HostRuntimeContext } from '../runtime/index.js';
+import type { AgentRunContext } from '../runtime/run-context.js';
 
 /**
  * Interface for forking execution to an isolated sub-agent context.
@@ -62,6 +63,8 @@ export interface ToolServices {
 export interface ToolExecutionContextBase {
     /** Session ID if available */
     sessionId?: string | undefined;
+    /** Internal run-scoped execution context for this tool invocation */
+    runContext?: AgentRunContext | undefined;
     /** Workspace ID if available */
     workspaceId?: string | undefined;
     /** Workspace context if available */

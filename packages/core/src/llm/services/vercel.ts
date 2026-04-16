@@ -21,6 +21,7 @@ import type { ResourceManager } from '../../resources/index.js';
 import { DextoRuntimeError } from '../../errors/DextoRuntimeError.js';
 import { LLMErrorCode } from '../error-codes.js';
 import type { ContentInput } from '../../agent/types.js';
+import type { AgentRunContext } from '../../runtime/run-context.js';
 
 /**
  * Vercel AI SDK implementation of the core session LLM runtime
@@ -127,7 +128,10 @@ export class VercelLLMService {
     /**
      * Create a TurnExecutor instance for executing the agent loop.
      */
-    private createTurnExecutor(externalSignal?: AbortSignal): TurnExecutor {
+    private createTurnExecutor(
+        externalSignal?: AbortSignal,
+        runContext?: AgentRunContext
+    ): TurnExecutor {
         return new TurnExecutor(
             this.model,
             this.toolManager,
@@ -149,7 +153,8 @@ export class VercelLLMService {
             this.messageQueue,
             this.modelLimits,
             externalSignal,
-            this.compactionStrategy
+            this.compactionStrategy,
+            runContext
         );
     }
 
@@ -168,7 +173,10 @@ export class VercelLLMService {
      */
     async stream(
         content: ContentInput,
-        options?: { signal?: AbortSignal }
+        options?: {
+            signal?: AbortSignal;
+            runContext?: AgentRunContext;
+        }
     ): Promise<{ text: string }> {
         // Get active span and context for telemetry
         const activeSpan = trace.getActiveSpan();
@@ -213,7 +221,7 @@ export class VercelLLMService {
             await this.contextManager.addUserMessage(parts);
 
             // Create executor (uses session-level messageQueue, pass external abort signal)
-            const executor = this.createTurnExecutor(options?.signal);
+            const executor = this.createTurnExecutor(options?.signal, options?.runContext);
 
             // Execute with streaming enabled
             const contributorContext = await this.toolManager.buildContributorContext({

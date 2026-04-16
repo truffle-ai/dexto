@@ -34,6 +34,7 @@ import { getUsagePricingMetadata, hasMeaningfulTokenUsage } from '../llm/usage-m
 import type { CompactionStrategy } from '../context/compaction/types.js';
 import { parseCodexBaseURL } from '../llm/providers/codex-base-url.js';
 import type { VercelLLMService } from '../llm/services/vercel.js';
+import type { AgentRunContext } from '../runtime/run-context.js';
 
 /**
  * Represents an isolated conversation session within a Dexto agent.
@@ -113,10 +114,7 @@ export class ChatSession {
      */
     private messageQueue!: MessageQueueService;
 
-    /**
-     * Cleanup callbacks for event forwarders attached to the session event bus.
-     */
-    private forwarders: Map<SessionEventName, () => void> = new Map();
+    private activeForwarderCleanup: (() => void) | null = null;
 
     /**
      * Token accumulator listener for cleanup.
@@ -138,7 +136,7 @@ export class ChatSession {
      * Each session creates its own isolated services:
      * - ConversationHistoryProvider (with session-specific storage, shared across LLM switches)
      * - LLM service (creates its own properly-typed ContextManager internally)
-     * - SessionEventBus (session-local event handling with forwarding)
+     * - SessionEventBus (session-local event handling)
      *
      * @param services - The shared services from the agent (state manager, prompt, client managers, etc.)
      * @param id - Unique identifier for this session
@@ -173,8 +171,7 @@ export class ChatSession {
             this.services.messageQueueStore
         );
 
-        // Set up event forwarding to agent's global bus
-        this.setupEventForwarding();
+        this.setupTokenAccumulation();
 
         // Services will be initialized in init() method due to async requirements
         this.logger.debug(`ChatSession ${this.id}: Created, awaiting initialization`);
@@ -188,55 +185,58 @@ export class ChatSession {
         await this.initializeServices();
     }
 
-    private getExecutionContext() {
-        return this.services.sessionManager.getExecutionContext?.(this.id);
-    }
-
-    private createForwardedEventPayload<K extends SessionEventName>(
-        payload: SessionEventMap[K]
+    private createForwardedEventPayload<K extends Exclude<SessionEventName, 'llm:switched'>>(
+        payload: SessionEventMap[K],
+        runContext?: AgentRunContext
     ): Exclude<AgentEventMap[K], void> {
         const basePayload =
             payload === undefined ? { sessionId: this.id } : { ...payload, sessionId: this.id };
 
-        return withHostRuntimeEventContext(basePayload, this.getExecutionContext()) as Exclude<
+        return withHostRuntimeEventContext(basePayload, runContext?.hostRuntime) as Exclude<
             AgentEventMap[K],
             void
         >;
     }
 
-    private attachEventForwarder<K extends SessionEventName>(eventName: K): void {
+    private attachRunEventForwarder<K extends Exclude<SessionEventName, 'llm:switched'>>(
+        eventName: K,
+        runContext?: AgentRunContext
+    ): () => void {
         const forwarder = (payload: SessionEventMap[K]) => {
-            const forwardedPayload = this.createForwardedEventPayload(payload);
+            const forwardedPayload = this.createForwardedEventPayload(payload, runContext);
             const args = [forwardedPayload] as EventArgs<AgentEventMap[K]>;
             this.services.agentEventBus.emit(eventName, ...args);
         };
 
         this.eventBus.on(eventName, forwarder);
-        this.forwarders.set(eventName, () => {
+        return () => {
             this.eventBus.off(eventName, forwarder);
-        });
+        };
     }
 
-    /**
-     * Sets up event forwarding from session bus to global agent bus.
-     *
-     * All session events are automatically forwarded to the global bus with the same
-     * event names, but with session context added to the payload. This allows the app
-     * layer to continue listening to standard events while having access to session
-     * information when needed.
-     */
-    private setupEventForwarding(): void {
-        // Forward each session event type to the agent bus with session context
+    private attachRunEventForwarders(runContext?: AgentRunContext): () => void {
+        const cleanups: Array<() => void> = [];
+
         for (const eventName of SessionEventNames) {
-            this.attachEventForwarder(eventName);
+            if (eventName === 'llm:switched') {
+                continue;
+            }
+            cleanups.push(this.attachRunEventForwarder(eventName, runContext));
         }
 
-        // Set up token usage accumulation on llm:response
-        this.setupTokenAccumulation();
+        const cleanup = () => {
+            for (const dispose of cleanups) {
+                dispose();
+            }
+        };
 
-        this.logger.debug(
-            `[setupEventForwarding] Event forwarding setup complete for session=${this.id}`
-        );
+        this.activeForwarderCleanup = cleanup;
+        return () => {
+            if (this.activeForwarderCleanup === cleanup) {
+                this.activeForwarderCleanup = null;
+            }
+            cleanup();
+        };
     }
 
     /**
@@ -420,7 +420,10 @@ export class ChatSession {
      */
     public async stream(
         content: ContentInput,
-        options?: { signal?: AbortSignal }
+        options?: {
+            signal?: AbortSignal;
+            runContext?: AgentRunContext;
+        }
     ): Promise<{ text: string }> {
         // Normalize content to ContentPart[]
         const parts: ContentPart[] =
@@ -442,6 +445,7 @@ export class ChatSession {
         const signal = options?.signal
             ? this.combineSignals(options.signal, this.currentRunController.signal)
             : this.currentRunController.signal;
+        const detachForwarders = this.attachRunEventForwarders(options?.runContext);
 
         try {
             // Execute beforeLLMRequest hooks
@@ -480,7 +484,7 @@ export class ChatSession {
                     mcpManager: this.services.mcpManager,
                     toolManager: this.services.toolManager,
                     stateManager: this.services.stateManager,
-                    hostRuntime: this.getExecutionContext(),
+                    ...(options?.runContext !== undefined && { runContext: options.runContext }),
                     sessionId: this.id,
                     abortSignal: signal,
                 }
@@ -495,7 +499,10 @@ export class ChatSession {
             }
 
             // Call LLM service stream
-            const streamResult = await this.llmService.stream(modifiedParts, { signal });
+            const streamResult = await this.llmService.stream(modifiedParts, {
+                signal,
+                ...(options?.runContext !== undefined && { runContext: options.runContext }),
+            });
 
             // Execute beforeResponse hooks
             const llmConfig = this.services.stateManager.getLLMConfig(this.id);
@@ -514,7 +521,7 @@ export class ChatSession {
                     mcpManager: this.services.mcpManager,
                     toolManager: this.services.toolManager,
                     stateManager: this.services.stateManager,
-                    hostRuntime: this.getExecutionContext(),
+                    ...(options?.runContext !== undefined && { runContext: options.runContext }),
                     sessionId: this.id,
                     abortSignal: signal,
                 }
@@ -596,6 +603,7 @@ export class ChatSession {
             );
             throw error;
         } finally {
+            detachForwarders();
             this.currentRunController = null;
         }
     }
@@ -727,6 +735,11 @@ export class ChatSession {
                 newConfig: newLLMConfig,
                 historyRetained: true,
             });
+            this.services.agentEventBus.emit('llm:switched', {
+                newConfig: newLLMConfig,
+                historyRetained: true,
+                sessionIds: [this.id],
+            });
         } catch (error) {
             this.logger.error(
                 `Error during ChatSession.switchLLM for session ${this.id}: ${error instanceof Error ? error.message : String(error)}`
@@ -773,13 +786,8 @@ export class ChatSession {
     public dispose(): void {
         this.logger.debug(`Disposing session ${this.id} - cleaning up event listeners`);
 
-        // Remove all event forwarders from the session event bus
-        this.forwarders.forEach((cleanup) => {
-            cleanup();
-        });
-
-        // Clear the forwarders map
-        this.forwarders.clear();
+        this.activeForwarderCleanup?.();
+        this.activeForwarderCleanup = null;
 
         // Remove token accumulator listener
         if (this.tokenAccumulatorListener) {

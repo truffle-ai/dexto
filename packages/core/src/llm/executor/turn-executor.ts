@@ -48,6 +48,7 @@ import { toError } from '../../utils/error-conversion.js';
 import type { CompactionStrategy } from '../../context/compaction/types.js';
 import type { ModelLimits } from '../../context/compaction/overflow.js';
 import { isCodexBaseURL } from '../providers/codex-base-url.js';
+import type { AgentRunContext } from '../../runtime/run-context.js';
 
 /**
  * Static cache for tool support validation.
@@ -116,7 +117,8 @@ export class TurnExecutor {
         private messageQueue: MessageQueueService,
         private modelLimits?: ModelLimits,
         private externalSignal?: AbortSignal,
-        compactionStrategy: CompactionStrategy | null = null
+        compactionStrategy: CompactionStrategy | null = null,
+        private runContext?: AgentRunContext
     ) {
         this.logger = logger.createChild(DextoLogComponent.EXECUTOR);
         // Initial controller - will be replaced per-step in execute()
@@ -694,13 +696,22 @@ export class TurnExecutor {
                                     // Run tool via toolManager - returns result with approval metadata
                                     // toolCallId is passed for tracking parallel tool calls in the UI
                                     // Pass abortSignal so tools can do proper cleanup (e.g., kill processes)
-                                    const executionResult = await this.toolManager.executeTool(
-                                        name,
-                                        args as Record<string, unknown>,
-                                        options.toolCallId,
-                                        this.sessionId,
-                                        abortSignal
-                                    );
+                                    const executionResult =
+                                        this.runContext === undefined
+                                            ? await this.toolManager.executeTool(
+                                                  name,
+                                                  args as Record<string, unknown>,
+                                                  options.toolCallId,
+                                                  this.sessionId,
+                                                  abortSignal
+                                              )
+                                            : await this.toolManager.executeToolInRun(
+                                                  name,
+                                                  args as Record<string, unknown>,
+                                                  options.toolCallId,
+                                                  this.runContext,
+                                                  abortSignal
+                                              );
 
                                     const metadata:
                                         | {

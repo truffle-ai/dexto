@@ -282,11 +282,48 @@ describe('ChatSession', () => {
     });
 
     describe('Event System Integration', () => {
+        test('should forward session events with host runtime from the active run context', async () => {
+            await chatSession.init();
+            const hostRuntime = {
+                ids: {
+                    runId: 'run-1',
+                    attemptId: 'attempt-1',
+                },
+            };
+
+            mockLLMService.stream.mockImplementation(async () => {
+                chatSession.eventBus.emit('llm:thinking');
+                return { text: 'Mock response' };
+            });
+
+            await chatSession.stream('hello', {
+                runContext: {
+                    sessionId,
+                    hostRuntime,
+                    telemetryContext: {} as any,
+                },
+            });
+
+            expect(mockServices.agentEventBus.emit).toHaveBeenCalledWith('llm:thinking', {
+                sessionId,
+                hostRuntime,
+            });
+        });
+
         test('should forward all session events to agent bus with session context', async () => {
             await chatSession.init();
 
-            // Emit a session event
-            chatSession.eventBus.emit('llm:thinking');
+            mockLLMService.stream.mockImplementation(async () => {
+                chatSession.eventBus.emit('llm:thinking');
+                return { text: 'Mock response' };
+            });
+
+            await chatSession.stream('hello', {
+                runContext: {
+                    sessionId,
+                    telemetryContext: {} as any,
+                },
+            });
 
             expect(mockServices.agentEventBus.emit).toHaveBeenCalledWith(
                 'llm:thinking',
@@ -296,14 +333,21 @@ describe('ChatSession', () => {
             );
         });
 
-        test('should handle events with no payload by adding session context', async () => {
+        test('should emit llm switched on the agent bus with the affected session id', async () => {
             await chatSession.init();
 
-            // Emit event without payload (using llm:thinking as example)
-            chatSession.eventBus.emit('llm:thinking');
+            const newConfig: ValidatedLLMConfig = {
+                ...mockLLMConfig,
+                provider: 'anthropic',
+                model: 'claude-4-opus-20250514',
+            };
 
-            expect(mockServices.agentEventBus.emit).toHaveBeenCalledWith('llm:thinking', {
-                sessionId,
+            await chatSession.switchLLM(newConfig);
+
+            expect(mockServices.agentEventBus.emit).toHaveBeenCalledWith('llm:switched', {
+                newConfig,
+                historyRetained: true,
+                sessionIds: [sessionId],
             });
         });
 

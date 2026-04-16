@@ -19,7 +19,6 @@ import {
     SessionPromptContributorSchema,
     type SessionPromptContributor,
 } from '../systemPrompt/schemas.js';
-import type { HostRuntimeContext } from '../runtime/index.js';
 import type { MessageQueueStore } from './message-queue-store.js';
 export type SessionLoggerFactory = (options: {
     baseLogger: Logger;
@@ -119,9 +118,6 @@ export interface SessionData {
  */
 export class SessionManager {
     private sessions: Map<string, ChatSession> = new Map();
-    // Execution-scoped context is keyed by session because DextoAgent enforces
-    // at most one active run per session at a time.
-    private readonly executionContexts = new Map<string, HostRuntimeContext>();
     private readonly maxSessions: number;
     private readonly sessionTTL: number;
     private initialized = false;
@@ -173,34 +169,6 @@ export class SessionManager {
                 languageModelFactory: this.languageModelFactory,
             }),
         };
-    }
-
-    public getExecutionContext(sessionId: string): HostRuntimeContext | undefined {
-        return this.executionContexts.get(sessionId);
-    }
-
-    public async withExecutionContext<T>(
-        sessionId: string,
-        executionContext: HostRuntimeContext | undefined,
-        run: () => Promise<T>
-    ): Promise<T> {
-        const previous = this.executionContexts.get(sessionId);
-
-        if (executionContext === undefined) {
-            this.executionContexts.delete(sessionId);
-        } else {
-            this.executionContexts.set(sessionId, executionContext);
-        }
-
-        try {
-            return await run();
-        } finally {
-            if (previous === undefined) {
-                this.executionContexts.delete(sessionId);
-            } else {
-                this.executionContexts.set(sessionId, previous);
-            }
-        }
     }
 
     /**
@@ -1353,7 +1321,6 @@ export class SessionManager {
     }
 
     private async deleteSessionInteractionState(sessionId: string): Promise<void> {
-        this.executionContexts.delete(sessionId);
         this.services.stateManager.clearSessionOverride(sessionId);
         await Promise.all([
             this.services.toolManager.deleteSessionState(sessionId),
@@ -1363,7 +1330,6 @@ export class SessionManager {
     }
 
     private evictSessionInteractionState(sessionId: string): void {
-        this.executionContexts.delete(sessionId);
         this.services.toolManager.evictSessionState(sessionId);
         this.services.approvalManager.evictSessionState(sessionId);
     }

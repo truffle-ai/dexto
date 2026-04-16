@@ -127,12 +127,6 @@ describe('DextoAgent Lifecycle Management', () => {
                 cleanup: vi.fn(),
                 init: vi.fn().mockResolvedValue(undefined),
                 getSession: vi.fn().mockResolvedValue(undefined),
-                getExecutionContext: vi.fn().mockReturnValue(undefined),
-                withExecutionContext: vi
-                    .fn()
-                    .mockImplementation(async (_sessionId, _context, run) => {
-                        return await run();
-                    }),
                 getSessionMetadata: vi.fn().mockResolvedValue(undefined),
                 setSessionTitle: vi.fn().mockResolvedValue(undefined),
                 createSession: vi.fn().mockResolvedValue({ id: 'test-session' }),
@@ -290,12 +284,12 @@ describe('DextoAgent Lifecycle Management', () => {
         });
 
         test('should expose host runtime IDs through tool execution context', async () => {
-            mockServices.sessionManager.getExecutionContext = vi.fn().mockReturnValue({
+            const hostRuntime = {
                 ids: {
                     runId: 'run-1',
                     attemptId: 'attempt-1',
                 },
-            });
+            };
             const agent = createTestAgent(mockValidatedConfig);
 
             await agent.start();
@@ -308,6 +302,11 @@ describe('DextoAgent Lifecycle Management', () => {
 
             const context = factory?.({
                 sessionId: 'session-1',
+                runContext: {
+                    sessionId: 'session-1',
+                    hostRuntime,
+                    telemetryContext: {} as any,
+                },
                 logger: createLogger({
                     config: LoggerConfigSchema.parse({
                         level: 'error',
@@ -319,12 +318,7 @@ describe('DextoAgent Lifecycle Management', () => {
 
             expect(context).toMatchObject({
                 sessionId: 'session-1',
-                hostRuntime: {
-                    ids: {
-                        runId: 'run-1',
-                        attemptId: 'attempt-1',
-                    },
-                },
+                hostRuntime,
             });
         });
 
@@ -636,6 +630,58 @@ describe('DextoAgent Lifecycle Management', () => {
     });
 
     describe('Stream Error Lifecycle', () => {
+        test('passes an explicit run context to session.stream', async () => {
+            const agent = createTestAgent(mockValidatedConfig);
+            const executionContext = {
+                ids: {
+                    runId: 'run-1',
+                    attemptId: 'attempt-1',
+                },
+            };
+            const sessionStream = vi.fn().mockImplementation(async () => {
+                agent.emit('run:complete', {
+                    sessionId: 'test-session',
+                    finishReason: 'stop',
+                    stepCount: 0,
+                    durationMs: 1,
+                });
+                return { text: 'ok' };
+            });
+            mockServices.sessionManager.getSession = vi.fn().mockResolvedValue({
+                id: 'test-session',
+                stream: sessionStream,
+            });
+
+            await agent.start();
+
+            const events: StreamingEvent[] = [];
+            for await (const event of await agent.stream('hello', 'test-session', {
+                executionContext,
+            })) {
+                events.push(event);
+            }
+
+            expect(events).toEqual([
+                {
+                    name: 'run:complete',
+                    sessionId: 'test-session',
+                    finishReason: 'stop',
+                    stepCount: 0,
+                    durationMs: 1,
+                },
+            ]);
+            expect(sessionStream).toHaveBeenCalledWith(
+                [{ type: 'text', text: 'hello' }],
+                expect.objectContaining({
+                    runContext: expect.objectContaining({
+                        sessionId: 'test-session',
+                        hostRuntime: executionContext,
+                    }),
+                })
+            );
+            expect(mockServices.sessionManager).not.toHaveProperty('withExecutionContext');
+        });
+
         test('should reject overlapping stream calls for the same session', async () => {
             const agent = createTestAgent(mockValidatedConfig);
             const deferred = createDeferred<void>();
