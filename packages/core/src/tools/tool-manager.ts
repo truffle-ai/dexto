@@ -31,6 +31,10 @@ import type { BeforeToolCallPayload, AfterToolResultPayload } from '../hooks/typ
 import type { WorkspaceManager } from '../workspace/manager.js';
 import type { WorkspaceContext } from '../workspace/types.js';
 import { InstrumentClass } from '../telemetry/decorators.js';
+import type {
+    SessionToolPreferences,
+    SessionToolPreferencesStore,
+} from './session-tool-preferences-store.js';
 import {
     extractToolCallMeta,
     wrapToolParametersSchema,
@@ -112,6 +116,8 @@ export class ToolManager {
     // Session-level auto-approve tools set by users (UI)
     private sessionUserAutoApproveTools: Map<string, string[]> = new Map();
     private sessionDisabledTools: Map<string, string[]> = new Map();
+    private readonly restoredSessionPreferences = new Set<string>();
+    private readonly sessionPreferenceLocks = new Map<string, Promise<void>>();
     private globalDisabledTools: string[] = [];
     private cleanupHandlers: Set<() => Promise<void> | void> = new Set();
     private cleanupStarted = false;
@@ -149,7 +155,8 @@ export class ToolManager {
         agentEventBus: AgentEventBus,
         toolPolicies: ToolPolicies,
         tools: Tool[],
-        logger: Logger
+        logger: Logger,
+        private readonly sessionToolPreferencesStore: SessionToolPreferencesStore
     ) {
         this.mcpManager = mcpManager;
         this.approvalManager = approvalManager;
@@ -169,6 +176,94 @@ export class ToolManager {
         this.setupNotificationListeners();
 
         this.logger.debug('ToolManager initialized');
+    }
+
+    private async runWithSessionPreferenceLock<T>(
+        sessionId: string,
+        fn: () => Promise<T>
+    ): Promise<T> {
+        const previousLock = this.sessionPreferenceLocks.get(sessionId) ?? Promise.resolve();
+        const currentResult = previousLock.catch(() => {}).then(() => fn());
+        const currentLock = currentResult.then(
+            () => undefined,
+            () => undefined
+        );
+
+        this.sessionPreferenceLocks.set(sessionId, currentLock);
+
+        try {
+            return await currentResult;
+        } finally {
+            if (this.sessionPreferenceLocks.get(sessionId) === currentLock) {
+                this.sessionPreferenceLocks.delete(sessionId);
+            }
+        }
+    }
+
+    private applySessionToolPreferences(
+        sessionId: string,
+        preferences: SessionToolPreferences
+    ): void {
+        if (preferences.userAutoApproveTools.length > 0) {
+            this.sessionUserAutoApproveTools.set(sessionId, [...preferences.userAutoApproveTools]);
+        } else {
+            this.sessionUserAutoApproveTools.delete(sessionId);
+        }
+        if (preferences.disabledTools.length > 0) {
+            this.sessionDisabledTools.set(sessionId, [...preferences.disabledTools]);
+        } else {
+            this.sessionDisabledTools.delete(sessionId);
+        }
+    }
+
+    private getSessionToolPreferencesSnapshot(sessionId: string): SessionToolPreferences {
+        return {
+            userAutoApproveTools: [...(this.sessionUserAutoApproveTools.get(sessionId) ?? [])],
+            disabledTools: [...(this.sessionDisabledTools.get(sessionId) ?? [])],
+        };
+    }
+
+    async restoreSessionState(sessionId: string): Promise<void> {
+        if (this.restoredSessionPreferences.has(sessionId)) {
+            return;
+        }
+
+        await this.runWithSessionPreferenceLock(sessionId, async () => {
+            if (this.restoredSessionPreferences.has(sessionId)) {
+                return;
+            }
+
+            const preferences = await this.sessionToolPreferencesStore.load(sessionId);
+            this.applySessionToolPreferences(sessionId, preferences);
+            this.restoredSessionPreferences.add(sessionId);
+
+            this.logger.debug('Restored persisted session tool preferences', {
+                sessionId,
+                autoApproveCount: preferences.userAutoApproveTools.length,
+                disabledCount: preferences.disabledTools.length,
+            });
+        });
+    }
+
+    evictSessionState(sessionId: string): void {
+        this.sessionAutoApproveTools.delete(sessionId);
+        this.sessionUserAutoApproveTools.delete(sessionId);
+        this.sessionDisabledTools.delete(sessionId);
+        this.restoredSessionPreferences.delete(sessionId);
+    }
+
+    async deleteSessionState(sessionId: string): Promise<void> {
+        await this.runWithSessionPreferenceLock(sessionId, async () => {
+            this.evictSessionState(sessionId);
+            await this.sessionToolPreferencesStore.delete(sessionId);
+        });
+    }
+
+    private async persistSessionToolPreferences(sessionId: string): Promise<void> {
+        await this.sessionToolPreferencesStore.save(
+            sessionId,
+            this.getSessionToolPreferencesSnapshot(sessionId)
+        );
     }
 
     /**
@@ -348,15 +443,25 @@ export class ToolManager {
     /**
      * Set session-level auto-approve tools chosen by the user.
      */
-    setSessionUserAutoApproveTools(sessionId: string, autoApproveTools: string[]): void {
+    async setSessionUserAutoApproveTools(
+        sessionId: string,
+        autoApproveTools: string[]
+    ): Promise<void> {
+        await this.restoreSessionState(sessionId);
         if (autoApproveTools.length === 0) {
-            this.clearSessionUserAutoApproveTools(sessionId);
+            await this.clearSessionUserAutoApproveTools(sessionId);
             return;
         }
+
         const normalized = autoApproveTools.map((pattern) =>
             this.normalizeToolPolicyPattern(pattern)
         );
-        this.sessionUserAutoApproveTools.set(sessionId, normalized);
+
+        await this.runWithSessionPreferenceLock(sessionId, async () => {
+            this.sessionUserAutoApproveTools.set(sessionId, normalized);
+            await this.persistSessionToolPreferences(sessionId);
+        });
+
         this.logger.info(
             `Session user auto-approve tools set for '${sessionId}': ${autoApproveTools.length} tools`
         );
@@ -366,9 +471,16 @@ export class ToolManager {
     /**
      * Clear session-level auto-approve tools chosen by the user.
      */
-    clearSessionUserAutoApproveTools(sessionId: string): void {
-        const hadAutoApprove = this.sessionUserAutoApproveTools.has(sessionId);
-        this.sessionUserAutoApproveTools.delete(sessionId);
+    async clearSessionUserAutoApproveTools(sessionId: string): Promise<void> {
+        await this.restoreSessionState(sessionId);
+
+        let hadAutoApprove = false;
+        await this.runWithSessionPreferenceLock(sessionId, async () => {
+            hadAutoApprove = this.sessionUserAutoApproveTools.has(sessionId);
+            this.sessionUserAutoApproveTools.delete(sessionId);
+            await this.persistSessionToolPreferences(sessionId);
+        });
+
         if (hadAutoApprove) {
             this.logger.info(`Session user auto-approve tools cleared for '${sessionId}'`);
         }
@@ -416,12 +528,18 @@ export class ToolManager {
     /**
      * Set session-level disabled tools (overrides global list).
      */
-    setSessionDisabledTools(sessionId: string, toolNames: string[]): void {
+    async setSessionDisabledTools(sessionId: string, toolNames: string[]): Promise<void> {
+        await this.restoreSessionState(sessionId);
         if (toolNames.length === 0) {
-            this.clearSessionDisabledTools(sessionId);
+            await this.clearSessionDisabledTools(sessionId);
             return;
         }
-        this.sessionDisabledTools.set(sessionId, [...toolNames]);
+
+        await this.runWithSessionPreferenceLock(sessionId, async () => {
+            this.sessionDisabledTools.set(sessionId, [...toolNames]);
+            await this.persistSessionToolPreferences(sessionId);
+        });
+
         this.logger.info('Session disabled tools updated', {
             sessionId,
             count: toolNames.length,
@@ -436,9 +554,16 @@ export class ToolManager {
     /**
      * Clear session-level disabled tools.
      */
-    clearSessionDisabledTools(sessionId: string): void {
-        const hadOverrides = this.sessionDisabledTools.has(sessionId);
-        this.sessionDisabledTools.delete(sessionId);
+    async clearSessionDisabledTools(sessionId: string): Promise<void> {
+        await this.restoreSessionState(sessionId);
+
+        let hadOverrides = false;
+        await this.runWithSessionPreferenceLock(sessionId, async () => {
+            hadOverrides = this.sessionDisabledTools.has(sessionId);
+            this.sessionDisabledTools.delete(sessionId);
+            await this.persistSessionToolPreferences(sessionId);
+        });
+
         if (hadOverrides) {
             this.logger.info('Session disabled tools cleared', { sessionId });
         }
@@ -1019,7 +1144,7 @@ export class ToolManager {
                 }
                 if (!patternKey) return false;
 
-                return this.approvalManager.matchesPattern(toolName, patternKey);
+                return this.approvalManager.matchesPattern(toolName, patternKey, sessionId);
             },
             { rememberPattern: undefined } // Don't propagate pattern choice to auto-approved requests
         );
@@ -1055,7 +1180,10 @@ export class ToolManager {
                     return false;
                 }
 
-                return this.approvalManager.isDirectorySessionApproved(directoryAccess.parentDir);
+                return this.approvalManager.isDirectorySessionApproved(
+                    directoryAccess.parentDir,
+                    sessionId
+                );
             },
             { rememberDirectory: false }
         );
@@ -1921,7 +2049,11 @@ export class ToolManager {
         // This bypasses remembered-tool approvals and edit-mode auto-approvals for outside-root paths.
         if (directoryAccess) {
             if (this.approvalMode === 'auto-approve') {
-                this.approvalManager.addApprovedDirectory(directoryAccess.parentDir, 'once');
+                await this.approvalManager.addApprovedDirectory(
+                    directoryAccess.parentDir,
+                    'once',
+                    sessionId
+                );
                 return { requireApproval: false };
             }
             return null;
@@ -1953,7 +2085,7 @@ export class ToolManager {
 
         // 6. Check tool approval patterns
         const patternKey = this.getToolPatternKey(toolName, args);
-        if (patternKey && this.approvalManager.matchesPattern(toolName, patternKey)) {
+        if (patternKey && this.approvalManager.matchesPattern(toolName, patternKey, sessionId)) {
             this.logger.info(
                 `Tool '${toolName}' matched approved pattern key '${patternKey}' – skipping confirmation.`
             );
@@ -2113,7 +2245,7 @@ export class ToolManager {
             );
             this.autoApprovePendingToolRequests(toolName, allowSessionId);
         } else if (rememberPattern && this.getToolApprovalPatternKeyFn(toolName)) {
-            this.approvalManager.addPattern(toolName, rememberPattern);
+            await this.approvalManager.addPattern(toolName, rememberPattern, sessionId);
             this.logger.info(`Pattern '${rememberPattern}' added for tool '${toolName}' approval`);
             this.autoApprovePendingPatternRequests(toolName, sessionId);
         } else if (rememberDirectory) {

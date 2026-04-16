@@ -73,6 +73,7 @@ export class VercelLLMService {
         sessionId: string,
         resourceManager: ResourceManager,
         logger: Logger,
+        messageQueue: MessageQueueService,
         usageScopeId?: string,
         compactionStrategy?: import('../../context/compaction/types.js').CompactionStrategy | null
     ) {
@@ -86,8 +87,7 @@ export class VercelLLMService {
         this.usageScopeId = usageScopeId;
         this.compactionStrategy = compactionStrategy ?? null;
 
-        // Create session-level message queue for mid-task user messages
-        this.messageQueue = new MessageQueueService(this.sessionEventBus, this.logger);
+        this.messageQueue = messageQueue;
 
         // Create properly-typed ContextManager for Vercel
         const formatter = new VercelMessageFormatter(this.logger);

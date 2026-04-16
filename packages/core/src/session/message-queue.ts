@@ -2,6 +2,25 @@ import type { SessionEventBus } from '../events/index.js';
 import type { QueuedMessage, CoalescedMessage } from './types.js';
 import type { ContentPart } from '../context/types.js';
 import type { Logger } from '../logger/v2/types.js';
+import type { MessageQueueStore } from './message-queue-store.js';
+
+type MessageQueueBackingStore = Pick<MessageQueueStore, 'load' | 'save' | 'delete'>;
+
+class EphemeralMessageQueueStore implements MessageQueueBackingStore {
+    async load(sessionId: string): Promise<QueuedMessage[]> {
+        void sessionId;
+        return [];
+    }
+
+    async save(sessionId: string, queue: QueuedMessage[]): Promise<void> {
+        void sessionId;
+        void queue;
+    }
+
+    async delete(sessionId: string): Promise<void> {
+        void sessionId;
+    }
+}
 
 /**
  * Generates a unique ID for queued messages.
@@ -54,11 +73,64 @@ export interface UserMessageInput {
  */
 export class MessageQueueService {
     private queue: QueuedMessage[] = [];
+    private mutationLock: Promise<void> = Promise.resolve();
+    private initialized = false;
+    private initializationPromise: Promise<void> | null = null;
+
+    static createEphemeral(
+        eventBus: SessionEventBus,
+        logger: Logger,
+        sessionId: string
+    ): MessageQueueService {
+        return new MessageQueueService(
+            eventBus,
+            logger,
+            sessionId,
+            new EphemeralMessageQueueStore()
+        );
+    }
 
     constructor(
         private eventBus: SessionEventBus,
-        private logger: Logger
+        private logger: Logger,
+        private sessionId: string,
+        private store: MessageQueueBackingStore
     ) {}
+
+    async initialize(): Promise<void> {
+        this.initializationPromise ??= this.runWithMutationLock(async () => {
+            if (this.initialized) {
+                return;
+            }
+
+            this.queue = await this.store.load(this.sessionId);
+            if (this.queue.length > 0) {
+                this.logger.debug(
+                    `Restored ${this.queue.length} queued message(s) for session ${this.sessionId}`
+                );
+            }
+
+            this.initialized = true;
+        }).catch((error) => {
+            this.initializationPromise = null;
+            throw error;
+        });
+
+        await this.initializationPromise;
+    }
+
+    private async persistQueue(): Promise<void> {
+        await this.store.save(this.sessionId, this.queue);
+    }
+
+    private runWithMutationLock<T>(fn: () => Promise<T>): Promise<T> {
+        const currentResult = this.mutationLock.catch(() => {}).then(() => fn());
+        this.mutationLock = currentResult.then(
+            () => undefined,
+            () => undefined
+        );
+        return currentResult;
+    }
 
     /**
      * Add a message to the queue.
@@ -67,29 +139,40 @@ export class MessageQueueService {
      * @param message The user message to queue
      * @returns Queue position and message ID
      */
-    enqueue(message: UserMessageInput): { queued: true; position: number; id: string } {
-        const queuedMsg: QueuedMessage = {
-            id: generateId(),
-            content: message.content,
-            queuedAt: Date.now(),
-            ...(message.metadata !== undefined && { metadata: message.metadata }),
-            ...(message.kind !== undefined && { kind: message.kind }),
-        };
+    async enqueue(
+        message: UserMessageInput
+    ): Promise<{ queued: true; position: number; id: string }> {
+        return await this.runWithMutationLock(async () => {
+            const queuedMsg: QueuedMessage = {
+                id: generateId(),
+                content: message.content,
+                queuedAt: Date.now(),
+                ...(message.metadata !== undefined && { metadata: message.metadata }),
+                ...(message.kind !== undefined && { kind: message.kind }),
+            };
 
-        this.queue.push(queuedMsg);
+            this.queue.push(queuedMsg);
 
-        this.logger.debug(`Message queued: ${queuedMsg.id}, position: ${this.queue.length}`);
+            try {
+                await this.persistQueue();
+            } catch (error) {
+                this.queue.pop();
+                throw error;
+            }
 
-        this.eventBus.emit('message:queued', {
-            position: this.queue.length,
-            id: queuedMsg.id,
+            this.logger.debug(`Message queued: ${queuedMsg.id}, position: ${this.queue.length}`);
+
+            this.eventBus.emit('message:queued', {
+                position: this.queue.length,
+                id: queuedMsg.id,
+            });
+
+            return {
+                queued: true,
+                position: this.queue.length,
+                id: queuedMsg.id,
+            };
         });
-
-        return {
-            queued: true,
-            position: this.queue.length,
-            id: queuedMsg.id,
-        };
     }
 
     /**
@@ -111,27 +194,36 @@ export class MessageQueueService {
      *
      * @returns Coalesced message or null if queue is empty
      */
-    dequeueAll(): CoalescedMessage | null {
-        if (this.queue.length === 0) return null;
+    async dequeueAll(): Promise<CoalescedMessage | null> {
+        return await this.runWithMutationLock(async () => {
+            if (this.queue.length === 0) return null;
 
-        const messages = [...this.queue];
-        this.queue = [];
+            const messages = [...this.queue];
+            this.queue = [];
 
-        const combined = this.coalesce(messages);
+            try {
+                await this.persistQueue();
+            } catch (error) {
+                this.queue = messages;
+                throw error;
+            }
 
-        this.logger.debug(
-            `Dequeued ${messages.length} message(s): ${messages.map((m) => m.id).join(', ')}`
-        );
+            const combined = this.coalesce(messages);
 
-        this.eventBus.emit('message:dequeued', {
-            count: messages.length,
-            ids: messages.map((m) => m.id),
-            coalesced: messages.length > 1,
-            content: combined.combinedContent,
-            messages,
+            this.logger.debug(
+                `Dequeued ${messages.length} message(s): ${messages.map((m) => m.id).join(', ')}`
+            );
+
+            this.eventBus.emit('message:dequeued', {
+                count: messages.length,
+                ids: messages.map((m) => m.id),
+                coalesced: messages.length > 1,
+                content: combined.combinedContent,
+                messages,
+            });
+
+            return combined;
         });
-
-        return combined;
     }
 
     /**
@@ -259,8 +351,22 @@ export class MessageQueueService {
      * Clear all pending messages without processing.
      * Used during cleanup/abort.
      */
-    clear(): void {
-        this.queue = [];
+    async clear(): Promise<void> {
+        await this.runWithMutationLock(async () => {
+            if (this.queue.length === 0) {
+                return;
+            }
+
+            const previousQueue = [...this.queue];
+            this.queue = [];
+
+            try {
+                await this.persistQueue();
+            } catch (error) {
+                this.queue = previousQueue;
+                throw error;
+            }
+        });
     }
 
     /**
@@ -282,16 +388,28 @@ export class MessageQueueService {
      * Remove a single queued message by ID.
      * @returns true if message was found and removed; false otherwise
      */
-    remove(id: string): boolean {
-        const index = this.queue.findIndex((m) => m.id === id);
-        if (index === -1) {
-            this.logger.debug(`Remove failed: message ${id} not found in queue`);
-            return false;
-        }
+    async remove(id: string): Promise<boolean> {
+        return await this.runWithMutationLock(async () => {
+            const index = this.queue.findIndex((m) => m.id === id);
+            if (index === -1) {
+                this.logger.debug(`Remove failed: message ${id} not found in queue`);
+                return false;
+            }
 
-        this.queue.splice(index, 1);
-        this.logger.debug(`Message removed: ${id}, remaining: ${this.queue.length}`);
-        this.eventBus.emit('message:removed', { id });
-        return true;
+            const [removed] = this.queue.splice(index, 1);
+
+            try {
+                await this.persistQueue();
+            } catch (error) {
+                if (removed) {
+                    this.queue.splice(index, 0, removed);
+                }
+                throw error;
+            }
+
+            this.logger.debug(`Message removed: ${id}, remaining: ${this.queue.length}`);
+            this.eventBus.emit('message:removed', { id });
+            return true;
+        });
     }
 }

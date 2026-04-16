@@ -24,7 +24,8 @@ import { DextoLogComponent } from '../logger/v2/types.js';
 import { DextoRuntimeError, ErrorScope, ErrorType } from '../errors/index.js';
 import { HookErrorCode } from '../hooks/error-codes.js';
 import type { InternalMessage, ContentPart } from '../context/types.js';
-import type { UserMessageInput } from './message-queue.js';
+import { MessageQueueService, type UserMessageInput } from './message-queue.js';
+import type { MessageQueueStore } from './message-queue-store.js';
 import type { ContentInput } from '../agent/types.js';
 import { getUsagePricingMetadata, hasMeaningfulTokenUsage } from '../llm/usage-metadata.js';
 import type { CompactionStrategy } from '../context/compaction/types.js';
@@ -104,6 +105,12 @@ export class ChatSession {
     private llmService!: VercelLLMService;
 
     /**
+     * Durable queued follow-up messages for this session.
+     * Reused across LLM switches so mid-task follow-ups survive service recreation.
+     */
+    private messageQueue!: MessageQueueService;
+
+    /**
      * Map of event forwarder functions for cleanup.
      * Stores the bound functions so they can be removed from the event bus.
      */
@@ -146,6 +153,7 @@ export class ChatSession {
             hookManager: HookManager;
             mcpManager: MCPManager;
             sessionManager: import('./session-manager.js').SessionManager;
+            messageQueueStore: Pick<MessageQueueStore, 'load' | 'save' | 'delete'>;
             languageModelFactory?: LanguageModelFactory;
             workspaceManager?: import('../workspace/manager.js').WorkspaceManager;
             compactionStrategy: CompactionStrategy | null;
@@ -157,6 +165,12 @@ export class ChatSession {
         // Create session-specific event bus
         this.eventBus = new SessionEventBus(
             this.services.stateManager.getRuntimeConfig().hostRuntime
+        );
+        this.messageQueue = new MessageQueueService(
+            this.eventBus,
+            this.logger,
+            this.id,
+            this.services.messageQueueStore
         );
 
         // Set up event forwarding to agent's global bus
@@ -273,6 +287,8 @@ export class ChatSession {
         const runtimeConfig = this.services.stateManager.getRuntimeConfig(this.id);
         const llmConfig = runtimeConfig.llm;
 
+        await this.messageQueue.initialize();
+
         // Create session-specific history provider directly with database backend
         // This persists across LLM switches to maintain conversation history
         this.historyProvider = createDatabaseHistoryProvider(
@@ -295,6 +311,7 @@ export class ChatSession {
             usageScopeId,
             compactionStrategy: this.services.compactionStrategy,
             ...(workspace?.path !== undefined && { cwd: workspace.path }),
+            messageQueue: this.messageQueue,
         };
 
         return createLLMService(
@@ -771,8 +788,10 @@ export class ChatSession {
      * @param message The user message to queue
      * @returns Queue position and message ID
      */
-    public queueMessage(message: UserMessageInput): { queued: true; position: number; id: string } {
-        return this.llmService.getMessageQueue().enqueue(message);
+    public async queueMessage(
+        message: UserMessageInput
+    ): Promise<{ queued: true; position: number; id: string }> {
+        return await this.llmService.getMessageQueue().enqueue(message);
     }
 
     /**
@@ -788,18 +807,18 @@ export class ChatSession {
      * @param id Message ID to remove
      * @returns true if message was found and removed; false otherwise
      */
-    public removeQueuedMessage(id: string): boolean {
-        return this.llmService.getMessageQueue().remove(id);
+    public async removeQueuedMessage(id: string): Promise<boolean> {
+        return await this.llmService.getMessageQueue().remove(id);
     }
 
     /**
      * Clear all queued messages.
      * @returns Number of messages that were cleared
      */
-    public clearMessageQueue(): number {
+    public async clearMessageQueue(): Promise<number> {
         const queue = this.llmService.getMessageQueue();
         const count = queue.pendingCount();
-        queue.clear();
+        await queue.clear();
         return count;
     }
 

@@ -293,7 +293,7 @@ const ToolBrowser = forwardRef<ToolBrowserHandle, ToolBrowserProps>(function Too
             .map((tool) => tool.name);
 
         if (sessionId) {
-            agent.setSessionAutoApproveTools(sessionId, autoApprovedTools);
+            await agent.setSessionAutoApproveTools(sessionId, autoApprovedTools);
         }
 
         const disabledTools = updatedTools
@@ -301,7 +301,7 @@ const ToolBrowser = forwardRef<ToolBrowserHandle, ToolBrowserProps>(function Too
             .map((tool) => tool.name);
 
         if (effectiveTarget === 'session' && sessionId) {
-            agent.setSessionDisabledTools(sessionId, disabledTools);
+            await agent.setSessionDisabledTools(sessionId, disabledTools);
         } else if (effectiveTarget === 'global') {
             try {
                 const { updateAgentPreferences, saveAgentPreferences, agentPreferencesExist } =
@@ -321,7 +321,7 @@ const ToolBrowser = forwardRef<ToolBrowserHandle, ToolBrowserProps>(function Too
             } catch (_error) {
                 // If we can't persist, still keep session state so user sees effect
                 if (sessionId) {
-                    agent.setSessionDisabledTools(sessionId, disabledTools);
+                    await agent.setSessionDisabledTools(sessionId, disabledTools);
                 } else {
                     setTools(previousTools);
                     setSelectedTool(
@@ -334,9 +334,11 @@ const ToolBrowser = forwardRef<ToolBrowserHandle, ToolBrowserProps>(function Too
         closeScopePrompt();
     };
 
-    const toggleAutoApprove = () => {
+    const toggleAutoApprove = async () => {
         if (!sessionId) return;
 
+        const previousTools = toolsRef.current;
+        const previousSelectedToolName = selectedToolRef.current?.name;
         const updatedTools = toolsRef.current.map((tool) =>
             tool.name === selectedToolRef.current?.name
                 ? { ...tool, isAutoApproved: !tool.isAutoApproved }
@@ -354,7 +356,14 @@ const ToolBrowser = forwardRef<ToolBrowserHandle, ToolBrowserProps>(function Too
             .filter((tool) => tool.isAutoApproved)
             .map((tool) => tool.name);
 
-        agent.setSessionAutoApproveTools(sessionId, autoApprovedTools);
+        try {
+            await agent.setSessionAutoApproveTools(sessionId, autoApprovedTools);
+        } catch (_error) {
+            setTools(previousTools);
+            setSelectedTool(
+                previousTools.find((tool) => tool.name === previousSelectedToolName) ?? null
+            );
+        }
     };
 
     const closeConfigMenu = () => {
@@ -430,7 +439,7 @@ const ToolBrowser = forwardRef<ToolBrowserHandle, ToolBrowserProps>(function Too
                                 openScopePrompt(tool);
                             } else if (configIndexRef.current === 1) {
                                 if (sessionId && tool.isEnabled) {
-                                    toggleAutoApprove();
+                                    void toggleAutoApprove();
                                 }
                             } else {
                                 closeConfigMenu();

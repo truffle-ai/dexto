@@ -24,10 +24,13 @@ import type { AgentRuntimeSettings } from '../agent/runtime-config.js';
 import { AgentEventBus } from '../events/index.js';
 import { ResourceManager } from '../resources/manager.js';
 import { ApprovalManager } from '../approval/manager.js';
+import { SessionApprovalStore } from '../approval/session-approval-store.js';
 import { MemoryManager } from '../memory/index.js';
 import { HookManager } from '../hooks/manager.js';
 import type { Hook } from '../hooks/types.js';
 import type { CompactionStrategy } from '../context/compaction/types.js';
+import { MessageQueueStore } from '../session/message-queue-store.js';
+import { SessionToolPreferencesStore } from '../tools/session-tool-preferences-store.js';
 import type { LanguageModelFactory } from '../llm/services/types.js';
 
 /**
@@ -144,6 +147,17 @@ export async function createAgentServices(
 
     logger.debug('Storage manager initialized', await storageManager.getInfo());
 
+    const sessionCacheTtlMs = config.sessions?.sessionTTL ?? 3600000;
+    const sessionApprovalStore = new SessionApprovalStore(storageManager, logger, {
+        cacheTtlMs: sessionCacheTtlMs,
+    });
+    const sessionToolPreferencesStore = new SessionToolPreferencesStore(storageManager, logger, {
+        cacheTtlMs: sessionCacheTtlMs,
+    });
+    const messageQueueStore = new MessageQueueStore(storageManager, logger, {
+        cacheTtlMs: sessionCacheTtlMs,
+    });
+
     // 2.5 Initialize workspace manager (uses persistent database)
     const workspaceManager = new WorkspaceManager(
         storageManager.getDatabase(),
@@ -170,7 +184,8 @@ export async function createAgentServices(
                 }),
             },
         },
-        logger
+        logger,
+        sessionApprovalStore
     );
     logger.debug('Approval system initialized');
 
@@ -250,7 +265,8 @@ export async function createAgentServices(
             agentEventBus,
             config.permissions.toolPolicies,
             [],
-            logger
+            logger,
+            sessionToolPreferencesStore
         );
     await toolManager.setWorkspaceManager(workspaceManager);
     // NOTE: local tools + ToolExecutionContext are wired in DextoAgent.start()
@@ -280,11 +296,13 @@ export async function createAgentServices(
             stateManager,
             systemPromptManager,
             toolManager,
+            approvalManager,
             agentEventBus,
             storageManager, // Add storage manager to session services
             resourceManager, // Add resource manager for blob storage
             hookManager, // Add hook manager for hook execution
             mcpManager, // Add MCP manager for ChatSession
+            messageQueueStore,
             compactionStrategy: compactionStrategy ?? null,
             workspaceManager, // Workspace context propagation
         },

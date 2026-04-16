@@ -809,15 +809,15 @@ export function createCloudAgentBackend(
             globalDisabledTools.splice(0, globalDisabledTools.length, ...toolNames);
         }) as CloudChatBackend['setGlobalDisabledTools'],
 
-        setSessionDisabledTools: ((sessionId, toolNames) => {
+        setSessionDisabledTools: (async (sessionId, toolNames) => {
             sessionDisabledTools.set(sessionId, [...toolNames]);
         }) as CloudChatBackend['setSessionDisabledTools'],
 
-        setSessionAutoApproveTools: ((sessionId, toolNames) => {
+        setSessionAutoApproveTools: (async (sessionId, toolNames) => {
             sessionAutoApproveTools.set(sessionId, [...toolNames]);
         }) as CloudChatBackend['setSessionAutoApproveTools'],
 
-        getSessionAutoApproveTools: ((sessionId) => {
+        getSessionAutoApproveTools: (async (sessionId) => {
             return sessionAutoApproveTools.get(sessionId) ?? [];
         }) as CloudChatBackend['getSessionAutoApproveTools'],
 

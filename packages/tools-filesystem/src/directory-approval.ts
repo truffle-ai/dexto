@@ -4,6 +4,7 @@ import { ApprovalStatus, ApprovalType, ToolError } from '@dexto/core';
 import type { ApprovalRequestDetails, ApprovalResponse, ToolExecutionContext } from '@dexto/core';
 import type { FileSystemService } from './filesystem-service.js';
 import type { FileSystemServiceGetter } from './file-tool-types.js';
+import { resolveUserPath } from './path-utils.js';
 
 type DirectoryApprovalOperation = 'read' | 'write' | 'edit';
 
@@ -16,9 +17,7 @@ export function resolveFilePath(
     workingDirectory: string,
     filePath: string
 ): DirectoryApprovalPaths {
-    const resolvedPath = path.isAbsolute(filePath)
-        ? path.resolve(filePath)
-        : path.resolve(workingDirectory, filePath);
+    const resolvedPath = resolveUserPath(workingDirectory, filePath);
     return { path: resolvedPath, parentDir: path.dirname(resolvedPath) };
 }
 
@@ -63,7 +62,7 @@ export function createDirectoryAccessApprovalHandlers<const TSchema extends ZodT
                         `${options.toolName} requires ToolExecutionContext.services.approval`
                     );
                 }
-                if (approvalManager.isDirectorySessionApproved(paths.path)) {
+                if (approvalManager.isDirectorySessionApproved(paths.path, context.sessionId)) {
                     return null;
                 }
 
@@ -96,9 +95,10 @@ export function createDirectoryAccessApprovalHandlers<const TSchema extends ZodT
                     return;
                 }
 
-                approvalManager.addApprovedDirectory(
+                await approvalManager.addApprovedDirectory(
                     metadata.parentDir,
-                    rememberDirectory ? 'session' : 'once'
+                    rememberDirectory ? 'session' : 'once',
+                    context.sessionId
                 );
             },
         },

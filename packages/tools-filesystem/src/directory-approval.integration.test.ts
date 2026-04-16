@@ -17,6 +17,7 @@ import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import {
     ApprovalManager,
+    ApprovalStatus,
     DextoRuntimeError,
     type Logger,
     type ToolExecutionContext,
@@ -25,8 +26,10 @@ import { FileSystemService } from './filesystem-service.js';
 import { createReadFileTool } from './read-file-tool.js';
 import { createWriteFileTool } from './write-file-tool.js';
 import { createEditFileTool } from './edit-file-tool.js';
+import { fileSystemToolsFactory } from './tool-factory.js';
 
 type ToolServices = NonNullable<ToolExecutionContext['services']>;
+type SessionApprovalStore = ConstructorParameters<typeof ApprovalManager>[2];
 
 const createMockLogger = (): Logger => {
     const noopAsync = async () => undefined;
@@ -49,9 +52,47 @@ const createMockLogger = (): Logger => {
     return logger;
 };
 
-function createToolContext(logger: Logger, approval: ApprovalManager): ToolExecutionContext {
+function createInMemorySessionApprovalStore(): SessionApprovalStore {
+    const states = new Map<
+        string,
+        {
+            toolPatterns: Record<string, string[]>;
+            approvedDirectories: Array<{ path: string; type: 'session' | 'once' }>;
+        }
+    >();
+
+    return {
+        async load(sessionId?: string) {
+            return structuredClone(
+                states.get(sessionId ?? '__global__') ?? {
+                    toolPatterns: {},
+                    approvedDirectories: [],
+                }
+            );
+        },
+        async save(
+            sessionId: string | undefined,
+            state: {
+                toolPatterns: Record<string, string[]>;
+                approvedDirectories: Array<{ path: string; type: 'session' | 'once' }>;
+            }
+        ) {
+            states.set(sessionId ?? '__global__', structuredClone(state));
+        },
+        async delete(sessionId?: string) {
+            states.delete(sessionId ?? '__global__');
+        },
+    } as SessionApprovalStore;
+}
+
+function createToolContext(
+    logger: Logger,
+    approval: ApprovalManager,
+    sessionId?: string
+): ToolExecutionContext {
     return {
         logger,
+        ...(sessionId !== undefined ? { sessionId } : {}),
         services: {
             approval,
             search: {} as unknown as ToolServices['search'],
@@ -98,7 +139,8 @@ describe('Directory Approval Integration Tests', () => {
                 permissions: { mode: 'manual' },
                 elicitation: { enabled: true },
             },
-            mockLogger
+            mockLogger,
+            createInMemorySessionApprovalStore()
         );
 
         toolContext = createToolContext(mockLogger, approvalManager);
@@ -155,7 +197,7 @@ describe('Directory Approval Integration Tests', () => {
         });
 
         it('should return null when external path is session-approved', async () => {
-            approvalManager.addApprovedDirectory('/external/project', 'session');
+            await approvalManager.addApprovedDirectory('/external/project', 'session');
 
             const tool = createReadFileTool(getFileSystemService);
             const overrideFn = tool.approval?.override;
@@ -170,7 +212,7 @@ describe('Directory Approval Integration Tests', () => {
         });
 
         it('should still return metadata when external path is once-approved (prompt again)', async () => {
-            approvalManager.addApprovedDirectory('/external/project', 'once');
+            await approvalManager.addApprovedDirectory('/external/project', 'once');
 
             const tool = createReadFileTool(getFileSystemService);
             const overrideFn = tool.approval?.override;
@@ -182,6 +224,47 @@ describe('Directory Approval Integration Tests', () => {
                 toolContext
             );
             expect(metadata).not.toBeNull();
+        });
+
+        it('should remember directory approvals only for the granting session', async () => {
+            const tool = createReadFileTool(getFileSystemService);
+            const overrideFn = tool.approval?.override;
+            const onGrantedFn = tool.approval?.onGranted;
+            expect(overrideFn).toBeDefined();
+            expect(onGrantedFn).toBeDefined();
+
+            const externalPath = '/external/project/file.ts';
+            const sessionAContext = createToolContext(mockLogger, approvalManager, 'session-a');
+            const sessionBContext = createToolContext(mockLogger, approvalManager, 'session-b');
+
+            const approvalRequest = await overrideFn!(
+                tool.inputSchema.parse({ file_path: externalPath }),
+                sessionAContext
+            );
+            expect(approvalRequest).not.toBeNull();
+
+            await onGrantedFn!(
+                {
+                    approvalId: 'approval-1',
+                    status: ApprovalStatus.APPROVED,
+                    data: { rememberDirectory: true },
+                },
+                sessionAContext,
+                approvalRequest!
+            );
+
+            expect(
+                await overrideFn!(
+                    tool.inputSchema.parse({ file_path: externalPath }),
+                    sessionAContext
+                )
+            ).toBeNull();
+            expect(
+                await overrideFn!(
+                    tool.inputSchema.parse({ file_path: externalPath }),
+                    sessionBContext
+                )
+            ).not.toBeNull();
         });
     });
 
@@ -242,7 +325,7 @@ describe('Directory Approval Integration Tests', () => {
             const tool = createReadFileTool(getFileSystemService);
             const overrideFn = tool.approval?.override;
             expect(overrideFn).toBeDefined();
-            approvalManager.addApprovedDirectory('/external/project', 'session');
+            await approvalManager.addApprovedDirectory('/external/project', 'session');
 
             const metadata1 = await overrideFn!(
                 tool.inputSchema.parse({ file_path: '/external/project/file.ts' }),
@@ -261,7 +344,7 @@ describe('Directory Approval Integration Tests', () => {
             const tool = createReadFileTool(getFileSystemService);
             const overrideFn = tool.approval?.override;
             expect(overrideFn).toBeDefined();
-            approvalManager.addApprovedDirectory('/external/sub', 'session');
+            await approvalManager.addApprovedDirectory('/external/sub', 'session');
 
             const metadata1 = await overrideFn!(
                 tool.inputSchema.parse({ file_path: '/external/sub/file.ts' }),
@@ -274,6 +357,194 @@ describe('Directory Approval Integration Tests', () => {
                 toolContext
             );
             expect(metadata2).not.toBeNull();
+        });
+    });
+
+    describe('Execution approval scoping', () => {
+        it('should allow execution only for the session that holds the approved directory', async () => {
+            const tools = fileSystemToolsFactory.create({
+                type: 'filesystem-tools',
+                allowedPaths: [tempDir],
+                blockedPaths: [],
+                blockedExtensions: [],
+                maxFileSize: 10 * 1024 * 1024,
+                workingDirectory: tempDir,
+                enableBackups: false,
+                backupRetentionDays: 7,
+            });
+            const writeTool = tools.find((tool) => tool.id === 'write_file');
+            expect(writeTool).toBeDefined();
+
+            const externalDir = await fs.mkdtemp(path.join(os.tmpdir(), 'dexto-fs-external-'));
+            try {
+                const externalFile = path.join(externalDir, 'approved.txt');
+
+                await approvalManager.addApprovedDirectory(externalDir, 'once', 'session-a');
+
+                await expect(
+                    writeTool!.execute!(
+                        writeTool!.inputSchema.parse({
+                            file_path: externalFile,
+                            content: 'session-scoped write',
+                        }),
+                        createToolContext(mockLogger, approvalManager, 'session-a')
+                    )
+                ).resolves.toEqual(
+                    expect.objectContaining({
+                        success: true,
+                        path: path.resolve(externalFile),
+                    })
+                );
+
+                await expect(fs.readFile(externalFile, 'utf8')).resolves.toBe(
+                    'session-scoped write'
+                );
+
+                await expect(
+                    writeTool!.execute!(
+                        writeTool!.inputSchema.parse({
+                            file_path: path.join(externalDir, 'blocked.txt'),
+                            content: 'should fail',
+                        }),
+                        createToolContext(mockLogger, approvalManager, 'session-b')
+                    )
+                ).rejects.toBeInstanceOf(DextoRuntimeError);
+            } finally {
+                await fs.rm(externalDir, { recursive: true, force: true });
+            }
+        });
+    });
+
+    describe('Factory service scoping', () => {
+        it('should keep working directories isolated across concurrent executions', async () => {
+            const workspaceA = path.join(tempDir, 'workspace-a');
+            const workspaceB = path.join(tempDir, 'workspace-b');
+            await fs.mkdir(workspaceA, { recursive: true });
+            await fs.mkdir(workspaceB, { recursive: true });
+            await fs.writeFile(path.join(workspaceA, 'same.txt'), 'from workspace A');
+            await fs.writeFile(path.join(workspaceB, 'same.txt'), 'from workspace B');
+
+            const tools = fileSystemToolsFactory.create({
+                type: 'filesystem-tools',
+                allowedPaths: [workspaceA, workspaceB],
+                blockedPaths: [],
+                blockedExtensions: [],
+                maxFileSize: 10 * 1024 * 1024,
+                workingDirectory: tempDir,
+                enableBackups: false,
+                backupRetentionDays: 7,
+                enabledTools: ['read_file'],
+            });
+            const readTool = tools.find((tool) => tool.id === 'read_file');
+            expect(readTool).toBeDefined();
+
+            const baseContext = createToolContext(mockLogger, approvalManager);
+            const contextA: ToolExecutionContext = {
+                ...baseContext,
+                sessionId: 'session-a',
+                workspace: {
+                    id: 'workspace-a',
+                    path: workspaceA,
+                    createdAt: Date.now(),
+                    lastActiveAt: Date.now(),
+                },
+            };
+            const contextB: ToolExecutionContext = {
+                ...baseContext,
+                sessionId: 'session-b',
+                workspace: {
+                    id: 'workspace-b',
+                    path: workspaceB,
+                    createdAt: Date.now(),
+                    lastActiveAt: Date.now(),
+                },
+            };
+
+            const [resultA, resultB] = await Promise.all([
+                readTool!.execute!(
+                    readTool!.inputSchema.parse({ file_path: 'same.txt' }),
+                    contextA
+                ),
+                readTool!.execute!(
+                    readTool!.inputSchema.parse({ file_path: 'same.txt' }),
+                    contextB
+                ),
+            ]);
+
+            expect(resultA).toEqual(
+                expect.objectContaining({
+                    content: 'from workspace A',
+                })
+            );
+            expect(resultB).toEqual(
+                expect.objectContaining({
+                    content: 'from workspace B',
+                })
+            );
+        });
+
+        it('should not mutate an injected filesystem service with session-specific state', async () => {
+            const workspace = path.join(tempDir, 'workspace-injected');
+            await fs.mkdir(workspace, { recursive: true });
+            await fs.writeFile(path.join(workspace, 'same.txt'), 'from injected config');
+
+            const tools = fileSystemToolsFactory.create({
+                type: 'filesystem-tools',
+                allowedPaths: [workspace],
+                blockedPaths: [],
+                blockedExtensions: [],
+                maxFileSize: 10 * 1024 * 1024,
+                workingDirectory: tempDir,
+                enableBackups: false,
+                backupRetentionDays: 7,
+                enabledTools: ['read_file'],
+            });
+            const readTool = tools.find((tool) => tool.id === 'read_file');
+            expect(readTool).toBeDefined();
+
+            const injectedService = {
+                getConfig: vi.fn().mockReturnValue({
+                    allowedPaths: [workspace],
+                    blockedPaths: [],
+                    blockedExtensions: [],
+                    maxFileSize: 10 * 1024 * 1024,
+                    workingDirectory: workspace,
+                    enableBackups: false,
+                    backupRetentionDays: 7,
+                }),
+                readFile: vi.fn(),
+                writeFile: vi.fn(),
+                setWorkingDirectory: vi.fn(),
+                setDirectoryApprovalChecker: vi.fn(),
+            };
+
+            const baseContext = createToolContext(mockLogger, approvalManager, 'session-a');
+            const context: ToolExecutionContext = {
+                ...baseContext,
+                workspace: {
+                    id: 'workspace-injected',
+                    path: workspace,
+                    createdAt: Date.now(),
+                    lastActiveAt: Date.now(),
+                },
+                services: {
+                    ...baseContext.services,
+                    filesystemService: injectedService,
+                } as ToolExecutionContext['services'],
+            };
+
+            const result = await readTool!.execute!(
+                readTool!.inputSchema.parse({ file_path: 'same.txt' }),
+                context
+            );
+
+            expect(result).toEqual(
+                expect.objectContaining({
+                    content: 'from injected config',
+                })
+            );
+            expect(injectedService.setWorkingDirectory).not.toHaveBeenCalled();
+            expect(injectedService.setDirectoryApprovalChecker).not.toHaveBeenCalled();
         });
     });
 

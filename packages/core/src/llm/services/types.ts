@@ -3,6 +3,7 @@ import type { LanguageModel } from 'ai';
 import type { CodexRateLimitSnapshot } from '../providers/codex-app-server.js';
 import type { ValidatedLLMConfig } from '../schemas.js';
 import type { LLMProvider } from '../types.js';
+import type { MessageQueueService } from '../../session/message-queue.js';
 
 /**
  * Configuration object returned by the default session LLM service.
@@ -18,6 +19,7 @@ export interface CreateLLMServiceOptions {
     usageScopeId?: string | undefined;
     compactionStrategy?: CompactionStrategy | null | undefined;
     cwd?: string | undefined;
+    messageQueue: MessageQueueService;
 }
 
 /**

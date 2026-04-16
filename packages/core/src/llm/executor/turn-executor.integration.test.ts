@@ -19,6 +19,11 @@ import type { LanguageModel, ModelMessage } from 'ai';
 import type { LLMContext } from '../types.js';
 import type { ValidatedLLMConfig } from '../schemas.js';
 import type { Logger } from '../../logger/v2/types.js';
+import {
+    createInMemoryMessageQueueStore,
+    createInMemorySessionApprovalStore,
+    createInMemorySessionToolPreferencesStore,
+} from '../../test-utils/session-state-stores.js';
 
 // Only mock the AI SDK's streamText/generateText - everything else is real
 vi.mock('ai', async (importOriginal) => {
@@ -206,7 +211,8 @@ describe('TurnExecutor Integration Tests', () => {
                 permissions: { mode: 'auto-approve', timeout: 120000 },
                 elicitation: { enabled: false, timeout: 120000 },
             },
-            logger
+            logger,
+            createInMemorySessionApprovalStore(logger)
         );
 
         // Create real tool manager (minimal setup - no internal tools)
@@ -224,12 +230,18 @@ describe('TurnExecutor Integration Tests', () => {
             agentEventBus,
             { alwaysAllow: [], alwaysDeny: [] },
             [],
-            logger
+            logger,
+            createInMemorySessionToolPreferencesStore(logger)
         );
         await toolManager.initialize();
 
         // Create real message queue
-        messageQueue = new MessageQueueService(sessionEventBus, logger);
+        messageQueue = new MessageQueueService(
+            sessionEventBus,
+            logger,
+            sessionId,
+            createInMemoryMessageQueueStore()
+        );
 
         // Default streamText mock - simple text response
         vi.mocked(streamText).mockImplementation(
@@ -392,7 +404,7 @@ describe('TurnExecutor Integration Tests', () => {
 
     describe('Message Queue Injection', () => {
         it('should inject queued messages into context', async () => {
-            messageQueue.enqueue({
+            await messageQueue.enqueue({
                 content: [{ type: 'text', text: 'User guidance: focus on performance' }],
             });
 
@@ -415,13 +427,21 @@ describe('TurnExecutor Integration Tests', () => {
             vi.mocked(streamText).mockImplementation(() => {
                 callCount++;
                 if (callCount === 1) {
-                    messageQueue.enqueue({
+                    const queuedFollowUp = messageQueue.enqueue({
                         content: [{ type: 'text', text: 'Follow-up question' }],
                     });
-                    return createMockStream({
+                    const firstStream = createMockStream({
                         text: 'First response',
                         finishReason: 'stop',
-                    }) as unknown as ReturnType<typeof streamText>;
+                    });
+                    return {
+                        fullStream: (async function* () {
+                            await queuedFollowUp;
+                            for await (const event of firstStream.fullStream) {
+                                yield event;
+                            }
+                        })(),
+                    } as unknown as ReturnType<typeof streamText>;
                 }
                 return createMockStream({
                     text: 'Second response',
@@ -469,7 +489,12 @@ describe('TurnExecutor Integration Tests', () => {
             expect(generateText).toHaveBeenCalledTimes(1);
 
             // Second executor with same baseURL should use cache
-            const newMessageQueue = new MessageQueueService(sessionEventBus, logger);
+            const newMessageQueue = new MessageQueueService(
+                sessionEventBus,
+                logger,
+                'session-2',
+                createInMemoryMessageQueueStore()
+            );
             const executor2 = new TurnExecutor(
                 createMockModel(),
                 toolManager,
@@ -668,16 +693,16 @@ describe('TurnExecutor Integration Tests', () => {
 
     describe('Cleanup and Resource Management', () => {
         it('should clear message queue on normal completion', async () => {
-            messageQueue.enqueue({ content: [{ type: 'text', text: 'Pending' }] });
+            await messageQueue.enqueue({ content: [{ type: 'text', text: 'Pending' }] });
 
             await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
             await executor.execute({ mcpManager }, true);
 
-            expect(messageQueue.dequeueAll()).toBeNull();
+            await expect(messageQueue.dequeueAll()).resolves.toBeNull();
         });
 
         it('should clear message queue on error', async () => {
-            messageQueue.enqueue({ content: [{ type: 'text', text: 'Pending' }] });
+            await messageQueue.enqueue({ content: [{ type: 'text', text: 'Pending' }] });
 
             vi.mocked(streamText).mockImplementation(() => {
                 throw new Error('Failed');
@@ -686,7 +711,7 @@ describe('TurnExecutor Integration Tests', () => {
             await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
             await expect(executor.execute({ mcpManager }, true)).rejects.toThrow();
 
-            expect(messageQueue.dequeueAll()).toBeNull();
+            await expect(messageQueue.dequeueAll()).resolves.toBeNull();
         });
     });
 

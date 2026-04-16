@@ -356,10 +356,10 @@ export function createLLMService(
     sessionId: string,
     resourceManager: import('../../resources/index.js').ResourceManager,
     logger: Logger,
-    options: CreateLLMServiceOptions = {},
+    options: CreateLLMServiceOptions,
     languageModelFactory?: LanguageModelFactory
 ): VercelLLMService {
-    const { usageScopeId, compactionStrategy } = options;
+    const { usageScopeId, compactionStrategy, messageQueue } = options;
 
     const providerContext: DextoProviderContext = {
         sessionId,
@@ -390,6 +390,7 @@ export function createLLMService(
         sessionId,
         resourceManager,
         logger,
+        messageQueue,
         usageScopeId,
         compactionStrategy
     );

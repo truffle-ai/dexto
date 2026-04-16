@@ -9,6 +9,7 @@ import type { AgentStateManager } from '../agent/state-manager.js';
 import type { ValidatedLLMConfig } from '../llm/schemas.js';
 import type { StorageManager } from '../storage/index.js';
 import type { HookManager } from '../hooks/manager.js';
+import type { ApprovalManager } from '../approval/manager.js';
 import { SessionError } from './errors.js';
 import type { TokenUsage } from '../llm/types.js';
 import type { LanguageModelFactory } from '../llm/services/types.js';
@@ -19,6 +20,7 @@ import {
     type SessionPromptContributor,
 } from '../systemPrompt/schemas.js';
 import type { HostRuntimeContext } from '../runtime/index.js';
+import type { MessageQueueStore } from './message-queue-store.js';
 export type SessionLoggerFactory = (options: {
     baseLogger: Logger;
     agentId: string;
@@ -142,11 +144,13 @@ export class SessionManager {
             stateManager: AgentStateManager;
             systemPromptManager: SystemPromptManager;
             toolManager: ToolManager;
+            approvalManager: ApprovalManager;
             agentEventBus: AgentEventBus;
             storageManager: StorageManager;
             resourceManager: import('../resources/index.js').ResourceManager;
             hookManager: HookManager;
             mcpManager: import('../mcp/manager.js').MCPManager;
+            messageQueueStore: Pick<MessageQueueStore, 'load' | 'save' | 'delete'>;
             compactionStrategy: CompactionStrategy | null;
             workspaceManager?: import('../workspace/manager.js').WorkspaceManager;
         },
@@ -224,8 +228,13 @@ export class SessionManager {
                         // Session is still valid, but don't create ChatSession until requested
                         this.logger.debug(`Session ${sessionId} restored from storage`);
                     } else {
-                        // Session expired, clean it up
-                        await this.services.storageManager.getDatabase().delete(sessionKey);
+                        // Session expired, purge the session record plus any persisted
+                        // interaction state keyed off the same session ID.
+                        await Promise.all([
+                            this.services.storageManager.getDatabase().delete(sessionKey),
+                            this.services.storageManager.getCache().delete(sessionKey),
+                            this.deleteSessionInteractionState(sessionId),
+                        ]);
                         this.logger.debug(`Expired session ${sessionId} cleaned up during restore`);
                     }
                 }
@@ -490,6 +499,8 @@ export class SessionManager {
 
             const session = new ChatSession(this.getChatSessionServices(), id, sessionLogger);
             await session.init();
+            await this.services.toolManager.restoreSessionState(id);
+            await this.services.approvalManager.restoreSessionState(id);
 
             this.sessions.set(id, session);
             this.logger.info(`Restored session from storage: ${id}`);
@@ -502,6 +513,10 @@ export class SessionManager {
         if (activeSessionKeys.length >= this.maxSessions) {
             throw SessionError.maxSessionsExceeded(activeSessionKeys.length, this.maxSessions);
         }
+
+        // A newly-created session claims a clean interaction-state namespace.
+        // If stale per-session buckets exist without metadata, they belong to an orphaned session.
+        await this.deleteSessionInteractionState(id);
 
         const workspace = await this.services.workspaceManager?.getWorkspace();
 
@@ -627,6 +642,8 @@ export class SessionManager {
                     sessionLogger
                 );
                 await session.init();
+                await this.services.toolManager.restoreSessionState(sessionId);
+                await this.services.approvalManager.restoreSessionState(sessionId);
 
                 this.sessions.set(sessionId, session);
                 return session;
@@ -655,6 +672,7 @@ export class SessionManager {
         // Remove from cache but preserve database storage
         const sessionKey = `session:${sessionId}`;
         await this.services.storageManager.getCache().delete(sessionKey);
+        this.evictSessionInteractionState(sessionId);
 
         this.logger.debug(
             `Ended session (removed from memory, chat history preserved): ${sessionId}`
@@ -681,6 +699,7 @@ export class SessionManager {
         const sessionKey = `session:${sessionId}`;
         await this.services.storageManager.getDatabase().delete(sessionKey);
         await this.services.storageManager.getCache().delete(sessionKey);
+        await this.deleteSessionInteractionState(sessionId);
 
         const messagesKey = `messages:${sessionId}`;
         await this.services.storageManager.getDatabase().delete(messagesKey);
@@ -689,7 +708,7 @@ export class SessionManager {
     }
 
     /**
-     * Resets the conversation history for a session while keeping the session alive.
+     * Resets conversation and session-scoped interaction state while keeping the session alive.
      *
      * @param sessionId The session ID to reset
      * @throws Error if session doesn't exist
@@ -703,6 +722,16 @@ export class SessionManager {
         }
 
         await session.reset();
+        await session.clearMessageQueue();
+        await Promise.all([
+            this.services.toolManager.deleteSessionState(sessionId),
+            this.services.approvalManager.deleteSessionState(sessionId),
+        ]);
+
+        if (this.services.stateManager.hasSessionLLMOverride(sessionId)) {
+            this.services.stateManager.clearSessionOverride(sessionId);
+            await session.switchLLM(this.services.stateManager.getRuntimeConfig().llm);
+        }
 
         // Reset message count in metadata
         await this.runWithSessionDataLock(sessionId, async (sessionKey) => {
@@ -715,6 +744,7 @@ export class SessionManager {
 
             sessionData.messageCount = 0;
             sessionData.lastActivity = Date.now();
+            delete sessionData.llmOverride;
             await this.persistSessionData(sessionKey, sessionData);
         });
 
@@ -1131,6 +1161,7 @@ export class SessionManager {
                 // Only dispose memory resources, don't delete chat history
                 session.dispose();
                 this.sessions.delete(sessionId);
+                this.evictSessionInteractionState(sessionId);
                 this.logger.debug(
                     `Removed expired session from memory: ${sessionId} (chat history preserved)`
                 );
@@ -1161,11 +1192,7 @@ export class SessionManager {
             const session = await this.getSession(sId);
             if (session) {
                 try {
-                    // Update state with validated config (validation already done by DextoAgent)
-                    // Using exceptions here for session-specific runtime failures (corruption, disposal, etc.)
-                    // This is different from input validation which uses Result<T,C> pattern
-                    this.services.stateManager.updateLLM(newLLMConfig, sId);
-                    await session.switchLLM(newLLMConfig);
+                    await this.applySessionLLMSwitch(sId, session, newLLMConfig);
                 } catch (error) {
                     // Session-level failure - continue processing other sessions (isolation)
                     failedSessions.push(sId);
@@ -1210,22 +1237,7 @@ export class SessionManager {
             throw SessionError.notFound(sessionId);
         }
 
-        await session.switchLLM(newLLMConfig);
-
-        // Persist the LLM override to storage so it survives restarts
-        // SECURITY: Don't persist API keys - they should be resolved from environment variables
-        await this.runWithSessionDataLock(sessionId, async (sessionKey) => {
-            const sessionData = await this.services.storageManager
-                .getDatabase()
-                .get<SessionData>(sessionKey);
-            if (!sessionData) {
-                return;
-            }
-
-            const { apiKey: _apiKey, ...configWithoutApiKey } = newLLMConfig;
-            sessionData.llmOverride = configWithoutApiKey;
-            await this.persistSessionData(sessionKey, sessionData);
-        });
+        await this.applySessionLLMSwitch(sessionId, session, newLLMConfig);
 
         this.services.agentEventBus.emit('llm:switched', {
             newConfig: newLLMConfig,
@@ -1236,6 +1248,96 @@ export class SessionManager {
         const message = `Successfully switched to ${newLLMConfig.provider}/${newLLMConfig.model} for session ${sessionId}`;
 
         return { message, warnings: [] };
+    }
+
+    private async applySessionLLMSwitch(
+        sessionId: string,
+        session: ChatSession,
+        newLLMConfig: ValidatedLLMConfig
+    ): Promise<void> {
+        const previousLLMConfig = this.services.stateManager.getRuntimeConfig(sessionId).llm;
+        const previousHadOverride = this.services.stateManager.hasSessionLLMOverride(sessionId);
+        const previousPersistedOverride = await this.getPersistedSessionLLMOverride(sessionId);
+
+        await this.setPersistedSessionLLMOverride(
+            sessionId,
+            this.toPersistedLLMConfig(newLLMConfig)
+        );
+
+        try {
+            this.services.stateManager.updateLLM(newLLMConfig, sessionId);
+            await session.switchLLM(newLLMConfig);
+        } catch (error) {
+            await this.setPersistedSessionLLMOverride(sessionId, previousPersistedOverride);
+
+            if (previousHadOverride) {
+                this.services.stateManager.updateLLM(previousLLMConfig, sessionId);
+            } else {
+                this.services.stateManager.clearSessionOverride(sessionId);
+            }
+
+            try {
+                await session.switchLLM(previousLLMConfig);
+            } catch (rollbackError) {
+                this.logger.error(
+                    `Failed to roll back LLM switch for session ${sessionId}: ${
+                        rollbackError instanceof Error
+                            ? rollbackError.message
+                            : String(rollbackError)
+                    }`
+                );
+            }
+
+            throw error;
+        }
+    }
+
+    private async getPersistedSessionLLMOverride(
+        sessionId: string
+    ): Promise<PersistedLLMConfig | undefined> {
+        const sessionData = await this.getSessionData(sessionId);
+        return sessionData?.llmOverride;
+    }
+
+    private toPersistedLLMConfig(newLLMConfig: ValidatedLLMConfig): PersistedLLMConfig {
+        // SECURITY: Don't persist API keys - they should be resolved from environment variables.
+        const { apiKey: _apiKey, ...configWithoutApiKey } = newLLMConfig;
+        return configWithoutApiKey;
+    }
+
+    private async setPersistedSessionLLMOverride(
+        sessionId: string,
+        llmOverride: PersistedLLMConfig | undefined
+    ): Promise<void> {
+        await this.runWithSessionDataLock(sessionId, async (sessionKey) => {
+            const sessionData = await this.services.storageManager
+                .getDatabase()
+                .get<SessionData>(sessionKey);
+            if (!sessionData) {
+                return;
+            }
+
+            if (llmOverride !== undefined) {
+                sessionData.llmOverride = llmOverride;
+            } else {
+                delete sessionData.llmOverride;
+            }
+            await this.persistSessionData(sessionKey, sessionData);
+        });
+    }
+
+    private async deleteSessionInteractionState(sessionId: string): Promise<void> {
+        this.services.stateManager.clearSessionOverride(sessionId);
+        await Promise.all([
+            this.services.toolManager.deleteSessionState(sessionId),
+            this.services.approvalManager.deleteSessionState(sessionId),
+            this.services.messageQueueStore.delete(sessionId),
+        ]);
+    }
+
+    private evictSessionInteractionState(sessionId: string): void {
+        this.services.toolManager.evictSessionState(sessionId);
+        this.services.approvalManager.evictSessionState(sessionId);
     }
 
     private async runWithSessionDataLock<T>(

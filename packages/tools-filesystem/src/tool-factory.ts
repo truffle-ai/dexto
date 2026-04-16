@@ -2,6 +2,7 @@ import type { ToolFactory } from '@dexto/agent-config';
 import type { ToolExecutionContext } from '@dexto/core';
 import { ToolError } from '@dexto/core';
 import { FileSystemService } from './filesystem-service.js';
+import type { FileSystemConfig } from './types.js';
 import { createReadFileTool } from './read-file-tool.js';
 import { createReadMediaFileTool } from './read-media-file-tool.js';
 import { createWriteFileTool } from './write-file-tool.js';
@@ -36,84 +37,58 @@ export const fileSystemToolsFactory: ToolFactory<FileSystemToolsConfig> = {
             backupRetentionDays: config.backupRetentionDays,
         };
 
-        let fileSystemService: FileSystemService | undefined;
-
         const resolveWorkingDirectory = (context: ToolExecutionContext): string =>
             context.workspace?.path ?? fileSystemConfig.workingDirectory ?? process.cwd();
 
-        const applyWorkspace = (context: ToolExecutionContext, service: FileSystemService) => {
-            const workingDirectory = resolveWorkingDirectory(context);
-            service.setWorkingDirectory(workingDirectory);
-        };
-
-        const resolveInjectedService = (
-            context: ToolExecutionContext
-        ): FileSystemService | null => {
-            const candidate = (context.services as unknown as { filesystemService?: unknown })
-                ?.filesystemService as FileSystemService | undefined;
-            if (!candidate) return null;
-            if (candidate instanceof FileSystemService) return candidate;
-            const hasMethods =
-                typeof (candidate as FileSystemService).readFile === 'function' &&
-                typeof (candidate as FileSystemService).writeFile === 'function' &&
-                typeof (candidate as FileSystemService).setWorkingDirectory === 'function' &&
-                typeof (candidate as FileSystemService).setDirectoryApprovalChecker === 'function';
-            return hasMethods ? (candidate as FileSystemService) : null;
-        };
-
-        const getFileSystemService = async (
-            context: ToolExecutionContext
-        ): Promise<FileSystemService> => {
-            const injectedService = resolveInjectedService(context);
-            if (injectedService) {
-                const approvalManager = context.services?.approval;
-                if (!approvalManager) {
-                    throw ToolError.configInvalid(
-                        'filesystem-tools requires ToolExecutionContext.services.approval'
-                    );
-                }
-                injectedService.setDirectoryApprovalChecker((filePath: string) =>
-                    approvalManager.isDirectoryApproved(filePath)
-                );
-                applyWorkspace(context, injectedService);
-                return injectedService;
-            }
-
-            if (fileSystemService) {
-                const approvalManager = context.services?.approval;
-                if (!approvalManager) {
-                    throw ToolError.configInvalid(
-                        'filesystem-tools requires ToolExecutionContext.services.approval'
-                    );
-                }
-                fileSystemService.setDirectoryApprovalChecker((filePath: string) =>
-                    approvalManager.isDirectoryApproved(filePath)
-                );
-                applyWorkspace(context, fileSystemService);
-                return fileSystemService;
-            }
-
-            const logger = context.logger;
-
-            fileSystemService = new FileSystemService(fileSystemConfig, logger);
-
+        const createScopedFileSystemService = (
+            context: ToolExecutionContext,
+            baseConfig: FileSystemConfig
+        ): FileSystemService => {
             const approvalManager = context.services?.approval;
             if (!approvalManager) {
                 throw ToolError.configInvalid(
                     'filesystem-tools requires ToolExecutionContext.services.approval'
                 );
             }
-            fileSystemService.setDirectoryApprovalChecker((filePath: string) =>
-                approvalManager.isDirectoryApproved(filePath)
+
+            const service = new FileSystemService(
+                {
+                    ...baseConfig,
+                    workingDirectory: resolveWorkingDirectory(context),
+                },
+                context.logger
             );
-            applyWorkspace(context, fileSystemService);
+            service.setDirectoryApprovalChecker((filePath: string) =>
+                approvalManager.isDirectoryApproved(filePath, context.sessionId)
+            );
+            return service;
+        };
 
-            fileSystemService.initialize().catch((error) => {
-                const message = error instanceof Error ? error.message : String(error);
-                logger.error(`Failed to initialize FileSystemService: ${message}`);
-            });
+        const resolveInjectedServiceConfig = (
+            context: ToolExecutionContext
+        ): FileSystemConfig | null => {
+            const candidate = (context.services as unknown as { filesystemService?: unknown })
+                ?.filesystemService;
+            if (!candidate) return null;
+            if (candidate instanceof FileSystemService) return candidate.getConfig();
 
-            return fileSystemService;
+            const getConfig = (candidate as { getConfig?: unknown }).getConfig;
+            if (typeof getConfig === 'function') {
+                return getConfig.call(candidate) as FileSystemConfig;
+            }
+
+            return null;
+        };
+
+        const getFileSystemService = async (
+            context: ToolExecutionContext
+        ): Promise<FileSystemService> => {
+            const scopedFileSystemService = createScopedFileSystemService(
+                context,
+                resolveInjectedServiceConfig(context) ?? fileSystemConfig
+            );
+            await scopedFileSystemService.initialize();
+            return scopedFileSystemService;
         };
 
         const toolCreators: Record<FileSystemToolName, () => Tool> = {

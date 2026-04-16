@@ -1,0 +1,4 @@
+interface:
+    display_name: 'Simplify'
+    short_description: 'Remove accidental complexity from code'
+    default_prompt: 'Use $simplify to remove accidental complexity from this diff without changing behavior.'

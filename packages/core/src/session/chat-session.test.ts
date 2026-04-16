@@ -163,6 +163,11 @@ describe('ChatSession', () => {
             toolManager: {
                 getAllTools: vi.fn().mockReturnValue([]),
             },
+            messageQueueStore: {
+                load: vi.fn().mockResolvedValue([]),
+                save: vi.fn().mockResolvedValue(undefined),
+                delete: vi.fn().mockResolvedValue(undefined),
+            },
             hookManager: {
                 executeHooks: vi.fn().mockImplementation(async (_point, payload) => payload),
                 cleanup: vi.fn(),
@@ -232,6 +237,7 @@ describe('ChatSession', () => {
                     usageScopeId: undefined,
                     compactionStrategy: null,
                     cwd: '/tmp/dexto-cloud',
+                    messageQueue: expect.any(Object),
                 }),
                 undefined
             );
@@ -255,10 +261,11 @@ describe('ChatSession', () => {
                 sessionId,
                 mockServices.resourceManager,
                 expect.any(Object),
-                {
+                expect.objectContaining({
                     usageScopeId: undefined,
                     compactionStrategy: null,
-                },
+                    messageQueue: expect.any(Object),
+                }),
                 languageModelFactory
             );
             expect(chatSession.getLLMService()).toBe(mockLLMService);
@@ -341,10 +348,11 @@ describe('ChatSession', () => {
                 sessionId,
                 mockServices.resourceManager,
                 expect.any(Object),
-                {
+                expect.objectContaining({
                     usageScopeId: undefined,
                     compactionStrategy: null,
-                },
+                    messageQueue: expect.any(Object),
+                }),
                 undefined
             );
         });
@@ -371,10 +379,11 @@ describe('ChatSession', () => {
                 sessionId,
                 mockServices.resourceManager,
                 expect.any(Object),
-                {
+                expect.objectContaining({
                     usageScopeId: undefined,
                     compactionStrategy: null,
-                },
+                    messageQueue: expect.any(Object),
+                }),
                 undefined
             );
         });
@@ -492,10 +501,11 @@ describe('ChatSession', () => {
                 sessionId,
                 mockServices.resourceManager, // ResourceManager parameter
                 expect.any(Object), // Logger parameter
-                {
+                expect.objectContaining({
                     usageScopeId: undefined,
                     compactionStrategy: null,
-                },
+                    messageQueue: expect.any(Object),
+                }),
                 undefined
             );
 

@@ -38,6 +38,7 @@ import {
 import { PathValidator } from './path-validator.js';
 import { FileSystemError } from './errors.js';
 import { detectMimeType, getMediaFileKind, isLikelyBinary, isTextMimeType } from './mime-utils.js';
+import { resolveUserPath } from './path-utils.js';
 
 const DEFAULT_ENCODING: BufferEncoding = 'utf-8';
 const DEFAULT_MAX_RESULTS = 1000;
@@ -83,7 +84,9 @@ export class FileSystemService {
      */
     private getBackupDir(): string {
         // Use custom path if provided (absolute), otherwise use context-aware default
-        return this.config.backupPath || getDextoPath('backups');
+        return this.config.backupPath
+            ? resolveUserPath(this.getWorkingDirectory(), this.config.backupPath)
+            : getDextoPath('backups');
     }
 
     /**
@@ -382,7 +385,10 @@ export class FileSystemService {
     async globFiles(pattern: string, options: GlobOptions = {}): Promise<GlobResult> {
         await this.ensureInitialized();
 
-        const cwd: string = options.cwd || this.config.workingDirectory || process.cwd();
+        const cwd = resolveUserPath(
+            this.config.workingDirectory || process.cwd(),
+            options.cwd || this.config.workingDirectory || process.cwd()
+        );
         const maxResults = options.maxResults || DEFAULT_MAX_RESULTS;
 
         try {
