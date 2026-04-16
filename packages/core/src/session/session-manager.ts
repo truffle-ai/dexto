@@ -119,6 +119,8 @@ export interface SessionData {
  */
 export class SessionManager {
     private sessions: Map<string, ChatSession> = new Map();
+    // Execution-scoped context is keyed by session because DextoAgent enforces
+    // at most one active run per session at a time.
     private readonly executionContexts = new Map<string, HostRuntimeContext>();
     private readonly maxSessions: number;
     private readonly sessionTTL: number;
@@ -1364,7 +1366,6 @@ export class SessionManager {
         this.executionContexts.delete(sessionId);
         this.services.toolManager.evictSessionState(sessionId);
         this.services.approvalManager.evictSessionState(sessionId);
-        this.services.stateManager.clearSessionOverride(sessionId);
     }
 
     private async runWithSessionDataLock<T>(

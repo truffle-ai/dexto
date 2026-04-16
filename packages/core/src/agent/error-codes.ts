@@ -10,6 +10,7 @@ export enum AgentErrorCode {
     STOPPED = 'agent_stopped',
     INITIALIZATION_FAILED = 'agent_initialization_failed',
     SWITCH_IN_PROGRESS = 'agent_switch_in_progress',
+    SESSION_BUSY = 'agent_session_busy',
 
     // Configuration
     NO_CONFIG_PATH = 'agent_no_config_path',

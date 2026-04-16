@@ -186,6 +186,10 @@ export class ChatSession {
         await this.initializeServices();
     }
 
+    private getExecutionContext() {
+        return this.services.sessionManager.getExecutionContext?.(this.id);
+    }
+
     /**
      * Sets up event forwarding from session bus to global agent bus.
      *
@@ -198,7 +202,7 @@ export class ChatSession {
         // Forward each session event type to the agent bus with session context
         SessionEventNames.forEach((eventName) => {
             const forwarder = (payload?: any) => {
-                const hostRuntime = this.services.sessionManager.getExecutionContext(this.id);
+                const hostRuntime = this.getExecutionContext();
                 // Create payload with sessionId - handle both void and object payloads
                 const payloadWithSession =
                     payload && typeof payload === 'object'
@@ -468,7 +472,7 @@ export class ChatSession {
                     mcpManager: this.services.mcpManager,
                     toolManager: this.services.toolManager,
                     stateManager: this.services.stateManager,
-                    hostRuntime: this.services.sessionManager.getExecutionContext(this.id),
+                    hostRuntime: this.getExecutionContext(),
                     sessionId: this.id,
                     abortSignal: signal,
                 }
@@ -502,7 +506,7 @@ export class ChatSession {
                     mcpManager: this.services.mcpManager,
                     toolManager: this.services.toolManager,
                     stateManager: this.services.stateManager,
-                    hostRuntime: this.services.sessionManager.getExecutionContext(this.id),
+                    hostRuntime: this.getExecutionContext(),
                     sessionId: this.id,
                     abortSignal: signal,
                 }

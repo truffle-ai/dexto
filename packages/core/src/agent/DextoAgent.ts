@@ -104,6 +104,10 @@ export interface AgentEventSubscriber {
     subscribe(eventBus: AgentEventBus): void;
 }
 
+function isEventPayloadObject(value: unknown): value is Record<string, unknown> {
+    return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
 /**
  * The main entry point into Dexto's core functionality.
  *
@@ -648,7 +652,30 @@ export class DextoAgent {
         event: K,
         ...args: AgentEventMap[K] extends void ? [] : [AgentEventMap[K]]
     ): boolean {
-        return this.agentEventBus.emit(event, ...args);
+        if (args.length === 0) {
+            return this.agentEventBus.emit(event, ...args);
+        }
+
+        const [payload] = args as [unknown];
+        if (!isEventPayloadObject(payload) || 'hostRuntime' in payload) {
+            return this.agentEventBus.emit(event, ...args);
+        }
+
+        const sessionId = payload.sessionId;
+        if (typeof sessionId !== 'string' || sessionId.length === 0) {
+            return this.agentEventBus.emit(event, ...args);
+        }
+
+        const hostRuntime = this.sessionManager?.getExecutionContext(sessionId);
+        if (hostRuntime === undefined) {
+            return this.agentEventBus.emit(event, ...args);
+        }
+
+        const argsWithHostRuntime = [
+            { ...payload, hostRuntime } as AgentEventMap[K],
+        ] as AgentEventMap[K] extends void ? [] : [AgentEventMap[K]];
+
+        return this.agentEventBus.emit(event, ...argsWithHostRuntime);
     }
 
     /**
@@ -916,6 +943,10 @@ export class DextoAgent {
             throw AgentError.apiValidationError('sessionId is required');
         }
 
+        if (this.activeStreamControllers.has(sessionId)) {
+            throw AgentError.sessionBusy(sessionId);
+        }
+
         const signal = options?.signal;
         const disconnectSignal = options?.disconnectSignal ?? signal;
         const executionContext = normalizeHostRuntimeContext(options?.executionContext);
@@ -966,6 +997,17 @@ export class DextoAgent {
             // Remove from active controllers map
             this.activeStreamControllers.delete(sessionId);
         };
+
+        try {
+            const existingSession = await this.sessionManager.getSession(sessionId, false);
+            if (existingSession?.isBusy?.()) {
+                throw AgentError.sessionBusy(sessionId);
+            }
+        } catch (error) {
+            cleanupListeners();
+            controller.abort();
+            throw error;
+        }
 
         // Wire external signal to trigger cleanup
         if (disconnectSignal) {
@@ -1464,7 +1506,7 @@ export class DextoAgent {
     public async isSessionBusy(sessionId: string): Promise<boolean> {
         this.ensureStarted();
         const session = await this.sessionManager.getSession(sessionId, false);
-        return session?.isBusy() ?? false;
+        return session?.isBusy?.() ?? false;
     }
 
     /**

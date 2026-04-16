@@ -65,6 +65,20 @@ export class AgentError {
     }
 
     /**
+     * Session already processing a run
+     */
+    static sessionBusy(sessionId: string) {
+        return new DextoRuntimeError(
+            AgentErrorCode.SESSION_BUSY,
+            ErrorScope.AGENT,
+            ErrorType.CONFLICT,
+            `Session '${sessionId}' is already processing a message`,
+            { sessionId },
+            'Wait for the current run to finish or queue the next message'
+        );
+    }
+
+    /**
      * Agent initialization failed
      */
     static initializationFailed(reason: string, details?: unknown) {

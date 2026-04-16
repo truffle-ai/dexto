@@ -118,6 +118,7 @@ export const agentSpawnerToolsFactory: ToolFactory<AgentSpawnerConfig> = {
             attachTaskForker({ toolServices, taskForker: spawnerRuntime, logger });
 
             const taskSessions = new Map<string, string>();
+            const taskHostRuntimeContexts = new Map<string, ToolBackgroundEvent['hostRuntime']>();
 
             const emitTasksUpdate = (sessionId?: string) => {
                 const tasks = taskRegistry.list({
@@ -145,7 +146,11 @@ export const agentSpawnerToolsFactory: ToolFactory<AgentSpawnerConfig> = {
                 });
             };
 
-            const triggerBackgroundCompletion = (taskId: string, sessionId?: string) => {
+            const triggerBackgroundCompletion = (
+                taskId: string,
+                sessionId?: string,
+                hostRuntime?: ToolBackgroundEvent['hostRuntime']
+            ) => {
                 if (!sessionId) {
                     return;
                 }
@@ -153,6 +158,7 @@ export const agentSpawnerToolsFactory: ToolFactory<AgentSpawnerConfig> = {
                 agent.emit('tool:background-completed', {
                     toolCallId: taskId,
                     sessionId,
+                    ...(hostRuntime !== undefined && { hostRuntime }),
                 });
 
                 const taskInfo = taskRegistry.getInfo(taskId);
@@ -216,8 +222,15 @@ export const agentSpawnerToolsFactory: ToolFactory<AgentSpawnerConfig> = {
                                 content,
                                 source: 'external',
                                 metadata: { taskId },
+                                ...(hostRuntime !== undefined && { hostRuntime }),
                             });
-                            agent.generate(content, sessionId).catch(() => undefined);
+                            agent
+                                .generate(content, sessionId, {
+                                    ...(hostRuntime !== undefined && {
+                                        executionContext: hostRuntime,
+                                    }),
+                                })
+                                .catch(() => undefined);
                         }
                     })
                     .catch(() => {
@@ -233,6 +246,9 @@ export const agentSpawnerToolsFactory: ToolFactory<AgentSpawnerConfig> = {
 
                 if (event.sessionId) {
                     taskSessions.set(taskId, event.sessionId);
+                }
+                if (event.hostRuntime !== undefined) {
+                    taskHostRuntimeContexts.set(taskId, event.hostRuntime);
                 }
 
                 try {
@@ -252,6 +268,7 @@ export const agentSpawnerToolsFactory: ToolFactory<AgentSpawnerConfig> = {
                     );
                 } catch (error) {
                     taskSessions.delete(taskId);
+                    taskHostRuntimeContexts.delete(taskId);
                     event.promise.catch(() => undefined);
                     logger.warn(
                         `Failed to register background task ${taskId}: ${error instanceof Error ? error.message : String(error)}`,
@@ -264,8 +281,10 @@ export const agentSpawnerToolsFactory: ToolFactory<AgentSpawnerConfig> = {
 
                 event.promise.finally(() => {
                     taskSessions.delete(taskId);
+                    const hostRuntime = taskHostRuntimeContexts.get(taskId);
+                    taskHostRuntimeContexts.delete(taskId);
                     emitTasksUpdate(event.sessionId);
-                    triggerBackgroundCompletion(taskId, event.sessionId);
+                    triggerBackgroundCompletion(taskId, event.sessionId, hostRuntime);
                 });
             };
 
