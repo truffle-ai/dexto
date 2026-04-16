@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { z } from 'zod';
 import type { CompactionStrategy, Hook } from '@dexto/core';
-import type { DextoImage } from '../image/types.js';
+import type { DextoHostContext, DextoImage, ImageResolutionContext } from '../image/types.js';
 import { AgentConfigSchema, type AgentConfig } from '../schemas/agent-config.js';
 import { resolveServicesFromConfig } from './resolve-services-from-config.js';
 import {
@@ -28,7 +28,9 @@ describe('resolveServicesFromConfig', () => {
         compaction: { type: 'noop', enabled: false },
     };
 
-    function createMockImage(overrides?: Partial<DextoImage>): DextoImage {
+    function createMockImage<THostContext extends DextoHostContext = DextoHostContext>(
+        overrides?: Partial<DextoImage<THostContext>>
+    ): DextoImage<THostContext> {
         const loggerFactory = {
             configSchema: z
                 .object({
@@ -39,7 +41,7 @@ describe('resolveServicesFromConfig', () => {
             create: (_cfg: { agentId: string }) => createMockLogger(),
         };
 
-        const image: DextoImage = {
+        const image: DextoImage<THostContext> = {
             metadata: { name: 'mock-image', version: '0.0.0', description: 'mock' },
             tools: {},
             storage: {
@@ -72,11 +74,26 @@ describe('resolveServicesFromConfig', () => {
     }
 
     it('passes host context through factory resolution when provided', async () => {
-        const hostContext = {
+        type HostedContext = DextoHostContext<
+            { session: { id: string } },
+            { workspace: boolean },
+            { gateway: { id: string } }
+        >;
+
+        const hostContext: HostedContext = {
             mode: 'hosted' as const,
             sessionId: 'session-1',
             workspaceId: 'workspace-1',
             runId: 'run-1',
+            runtime: {
+                session: { id: 'session-1' },
+            },
+            capabilities: {
+                workspace: true,
+            },
+            clients: {
+                gateway: { id: 'gateway-1' },
+            },
         };
 
         const logger = createMockLogger();
@@ -84,7 +101,12 @@ describe('resolveServicesFromConfig', () => {
         const blobCreate = vi.fn(() => createMockBlobStore('in-memory'));
         const databaseCreate = vi.fn(() => createMockDatabase('in-memory'));
         const cacheCreate = vi.fn(() => createMockCache('in-memory'));
-        const toolCreate = vi.fn(() => [createMockTool('foo')]);
+        const toolCreate = vi.fn((_config, context?: ImageResolutionContext<HostedContext>) => {
+            expect(context?.hostContext?.runtime?.session.id).toBe('session-1');
+            expect(context?.hostContext?.capabilities?.workspace).toBe(true);
+            expect(context?.hostContext?.clients?.gateway.id).toBe('gateway-1');
+            return [createMockTool('foo')];
+        });
         const hookCreate = vi.fn(() => ({
             beforeResponse: async () => ({ ok: true }),
         }));
@@ -92,7 +114,7 @@ describe('resolveServicesFromConfig', () => {
             () => ({ execute: vi.fn(async () => null) }) as unknown as CompactionStrategy
         );
 
-        const image = createMockImage({
+        const image = createMockImage<HostedContext>({
             logger: {
                 configSchema: z
                     .object({

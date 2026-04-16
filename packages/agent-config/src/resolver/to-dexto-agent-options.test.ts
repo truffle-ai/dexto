@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { DextoImage, DextoHostContext } from '../image/types.js';
+import type {
+    DextoImage,
+    DextoHostContext,
+    ResolveImageRuntimeConfigOptions,
+} from '../image/types.js';
 import { AgentConfigSchema } from '../schemas/agent-config.js';
 import type { ResolvedServices } from './types.js';
 import { toDextoAgentOptions } from './to-dexto-agent-options.js';
@@ -137,21 +141,44 @@ describe('toDextoAgentOptions', () => {
             compaction: null,
         };
 
-        const hostContext: DextoHostContext = {
+        type HostedContext = DextoHostContext<
+            { session: { id: string } },
+            { workspace: boolean },
+            { gateway: { id: string } }
+        >;
+
+        const hostContext: HostedContext = {
             mode: 'hosted',
             sessionId: 'session-1',
             workspaceId: 'workspace-1',
-        };
-        const resolveRuntimeConfig = vi.fn(() => ({
-            llm: {
-                ...validated.llm,
-                apiKey: 'resolved-api-key',
+            runtime: {
+                session: { id: 'session-1' },
             },
-        }));
-        const image = {
+            capabilities: {
+                workspace: true,
+            },
+            clients: {
+                gateway: { id: 'gateway-1' },
+            },
+        };
+        const resolveRuntimeConfig = vi.fn(
+            ({ context }: ResolveImageRuntimeConfigOptions<HostedContext>) => {
+                expect(context.hostContext?.runtime?.session.id).toBe('session-1');
+                expect(context.hostContext?.capabilities?.workspace).toBe(true);
+                expect(context.hostContext?.clients?.gateway.id).toBe('gateway-1');
+
+                return {
+                    llm: {
+                        ...validated.llm,
+                        apiKey: 'resolved-api-key',
+                    },
+                };
+            }
+        );
+        const image: DextoImage<HostedContext> = {
             ...validImage,
             resolveRuntimeConfig,
-        } as unknown as DextoImage;
+        };
 
         const options = toDextoAgentOptions({
             config: validated,

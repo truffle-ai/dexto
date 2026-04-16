@@ -3,16 +3,20 @@ import type { DextoHostContext, DextoImage } from '../image/types.js';
 import type { ValidatedAgentConfig } from '../schemas/agent-config.js';
 import type { ResolvedServices } from './types.js';
 
-export interface ToDextoAgentOptionsInput {
+export interface ToDextoAgentOptionsInput<
+    THostContext extends DextoHostContext = DextoHostContext,
+> {
     config: ValidatedAgentConfig;
     services: ResolvedServices;
-    image?: DextoImage | undefined;
-    hostContext?: DextoHostContext | undefined;
+    image?: DextoImage<THostContext> | undefined;
+    hostContext?: THostContext | undefined;
     overrides?: InitializeServicesOptions | undefined;
     runtimeOverrides?: Pick<DextoAgentOptions, 'usageScopeId'> | undefined;
 }
 
-export function toDextoAgentOptions(options: ToDextoAgentOptionsInput): DextoAgentOptions {
+export function toDextoAgentOptions<THostContext extends DextoHostContext = DextoHostContext>(
+    options: ToDextoAgentOptionsInput<THostContext>
+): DextoAgentOptions {
     const { config, services, image, hostContext, overrides, runtimeOverrides } = options;
     const imageRuntimeConfig = image?.resolveRuntimeConfig?.({
         config,

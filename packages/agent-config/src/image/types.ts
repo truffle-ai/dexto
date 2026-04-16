@@ -38,23 +38,27 @@ export interface ToolFactoryMetadata {
  * This stays generic on purpose: hosts may pass clients, capability flags, and runtime metadata
  * without changing the public agent YAML shape.
  */
-export interface DextoHostContext {
+export interface DextoHostContext<
+    TRuntime extends object = object,
+    TCapabilities extends object = object,
+    TClients extends object = object,
+> {
     mode?: 'local' | 'server' | 'hosted';
     sessionId?: string;
     workspaceId?: string;
     runId?: string;
     attemptId?: string;
-    clients?: Record<string, unknown>;
-    capabilities?: Record<string, unknown>;
-    runtime?: Record<string, unknown>;
+    clients?: TClients;
+    capabilities?: TCapabilities;
+    runtime?: TRuntime;
 }
 
 /**
  * Shared resolver context passed to image factories.
  */
-export interface ImageResolutionContext {
+export interface ImageResolutionContext<THostContext extends DextoHostContext = DextoHostContext> {
     agentId: string;
-    hostContext?: DextoHostContext | undefined;
+    hostContext?: THostContext | undefined;
 }
 
 /**
@@ -64,9 +68,11 @@ export interface ImageResolutionContext {
  */
 export type DextoImageRuntimeConfigOverrides = Partial<Omit<DextoAgentConfigInput, 'agentId'>>;
 
-export interface ResolveImageRuntimeConfigOptions {
+export interface ResolveImageRuntimeConfigOptions<
+    THostContext extends DextoHostContext = DextoHostContext,
+> {
     config: ValidatedAgentConfig;
-    context: ImageResolutionContext;
+    context: ImageResolutionContext<THostContext>;
 }
 
 /**
@@ -75,11 +81,14 @@ export interface ResolveImageRuntimeConfigOptions {
  * A single factory entry can produce multiple tools, which is useful for "tool packs" where a single
  * config block enables a related set of tools (e.g., filesystem tools: read/write/edit/glob/grep).
  */
-export interface ToolFactory<TConfig = unknown> {
+export interface ToolFactory<
+    TConfig = unknown,
+    THostContext extends DextoHostContext = DextoHostContext,
+> {
     /** Zod schema for validating factory-specific configuration. */
     configSchema: z.ZodType<TConfig, z.ZodTypeDef, unknown>;
     /** Create one or more tool instances from validated config. */
-    create(config: TConfig, context?: ImageResolutionContext): Tool[];
+    create(config: TConfig, context?: ImageResolutionContext<THostContext>): Tool[];
     metadata?: ToolFactoryMetadata;
 }
 
@@ -88,32 +97,41 @@ export interface ToolFactory<TConfig = unknown> {
  *
  * Factories may return a Promise to support lazy optional dependencies (e.g., sqlite/pg/redis).
  */
-export interface BlobStoreFactory<TConfig = unknown> {
+export interface BlobStoreFactory<
+    TConfig = unknown,
+    THostContext extends DextoHostContext = DextoHostContext,
+> {
     configSchema: z.ZodType<TConfig, z.ZodTypeDef, unknown>;
     create(
         config: TConfig,
         logger: Logger,
-        context?: ImageResolutionContext
+        context?: ImageResolutionContext<THostContext>
     ): BlobStore | Promise<BlobStore>;
     metadata?: Record<string, unknown> | undefined;
 }
 
-export interface DatabaseFactory<TConfig = unknown> {
+export interface DatabaseFactory<
+    TConfig = unknown,
+    THostContext extends DextoHostContext = DextoHostContext,
+> {
     configSchema: z.ZodType<TConfig, z.ZodTypeDef, unknown>;
     create(
         config: TConfig,
         logger: Logger,
-        context?: ImageResolutionContext
+        context?: ImageResolutionContext<THostContext>
     ): Database | Promise<Database>;
     metadata?: Record<string, unknown> | undefined;
 }
 
-export interface CacheFactory<TConfig = unknown> {
+export interface CacheFactory<
+    TConfig = unknown,
+    THostContext extends DextoHostContext = DextoHostContext,
+> {
     configSchema: z.ZodType<TConfig, z.ZodTypeDef, unknown>;
     create(
         config: TConfig,
         logger: Logger,
-        context?: ImageResolutionContext
+        context?: ImageResolutionContext<THostContext>
     ): Cache | Promise<Cache>;
     metadata?: Record<string, unknown> | undefined;
 }
@@ -121,20 +139,26 @@ export interface CacheFactory<TConfig = unknown> {
 /**
  * Hook factories are keyed by `type` in the agent config (`hooks: [{ type: "..." }]`).
  */
-export interface HookFactory<TConfig = unknown> {
+export interface HookFactory<
+    TConfig = unknown,
+    THostContext extends DextoHostContext = DextoHostContext,
+> {
     configSchema: z.ZodType<TConfig, z.ZodTypeDef, unknown>;
-    create(config: TConfig, context?: ImageResolutionContext): Hook;
+    create(config: TConfig, context?: ImageResolutionContext<THostContext>): Hook;
     metadata?: Record<string, unknown> | undefined;
 }
 
 /**
  * Compaction factories are keyed by `type` in the agent config (`compaction.type`).
  */
-export interface CompactionFactory<TConfig = unknown> {
+export interface CompactionFactory<
+    TConfig = unknown,
+    THostContext extends DextoHostContext = DextoHostContext,
+> {
     configSchema: z.ZodType<TConfig, z.ZodTypeDef, unknown>;
     create(
         config: TConfig,
-        context?: ImageResolutionContext
+        context?: ImageResolutionContext<THostContext>
     ): CompactionStrategy | Promise<CompactionStrategy>;
     metadata?: Record<string, unknown> | undefined;
 }
@@ -144,9 +168,12 @@ export interface CompactionFactory<TConfig = unknown> {
  *
  * This remains a factory (vs a map) because an agent should have a single logger implementation.
  */
-export interface LoggerFactory<TConfig = unknown> {
+export interface LoggerFactory<
+    TConfig = unknown,
+    THostContext extends DextoHostContext = DextoHostContext,
+> {
     configSchema: z.ZodType<TConfig, z.ZodTypeDef, unknown>;
-    create(config: TConfig, context?: ImageResolutionContext): Logger;
+    create(config: TConfig, context?: ImageResolutionContext<THostContext>): Logger;
     metadata?: Record<string, unknown> | undefined;
 }
 
@@ -159,7 +186,7 @@ export interface LoggerFactory<TConfig = unknown> {
  * - Factories are plain exports; resolution is explicit and testable
  * - Hosts decide how to load images (static import, dynamic import via `loadImage()`, allowlists, etc.)
  */
-export interface DextoImage {
+export interface DextoImage<THostContext extends DextoHostContext = DextoHostContext> {
     /**
      * Metadata about the image package.
      *
@@ -178,19 +205,19 @@ export interface DextoImage {
      * Tool factories keyed by config `type`.
      * Example: `{ "filesystem-tools": fileSystemToolsFactory }`.
      */
-    tools: Record<string, ToolFactory>;
+    tools: Record<string, ToolFactory<unknown, THostContext>>;
     /**
      * Storage factories keyed by config `type`.
      */
     storage: {
-        blob: Record<string, BlobStoreFactory>;
-        database: Record<string, DatabaseFactory>;
-        cache: Record<string, CacheFactory>;
+        blob: Record<string, BlobStoreFactory<unknown, THostContext>>;
+        database: Record<string, DatabaseFactory<unknown, THostContext>>;
+        cache: Record<string, CacheFactory<unknown, THostContext>>;
     };
-    hooks: Record<string, HookFactory>;
-    compaction: Record<string, CompactionFactory>;
-    logger: LoggerFactory;
+    hooks: Record<string, HookFactory<unknown, THostContext>>;
+    compaction: Record<string, CompactionFactory<unknown, THostContext>>;
+    logger: LoggerFactory<unknown, THostContext>;
     resolveRuntimeConfig?(
-        options: ResolveImageRuntimeConfigOptions
+        options: ResolveImageRuntimeConfigOptions<THostContext>
     ): DextoImageRuntimeConfigOverrides | undefined;
 }

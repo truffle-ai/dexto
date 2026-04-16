@@ -36,13 +36,15 @@ function resolveByType<TFactory>(options: {
     return factory;
 }
 
-export async function resolveServicesFromConfig(
+export async function resolveServicesFromConfig<
+    THostContext extends DextoHostContext = DextoHostContext,
+>(
     config: ValidatedAgentConfig,
-    image: DextoImage,
-    hostContext?: DextoHostContext
+    image: DextoImage<THostContext>,
+    hostContext?: THostContext
 ): Promise<ResolvedServices> {
     const imageName = image.metadata.name;
-    const resolutionContext: ImageResolutionContext = {
+    const resolutionContext: ImageResolutionContext<THostContext> = {
         agentId: config.agentId,
         ...(hostContext ? { hostContext } : {}),
     };
@@ -147,11 +149,13 @@ export async function resolveServicesFromConfig(
     return { logger, storage, tools, toolkitLoader, hooks, compaction };
 }
 
-export function resolveToolsFromEntries(options: {
+export function resolveToolsFromEntries<
+    THostContext extends DextoHostContext = DextoHostContext,
+>(options: {
     entries: ToolFactoryEntry[];
-    image: DextoImage;
+    image: DextoImage<THostContext>;
     logger: Logger;
-    resolutionContext?: ImageResolutionContext | undefined;
+    resolutionContext?: ImageResolutionContext<THostContext> | undefined;
 }): Tool[] {
     const { entries, image, logger, resolutionContext } = options;
     const imageName = image.metadata.name;

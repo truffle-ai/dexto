@@ -39,6 +39,34 @@ const agent = new DextoAgent(toDextoAgentOptions({ config, services }));
 await agent.start();
 ```
 
+## Typed host contexts
+
+Hosted runtimes can thread a typed host context through image resolution without baking any
+platform-specific fields into upstream packages.
+
+```ts
+import type { DextoHostContext, DextoImage } from '@dexto/agent-config';
+
+type CloudHostContext = DextoHostContext<
+  {
+    dextoCloudflare: {
+      runtimeContext: {
+        sessionId: string;
+      };
+    };
+  },
+  {
+    workspace: boolean;
+  }
+>;
+
+declare const image: DextoImage<CloudHostContext>;
+declare const hostContext: CloudHostContext;
+
+const services = await resolveServicesFromConfig(config, image, hostContext);
+const options = toDextoAgentOptions({ config, services, image, hostContext });
+```
+
 ## Images (no registries)
 
 Images are typed modules (`DextoImage`) that export plain `Record<string, Factory>` maps.
