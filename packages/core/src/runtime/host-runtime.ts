@@ -84,6 +84,11 @@ function isWellKnownHostRuntimeIdKey(
     );
 }
 
+function getValidHostRuntimeIdValue(value: string): string | undefined {
+    const parsed = HostRuntimeIdValueSchema.safeParse(value);
+    return parsed.success ? parsed.data : undefined;
+}
+
 export function getHostRuntimeBaggageEntries(
     hostRuntime?: HostRuntimeContext
 ): Record<string, BaggageEntry> {
@@ -130,7 +135,17 @@ export function getHostRuntimeContextFromBaggage(ctx: Context): HostRuntimeConte
 
     for (const [key, entry] of baggage.getAllEntries()) {
         if (key.startsWith(HOST_RUNTIME_ENTRY_PREFIX)) {
-            ids[key.slice(HOST_RUNTIME_ENTRY_PREFIX.length)] = entry.value;
+            const hostRuntimeKey = key.slice(HOST_RUNTIME_ENTRY_PREFIX.length);
+            if (!HostRuntimeIdKeySchema.safeParse(hostRuntimeKey).success) {
+                continue;
+            }
+
+            const value = getValidHostRuntimeIdValue(entry.value);
+            if (value === undefined) {
+                continue;
+            }
+
+            ids[hostRuntimeKey] = value;
         }
     }
 
@@ -140,7 +155,10 @@ export function getHostRuntimeContextFromBaggage(ctx: Context): HostRuntimeConte
         }
         const entry = baggage.getEntry(key);
         if (entry) {
-            ids[key] = entry.value;
+            const value = getValidHostRuntimeIdValue(entry.value);
+            if (value !== undefined) {
+                ids[key] = value;
+            }
         }
     }
 

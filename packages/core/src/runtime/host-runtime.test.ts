@@ -68,4 +68,25 @@ describe('host runtime context', () => {
         expect(Object.isFrozen(hostRuntime)).toBe(true);
         expect(Object.isFrozen(hostRuntime?.ids)).toBe(true);
     });
+
+    it('ignores invalid host runtime baggage entries while reconstructing context', () => {
+        const baggage = propagation.createBaggage({
+            'hostRuntime.ids.foo+bar': { value: 'invalid-key' },
+            'hostRuntime.ids.emptyValue': { value: '   ' },
+            'hostRuntime.ids.runId': { value: 'run-1' },
+            attemptId: { value: 'attempt-1' },
+        });
+        const currentContext = propagation.setBaggage(context.active(), baggage);
+
+        const hostRuntime = getHostRuntimeContextFromBaggage(currentContext);
+
+        expect(hostRuntime).toEqual({
+            ids: {
+                runId: 'run-1',
+                attemptId: 'attempt-1',
+            },
+        });
+        expect(Object.isFrozen(hostRuntime)).toBe(true);
+        expect(Object.isFrozen(hostRuntime?.ids)).toBe(true);
+    });
 });

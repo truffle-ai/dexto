@@ -4723,6 +4723,21 @@
                         "dexto-nova"
                       ],
                       "description": "LLM provider"
+                    },
+                    "hostRuntime": {
+                      "type": "object",
+                      "properties": {
+                        "ids": {
+                          "type": "object",
+                          "additionalProperties": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "description": "Optional host-owned runtime IDs used for correlation across orchestration, telemetry, logs, and events."
+                        }
+                      },
+                      "additionalProperties": false,
+                      "description": "Host-owned runtime IDs surfaced by core runtime flows"
                     }
                   },
                   "required": [

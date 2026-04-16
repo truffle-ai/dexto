@@ -1,7 +1,7 @@
 import { OpenAPIHono, createRoute, type RouteConfigToTypedResponse, z } from '@hono/zod-openapi';
 import { streamSSE } from 'hono/streaming';
 import type { ToSchema } from 'hono/types';
-import { LLM_PROVIDERS, type StreamingEvent } from '@dexto/core';
+import { HostRuntimeContextSchema, LLM_PROVIDERS, type StreamingEvent } from '@dexto/core';
 import {
     ApiErrorResponseSchema,
     BadRequestErrorResponse,
@@ -65,6 +65,9 @@ const MessageSyncResponseSchema = z
             .describe('Extended thinking content from reasoning models'),
         model: z.string().optional().describe('Model used for this response'),
         provider: z.enum(LLM_PROVIDERS).optional().describe('LLM provider'),
+        hostRuntime: HostRuntimeContextSchema.optional().describe(
+            'Host-owned runtime IDs surfaced by core runtime flows'
+        ),
     })
     .strict()
     .describe('Synchronous message response');
@@ -271,6 +274,7 @@ export function createMessagesRouter(getAgent: GetAgentFn, _approvalCoordinator?
                     reasoning: result.reasoning,
                     model: result.model,
                     provider: result.provider,
+                    hostRuntime: result.hostRuntime,
                 },
                 200
             );

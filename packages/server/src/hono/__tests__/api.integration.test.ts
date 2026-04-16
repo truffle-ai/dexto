@@ -1022,6 +1022,12 @@ describe('Hono API Integration Tests', () => {
                 model: 'gpt-4o-mini',
                 estimatedCost: 0.0123,
                 pricingStatus: 'estimated',
+                hostRuntime: {
+                    ids: {
+                        runId: 'run-1',
+                        attemptId: 'attempt-1',
+                    },
+                },
             });
 
             try {
@@ -1041,6 +1047,12 @@ describe('Hono API Integration Tests', () => {
                     reasoning: 'Let me think',
                     provider: 'openai',
                     model: 'gpt-4o-mini',
+                    hostRuntime: {
+                        ids: {
+                            runId: 'run-1',
+                            attemptId: 'attempt-1',
+                        },
+                    },
                     tokenUsage: {
                         inputTokens: 100,
                         outputTokens: 50,
