@@ -396,7 +396,7 @@ describe('Session Integration: Core-owned Interaction State Persistence', () => 
         agents = [];
     });
 
-    test('restores queued messages, session overrides, approvals, and tool preferences after agent restart', async () => {
+    test('drops queued messages during shutdown cleanup but restores other interaction state on next startup', async () => {
         const originalOpenAiApiKey = process.env.OPENAI_API_KEY;
         process.env.OPENAI_API_KEY = 'test-key-123';
 
@@ -408,6 +408,7 @@ describe('Session Integration: Core-owned Interaction State Persistence', () => 
             };
             const sessionId = 'persisted-interaction-session';
             const approvedDirectory = path.join(os.tmpdir(), 'dexto-persisted-approval');
+            const queueKey = `session-message-queue:${sessionId}`;
 
             const agent1 = await createAgentWithSharedStorage(
                 'interaction-state-agent-1',
@@ -440,9 +441,7 @@ describe('Session Integration: Core-owned Interaction State Persistence', () => 
 
             const persistedQueue = await agent1.services.storageManager
                 .getDatabase()
-                .get<
-                    Array<{ content: Array<{ type: string; text?: string }> }>
-                >(`session-message-queue:${sessionId}`);
+                .get<Array<{ content: Array<{ type: string; text?: string }> }>>(queueKey);
             expect(persistedQueue).toHaveLength(1);
             expect(persistedQueue?.[0]?.content).toEqual([
                 { type: 'text', text: 'resume with plan B' },
@@ -472,6 +471,12 @@ describe('Session Integration: Core-owned Interaction State Persistence', () => 
                 )
             ).toBe(true);
 
+            await agent1.sessionManager.cleanup();
+
+            expect(await sharedStorage.database.get(`session:${sessionId}`)).toBeDefined();
+            expect(await sharedStorage.database.get(queueKey)).toBeUndefined();
+            expect(await sharedStorage.cache.get(queueKey)).toBeUndefined();
+
             const agent2 = await createAgentWithSharedStorage(
                 'interaction-state-agent-2',
                 sharedStorage
@@ -484,10 +489,7 @@ describe('Session Integration: Core-owned Interaction State Persistence', () => 
             expect(agent2.services.stateManager.getLLMConfig(sessionId).model).toBe('gpt-5');
 
             const queuedMessages = await agent2.getQueuedMessages(sessionId);
-            expect(queuedMessages).toHaveLength(1);
-            expect(queuedMessages[0]?.content).toEqual([
-                { type: 'text', text: 'resume with plan B' },
-            ]);
+            expect(queuedMessages).toEqual([]);
 
             expect(await agent2.getSessionAutoApproveTools(sessionId)).toEqual(['allowed_tool']);
 
@@ -515,6 +517,47 @@ describe('Session Integration: Core-owned Interaction State Persistence', () => 
                 process.env.OPENAI_API_KEY = originalOpenAiApiKey;
             }
         }
+    });
+
+    test('purges persisted queued messages on startup after an unclean shutdown', async () => {
+        const sharedStorage = {
+            blob: createInMemoryBlobStore(),
+            cache: createInMemoryCache(),
+            database: createInMemoryDatabase(),
+        };
+        const sessionId = 'stale-queued-session';
+        const queueKey = `session-message-queue:${sessionId}`;
+        const queuedMessages = [
+            {
+                content: [{ type: 'text' as const, text: 'stale queued follow-up' }],
+                metadata: { source: 'unclean-shutdown' },
+            },
+        ];
+
+        await sharedStorage.database.set<SessionData>(`session:${sessionId}`, {
+            id: sessionId,
+            createdAt: Date.now(),
+            lastActivity: Date.now(),
+            messageCount: 0,
+        });
+        await sharedStorage.database.set(queueKey, queuedMessages);
+        await sharedStorage.cache.set(queueKey, queuedMessages, 60);
+
+        expect(await sharedStorage.database.get(queueKey)).toEqual(queuedMessages);
+        expect(await sharedStorage.cache.get(queueKey)).toEqual(queuedMessages);
+
+        const restoredAgent = await createAgentWithSharedStorage(
+            'stale-queue-agent',
+            sharedStorage
+        );
+
+        expect(await sharedStorage.database.get(`session:${sessionId}`)).toBeDefined();
+        expect(await sharedStorage.database.get(queueKey)).toBeUndefined();
+        expect(await sharedStorage.cache.get(queueKey)).toBeUndefined();
+
+        const restoredSession = await restoredAgent.getSession(sessionId);
+        expect(restoredSession).toBeDefined();
+        expect(await restoredAgent.getQueuedMessages(sessionId)).toEqual([]);
     });
 
     test('drops persisted interaction state when startup cleanup purges an expired session', async () => {

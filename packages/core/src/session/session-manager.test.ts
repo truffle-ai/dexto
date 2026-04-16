@@ -41,6 +41,21 @@ describe('SessionManager', () => {
         messageCount: 5,
     };
 
+    const mockDatabaseLists = (options: { sessionKeys?: string[]; queueKeys?: string[] } = {}) => {
+        const { sessionKeys = [], queueKeys = [] } = options;
+        mockStorageManager.database.list.mockImplementation(async (prefix: string) => {
+            if (prefix === 'session:') {
+                return sessionKeys;
+            }
+
+            if (prefix === 'session-message-queue:') {
+                return queueKeys;
+            }
+
+            return [];
+        });
+    };
+
     beforeEach(() => {
         vi.resetAllMocks();
 
@@ -61,7 +76,7 @@ describe('SessionManager', () => {
             get: vi.fn().mockResolvedValue(null),
             set: vi.fn().mockResolvedValue(undefined),
             delete: vi.fn().mockResolvedValue(true),
-            list: vi.fn().mockResolvedValue([]),
+            list: vi.fn(),
             clear: vi.fn().mockResolvedValue(undefined),
             append: vi.fn().mockResolvedValue(undefined),
             getRange: vi.fn().mockResolvedValue([]),
@@ -97,6 +112,7 @@ describe('SessionManager', () => {
             database: mockDatabase,
             blobStore: mockBlobStore,
         };
+        mockDatabaseLists();
 
         // Mock services - use mockImplementation to defer evaluation until called
         // This ensures we get the current value of mockLLMConfig, not a stale reference
@@ -245,16 +261,29 @@ describe('SessionManager', () => {
         test('should initialize storage layer on first use', async () => {
             await sessionManager.init();
 
-            // Verify database.list is called to find existing sessions
-            expect(mockStorageManager.database.list).toHaveBeenCalledWith('session:');
+            expect(mockStorageManager.database.list).toHaveBeenNthCalledWith(
+                1,
+                'session-message-queue:'
+            );
+            expect(mockStorageManager.database.list).toHaveBeenNthCalledWith(2, 'session:');
         });
 
         test('should prevent duplicate initialization', async () => {
             await sessionManager.init();
             await sessionManager.init(); // Second call
 
-            // Should only call database.list once since it's already initialized
-            expect(mockStorageManager.database.list).toHaveBeenCalledTimes(1);
+            expect(mockStorageManager.database.list).toHaveBeenCalledTimes(2);
+        });
+
+        test('clears persisted queued messages on startup', async () => {
+            mockDatabaseLists({
+                queueKeys: ['session-message-queue:session-1', 'session-message-queue:session-2'],
+            });
+
+            await sessionManager.init();
+
+            expect(mockServices.messageQueueStore.delete).toHaveBeenCalledWith('session-1');
+            expect(mockServices.messageQueueStore.delete).toHaveBeenCalledWith('session-2');
         });
 
         test('should restore valid sessions from persistent storage on startup', async () => {
@@ -265,7 +294,7 @@ describe('SessionManager', () => {
                 lastActivity: new Date().getTime(), // Recent activity
             };
 
-            mockStorageManager.database.list.mockResolvedValue(existingSessionKeys);
+            mockDatabaseLists({ sessionKeys: existingSessionKeys });
             mockStorageManager.database.get.mockResolvedValue(validMetadata);
 
             await sessionManager.init();
@@ -283,7 +312,7 @@ describe('SessionManager', () => {
                 lastActivity: new Date(Date.now() - 7200000).getTime(), // 2 hours ago
             };
 
-            mockStorageManager.database.list.mockResolvedValue(existingSessionKeys);
+            mockDatabaseLists({ sessionKeys: existingSessionKeys });
             mockStorageManager.database.get.mockResolvedValue(expiredMetadata);
 
             await sessionManager.init();
@@ -1157,6 +1186,19 @@ describe('SessionManager', () => {
             for (const session of sessions) {
                 expect(session.cleanup).toHaveBeenCalled();
             }
+        });
+
+        test('clears persisted queued messages during shutdown', async () => {
+            mockDatabaseLists({
+                queueKeys: ['session-message-queue:session-1'],
+            });
+
+            await sessionManager.init();
+            mockServices.messageQueueStore.delete.mockClear();
+
+            await sessionManager.cleanup();
+
+            expect(mockServices.messageQueueStore.delete).toHaveBeenCalledWith('session-1');
         });
 
         test('should handle cleanup errors gracefully', async () => {

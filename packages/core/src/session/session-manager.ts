@@ -120,6 +120,7 @@ export class SessionManager {
     private sessions: Map<string, ChatSession> = new Map();
     private readonly maxSessions: number;
     private readonly sessionTTL: number;
+    private static readonly MESSAGE_QUEUE_KEY_PREFIX = 'session-message-queue:';
     private initialized = false;
     private cleanupInterval?: NodeJS.Timeout;
     private initializationPromise!: Promise<void>;
@@ -179,6 +180,8 @@ export class SessionManager {
         if (this.initialized) {
             return;
         }
+
+        await this.clearPersistedQueuedMessages('startup');
 
         // Restore any existing sessions from storage
         await this.restoreSessionsFromStorage();
@@ -241,6 +244,39 @@ export class SessionManager {
                 `Failed to restore sessions from storage: ${error instanceof Error ? error.message : String(error)}`
             );
             // Continue without restored sessions
+        }
+    }
+
+    private async clearPersistedQueuedMessages(reason: 'startup' | 'shutdown'): Promise<void> {
+        try {
+            const queueKeys = await this.services.storageManager
+                .getDatabase()
+                .list(SessionManager.MESSAGE_QUEUE_KEY_PREFIX);
+            if (queueKeys.length === 0) {
+                return;
+            }
+
+            await Promise.all(
+                queueKeys.map((key) =>
+                    this.services.messageQueueStore.delete(
+                        key.slice(SessionManager.MESSAGE_QUEUE_KEY_PREFIX.length)
+                    )
+                )
+            );
+
+            const message = `${reason === 'startup' ? 'Cleared stale queued follow-up state from previous agent run' : 'Cleared queued follow-up state during agent shutdown'} (${queueKeys.length} session bucket(s))`;
+            if (reason === 'startup') {
+                // TODO(issue-743): Replace startup purge with explicit resume semantics for interrupted queued follow-ups.
+                this.logger.info(message);
+            } else {
+                this.logger.debug(message);
+            }
+        } catch (error) {
+            this.logger.warn(
+                `Failed to clear persisted queued follow-up state during ${reason}: ${
+                    error instanceof Error ? error.message : String(error)
+                }`
+            );
         }
     }
 
@@ -1413,6 +1449,8 @@ export class SessionManager {
             delete this.cleanupInterval;
             this.logger.debug('Periodic session cleanup stopped');
         }
+
+        await this.clearPersistedQueuedMessages('shutdown');
 
         // End all in-memory sessions (preserve conversation history)
         const sessionIds = Array.from(this.sessions.keys());
