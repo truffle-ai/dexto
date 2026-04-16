@@ -8,7 +8,6 @@ import type { AgentCard, Logger } from '@dexto/core';
 import { logger } from '@dexto/core';
 import { z } from 'zod';
 import type { DextoAgent } from '@dexto/core';
-import { randomUUID } from 'crypto';
 
 export type McpTransportType = 'stdio' | 'sse' | 'http';
 
@@ -60,7 +59,7 @@ export async function initializeMcpServer(
                 `MCP tool '${toolName}' received message: ${message.substring(0, 100)}${message.length > 100 ? '...' : ''}`
             );
             // Create ephemeral session for this MCP tool call (stateless MCP interactions)
-            const session = await agent.createSession(`mcp-${randomUUID()}`);
+            const session = await agent.createSession();
             try {
                 const text = await agent.run(message, undefined, undefined, session.id);
                 agent.logger.info(

@@ -6,9 +6,7 @@ import type {
     ApprovalResponse,
     ApprovalRequestDetails,
     ToolApprovalMetadata,
-    CommandConfirmationMetadata,
     ElicitationMetadata,
-    DirectoryAccessMetadata,
 } from './types.js';
 import { ApprovalType, ApprovalStatus, DenialReason } from './types.js';
 import { createApprovalRequest } from './factory.js';
@@ -645,39 +643,6 @@ export class ApprovalManager {
     }
 
     /**
-     * Request directory access approval.
-     * Convenience method for directory access requests.
-     *
-     * @example
-     * ```typescript
-     * const response = await manager.requestDirectoryAccess({
-     *   path: '/external/project/src/file.ts',
-     *   parentDir: '/external/project',
-     *   operation: 'write',
-     *   toolName: 'write_file',
-     *   sessionId: 'session-123'
-     * });
-     * ```
-     */
-    async requestDirectoryAccess(
-        metadata: DirectoryAccessMetadata & { sessionId: string; timeout?: number }
-    ): Promise<ApprovalResponse> {
-        const { sessionId, timeout, ...directoryMetadata } = metadata;
-        const requiredSessionId = this.requireSessionScopeId(
-            sessionId,
-            'sessionId is required for directory access approvals'
-        );
-        return this.requestApproval(
-            this.createApprovalDetails(
-                ApprovalType.DIRECTORY_ACCESS,
-                directoryMetadata,
-                requiredSessionId,
-                timeout
-            )
-        );
-    }
-
-    /**
      * Request a generic approval
      */
     async requestApproval(details: ApprovalRequestDetails): Promise<ApprovalResponse> {
@@ -702,9 +667,10 @@ export class ApprovalManager {
         // Elicitation always uses manual mode (requires handler)
         if (request.type === ApprovalType.ELICITATION) {
             const handler = this.ensureHandler();
-            this.logger.info(
-                `Elicitation requested, approvalId: ${request.approvalId}, sessionId: ${request.sessionId ?? 'none'}`
-            );
+            this.logger.info('Elicitation requested', {
+                approvalId: request.approvalId,
+                ...(request.sessionId !== undefined && { sessionId: request.sessionId }),
+            });
             return handler(request);
         }
 
@@ -735,9 +701,10 @@ export class ApprovalManager {
 
         // Manual mode - delegate to handler
         const handler = this.ensureHandler();
-        this.logger.info(
-            `Manual approval '${request.type}' requested, approvalId: ${request.approvalId}, sessionId: ${request.sessionId ?? 'none'}`
-        );
+        this.logger.info(`Manual approval '${request.type}' requested`, {
+            approvalId: request.approvalId,
+            ...(request.sessionId !== undefined && { sessionId: request.sessionId }),
+        });
         return handler(request);
     }
 
@@ -758,42 +725,6 @@ export class ApprovalManager {
             this.createApprovalDetails(
                 ApprovalType.TOOL_APPROVAL,
                 toolMetadata,
-                requiredSessionId,
-                timeout
-            )
-        );
-    }
-
-    /**
-     * Request command confirmation approval
-     * Convenience method for dangerous command execution within an already-approved tool
-     *
-     * This is different from tool approval - it's for per-command approval
-     * of dangerous operations (like rm, git push) within tools that are already approved.
-     *
-     * @example
-     * ```typescript
-     * // bash_exec tool is approved, but dangerous commands still require approval
-     * const response = await manager.requestCommandConfirmation({
-     *   toolName: 'bash_exec',
-     *   command: 'rm -rf /important',
-     *   originalCommand: 'rm -rf /important',
-     *   sessionId: 'session-123'
-     * });
-     * ```
-     */
-    async requestCommandConfirmation(
-        metadata: CommandConfirmationMetadata & { sessionId: string; timeout?: number }
-    ): Promise<ApprovalResponse> {
-        const { sessionId, timeout, ...commandMetadata } = metadata;
-        const requiredSessionId = this.requireSessionScopeId(
-            sessionId,
-            'sessionId is required for command confirmations'
-        );
-        return this.requestApproval(
-            this.createApprovalDetails(
-                ApprovalType.COMMAND_CONFIRMATION,
-                commandMetadata,
                 requiredSessionId,
                 timeout
             )

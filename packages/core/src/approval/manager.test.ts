@@ -181,31 +181,6 @@ describe('ApprovalManager', () => {
             expect(response.status).toBe(ApprovalStatus.APPROVED);
         });
 
-        it('should route command confirmations to tool confirmation handler', async () => {
-            const manager = createApprovalManager(
-                {
-                    permissions: {
-                        mode: 'auto-approve',
-                        timeout: 120000,
-                    },
-                    elicitation: {
-                        enabled: true,
-                        timeout: 120000,
-                    },
-                },
-                mockLogger
-            );
-
-            const response = await manager.requestCommandConfirmation({
-                toolName: 'bash_exec',
-                command: 'rm -rf /',
-                originalCommand: 'rm -rf /',
-                sessionId: approvalSessionId,
-            });
-
-            expect(response.status).toBe(ApprovalStatus.APPROVED);
-        });
-
         it('should route elicitation to elicitation provider when enabled', async () => {
             const manager = createApprovalManager(
                 {

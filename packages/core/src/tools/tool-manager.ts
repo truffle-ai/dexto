@@ -1561,11 +1561,10 @@ export class ToolManager {
             callDescription
         );
         toolArgs = validatedToolArgs;
+        const sessionLogContext = sessionId !== undefined ? { sessionId } : undefined;
 
         this.logger.debug(`✅ Tool execution approved: ${toolName}`);
-        this.logger.info(
-            `🔧 Tool execution started for ${toolName}, sessionId: ${sessionId ?? 'global'}`
-        );
+        this.logger.info(`🔧 Tool execution started for ${toolName}`, sessionLogContext);
 
         // Emit tool:running event - tool is now actually executing (after approval if needed)
         // Only emit when sessionId is provided (LLM flow) - direct API calls don't need UI updates
@@ -1720,7 +1719,8 @@ export class ToolManager {
             const duration = Date.now() - startTime;
             this.logger.debug(`🎯 Tool execution completed in ${duration}ms: '${toolName}'`);
             this.logger.info(
-                `✅ Tool execution completed successfully for ${toolName} in ${duration}ms, sessionId: ${sessionId ?? 'global'}`
+                `✅ Tool execution completed successfully for ${toolName} in ${duration}ms`,
+                sessionLogContext
             );
 
             // Execute afterToolResult hooks if available
@@ -1766,7 +1766,8 @@ export class ToolManager {
         } catch (error) {
             const duration = Date.now() - startTime;
             this.logger.error(
-                `❌ Tool execution failed for ${toolName} after ${duration}ms, sessionId: ${sessionId ?? 'global'}: ${error instanceof Error ? error.message : String(error)}`
+                `❌ Tool execution failed for ${toolName} after ${duration}ms: ${error instanceof Error ? error.message : String(error)}`,
+                sessionLogContext
             );
 
             // Execute afterToolResult hooks for error case if available
@@ -1944,7 +1945,8 @@ export class ToolManager {
         // 1. Check static alwaysDeny list (highest priority - security-first)
         if (this.isInAlwaysDenyList(toolName)) {
             this.logger.info(
-                `Tool '${toolName}' is in static deny list – blocking execution (session: ${sessionId ?? 'global'})`
+                `Tool '${toolName}' is in static deny list – blocking execution`,
+                sessionId !== undefined ? { sessionId } : undefined
             );
             throw ToolError.executionDenied(toolName, sessionId);
         }
@@ -2113,7 +2115,8 @@ export class ToolManager {
         // 4. Check static alwaysAllow list
         if (this.isInAlwaysAllowList(toolName)) {
             this.logger.info(
-                `Tool '${toolName}' is in static allow list – skipping confirmation (session: ${sessionId ?? 'none'})`
+                `Tool '${toolName}' is in static allow list – skipping confirmation`,
+                sessionId !== undefined ? { sessionId } : undefined
             );
             return { requireApproval: false };
         }
@@ -2328,14 +2331,16 @@ export class ToolManager {
             response.reason === DenialReason.TIMEOUT
         ) {
             this.logger.info(
-                `Tool confirmation timed out for ${toolName}, sessionId: ${sessionId ?? 'global'}`
+                `Tool confirmation timed out for ${toolName}`,
+                sessionId !== undefined ? { sessionId } : undefined
             );
             throw ToolError.executionTimeout(toolName, response.timeoutMs ?? 0, sessionId);
         }
 
-        this.logger.info(
-            `Tool confirmation denied for ${toolName}, sessionId: ${sessionId ?? 'global'}, reason: ${response.reason ?? 'unknown'}`
-        );
+        this.logger.info(`Tool confirmation denied for ${toolName}`, {
+            ...(sessionId !== undefined && { sessionId }),
+            ...(response.reason !== undefined && { reason: response.reason }),
+        });
         throw ToolError.executionDenied(toolName, sessionId, response.message);
     }
 

@@ -15446,7 +15446,7 @@
                 "properties": {
                   "sessionId": {
                     "type": "string",
-                    "description": "A custom ID for the new session"
+                    "description": "Optional integration override. Standard clients should omit this and use the agent-generated session ID."
                   }
                 },
                 "description": "Request body for creating a new session"

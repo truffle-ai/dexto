@@ -257,9 +257,12 @@ export class SessionManager {
     }
 
     /**
-     * Creates a new chat session or returns an existing one.
+     * Creates a new chat session.
      *
-     * @param sessionId Optional session ID. If not provided, a UUID will be generated.
+     * Most callers should omit sessionId and use the generated ID. Integration adapters may pass
+     * a stable external ID when they need create-or-resume semantics.
+     *
+     * @param sessionId Optional integration-owned session ID. If not provided, a UUID is generated.
      * @returns The created or existing ChatSession
      * @throws Error if maximum sessions limit is reached
      */

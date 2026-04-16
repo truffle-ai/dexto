@@ -58,7 +58,7 @@ import type { VercelLLMService } from '../llm/services/vercel.js';
  *
  * ```typescript
  * // Create a new session
- * const session = agent.createSession('user-123');
+ * const session = agent.createSession();
  *
  * // Listen for session events
  * session.eventBus.on('llm:response', (payload) => {

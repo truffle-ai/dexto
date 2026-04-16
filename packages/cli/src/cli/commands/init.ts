@@ -553,7 +553,7 @@ async function generateAgentSystemPromptFromDescription(
 
     try {
         await generatorAgent.start();
-        const session = await generatorAgent.createSession(PROMPT_GENERATOR_AGENT_ID);
+        const session = await generatorAgent.createSession();
         const response = await generatorAgent.generate(
             buildPromptGenerationRequest(displayName, roleDescription, options),
             session.id

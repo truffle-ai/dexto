@@ -1,6 +1,6 @@
 ---
 sidebar_position: 3
-title: "Working with Sessions"
+title: 'Working with Sessions'
 ---
 
 # Working with Sessions
@@ -21,7 +21,7 @@ Here's a conversation with working memory:
 
 ```typescript
 const agent = new DextoAgent({
-  llm: { provider: 'openai', model: 'gpt-4o-mini', apiKey: process.env.OPENAI_API_KEY }
+    llm: { provider: 'openai', model: 'gpt-4o-mini', apiKey: process.env.OPENAI_API_KEY },
 });
 await agent.start();
 
@@ -54,7 +54,7 @@ Sessions are cheap—create as many as you need:
 
 ```typescript
 const agent = new DextoAgent({
-  llm: { provider: 'openai', model: 'gpt-4o-mini', apiKey: process.env.OPENAI_API_KEY }
+    llm: { provider: 'openai', model: 'gpt-4o-mini', apiKey: process.env.OPENAI_API_KEY },
 });
 await agent.start();
 
@@ -62,19 +62,20 @@ await agent.start();
 const session1 = await agent.createSession();
 console.log(session1.id); // "sess_abc123def456"
 
-// Custom ID (useful for mapping to users)
-const session2 = await agent.createSession('user-sarah-2024');
-console.log(session2.id); // "user-sarah-2024"
+// Create another session whenever you need a new conversation thread
+const session2 = await agent.createSession();
+console.log(session2.id); // "sess_xyz789ghi012"
 ```
 
-Custom IDs make it easy to tie sessions to your own user system. Just make sure they're unique.
+If you need to associate sessions with users, chats, or tasks, store the generated `session.id`
+in your own application state.
 
 ## Building Multi-Turn Conversations
 
 Pass the same `sessionId` on every message:
 
 ```typescript
-const session = await agent.createSession('demo');
+const session = await agent.createSession();
 
 await agent.generate('I want to build a REST API in Node.js.', session.id);
 
@@ -93,14 +94,16 @@ Each message adds to the session's history. The LLM sees the full conversation e
 Check what the agent remembers:
 
 ```typescript
-const history = await agent.getSessionHistory('demo');
+const session = await agent.createSession();
+const history = await agent.getSessionHistory(session.id);
 
 for (const message of history) {
-  console.log(`[${message.role}]: ${message.content.substring(0, 60)}...`);
+    console.log(`[${message.role}]: ${message.content.substring(0, 60)}...`);
 }
 ```
 
 Output:
+
 ```text
 [user]: I want to build a REST API in Node.js.
 [assistant]: Building a REST API in Node.js is a great choice. Here are...
@@ -124,12 +127,14 @@ console.log(`Active sessions: ${sessions.length}`);
 ### Check if a Session Exists
 
 ```typescript
-const session = await agent.getSession('user-sarah-2024');
-if (session) {
-  console.log('Session found');
+const session = await agent.createSession();
+const existingSessionId = session.id;
+const existingSession = await agent.getSession(existingSessionId);
+if (existingSession) {
+    console.log('Session found');
 } else {
-  console.log('Session not found - creating new one');
-  await agent.createSession('user-sarah-2024');
+    console.log('Session not found - creating new one');
+    await agent.createSession();
 }
 ```
 
@@ -138,8 +143,9 @@ if (session) {
 Clear history but keep the session ID:
 
 ```typescript
-await agent.resetConversation('demo');
-// Session 'demo' still exists, but all messages are gone
+const session = await agent.createSession();
+await agent.resetConversation(session.id);
+// Session still exists, but all messages are gone
 ```
 
 Use this for "start new conversation" buttons in your UI.
@@ -149,7 +155,8 @@ Use this for "start new conversation" buttons in your UI.
 Remove everything:
 
 ```typescript
-await agent.deleteSession('demo');
+const session = await agent.createSession();
+await agent.deleteSession(session.id);
 // Session no longer exists
 ```
 
@@ -162,12 +169,13 @@ await agent.deleteSession('demo');
 Simple apps where each user has one ongoing conversation:
 
 ```typescript
-// User logs in
-const sessionId = `user-${userId}`;
-const session = await agent.getSession(sessionId);
+const userSessions = new Map<string, string>();
 
-if (!session) {
-  await agent.createSession(sessionId);
+let sessionId = userSessions.get(userId);
+if (!sessionId) {
+    const session = await agent.createSession();
+    sessionId = session.id;
+    userSessions.set(userId, sessionId);
 }
 
 // Every message from this user uses the same session
@@ -179,12 +187,14 @@ await agent.generate(userMessage, sessionId);
 Apps like ChatGPT where users create multiple conversation threads:
 
 ```typescript
+const userChats = new Map<string, string>();
+
 // User creates a new chat
-const sessionId = `user-${userId}-chat-${chatId}`;
-await agent.createSession(sessionId);
+const chatSession = await agent.createSession();
+userChats.set(chatId, chatSession.id);
 
 // User switches between chats
-await agent.generate(message, currentChatId);
+await agent.generate(message, userChats.get(chatId)!);
 ```
 
 ### Pattern 3: Session Per Task
@@ -192,9 +202,13 @@ await agent.generate(message, currentChatId);
 Short-lived sessions for specific tasks:
 
 ```typescript
+const ticketSessions = new Map<string, string>();
+
 // User starts a support ticket
-const sessionId = `ticket-${ticketId}`;
-await agent.createSession(sessionId);
+const ticketSession = await agent.createSession();
+ticketSessions.set(ticketId, ticketSession.id);
+
+const sessionId = ticketSessions.get(ticketId)!;
 
 // All messages related to this ticket use this session
 await agent.generate(message, sessionId);
