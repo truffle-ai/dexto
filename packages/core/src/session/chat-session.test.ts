@@ -292,7 +292,7 @@ describe('ChatSession', () => {
             };
 
             mockLLMService.stream.mockImplementation(async () => {
-                chatSession.eventBus.emit('llm:thinking');
+                chatSession.eventBus.emit('llm:thinking', {});
                 return { text: 'Mock response' };
             });
 
@@ -314,7 +314,7 @@ describe('ChatSession', () => {
             await chatSession.init();
 
             mockLLMService.stream.mockImplementation(async () => {
-                chatSession.eventBus.emit('llm:thinking');
+                chatSession.eventBus.emit('llm:thinking', {});
                 return { text: 'Mock response' };
             });
 

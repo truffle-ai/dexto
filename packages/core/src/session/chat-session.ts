@@ -15,9 +15,7 @@ import type { BeforeLLMRequestPayload, BeforeResponsePayload } from '../hooks/ty
 import {
     SessionEventBus,
     AgentEventBus,
-    EventListener,
-    AgentEventMap,
-    HostRuntimeEventContext,
+    forwardSessionEventsToAgentBus,
     SessionEventMap,
 } from '../events/index.js';
 import type { Logger } from '../logger/v2/types.js';
@@ -183,173 +181,15 @@ export class ChatSession {
         await this.initializeServices();
     }
 
-    private createThinkingEventPayload(
-        runContext?: AgentRunContext
-    ): AgentEventMap['llm:thinking'] {
-        if (runContext?.hostRuntime === undefined) {
-            return { sessionId: this.id };
-        }
-
-        return {
-            sessionId: this.id,
-            hostRuntime: runContext.hostRuntime,
-        };
-    }
-
-    private withAgentEventContext<TPayload extends HostRuntimeEventContext & object>(
-        payload: TPayload,
-        runContext?: AgentRunContext
-    ): TPayload & { sessionId: string } {
-        if (payload.hostRuntime !== undefined || runContext?.hostRuntime === undefined) {
-            return {
-                ...payload,
-                sessionId: this.id,
-            };
-        }
-
-        return {
-            ...payload,
-            sessionId: this.id,
-            hostRuntime: runContext.hostRuntime,
-        };
-    }
-
     private attachRunEventForwarders(runContext?: AgentRunContext): () => void {
-        const cleanups: Array<() => void> = [];
-        const addForwarder = <K extends keyof SessionEventMap>(
-            event: K,
-            forwarder: EventListener<SessionEventMap[K]>
-        ) => {
-            this.eventBus.on(event, forwarder);
-            cleanups.push(() => {
-                this.eventBus.off(event, forwarder);
-            });
-        };
-
-        addForwarder('llm:thinking', () => {
-            this.services.agentEventBus.emit(
-                'llm:thinking',
-                this.createThinkingEventPayload(runContext)
-            );
+        const cleanup = forwardSessionEventsToAgentBus({
+            sessionEventBus: this.eventBus,
+            agentEventBus: this.services.agentEventBus,
+            sessionId: this.id,
+            ...(runContext?.hostRuntime !== undefined
+                ? { hostRuntime: runContext.hostRuntime }
+                : {}),
         });
-
-        addForwarder('llm:chunk', (payload) => {
-            this.services.agentEventBus.emit(
-                'llm:chunk',
-                this.withAgentEventContext(payload, runContext)
-            );
-        });
-
-        addForwarder('llm:response', (payload) => {
-            this.services.agentEventBus.emit(
-                'llm:response',
-                this.withAgentEventContext(payload, runContext)
-            );
-        });
-
-        addForwarder('llm:rate-limit-status', (payload) => {
-            this.services.agentEventBus.emit(
-                'llm:rate-limit-status',
-                this.withAgentEventContext(payload, runContext)
-            );
-        });
-
-        addForwarder('llm:tool-call', (payload) => {
-            this.services.agentEventBus.emit(
-                'llm:tool-call',
-                this.withAgentEventContext(payload, runContext)
-            );
-        });
-
-        addForwarder('llm:tool-call-partial', (payload) => {
-            this.services.agentEventBus.emit(
-                'llm:tool-call-partial',
-                this.withAgentEventContext(payload, runContext)
-            );
-        });
-
-        addForwarder('llm:tool-result', (payload) => {
-            this.services.agentEventBus.emit(
-                'llm:tool-result',
-                this.withAgentEventContext(payload, runContext)
-            );
-        });
-
-        addForwarder('tool:running', (payload) => {
-            this.services.agentEventBus.emit(
-                'tool:running',
-                this.withAgentEventContext(payload, runContext)
-            );
-        });
-
-        addForwarder('llm:error', (payload) => {
-            this.services.agentEventBus.emit(
-                'llm:error',
-                this.withAgentEventContext(payload, runContext)
-            );
-        });
-
-        addForwarder('llm:unsupported-input', (payload) => {
-            this.services.agentEventBus.emit(
-                'llm:unsupported-input',
-                this.withAgentEventContext(payload, runContext)
-            );
-        });
-
-        addForwarder('context:compacting', (payload) => {
-            this.services.agentEventBus.emit(
-                'context:compacting',
-                this.withAgentEventContext(payload, runContext)
-            );
-        });
-
-        addForwarder('context:compacted', (payload) => {
-            this.services.agentEventBus.emit(
-                'context:compacted',
-                this.withAgentEventContext(payload, runContext)
-            );
-        });
-
-        addForwarder('context:pruned', (payload) => {
-            this.services.agentEventBus.emit(
-                'context:pruned',
-                this.withAgentEventContext(payload, runContext)
-            );
-        });
-
-        addForwarder('message:queued', (payload) => {
-            this.services.agentEventBus.emit(
-                'message:queued',
-                this.withAgentEventContext(payload, runContext)
-            );
-        });
-
-        addForwarder('message:dequeued', (payload) => {
-            this.services.agentEventBus.emit(
-                'message:dequeued',
-                this.withAgentEventContext(payload, runContext)
-            );
-        });
-
-        addForwarder('message:removed', (payload) => {
-            this.services.agentEventBus.emit(
-                'message:removed',
-                this.withAgentEventContext(payload, runContext)
-            );
-        });
-
-        addForwarder('run:complete', (payload) => {
-            this.services.agentEventBus.emit(
-                'run:complete',
-                this.withAgentEventContext(payload, runContext)
-            );
-        });
-
-        const cleanup = () => {
-            for (const dispose of cleanups) {
-                dispose();
-            }
-        };
 
         this.activeForwarderCleanup = cleanup;
         return () => {

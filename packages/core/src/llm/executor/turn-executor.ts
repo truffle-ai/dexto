@@ -178,7 +178,7 @@ export class TurnExecutor {
         let lastFinishReason: LLMFinishReason = 'unknown';
         let lastText = '';
 
-        this.eventBus.emit('llm:thinking');
+        this.eventBus.emit('llm:thinking', {});
 
         // Check tool support once before the loop
         const supportsTools = await this.validateToolSupport();

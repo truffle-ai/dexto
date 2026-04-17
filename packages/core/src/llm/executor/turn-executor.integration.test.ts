@@ -311,7 +311,7 @@ describe('TurnExecutor Integration Tests', () => {
             await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
             await executor.execute({ mcpManager }, true);
 
-            expect(thinkingHandler).toHaveBeenCalled();
+            expect(thinkingHandler).toHaveBeenCalledWith({});
             expect(responseHandler).toHaveBeenCalled();
             expect(runCompleteHandler).toHaveBeenCalledWith(
                 expect.objectContaining({

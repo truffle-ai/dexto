@@ -59,10 +59,7 @@ export const AGENT_EVENT_NAMES = [
     'tool:background-completed',
 ] as const;
 
-/**
- * Session-level event names - events that occur within individual sessions
- */
-export const SESSION_EVENT_NAMES = [
+export const FORWARDED_SESSION_EVENT_NAMES = [
     'llm:thinking',
     'llm:chunk',
     'llm:response',
@@ -71,7 +68,6 @@ export const SESSION_EVENT_NAMES = [
     'llm:tool-call-partial',
     'llm:tool-result',
     'llm:error',
-    'llm:switched',
     'llm:unsupported-input',
     'tool:running',
     'context:compacting',
@@ -81,6 +77,18 @@ export const SESSION_EVENT_NAMES = [
     'message:dequeued',
     'message:removed',
     'run:complete',
+] as const;
+
+// These stay session-local because their agent-bus form is not the generic
+// `{ sessionId, ...payload, hostRuntime? }` shape used by normal forwarded events.
+export const SESSION_ONLY_EVENT_NAMES = ['llm:switched'] as const;
+
+/**
+ * Session-level event names - events that occur within individual sessions
+ */
+export const SESSION_EVENT_NAMES = [
+    ...FORWARDED_SESSION_EVENT_NAMES,
+    ...SESSION_ONLY_EVENT_NAMES,
 ] as const;
 
 /**
@@ -456,7 +464,7 @@ export type ToolBackgroundEvent = AgentEventMap['tool:background'];
  */
 interface SessionEventMapBase {
     /** LLM service started thinking */
-    'llm:thinking': void;
+    'llm:thinking': {};
 
     /** LLM service sent a streaming chunk */
     'llm:chunk': {
@@ -631,8 +639,10 @@ interface SessionEventMapBase {
     };
 }
 
+export type ForwardedSessionEventName = (typeof FORWARDED_SESSION_EVENT_NAMES)[number];
+
 type ForwardedSessionEventMapBase = {
-    [K in Exclude<keyof SessionEventMapBase, 'llm:switched'>]: SessionEventMapBase[K] extends void
+    [K in ForwardedSessionEventName]: SessionEventMapBase[K] extends void
         ? { sessionId: string }
         : SessionEventMapBase[K] & { sessionId: string };
 };
@@ -848,3 +858,157 @@ export class TypedEventEmitter extends AgentEventBus {}
  * Global shared event bus (backward compatibility)
  */
 export const eventBus = new TypedEventEmitter().setMaxListeners(200);
+
+function withForwardedSessionContext<TPayload extends HostRuntimeEventContext>(
+    payload: TPayload,
+    sessionId: string,
+    hostRuntime?: HostRuntimeContext
+): TPayload & { sessionId: string } {
+    if (payload.hostRuntime !== undefined || hostRuntime === undefined) {
+        return {
+            ...payload,
+            sessionId,
+        };
+    }
+
+    return {
+        ...payload,
+        sessionId,
+        hostRuntime,
+    };
+}
+
+type ForwardSessionEventsOptions = {
+    sessionEventBus: SessionEventBus;
+    agentEventBus: AgentEventBus;
+    sessionId: string;
+    hostRuntime?: HostRuntimeContext;
+};
+
+export function forwardSessionEventsToAgentBus({
+    sessionEventBus,
+    agentEventBus,
+    sessionId,
+    hostRuntime,
+}: ForwardSessionEventsOptions): () => void {
+    const cleanups: Array<() => void> = [];
+
+    const on = <K extends ForwardedSessionEventName>(
+        event: K,
+        listener: EventListener<SessionEventMap[K]>
+    ) => {
+        sessionEventBus.on(event, listener);
+        cleanups.push(() => {
+            sessionEventBus.off(event, listener);
+        });
+    };
+
+    on('llm:thinking', (payload) => {
+        agentEventBus.emit(
+            'llm:thinking',
+            withForwardedSessionContext(payload, sessionId, hostRuntime)
+        );
+    });
+    on('llm:chunk', (payload) => {
+        agentEventBus.emit(
+            'llm:chunk',
+            withForwardedSessionContext(payload, sessionId, hostRuntime)
+        );
+    });
+    on('llm:response', (payload) => {
+        agentEventBus.emit(
+            'llm:response',
+            withForwardedSessionContext(payload, sessionId, hostRuntime)
+        );
+    });
+    on('llm:rate-limit-status', (payload) => {
+        agentEventBus.emit(
+            'llm:rate-limit-status',
+            withForwardedSessionContext(payload, sessionId, hostRuntime)
+        );
+    });
+    on('llm:tool-call', (payload) => {
+        agentEventBus.emit(
+            'llm:tool-call',
+            withForwardedSessionContext(payload, sessionId, hostRuntime)
+        );
+    });
+    on('llm:tool-call-partial', (payload) => {
+        agentEventBus.emit(
+            'llm:tool-call-partial',
+            withForwardedSessionContext(payload, sessionId, hostRuntime)
+        );
+    });
+    on('llm:tool-result', (payload) => {
+        agentEventBus.emit(
+            'llm:tool-result',
+            withForwardedSessionContext(payload, sessionId, hostRuntime)
+        );
+    });
+    on('llm:error', (payload) => {
+        agentEventBus.emit(
+            'llm:error',
+            withForwardedSessionContext(payload, sessionId, hostRuntime)
+        );
+    });
+    on('llm:unsupported-input', (payload) => {
+        agentEventBus.emit(
+            'llm:unsupported-input',
+            withForwardedSessionContext(payload, sessionId, hostRuntime)
+        );
+    });
+    on('tool:running', (payload) => {
+        agentEventBus.emit(
+            'tool:running',
+            withForwardedSessionContext(payload, sessionId, hostRuntime)
+        );
+    });
+    on('context:compacting', (payload) => {
+        agentEventBus.emit(
+            'context:compacting',
+            withForwardedSessionContext(payload, sessionId, hostRuntime)
+        );
+    });
+    on('context:compacted', (payload) => {
+        agentEventBus.emit(
+            'context:compacted',
+            withForwardedSessionContext(payload, sessionId, hostRuntime)
+        );
+    });
+    on('context:pruned', (payload) => {
+        agentEventBus.emit(
+            'context:pruned',
+            withForwardedSessionContext(payload, sessionId, hostRuntime)
+        );
+    });
+    on('message:queued', (payload) => {
+        agentEventBus.emit(
+            'message:queued',
+            withForwardedSessionContext(payload, sessionId, hostRuntime)
+        );
+    });
+    on('message:dequeued', (payload) => {
+        agentEventBus.emit(
+            'message:dequeued',
+            withForwardedSessionContext(payload, sessionId, hostRuntime)
+        );
+    });
+    on('message:removed', (payload) => {
+        agentEventBus.emit(
+            'message:removed',
+            withForwardedSessionContext(payload, sessionId, hostRuntime)
+        );
+    });
+    on('run:complete', (payload) => {
+        agentEventBus.emit(
+            'run:complete',
+            withForwardedSessionContext(payload, sessionId, hostRuntime)
+        );
+    });
+
+    return () => {
+        for (const cleanup of cleanups) {
+            cleanup();
+        }
+    };
+}
