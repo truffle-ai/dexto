@@ -1,4 +1,4 @@
-import type { AgentEventMap, DextoAgent, SessionMetadata } from '@dexto/core';
+import type { AgentEventMap, DextoAgent, EventListener, SessionMetadata } from '@dexto/core';
 import type { CommandDefinition } from './interactive-commands/command-parser.js';
 
 export interface TuiAgentCapabilities {
@@ -107,7 +107,7 @@ export interface TuiAgentBackend
     getEffectiveConfig: (sessionId?: string) => TuiEffectiveConfig;
     on: <K extends keyof AgentEventMap>(
         event: K,
-        listener: AgentEventMap[K] extends void ? () => void : (payload: AgentEventMap[K]) => void,
+        listener: EventListener<AgentEventMap[K]>,
         options?: { signal?: AbortSignal }
     ) => void;
     emit: <K extends keyof AgentEventMap>(

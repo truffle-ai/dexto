@@ -15,11 +15,10 @@ import type { BeforeLLMRequestPayload, BeforeResponsePayload } from '../hooks/ty
 import {
     SessionEventBus,
     AgentEventBus,
-    SessionEventNames,
+    EventListener,
     AgentEventMap,
+    HostRuntimeEventContext,
     SessionEventMap,
-    ForwardedObjectSessionEventName,
-    ForwardedObjectSessionEventMap,
 } from '../events/index.js';
 import type { Logger } from '../logger/v2/types.js';
 import { DextoLogComponent } from '../logger/v2/types.js';
@@ -197,49 +196,189 @@ export class ChatSession {
         };
     }
 
-    private attachThinkingEventForwarder(runContext?: AgentRunContext): () => void {
-        const forwarder = () => {
-            this.services.agentEventBus.emit(
-                'llm:thinking',
-                this.createThinkingEventPayload(runContext)
-            );
-        };
-
-        this.eventBus.on('llm:thinking', forwarder);
-        return () => {
-            this.eventBus.off('llm:thinking', forwarder);
-        };
-    }
-
-    private attachRunEventForwarder<K extends ForwardedObjectSessionEventName>(
-        eventName: K,
+    private withAgentEventContext<TPayload extends HostRuntimeEventContext & object>(
+        payload: TPayload,
         runContext?: AgentRunContext
-    ): () => void {
-        const forwarder = (payload: ForwardedObjectSessionEventMap[K]) => {
-            this.services.agentEventBus.emitForwardedSessionEvent(
-                eventName,
-                payload,
-                this.id,
-                runContext?.hostRuntime
-            );
-        };
+    ): TPayload & { sessionId: string } {
+        if (payload.hostRuntime !== undefined || runContext?.hostRuntime === undefined) {
+            return {
+                ...payload,
+                sessionId: this.id,
+            };
+        }
 
-        this.eventBus.on(eventName, forwarder);
-        return () => {
-            this.eventBus.off(eventName, forwarder);
+        return {
+            ...payload,
+            sessionId: this.id,
+            hostRuntime: runContext.hostRuntime,
         };
     }
 
     private attachRunEventForwarders(runContext?: AgentRunContext): () => void {
         const cleanups: Array<() => void> = [];
-        cleanups.push(this.attachThinkingEventForwarder(runContext));
+        const addForwarder = <K extends keyof SessionEventMap>(
+            event: K,
+            forwarder: EventListener<SessionEventMap[K]>
+        ) => {
+            this.eventBus.on(event, forwarder);
+            cleanups.push(() => {
+                this.eventBus.off(event, forwarder);
+            });
+        };
 
-        for (const eventName of SessionEventNames) {
-            if (eventName === 'llm:switched' || eventName === 'llm:thinking') {
-                continue;
-            }
-            cleanups.push(this.attachRunEventForwarder(eventName, runContext));
-        }
+        const thinkingForwarder: EventListener<SessionEventMap['llm:thinking']> = () => {
+            this.services.agentEventBus.emit(
+                'llm:thinking',
+                this.createThinkingEventPayload(runContext)
+            );
+        };
+        addForwarder('llm:thinking', thinkingForwarder);
+
+        const chunkForwarder: EventListener<SessionEventMap['llm:chunk']> = (payload) => {
+            this.services.agentEventBus.emit(
+                'llm:chunk',
+                this.withAgentEventContext(payload, runContext)
+            );
+        };
+        addForwarder('llm:chunk', chunkForwarder);
+
+        const responseForwarder: EventListener<SessionEventMap['llm:response']> = (payload) => {
+            this.services.agentEventBus.emit(
+                'llm:response',
+                this.withAgentEventContext(payload, runContext)
+            );
+        };
+        addForwarder('llm:response', responseForwarder);
+
+        const rateLimitStatusForwarder: EventListener<SessionEventMap['llm:rate-limit-status']> = (
+            payload
+        ) => {
+            this.services.agentEventBus.emit(
+                'llm:rate-limit-status',
+                this.withAgentEventContext(payload, runContext)
+            );
+        };
+        addForwarder('llm:rate-limit-status', rateLimitStatusForwarder);
+
+        const toolCallForwarder: EventListener<SessionEventMap['llm:tool-call']> = (payload) => {
+            this.services.agentEventBus.emit(
+                'llm:tool-call',
+                this.withAgentEventContext(payload, runContext)
+            );
+        };
+        addForwarder('llm:tool-call', toolCallForwarder);
+
+        const toolCallPartialForwarder: EventListener<SessionEventMap['llm:tool-call-partial']> = (
+            payload
+        ) => {
+            this.services.agentEventBus.emit(
+                'llm:tool-call-partial',
+                this.withAgentEventContext(payload, runContext)
+            );
+        };
+        addForwarder('llm:tool-call-partial', toolCallPartialForwarder);
+
+        const toolResultForwarder: EventListener<SessionEventMap['llm:tool-result']> = (
+            payload
+        ) => {
+            this.services.agentEventBus.emit(
+                'llm:tool-result',
+                this.withAgentEventContext(payload, runContext)
+            );
+        };
+        addForwarder('llm:tool-result', toolResultForwarder);
+
+        const toolRunningForwarder: EventListener<SessionEventMap['tool:running']> = (payload) => {
+            this.services.agentEventBus.emit(
+                'tool:running',
+                this.withAgentEventContext(payload, runContext)
+            );
+        };
+        addForwarder('tool:running', toolRunningForwarder);
+
+        const errorForwarder: EventListener<SessionEventMap['llm:error']> = (payload) => {
+            this.services.agentEventBus.emit(
+                'llm:error',
+                this.withAgentEventContext(payload, runContext)
+            );
+        };
+        addForwarder('llm:error', errorForwarder);
+
+        const unsupportedInputForwarder: EventListener<SessionEventMap['llm:unsupported-input']> = (
+            payload
+        ) => {
+            this.services.agentEventBus.emit(
+                'llm:unsupported-input',
+                this.withAgentEventContext(payload, runContext)
+            );
+        };
+        addForwarder('llm:unsupported-input', unsupportedInputForwarder);
+
+        const compactingForwarder: EventListener<SessionEventMap['context:compacting']> = (
+            payload
+        ) => {
+            this.services.agentEventBus.emit(
+                'context:compacting',
+                this.withAgentEventContext(payload, runContext)
+            );
+        };
+        addForwarder('context:compacting', compactingForwarder);
+
+        const compactedForwarder: EventListener<SessionEventMap['context:compacted']> = (
+            payload
+        ) => {
+            this.services.agentEventBus.emit(
+                'context:compacted',
+                this.withAgentEventContext(payload, runContext)
+            );
+        };
+        addForwarder('context:compacted', compactedForwarder);
+
+        const prunedForwarder: EventListener<SessionEventMap['context:pruned']> = (payload) => {
+            this.services.agentEventBus.emit(
+                'context:pruned',
+                this.withAgentEventContext(payload, runContext)
+            );
+        };
+        addForwarder('context:pruned', prunedForwarder);
+
+        const messageQueuedForwarder: EventListener<SessionEventMap['message:queued']> = (
+            payload
+        ) => {
+            this.services.agentEventBus.emit(
+                'message:queued',
+                this.withAgentEventContext(payload, runContext)
+            );
+        };
+        addForwarder('message:queued', messageQueuedForwarder);
+
+        const messageDequeuedForwarder: EventListener<SessionEventMap['message:dequeued']> = (
+            payload
+        ) => {
+            this.services.agentEventBus.emit(
+                'message:dequeued',
+                this.withAgentEventContext(payload, runContext)
+            );
+        };
+        addForwarder('message:dequeued', messageDequeuedForwarder);
+
+        const messageRemovedForwarder: EventListener<SessionEventMap['message:removed']> = (
+            payload
+        ) => {
+            this.services.agentEventBus.emit(
+                'message:removed',
+                this.withAgentEventContext(payload, runContext)
+            );
+        };
+        addForwarder('message:removed', messageRemovedForwarder);
+
+        const runCompleteForwarder: EventListener<SessionEventMap['run:complete']> = (payload) => {
+            this.services.agentEventBus.emit(
+                'run:complete',
+                this.withAgentEventContext(payload, runContext)
+            );
+        };
+        addForwarder('run:complete', runCompleteForwarder);
 
         const cleanup = () => {
             for (const dispose of cleanups) {

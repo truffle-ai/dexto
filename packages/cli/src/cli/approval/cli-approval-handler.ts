@@ -17,13 +17,14 @@ import type {
     ApprovalRequest,
     ApprovalResponse,
     AgentEventMap,
+    EventListener,
 } from '@dexto/core';
 import { ApprovalStatus, DenialReason } from '@dexto/core';
 
 type ApprovalEventBus = {
     on: <K extends keyof AgentEventMap>(
         event: K,
-        listener: AgentEventMap[K] extends void ? () => void : (payload: AgentEventMap[K]) => void,
+        listener: EventListener<AgentEventMap[K]>,
         options?: { signal?: AbortSignal }
     ) => void;
     emit: <K extends keyof AgentEventMap>(

@@ -63,6 +63,7 @@ import { UsageScopeIdSchema } from '../llm/usage-scope.js';
 import {
     AgentEventBus,
     type AgentEventMap,
+    type EventListener,
     type StreamingEvent,
     type StreamingEventName,
 } from '../events/index.js';
@@ -615,7 +616,7 @@ export class DextoAgent {
      */
     public on<K extends keyof AgentEventMap>(
         event: K,
-        listener: AgentEventMap[K] extends void ? () => void : (payload: AgentEventMap[K]) => void,
+        listener: EventListener<AgentEventMap[K]>,
         options?: { signal?: AbortSignal }
     ): this {
         this.agentEventBus.on(event, listener, options);
@@ -624,7 +625,7 @@ export class DextoAgent {
 
     public once<K extends keyof AgentEventMap>(
         event: K,
-        listener: AgentEventMap[K] extends void ? () => void : (payload: AgentEventMap[K]) => void,
+        listener: EventListener<AgentEventMap[K]>,
         options?: { signal?: AbortSignal }
     ): this {
         this.agentEventBus.once(event, listener, options);
@@ -633,7 +634,7 @@ export class DextoAgent {
 
     public off<K extends keyof AgentEventMap>(
         event: K,
-        listener: AgentEventMap[K] extends void ? () => void : (payload: AgentEventMap[K]) => void
+        listener: EventListener<AgentEventMap[K]>
     ): this {
         this.agentEventBus.off(event, listener);
         return this;
@@ -643,7 +644,7 @@ export class DextoAgent {
         event: K,
         ...args: AgentEventMap[K] extends void ? [] : [AgentEventMap[K]]
     ): boolean {
-        return this.agentEventBus.emitDirect(event, args[0]);
+        return this.agentEventBus.emit(event, ...args);
     }
 
     /**
@@ -949,7 +950,7 @@ export class DextoAgent {
 
         const addStreamingListener = <K extends StreamingEventName>(
             event: K,
-            listener: (payload: AgentEventMap[K]) => void
+            listener: EventListener<AgentEventMap[K]>
         ) => {
             this.agentEventBus.on(event, listener, { signal: cleanupSignal });
             listenerCleanups.push(() => {

@@ -1,8 +1,33 @@
 import { setMaxListeners } from 'events';
 import { TextEncoder } from 'node:util';
 import { ReadableStream, type ReadableStreamDefaultController } from 'node:stream/web';
-import type { AgentEventBus, AgentEventMap } from '@dexto/core';
+import type { AgentEventBus, AgentEventMap, EventArgs, EventListener } from '@dexto/core';
 import { logger } from '@dexto/core';
+
+const SESSION_EVENT_NAMES = [
+    'llm:thinking',
+    'llm:chunk',
+    'llm:response',
+    'llm:tool-call',
+    'llm:tool-call-partial',
+    'llm:tool-result',
+    'llm:error',
+    'llm:unsupported-input',
+    'tool:running',
+    'context:compacting',
+    'context:compacted',
+    'context:pruned',
+    'message:queued',
+    'message:dequeued',
+    'session:title-updated',
+    'approval:request',
+    'approval:response',
+    'service:event',
+    'run:complete',
+] as const;
+
+type SessionEventName = (typeof SESSION_EVENT_NAMES)[number];
+type SessionEventPayload = AgentEventMap[SessionEventName];
 
 interface SessionSseConnection {
     sessionId: string;
@@ -11,26 +36,25 @@ interface SessionSseConnection {
     connectedAt: number;
 }
 
-function serializeEventPayload<K extends keyof AgentEventMap>(
-    eventName: K,
-    payload: AgentEventMap[K]
+function serializeEventPayload(
+    eventName: SessionEventName,
+    payload: SessionEventPayload
 ): Record<string, unknown> {
-    if (eventName === 'llm:error') {
-        const errorPayload = payload as AgentEventMap['llm:error'];
+    if (eventName === 'llm:error' && 'error' in payload) {
         return {
-            ...errorPayload,
+            ...payload,
             error:
-                errorPayload.error instanceof Error
+                payload.error instanceof Error
                     ? {
-                          message: errorPayload.error.message,
-                          name: errorPayload.error.name,
-                          stack: errorPayload.error.stack,
+                          message: payload.error.message,
+                          name: payload.error.name,
+                          stack: payload.error.stack,
                       }
-                    : errorPayload.error,
+                    : payload.error,
         };
     }
 
-    return payload as Record<string, unknown>;
+    return { ...payload };
 }
 
 export class SessionSseEventSubscriber {
@@ -44,50 +68,33 @@ export class SessionSseEventSubscriber {
         const { signal } = this.globalAbortController;
         setMaxListeners(32, signal);
 
-        const subscribeSessionEvent = <K extends keyof AgentEventMap>(eventName: K) => {
-            eventBus.on(
-                eventName,
-                ((payload: AgentEventMap[K]) => {
-                    if (
-                        !payload ||
-                        typeof payload !== 'object' ||
-                        !('sessionId' in payload) ||
-                        typeof payload.sessionId !== 'string'
-                    ) {
-                        return;
-                    }
+        const subscribeSessionEvent = <K extends SessionEventName>(eventName: K) => {
+            const listener: EventListener<AgentEventMap[K]> = (
+                ...args: EventArgs<AgentEventMap[K]>
+            ) => {
+                const [payload] = args;
+                if (
+                    !payload ||
+                    typeof payload !== 'object' ||
+                    !('sessionId' in payload) ||
+                    typeof payload.sessionId !== 'string'
+                ) {
+                    return;
+                }
 
-                    this.broadcastToSession(
-                        payload.sessionId,
-                        String(eventName),
-                        serializeEventPayload(eventName, payload)
-                    );
-                }) as AgentEventMap[K] extends void
-                    ? () => void
-                    : (payload: AgentEventMap[K]) => void,
-                { signal }
-            );
+                this.broadcastToSession(
+                    payload.sessionId,
+                    String(eventName),
+                    serializeEventPayload(eventName, payload)
+                );
+            };
+
+            eventBus.on(eventName, listener, { signal });
         };
 
-        subscribeSessionEvent('llm:thinking');
-        subscribeSessionEvent('llm:chunk');
-        subscribeSessionEvent('llm:response');
-        subscribeSessionEvent('llm:tool-call');
-        subscribeSessionEvent('llm:tool-call-partial');
-        subscribeSessionEvent('llm:tool-result');
-        subscribeSessionEvent('llm:error');
-        subscribeSessionEvent('llm:unsupported-input');
-        subscribeSessionEvent('tool:running');
-        subscribeSessionEvent('context:compacting');
-        subscribeSessionEvent('context:compacted');
-        subscribeSessionEvent('context:pruned');
-        subscribeSessionEvent('message:queued');
-        subscribeSessionEvent('message:dequeued');
-        subscribeSessionEvent('session:title-updated');
-        subscribeSessionEvent('approval:request');
-        subscribeSessionEvent('approval:response');
-        subscribeSessionEvent('service:event');
-        subscribeSessionEvent('run:complete');
+        for (const eventName of SESSION_EVENT_NAMES) {
+            subscribeSessionEvent(eventName);
+        }
 
         logger.debug('SessionSseEventSubscriber subscribed to agent events');
     }

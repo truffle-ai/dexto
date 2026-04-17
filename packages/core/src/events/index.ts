@@ -1,4 +1,3 @@
-import { EventEmitter } from 'events';
 import type { LLMProvider, LLMPricingStatus, ReasoningVariant, TokenUsage } from '../llm/types.js';
 import type { TokenUsageCostBreakdown } from '../llm/registry/index.js';
 import type { AgentRuntimeSettings } from '../agent/runtime-config.js';
@@ -235,31 +234,13 @@ export type HostRuntimeEventContext = {
 };
 
 export type EventArgs<TEvent> = TEvent extends void ? [] : [TEvent];
-export type EventListener<TEvent> = (payload: TEvent) => void;
-type VoidEventKeys<TEventMap extends object> = {
-    [K in keyof TEventMap]: TEventMap[K] extends void ? K : never;
-}[keyof TEventMap];
-type PayloadEventKeys<TEventMap extends object> = Exclude<
-    keyof TEventMap,
-    VoidEventKeys<TEventMap>
->;
+export type EventListener<TEvent> = (...args: EventArgs<TEvent>) => void;
 
 type WithHostRuntime<TEventMap extends object> = {
     [K in keyof TEventMap]: TEventMap[K] extends void
         ? void
         : TEventMap[K] & HostRuntimeEventContext;
 };
-
-export function withHostRuntimeEventContext<TPayload extends object>(
-    payload: TPayload,
-    hostRuntime?: HostRuntimeContext
-): TPayload & HostRuntimeEventContext {
-    if (hostRuntime === undefined) {
-        return payload;
-    }
-
-    return { hostRuntime, ...payload };
-}
 
 interface AgentOwnEventMapBase {
     // Session events
@@ -663,14 +644,6 @@ export type SessionEventMap = WithHostRuntime<SessionEventMapBase>;
 
 export type AgentEventName = keyof AgentEventMap;
 export type SessionEventName = keyof SessionEventMap;
-export type ForwardedSessionEventName = Exclude<SessionEventName, 'llm:switched'>;
-export type ForwardedObjectSessionEventName = Exclude<ForwardedSessionEventName, 'llm:thinking'>;
-export type ForwardedObjectSessionEventMap = {
-    [K in ForwardedObjectSessionEventName]: Exclude<SessionEventMap[K], void>;
-};
-export type ForwardedObjectAgentEventMap = {
-    [K in ForwardedObjectSessionEventName]: Exclude<AgentEventMap[K], void>;
-};
 export type EventName = keyof AgentEventMap;
 
 /**
@@ -708,29 +681,58 @@ export const EventNames: readonly EventName[] = Object.freeze([...EVENT_NAMES]);
  *
  * Exported for extension by packages like multi-agent-server that need custom event buses.
  */
-export class BaseTypedEventEmitter<TEventMap extends object> {
-    // Wrapped EventEmitter instance
-    private _emitter = new EventEmitter();
+export class BaseTypedEventEmitter<TEventMap extends Record<string, any>> {
+    private _listeners: Partial<{
+        [K in keyof TEventMap]: Set<EventListener<TEventMap[K]>>;
+    }> = {};
+    private _abortListeners = new WeakMap<AbortSignal, Set<() => void>>();
 
-    // Store listeners with their abort controllers for cleanup
-    // Maps AbortSignal -> Event Name -> Set of listener functions
-    private _abortListeners = new WeakMap<AbortSignal, Map<keyof TEventMap, Set<Function>>>();
+    private getOrCreateListeners<K extends keyof TEventMap>(
+        event: K
+    ): Set<EventListener<TEventMap[K]>> {
+        let listeners = this._listeners[event];
+        if (listeners === undefined) {
+            listeners = new Set<EventListener<TEventMap[K]>>();
+            this._listeners[event] = listeners;
+        }
+        return listeners;
+    }
 
-    protected emitRaw(event: string, payload?: unknown): boolean {
-        if (payload === undefined) {
-            return this._emitter.emit(event);
+    private registerAbortCleanup(signal: AbortSignal, cleanup: () => void): void {
+        if (!this._abortListeners.has(signal)) {
+            this._abortListeners.set(signal, new Set());
+        }
+        this._abortListeners.get(signal)!.add(cleanup);
+        signal.addEventListener('abort', cleanup, { once: true });
+    }
+
+    private unregisterAbortCleanup(signal: AbortSignal, cleanup: () => void): void {
+        const cleanups = this._abortListeners.get(signal);
+        if (cleanups === undefined) {
+            return;
         }
 
-        return this._emitter.emit(event, payload);
+        cleanups.delete(cleanup);
+        signal.removeEventListener('abort', cleanup);
+        if (cleanups.size === 0) {
+            this._abortListeners.delete(signal);
+        }
     }
 
     /**
      * Emit an event with type-safe payload
      */
-    emit<K extends VoidEventKeys<TEventMap>>(event: K): boolean;
-    emit<K extends PayloadEventKeys<TEventMap>>(event: K, payload: TEventMap[K]): boolean;
-    emit<K extends keyof TEventMap>(event: K, payload?: TEventMap[K]): boolean {
-        return this.emitRaw(event as string, payload);
+    emit<K extends keyof TEventMap>(event: K, ...args: EventArgs<TEventMap[K]>): boolean {
+        const listeners = this._listeners[event];
+        if (listeners === undefined || listeners.size === 0) {
+            return false;
+        }
+
+        for (const listener of [...listeners]) {
+            listener(...args);
+        }
+
+        return true;
     }
 
     /**
@@ -746,44 +748,18 @@ export class BaseTypedEventEmitter<TEventMap extends object> {
             return this;
         }
 
-        // Add the listener
-        this._emitter.on(event as string, listener);
+        const listeners = this.getOrCreateListeners(event);
+        listeners.add(listener);
 
         // Set up abort handling if signal is provided
         if (options?.signal) {
             const signal = options.signal;
-
-            // Track this listener for cleanup using Map -> Set structure
-            if (!this._abortListeners.has(signal)) {
-                this._abortListeners.set(signal, new Map());
-            }
-            const eventMap = this._abortListeners.get(signal)!;
-            if (!eventMap.has(event)) {
-                eventMap.set(event, new Set());
-            }
-            eventMap.get(event)!.add(listener as Function);
-
-            // Set up abort handler
-            const abortHandler = () => {
+            const cleanup = () => {
                 this.off(event, listener);
-
-                // Clean up tracking
-                const eventMap = this._abortListeners.get(signal);
-                if (eventMap) {
-                    const listenerSet = eventMap.get(event);
-                    if (listenerSet) {
-                        listenerSet.delete(listener as Function);
-                        if (listenerSet.size === 0) {
-                            eventMap.delete(event);
-                        }
-                    }
-                    if (eventMap.size === 0) {
-                        this._abortListeners.delete(signal);
-                    }
-                }
+                this.unregisterAbortCleanup(signal, cleanup);
             };
 
-            signal.addEventListener('abort', abortHandler, { once: true });
+            this.registerAbortCleanup(signal, cleanup);
         }
 
         return this;
@@ -802,65 +778,27 @@ export class BaseTypedEventEmitter<TEventMap extends object> {
             return this;
         }
 
-        // Create a wrapper that handles both once and abort cleanup
-        const onceWrapper: EventListener<TEventMap[K]> = (payload) => {
-            // Clean up abort tracking before calling the original listener
-            if (options?.signal) {
-                const eventMap = this._abortListeners.get(options.signal);
-                if (eventMap) {
-                    const listenerSet = eventMap.get(event);
-                    if (listenerSet) {
-                        listenerSet.delete(onceWrapper);
-                        if (listenerSet.size === 0) {
-                            eventMap.delete(event);
-                        }
-                    }
-                    if (eventMap.size === 0) {
-                        this._abortListeners.delete(options.signal);
-                    }
-                }
+        let cleanupAbortListener: (() => void) | undefined;
+        const onceWrapper: EventListener<TEventMap[K]> = (...args) => {
+            this.off(event, onceWrapper);
+            if (cleanupAbortListener !== undefined && options?.signal) {
+                this.unregisterAbortCleanup(options.signal, cleanupAbortListener);
+                cleanupAbortListener = undefined;
             }
-            listener(payload);
+            listener(...args);
         };
 
-        // Add the wrapped listener
-        this._emitter.once(event as string, onceWrapper);
+        this.getOrCreateListeners(event).add(onceWrapper);
 
         // Set up abort handling if signal is provided
         if (options?.signal) {
             const signal = options.signal;
-
-            // Track this listener for cleanup using Map -> Set structure
-            if (!this._abortListeners.has(signal)) {
-                this._abortListeners.set(signal, new Map());
-            }
-            const eventMap = this._abortListeners.get(signal)!;
-            if (!eventMap.has(event)) {
-                eventMap.set(event, new Set());
-            }
-            eventMap.get(event)!.add(onceWrapper);
-
-            // Set up abort handler
-            const abortHandler = () => {
+            cleanupAbortListener = () => {
                 this.off(event, onceWrapper);
-
-                // Clean up tracking
-                const eventMap = this._abortListeners.get(signal);
-                if (eventMap) {
-                    const listenerSet = eventMap.get(event);
-                    if (listenerSet) {
-                        listenerSet.delete(onceWrapper);
-                        if (listenerSet.size === 0) {
-                            eventMap.delete(event);
-                        }
-                    }
-                    if (eventMap.size === 0) {
-                        this._abortListeners.delete(signal);
-                    }
-                }
+                this.unregisterAbortCleanup(signal, cleanupAbortListener!);
             };
 
-            signal.addEventListener('abort', abortHandler, { once: true });
+            this.registerAbortCleanup(signal, cleanupAbortListener);
         }
 
         return this;
@@ -870,7 +808,15 @@ export class BaseTypedEventEmitter<TEventMap extends object> {
      * Unsubscribe from an event
      */
     off<K extends keyof TEventMap>(event: K, listener: EventListener<TEventMap[K]>): this {
-        this._emitter.off(event as string, listener);
+        const listeners = this._listeners[event];
+        if (listeners === undefined) {
+            return this;
+        }
+
+        listeners.delete(listener);
+        if (listeners.size === 0) {
+            delete this._listeners[event];
+        }
         return this;
     }
 
@@ -878,7 +824,7 @@ export class BaseTypedEventEmitter<TEventMap extends object> {
      * Configure max listeners for this event bus to avoid noisy warnings when many subscribers exist.
      */
     setMaxListeners(count: number): this {
-        this._emitter.setMaxListeners(count);
+        void count;
         return this;
     }
 }
@@ -886,31 +832,7 @@ export class BaseTypedEventEmitter<TEventMap extends object> {
 /**
  * Agent-level typed event emitter for global agent events
  */
-export class AgentEventBus extends BaseTypedEventEmitter<AgentEventMap> {
-    emitDirect(event: AgentEventName, payload?: AgentEventMap[AgentEventName]): boolean {
-        return this.emitRaw(event, payload);
-    }
-
-    emitForwardedSessionEvent<K extends ForwardedObjectSessionEventName>(
-        event: K,
-        payload: ForwardedObjectSessionEventMap[K],
-        sessionId: string,
-        hostRuntime?: HostRuntimeContext
-    ): boolean {
-        if (payload.hostRuntime !== undefined || hostRuntime === undefined) {
-            return this.emitRaw(event, {
-                ...payload,
-                sessionId,
-            });
-        }
-
-        return this.emitRaw(event, {
-            ...payload,
-            sessionId,
-            hostRuntime,
-        });
-    }
-}
+export class AgentEventBus extends BaseTypedEventEmitter<AgentEventMap> {}
 
 /**
  * Session-level typed event emitter for session-scoped events
