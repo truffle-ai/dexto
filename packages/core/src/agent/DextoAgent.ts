@@ -643,7 +643,7 @@ export class DextoAgent {
         event: K,
         ...args: AgentEventMap[K] extends void ? [] : [AgentEventMap[K]]
     ): boolean {
-        return this.agentEventBus.emit(event, ...args);
+        return this.agentEventBus.emitDirect(event, args[0]);
     }
 
     /**
@@ -944,29 +944,31 @@ export class DextoAgent {
         // Increase listener limit - stream() registers 12+ event listeners on this signal
         setMaxListeners(30, cleanupSignal);
 
-        // Track listener references for manual cleanup
-        // Using Function type here because listeners have different signatures per event
-        const listeners: Array<{
-            event: StreamingEventName;
-            listener: Function;
-        }> = [];
+        const listenerCleanups: Array<() => void> = [];
         let detachDisconnectAbortListener: (() => void) | undefined;
+
+        const addStreamingListener = <K extends StreamingEventName>(
+            event: K,
+            listener: (payload: AgentEventMap[K]) => void
+        ) => {
+            this.agentEventBus.on(event, listener, { signal: cleanupSignal });
+            listenerCleanups.push(() => {
+                this.agentEventBus.off(event, listener);
+            });
+        };
 
         // Cleanup function to remove all listeners and stream controller
         const cleanupListeners = () => {
             detachDisconnectAbortListener?.();
             detachDisconnectAbortListener = undefined;
 
-            if (listeners.length === 0) {
+            if (listenerCleanups.length === 0) {
                 return; // Already cleaned up
             }
-            for (const { event, listener } of listeners) {
-                this.agentEventBus.off(
-                    event,
-                    listener as Parameters<typeof this.agentEventBus.off>[1]
-                );
+            for (const removeListener of listenerCleanups) {
+                removeListener();
             }
-            listeners.length = 0;
+            listenerCleanups.length = 0;
             // Remove from active controllers map
             this.activeStreamControllers.delete(sessionId);
         };
@@ -1001,15 +1003,13 @@ export class DextoAgent {
             if (data.sessionId !== sessionId) return;
             eventQueue.push({ name: 'llm:thinking', ...data });
         };
-        this.agentEventBus.on('llm:thinking', thinkingListener, { signal: cleanupSignal });
-        listeners.push({ event: 'llm:thinking', listener: thinkingListener });
+        addStreamingListener('llm:thinking', thinkingListener);
 
         const chunkListener = (data: AgentEventMap['llm:chunk']) => {
             if (data.sessionId !== sessionId) return;
             eventQueue.push({ name: 'llm:chunk', ...data });
         };
-        this.agentEventBus.on('llm:chunk', chunkListener, { signal: cleanupSignal });
-        listeners.push({ event: 'llm:chunk', listener: chunkListener });
+        addStreamingListener('llm:chunk', chunkListener);
 
         const responseListener = (data: AgentEventMap['llm:response']) => {
             if (data.sessionId !== sessionId) return;
@@ -1018,31 +1018,25 @@ export class DextoAgent {
             // The iterator closes when run:complete is received, not llm:response.
             // This allows queued messages to be processed after an LLM response.
         };
-        this.agentEventBus.on('llm:response', responseListener, { signal: cleanupSignal });
-        listeners.push({ event: 'llm:response', listener: responseListener });
+        addStreamingListener('llm:response', responseListener);
 
         const toolCallListener = (data: AgentEventMap['llm:tool-call']) => {
             if (data.sessionId !== sessionId) return;
             eventQueue.push({ name: 'llm:tool-call', ...data });
         };
-        this.agentEventBus.on('llm:tool-call', toolCallListener, { signal: cleanupSignal });
-        listeners.push({ event: 'llm:tool-call', listener: toolCallListener });
+        addStreamingListener('llm:tool-call', toolCallListener);
 
         const toolCallPartialListener = (data: AgentEventMap['llm:tool-call-partial']) => {
             if (data.sessionId !== sessionId) return;
             eventQueue.push({ name: 'llm:tool-call-partial', ...data });
         };
-        this.agentEventBus.on('llm:tool-call-partial', toolCallPartialListener, {
-            signal: cleanupSignal,
-        });
-        listeners.push({ event: 'llm:tool-call-partial', listener: toolCallPartialListener });
+        addStreamingListener('llm:tool-call-partial', toolCallPartialListener);
 
         const toolResultListener = (data: AgentEventMap['llm:tool-result']) => {
             if (data.sessionId !== sessionId) return;
             eventQueue.push({ name: 'llm:tool-result', ...data });
         };
-        this.agentEventBus.on('llm:tool-result', toolResultListener, { signal: cleanupSignal });
-        listeners.push({ event: 'llm:tool-result', listener: toolResultListener });
+        addStreamingListener('llm:tool-result', toolResultListener);
 
         const errorListener = (data: AgentEventMap['llm:error']) => {
             if (data.sessionId !== sessionId) return;
@@ -1051,102 +1045,71 @@ export class DextoAgent {
             }
             eventQueue.push({ name: 'llm:error', ...data });
         };
-        this.agentEventBus.on('llm:error', errorListener, { signal: cleanupSignal });
-        listeners.push({ event: 'llm:error', listener: errorListener });
+        addStreamingListener('llm:error', errorListener);
 
         const unsupportedInputListener = (data: AgentEventMap['llm:unsupported-input']) => {
             if (data.sessionId !== sessionId) return;
             eventQueue.push({ name: 'llm:unsupported-input', ...data });
         };
-        this.agentEventBus.on('llm:unsupported-input', unsupportedInputListener, {
-            signal: cleanupSignal,
-        });
-        listeners.push({ event: 'llm:unsupported-input', listener: unsupportedInputListener });
+        addStreamingListener('llm:unsupported-input', unsupportedInputListener);
 
         const titleUpdatedListener = (data: AgentEventMap['session:title-updated']) => {
             if (data.sessionId !== sessionId) return;
             eventQueue.push({ name: 'session:title-updated', ...data });
         };
-        this.agentEventBus.on('session:title-updated', titleUpdatedListener, {
-            signal: cleanupSignal,
-        });
-        listeners.push({ event: 'session:title-updated', listener: titleUpdatedListener });
+        addStreamingListener('session:title-updated', titleUpdatedListener);
 
         const approvalRequestListener = (data: AgentEventMap['approval:request']) => {
             if (data.sessionId !== sessionId) return;
             eventQueue.push({ name: 'approval:request', ...data });
         };
-        this.agentEventBus.on('approval:request', approvalRequestListener, {
-            signal: cleanupSignal,
-        });
-        listeners.push({ event: 'approval:request', listener: approvalRequestListener });
+        addStreamingListener('approval:request', approvalRequestListener);
 
         const approvalResponseListener = (data: AgentEventMap['approval:response']) => {
             if (data.sessionId !== sessionId) return;
             eventQueue.push({ name: 'approval:response', ...data });
         };
-        this.agentEventBus.on('approval:response', approvalResponseListener, {
-            signal: cleanupSignal,
-        });
-        listeners.push({ event: 'approval:response', listener: approvalResponseListener });
+        addStreamingListener('approval:response', approvalResponseListener);
 
         // Tool running event - emitted when tool execution starts (after approval if needed)
         const toolRunningListener = (data: AgentEventMap['tool:running']) => {
             if (data.sessionId !== sessionId) return;
             eventQueue.push({ name: 'tool:running', ...data });
         };
-        this.agentEventBus.on('tool:running', toolRunningListener, {
-            signal: cleanupSignal,
-        });
-        listeners.push({ event: 'tool:running', listener: toolRunningListener });
+        addStreamingListener('tool:running', toolRunningListener);
 
         // Context compaction events - emitted when context is being compacted
         const contextCompactingListener = (data: AgentEventMap['context:compacting']) => {
             if (data.sessionId !== sessionId) return;
             eventQueue.push({ name: 'context:compacting', ...data });
         };
-        this.agentEventBus.on('context:compacting', contextCompactingListener, {
-            signal: cleanupSignal,
-        });
-        listeners.push({ event: 'context:compacting', listener: contextCompactingListener });
+        addStreamingListener('context:compacting', contextCompactingListener);
 
         const contextCompactedListener = (data: AgentEventMap['context:compacted']) => {
             if (data.sessionId !== sessionId) return;
             eventQueue.push({ name: 'context:compacted', ...data });
         };
-        this.agentEventBus.on('context:compacted', contextCompactedListener, {
-            signal: cleanupSignal,
-        });
-        listeners.push({ event: 'context:compacted', listener: contextCompactedListener });
+        addStreamingListener('context:compacted', contextCompactedListener);
 
         // Message queue events (for mid-task user guidance)
         const messageQueuedListener = (data: AgentEventMap['message:queued']) => {
             if (data.sessionId !== sessionId) return;
             eventQueue.push({ name: 'message:queued', ...data });
         };
-        this.agentEventBus.on('message:queued', messageQueuedListener, {
-            signal: cleanupSignal,
-        });
-        listeners.push({ event: 'message:queued', listener: messageQueuedListener });
+        addStreamingListener('message:queued', messageQueuedListener);
 
         const messageDequeuedListener = (data: AgentEventMap['message:dequeued']) => {
             if (data.sessionId !== sessionId) return;
             eventQueue.push({ name: 'message:dequeued', ...data });
         };
-        this.agentEventBus.on('message:dequeued', messageDequeuedListener, {
-            signal: cleanupSignal,
-        });
-        listeners.push({ event: 'message:dequeued', listener: messageDequeuedListener });
+        addStreamingListener('message:dequeued', messageDequeuedListener);
 
         // Service events - extensible pattern for non-core services (e.g., sub-agent progress)
         const serviceEventListener = (data: AgentEventMap['service:event']) => {
             if (data.sessionId !== sessionId) return;
             eventQueue.push({ name: 'service:event', ...data });
         };
-        this.agentEventBus.on('service:event', serviceEventListener, {
-            signal: cleanupSignal,
-        });
-        listeners.push({ event: 'service:event', listener: serviceEventListener });
+        addStreamingListener('service:event', serviceEventListener);
 
         // Run lifecycle event - emitted when TurnExecutor truly finishes
         // This is when we close the iterator (not on llm:response)
@@ -1156,10 +1119,7 @@ export class DextoAgent {
             eventQueue.push({ name: 'run:complete', ...data });
             completed = true; // NOW close the iterator
         };
-        this.agentEventBus.on('run:complete', runCompleteListener, {
-            signal: cleanupSignal,
-        });
-        listeners.push({ event: 'run:complete', listener: runCompleteListener });
+        addStreamingListener('run:complete', runCompleteListener);
 
         // Start streaming in background (fire-and-forget)
         (async () => {

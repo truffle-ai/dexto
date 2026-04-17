@@ -1503,43 +1503,16 @@ export class ToolManager {
      * @param toolName Tool name (e.g., "edit_file", "mcp--filesystem--read_file")
      * @param args The arguments for the tool
      * @param toolCallId The unique tool call ID for tracking (from LLM or generated for direct calls)
-     * @param sessionId Optional session ID for context
-     * @param abortSignal Optional abort signal for cancellation support
+     * @param options Optional execution-scoped context for this tool call
      */
     async executeTool(
         toolName: string,
         args: Record<string, unknown>,
         toolCallId: string,
-        sessionId?: string,
-        abortSignal?: AbortSignal
-    ): Promise<import('./types.js').ToolExecutionResult> {
-        return await this.executeToolInternal(toolName, args, toolCallId, {
-            sessionId,
-            abortSignal,
-        });
-    }
-
-    async executeToolInRun(
-        toolName: string,
-        args: Record<string, unknown>,
-        toolCallId: string,
-        runContext: AgentRunContext,
-        abortSignal?: AbortSignal
-    ): Promise<import('./types.js').ToolExecutionResult> {
-        return await this.executeToolInternal(toolName, args, toolCallId, {
-            abortSignal,
-            runContext,
-        });
-    }
-
-    private async executeToolInternal(
-        toolName: string,
-        args: Record<string, unknown>,
-        toolCallId: string,
-        invocation: ToolExecutionInvocation
+        options?: ToolExecutionInvocation
     ): Promise<import('./types.js').ToolExecutionResult> {
         const { sessionId, abortSignal, runContext, hostRuntime } =
-            this.resolveToolExecutionInvocation(invocation);
+            this.resolveToolExecutionInvocation(options ?? {});
         const { toolArgs: rawToolArgs, meta } = extractToolCallMeta(args);
         const eventMeta: ToolCallMetadata | undefined =
             Object.keys(meta).length > 0 ? meta : undefined;

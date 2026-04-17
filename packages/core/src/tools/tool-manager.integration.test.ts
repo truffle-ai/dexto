@@ -667,19 +667,16 @@ describe('ToolManager Integration Tests', () => {
             const sessionId = 'test-session-123';
 
             // Execute MCP tool with sessionId
-            await toolManager.executeTool(
-                'mcp--test_tool',
-                { param: 'value' },
-                'test-call-id-1',
-                sessionId
-            );
+            await toolManager.executeTool('mcp--test_tool', { param: 'value' }, 'test-call-id-1', {
+                sessionId,
+            });
 
             // Execute local tool with sessionId
             await toolManager.executeTool(
                 'search_history',
                 { query: 'test', mode: 'messages' },
                 'test-call-id-2',
-                sessionId
+                { sessionId }
             );
 
             // Verify MCP tool received sessionId (note: MCPManager doesn't use sessionId in callTool currently)

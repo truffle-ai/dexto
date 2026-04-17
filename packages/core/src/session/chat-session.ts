@@ -15,12 +15,11 @@ import type { BeforeLLMRequestPayload, BeforeResponsePayload } from '../hooks/ty
 import {
     SessionEventBus,
     AgentEventBus,
-    EventArgs,
     SessionEventNames,
-    SessionEventName,
     AgentEventMap,
     SessionEventMap,
-    withHostRuntimeEventContext,
+    ForwardedObjectSessionEventName,
+    ForwardedObjectSessionEventMap,
 } from '../events/index.js';
 import type { Logger } from '../logger/v2/types.js';
 import { DextoLogComponent } from '../logger/v2/types.js';
@@ -185,27 +184,44 @@ export class ChatSession {
         await this.initializeServices();
     }
 
-    private createForwardedEventPayload<K extends Exclude<SessionEventName, 'llm:switched'>>(
-        payload: SessionEventMap[K],
+    private createThinkingEventPayload(
         runContext?: AgentRunContext
-    ): Exclude<AgentEventMap[K], void> {
-        const basePayload =
-            payload === undefined ? { sessionId: this.id } : { ...payload, sessionId: this.id };
+    ): AgentEventMap['llm:thinking'] {
+        if (runContext?.hostRuntime === undefined) {
+            return { sessionId: this.id };
+        }
 
-        return withHostRuntimeEventContext(basePayload, runContext?.hostRuntime) as Exclude<
-            AgentEventMap[K],
-            void
-        >;
+        return {
+            sessionId: this.id,
+            hostRuntime: runContext.hostRuntime,
+        };
     }
 
-    private attachRunEventForwarder<K extends Exclude<SessionEventName, 'llm:switched'>>(
+    private attachThinkingEventForwarder(runContext?: AgentRunContext): () => void {
+        const forwarder = () => {
+            this.services.agentEventBus.emit(
+                'llm:thinking',
+                this.createThinkingEventPayload(runContext)
+            );
+        };
+
+        this.eventBus.on('llm:thinking', forwarder);
+        return () => {
+            this.eventBus.off('llm:thinking', forwarder);
+        };
+    }
+
+    private attachRunEventForwarder<K extends ForwardedObjectSessionEventName>(
         eventName: K,
         runContext?: AgentRunContext
     ): () => void {
-        const forwarder = (payload: SessionEventMap[K]) => {
-            const forwardedPayload = this.createForwardedEventPayload(payload, runContext);
-            const args = [forwardedPayload] as EventArgs<AgentEventMap[K]>;
-            this.services.agentEventBus.emit(eventName, ...args);
+        const forwarder = (payload: ForwardedObjectSessionEventMap[K]) => {
+            this.services.agentEventBus.emitForwardedSessionEvent(
+                eventName,
+                payload,
+                this.id,
+                runContext?.hostRuntime
+            );
         };
 
         this.eventBus.on(eventName, forwarder);
@@ -216,9 +232,10 @@ export class ChatSession {
 
     private attachRunEventForwarders(runContext?: AgentRunContext): () => void {
         const cleanups: Array<() => void> = [];
+        cleanups.push(this.attachThinkingEventForwarder(runContext));
 
         for (const eventName of SessionEventNames) {
-            if (eventName === 'llm:switched') {
+            if (eventName === 'llm:switched' || eventName === 'llm:thinking') {
                 continue;
             }
             cleanups.push(this.attachRunEventForwarder(eventName, runContext));

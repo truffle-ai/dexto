@@ -236,6 +236,13 @@ export type HostRuntimeEventContext = {
 
 export type EventArgs<TEvent> = TEvent extends void ? [] : [TEvent];
 export type EventListener<TEvent> = (payload: TEvent) => void;
+type VoidEventKeys<TEventMap extends object> = {
+    [K in keyof TEventMap]: TEventMap[K] extends void ? K : never;
+}[keyof TEventMap];
+type PayloadEventKeys<TEventMap extends object> = Exclude<
+    keyof TEventMap,
+    VoidEventKeys<TEventMap>
+>;
 
 type WithHostRuntime<TEventMap extends object> = {
     [K in keyof TEventMap]: TEventMap[K] extends void
@@ -254,7 +261,7 @@ export function withHostRuntimeEventContext<TPayload extends object>(
     return { hostRuntime, ...payload };
 }
 
-interface AgentEventMapBase {
+interface AgentOwnEventMapBase {
     // Session events
     /** Fired when session conversation is reset */
     'session:reset': {
@@ -367,119 +374,6 @@ interface AgentEventMapBase {
         metadata?: Record<string, unknown>;
     };
 
-    // LLM events (forwarded from session bus with sessionId added)
-    /** LLM service started thinking */
-    'llm:thinking': {
-        sessionId: string;
-    };
-
-    /** LLM service sent a streaming chunk */
-    'llm:chunk': {
-        chunkType: 'text' | 'reasoning';
-        content: string;
-        isComplete?: boolean;
-        sessionId: string;
-    };
-
-    /** LLM service final response */
-    'llm:response': {
-        content: string;
-        reasoning?: string;
-        provider?: LLMProvider;
-        model?: string;
-        /** Reasoning tuning variant used for this call, when the provider exposes it. */
-        reasoningVariant?: ReasoningVariant;
-        /** Reasoning budget tokens used for this call, when the provider exposes it. */
-        reasoningBudgetTokens?: number;
-        tokenUsage?: TokenUsage;
-        /** Stable assistant message ID for this response. */
-        messageId?: string;
-        /** Optional usage scope identifier for runtime-scoped metering. */
-        usageScopeId?: string;
-        /** Estimated cost in USD for this response, when pricing is available. */
-        estimatedCost?: number;
-        /** Estimated token-cost breakdown in USD for this response, when pricing is available. */
-        costBreakdown?: TokenUsageCostBreakdown;
-        /** Whether pricing was resolved for this response. */
-        pricingStatus?: LLMPricingStatus;
-        /** Estimated input tokens before LLM call (for analytics/calibration) */
-        estimatedInputTokens?: number;
-        /** Finish reason: 'tool-calls' means more steps coming, others indicate completion */
-        finishReason?: LLMFinishReason;
-        sessionId: string;
-    };
-
-    /** Best-effort provider rate-limit status update for the active session. */
-    'llm:rate-limit-status': {
-        provider?: LLMProvider;
-        model?: string;
-        snapshot: CodexRateLimitSnapshot;
-        sessionId: string;
-    };
-
-    /** LLM service requested a tool call */
-    'llm:tool-call': {
-        toolName: string;
-        /** Optional UI-agnostic presentation snapshot (clients MUST fall back when absent) */
-        presentationSnapshot?: ToolPresentationSnapshotV1;
-        args: Record<string, any>;
-        /** Optional non-execution metadata from the reserved __meta wrapper */
-        meta?: ToolCallMetadata;
-        /** Optional user-facing description from tool call metadata (e.g., __meta.callDescription) */
-        callDescription?: string;
-        callId?: string;
-        sessionId: string;
-    };
-
-    /** LLM service streamed partial tool input */
-    'llm:tool-call-partial': {
-        toolName: string;
-        args: Record<string, any>;
-        /** Optional user-facing description from tool call metadata (e.g., __meta.callDescription) */
-        callDescription?: string;
-        callId?: string;
-        isComplete?: boolean;
-        sessionId: string;
-    };
-
-    /** LLM service returned a tool result */
-    'llm:tool-result': {
-        toolName: string;
-        /** Optional UI-agnostic presentation snapshot (clients MUST fall back when absent) */
-        presentationSnapshot?: ToolPresentationSnapshotV1;
-        /** Optional non-execution metadata from the reserved __meta wrapper */
-        meta?: ToolCallMetadata;
-        callId?: string;
-        success: boolean;
-        /** Sanitized result - present when success=true */
-        sanitized?: SanitizedToolResult;
-        rawResult?: unknown;
-        /** Error message - present when success=false */
-        error?: string;
-        /** Whether this tool required user approval */
-        requireApproval?: boolean;
-        /** The approval status (only present if requireApproval is true) */
-        approvalStatus?: 'approved' | 'rejected';
-        sessionId: string;
-    };
-
-    /** Tool execution actually started (after approval if needed) */
-    'tool:running': {
-        toolName: string;
-        toolCallId: string;
-        sessionId: string;
-    };
-
-    /** LLM service error */
-    'llm:error': {
-        error: Error;
-        context?: string;
-        recoverable?: boolean;
-        /** Tool call ID if error occurred during tool execution */
-        toolCallId?: string;
-        sessionId: string;
-    };
-
     /** LLM service switched */
     'llm:switched': {
         newConfig: any; // LLMConfig type
@@ -487,83 +381,8 @@ interface AgentEventMapBase {
         sessionIds: string[]; // Array of affected session IDs
     };
 
-    /** LLM service unsupported input */
-    'llm:unsupported-input': {
-        errors: string[];
-        provider: LLMProvider;
-        model?: string;
-        fileType?: string;
-        details?: any;
-        sessionId: string;
-    };
-
-    /** Context compaction is starting */
-    'context:compacting': {
-        /** Estimated tokens that triggered compaction */
-        estimatedTokens: number;
-        sessionId: string;
-    };
-
-    /** Context was compacted during multi-step tool calling */
-    'context:compacted': {
-        /** Actual input tokens from API that triggered compaction */
-        originalTokens: number;
-        /** Estimated tokens after compaction (simple length/4 heuristic) */
-        compactedTokens: number;
-        originalMessages: number;
-        compactedMessages: number;
-        strategy: string;
-        reason: 'overflow' | 'manual';
-        sessionId: string;
-    };
-
-    /** Old tool outputs were pruned (marked with compactedAt) to save tokens */
-    'context:pruned': {
-        prunedCount: number;
-        savedTokens: number;
-        sessionId: string;
-    };
-
     /** Context was manually cleared via /clear command */
     'context:cleared': {
-        sessionId: string;
-    };
-
-    /** User message was queued during agent execution */
-    'message:queued': {
-        position: number;
-        id: string;
-        sessionId: string;
-    };
-
-    /** Queued messages were dequeued and injected into context */
-    'message:dequeued': {
-        count: number;
-        ids: string[];
-        coalesced: boolean;
-        /** Combined content of all dequeued messages (for UI display) */
-        content: import('../context/types.js').ContentPart[];
-        sessionId: string;
-        /** Raw dequeued messages (optional) */
-        messages?: import('../session/types.js').QueuedMessage[];
-    };
-
-    /** Queued message was removed from queue */
-    'message:removed': {
-        id: string;
-        sessionId: string;
-    };
-
-    /** Agent run completed (all steps done, no queued messages remaining) */
-    'run:complete': {
-        /** How the run ended */
-        finishReason: LLMFinishReason;
-        /** Number of steps executed */
-        stepCount: number;
-        /** Total wall-clock duration of the run in milliseconds */
-        durationMs: number;
-        /** Error that caused termination (only if finishReason === 'error') */
-        error?: Error;
         sessionId: string;
     };
 
@@ -831,11 +650,27 @@ interface SessionEventMapBase {
     };
 }
 
+type ForwardedSessionEventMapBase = {
+    [K in Exclude<keyof SessionEventMapBase, 'llm:switched'>]: SessionEventMapBase[K] extends void
+        ? { sessionId: string }
+        : SessionEventMapBase[K] & { sessionId: string };
+};
+
+type AgentEventMapBase = AgentOwnEventMapBase & ForwardedSessionEventMapBase;
+
 export type AgentEventMap = WithHostRuntime<AgentEventMapBase>;
 export type SessionEventMap = WithHostRuntime<SessionEventMapBase>;
 
 export type AgentEventName = keyof AgentEventMap;
 export type SessionEventName = keyof SessionEventMap;
+export type ForwardedSessionEventName = Exclude<SessionEventName, 'llm:switched'>;
+export type ForwardedObjectSessionEventName = Exclude<ForwardedSessionEventName, 'llm:thinking'>;
+export type ForwardedObjectSessionEventMap = {
+    [K in ForwardedObjectSessionEventName]: Exclude<SessionEventMap[K], void>;
+};
+export type ForwardedObjectAgentEventMap = {
+    [K in ForwardedObjectSessionEventName]: Exclude<AgentEventMap[K], void>;
+};
 export type EventName = keyof AgentEventMap;
 
 /**
@@ -881,11 +716,21 @@ export class BaseTypedEventEmitter<TEventMap extends object> {
     // Maps AbortSignal -> Event Name -> Set of listener functions
     private _abortListeners = new WeakMap<AbortSignal, Map<keyof TEventMap, Set<Function>>>();
 
+    protected emitRaw(event: string, payload?: unknown): boolean {
+        if (payload === undefined) {
+            return this._emitter.emit(event);
+        }
+
+        return this._emitter.emit(event, payload);
+    }
+
     /**
      * Emit an event with type-safe payload
      */
-    emit<K extends keyof TEventMap>(event: K, ...args: EventArgs<TEventMap[K]>): boolean {
-        return this._emitter.emit(event as string, ...args);
+    emit<K extends VoidEventKeys<TEventMap>>(event: K): boolean;
+    emit<K extends PayloadEventKeys<TEventMap>>(event: K, payload: TEventMap[K]): boolean;
+    emit<K extends keyof TEventMap>(event: K, payload?: TEventMap[K]): boolean {
+        return this.emitRaw(event as string, payload);
     }
 
     /**
@@ -1041,7 +886,31 @@ export class BaseTypedEventEmitter<TEventMap extends object> {
 /**
  * Agent-level typed event emitter for global agent events
  */
-export class AgentEventBus extends BaseTypedEventEmitter<AgentEventMap> {}
+export class AgentEventBus extends BaseTypedEventEmitter<AgentEventMap> {
+    emitDirect(event: AgentEventName, payload?: AgentEventMap[AgentEventName]): boolean {
+        return this.emitRaw(event, payload);
+    }
+
+    emitForwardedSessionEvent<K extends ForwardedObjectSessionEventName>(
+        event: K,
+        payload: ForwardedObjectSessionEventMap[K],
+        sessionId: string,
+        hostRuntime?: HostRuntimeContext
+    ): boolean {
+        if (payload.hostRuntime !== undefined || hostRuntime === undefined) {
+            return this.emitRaw(event, {
+                ...payload,
+                sessionId,
+            });
+        }
+
+        return this.emitRaw(event, {
+            ...payload,
+            sessionId,
+            hostRuntime,
+        });
+    }
+}
 
 /**
  * Session-level typed event emitter for session-scoped events
@@ -1051,7 +920,7 @@ export class SessionEventBus extends BaseTypedEventEmitter<SessionEventMap> {}
 /**
  * Combined typed event emitter for backward compatibility
  */
-export class TypedEventEmitter extends BaseTypedEventEmitter<AgentEventMap> {}
+export class TypedEventEmitter extends AgentEventBus {}
 
 /**
  * Global shared event bus (backward compatibility)

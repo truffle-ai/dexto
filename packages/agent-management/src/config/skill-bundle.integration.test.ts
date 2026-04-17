@@ -445,7 +445,7 @@ describe('skill bundle integration', () => {
                 'invoke_skill',
                 { skill: 'echo-custom-mcp' },
                 'call-1',
-                session.id
+                { sessionId: session.id }
             );
 
             expect(invokeResult.result).toMatchObject({
@@ -473,7 +473,7 @@ describe('skill bundle integration', () => {
                 echoToolName!,
                 { message: 'dynamic skill wiring works' },
                 'call-2',
-                session.id
+                { sessionId: session.id }
             );
 
             expect(echoResult.result).toMatchObject({
@@ -556,7 +556,7 @@ describe('skill bundle integration', () => {
                 'invoke_skill',
                 { skill: 'echo-custom-mcp' },
                 'call-stale',
-                session.id
+                { sessionId: session.id }
             );
 
             expect(staleInvoke.result).toMatchObject({
@@ -608,7 +608,7 @@ describe('skill bundle integration', () => {
                 'skill_refresh',
                 { id: 'echo-custom-mcp' },
                 'call-refresh',
-                session.id
+                { sessionId: session.id }
             );
 
             expect(refreshResult.result).toMatchObject({
@@ -621,7 +621,7 @@ describe('skill bundle integration', () => {
                 'invoke_skill',
                 { skill: 'echo-custom-mcp' },
                 'call-fresh',
-                session.id
+                { sessionId: session.id }
             );
 
             expect(

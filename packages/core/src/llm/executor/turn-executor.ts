@@ -696,22 +696,20 @@ export class TurnExecutor {
                                     // Run tool via toolManager - returns result with approval metadata
                                     // toolCallId is passed for tracking parallel tool calls in the UI
                                     // Pass abortSignal so tools can do proper cleanup (e.g., kill processes)
-                                    const executionResult =
+                                    const executionResult = await this.toolManager.executeTool(
+                                        name,
+                                        args as Record<string, unknown>,
+                                        options.toolCallId,
                                         this.runContext === undefined
-                                            ? await this.toolManager.executeTool(
-                                                  name,
-                                                  args as Record<string, unknown>,
-                                                  options.toolCallId,
-                                                  this.sessionId,
-                                                  abortSignal
-                                              )
-                                            : await this.toolManager.executeToolInRun(
-                                                  name,
-                                                  args as Record<string, unknown>,
-                                                  options.toolCallId,
-                                                  this.runContext,
-                                                  abortSignal
-                                              );
+                                            ? {
+                                                  sessionId: this.sessionId,
+                                                  abortSignal,
+                                              }
+                                            : {
+                                                  runContext: this.runContext,
+                                                  abortSignal,
+                                              }
+                                    );
 
                                     const metadata:
                                         | {

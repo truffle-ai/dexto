@@ -474,7 +474,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 'typed',
                 { count: 5, __meta: { callDescription: 'Read test file' } },
                 'call-1',
-                'session-1'
+                { sessionId: 'session-1' }
             );
 
             expect(mockAgentEventBus.emit).toHaveBeenCalledWith(
@@ -528,7 +528,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     },
                 },
                 'call-1',
-                'session-1'
+                { sessionId: 'session-1' }
             );
 
             expect(mockAgentEventBus.emit).toHaveBeenCalledWith(
@@ -579,7 +579,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 'mcp--file_read',
                 { path: '/test', description: 'Read test file' },
                 'call-1',
-                'session-1'
+                { sessionId: 'session-1' }
             );
 
             expect(mockAgentEventBus.emit).toHaveBeenCalledWith(
@@ -629,7 +629,9 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             );
             toolManager.setToolExecutionContextFactory((baseContext) => baseContext);
 
-            await toolManager.executeTool('typed', { count: '5' }, 'call-1', 'session-1');
+            await toolManager.executeTool('typed', { count: '5' }, 'call-1', {
+                sessionId: 'session-1',
+            });
 
             expect(approvalOverrideSpy).toHaveBeenCalledWith(
                 { count: 5 },
@@ -687,7 +689,9 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
 
             toolManager.setToolExecutionContextFactory((baseContext) => baseContext);
 
-            await toolManager.executeToolInRun('typed', { count: '5' }, 'call-1', runContext);
+            await toolManager.executeTool('typed', { count: '5' }, 'call-1', {
+                runContext,
+            });
 
             expect(executeSpy).toHaveBeenCalledWith(
                 { count: 5 },
@@ -796,7 +800,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 'fs_like_tool',
                 { file_path: '/tmp/example.txt' },
                 'call-1',
-                'session-1'
+                { sessionId: 'session-1' }
             );
 
             expect(result).toEqual(
@@ -973,7 +977,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 'fs_like_tool',
                 { file_path: '/tmp/example.txt' },
                 'call-1',
-                'session-1'
+                { sessionId: 'session-1' }
             );
 
             expect(mockApprovalManager.autoApprovePendingRequests).toHaveBeenCalledTimes(1);
@@ -1002,7 +1006,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     },
                 },
                 'call-123',
-                'session123'
+                { sessionId: 'session123' }
             );
 
             expect(mockApprovalManager.requestToolApproval).toHaveBeenCalledWith(
@@ -1052,12 +1056,9 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             );
             toolManager.setToolExecutionContextFactory((baseContext) => baseContext);
 
-            await toolManager.executeTool(
-                'bash_like_tool',
-                { command: 'git status' },
-                'call-1',
-                'session-1'
-            );
+            await toolManager.executeTool('bash_like_tool', { command: 'git status' }, 'call-1', {
+                sessionId: 'session-1',
+            });
 
             expect(mockApprovalManager.requestToolApproval).toHaveBeenCalledWith(
                 expect.objectContaining({
@@ -1088,7 +1089,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 'mcp--file_read',
                 { path: '/test', description: 'Read test file' },
                 'call-123',
-                'session123'
+                { sessionId: 'session123' }
             );
 
             expect(mockApprovalManager.requestToolApproval).toHaveBeenCalledWith(
@@ -1131,7 +1132,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                         },
                     },
                     'call-123',
-                    'session-1'
+                    { sessionId: 'session-1' }
                 );
 
                 const result = response.result as {
@@ -1186,7 +1187,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                         },
                     },
                     'call-123',
-                    'session-1'
+                    { sessionId: 'session-1' }
                 );
 
                 expect(response.result).toBe('sync-result');
@@ -1244,7 +1245,9 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             );
 
             const error = (await toolManager
-                .executeTool('mcp--file_read', { path: '/test' }, 'test-call-id', 'session123')
+                .executeTool('mcp--file_read', { path: '/test' }, 'test-call-id', {
+                    sessionId: 'session123',
+                })
                 .catch((e) => e)) as DextoRuntimeError;
             expect(error).toBeInstanceOf(DextoRuntimeError);
             expect(error.code).toBe(ToolErrorCode.EXECUTION_DENIED);
@@ -2768,7 +2771,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 toolManager.setSessionAutoApproveTools(sessionId, ['mcp--test_tool']);
 
                 // Execute tool with sessionId
-                await toolManager.executeTool('mcp--test_tool', {}, 'call-1', sessionId);
+                await toolManager.executeTool('mcp--test_tool', {}, 'call-1', { sessionId });
 
                 // Should NOT have requested approval (auto-approved by session config)
                 expect(mockApprovalManager.requestToolApproval).not.toHaveBeenCalled();
@@ -2807,7 +2810,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 toolManager.setSessionAutoApproveTools(sessionId, ['mcp--allowed_tool']);
 
                 // Execute a tool NOT in the auto-approve list
-                await toolManager.executeTool('mcp--other_tool', {}, 'call-1', sessionId);
+                await toolManager.executeTool('mcp--other_tool', {}, 'call-1', { sessionId });
 
                 // Should have requested approval
                 expect(mockApprovalManager.requestToolApproval).toHaveBeenCalled();
@@ -2838,7 +2841,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
 
                 // Should throw because alwaysDeny takes precedence
                 await expect(
-                    toolManager.executeTool('mcp--dangerous_tool', {}, 'call-1', sessionId)
+                    toolManager.executeTool('mcp--dangerous_tool', {}, 'call-1', { sessionId })
                 ).rejects.toThrow();
 
                 expect(mockMcpManager.executeTool).not.toHaveBeenCalled();
@@ -2871,7 +2874,9 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 toolManager.setSessionAutoApproveTools('session-1', ['mcp--test_tool']);
 
                 // Execute with different session
-                await toolManager.executeTool('mcp--test_tool', {}, 'call-1', 'session-2');
+                await toolManager.executeTool('mcp--test_tool', {}, 'call-1', {
+                    sessionId: 'session-2',
+                });
 
                 // Should have requested approval (different session)
                 expect(mockApprovalManager.requestToolApproval).toHaveBeenCalled();
