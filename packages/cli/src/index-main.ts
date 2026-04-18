@@ -609,8 +609,18 @@ program
 
                     // 6. Check if worktree already exists
                     if (worktreeExists(workspaceRoot, worktreeName)) {
-                        console.error(`❌ Worktree '${worktreeName}' already exists.`);
-                        console.error(`💡 Run: dexto --worktree ${worktreeName} --continue`);
+                        const existingWorktreePath = path.join(
+                            workspaceRoot,
+                            '.dexto',
+                            'worktree',
+                            worktreeName
+                        );
+                        console.error(
+                            `❌ Worktree '${worktreeName}' already exists at ${existingWorktreePath}.`
+                        );
+                        console.error(
+                            `💡 Run: dexto --cwd ${existingWorktreePath} to start a session there`
+                        );
                         safeExit('worktree', 1, 'worktree-exists');
                     }
 
