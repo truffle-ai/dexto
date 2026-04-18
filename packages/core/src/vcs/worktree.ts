@@ -87,10 +87,9 @@ export async function hasUnstagedChanges(dirPath: string): Promise<boolean> {
 
 /**
  * Get the worktrees base directory path relative to project root
- * @param _projectPath Project root path (unused, for API consistency)
  * @returns Relative path to worktrees directory
  */
-export function getWorktreesDirPath(_projectPath?: string): string {
+export function getWorktreesDirPath(): string {
     return '.dexto/worktree';
 }
 

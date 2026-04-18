@@ -2759,10 +2759,8 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
             ]);
 
             try {
-                const { removeWorktree, getWorktreeContext } = await import('@dexto/core');
-                const context = getWorktreeContext(state.worktreePath);
-                const parentProjectRoot = context?.parentProjectRoot || state.parentProjectRoot;
-                const worktreeName = context?.name || state.worktreeName;
+                const { removeWorktree } = await import('@dexto/core');
+                const { parentProjectRoot, worktreeName } = state;
 
                 if (!parentProjectRoot) {
                     throw new Error('Could not determine parent project root');

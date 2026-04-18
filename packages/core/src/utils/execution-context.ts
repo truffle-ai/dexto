@@ -5,12 +5,9 @@
 import { walkUpDirectories } from './fs-walk.js';
 import { existsSync, readFileSync, realpathSync, readdirSync, statSync } from 'fs';
 import * as path from 'path';
-import {
-    isInWorktree,
-    getWorktreeRootFromPath,
-    getWorktreeName,
-    getParentProjectRoot,
-} from './path.js';
+import { isInWorktree, getWorktreeContext } from './path.js';
+
+export { getWorktreeContext };
 
 export type ExecutionContext = 'dexto-source' | 'dexto-project' | 'global-cli' | 'worktree';
 
@@ -202,43 +199,6 @@ export function findGitRepoRoot(startPath: string = process.cwd()): string | nul
     }
 
     return null;
-}
-
-/**
- * Worktree context containing worktree information
- */
-export interface WorktreeContextInfo {
-    /** Worktree name */
-    name: string;
-    /** Absolute path to the worktree root */
-    root: string;
-    /** Absolute path to the parent project root */
-    parentProjectRoot: string;
-}
-
-/**
- * Detect if running inside a worktree and return context info
- * @param startPath Starting directory path (defaults to process.cwd())
- * @returns Worktree context or null if not in a worktree
- */
-export function getWorktreeContext(startPath: string = process.cwd()): WorktreeContextInfo | null {
-    if (!isInWorktree(startPath)) {
-        return null;
-    }
-
-    const root = getWorktreeRootFromPath(startPath);
-    const name = getWorktreeName(startPath);
-    const parentProjectRoot = getParentProjectRoot(startPath);
-
-    if (!root || !name || !parentProjectRoot) {
-        return null;
-    }
-
-    return {
-        name,
-        root,
-        parentProjectRoot,
-    };
 }
 
 /**

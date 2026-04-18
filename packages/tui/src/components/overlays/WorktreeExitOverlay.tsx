@@ -38,13 +38,12 @@ export const WorktreeExitOverlay = forwardRef<WorktreeExitOverlayHandle, Worktre
         ] satisfies Array<{ key: WorktreeExitChoice; label: string; description: string }>;
 
         const handleConfirm = useCallback(() => {
-            const selectedChoice = choices[selectedIndex];
-            if (selectedChoice && selectedChoice.key === 'keep') {
+            if (selectedIndex === 0) {
                 onKeep();
-            } else if (selectedChoice) {
+            } else {
                 onRemove();
             }
-        }, [selectedIndex, choices, onKeep, onRemove]);
+        }, [selectedIndex, onKeep, onRemove]);
 
         useImperativeHandle(
             ref,

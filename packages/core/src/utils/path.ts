@@ -286,7 +286,7 @@ export function getParentProjectRoot(checkPath: string = process.cwd()): string 
  * @param checkPath Path to check
  * @returns Worktree context or null
  */
-export function getWorktreeContextFromPath(checkPath: string = process.cwd()): {
+export function getWorktreeContext(checkPath: string = process.cwd()): {
     name: string;
     root: string;
     parentProjectRoot: string;
