@@ -25,6 +25,7 @@ import { setMaxListeners } from 'events';
 import {
     getModelDisplayName,
     parseCodexBaseURL,
+    getWorktreeContext,
     type QueuedMessage,
     type ContentPart,
 } from '@dexto/core';
@@ -249,6 +250,26 @@ export function useAgentEvents({
                     activeOverlay: 'none',
                     chatgptRateLimitStatus: null,
                     insufficientCredits: null,
+                }));
+            },
+            { signal }
+        );
+
+        // Handle worktree exit prompt
+        agent.on(
+            'worktree:exit-prompt',
+            (payload) => {
+                const { worktreePath } = payload;
+                const context = getWorktreeContext(worktreePath);
+
+                setUi((prev) => ({
+                    ...prev,
+                    activeOverlay: 'worktree-exit',
+                    worktreeExitState: {
+                        worktreePath,
+                        worktreeName: context?.name ?? 'unknown',
+                        parentProjectRoot: context?.parentProjectRoot ?? '',
+                    },
                 }));
             },
             { signal }

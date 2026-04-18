@@ -72,6 +72,7 @@ function createSetters() {
         planModeInitialized: false,
         commandOutput: null,
         bypassPermissions: false,
+        worktreeExitState: null,
     });
     const session = createState<SessionState>({
         id: 'test-session',

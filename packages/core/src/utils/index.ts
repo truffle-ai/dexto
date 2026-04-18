@@ -9,7 +9,6 @@ export * from './zod-schema-converter.js';
 export * from './result.js';
 export * from './error-conversion.js';
 export * from './execution-context.js';
-export { getWorktreeContext, type WorktreeContextInfo } from './execution-context.js';
 export * from './fs-walk.js';
 export * from './redactor.js';
 export * from './debug.js';
@@ -18,6 +17,9 @@ export * from './api-key-resolver.js';
 export * from './defer.js';
 export * from './async-context.js';
 export * from './env.js';
+
+// VCS worktree operations
+export { hasUnstagedChanges } from '../vcs/index.js';
 
 // API key STORAGE has been moved to @dexto/agent-management
 // These functions write to .env files and are CLI/server concerns, not core runtime

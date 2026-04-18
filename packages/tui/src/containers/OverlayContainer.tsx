@@ -143,6 +143,9 @@ import LogoutOverlay, {
     type LogoutOverlayHandle,
     type LogoutOverlayOutcome,
 } from '../components/overlays/LogoutOverlay.js';
+import WorktreeExitOverlay, {
+    type WorktreeExitOverlayHandle,
+} from '../components/overlays/WorktreeExitOverlay.js';
 import type { PromptAddScope } from '../state/types.js';
 import type {
     PromptInfo,
@@ -162,6 +165,7 @@ import {
 import { InputService } from '../services/InputService.js';
 import { createUserMessage, convertHistoryToUIMessages } from '../utils/messageFormatting.js';
 import { generateMessageId } from '../utils/idGenerator.js';
+import { triggerExit } from '../interactive-commands/exit-handler.js';
 import { canUseDextoProvider, captureAnalytics } from '../host/index.js';
 import { FocusOverlayFrame } from '../components/shared/FocusOverlayFrame.js';
 import { shouldHideCliChrome } from '../utils/overlayPresentation.js';
@@ -291,6 +295,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
         // State for selected plugin (for plugin-actions overlay)
         const [selectedPlugin, setSelectedPlugin] = useState<ListedPlugin | null>(null);
         const marketplaceAddPromptRef = useRef<MarketplaceAddPromptHandle>(null);
+        const worktreeExitRef = useRef<WorktreeExitOverlayHandle>(null);
 
         const getConfigFilePathOrWarn = useCallback(
             (action: string): string | null => {
@@ -416,6 +421,8 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             return (
                                 marketplaceAddPromptRef.current?.handleInput(inputStr, key) ?? false
                             );
+                        case 'worktree-exit':
+                            return worktreeExitRef.current?.handleInput(inputStr, key) ?? false;
                         default:
                             return false;
                     }
@@ -2717,6 +2724,95 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
             setUi((prev) => ({ ...prev, activeOverlay: 'none' }));
         }, [setUi]);
 
+        // Handle worktree exit "Keep" choice
+        const handleWorktreeKeep = useCallback(() => {
+            setUi((prev) => ({
+                ...prev,
+                activeOverlay: 'none',
+                worktreeExitState: null,
+            }));
+            triggerExit();
+        }, [setUi]);
+
+        // Handle worktree exit "Remove" choice
+        const handleWorktreeRemove = useCallback(async () => {
+            const state = ui.worktreeExitState;
+            if (!state) return;
+
+            setUi((prev) => ({
+                ...prev,
+                activeOverlay: 'none',
+                worktreeExitState: null,
+                isProcessing: true,
+                isCancelling: false,
+            }));
+            buffer.setText('');
+
+            setMessages((prev) => [
+                ...prev,
+                {
+                    id: generateMessageId('system'),
+                    role: 'system',
+                    content: `🧹 Removing worktree "${state.worktreeName}"...`,
+                    timestamp: new Date(),
+                },
+            ]);
+
+            try {
+                const { removeWorktree, getWorktreeContext } = await import('@dexto/core');
+                const context = getWorktreeContext(state.worktreePath);
+                const parentProjectRoot = context?.parentProjectRoot || state.parentProjectRoot;
+                const worktreeName = context?.name || state.worktreeName;
+
+                if (!parentProjectRoot) {
+                    throw new Error('Could not determine parent project root');
+                }
+
+                await removeWorktree(parentProjectRoot, worktreeName, {
+                    force: true,
+                    deleteBranch: true,
+                });
+
+                setMessages((prev) => [
+                    ...prev,
+                    {
+                        id: generateMessageId('system'),
+                        role: 'system',
+                        content: `✅ Worktree "${worktreeName}" removed`,
+                        timestamp: new Date(),
+                    },
+                ]);
+            } catch (error) {
+                setMessages((prev) => [
+                    ...prev,
+                    {
+                        id: generateMessageId('error'),
+                        role: 'system',
+                        content: `Failed to remove worktree: ${error instanceof Error ? error.message : String(error)}`,
+                        timestamp: new Date(),
+                    },
+                ]);
+            }
+
+            setUi((prev) => ({
+                ...prev,
+                isProcessing: false,
+                isCancelling: false,
+                isThinking: false,
+            }));
+
+            triggerExit();
+        }, [ui.worktreeExitState, setUi, setMessages, buffer]);
+
+        // Handle worktree exit cancel
+        const handleWorktreeCancel = useCallback(() => {
+            setUi((prev) => ({
+                ...prev,
+                activeOverlay: 'none',
+                worktreeExitState: null,
+            }));
+        }, [setUi]);
+
         const currentLLMConfig = session.id
             ? agent.getCurrentLLMConfig(session.id)
             : agent.getCurrentLLMConfig();
@@ -3095,6 +3191,22 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             ref={logoutOverlayRef}
                             isVisible={true}
                             onDone={handleLogoutDone}
+                        />
+                    </Box>
+                )}
+
+                {/* Worktree exit prompt */}
+                {ui.activeOverlay === 'worktree-exit' && ui.worktreeExitState && (
+                    <Box marginTop={1}>
+                        <WorktreeExitOverlay
+                            ref={worktreeExitRef}
+                            isVisible={true}
+                            worktreeName={ui.worktreeExitState.worktreeName}
+                            worktreePath={ui.worktreeExitState.worktreePath}
+                            parentProjectRoot={ui.worktreeExitState.parentProjectRoot}
+                            onKeep={handleWorktreeKeep}
+                            onRemove={handleWorktreeRemove}
+                            onCancel={handleWorktreeCancel}
                         />
                     </Box>
                 )}

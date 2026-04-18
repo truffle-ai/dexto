@@ -53,6 +53,35 @@ export async function isGitRepo(dirPath: string): Promise<boolean> {
 }
 
 /**
+ * Get the root directory of a git repository
+ * @param dirPath Directory within the git repository
+ * @returns Absolute path to the git repository root
+ */
+export async function getGitRoot(dirPath: string): Promise<string> {
+    const { stdout } = await execFileAsync('git', ['rev-parse', '--show-toplevel'], {
+        cwd: dirPath,
+    });
+    return stdout.trim();
+}
+
+/**
+ * Check if a git repository has unstaged changes
+ * @param dirPath Directory within the git repository
+ * @returns true if there are unstaged changes
+ */
+export async function hasUnstagedChanges(dirPath: string): Promise<boolean> {
+    const { stdout } = await execFileAsync('git', ['status', '--porcelain'], {
+        cwd: dirPath,
+    });
+    // Filter out staged changes (lines starting with space), keep unstaged (lines starting with [MDARC?])
+    const lines = stdout
+        .trim()
+        .split('\n')
+        .filter((line) => line.trim() !== '');
+    return lines.some((line) => line[0] !== ' ' && line[0] !== '');
+}
+
+/**
  * Get the worktrees base directory path relative to project root
  * @param _projectPath Project root path (unused, for API consistency)
  * @returns Relative path to worktrees directory
@@ -73,6 +102,15 @@ export function getWorktreePath(projectPath: string, name: string): string {
         throw VCSError.invalidWorktreeName(name);
     }
     return path.join(projectPath, '.dexto', 'worktree', name);
+}
+
+/**
+ * Check if a worktree name is valid (no path traversal or suspicious patterns)
+ * @param name Worktree name to validate
+ * @returns true if valid, false otherwise
+ */
+export function isValidWorktreeName(name: string): boolean {
+    return /^[a-zA-Z0-9._-]+$/.test(name);
 }
 
 /**
@@ -193,11 +231,12 @@ export async function createWorktree(
  * @param name Worktree name
  * @param options Options for removal
  * @param options.force Force removal even if dirty
+ * @param options.deleteBranch Also delete the associated branch
  */
 export async function removeWorktree(
     projectPath: string,
     name: string,
-    options: { force?: boolean } = {}
+    options: { force?: boolean; deleteBranch?: boolean } = {}
 ): Promise<void> {
     const worktreePath = getWorktreePath(projectPath, name);
 
@@ -216,6 +255,20 @@ export async function removeWorktree(
     } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         throw VCSError.worktreeOperationFailed('remove', message, { name, worktreePath });
+    }
+
+    // Delete the associated branch if requested
+    if (options.deleteBranch) {
+        const branchName = `worktree-${name}`;
+        try {
+            await execFileAsync('git', ['branch', '-D', branchName], { cwd: projectPath });
+        } catch (error) {
+            // Branch might not exist - that's okay
+            const message = error instanceof Error ? error.message : String(error);
+            if (!message.includes('not found') && !message.includes('does not exist')) {
+                throw VCSError.gitBranchFailed('delete', branchName, message);
+            }
+        }
     }
 }
 

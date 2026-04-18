@@ -13,11 +13,14 @@ export { VCSError } from './errors.js';
 export {
     isGitAvailable,
     isGitRepo,
+    getGitRoot,
     getWorktreesDirPath,
     getWorktreePath,
+    isValidWorktreeName,
     worktreeExists,
     createWorktree,
     removeWorktree,
     pruneWorktrees,
+    hasUnstagedChanges,
     type WorktreeContext,
 } from './worktree.js';

@@ -53,6 +53,7 @@ export function createInitialState(initialModelName: string = ''): CLIState {
             chatgptRateLimitStatus: null,
             insufficientCredits: null,
             commandOutput: null,
+            worktreeExitState: null,
         },
         session: {
             id: null,
