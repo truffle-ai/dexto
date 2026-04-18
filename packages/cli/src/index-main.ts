@@ -619,7 +619,7 @@ program
                             `❌ Worktree '${worktreeName}' already exists at ${existingWorktreePath}.`
                         );
                         console.error(
-                            `💡 Run: dexto --cwd ${existingWorktreePath} to start a session there`
+                            `💡 Run: dexto from ${existingWorktreePath} to start a session there`
                         );
                         safeExit('worktree', 1, 'worktree-exists');
                     }
