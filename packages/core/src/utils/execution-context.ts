@@ -185,6 +185,26 @@ export function findDextoProjectRoot(startPath: string = process.cwd()): string 
 }
 
 /**
+ * Find the root of the Git repository containing the given path
+ * Walks up looking for .git directory
+ * @param startPath Starting directory path
+ * @returns Git repository root or null if not in a git repo
+ */
+export function findGitRepoRoot(startPath: string = process.cwd()): string | null {
+    let currentPath = path.resolve(startPath);
+    const rootPath = path.parse(currentPath).root;
+
+    while (currentPath !== rootPath) {
+        if (existsSync(path.join(currentPath, '.git'))) {
+            return currentPath;
+        }
+        currentPath = path.dirname(currentPath);
+    }
+
+    return null;
+}
+
+/**
  * Worktree context containing worktree information
  */
 export interface WorktreeContextInfo {

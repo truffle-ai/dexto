@@ -551,7 +551,17 @@ program
                 }
 
                 const opts = program.opts();
-                const workspaceRoot = findDextoProjectRoot(process.cwd()) ?? process.cwd();
+                const { findGitRepoRoot } = await import('@dexto/agent-management');
+                const workspaceRoot = findGitRepoRoot(process.cwd());
+
+                // Check if we're in a git repo (required for worktree)
+                if (!workspaceRoot) {
+                    console.error('❌ Not in a Git repository.');
+                    console.error(
+                        '   Please run this command from a directory that is under Git version control.'
+                    );
+                    safeExit('worktree', 1, 'not-git-repo');
+                }
 
                 // Set dev mode early to use local repo agents instead of ~/.dexto
                 if (opts.dev) {
@@ -571,26 +581,30 @@ program
                     }
 
                     // 2. Import worktree utilities
-                    const { isGitAvailable, isGitRepo, worktreeExists, createWorktree } =
+                    const { isGitAvailable, worktreeExists, createWorktree, isValidWorktreeName } =
                         await import('@dexto/core');
 
-                    // 3. Check if git is available
+                    // 3. Check if worktree name is valid
+                    if (!isValidWorktreeName(worktreeName)) {
+                        console.error(`❌ Invalid worktree name '${worktreeName}'.`);
+                        console.error(
+                            '   Use only letters, numbers, dots, dashes, and underscores.'
+                        );
+                        console.error(`   Examples: my-feature, bug-123, feature.new`);
+                        safeExit('worktree', 1, 'invalid-worktree-name');
+                    }
+
+                    // 4. Check if git is available
                     if (!(await isGitAvailable())) {
                         console.error('❌ Git is not available. Please install git.');
                         safeExit('worktree', 1, 'git-not-available');
                     }
 
-                    // 4. Check if already in a worktree
+                    // 5. Check if already in a worktree
                     const { isInWorktree } = await import('@dexto/core');
                     if (isInWorktree()) {
                         console.error('❌ Already in a worktree. Run from main project directory.');
                         safeExit('worktree', 1, 'already-in-worktree');
-                    }
-
-                    // 5. Check if in a git repo
-                    if (!(await isGitRepo(workspaceRoot))) {
-                        console.error('❌ Not in a Git repository.');
-                        safeExit('worktree', 1, 'not-git-repo');
                     }
 
                     // 6. Check if worktree already exists
@@ -600,11 +614,11 @@ program
                         safeExit('worktree', 1, 'worktree-exists');
                     }
 
-                    // 7. Create worktree
+                    // 8. Create worktree
                     try {
                         const worktreePath = await createWorktree(workspaceRoot, worktreeName);
 
-                        // 8. Spawn new dexto process in worktree
+                        // 9. Spawn new dexto process in worktree
                         const { spawn } = await import('child_process');
                         const dextoPath = process.argv[1] ?? 'dexto';
                         // Filter out --worktree and its argument from child args using index-based iteration
@@ -630,10 +644,13 @@ program
                             env: process.env,
                         });
 
-                        child.on('exit', (code) => safeExit('worktree', code ?? 0));
+                        child.on('exit', (code) => {
+                            // Exit directly - safeExit throws ExitSignal which won't propagate from event callback
+                            process.exit(code ?? 0);
+                        });
                         child.on('error', (err) => {
                             console.error(`❌ Failed to spawn dexto process: ${err.message}`);
-                            safeExit('worktree', 1, 'spawn-failed');
+                            process.exit(1);
                         });
 
                         return; // Exit parent process
