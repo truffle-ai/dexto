@@ -551,17 +551,6 @@ program
                 }
 
                 const opts = program.opts();
-                const { findGitRepoRoot } = await import('@dexto/agent-management');
-                const workspaceRoot = findGitRepoRoot(process.cwd());
-
-                // Check if we're in a git repo (required for worktree)
-                if (!workspaceRoot) {
-                    console.error('❌ Not in a Git repository.');
-                    console.error(
-                        '   Please run this command from a directory that is under Git version control.'
-                    );
-                    safeExit('worktree', 1, 'not-git-repo');
-                }
 
                 // Set dev mode early to use local repo agents instead of ~/.dexto
                 if (opts.dev) {
@@ -571,6 +560,17 @@ program
                 // ——— WORKTREE CREATION ———
                 // Handle --worktree flag: create worktree and spawn new dexto process
                 if (opts.worktree !== undefined) {
+                    const { findGitRepoRoot } = await import('@dexto/agent-management');
+                    const gitRoot = findGitRepoRoot(process.cwd());
+                    // Check if we're in a git repo (required for worktree)
+                    if (!gitRoot) {
+                        console.error('❌ Not in a Git repository.');
+                        console.error(
+                            '   Please run this command from a directory that is under Git version control.'
+                        );
+                        safeExit('worktree', 1, 'not-git-repo');
+                    }
+
                     const worktreeName = String(opts.worktree).trim();
 
                     // 1. Check if worktree name was provided
@@ -608,9 +608,9 @@ program
                     }
 
                     // 6. Check if worktree already exists
-                    if (worktreeExists(workspaceRoot, worktreeName)) {
+                    if (worktreeExists(gitRoot, worktreeName)) {
                         const existingWorktreePath = path.join(
-                            workspaceRoot,
+                            gitRoot,
                             '.dexto',
                             'worktree',
                             worktreeName
@@ -624,9 +624,9 @@ program
                         safeExit('worktree', 1, 'worktree-exists');
                     }
 
-                    // 8. Create worktree
+                    // 7. Create worktree
                     try {
-                        const worktreePath = await createWorktree(workspaceRoot, worktreeName);
+                        const worktreePath = await createWorktree(gitRoot, worktreeName);
 
                         // 9. Spawn new dexto process in worktree
                         const { spawn } = await import('child_process');
