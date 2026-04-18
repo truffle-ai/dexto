@@ -33,7 +33,7 @@ export const WorktreeExitOverlay = forwardRef<WorktreeExitOverlayHandle, Worktre
             {
                 key: 'remove' as const,
                 label: 'Remove worktree',
-                description: `Delete directory and branch, enables clean recreation (parent: ${parentProjectRoot ?? 'unknown'})`,
+                description: `Delete directory and branch, enables clean recreation (parent: ${parentProjectRoot || 'unknown'})`,
             },
         ] satisfies Array<{ key: WorktreeExitChoice; label: string; description: string }>;
 
