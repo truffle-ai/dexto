@@ -73,12 +73,16 @@ export async function hasUnstagedChanges(dirPath: string): Promise<boolean> {
     const { stdout } = await execFileAsync('git', ['status', '--porcelain'], {
         cwd: dirPath,
     });
-    // Filter out staged changes (lines starting with space), keep unstaged (lines starting with [MDARC?])
-    const lines = stdout
-        .trim()
+    // Porcelain v1 format: "XY path" — X = index (staged) status, Y = worktree (unstaged) status.
+    // A modification staged only in the index is "M ", while an unstaged edit is " M".
+    // Untracked files are "??" and should also count as dirty for the exit-cleanup gate.
+    return stdout
         .split('\n')
-        .filter((line) => line.trim() !== '');
-    return lines.some((line) => line[0] !== ' ' && line[0] !== '');
+        .filter((line) => line.length > 0)
+        .some((line) => {
+            if (line.startsWith('??')) return true; // untracked
+            return line.length >= 2 && line[1] !== ' '; // anything unstaged
+        });
 }
 
 /**
