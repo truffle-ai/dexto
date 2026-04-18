@@ -793,6 +793,7 @@ program
                 let resolvedPath: string;
                 let image: DextoImage;
                 let imageName: string;
+                const workspaceRoot = findDextoProjectRoot(process.cwd()) ?? process.cwd();
 
                 // Determine validation mode early - used throughout config loading and agent creation
                 // Use relaxed validation for interactive modes (web/cli) where users can configure later
