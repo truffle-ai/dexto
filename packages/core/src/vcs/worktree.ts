@@ -65,6 +65,30 @@ export async function getGitRoot(dirPath: string): Promise<string> {
 }
 
 /**
+ * Get the default branch of a git repository (e.g., main, master)
+ * @param dirPath Directory within the git repository
+ * @returns Name of the default branch (e.g., 'main')
+ */
+export async function getDefaultBranch(dirPath: string): Promise<string> {
+    // Use git symbolic-ref to get the default branch from origin
+    // Falls back to 'main' if origin/HEAD is not set
+    try {
+        const { stdout } = await execFileAsync(
+            'git',
+            ['symbolic-ref', 'refs/remotes/origin/HEAD', '--short'],
+            {
+                cwd: dirPath,
+            }
+        );
+        // Remove 'origin/' prefix to get just the branch name
+        return stdout.trim().replace(/^origin\//, '');
+    } catch {
+        // Fallback to 'main' if we can't determine the default branch
+        return 'main';
+    }
+}
+
+/**
  * Check if a git repository has unstaged changes
  * @param dirPath Directory within the git repository
  * @returns true if there are unstaged changes
@@ -200,14 +224,17 @@ export async function createWorktree(
         branchExistsLocally = false;
     }
 
-    // Step 3: Create the worktree
+    // Step 3: Get default branch for creating new worktree branches
+    const defaultBranch = await getDefaultBranch(projectPath);
+
+    // Step 4: Create the worktree
     // Use --no-track to avoid setting upstream (we don't care about tracking)
     // Use -b only if branch doesn't exist locally (otherwise git will fail)
     try {
         const args = ['worktree', 'add', '--no-track'];
         if (!branchExistsLocally) {
-            // Creating new branch: -b creates it from HEAD automatically
-            args.push('-b', branchName, worktreePath);
+            // Creating new branch from default branch, not from current HEAD
+            args.push('-b', branchName, worktreePath, defaultBranch);
         } else {
             // Branch exists locally, use it directly (without -b)
             args.push(worktreePath, branchName);
