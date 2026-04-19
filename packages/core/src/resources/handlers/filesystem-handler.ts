@@ -332,11 +332,21 @@ export class FileSystemResourceHandler implements InternalResourceHandler {
             '.cache',
             '.vscode',
             '.idea',
-            '.changeset',
             '.github',
             '.husky',
+            '.agents',
+            '.claude',
+            '.cursor',
+            '.dexto',
+            '.conductor',
+            '.logs',
             'tmp',
             'temp',
+            '__pycache__',
+            '.pytest_cache',
+            'target',
+            'vendor',
+            'site',
         ];
         return ignoredDirectories.includes(basename);
     }
@@ -353,15 +363,24 @@ export class FileSystemResourceHandler implements InternalResourceHandler {
             if (!includeHidden) {
                 const allowedDotfiles = [
                     '.gitignore',
+                    '.gitattributes',
                     '.env',
                     '.env.example',
+                    '.env.local',
+                    '.env.development',
+                    '.env.production',
                     '.npmignore',
                     '.dockerignore',
                     '.editorconfig',
+                    '.prettierignore',
+                    '.eslintignore',
+                    '.nvmrc',
+                    '.node-version',
                 ];
                 if (!allowedDotfiles.includes(basename)) return false;
             }
             if (basename === '.env' || basename.startsWith('.env.')) return true;
+            if (basename === '.nvmrc' || basename === '.node-version') return true;
         }
 
         if (!ext) {
