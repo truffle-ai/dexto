@@ -1,5 +1,20 @@
 # @dexto/agent-config
 
+## 1.6.27
+
+### Patch Changes
+
+- 6124420: Expose host-owned runtime IDs cleanly through core runtime flows.
+
+    Hosts can now provide runtime-owned IDs through core agent runtime configuration,
+    and those IDs are propagated consistently through runtime events, hooks, sessions,
+    and telemetry baggage and span attributes.
+
+- Updated dependencies [6124420]
+- Updated dependencies [b2fa84d]
+    - @dexto/core@1.6.27
+    - @dexto/storage@1.6.27
+
 ## 1.6.26
 
 ### Patch Changes

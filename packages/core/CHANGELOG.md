@@ -1,5 +1,17 @@
 # @dexto/core
 
+## 1.6.27
+
+### Patch Changes
+
+- 6124420: Expose host-owned runtime IDs cleanly through core runtime flows.
+
+    Hosts can now provide runtime-owned IDs through core agent runtime configuration,
+    and those IDs are propagated consistently through runtime events, hooks, sessions,
+    and telemetry baggage and span attributes.
+
+- b2fa84d: Expand ignored directories and dotfiles in filesystem scanner
+
 ## 1.6.26
 
 ### Patch Changes

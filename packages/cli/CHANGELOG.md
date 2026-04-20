@@ -1,5 +1,23 @@
 # dexto
 
+## 1.6.27
+
+### Patch Changes
+
+- Updated dependencies [6124420]
+- Updated dependencies [b2fa84d]
+    - @dexto/core@1.6.27
+    - @dexto/agent-config@1.6.27
+    - @dexto/agent-management@1.6.27
+    - @dexto/analytics@1.6.27
+    - @dexto/client-sdk@1.6.27
+    - @dexto/image-local@1.6.27
+    - @dexto/image-logger-agent@1.6.27
+    - @dexto/server@1.6.27
+    - @dexto/storage@1.6.27
+    - @dexto/tui@1.6.27
+    - @dexto/registry@1.6.27
+
 ## 1.6.26
 
 ### Patch Changes
