@@ -31,6 +31,7 @@ import type { CompactionStrategy } from '../context/compaction/types.js';
 import { parseCodexBaseURL } from '../llm/providers/codex-base-url.js';
 import type { VercelLLMService } from '../llm/services/vercel.js';
 import type { AgentRunContext } from '../runtime/run-context.js';
+import { SessionError } from './errors.js';
 
 /**
  * Represents an isolated conversation session within a Dexto agent.
@@ -400,6 +401,10 @@ export class ChatSession {
         this.logger.debug(
             `Streaming session ${this.id} | textParts=${textParts.length} | images=${imageParts.length} | files=${fileParts.length}`
         );
+
+        if (this.isBusy()) {
+            throw SessionError.busy(this.id);
+        }
 
         // Create an AbortController for this run and expose for cancellation
         this.currentRunController = new AbortController();

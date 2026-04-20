@@ -700,15 +700,13 @@ export class TurnExecutor {
                                         name,
                                         args as Record<string, unknown>,
                                         options.toolCallId,
-                                        this.runContext === undefined
-                                            ? {
-                                                  sessionId: this.sessionId,
-                                                  abortSignal,
-                                              }
-                                            : {
-                                                  runContext: this.runContext,
-                                                  abortSignal,
-                                              }
+                                        {
+                                            sessionId: this.sessionId,
+                                            abortSignal,
+                                            ...(this.runContext !== undefined
+                                                ? { runContext: this.runContext }
+                                                : {}),
+                                        }
                                     );
 
                                     const metadata:

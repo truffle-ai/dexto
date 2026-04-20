@@ -373,6 +373,56 @@ describe('ApprovalManager', () => {
                 })
             ).resolves.toEqual({});
         });
+
+        it('should pass host runtime through getElicitationData', async () => {
+            const manager = createApprovalManager(
+                {
+                    permissions: {
+                        mode: 'manual',
+                        timeout: 120000,
+                    },
+                    elicitation: {
+                        enabled: true,
+                        timeout: 120000,
+                    },
+                },
+                mockLogger
+            );
+            const requestElicitation = vi.spyOn(manager, 'requestElicitation').mockResolvedValue({
+                approvalId: 'approval-1',
+                status: ApprovalStatus.APPROVED,
+                data: {
+                    formData: {
+                        answer: 'yes',
+                    },
+                },
+            });
+            const hostRuntime = {
+                ids: {
+                    runId: 'run-1',
+                },
+            };
+
+            await expect(
+                manager.getElicitationData({
+                    schema: {
+                        type: 'object' as const,
+                        properties: {
+                            answer: { type: 'string' as const },
+                        },
+                    },
+                    prompt: 'Answer?',
+                    serverName: 'Test Server',
+                    hostRuntime,
+                })
+            ).resolves.toEqual({ answer: 'yes' });
+
+            expect(requestElicitation).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    hostRuntime,
+                })
+            );
+        });
     });
 
     describe('Timeout Configuration', () => {
@@ -613,6 +663,47 @@ describe('ApprovalManager', () => {
                 expect((error as DextoRuntimeError).message).toContain('system policy');
                 expect((error as any).context.reason).toBe(DenialReason.SYSTEM_DENIED);
             }
+        });
+
+        it('should pass host runtime through checkToolApproval', async () => {
+            const manager = createApprovalManager(
+                {
+                    permissions: {
+                        mode: 'manual',
+                        timeout: 120000,
+                    },
+                    elicitation: {
+                        enabled: true,
+                        timeout: 120000,
+                    },
+                },
+                mockLogger
+            );
+            const requestToolApproval = vi.spyOn(manager, 'requestToolApproval').mockResolvedValue({
+                approvalId: 'approval-1',
+                status: ApprovalStatus.APPROVED,
+            });
+            const hostRuntime = {
+                ids: {
+                    runId: 'run-1',
+                    attemptId: 'attempt-1',
+                },
+            };
+
+            await expect(
+                manager.checkToolApproval({
+                    toolName: 'test_tool',
+                    toolCallId: 'test-call-id',
+                    args: {},
+                    hostRuntime,
+                })
+            ).resolves.toBe(true);
+
+            expect(requestToolApproval).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    hostRuntime,
+                })
+            );
         });
 
         it('should handle user_denied reason in error message', async () => {

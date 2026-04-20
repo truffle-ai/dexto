@@ -1,6 +1,7 @@
 // src/agent/DextoAgent.ts
 import { randomUUID } from 'crypto';
 import { setMaxListeners } from 'events';
+import { ZodError } from 'zod';
 import { MCPManager } from '../mcp/manager.js';
 import { ToolManager } from '../tools/tool-manager.js';
 import { SystemPromptManager } from '../systemPrompt/manager.js';
@@ -918,11 +919,22 @@ export class DextoAgent {
 
         const signal = options?.signal;
         const disconnectSignal = options?.disconnectSignal ?? signal;
-        const runContext = createAgentRunContext({
-            sessionId,
-            hostRuntime: options?.executionContext,
-            parentContext: context.active(),
-        });
+        let runContext;
+        try {
+            runContext = createAgentRunContext({
+                sessionId,
+                hostRuntime: options?.executionContext,
+                parentContext: context.active(),
+            });
+        } catch (error) {
+            if (error instanceof ZodError) {
+                throw AgentError.apiValidationError(
+                    'executionContext is invalid',
+                    zodToIssues(error)
+                );
+            }
+            throw error;
+        }
         const executionContext = runContext.hostRuntime;
 
         // Normalize content: string -> [{ type: 'text', text: string }]
@@ -962,6 +974,7 @@ export class DextoAgent {
         const cleanupListeners = () => {
             detachDisconnectAbortListener?.();
             detachDisconnectAbortListener = undefined;
+            this.activeStreamControllers.delete(sessionId);
 
             if (listenerCleanups.length === 0) {
                 return; // Already cleaned up
@@ -970,8 +983,6 @@ export class DextoAgent {
                 removeListener();
             }
             listenerCleanups.length = 0;
-            // Remove from active controllers map
-            this.activeStreamControllers.delete(sessionId);
         };
 
         try {

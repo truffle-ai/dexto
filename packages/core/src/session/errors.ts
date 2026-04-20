@@ -72,4 +72,18 @@ export class SessionError {
             { sessionId, reason }
         );
     }
+
+    /**
+     * Session already processing a run
+     */
+    static busy(sessionId: string) {
+        return new DextoRuntimeError(
+            SessionErrorCode.SESSION_BUSY,
+            ErrorScope.SESSION,
+            ErrorType.CONFLICT,
+            `Session '${sessionId}' is already processing a message`,
+            { sessionId },
+            'Wait for the current run to finish before starting another one'
+        );
+    }
 }

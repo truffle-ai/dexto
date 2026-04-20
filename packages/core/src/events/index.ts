@@ -709,10 +709,12 @@ export class BaseTypedEventEmitter<TEventMap extends Record<string, any>> {
     }
 
     private registerAbortCleanup(signal: AbortSignal, cleanup: () => void): void {
-        if (!this._abortListeners.has(signal)) {
-            this._abortListeners.set(signal, new Set());
+        let cleanups = this._abortListeners.get(signal);
+        if (cleanups === undefined) {
+            cleanups = new Set();
+            this._abortListeners.set(signal, cleanups);
         }
-        this._abortListeners.get(signal)!.add(cleanup);
+        cleanups.add(cleanup);
         signal.addEventListener('abort', cleanup, { once: true });
     }
 
@@ -803,12 +805,13 @@ export class BaseTypedEventEmitter<TEventMap extends Record<string, any>> {
         // Set up abort handling if signal is provided
         if (options?.signal) {
             const signal = options.signal;
-            cleanupAbortListener = () => {
+            const abortCleanup = () => {
                 this.off(event, onceWrapper);
-                this.unregisterAbortCleanup(signal, cleanupAbortListener!);
+                this.unregisterAbortCleanup(signal, abortCleanup);
             };
+            cleanupAbortListener = abortCleanup;
 
-            this.registerAbortCleanup(signal, cleanupAbortListener);
+            this.registerAbortCleanup(signal, abortCleanup);
         }
 
         return this;

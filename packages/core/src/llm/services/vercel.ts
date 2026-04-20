@@ -19,9 +19,30 @@ import { TurnExecutor } from '../executor/turn-executor.js';
 import { MessageQueueService } from '../../session/message-queue.js';
 import type { ResourceManager } from '../../resources/index.js';
 import { DextoRuntimeError } from '../../errors/DextoRuntimeError.js';
+import { ErrorScope, ErrorType } from '../../errors/types.js';
 import { LLMErrorCode } from '../error-codes.js';
 import type { ContentInput } from '../../agent/types.js';
 import type { AgentRunContext } from '../../runtime/run-context.js';
+
+export function ensureRunContextMatchesServiceSession(
+    serviceSessionId: string,
+    runContext?: AgentRunContext
+): string {
+    if (runContext !== undefined && runContext.sessionId !== serviceSessionId) {
+        throw new DextoRuntimeError(
+            LLMErrorCode.GENERATION_FAILED,
+            ErrorScope.LLM,
+            ErrorType.SYSTEM,
+            `Run context session '${runContext.sessionId}' does not match LLM service session '${serviceSessionId}'`,
+            {
+                serviceSessionId,
+                runContextSessionId: runContext.sessionId,
+            }
+        );
+    }
+
+    return serviceSessionId;
+}
 
 /**
  * Vercel AI SDK implementation of the core session LLM runtime
@@ -178,6 +199,11 @@ export class VercelLLMService {
             runContext?: AgentRunContext;
         }
     ): Promise<{ text: string }> {
+        const sessionId = ensureRunContextMatchesServiceSession(
+            this.sessionId,
+            options?.runContext
+        );
+
         // Get active span and context for telemetry
         const activeSpan = trace.getActiveSpan();
         const currentContext = context.active();
@@ -225,7 +251,7 @@ export class VercelLLMService {
 
             // Execute with streaming enabled
             const contributorContext = await this.toolManager.buildContributorContext({
-                sessionId: this.sessionId,
+                sessionId,
             });
             const result = await executor.execute(contributorContext, true);
 

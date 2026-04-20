@@ -843,6 +843,64 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             ]);
         });
 
+        it('should preserve host runtime from a directory access approval override when run context is absent', async () => {
+            mockMcpManager.getAllTools = vi.fn().mockResolvedValue({});
+
+            const hostRuntime = {
+                ids: {
+                    runId: 'run-1',
+                    attemptId: 'attempt-1',
+                },
+            };
+            const tool = defineTool({
+                id: 'fs_like_tool',
+                description: 'Filesystem-like tool',
+                inputSchema: z
+                    .object({
+                        file_path: z.string(),
+                    })
+                    .strict(),
+                approval: {
+                    override: vi.fn().mockResolvedValue({
+                        type: ApprovalType.DIRECTORY_ACCESS,
+                        metadata: {
+                            path: '/tmp/example.txt',
+                            parentDir: '/tmp',
+                            operation: 'read',
+                            toolName: 'fs_like_tool',
+                        },
+                        hostRuntime,
+                    }),
+                },
+                execute: vi.fn().mockResolvedValue('ok'),
+            });
+
+            const toolManager = createToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'manual',
+                mockAgentEventBus,
+                { alwaysAllow: ['fs_like_tool'], alwaysDeny: [] },
+                [tool],
+                mockLogger
+            );
+            toolManager.setToolExecutionContextFactory((baseContext) => baseContext);
+
+            await toolManager.executeTool(
+                'fs_like_tool',
+                { file_path: '/tmp/example.txt' },
+                'call-1',
+                { sessionId: 'session-1' }
+            );
+
+            expect(mockApprovalManager.requestToolApproval).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    hostRuntime,
+                })
+            );
+        });
+
         it('should auto-approve pending directory access prompts when rememberDirectory is selected', async () => {
             mockMcpManager.getAllTools = vi.fn().mockResolvedValue({});
 

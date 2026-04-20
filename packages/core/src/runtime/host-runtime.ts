@@ -4,6 +4,7 @@ import { z } from 'zod';
 
 const HOST_RUNTIME_ENTRY_PREFIX = 'hostRuntime.ids.';
 const WELL_KNOWN_HOST_RUNTIME_ID_KEYS = ['runtimeId', 'runId', 'attemptId', 'workspaceId'] as const;
+const WELL_KNOWN_HOST_RUNTIME_ID_KEY_SET = new Set<string>(WELL_KNOWN_HOST_RUNTIME_ID_KEYS);
 
 const HostRuntimeIdKeySchema = z
     .string()
@@ -79,9 +80,11 @@ export function resolveHostRuntimeContext({
 function isWellKnownHostRuntimeIdKey(
     key: string
 ): key is (typeof WELL_KNOWN_HOST_RUNTIME_ID_KEYS)[number] {
-    return WELL_KNOWN_HOST_RUNTIME_ID_KEYS.includes(
-        key as (typeof WELL_KNOWN_HOST_RUNTIME_ID_KEYS)[number]
-    );
+    return WELL_KNOWN_HOST_RUNTIME_ID_KEY_SET.has(key);
+}
+
+export function isHostRuntimeBaggageKey(key: string): boolean {
+    return key.startsWith(HOST_RUNTIME_ENTRY_PREFIX) || WELL_KNOWN_HOST_RUNTIME_ID_KEY_SET.has(key);
 }
 
 function getValidHostRuntimeIdValue(value: string): string | undefined {

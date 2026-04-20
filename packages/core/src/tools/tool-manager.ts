@@ -2192,7 +2192,8 @@ export class ToolManager {
                 sessionId,
                 runContext
             );
-            const hostRuntime = runContext?.hostRuntime;
+            const hostRuntime =
+                runContext?.hostRuntime ?? directoryAccessApprovalRequest?.hostRuntime;
 
             // Get suggested patterns if applicable
             const suggestedPatterns = this.getToolSuggestedPatterns(toolName, args);

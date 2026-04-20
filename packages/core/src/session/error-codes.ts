@@ -13,4 +13,5 @@ export enum SessionErrorCode {
 
     // Session operations
     SESSION_RESET_FAILED = 'session_reset_failed',
+    SESSION_BUSY = 'session_busy',
 }

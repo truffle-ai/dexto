@@ -682,6 +682,82 @@ describe('DextoAgent Lifecycle Management', () => {
             expect(mockServices.sessionManager).not.toHaveProperty('withExecutionContext');
         });
 
+        test('should reject invalid execution context as a typed API validation error', async () => {
+            const agent = createTestAgent(mockValidatedConfig);
+
+            await agent.start();
+
+            await expect(
+                agent.stream('hello', 'test-session', {
+                    executionContext: {
+                        ids: {
+                            'invalid+key': 'run-1',
+                        },
+                    },
+                })
+            ).rejects.toMatchObject({
+                code: AgentErrorCode.API_VALIDATION_ERROR,
+                scope: ErrorScope.AGENT,
+                type: ErrorType.USER,
+            });
+
+            expect(mockServices.sessionManager.getSession).not.toHaveBeenCalled();
+        });
+
+        test('should clear the active stream controller when preflight rejects', async () => {
+            const agent = createTestAgent(mockValidatedConfig);
+            const sessionStream = vi.fn().mockImplementation(async () => {
+                agent.emit('run:complete', {
+                    sessionId: 'test-session',
+                    finishReason: 'stop',
+                    stepCount: 0,
+                    durationMs: 1,
+                });
+                return { text: 'ok' };
+            });
+            const busySession = {
+                id: 'test-session',
+                isBusy: vi.fn().mockReturnValue(true),
+            };
+            let getSessionCallCount = 0;
+
+            mockServices.sessionManager.getSession = vi.fn().mockImplementation(async () => {
+                getSessionCallCount += 1;
+                if (getSessionCallCount === 1) {
+                    return busySession;
+                }
+                return undefined;
+            });
+            mockServices.sessionManager.createSession = vi.fn().mockResolvedValue({
+                id: 'test-session',
+                stream: sessionStream,
+            });
+
+            await agent.start();
+
+            await expect(agent.stream('hello', 'test-session')).rejects.toMatchObject({
+                code: AgentErrorCode.SESSION_BUSY,
+                scope: ErrorScope.AGENT,
+                type: ErrorType.CONFLICT,
+            });
+
+            const events: StreamingEvent[] = [];
+            for await (const event of await agent.stream('again', 'test-session')) {
+                events.push(event);
+            }
+
+            expect(events).toEqual([
+                {
+                    name: 'run:complete',
+                    sessionId: 'test-session',
+                    finishReason: 'stop',
+                    stepCount: 0,
+                    durationMs: 1,
+                },
+            ]);
+            expect(sessionStream).toHaveBeenCalledTimes(1);
+        });
+
         test('should reject overlapping stream calls for the same session', async () => {
             const agent = createTestAgent(mockValidatedConfig);
             const deferred = createDeferred<void>();

@@ -833,7 +833,11 @@ export class ApprovalManager {
      * Throws appropriate error if denied
      */
     async checkToolApproval(
-        metadata: ToolApprovalMetadata & { sessionId?: string; timeout?: number }
+        metadata: ToolApprovalMetadata & {
+            sessionId?: string;
+            hostRuntime?: ApprovalRequestDetails['hostRuntime'];
+            timeout?: number;
+        }
     ): Promise<boolean> {
         const response = await this.requestToolApproval(metadata);
 
@@ -860,7 +864,11 @@ export class ApprovalManager {
      * Throws appropriate error if denied or cancelled
      */
     async getElicitationData(
-        metadata: ElicitationMetadata & { sessionId?: string; timeout?: number }
+        metadata: ElicitationMetadata & {
+            sessionId?: string;
+            hostRuntime?: ApprovalRequestDetails['hostRuntime'];
+            timeout?: number;
+        }
     ): Promise<Record<string, unknown>> {
         const response = await this.requestElicitation(metadata);
 

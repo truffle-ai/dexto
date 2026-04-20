@@ -2,6 +2,8 @@ import { describe, test, expect, vi, beforeEach, afterEach } from 'vitest';
 import { ChatSession } from './chat-session.js';
 import { type ValidatedLLMConfig } from '../llm/schemas.js';
 import { LLMConfigSchema } from '../llm/schemas.js';
+import { SessionErrorCode } from './error-codes.js';
+import { ErrorScope, ErrorType } from '../errors/types.js';
 
 // Mock all dependencies
 vi.mock('./history/factory.js', () => ({
@@ -35,6 +37,16 @@ import { createMockLogger } from '../logger/v2/test-utils.js';
 const mockCreateDatabaseHistoryProvider = vi.mocked(createDatabaseHistoryProvider);
 const mockCreateLLMService = vi.mocked(createLLMService);
 const mockGetEffectiveMaxInputTokens = vi.mocked(getEffectiveMaxInputTokens);
+
+function createDeferred<T>() {
+    let resolve!: (value: T | PromiseLike<T>) => void;
+    let reject!: (reason?: unknown) => void;
+    const promise = new Promise<T>((res, rej) => {
+        resolve = res;
+        reject = rej;
+    });
+    return { promise, resolve, reject };
+}
 
 describe('ChatSession', () => {
     let chatSession: ChatSession;
@@ -492,6 +504,24 @@ describe('ChatSession', () => {
             mockLLMService.stream.mockRejectedValue(new Error('LLM service error'));
 
             await expect(chatSession.stream('test message')).rejects.toThrow('LLM service error');
+        });
+
+        test('should reject overlapping direct stream calls', async () => {
+            await chatSession.init();
+
+            const deferred = createDeferred<{ text: string }>();
+            mockLLMService.stream.mockImplementation(async () => await deferred.promise);
+
+            const firstRun = chatSession.stream('first message');
+
+            await expect(chatSession.stream('second message')).rejects.toMatchObject({
+                code: SessionErrorCode.SESSION_BUSY,
+                scope: ErrorScope.SESSION,
+                type: ErrorType.CONFLICT,
+            });
+
+            deferred.resolve({ text: 'ok' });
+            await expect(firstRun).resolves.toEqual({ text: 'ok' });
         });
     });
 

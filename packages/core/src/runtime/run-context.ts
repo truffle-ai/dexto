@@ -1,6 +1,7 @@
 import { context, propagation, type BaggageEntry, type Context } from '@opentelemetry/api';
 import {
     getHostRuntimeBaggageEntries,
+    isHostRuntimeBaggageKey,
     normalizeHostRuntimeContext,
     type HostRuntimeContext,
 } from './host-runtime.js';
@@ -23,6 +24,9 @@ export function createAgentRunContext(options: {
 
     if (existingBaggage) {
         existingBaggage.getAllEntries().forEach(([key, entry]) => {
+            if (isHostRuntimeBaggageKey(key)) {
+                return;
+            }
             baggageEntries[key] = { ...entry };
         });
     }
