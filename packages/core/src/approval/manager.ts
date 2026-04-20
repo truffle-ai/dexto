@@ -674,7 +674,7 @@ export class ApprovalManager {
         metadata: ToolApprovalMetadata & { sessionId: string; timeout?: number }
     ): Promise<ApprovalResponse> {
         const { sessionId, timeout, ...toolMetadata } = metadata;
-        if (sessionId.length === 0) {
+        if (typeof sessionId !== 'string' || sessionId.length === 0) {
             throw ApprovalError.invalidRequest('sessionId is required for tool approvals', {
                 field: 'sessionId',
             });

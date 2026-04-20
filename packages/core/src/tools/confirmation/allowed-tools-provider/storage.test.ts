@@ -81,17 +81,17 @@ describe('StorageAllowedToolsProvider', () => {
             const result = await provider.isToolAllowed('globalTool', 'session123');
 
             expect(result).toBe(false);
+            expect(mockDatabase.get).toHaveBeenCalledTimes(1);
             expect(mockDatabase.get).toHaveBeenCalledWith('allowedTools:session123');
         });
 
-        it('should return false when tool not found in session or global', async () => {
-            mockDatabase.get
-                .mockResolvedValueOnce([]) // session-scoped (empty)
-                .mockResolvedValueOnce([]); // global (empty)
+        it('should return false when tool not found in session approvals', async () => {
+            mockDatabase.get.mockResolvedValueOnce([]); // session-scoped (empty)
 
             const result = await provider.isToolAllowed('unknownTool', 'session123');
 
             expect(result).toBe(false);
+            expect(mockDatabase.get).toHaveBeenCalledTimes(1);
         });
 
         it('should reject missing sessionId when checking approvals', async () => {

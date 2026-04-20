@@ -197,6 +197,19 @@ describe('Directory Approval Integration Tests', () => {
             });
         });
 
+        it('should reject empty session ids for directory access prompts', async () => {
+            const tool = createReadFileTool(getFileSystemService);
+            const overrideFn = tool.approval?.override;
+            expect(overrideFn).toBeDefined();
+
+            await expect(
+                overrideFn!(
+                    tool.inputSchema.parse({ file_path: '/external/project/file.ts' }),
+                    createToolContext(mockLogger, approvalManager, '')
+                )
+            ).rejects.toThrow('sessionId is required for directory approval flows');
+        });
+
         it('should return null when external path is session-approved', async () => {
             await approvalManager.addApprovedDirectory(
                 '/external/project',
@@ -562,6 +575,41 @@ describe('Directory Approval Integration Tests', () => {
             );
             expect(injectedService.setWorkingDirectory).not.toHaveBeenCalled();
             expect(injectedService.setDirectoryApprovalChecker).not.toHaveBeenCalled();
+        });
+
+        it('should reject empty session ids during directory approval checks at execution time', async () => {
+            const workspace = path.join(tempDir, 'workspace-empty-session');
+            const externalDir = path.join(tempDir, 'external-empty-session');
+            const externalFile = path.join(externalDir, 'outside.txt');
+
+            await fs.mkdir(workspace, { recursive: true });
+            await fs.mkdir(externalDir, { recursive: true });
+            await fs.writeFile(externalFile, 'outside content');
+
+            const tools = fileSystemToolsFactory.create({
+                type: 'filesystem-tools',
+                allowedPaths: [workspace],
+                blockedPaths: [],
+                blockedExtensions: [],
+                maxFileSize: 10 * 1024 * 1024,
+                workingDirectory: workspace,
+                enableBackups: false,
+                backupRetentionDays: 7,
+                enabledTools: ['read_file'],
+            });
+            const readTool = tools.find((tool) => tool.id === 'read_file');
+            expect(readTool).toBeDefined();
+
+            const isDirectoryApprovedSpy = vi.spyOn(approvalManager, 'isDirectoryApproved');
+
+            await expect(
+                readTool!.execute!(
+                    readTool!.inputSchema.parse({ file_path: externalFile }),
+                    createToolContext(mockLogger, approvalManager, '')
+                )
+            ).rejects.toThrow('sessionId is required for directory approval checks');
+
+            expect(isDirectoryApprovedSpy).not.toHaveBeenCalled();
         });
     });
 

@@ -156,11 +156,11 @@ app.post('/chat', async (req, res) => {
     try {
         const { userId, message } = req.body;
 
-        if (!message) {
-            return res.status(400).json({ error: 'Message required' });
+        if (!userId || !message) {
+            return res.status(400).json({ error: 'userId and message are required' });
         }
 
-        const sessionId = await getOrCreateSession(userId || 'anonymous');
+        const sessionId = await getOrCreateSession(userId);
         const response = await agent.generate(message, sessionId);
 
         res.json({ content: response.content, sessionId });

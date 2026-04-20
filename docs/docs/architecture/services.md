@@ -124,9 +124,9 @@ const tools = await agent.mcpManager.getAllTools();
 
 Controls when users are prompted to approve tool execution:
 
-- **auto** - Smart approval based on tool risk
-- **always** - Always ask for confirmation
-- **never** - Never ask (auto-approve)
+- **manual** - Always ask for confirmation
+- **auto-approve** - Never ask and allow execution
+- **auto-deny** - Never ask and deny execution
 
 ### Usage Example
 

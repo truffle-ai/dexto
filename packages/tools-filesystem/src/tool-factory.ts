@@ -19,7 +19,7 @@ import type { Tool } from '@dexto/core';
 type FileSystemToolName = (typeof FILESYSTEM_TOOL_NAMES)[number];
 
 function requireApprovalSessionId(context: ToolExecutionContext): string {
-    if (context.sessionId !== undefined) {
+    if (typeof context.sessionId === 'string' && context.sessionId.length > 0) {
         return context.sessionId;
     }
 

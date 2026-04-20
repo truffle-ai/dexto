@@ -13,7 +13,7 @@ type DirectoryApprovalPaths = {
 };
 
 function requireApprovalSessionId(toolName: string, sessionId: string | undefined): string {
-    if (sessionId !== undefined) {
+    if (typeof sessionId === 'string' && sessionId.length > 0) {
         return sessionId;
     }
 

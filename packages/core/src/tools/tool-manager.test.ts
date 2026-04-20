@@ -650,6 +650,96 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             );
         });
 
+        it('should reject empty custom approval session overrides', async () => {
+            mockMcpManager.getAllTools = vi.fn().mockResolvedValue({});
+
+            const tool = defineTool({
+                id: 'custom_session_override',
+                description: 'Custom approval tool',
+                inputSchema: z
+                    .object({
+                        value: z.string(),
+                    })
+                    .strict(),
+                approval: {
+                    override: vi.fn().mockResolvedValue({
+                        type: ApprovalType.CUSTOM,
+                        metadata: { prompt: 'Proceed?' },
+                        sessionId: '',
+                    }),
+                },
+                execute: vi.fn().mockResolvedValue('ok'),
+            });
+
+            const toolManager = createToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'manual',
+                mockAgentEventBus,
+                { alwaysAllow: [], alwaysDeny: [] },
+                [tool],
+                mockLogger
+            );
+            toolManager.setToolExecutionContextFactory((baseContext) => baseContext);
+
+            await expect(
+                toolManager.executeTool(
+                    'custom_session_override',
+                    { value: 'x' },
+                    'call-1',
+                    'session-1'
+                )
+            ).rejects.toThrow('sessionId is required for tool approval flows');
+            expect(mockApprovalManager.requestApproval).not.toHaveBeenCalled();
+        });
+
+        it('should reject mismatched custom approval session overrides', async () => {
+            mockMcpManager.getAllTools = vi.fn().mockResolvedValue({});
+
+            const tool = defineTool({
+                id: 'custom_session_mismatch',
+                description: 'Custom approval tool',
+                inputSchema: z
+                    .object({
+                        value: z.string(),
+                    })
+                    .strict(),
+                approval: {
+                    override: vi.fn().mockResolvedValue({
+                        type: ApprovalType.CUSTOM,
+                        metadata: { prompt: 'Proceed?' },
+                        sessionId: 'session-2',
+                    }),
+                },
+                execute: vi.fn().mockResolvedValue('ok'),
+            });
+
+            const toolManager = createToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'manual',
+                mockAgentEventBus,
+                { alwaysAllow: [], alwaysDeny: [] },
+                [tool],
+                mockLogger
+            );
+            toolManager.setToolExecutionContextFactory((baseContext) => baseContext);
+
+            await expect(
+                toolManager.executeTool(
+                    'custom_session_mismatch',
+                    { value: 'x' },
+                    'call-1',
+                    'session-1'
+                )
+            ).rejects.toThrow(
+                'custom approval sessionId must match the active tool execution session'
+            );
+            expect(mockApprovalManager.requestApproval).not.toHaveBeenCalled();
+        });
+
         it('should include directory access metadata in tool approval and remember directory when approved', async () => {
             mockMcpManager.getAllTools = vi.fn().mockResolvedValue({});
 

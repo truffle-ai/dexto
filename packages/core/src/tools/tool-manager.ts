@@ -1995,12 +1995,24 @@ export class ToolManager {
                         );
 
                         const approvalSessionId =
-                            approvalRequest.sessionId ??
-                            this.requireApprovalSessionId(
+                            approvalRequest.sessionId !== undefined
+                                ? this.requireApprovalSessionId(
+                                      toolName,
+                                      approvalRequest.sessionId,
+                                      'sessionId is required for tool approval flows'
+                                  )
+                                : this.requireApprovalSessionId(
+                                      toolName,
+                                      sessionId,
+                                      'sessionId is required for tool approval flows'
+                                  );
+
+                        if (sessionId !== undefined && approvalSessionId !== sessionId) {
+                            throw ToolError.validationFailed(
                                 toolName,
-                                sessionId,
-                                'sessionId is required for tool approval flows'
+                                'custom approval sessionId must match the active tool execution session'
                             );
+                        }
 
                         if (approvalRequest.sessionId !== approvalSessionId) {
                             approvalRequest.sessionId = approvalSessionId;

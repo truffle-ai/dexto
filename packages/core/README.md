@@ -150,8 +150,8 @@ const currentLLM = agent.getCurrentLLMConfig();
 await agent.switchLLM({ model: 'gpt-5-mini' });
 await agent.switchLLM({ model: 'claude-sonnet-4-5-20250929' });
 
-// Switch model for a specific session id 1234
-await agent.switchLLM({ model: 'gpt-5-mini' }, '1234');
+// Switch model for a specific session
+await agent.switchLLM({ model: 'gpt-5-mini' }, session.id);
 
 // Get supported providers and models
 const providers = agent.getSupportedProviders();
