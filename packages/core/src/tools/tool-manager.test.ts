@@ -651,6 +651,57 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             );
         });
 
+        it('should support legacy positional sessionId and abortSignal arguments', async () => {
+            mockMcpManager.getAllTools = vi.fn().mockResolvedValue({});
+            const executeSpy = vi.fn().mockResolvedValue('ok');
+
+            const tool = defineTool({
+                id: 'typed',
+                description: 'Typed tool',
+                inputSchema: z
+                    .object({
+                        count: z.coerce.number().int().default(0),
+                    })
+                    .strict(),
+                execute: executeSpy,
+            });
+
+            const toolManager = createToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'manual',
+                mockAgentEventBus,
+                { alwaysAllow: [], alwaysDeny: [] },
+                [tool],
+                mockLogger
+            );
+            const controller = new AbortController();
+
+            toolManager.setToolExecutionContextFactory((baseContext) => baseContext);
+
+            await toolManager.executeTool(
+                'typed',
+                { count: '5' },
+                'call-legacy',
+                'session-legacy',
+                controller.signal
+            );
+
+            expect(executeSpy).toHaveBeenCalledWith(
+                { count: 5 },
+                expect.objectContaining({
+                    sessionId: 'session-legacy',
+                    abortSignal: controller.signal,
+                })
+            );
+            expect(mockApprovalManager.requestToolApproval).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    sessionId: 'session-legacy',
+                })
+            );
+        });
+
         it('should propagate host runtime through explicit run context during tool execution', async () => {
             mockMcpManager.getAllTools = vi.fn().mockResolvedValue({});
             const executeSpy = vi.fn().mockResolvedValue('ok');
@@ -1282,6 +1333,42 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     args: { path: '/test' },
                     presentationSnapshot: expect.objectContaining({ version: 1 }),
                 })
+            );
+        });
+
+        it('should pass runContext through MCP execution', async () => {
+            mockMcpManager.executeTool = vi.fn().mockResolvedValue('result');
+
+            const toolManager = createToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'manual',
+                mockAgentEventBus,
+                { alwaysAllow: [], alwaysDeny: [] },
+                [],
+                mockLogger
+            );
+            const runContext = {
+                sessionId: 'session-1',
+                hostRuntime: {
+                    ids: {
+                        runId: 'run-1',
+                        attemptId: 'attempt-1',
+                    },
+                },
+                telemetryContext: {} as any,
+            };
+
+            await toolManager.executeTool('mcp--file_read', { path: '/test' }, 'call-789', {
+                runContext,
+            });
+
+            expect(mockMcpManager.executeTool).toHaveBeenCalledWith(
+                'file_read',
+                { path: '/test' },
+                'session-1',
+                runContext
             );
         });
 

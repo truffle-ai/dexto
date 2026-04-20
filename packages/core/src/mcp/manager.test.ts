@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { EventEmitter } from 'events';
 import { MCPManager } from './manager.js';
 import type { McpClient, MCPResourceSummary } from './types.js';
+import type { ToolExecutionContextBase } from '../tools/types.js';
 import { DextoRuntimeError } from '../errors/DextoRuntimeError.js';
 import { MCPErrorCode } from './error-codes.js';
 import { ErrorScope, ErrorType } from '../errors/types.js';
@@ -17,6 +18,7 @@ class MockMCPClient extends EventEmitter implements McpClient {
     > = {};
     private prompts: string[] = [];
     private resources: MCPResourceSummary[] = [];
+    public lastInvocation: Pick<ToolExecutionContextBase, 'sessionId' | 'runContext'> | undefined;
 
     constructor(
         tools: Record<
@@ -47,10 +49,15 @@ class MockMCPClient extends EventEmitter implements McpClient {
         return this.tools;
     }
 
-    async callTool(name: string, args: any): Promise<any> {
+    async callTool(
+        name: string,
+        args: any,
+        invocation?: Pick<ToolExecutionContextBase, 'sessionId' | 'runContext'>
+    ): Promise<any> {
         if (!this.tools[name]) {
             throw new Error(`Tool ${name} not found`);
         }
+        this.lastInvocation = invocation;
         return { result: `Called ${name} with ${JSON.stringify(args)}` };
     }
 
@@ -484,6 +491,25 @@ describe('MCPManager Tool Conflict Resolution', () => {
 
             const result2 = await manager.executeTool('server2--shared_tool', { param: 'test' });
             expect(result2.result).toBe('Called shared_tool with {"param":"test"}');
+        });
+
+        it('should pass execution context through to MCP clients', async () => {
+            const runContext = {
+                sessionId: 'session-1',
+                hostRuntime: {
+                    ids: {
+                        runId: 'run-1',
+                    },
+                },
+                telemetryContext: {} as any,
+            };
+
+            await manager.executeTool('unique_tool_1', { param: 'value' }, 'session-1', runContext);
+
+            expect(client1.lastInvocation).toEqual({
+                sessionId: 'session-1',
+                runContext,
+            });
         });
 
         it('should throw error for non-existent tools', async () => {

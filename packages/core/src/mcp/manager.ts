@@ -19,6 +19,7 @@ import { eventBus, type AgentEventBus } from '../events/index.js';
 import type { PromptDefinition } from '../prompts/types.js';
 import type { JSONSchema7 } from 'json-schema';
 import type { ApprovalManager } from '../approval/manager.js';
+import type { AgentRunContext } from '../runtime/run-context.js';
 
 /**
  * Centralized manager for Multiple Model Context Protocol (MCP) servers.
@@ -524,9 +525,15 @@ export class MCPManager {
      * @param toolName Name of the MCP tool to execute (may include server prefix)
      * @param args Arguments to pass to the tool
      * @param sessionId Optional session ID
+     * @param runContext Optional execution-scoped context for this tool call
      * @returns Promise resolving to the tool execution result
      */
-    async executeTool(toolName: string, args: any, _sessionId?: string): Promise<any> {
+    async executeTool(
+        toolName: string,
+        args: any,
+        sessionId?: string,
+        runContext?: AgentRunContext
+    ): Promise<any> {
         const client = this.getToolClient(toolName);
         if (!client) {
             this.logger.error(`❌ No MCP tool found: ${toolName}`);
@@ -547,7 +554,14 @@ export class MCPManager {
         );
 
         try {
-            const result = await client.callTool(actualToolName, args);
+            const invocation =
+                sessionId !== undefined || runContext !== undefined
+                    ? {
+                          ...(sessionId !== undefined ? { sessionId } : {}),
+                          ...(runContext !== undefined ? { runContext } : {}),
+                      }
+                    : undefined;
+            const result = await client.callTool(actualToolName, args, invocation);
             return result;
         } catch (error) {
             this.logger.error(

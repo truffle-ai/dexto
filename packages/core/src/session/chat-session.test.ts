@@ -345,7 +345,7 @@ describe('ChatSession', () => {
             );
         });
 
-        test('should emit llm switched on the agent bus with the affected session id', async () => {
+        test('should not emit llm switched directly on the agent bus', async () => {
             await chatSession.init();
 
             const newConfig: ValidatedLLMConfig = {
@@ -356,11 +356,10 @@ describe('ChatSession', () => {
 
             await chatSession.switchLLM(newConfig);
 
-            expect(mockServices.agentEventBus.emit).toHaveBeenCalledWith('llm:switched', {
-                newConfig,
-                historyRetained: true,
-                sessionIds: [sessionId],
-            });
+            expect(mockServices.agentEventBus.emit).not.toHaveBeenCalledWith(
+                'llm:switched',
+                expect.anything()
+            );
         });
 
         test('should emit dexto:conversationReset event when conversation is reset', async () => {

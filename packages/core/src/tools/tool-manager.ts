@@ -1316,15 +1316,28 @@ export class ToolManager {
     }
 
     private resolveToolExecutionInvocation(
-        invocation: ToolExecutionInvocation
+        invocationOrSessionId?: ToolExecutionInvocation | string,
+        legacyAbortSignal?: AbortSignal
     ): ToolExecutionInvocation & {
         sessionId?: string | undefined;
         hostRuntime?: ToolExecutionContext['hostRuntime'];
     } {
+        if (typeof invocationOrSessionId === 'string') {
+            return {
+                sessionId: invocationOrSessionId,
+                abortSignal: legacyAbortSignal,
+                hostRuntime: undefined,
+            };
+        }
+
+        const invocation = invocationOrSessionId ?? {};
         const sessionId = invocation.runContext?.sessionId ?? invocation.sessionId;
 
         return {
             ...invocation,
+            ...(invocation.abortSignal === undefined && legacyAbortSignal !== undefined
+                ? { abortSignal: legacyAbortSignal }
+                : {}),
             sessionId,
             hostRuntime: invocation.runContext?.hostRuntime,
         };
@@ -1503,16 +1516,19 @@ export class ToolManager {
      * @param toolName Tool name (e.g., "edit_file", "mcp--filesystem--read_file")
      * @param args The arguments for the tool
      * @param toolCallId The unique tool call ID for tracking (from LLM or generated for direct calls)
-     * @param options Optional execution-scoped context for this tool call
+     * @param invocationOrSessionId Optional execution-scoped context for this tool call,
+     * or the legacy positional sessionId
+     * @param legacyAbortSignal Optional legacy positional abort signal
      */
     async executeTool(
         toolName: string,
         args: Record<string, unknown>,
         toolCallId: string,
-        options?: ToolExecutionInvocation
+        invocationOrSessionId?: ToolExecutionInvocation | string,
+        legacyAbortSignal?: AbortSignal
     ): Promise<import('./types.js').ToolExecutionResult> {
         const { sessionId, abortSignal, runContext, hostRuntime } =
-            this.resolveToolExecutionInvocation(options ?? {});
+            this.resolveToolExecutionInvocation(invocationOrSessionId, legacyAbortSignal);
         const { toolArgs: rawToolArgs, meta } = extractToolCallMeta(args);
         const eventMeta: ToolCallMetadata | undefined =
             Object.keys(meta).length > 0 ? meta : undefined;
@@ -1655,6 +1671,15 @@ export class ToolManager {
                     backgroundTasksEnabled &&
                     meta.runInBackground === true &&
                     sessionId !== undefined;
+                const executeMcpTool = () =>
+                    runContext === undefined
+                        ? this.mcpManager.executeTool(actualToolName, toolArgs, sessionId)
+                        : this.mcpManager.executeTool(
+                              actualToolName,
+                              toolArgs,
+                              sessionId,
+                              runContext
+                          );
                 if (meta.runInBackground === true && !backgroundTasksEnabled) {
                     this.logger.debug(
                         'Background tool execution disabled; running synchronously instead.',
@@ -1664,7 +1689,7 @@ export class ToolManager {
                 if (runInBackground) {
                     const backgroundSessionId = sessionId;
                     const { result: backgroundResult, promise } = registerBackgroundTask(
-                        this.mcpManager.executeTool(actualToolName, toolArgs, backgroundSessionId),
+                        executeMcpTool(),
                         `MCP tool ${actualToolName}`
                     );
                     this.agentEventBus.emit('tool:background', {
@@ -1681,7 +1706,7 @@ export class ToolManager {
                     });
                     result = backgroundResult;
                 } else {
-                    result = await this.mcpManager.executeTool(actualToolName, toolArgs, sessionId);
+                    result = await executeMcpTool();
                 }
             } else {
                 // Route to local tools

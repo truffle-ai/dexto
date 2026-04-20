@@ -398,5 +398,9 @@ export interface ToolResult {
  */
 export interface ToolProvider {
     getTools(): Promise<ToolSet>;
-    callTool(toolName: string, args: Record<string, unknown>): Promise<unknown>;
+    callTool(
+        toolName: string,
+        args: Record<string, unknown>,
+        context?: Pick<ToolExecutionContextBase, 'sessionId' | 'runContext'>
+    ): Promise<unknown>;
 }

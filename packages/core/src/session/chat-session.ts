@@ -701,11 +701,6 @@ export class ChatSession {
                 newConfig: newLLMConfig,
                 historyRetained: true,
             });
-            this.services.agentEventBus.emit('llm:switched', {
-                newConfig: newLLMConfig,
-                historyRetained: true,
-                sessionIds: [this.id],
-            });
         } catch (error) {
             this.logger.error(
                 `Error during ChatSession.switchLLM for session ${this.id}: ${error instanceof Error ? error.message : String(error)}`
