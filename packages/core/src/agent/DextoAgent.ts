@@ -119,7 +119,7 @@ export interface AgentEventSubscriber {
  * - Thin wrapper around internal services with high-level methods
  * - Primary API for applications building on Dexto
  * - Internal services exposed as public readonly properties for advanced usage
- * - Backward compatibility through default session management
+ * - Explicit session management for conversation turns
  *
  * @example
  * ```typescript
@@ -135,14 +135,15 @@ export interface AgentEventSubscriber {
  * await agent.start();
  *
  * // Process user messages
- * const response = await agent.run("Hello, how are you?");
+ * const session = await agent.createSession();
+ * const response = await agent.run("Hello, how are you?", undefined, undefined, session.id);
  *
  * // Switch LLM models (provider inferred automatically)
  * await agent.switchLLM({ model: 'gpt-5' });
  *
  * // Manage sessions
- * const session = await agent.createSession('user-123');
- * const response = await agent.run("Hello", undefined, undefined, session.id);
+ * const secondSession = await agent.createSession();
+ * const secondResponse = await agent.run("Hello", undefined, undefined, secondSession.id);
  *
  * // Connect MCP servers
  * await agent.addMcpServer('filesystem', { command: 'mcp-filesystem' });
@@ -918,6 +919,25 @@ export class DextoAgent {
         let completed = false;
         let sawFatalErrorEvent = false;
         let sawRunCompleteEvent = false;
+        let streamStartupState: 'pending' | 'resolved' | 'rejected' = 'pending';
+        let resolveStreamStartup!: () => void;
+        let rejectStreamStartup!: (error: Error) => void;
+        const streamStartup = new Promise<void>((resolve, reject) => {
+            resolveStreamStartup = () => {
+                if (streamStartupState !== 'pending') {
+                    return;
+                }
+                streamStartupState = 'resolved';
+                resolve();
+            };
+            rejectStreamStartup = (error: Error) => {
+                if (streamStartupState !== 'pending') {
+                    return;
+                }
+                streamStartupState = 'rejected';
+                reject(error);
+            };
+        });
 
         // Create AbortController for cleanup
         const controller = new AbortController();
@@ -1341,10 +1361,13 @@ export class DextoAgent {
                     // Validate the final prompt projection after any @resource expansion.
                     validatePromptContentParts(contentParts);
 
-                    // Get or create session
-                    const session: ChatSession =
-                        (await this.sessionManager.getSession(sessionId)) ||
-                        (await this.sessionManager.createSession(sessionId));
+                    const session: ChatSession | undefined =
+                        await this.sessionManager.getSession(sessionId);
+                    if (!session) {
+                        throw SessionError.notFound(sessionId);
+                    }
+
+                    resolveStreamStartup();
 
                     // Call session.stream() directly with ALL content parts
                     const _streamResult = await session.stream(
@@ -1368,6 +1391,14 @@ export class DextoAgent {
                             : err instanceof Error
                               ? err
                               : AgentError.streamFailed(String(err));
+
+                    if (streamStartupState === 'pending') {
+                        completed = true;
+                        cleanupListeners();
+                        controller.abort();
+                        rejectStreamStartup(error);
+                        return;
+                    }
 
                     if (sawFatalErrorEvent || sawRunCompleteEvent) {
                         if (!sawRunCompleteEvent) {
@@ -1438,6 +1469,7 @@ export class DextoAgent {
             },
         };
 
+        await streamStartup;
         return iterator;
     }
 
@@ -1588,8 +1620,10 @@ export class DextoAgent {
     // ============= SESSION MANAGEMENT =============
 
     /**
-     * Creates a new chat session or returns an existing one.
-     * @param sessionId Optional session ID. If not provided, a UUID will be generated.
+     * Creates a new chat session.
+     * Standard callers should omit sessionId and use the generated ID. Integration adapters may
+     * pass a stable external ID when they need to resume an existing session by alias.
+     * @param sessionId Optional integration-owned session ID.
      * @returns The created or existing ChatSession
      */
     public async createSession(sessionId?: string): Promise<ChatSession> {

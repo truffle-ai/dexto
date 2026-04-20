@@ -14,6 +14,7 @@ import { DextoRuntimeError } from '../errors/DextoRuntimeError.js';
 import { ErrorScope, ErrorType } from '../errors/types.js';
 import { AgentErrorCode } from './error-codes.js';
 import { LLMErrorCode } from '../llm/error-codes.js';
+import { SessionErrorCode } from '../session/error-codes.js';
 import { createLogger } from '../logger/factory.js';
 import { AgentEventBus, type StreamingEvent } from '../events/index.js';
 import {
@@ -581,6 +582,20 @@ describe('DextoAgent Lifecycle Management', () => {
     });
 
     describe('Stream Error Lifecycle', () => {
+        test('should throw session not found when streaming an unknown session', async () => {
+            const agent = createTestAgent(mockValidatedConfig);
+            mockServices.sessionManager.getSession = vi.fn().mockResolvedValue(undefined);
+
+            await agent.start();
+
+            await expect(agent.stream('hello', 'missing-session')).rejects.toMatchObject({
+                code: SessionErrorCode.SESSION_NOT_FOUND,
+                scope: ErrorScope.SESSION,
+                type: ErrorType.NOT_FOUND,
+            });
+            expect(mockServices.sessionManager.createSession).not.toHaveBeenCalled();
+        });
+
         test('should prefer the terminal fatal event emitted on the agent bus over a fallback run_failed error', async () => {
             const agent = createTestAgent(mockValidatedConfig);
             const mappedError = new DextoRuntimeError(

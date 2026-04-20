@@ -13,6 +13,17 @@ type DirectoryApprovalPaths = {
     parentDir: string;
 };
 
+function requireApprovalSessionId(toolName: string, sessionId: string | undefined): string {
+    if (typeof sessionId === 'string' && sessionId.length > 0) {
+        return sessionId;
+    }
+
+    throw ToolError.validationFailed(
+        toolName,
+        'sessionId is required for directory approval flows'
+    );
+}
+
 export function resolveFilePath(
     workingDirectory: string,
     filePath: string
@@ -62,7 +73,8 @@ export function createDirectoryAccessApprovalHandlers<const TSchema extends ZodT
                         `${options.toolName} requires ToolExecutionContext.services.approval`
                     );
                 }
-                if (approvalManager.isDirectorySessionApproved(paths.path, context.sessionId)) {
+                const sessionId = requireApprovalSessionId(options.toolName, context.sessionId);
+                if (approvalManager.isDirectorySessionApproved(paths.path, sessionId)) {
                     return null;
                 }
 
@@ -95,10 +107,11 @@ export function createDirectoryAccessApprovalHandlers<const TSchema extends ZodT
                     return;
                 }
 
+                const sessionId = requireApprovalSessionId(options.toolName, context.sessionId);
                 await approvalManager.addApprovedDirectory(
                     metadata.parentDir,
                     rememberDirectory ? 'session' : 'once',
-                    context.sessionId
+                    sessionId
                 );
             },
         },

@@ -35,12 +35,12 @@ describe('StorageAllowedToolsProvider', () => {
             expect(mockDatabase.set).toHaveBeenCalledWith('allowedTools:session123', ['testTool']);
         });
 
-        it('should store global tool approval when no sessionId provided', async () => {
-            mockDatabase.get.mockResolvedValue([]);
-
-            await provider.allowTool('testTool');
-
-            expect(mockDatabase.set).toHaveBeenCalledWith('allowedTools:global', ['testTool']);
+        it('should reject missing sessionId when storing approvals', async () => {
+            await expect(
+                (provider as unknown as { allowTool(toolName: string): Promise<void> }).allowTool(
+                    'testTool'
+                )
+            ).rejects.toThrow('sessionId is required');
         });
 
         it('should append to existing session-scoped approvals', async () => {
@@ -75,35 +75,31 @@ describe('StorageAllowedToolsProvider', () => {
             expect(mockDatabase.get).toHaveBeenCalledWith('allowedTools:session123');
         });
 
-        it('should fallback to global approvals when not found in session', async () => {
-            mockDatabase.get
-                .mockResolvedValueOnce([]) // session-scoped (empty)
-                .mockResolvedValueOnce(['globalTool']); // global
+        it('should not use approvals from other sessions', async () => {
+            mockDatabase.get.mockResolvedValueOnce([]);
 
             const result = await provider.isToolAllowed('globalTool', 'session123');
 
-            expect(result).toBe(true);
+            expect(result).toBe(false);
+            expect(mockDatabase.get).toHaveBeenCalledTimes(1);
             expect(mockDatabase.get).toHaveBeenCalledWith('allowedTools:session123');
-            expect(mockDatabase.get).toHaveBeenCalledWith('allowedTools:global');
         });
 
-        it('should return false when tool not found in session or global', async () => {
-            mockDatabase.get
-                .mockResolvedValueOnce([]) // session-scoped (empty)
-                .mockResolvedValueOnce([]); // global (empty)
+        it('should return false when tool not found in session approvals', async () => {
+            mockDatabase.get.mockResolvedValueOnce([]); // session-scoped (empty)
 
             const result = await provider.isToolAllowed('unknownTool', 'session123');
 
             expect(result).toBe(false);
+            expect(mockDatabase.get).toHaveBeenCalledTimes(1);
         });
 
-        it('should only check global when no sessionId provided', async () => {
-            mockDatabase.get.mockResolvedValueOnce(['globalTool']);
-
-            const result = await provider.isToolAllowed('globalTool');
-
-            expect(result).toBe(true);
-            expect(mockDatabase.get).toHaveBeenCalledWith('allowedTools:global');
+        it('should reject missing sessionId when checking approvals', async () => {
+            await expect(
+                (
+                    provider as unknown as { isToolAllowed(toolName: string): Promise<boolean> }
+                ).isToolAllowed('globalTool')
+            ).rejects.toThrow('sessionId is required');
         });
     });
 
@@ -119,12 +115,14 @@ describe('StorageAllowedToolsProvider', () => {
             ]);
         });
 
-        it('should handle removal from global approvals', async () => {
-            mockDatabase.get.mockResolvedValue(['tool1', 'tool2']);
-
-            await provider.disallowTool('tool1');
-
-            expect(mockDatabase.set).toHaveBeenCalledWith('allowedTools:global', ['tool2']);
+        it('should reject missing sessionId when removing approvals', async () => {
+            await expect(
+                (
+                    provider as unknown as {
+                        disallowTool(toolName: string): Promise<void>;
+                    }
+                ).disallowTool('tool1')
+            ).rejects.toThrow('sessionId is required');
         });
 
         it('should handle removal of non-existent tool gracefully', async () => {
@@ -154,13 +152,12 @@ describe('StorageAllowedToolsProvider', () => {
             expect(mockDatabase.get).toHaveBeenCalledWith('allowedTools:session123');
         });
 
-        it('should return global tools when no sessionId provided', async () => {
-            mockDatabase.get.mockResolvedValue(['globalTool']);
-
-            const result = await provider.getAllowedTools();
-
-            expect(result).toEqual(new Set(['globalTool']));
-            expect(mockDatabase.get).toHaveBeenCalledWith('allowedTools:global');
+        it('should reject missing sessionId when listing approvals', async () => {
+            await expect(
+                (
+                    provider as unknown as { getAllowedTools(): Promise<Set<string>> }
+                ).getAllowedTools()
+            ).rejects.toThrow('sessionId is required');
         });
 
         it('should return empty Set when no tools stored', async () => {
@@ -202,13 +199,12 @@ describe('StorageAllowedToolsProvider', () => {
             ]);
         });
 
-        it('should use correct key format for global storage', async () => {
-            mockDatabase.get.mockResolvedValue([]);
-
-            await provider.allowTool('testTool');
-
-            expect(mockDatabase.get).toHaveBeenCalledWith('allowedTools:global');
-            expect(mockDatabase.set).toHaveBeenCalledWith('allowedTools:global', ['testTool']);
+        it('should reject missing sessionId before building a storage key', async () => {
+            await expect(
+                (provider as unknown as { allowTool(toolName: string): Promise<void> }).allowTool(
+                    'testTool'
+                )
+            ).rejects.toThrow('sessionId is required');
         });
     });
 });

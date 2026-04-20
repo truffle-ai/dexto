@@ -24,8 +24,8 @@ npm install @dexto/client-sdk
 import { DextoClient } from '@dexto/client-sdk';
 
 const client = new DextoClient({
-  baseUrl: 'https://your-dexto-server.com',
-  apiKey: 'optional-api-key'
+    baseUrl: 'https://your-dexto-server.com',
+    apiKey: 'optional-api-key',
 });
 
 // Connect to Dexto server
@@ -33,7 +33,7 @@ await client.connect();
 
 // Send a message
 const response = await client.sendMessage({
-  content: 'Hello, how can you help me?'
+    content: 'Hello, how can you help me?',
 });
 
 console.log(response.response);
@@ -42,36 +42,43 @@ console.log(response.response);
 ## Configuration
 
 ```typescript
-const client = new DextoClient({
-  baseUrl: 'https://your-dexto-server.com',  // Required: Dexto API base URL
-  apiKey: 'your-api-key',                   // Optional: API key for auth
-  timeout: 30000,                           // Optional: Request timeout (ms)
-  retries: 3,                              // Optional: Retry attempts
-}, {
-  reconnect: true,                         // Optional: Auto-reconnect
-  reconnectInterval: 5000,                 // Optional: Reconnect delay (ms)
-  debug: false                             // Optional: Debug logging
-});
+const client = new DextoClient(
+    {
+        baseUrl: 'https://your-dexto-server.com', // Required: Dexto API base URL
+        apiKey: 'your-api-key', // Optional: API key for auth
+        timeout: 30000, // Optional: Request timeout (ms)
+        retries: 3, // Optional: Retry attempts
+    },
+    {
+        reconnect: true, // Optional: Auto-reconnect
+        reconnectInterval: 5000, // Optional: Reconnect delay (ms)
+        debug: false, // Optional: Debug logging
+    }
+);
 ```
 
 ## API Methods
 
 ### Connection Management
+
 - `connect()` - Establish connection to Dexto server
 - `disconnect()` - Close connection
 - `isConnected` - Check connection status
 
 ### Messaging
+
 - `sendMessage(input)` - Send message (HTTP)
 - SSE streaming available via `/api/message-stream` endpoint
 
 ### Session Management
+
 - `listSessions()` - List all sessions
-- `createSession(id?)` - Create new session
+- `createSession()` - Create new session (standard clients should use the returned ID)
 - `getSession(id)` - Get session details
 - `deleteSession(id)` - Delete session
 
 ### Real-time Events
+
 - `on(eventType, handler)` - Subscribe to Dexto events
 - `onConnectionState(handler)` - Connection state changes
 
@@ -79,13 +86,13 @@ const client = new DextoClient({
 
 ```typescript
 try {
-  await client.sendMessage({ content: 'Hello' });
+    await client.sendMessage({ content: 'Hello' });
 } catch (error) {
-  if (error.name === 'ConnectionError') {
-    console.log('Failed to connect to Dexto server');
-  } else if (error.name === 'HttpError') {
-    console.log(`HTTP ${error.status}: ${error.statusText}`);
-  }
+    if (error.name === 'ConnectionError') {
+        console.log('Failed to connect to Dexto server');
+    } else if (error.name === 'HttpError') {
+        console.log(`HTTP ${error.status}: ${error.statusText}`);
+    }
 }
 ```
 

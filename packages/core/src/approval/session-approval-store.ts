@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { StorageManager } from '../storage/index.js';
 import type { Logger } from '../logger/v2/types.js';
+import { ApprovalError } from './errors.js';
 
 const ApprovedDirectoryTypeSchema = z.enum(['session', 'once']);
 
@@ -38,11 +39,18 @@ export class SessionApprovalStore {
         this.cacheTtlSeconds = Math.max(1, Math.floor(cacheTtlMs / 1000));
     }
 
-    private buildKey(sessionId?: string): string {
-        return sessionId ? `session-approvals:${sessionId}` : 'session-approvals:global';
+    private buildKey(sessionId: string | undefined): string {
+        if (typeof sessionId !== 'string' || sessionId.length === 0) {
+            throw ApprovalError.invalidRequest(
+                'sessionId is required for persisted session approval state',
+                { field: 'sessionId' }
+            );
+        }
+
+        return `session-approvals:${sessionId}`;
     }
 
-    async load(sessionId?: string): Promise<SessionApprovalState> {
+    async load(sessionId: string): Promise<SessionApprovalState> {
         const key = this.buildKey(sessionId);
         const cached = await this.storageManager.getCache().get<unknown>(key);
         if (cached !== undefined) {
@@ -59,14 +67,14 @@ export class SessionApprovalStore {
         return parsed;
     }
 
-    async save(sessionId: string | undefined, state: SessionApprovalState): Promise<void> {
+    async save(sessionId: string, state: SessionApprovalState): Promise<void> {
         const key = this.buildKey(sessionId);
         const normalized = SessionApprovalStateSchema.parse(state);
         await this.storageManager.getDatabase().set(key, normalized);
         await this.storageManager.getCache().set(key, normalized, this.cacheTtlSeconds);
     }
 
-    async delete(sessionId?: string): Promise<void> {
+    async delete(sessionId: string): Promise<void> {
         const key = this.buildKey(sessionId);
         await Promise.all([
             this.storageManager.getDatabase().delete(key),

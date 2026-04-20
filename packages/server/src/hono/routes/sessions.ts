@@ -23,7 +23,12 @@ import type { SessionSseEventSubscriber } from '../../events/session-sse-subscri
 
 const CreateSessionSchema = z
     .object({
-        sessionId: z.string().optional().describe('A custom ID for the new session'),
+        sessionId: z
+            .string()
+            .optional()
+            .describe(
+                'Optional integration override. Standard clients should omit this and use the agent-generated session ID.'
+            ),
     })
     .describe('Request body for creating a new session');
 

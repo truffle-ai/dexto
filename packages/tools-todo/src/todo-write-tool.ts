@@ -5,7 +5,7 @@
  */
 
 import { z } from 'zod';
-import { createLocalToolCallHeader, defineTool } from '@dexto/core';
+import { createLocalToolCallHeader, defineTool, ToolError } from '@dexto/core';
 import type { Tool, ToolExecutionContext } from '@dexto/core';
 import type { TodoService } from './todo-service.js';
 import { TODO_STATUS_VALUES } from './types.js';
@@ -87,14 +87,15 @@ IMPORTANT: This replaces the entire todo list. Always include ALL tasks (pending
         },
 
         async execute(input, context: ToolExecutionContext): Promise<unknown> {
-            const resolvedTodoService = await getTodoService(context);
+            if (!context.sessionId) {
+                throw ToolError.validationFailed('todo_write', 'sessionId is required');
+            }
 
-            // Use session_id from context, otherwise default
-            const sessionId = context.sessionId ?? 'default';
+            const resolvedTodoService = await getTodoService(context);
 
             // Update todos in todo service
             await resolvedTodoService.initialize();
-            const result = await resolvedTodoService.updateTodos(sessionId, input.todos);
+            const result = await resolvedTodoService.updateTodos(context.sessionId, input.todos);
 
             // Count by status for summary
             const completed = result.todos.filter((t) => t.status === 'completed').length;

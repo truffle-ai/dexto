@@ -10,6 +10,7 @@ export default defineConfig({
                 __dirname,
                 'packages/agent-management/src/index.ts'
             ),
+            '@dexto/core': path.resolve(__dirname, 'packages/core/src/index.ts'),
             '@dexto/storage/schemas': path.resolve(__dirname, 'packages/storage/src/schemas.ts'),
             '@dexto/storage': path.resolve(__dirname, 'packages/storage/src/index.ts'),
         },

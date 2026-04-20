@@ -18,6 +18,17 @@ import type { Tool } from '@dexto/core';
 
 type FileSystemToolName = (typeof FILESYSTEM_TOOL_NAMES)[number];
 
+function requireApprovalSessionId(context: ToolExecutionContext): string {
+    if (typeof context.sessionId === 'string' && context.sessionId.length > 0) {
+        return context.sessionId;
+    }
+
+    throw ToolError.validationFailed(
+        'filesystem_tools',
+        'sessionId is required for directory approval checks'
+    );
+}
+
 export const fileSystemToolsFactory: ToolFactory<FileSystemToolsConfig> = {
     configSchema: FileSystemToolsConfigSchema,
     metadata: {
@@ -59,7 +70,7 @@ export const fileSystemToolsFactory: ToolFactory<FileSystemToolsConfig> = {
                 context.logger
             );
             service.setDirectoryApprovalChecker((filePath: string) =>
-                approvalManager.isDirectoryApproved(filePath, context.sessionId)
+                approvalManager.isDirectoryApproved(filePath, requireApprovalSessionId(context))
             );
             return service;
         };

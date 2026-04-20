@@ -41,11 +41,11 @@ import { DextoAgent } from '@dexto/core';
 
 // Create and start agent
 const agent = new DextoAgent({
-  llm: {
-    provider: 'openai',
-    model: 'gpt-5-mini',
-    apiKey: process.env.OPENAI_API_KEY
-  }
+    llm: {
+        provider: 'openai',
+        model: 'gpt-5-mini',
+        apiKey: process.env.OPENAI_API_KEY,
+    },
 });
 await agent.start();
 
@@ -61,14 +61,17 @@ await agent.generate('Write a haiku about it', session.id);
 await agent.generate('Make it funnier', session.id);
 
 // Multimodal: send images or files
-await agent.generate([
-  { type: 'text', text: 'Describe this image' },
-  { type: 'image', image: base64Data, mimeType: 'image/png' }
-], session.id);
+await agent.generate(
+    [
+        { type: 'text', text: 'Describe this image' },
+        { type: 'image', image: base64Data, mimeType: 'image/png' },
+    ],
+    session.id
+);
 
 // Streaming for real-time UIs
 for await (const event of await agent.stream('Write a story', session.id)) {
-  if (event.name === 'llm:chunk') process.stdout.write(event.content);
+    if (event.name === 'llm:chunk') process.stdout.write(event.content);
 }
 
 await agent.stop();
@@ -88,18 +91,18 @@ import { startHonoApiServer } from 'dexto';
 
 // Create and configure agent
 const agent = new DextoAgent({
-  llm: {
-    provider: 'openai',
-    model: 'gpt-5-mini',
-    apiKey: process.env.OPENAI_API_KEY
-  },
-  mcpServers: {
-    filesystem: {
-      type: 'stdio',
-      command: 'npx',
-      args: ['-y', '@modelcontextprotocol/server-filesystem', '.']
-    }
-  }
+    llm: {
+        provider: 'openai',
+        model: 'gpt-5-mini',
+        apiKey: process.env.OPENAI_API_KEY,
+    },
+    mcpServers: {
+        filesystem: {
+            type: 'stdio',
+            command: 'npx',
+            args: ['-y', '@modelcontextprotocol/server-filesystem', '.'],
+        },
+    },
 });
 
 // Start server on port 3001
@@ -123,13 +126,13 @@ const agent = new DextoAgent(config);
 await agent.start();
 
 // Create and manage sessions
-const session = await agent.createSession('user-123');
+const session = await agent.createSession();
 await agent.generate('Hello, how can you help me?', session.id);
 
 // List and manage sessions
 const sessions = await agent.listSessions();
-const sessionHistory = await agent.getSessionHistory('user-123');
-await agent.deleteSession('user-123');
+const sessionHistory = await agent.getSessionHistory(session.id);
+await agent.deleteSession(session.id);
 
 // Search across conversations
 const results = await agent.searchMessages('bug fix', { limit: 10 });
@@ -147,8 +150,8 @@ const currentLLM = agent.getCurrentLLMConfig();
 await agent.switchLLM({ model: 'gpt-5-mini' });
 await agent.switchLLM({ model: 'claude-sonnet-4-5-20250929' });
 
-// Switch model for a specific session id 1234
-await agent.switchLLM({ model: 'gpt-5-mini' }, '1234')
+// Switch model for a specific session
+await agent.switchLLM({ model: 'gpt-5-mini' }, session.id);
 
 // Get supported providers and models
 const providers = agent.getSupportedProviders();
@@ -167,9 +170,9 @@ const manager = new MCPManager();
 
 // Connect to MCP servers
 await manager.connectServer('filesystem', {
-  type: 'stdio',
-  command: 'npx',
-  args: ['-y', '@modelcontextprotocol/server-filesystem', '.']
+    type: 'stdio',
+    command: 'npx',
+    args: ['-y', '@modelcontextprotocol/server-filesystem', '.'],
 });
 
 // Access tools, prompts, and resources
@@ -191,43 +194,50 @@ Delegate tasks to other A2A-compliant agents using the built-in `delegate_to_url
 import { builtinToolsFactory } from '@dexto/tools-builtins';
 
 const tools = builtinToolsFactory.create({
-  type: 'builtin-tools',
-  enabledTools: ['delegate_to_url'],
+    type: 'builtin-tools',
+    enabledTools: ['delegate_to_url'],
 });
 
 const agent = new DextoAgent({
-  llm: { /* ... */ },
-  logger,   // provide a per-agent logger instance
-  storage,  // provide cache/database/blob implementations
-  tools,
-  permissions: { mode: 'auto-approve' }
+    llm: {
+        /* ... */
+    },
+    logger, // provide a per-agent logger instance
+    storage, // provide cache/database/blob implementations
+    tools,
+    permissions: { mode: 'auto-approve' },
 });
 await agent.start();
 
 const session = await agent.createSession();
 
 // Delegate via natural language
-await agent.generate(`
+await agent.generate(
+    `
   Please delegate this task to the PDF analyzer agent at http://localhost:3001:
   "Extract all tables from the Q4 sales report"
-`, session.id);
+`,
+    session.id
+);
 
 // Or call the tool directly
 await agent.executeTool('delegate_to_url', {
-  url: 'http://localhost:3001',
-  message: 'Extract all tables from the Q4 sales report',
+    url: 'http://localhost:3001',
+    message: 'Extract all tables from the Q4 sales report',
 });
 ```
 
 **Configuration (YAML):**
+
 ```yaml
 tools:
-  - type: builtin-tools
-    enabledTools:
-      - delegate_to_url
+    - type: builtin-tools
+      enabledTools:
+          - delegate_to_url
 ```
 
 **What it provides:**
+
 - Point-to-point delegation when you know the agent URL
 - A2A Protocol v0.3.0 compliant (JSON-RPC transport)
 - Session management for stateful multi-turn conversations
@@ -235,6 +245,7 @@ tools:
 - Timeout handling and error recovery
 
 **Use cases:**
+
 - Multi-agent systems with known agent URLs
 - Delegation to specialized agents
 - Building agent workflows and pipelines
@@ -246,15 +257,17 @@ Built-in OpenTelemetry distributed tracing for observability.
 
 ```typescript
 const agent = new DextoAgent({
-  llm: { /* ... */ },
-  telemetry: {
-    enabled: true,
-    serviceName: 'my-agent',
-    export: {
-      type: 'otlp',
-      endpoint: 'http://localhost:4318/v1/traces'
-    }
-  }
+    llm: {
+        /* ... */
+    },
+    telemetry: {
+        enabled: true,
+        serviceName: 'my-agent',
+        export: {
+            type: 'otlp',
+            endpoint: 'http://localhost:4318/v1/traces',
+        },
+    },
 });
 ```
 
@@ -266,14 +279,14 @@ Multi-transport logging system (v2) with console, file, and remote transports. C
 
 ```yaml
 logger:
-  level: info  # error | warn | info | debug | silly
-  transports:
-    - type: console
-      colorize: true
-    - type: file
-      path: ./logs/agent.log
-      maxSize: 10485760
-      maxFiles: 5
+    level: info # error | warn | info | debug | silly
+    transports:
+        - type: console
+          colorize: true
+        - type: file
+          path: ./logs/agent.log
+          maxSize: 10485760
+          maxFiles: 5
 ```
 
 CLI automatically adds per-agent file transport at `~/.dexto/logs/<agent-id>.log`. See architecture in `src/logger/v2/`.
