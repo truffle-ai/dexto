@@ -111,7 +111,6 @@ export {
     getExecutionContext,
     findDextoSourceRoot,
     findDextoProjectRoot,
-    findGitRepoRoot,
     type ExecutionContext,
 } from './utils/execution-context.js';
 export { walkUpDirectories } from './utils/fs-walk.js';
