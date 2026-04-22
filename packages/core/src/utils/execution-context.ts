@@ -9,7 +9,7 @@ import { isInWorktree, getWorktreeContext } from './path.js';
 
 export { getWorktreeContext };
 
-export type ExecutionContext = 'dexto-source' | 'dexto-project' | 'global-cli' | 'worktree';
+export type ExecutionContext = 'dexto-source' | 'dexto-project' | 'global-cli';
 
 const DIRECT_PROJECT_ROOT_MARKERS = [
     path.join('.dexto', 'deploy.json'),
@@ -207,16 +207,11 @@ export function findGitRepoRoot(startPath: string = process.cwd()): string | nul
  * @returns Execution context
  */
 export function getExecutionContext(startPath: string = process.cwd()): ExecutionContext {
-    // Check for worktree context first (most specific)
-    if (isInWorktree(startPath)) {
-        return 'worktree';
-    }
-
     if (getForcedProjectRoot()) {
         return 'dexto-project';
     }
 
-    // Check for Dexto source context
+    // Check for Dexto source context first (most specific)
     if (findDextoSourceRoot(startPath)) {
         return 'dexto-source';
     }

@@ -1,6 +1,7 @@
 ---
 '@dexto/core': patch
-'@dexto/cli': patch
+'dexto': patch
+'@dexto/tui': patch
 ---
 
 Add `--worktree` flag for creating and managing multiple workspaces via git worktrees.
