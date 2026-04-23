@@ -20,7 +20,8 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
-    "@types/node": "^22.13.5"
+    "@types/node": "^22.13.5",
+    "yaml": "^2.8.3"
   },
   "peerDependencies": {
     "zod": "^4.3.6"

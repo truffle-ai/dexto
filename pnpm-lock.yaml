@@ -130,6 +130,9 @@ importers:
       '@types/node':
         specifier: ^22.13.5
         version: 22.19.0
+      yaml:
+        specifier: ^2.8.3
+        version: 2.8.3
 
   packages/agent-management:
     dependencies:
