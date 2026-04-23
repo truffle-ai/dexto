@@ -182,14 +182,14 @@ describe('zodToIssues', () => {
 
         test('should handle fallback when no union errors are collected', () => {
             // Create a manual ZodError with invalid_union but empty nested errors
-            const error = new ZodError([
-                {
-                    code: 'invalid_union',
-                    errors: [] as z.core.$ZodIssue[][],
-                    path: ['field'],
-                    message: 'Invalid union type',
-                } as any,
-            ]);
+            const emptyUnionErrors: z.core.$ZodIssue[][] = [];
+            const invalidUnionIssue = {
+                code: 'invalid_union',
+                errors: emptyUnionErrors,
+                path: ['field'],
+                message: 'Invalid union type',
+            } satisfies z.core.$ZodIssue;
+            const error = new ZodError([invalidUnionIssue]);
 
             const issues = zodToIssues(error);
             expect(issues).toHaveLength(1);

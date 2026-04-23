@@ -1,10 +1,39 @@
 import { describe, it, expect } from 'vitest';
+import { z } from 'zod';
 import * as path from 'path';
 import {
     SystemPromptConfigSchema,
     type SystemPromptConfig,
     type ValidatedSystemPromptConfig,
 } from './schemas.js';
+
+function flattenNestedIssues(issues: readonly z.core.$ZodIssue[]): z.core.$ZodIssue[] {
+    return issues.flatMap((issue) => {
+        if (issue.code === 'invalid_union') {
+            return [issue, ...flattenNestedIssues(issue.errors.flat())];
+        }
+
+        return [issue];
+    });
+}
+
+function findNestedIssue(
+    unionIssue: z.core.$ZodIssue | undefined,
+    expectedPath: Array<string | number>,
+    expectedCode?: string
+): z.core.$ZodIssue | undefined {
+    if (!unionIssue || unionIssue.code !== 'invalid_union') {
+        return undefined;
+    }
+
+    return flattenNestedIssues(unionIssue.errors.flat()).find((issue) => {
+        const matchesPath =
+            issue.path.length === expectedPath.length &&
+            issue.path.every((segment, index) => segment === expectedPath[index]);
+        const matchesCode = expectedCode ? issue.code === expectedCode : true;
+        return matchesPath && matchesCode;
+    });
+}
 
 describe('SystemPromptConfigSchema', () => {
     describe('String Input Transform', () => {
@@ -45,7 +74,7 @@ You can help with:
             expect(result.contributors).toHaveLength(1);
             const contributor = result.contributors[0];
             if (contributor?.type === 'static') {
-                expect((contributor! as any).content).toBe(multilinePrompt);
+                expect(contributor.content).toBe(multilinePrompt);
             }
         });
     });
@@ -137,10 +166,9 @@ You can help with:
             expect(result.success).toBe(false);
             const unionError = result.error?.issues[0];
             expect(unionError?.code).toBe('invalid_union');
-            const objectErrors =
-                unionError?.code === 'invalid_union' ? unionError.errors[1] : undefined;
-            expect(objectErrors?.[0]?.path).toEqual(['contributors', 0, 'content']);
-            expect(objectErrors?.[0]?.code).toBe('invalid_type');
+            const nestedIssue = findNestedIssue(unionError, ['contributors', 0, 'content']);
+            expect(nestedIssue?.path).toEqual(['contributors', 0, 'content']);
+            expect(nestedIssue?.code).toBe('invalid_type');
         });
 
         it('should validate dynamic contributors', () => {
@@ -159,10 +187,9 @@ You can help with:
             expect(result.success).toBe(false);
             const unionError = result.error?.issues[0];
             expect(unionError?.code).toBe('invalid_union');
-            const objectErrors =
-                unionError?.code === 'invalid_union' ? unionError.errors[1] : undefined;
-            expect(objectErrors?.[0]?.path).toEqual(['contributors', 0, 'source']);
-            expect(objectErrors?.[0]?.code).toBe('invalid_value');
+            const nestedIssue = findNestedIssue(unionError, ['contributors', 0, 'source']);
+            expect(nestedIssue?.path).toEqual(['contributors', 0, 'source']);
+            expect(nestedIssue?.code).toBe('invalid_value');
         });
 
         it('should validate dynamic contributor source enum', () => {
@@ -185,10 +212,9 @@ You can help with:
             expect(result.success).toBe(false);
             const unionError = result.error?.issues[0];
             expect(unionError?.code).toBe('invalid_union');
-            const objectErrors =
-                unionError?.code === 'invalid_union' ? unionError.errors[1] : undefined;
-            expect(objectErrors?.[0]?.path).toEqual(['contributors', 0, 'source']);
-            expect(objectErrors?.[0]?.code).toBe('invalid_value');
+            const nestedIssue = findNestedIssue(unionError, ['contributors', 0, 'source']);
+            expect(nestedIssue?.path).toEqual(['contributors', 0, 'source']);
+            expect(nestedIssue?.code).toBe('invalid_value');
         });
 
         it('should validate file contributors', () => {
@@ -232,10 +258,13 @@ You can help with:
             expect(result.success).toBe(false);
             const unionError = result.error?.issues[0];
             expect(unionError?.code).toBe('invalid_union');
-            const objectErrors =
-                unionError?.code === 'invalid_union' ? unionError.errors[1] : undefined;
-            expect(objectErrors?.[0]?.path).toEqual(['contributors', 0, 'type']);
-            expect(objectErrors?.[0]?.code).toBe('invalid_union');
+            const nestedIssue = findNestedIssue(
+                unionError,
+                ['contributors', 0, 'type'],
+                'invalid_union'
+            );
+            expect(nestedIssue?.path).toEqual(['contributors', 0, 'type']);
+            expect(nestedIssue?.code).toBe('invalid_union');
         });
 
         it('should reject extra fields with strict validation', () => {
@@ -246,9 +275,8 @@ You can help with:
             expect(result.success).toBe(false);
             const unionError = result.error?.issues[0];
             expect(unionError?.code).toBe('invalid_union');
-            const objectErrors =
-                unionError?.code === 'invalid_union' ? unionError.errors[1] : undefined;
-            expect(objectErrors?.[0]?.code).toBe('unrecognized_keys');
+            const nestedIssue = findNestedIssue(unionError, [], 'unrecognized_keys');
+            expect(nestedIssue?.code).toBe('unrecognized_keys');
         });
     });
 

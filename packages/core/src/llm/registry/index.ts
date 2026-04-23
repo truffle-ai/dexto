@@ -1143,7 +1143,7 @@ export function validateModelFileSupport(
  * 2. Registry lookup for known provider/model.
  *
  * @param config The validated LLM configuration.
- * @param logger Optional logger instance for logging.
+ * @param logger Logger instance for logging.
  * @returns The effective maximum input token count for the LLM.
  *
  * Notes:

@@ -5,9 +5,21 @@ function isJsonSchemaObject(schema: unknown): schema is JSONSchema7 {
     return !!schema && typeof schema === 'object' && !Array.isArray(schema);
 }
 
-function getJsonSchemaType(schema: JSONSchema7): JSONSchema7TypeName | undefined {
+function getJsonSchemaTypes(schema: JSONSchema7): JSONSchema7TypeName[] {
     const { type } = schema;
-    return Array.isArray(type) ? type[0] : type;
+    if (Array.isArray(type)) {
+        return type;
+    }
+    return type ? [type] : [];
+}
+
+function getJsonSchemaType(schema: JSONSchema7): JSONSchema7TypeName | undefined {
+    const types = getJsonSchemaTypes(schema);
+    return types.find((type) => type !== 'null') ?? types[0];
+}
+
+function hasNullableJsonSchemaType(schema: JSONSchema7): boolean {
+    return getJsonSchemaTypes(schema).includes('null');
 }
 
 function getPropertySchema(
@@ -32,10 +44,6 @@ export function jsonSchemaToZodShape(jsonSchema: unknown): z.ZodRawShape {
         const propSchema = getPropertySchema(property);
         let zodType = propSchema ? getZodTypeFromProperty(propSchema) : z.unknown();
 
-        if (propSchema?.description) {
-            zodType = zodType.describe(propSchema.description);
-        }
-
         if (!Array.isArray(jsonSchema.required) || !jsonSchema.required.includes(key)) {
             zodType = zodType.optional();
         }
@@ -51,8 +59,9 @@ export function jsonSchemaToZodShape(jsonSchema: unknown): z.ZodRawShape {
  */
 export function getZodTypeFromProperty(propSchema: JSONSchema7): z.ZodType {
     let zodType: z.ZodType;
+    const primaryType = getJsonSchemaType(propSchema);
 
-    switch (getJsonSchemaType(propSchema)) {
+    switch (primaryType) {
         case 'string':
             zodType = z.string();
             break;
@@ -83,6 +92,10 @@ export function getZodTypeFromProperty(propSchema: JSONSchema7): z.ZodType {
             break;
         default:
             zodType = z.unknown();
+    }
+
+    if (hasNullableJsonSchemaType(propSchema) && primaryType !== 'null') {
+        zodType = zodType.nullable();
     }
 
     if (propSchema.description) {
