@@ -12,7 +12,7 @@ const AskUserInputSchema = z
         schema: z
             .object({
                 type: z.literal('object'),
-                properties: z.record(z.string(), z.record(z.unknown())),
+                properties: z.record(z.string(), z.record(z.string(), z.unknown())),
                 required: z.array(z.string()).optional(),
             })
             .passthrough()

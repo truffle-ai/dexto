@@ -11,7 +11,7 @@ import type { ToolPresentationSnapshotV1 } from '../tools/types.js';
 import { HostRuntimeContextSchema } from '../runtime/index.js';
 
 // Zod schema that validates as object but types as JSONSchema7
-const JsonSchema7Schema = z.record(z.unknown()) as z.ZodType<JSONSchema7>;
+const JsonSchema7Schema = z.record(z.string(), z.unknown()) as z.ZodType<JSONSchema7>;
 
 /**
  * Schema for approval types
@@ -65,7 +65,7 @@ export const ToolApprovalMetadataSchema = z
             'Optional UI-agnostic presentation snapshot for the tool call. Clients MUST ignore unknown fields.'
         ),
         toolCallId: z.string().describe('Unique tool call ID for tracking parallel tool calls'),
-        args: z.record(z.unknown()).describe('Arguments for the tool'),
+        args: z.record(z.string(), z.unknown()).describe('Arguments for the tool'),
         description: z.string().optional().describe('Description of the tool'),
         displayPreview: ToolDisplayDataSchema.optional().describe(
             'Preview display data for approval UI (e.g., diff preview)'
@@ -108,7 +108,7 @@ export const ElicitationMetadataSchema = z
         schema: JsonSchema7Schema.describe('JSON Schema for the form'),
         prompt: z.string().describe('High-level prompt/context for the form (clients may show it)'),
         serverName: z.string().describe('MCP server requesting input'),
-        context: z.record(z.unknown()).optional().describe('Additional context'),
+        context: z.record(z.string(), z.unknown()).optional().describe('Additional context'),
     })
     .strict()
     .describe('Elicitation metadata');
@@ -116,7 +116,9 @@ export const ElicitationMetadataSchema = z
 /**
  * Custom approval metadata schema - flexible
  */
-export const CustomApprovalMetadataSchema = z.record(z.unknown()).describe('Custom metadata');
+export const CustomApprovalMetadataSchema = z
+    .record(z.string(), z.unknown())
+    .describe('Custom metadata');
 
 /**
  * Base approval request schema
@@ -232,7 +234,7 @@ export const CommandConfirmationResponseDataSchema = z
  */
 export const ElicitationResponseDataSchema = z
     .object({
-        formData: z.record(z.unknown()).describe('Form data matching schema'),
+        formData: z.record(z.string(), z.unknown()).describe('Form data matching schema'),
     })
     .strict()
     .describe('Elicitation response data');
@@ -241,7 +243,7 @@ export const ElicitationResponseDataSchema = z
  * Custom approval response data schema
  */
 export const CustomApprovalResponseDataSchema = z
-    .record(z.unknown())
+    .record(z.string(), z.unknown())
     .describe('Custom response data');
 
 /**

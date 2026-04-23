@@ -92,7 +92,7 @@ export function createAgentConfigSchema() {
                         ),
                 })
                 .strict()
-                .default({})
+                .prefault({})
                 .describe('Agent instruction file discovery configuration'),
 
             image: z
@@ -114,7 +114,7 @@ export function createAgentConfigSchema() {
 
             mcpServers: McpServersConfigSchema.describe(
                 'Configurations for MCP (Model Context Protocol) servers used by the agent'
-            ).default({}),
+            ).prefault({}),
 
             tools: z
                 .array(ToolFactoryEntrySchema)
@@ -132,19 +132,19 @@ export function createAgentConfigSchema() {
 
             storage: StorageSchema.describe(
                 'Storage configuration for cache, database, and blob storage - defaults to in-memory, CLI enrichment provides filesystem paths'
-            ).default({
+            ).prefault({
                 cache: { type: 'in-memory' },
                 database: { type: 'in-memory' },
                 blob: { type: 'in-memory' },
             }),
 
-            sessions: SessionConfigSchema.describe('Session management configuration').default({}),
+            sessions: SessionConfigSchema.describe('Session management configuration').prefault({}),
 
             permissions: PermissionsConfigSchema.describe(
                 'Tool permissions and approval configuration'
-            ).default({}),
+            ).prefault({}),
 
-            elicitation: ElicitationConfigSchema.default({}).describe(
+            elicitation: ElicitationConfigSchema.prefault({}).describe(
                 'Elicitation configuration for user input requests (ask_user tool and MCP server elicitations). Independent from permissions mode.'
             ),
 

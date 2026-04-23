@@ -277,7 +277,6 @@ export function validateLLMConfig(
             {
                 provider: parsed.data.provider,
                 model: parsed.data.model,
-                apiKey: parsed.data.apiKey ?? candidate.apiKey ?? '',
                 baseURL: parsed.data.baseURL,
             },
             logger

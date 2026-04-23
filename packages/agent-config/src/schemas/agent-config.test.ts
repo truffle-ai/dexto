@@ -1,8 +1,13 @@
-import { describe, it, expect } from 'vitest';
+import { parse as parseYaml } from 'yaml';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import { AgentConfigSchema, type AgentConfig } from './agent-config.js';
 
 describe('AgentConfigSchema', () => {
+    afterEach(() => {
+        vi.unstubAllEnvs();
+    });
+
     const validAgentConfig: AgentConfig = {
         systemPrompt: 'You are a helpful assistant',
         llm: {
@@ -244,6 +249,81 @@ describe('AgentConfigSchema', () => {
             expect(result.storage.cache.type).toBe('redis');
             expect(result.sessions.maxSessions).toBe(100);
             expect(result.permissions.timeout).toBe(45_000);
+        });
+    });
+
+    describe('YAML compatibility', () => {
+        it('preserves YAML defaults and env expansion semantics', () => {
+            vi.stubEnv('OPENAI_API_KEY', 'sk-from-env');
+            vi.stubEnv('MCP_STDIO_COMMAND', 'node');
+            vi.stubEnv('MCP_STDIO_ARG', 'server.js');
+            vi.stubEnv('MCP_STDIO_TOKEN', 'stdio-token');
+            vi.stubEnv('MCP_SSE_URL', 'https://mcp.example.com/sse');
+            vi.stubEnv('MCP_AUTH_TOKEN', 'sse-token');
+
+            const parsedYaml = parseYaml(`
+systemPrompt: You are a YAML-configured assistant
+llm:
+  provider: openai
+  model: gpt-4o-mini
+  apiKey: $OPENAI_API_KEY
+mcpServers:
+  local:
+    type: stdio
+    command: $MCP_STDIO_COMMAND
+    args:
+      - \${MCP_STDIO_ARG}
+    env:
+      TOKEN: $MCP_STDIO_TOKEN
+  remote:
+    type: sse
+    url: $MCP_SSE_URL
+    headers:
+      Authorization: Bearer \${MCP_AUTH_TOKEN}
+agentFile: {}
+sessions: {}
+permissions: {}
+elicitation: {}
+`);
+
+            const result = AgentConfigSchema.parse(parsedYaml);
+
+            expect(result.systemPrompt.contributors).toEqual([
+                {
+                    id: 'inline',
+                    type: 'static',
+                    content: 'You are a YAML-configured assistant',
+                    priority: 0,
+                    enabled: true,
+                },
+            ]);
+            expect(result.llm.apiKey).toBe('sk-from-env');
+
+            expect(result.agentFile.discoverInCwd).toBe(true);
+            expect(result.sessions.maxSessions).toBe(100);
+            expect(result.permissions.mode).toBe('auto-approve');
+            expect(result.permissions.allowedToolsStorage).toBe('storage');
+            expect(result.elicitation.enabled).toBe(false);
+
+            expect(result.mcpServers.local).toMatchObject({
+                type: 'stdio',
+                command: 'node',
+                args: ['server.js'],
+                env: { TOKEN: 'stdio-token' },
+                enabled: true,
+                timeout: 30000,
+                connectionMode: 'lenient',
+            });
+            expect(result.mcpServers.remote).toMatchObject({
+                type: 'sse',
+                url: 'https://mcp.example.com/sse',
+                headers: {
+                    Authorization: 'Bearer sse-token',
+                },
+                enabled: true,
+                timeout: 30000,
+                connectionMode: 'lenient',
+            });
         });
     });
 });

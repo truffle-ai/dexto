@@ -37,7 +37,7 @@ const OAuth2FlowSchema = z
         authorizationUrl: z.string().url().optional().describe('Authorization URL for the flow'),
         tokenUrl: z.string().url().optional().describe('Token URL for the flow'),
         refreshUrl: z.string().url().optional().describe('Refresh URL for the flow'),
-        scopes: z.record(z.string()).describe('Available scopes for the OAuth2 flow'),
+        scopes: z.record(z.string(), z.string()).describe('Available scopes for the OAuth2 flow'),
     })
     .strict();
 
@@ -206,7 +206,7 @@ export const AgentCardSchema = z
                     })
                     .strict()
             )
-            .default([
+            .prefault([
                 {
                     id: 'chat_with_agent',
                     name: 'chat_with_agent',
@@ -265,16 +265,16 @@ export const AgentCardSchema = z
                     .describe('Provides state transition history'),
             })
             .strict()
-            .default({})
+            .prefault({})
             .describe('Agent capabilities and features'),
 
         securitySchemes: z
-            .record(SecuritySchemeSchema)
+            .record(z.string(), SecuritySchemeSchema)
             .optional()
             .describe('Map of security scheme definitions (A2A format)'),
 
         security: z
-            .array(z.record(z.array(z.string())))
+            .array(z.record(z.string(), z.array(z.string())))
             .optional()
             .describe(
                 'Security requirements (array of security scheme references with required scopes)'

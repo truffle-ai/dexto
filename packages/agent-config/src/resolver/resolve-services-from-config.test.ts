@@ -415,7 +415,7 @@ describe('resolveServicesFromConfig', () => {
         } satisfies AgentConfig);
 
         await expect(resolveServicesFromConfig(validated, image)).rejects.toThrow(
-            /Expected number/
+            /Invalid input: expected number, received string/
         );
     });
 
@@ -457,7 +457,7 @@ describe('resolveServicesFromConfig', () => {
         } satisfies AgentConfig);
 
         await expect(resolveServicesFromConfig(validated, image)).rejects.toThrow(
-            /Expected number/
+            /Invalid input: expected number, received string/
         );
     });
 

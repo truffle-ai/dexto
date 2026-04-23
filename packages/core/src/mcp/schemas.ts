@@ -59,7 +59,7 @@ export const StdioServerConfigSchema = z
             .default([])
             .describe("Array of arguments for the command (e.g., ['script.js'])"),
         env: z
-            .record(EnvExpandedString())
+            .record(z.string(), EnvExpandedString())
             .default({})
             .describe('Optional environment variables for the server process'),
         timeout: z.coerce.number().int().positive().default(30000),
@@ -79,7 +79,7 @@ export const SseServerConfigSchema = z
             .default(true)
             .describe('Whether this server is enabled (disabled servers are not connected)'),
         url: RequiredEnvURL(process.env).describe('URL for the SSE server endpoint'),
-        headers: z.record(EnvExpandedString()).default({}),
+        headers: z.record(z.string(), EnvExpandedString()).default({}),
         timeout: z.coerce.number().int().positive().default(30000),
         connectionMode: z.enum(MCP_CONNECTION_MODES).default(DEFAULT_MCP_CONNECTION_MODE),
     })
@@ -97,7 +97,7 @@ export const HttpServerConfigSchema = z
             .default(true)
             .describe('Whether this server is enabled (disabled servers are not connected)'),
         url: RequiredEnvURL(process.env).describe('URL for the HTTP server'),
-        headers: z.record(EnvExpandedString()).default({}),
+        headers: z.record(z.string(), EnvExpandedString()).default({}),
         timeout: z.coerce.number().int().positive().default(30000),
         connectionMode: z.enum(MCP_CONNECTION_MODES).default(DEFAULT_MCP_CONNECTION_MODE),
     })
@@ -122,7 +122,7 @@ export type McpServerConfig = z.input<typeof McpServerConfigSchema>;
 export type ValidatedMcpServerConfig = z.output<typeof McpServerConfigSchema>;
 
 export const ServersConfigSchema = z
-    .record(McpServerConfigSchema)
+    .record(z.string(), McpServerConfigSchema)
     .describe('A dictionary of server configurations, keyed by server name')
     .brand<'ValidatedServersConfig'>();
 

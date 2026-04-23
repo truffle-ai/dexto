@@ -156,7 +156,7 @@ describe('LLMConfigSchema', () => {
 
             const result = LLMConfigSchema.safeParse(config);
             expect(result.success).toBe(false);
-            expect(result.error?.issues[0]?.code).toBe(z.ZodIssueCode.invalid_enum_value);
+            expect(result.error?.issues[0]?.code).toBe(z.ZodIssueCode.invalid_value);
             expect(result.error?.issues[0]?.path).toEqual(['provider']);
         });
 
@@ -169,7 +169,7 @@ describe('LLMConfigSchema', () => {
 
             const result = LLMConfigSchema.safeParse(config);
             expect(result.success).toBe(false);
-            expect(result.error?.issues[0]?.code).toBe(z.ZodIssueCode.invalid_enum_value);
+            expect(result.error?.issues[0]?.code).toBe(z.ZodIssueCode.invalid_value);
             expect(result.error?.issues[0]?.path).toEqual(['provider']);
         });
     });

@@ -1,5 +1,5 @@
 // schemas/helpers.ts
-import { z, type ZodError } from 'zod';
+import { z, ZodError } from 'zod';
 import type { DextoErrorCode, Issue } from '../errors/types.js';
 import { ErrorScope, ErrorType } from '../errors/types.js';
 
@@ -234,17 +234,20 @@ export function zodToIssues<C = unknown>(
     severity: 'error' | 'warning' = 'error'
 ): Issue<C>[] {
     const issues: Issue<C>[] = [];
+    const normalizePath = (path: PropertyKey[]): Array<string | number> =>
+        path.filter((segment): segment is string | number => {
+            return typeof segment === 'string' || typeof segment === 'number';
+        });
 
-    for (const e of err.errors) {
-        // Handle invalid_union errors by extracting the actual validation errors from unionErrors
-        if (e.code === 'invalid_union' && (e as any).unionErrors) {
-            const unionErrors = (e as any).unionErrors as ZodError[];
-            // Iterate through ALL union errors to capture validation issues from every union branch
+    for (const e of err.issues) {
+        // Handle invalid_union errors by extracting the nested validation issues from each union branch
+        if (e.code === 'invalid_union' && 'errors' in e) {
+            const unionErrors = e.errors;
+            // Iterate through ALL union branch issue sets to capture validation issues from every branch
             let hasCollectedErrors = false;
-            for (const unionError of unionErrors) {
-                if (unionError && unionError.errors && unionError.errors.length > 0) {
-                    // Recursively process each union branch's errors
-                    issues.push(...zodToIssues<C>(unionError, severity));
+            for (const unionIssueSet of unionErrors) {
+                if (unionIssueSet.length > 0) {
+                    issues.push(...zodToIssues<C>(new ZodError(unionIssueSet), severity));
                     hasCollectedErrors = true;
                 }
             }
@@ -257,7 +260,7 @@ export function zodToIssues<C = unknown>(
                     message: e.message,
                     scope: params.scope ?? ErrorScope.AGENT,
                     type: params.type ?? ErrorType.USER,
-                    path: e.path,
+                    path: normalizePath(e.path),
                     severity,
                     context: params as C,
                 });
@@ -270,7 +273,7 @@ export function zodToIssues<C = unknown>(
                 message: e.message,
                 scope: params.scope ?? ErrorScope.AGENT,
                 type: params.type ?? ErrorType.USER,
-                path: e.path,
+                path: normalizePath(e.path),
                 severity,
                 context: params as C,
             });

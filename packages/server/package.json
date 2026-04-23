@@ -32,7 +32,7 @@
     "@dexto/storage": "workspace:*",
     "@dexto/tools-scheduler": "workspace:*",
     "@hono/node-server": "1.19.13",
-    "@hono/zod-openapi": "^0.19.1",
+    "@hono/zod-openapi": "^1.3.0",
     "hono": "^4.12.12",
     "ws": "^8.18.1",
     "yaml": "^2.8.3",
@@ -55,9 +55,9 @@
   "sideEffects": false,
   "devDependencies": {
     "@types/ws": "^8.5.11",
-    "zod": "^3.25.0"
+    "zod": "^4.3.6"
   },
   "peerDependencies": {
-    "zod": "^3.25.0"
+    "zod": "^4.3.6"
   }
 }

@@ -34,7 +34,7 @@ describe('zodToIssues', () => {
                 expect(issues).toHaveLength(1);
                 expect(issues[0]).toMatchObject({
                     code: 'schema_validation',
-                    message: 'Expected number, received string',
+                    message: 'Invalid input: expected number, received string',
                     path: ['age'],
                     severity: 'error',
                     scope: ErrorScope.AGENT,
@@ -126,7 +126,13 @@ describe('zodToIssues', () => {
             if (!result.success) {
                 const issues = zodToIssues(result.error);
                 expect(issues.length).toBeGreaterThan(0);
-                expect(issues.some((i) => i.path?.includes('field'))).toBe(true);
+                expect(
+                    issues.some(
+                        (i) =>
+                            i.message === 'Invalid input: expected string, received boolean' ||
+                            i.message === 'Invalid input: expected number, received boolean'
+                    )
+                ).toBe(true);
             }
         });
 
@@ -175,11 +181,11 @@ describe('zodToIssues', () => {
         });
 
         test('should handle fallback when no union errors are collected', () => {
-            // Create a manual ZodError with invalid_union but empty unionErrors
+            // Create a manual ZodError with invalid_union but empty nested errors
             const error = new ZodError([
                 {
                     code: 'invalid_union',
-                    unionErrors: [] as ZodError[],
+                    errors: [] as z.core.$ZodIssue[][],
                     path: ['field'],
                     message: 'Invalid union type',
                 } as any,

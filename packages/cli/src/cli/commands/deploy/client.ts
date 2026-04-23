@@ -343,7 +343,13 @@ async function request(
     });
 }
 
-function requireSuccessData<T extends z.ZodTypeAny>(
+type SuccessEnvelope = {
+    success: boolean;
+    error?: string | undefined;
+    data?: unknown;
+};
+
+function requireSuccessData<T extends z.ZodType<SuccessEnvelope, unknown>>(
     payload: unknown,
     response: Response,
     schema: T

@@ -85,7 +85,7 @@ const FileContributorSchema = BaseContributorSchema.extend({
         })
         .strict()
         .optional()
-        .default({}),
+        .prefault({}),
 }).strict();
 
 export const ContributorConfigSchema = z
@@ -93,15 +93,7 @@ export const ContributorConfigSchema = z
         'type', // The field to discriminate on
         [StaticContributorSchema, DynamicContributorSchema, FileContributorSchema],
         {
-            // Optional: Custom error message for invalid discriminator
-            errorMap: (issue, ctx) => {
-                if (issue.code === z.ZodIssueCode.invalid_union_discriminator) {
-                    return {
-                        message: `Invalid contributor type. Expected 'static', 'dynamic', or 'file'. Note: memory contributors are now configured via the top-level 'memories' config.`,
-                    };
-                }
-                return { message: ctx.defaultError };
-            },
+            error: `Invalid contributor type. Expected 'static', 'dynamic', or 'file'. Note: memory contributors are now configured via the top-level 'memories' config.`,
         }
     )
     .describe(

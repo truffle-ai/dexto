@@ -20,7 +20,7 @@ describe('PermissionsConfigSchema', () => {
 
             const invalidResult = PermissionsConfigSchema.safeParse({ mode: 'invalid' });
             expect(invalidResult.success).toBe(false);
-            expect(invalidResult.error?.issues[0]?.code).toBe(z.ZodIssueCode.invalid_enum_value);
+            expect(invalidResult.error?.issues[0]?.code).toBe(z.ZodIssueCode.invalid_value);
             expect(invalidResult.error?.issues[0]?.path).toEqual(['mode']);
         });
 
@@ -63,7 +63,7 @@ describe('PermissionsConfigSchema', () => {
                 allowedToolsStorage: 'invalid',
             });
             expect(invalidResult.success).toBe(false);
-            expect(invalidResult.error?.issues[0]?.code).toBe(z.ZodIssueCode.invalid_enum_value);
+            expect(invalidResult.error?.issues[0]?.code).toBe(z.ZodIssueCode.invalid_value);
             expect(invalidResult.error?.issues[0]?.path).toEqual(['allowedToolsStorage']);
         });
     });
@@ -150,13 +150,13 @@ describe('PermissionsConfigSchema', () => {
             // Number should fail
             let result = PermissionsConfigSchema.safeParse({ mode: 123 });
             expect(result.success).toBe(false);
-            expect(result.error?.issues[0]?.code).toBe(z.ZodIssueCode.invalid_type);
+            expect(result.error?.issues[0]?.code).toBe(z.ZodIssueCode.invalid_value);
             expect(result.error?.issues[0]?.path).toEqual(['mode']);
 
             // Null should fail
             result = PermissionsConfigSchema.safeParse({ mode: null });
             expect(result.success).toBe(false);
-            expect(result.error?.issues[0]?.code).toBe(z.ZodIssueCode.invalid_type);
+            expect(result.error?.issues[0]?.code).toBe(z.ZodIssueCode.invalid_value);
             expect(result.error?.issues[0]?.path).toEqual(['mode']);
         });
 

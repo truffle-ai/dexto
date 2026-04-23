@@ -86,7 +86,7 @@ export interface ToolFactory<
     THostContext extends DextoHostContext = DextoHostContext,
 > {
     /** Zod schema for validating factory-specific configuration. */
-    configSchema: z.ZodType<TConfig, z.ZodTypeDef, unknown>;
+    configSchema: z.ZodType<TConfig, unknown>;
     /** Create one or more tool instances from validated config. */
     create(config: TConfig, context?: ImageResolutionContext<THostContext>): Tool[];
     metadata?: ToolFactoryMetadata;
@@ -101,7 +101,7 @@ export interface BlobStoreFactory<
     TConfig = unknown,
     THostContext extends DextoHostContext = DextoHostContext,
 > {
-    configSchema: z.ZodType<TConfig, z.ZodTypeDef, unknown>;
+    configSchema: z.ZodType<TConfig, unknown>;
     create(
         config: TConfig,
         logger: Logger,
@@ -114,7 +114,7 @@ export interface DatabaseFactory<
     TConfig = unknown,
     THostContext extends DextoHostContext = DextoHostContext,
 > {
-    configSchema: z.ZodType<TConfig, z.ZodTypeDef, unknown>;
+    configSchema: z.ZodType<TConfig, unknown>;
     create(
         config: TConfig,
         logger: Logger,
@@ -127,7 +127,7 @@ export interface CacheFactory<
     TConfig = unknown,
     THostContext extends DextoHostContext = DextoHostContext,
 > {
-    configSchema: z.ZodType<TConfig, z.ZodTypeDef, unknown>;
+    configSchema: z.ZodType<TConfig, unknown>;
     create(
         config: TConfig,
         logger: Logger,
@@ -143,7 +143,7 @@ export interface HookFactory<
     TConfig = unknown,
     THostContext extends DextoHostContext = DextoHostContext,
 > {
-    configSchema: z.ZodType<TConfig, z.ZodTypeDef, unknown>;
+    configSchema: z.ZodType<TConfig, unknown>;
     create(config: TConfig, context?: ImageResolutionContext<THostContext>): Hook;
     metadata?: Record<string, unknown> | undefined;
 }
@@ -155,7 +155,7 @@ export interface CompactionFactory<
     TConfig = unknown,
     THostContext extends DextoHostContext = DextoHostContext,
 > {
-    configSchema: z.ZodType<TConfig, z.ZodTypeDef, unknown>;
+    configSchema: z.ZodType<TConfig, unknown>;
     create(
         config: TConfig,
         context?: ImageResolutionContext<THostContext>
@@ -172,7 +172,7 @@ export interface LoggerFactory<
     TConfig = unknown,
     THostContext extends DextoHostContext = DextoHostContext,
 > {
-    configSchema: z.ZodType<TConfig, z.ZodTypeDef, unknown>;
+    configSchema: z.ZodType<TConfig, unknown>;
     create(config: TConfig, context?: ImageResolutionContext<THostContext>): Logger;
     metadata?: Record<string, unknown> | undefined;
 }

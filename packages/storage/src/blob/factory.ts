@@ -13,7 +13,7 @@ export interface BlobStoreFactory<TConfig = unknown> {
      * Zod schema for validating factory-specific configuration.
      * The schema must output the `TConfig` type.
      */
-    configSchema: z.ZodType<TConfig, z.ZodTypeDef, unknown>;
+    configSchema: z.ZodType<TConfig, unknown>;
 
     /**
      * Factory function to create a BlobStore instance.

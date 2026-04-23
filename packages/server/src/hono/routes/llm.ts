@@ -259,7 +259,7 @@ const catalogRoute = createRoute({
                             z
                                 .object({
                                     providers: z
-                                        .record(z.enum(LLM_PROVIDERS), ProviderCatalogSchema)
+                                        .record(z.string(), ProviderCatalogSchema)
                                         .describe(
                                             'Providers grouped by ID with their models and capabilities'
                                         ),

@@ -20,13 +20,13 @@
     "@dexto/orchestration": "workspace:*",
     "@dexto/tools-builtins": "workspace:*",
     "yaml": "^2.8.3",
-    "zod": "^3.25.0"
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@types/node": "^22.13.5"
   },
   "peerDependencies": {
-    "zod": "^3.25.0"
+    "zod": "^4.3.6"
   },
   "scripts": {
     "build": "cross-env NODE_OPTIONS=--max-old-space-size=4096 tsup && node ../../scripts/clean-tsbuildinfo.mjs && cross-env NODE_OPTIONS=--max-old-space-size=4096 tsc -b tsconfig.json --emitDeclarationOnly && node scripts/fix-dist-aliases.mjs",

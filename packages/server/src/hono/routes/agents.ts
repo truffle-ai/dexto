@@ -956,7 +956,7 @@ export function createAgentsRouter(
 
             if (!validationResult.success) {
                 throw new DextoValidationError(
-                    validationResult.error.errors.map((err) => ({
+                    validationResult.error.issues.map((err) => ({
                         code: AgentErrorCode.INVALID_CONFIG,
                         message: `${err.path.join('.')}: ${err.message}`,
                         scope: ErrorScope.AGENT,

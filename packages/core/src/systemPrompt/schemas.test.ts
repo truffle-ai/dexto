@@ -135,11 +135,10 @@ You can help with:
             };
             const result = SystemPromptConfigSchema.safeParse(invalidStatic);
             expect(result.success).toBe(false);
-            // For union schemas, the actual error is in unionErrors[1] (second branch - the object branch)
-            // TODO: Fix typing - unionErrors not properly typed in Zod
-            const unionError = result.error?.issues[0] as any;
+            const unionError = result.error?.issues[0];
             expect(unionError?.code).toBe('invalid_union');
-            const objectErrors = unionError?.unionErrors?.[1]?.issues;
+            const objectErrors =
+                unionError?.code === 'invalid_union' ? unionError.errors[1] : undefined;
             expect(objectErrors?.[0]?.path).toEqual(['contributors', 0, 'content']);
             expect(objectErrors?.[0]?.code).toBe('invalid_type');
         });
@@ -158,13 +157,12 @@ You can help with:
             };
             const result = SystemPromptConfigSchema.safeParse(invalidDynamic);
             expect(result.success).toBe(false);
-            // For union schemas, the actual error is in unionErrors[1] (second branch - the object branch)
-            // TODO: Fix typing - unionErrors not properly typed in Zod
-            const unionError = result.error?.issues[0] as any;
+            const unionError = result.error?.issues[0];
             expect(unionError?.code).toBe('invalid_union');
-            const objectErrors = unionError?.unionErrors?.[1]?.issues;
+            const objectErrors =
+                unionError?.code === 'invalid_union' ? unionError.errors[1] : undefined;
             expect(objectErrors?.[0]?.path).toEqual(['contributors', 0, 'source']);
-            expect(objectErrors?.[0]?.code).toBe('invalid_type');
+            expect(objectErrors?.[0]?.code).toBe('invalid_value');
         });
 
         it('should validate dynamic contributor source enum', () => {
@@ -185,13 +183,12 @@ You can help with:
             };
             const result = SystemPromptConfigSchema.safeParse(invalidSource);
             expect(result.success).toBe(false);
-            // For union schemas, the actual error is in unionErrors[1] (second branch - the object branch)
-            // TODO: Fix typing - unionErrors not properly typed in Zod
-            const unionError = result.error?.issues[0] as any;
+            const unionError = result.error?.issues[0];
             expect(unionError?.code).toBe('invalid_union');
-            const objectErrors = unionError?.unionErrors?.[1]?.issues;
+            const objectErrors =
+                unionError?.code === 'invalid_union' ? unionError.errors[1] : undefined;
             expect(objectErrors?.[0]?.path).toEqual(['contributors', 0, 'source']);
-            expect(objectErrors?.[0]?.code).toBe('invalid_enum_value');
+            expect(objectErrors?.[0]?.code).toBe('invalid_value');
         });
 
         it('should validate file contributors', () => {
@@ -233,13 +230,12 @@ You can help with:
                 ],
             });
             expect(result.success).toBe(false);
-            // For union schemas, the actual error is in unionErrors[1] (second branch - the object branch)
-            // TODO: Fix typing - unionErrors not properly typed in Zod
-            const unionError = result.error?.issues[0] as any;
+            const unionError = result.error?.issues[0];
             expect(unionError?.code).toBe('invalid_union');
-            const objectErrors = unionError?.unionErrors?.[1]?.issues;
+            const objectErrors =
+                unionError?.code === 'invalid_union' ? unionError.errors[1] : undefined;
             expect(objectErrors?.[0]?.path).toEqual(['contributors', 0, 'type']);
-            expect(objectErrors?.[0]?.code).toBe('invalid_union_discriminator');
+            expect(objectErrors?.[0]?.code).toBe('invalid_union');
         });
 
         it('should reject extra fields with strict validation', () => {
@@ -248,7 +244,11 @@ You can help with:
                 unknownField: 'should fail',
             });
             expect(result.success).toBe(false);
-            expect(result.error?.issues[0]?.code).toBe('unrecognized_keys');
+            const unionError = result.error?.issues[0];
+            expect(unionError?.code).toBe('invalid_union');
+            const objectErrors =
+                unionError?.code === 'invalid_union' ? unionError.errors[1] : undefined;
+            expect(objectErrors?.[0]?.code).toBe('unrecognized_keys');
         });
     });
 
@@ -331,7 +331,11 @@ You can help with:
 
             const result = SystemPromptConfigSchema.parse(complexConfig);
             expect(result.contributors).toHaveLength(3);
-            expect(result.contributors.map((c) => c.id)).toEqual(['main', 'context', 'date']);
+            expect(Array.from(result.contributors, (contributor) => contributor.id)).toEqual([
+                'main',
+                'context',
+                'date',
+            ]);
         });
 
         it('should handle template-style configuration', () => {

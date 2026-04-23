@@ -26,7 +26,7 @@
         "@dexto/agent-config": "workspace:*",
         "@dexto/core": "workspace:*",
         "nanoid": "^5.0.9",
-        "zod": "^3.25.0"
+        "zod": "^4.3.6"
     },
     "devDependencies": {
         "tsup": "^8.0.0",

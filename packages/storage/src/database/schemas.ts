@@ -18,7 +18,7 @@ const BaseDatabaseSchema = z.object({
         .positive()
         .optional()
         .describe('Connection timeout in milliseconds'),
-    options: z.record(z.unknown()).optional().describe('Backend-specific options'),
+    options: z.record(z.string(), z.unknown()).optional().describe('Backend-specific options'),
 });
 
 // Memory database - minimal configuration

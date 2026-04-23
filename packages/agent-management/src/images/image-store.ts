@@ -10,10 +10,12 @@ const ImageRegistryFileSchema = z
     .object({
         version: z.literal(1),
         images: z.record(
+            z.string(),
             z
                 .object({
                     active: z.string().optional(),
                     installed: z.record(
+                        z.string(),
                         z
                             .object({
                                 entryFile: z.string(),

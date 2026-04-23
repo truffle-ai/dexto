@@ -38,7 +38,10 @@ export const PluginManifestSchema = z
  */
 export const PluginMCPConfigSchema = z
     .object({
-        mcpServers: z.record(z.unknown()).optional().describe('MCP servers to register'),
+        mcpServers: z
+            .record(z.string(), z.unknown())
+            .optional()
+            .describe('MCP servers to register'),
     })
     .passthrough()
     .describe('MCP configuration from .mcp.json');
@@ -80,7 +83,7 @@ export const InstalledPluginsFileSchema = z
     .object({
         version: z.number().optional().describe('Schema version'),
         plugins: z
-            .record(z.array(InstalledPluginEntrySchema))
+            .record(z.string(), z.array(InstalledPluginEntrySchema))
             .describe('Map of plugin identifiers to installation entries'),
     })
     .passthrough()

@@ -36,7 +36,7 @@
         "@dexto/core": "workspace:*",
         "cron-parser": "^4.9.0",
         "node-cron": "^4.2.1",
-        "zod": "^3.25.0"
+        "zod": "^4.3.6"
     },
     "devDependencies": {
         "tsup": "^8.0.0",

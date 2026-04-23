@@ -307,7 +307,11 @@ function ModelTab({ config, onChange, errors }: TabProps) {
                             >
                                 <Input
                                     type="number"
-                                    value={config.llm?.maxOutputTokens ?? ''}
+                                    value={
+                                        typeof config.llm?.maxOutputTokens === 'number'
+                                            ? config.llm.maxOutputTokens
+                                            : ''
+                                    }
                                     onChange={(e) =>
                                         updateLLM({
                                             maxOutputTokens: e.target.value

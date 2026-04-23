@@ -21,15 +21,15 @@ const HttpRequestInputSchema = z
             .default('GET')
             .describe('HTTP method to use'),
         headers: z
-            .record(z.string())
+            .record(z.string(), z.string())
             .optional()
             .describe('Optional request headers (string values only)'),
         query: z
-            .record(z.string())
+            .record(z.string(), z.string())
             .optional()
             .describe('Optional query parameters to append to the URL'),
         body: z
-            .union([z.string(), z.record(z.unknown()), z.array(z.unknown())])
+            .union([z.string(), z.record(z.string(), z.unknown()), z.array(z.unknown())])
             .optional()
             .describe('Optional request body (string or JSON-serializable value)'),
         timeoutMs: z
