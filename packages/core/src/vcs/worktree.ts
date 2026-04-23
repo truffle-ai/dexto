@@ -300,8 +300,18 @@ export async function removeWorktree(
             }
         }
     }
-}
 
+    // Safety: If the process is currently running inside the removed worktree,
+    // move out to the parent project root to prevent "Invalid CWD" errors
+    // during process exit or in downstream logic.
+    if (process.cwd().startsWith(worktreePath)) {
+        try {
+            process.chdir(projectPath);
+        } catch {
+            // best-effort
+        }
+    }
+}
 /**
  * Prune stale worktree references
  * @param projectPath Project root directory

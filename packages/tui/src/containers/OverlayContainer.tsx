@@ -2771,15 +2771,6 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                     deleteBranch: true,
                 });
 
-                // CWD is now a deleted directory — move out before exit so
-                // downstream exit/stats rendering and the user's shell land in
-                // a valid location.
-                try {
-                    process.chdir(parentProjectRoot);
-                } catch {
-                    // best-effort
-                }
-
                 setMessages((prev) => [
                     ...prev,
                     {
