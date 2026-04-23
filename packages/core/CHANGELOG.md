@@ -1,5 +1,14 @@
 # @dexto/core
 
+## 1.7.0
+
+### Minor Changes
+
+- e447084: Upgrade internal schemas and validation flows to Zod 4 across the stack.
+
+    This preserves existing YAML parsing, env expansion, and default handling while
+    moving package internals to the Zod 4 APIs.
+
 ## 1.6.27
 
 ### Patch Changes

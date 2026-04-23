@@ -1,5 +1,17 @@
 # @dexto/webui
 
+## 1.7.0
+
+### Patch Changes
+
+- Updated dependencies [e447084]
+    - @dexto/core@1.7.0
+    - @dexto/agent-config@1.7.0
+    - @dexto/analytics@1.7.0
+    - @dexto/client-sdk@1.7.0
+    - @dexto/storage@1.7.0
+    - @dexto/registry@1.7.0
+
 ## 1.6.27
 
 ### Patch Changes

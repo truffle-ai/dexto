@@ -1,5 +1,12 @@
 # @dexto/orchestration
 
+## 1.7.0
+
+### Patch Changes
+
+- Updated dependencies [e447084]
+    - @dexto/core@1.7.0
+
 ## 1.6.27
 
 ### Patch Changes
