@@ -648,10 +648,14 @@ program
                             }
                         }
 
+                        const childEnv = { ...process.env };
+                        // Let the worktree child re-detect its project context from cwd
+                        delete childEnv.DEXTO_PROJECT_ROOT;
+
                         const child = spawn(dextoPath, childArgs, {
                             cwd: worktreePath,
                             stdio: 'inherit',
-                            env: process.env,
+                            env: childEnv,
                         });
 
                         child.on('exit', (code) => {

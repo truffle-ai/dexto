@@ -57,6 +57,7 @@ export const AGENT_EVENT_NAMES = [
     'agent:stopped',
     'tool:background',
     'tool:background-completed',
+    'worktree:exit-prompt',
 ] as const;
 
 export const FORWARDED_SESSION_EVENT_NAMES = [

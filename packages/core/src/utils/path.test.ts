@@ -1,7 +1,15 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { tmpdir, homedir } from 'os';
-import { getDextoPath, getDextoGlobalPath, getDextoEnvPath, findPackageRoot } from './path.js';
+import {
+    getDextoPath,
+    getDextoGlobalPath,
+    getDextoEnvPath,
+    findPackageRoot,
+    isInWorktree,
+    getWorktreeRootFromPath,
+    getWorktreeName,
+} from './path.js';
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 
 function createTempDir() {
@@ -29,6 +37,85 @@ function createTempDirStructure(structure: Record<string, any>, baseDir?: string
 
     return tempDir;
 }
+
+describe('worktree detection utilities', () => {
+    let tempDir: string;
+
+    beforeEach(() => {
+        tempDir = createTempDir();
+    });
+
+    afterEach(() => {
+        fs.rmSync(tempDir, { recursive: true, force: true });
+    });
+
+    describe('isInWorktree', () => {
+        it('returns true for a path inside a worktree', () => {
+            const worktreePath = path.join(tempDir, '.dexto', 'worktree', 'feature-x', 'src');
+            fs.mkdirSync(worktreePath, { recursive: true });
+            expect(isInWorktree(worktreePath)).toBe(true);
+        });
+
+        it('returns true for the worktree root itself', () => {
+            const worktreePath = path.join(tempDir, '.dexto', 'worktree', 'feature-x');
+            fs.mkdirSync(worktreePath, { recursive: true });
+            expect(isInWorktree(worktreePath)).toBe(true);
+        });
+
+        it('returns false for paths with similar prefixes but different segments', () => {
+            // These would false-positive with .includes()
+            const backupPath = path.join(tempDir, '.dexto', 'worktree-backup', 'feature-x');
+            const oldPath = path.join(tempDir, '.dexto', 'worktree.old', 'feature-x');
+            fs.mkdirSync(backupPath, { recursive: true });
+            fs.mkdirSync(oldPath, { recursive: true });
+
+            expect(isInWorktree(backupPath)).toBe(false);
+            expect(isInWorktree(oldPath)).toBe(false);
+        });
+
+        it('returns false for paths outside worktree', () => {
+            const normalPath = path.join(tempDir, 'src', 'app');
+            fs.mkdirSync(normalPath, { recursive: true });
+            expect(isInWorktree(normalPath)).toBe(false);
+        });
+    });
+
+    describe('getWorktreeRootFromPath', () => {
+        it('returns the worktree root from a nested path', () => {
+            const root = path.join(tempDir, '.dexto', 'worktree', 'feature-x');
+            const nested = path.join(root, 'src', 'components');
+            fs.mkdirSync(nested, { recursive: true });
+
+            // Normalize for comparison
+            const result = getWorktreeRootFromPath(nested);
+            expect(result ? path.resolve(result) : null).toBe(path.resolve(root));
+        });
+
+        it('returns null for non-worktree paths', () => {
+            const normalPath = path.join(tempDir, 'src', 'app');
+            fs.mkdirSync(normalPath, { recursive: true });
+            expect(getWorktreeRootFromPath(normalPath)).toBeNull();
+        });
+
+        it('returns null for similar prefixes that are not worktrees', () => {
+            const backupPath = path.join(tempDir, '.dexto', 'worktree-backup', 'feature-x');
+            fs.mkdirSync(backupPath, { recursive: true });
+            expect(getWorktreeRootFromPath(backupPath)).toBeNull();
+        });
+    });
+
+    describe('getWorktreeName', () => {
+        it('extracts the worktree name from a path', () => {
+            const worktreePath = path.join(tempDir, '.dexto', 'worktree', 'feature-x', 'src');
+            fs.mkdirSync(worktreePath, { recursive: true });
+            expect(getWorktreeName(worktreePath)).toBe('feature-x');
+        });
+
+        it('returns null if not in a worktree', () => {
+            expect(getWorktreeName(tempDir)).toBeNull();
+        });
+    });
+});
 
 describe('getDextoPath', () => {
     let tempDir: string;

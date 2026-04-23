@@ -217,8 +217,10 @@ export function getDextoEnvPath(startPath: string = process.cwd(), logger?: Logg
  * @returns true if the path is inside a .dexto/worktree/ directory
  */
 export function isInWorktree(checkPath: string = process.cwd()): boolean {
-    const worktreePattern = path.join(WORKTREE_DIR, WORKTREE_SUBDIR);
-    return checkPath.includes(worktreePattern);
+    const parts = checkPath.split(path.sep);
+    return parts.some(
+        (part, index) => part === WORKTREE_DIR && parts[index + 1] === WORKTREE_SUBDIR
+    );
 }
 
 /**
