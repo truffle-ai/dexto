@@ -22,6 +22,32 @@ function hasNullableJsonSchemaType(schema: JSONSchema7): boolean {
     return getJsonSchemaTypes(schema).includes('null');
 }
 
+function getZodTypeForJsonSchemaType(
+    propSchema: JSONSchema7,
+    type: JSONSchema7TypeName | undefined
+): z.ZodType {
+    switch (type) {
+        case 'string':
+            return z.string();
+        case 'number':
+            return z.number();
+        case 'integer':
+            return z.number().int();
+        case 'boolean':
+            return z.boolean();
+        case 'object':
+            return z.object(jsonSchemaToZodShape(propSchema));
+        case 'array': {
+            const itemSchema = getPropertySchema(propSchema.items);
+            return z.array(itemSchema ? getZodTypeFromProperty(itemSchema) : z.unknown());
+        }
+        case 'null':
+            return z.null();
+        default:
+            return z.unknown();
+    }
+}
+
 function getPropertySchema(
     schema: JSONSchema7Definition | JSONSchema7Definition[] | undefined
 ): JSONSchema7 | null {
@@ -58,43 +84,24 @@ export function jsonSchemaToZodShape(jsonSchema: unknown): z.ZodRawShape {
  * Helper function to get a Zod type from a property schema
  */
 export function getZodTypeFromProperty(propSchema: JSONSchema7): z.ZodType {
-    let zodType: z.ZodType;
-    const primaryType = getJsonSchemaType(propSchema);
+    const nonNullTypes = getJsonSchemaTypes(propSchema).filter(
+        (type): type is Exclude<JSONSchema7TypeName, 'null'> => type !== 'null'
+    );
 
-    switch (primaryType) {
-        case 'string':
-            zodType = z.string();
-            break;
-        case 'number':
-            zodType = z.number();
-            break;
-        case 'integer':
-            zodType = z.number().int();
-            break;
-        case 'boolean':
-            zodType = z.boolean();
-            break;
-        case 'object':
-            zodType = z.object(jsonSchemaToZodShape(propSchema));
-            break;
-        case 'array':
-            {
-                const itemSchema = getPropertySchema(propSchema.items);
-                if (itemSchema) {
-                    zodType = z.array(getZodTypeFromProperty(itemSchema));
-                } else {
-                    zodType = z.array(z.unknown());
-                }
-            }
-            break;
-        case 'null':
-            zodType = z.null();
-            break;
-        default:
+    let zodType: z.ZodType;
+    if (nonNullTypes.length === 0) {
+        zodType = hasNullableJsonSchemaType(propSchema) ? z.null() : z.unknown();
+    } else {
+        const zodTypes = nonNullTypes.map((type) => getZodTypeForJsonSchemaType(propSchema, type));
+        const [firstType, secondType, ...restTypes] = zodTypes;
+        if (!firstType) {
             zodType = z.unknown();
+        } else {
+            zodType = secondType ? z.union([firstType, secondType, ...restTypes]) : firstType;
+        }
     }
 
-    if (hasNullableJsonSchemaType(propSchema) && primaryType !== 'null') {
+    if (hasNullableJsonSchemaType(propSchema) && nonNullTypes.length > 0) {
         zodType = zodType.nullable();
     }
 
