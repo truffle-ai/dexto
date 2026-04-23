@@ -166,6 +166,7 @@ import { InputService } from '../services/InputService.js';
 import { createUserMessage, convertHistoryToUIMessages } from '../utils/messageFormatting.js';
 import { generateMessageId } from '../utils/idGenerator.js';
 import { triggerExit } from '../interactive-commands/exit-handler.js';
+import { clearExitStats } from '../interactive-commands/exit-stats.js';
 import { canUseDextoProvider, captureAnalytics } from '../host/index.js';
 import { FocusOverlayFrame } from '../components/shared/FocusOverlayFrame.js';
 import { shouldHideCliChrome } from '../utils/overlayPresentation.js';
@@ -2804,6 +2805,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
 
         // Handle worktree exit cancel
         const handleWorktreeCancel = useCallback(() => {
+            clearExitStats();
             setUi((prev) => ({
                 ...prev,
                 activeOverlay: 'none',
