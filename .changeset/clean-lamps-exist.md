@@ -1,5 +1,5 @@
 ---
-'@dexto/core': patch
+'@dexto/core': minor
 ---
 
 Upgrade internal schemas and validation flows to Zod 4 across the stack.

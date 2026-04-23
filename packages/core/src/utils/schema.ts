@@ -9,6 +9,7 @@ import type { Logger } from '../logger/v2/types.js';
 export function convertZodSchemaToJsonSchema(zodSchema: z.ZodType, logger: Logger): JSONSchema7 {
     try {
         const converted = z.toJSONSchema(zodSchema, {
+            io: 'input',
             target: 'draft-07',
             unrepresentable: 'any',
         }) as unknown;
