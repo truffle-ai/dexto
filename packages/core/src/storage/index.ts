@@ -28,6 +28,8 @@ export type {
 } from './blob/types.js';
 
 export { InMemoryDextoStores } from './stores/in-memory.js';
+export { DatabaseBackedDextoStores } from './stores/database-backed.js';
+export type { DatabaseBackedDextoStoresBackends } from './stores/database-backed.js';
 export type { DextoStoreMap, DextoStoreName, DextoStores } from './stores/types.js';
 export { DatabaseConversationStore } from './conversation/database.js';
 export type { ConversationStore } from './conversation/types.js';
