@@ -28,8 +28,7 @@ export function generateIndexForCodeFirstDI(context: TemplateContext): string {
     return `// Standalone Dexto app (programmatic)
 import 'dotenv/config';
 
-import { DextoAgent, createLogger } from '@dexto/core';
-import { MemoryBlobStore, MemoryCacheStore, MemoryDatabaseStore } from '@dexto/storage';
+import { DextoAgent, InMemoryDextoStores, createLogger } from '@dexto/core';
 
 const agentId = '${context.projectName}';
 const logger = createLogger({
@@ -42,11 +41,7 @@ const agent = new DextoAgent({
     llm: { provider: '${defaultProvider}', model: '${defaultModel}' },
     systemPrompt: 'You are a helpful AI assistant.',
     logger,
-    storage: {
-        cache: new MemoryCacheStore(),
-        database: new MemoryDatabaseStore(),
-        blob: new MemoryBlobStore({}, logger),
-    },
+    stores: new InMemoryDextoStores(logger),
 });
 
 await agent.start();
@@ -65,8 +60,7 @@ export function generateWebServerIndexForCodeFirstDI(context: TemplateContext): 
     return `// Dexto Web Server (programmatic)
 import 'dotenv/config';
 
-import { DextoAgent, createLogger } from '@dexto/core';
-import { MemoryBlobStore, MemoryCacheStore, MemoryDatabaseStore } from '@dexto/storage';
+import { DextoAgent, InMemoryDextoStores, createLogger } from '@dexto/core';
 import { startDextoServer } from '@dexto/server';
 import { resolve } from 'node:path';
 
@@ -81,11 +75,7 @@ const agent = new DextoAgent({
     llm: { provider: '${defaultProvider}', model: '${defaultModel}' },
     systemPrompt: 'You are a helpful AI assistant.',
     logger,
-    storage: {
-        cache: new MemoryCacheStore(),
-        database: new MemoryDatabaseStore(),
-        blob: new MemoryBlobStore({}, logger),
-    },
+    stores: new InMemoryDextoStores(logger),
 });
 
 const { stop } = await startDextoServer(agent, {
@@ -552,17 +542,7 @@ export function generateDextoImageFile(context: TemplateContext): string {
                 type: 'in-memory',
             },
         },`
-        : `        storage: {
-            blob: {
-                type: 'example-blob',
-            },
-            database: {
-                type: 'example-database',
-            },
-            cache: {
-                type: 'example-cache',
-            },
-        },`;
+        : '';
 
     return `import type { ImageDefinition } from '@dexto/image-bundler';
 
@@ -574,9 +554,6 @@ const image = {
 ${extendsField}
     // Factories are AUTO-DISCOVERED from convention-based folders:
     //   tools/<type>/index.ts
-    //   storage/blob/<type>/index.ts
-    //   storage/database/<type>/index.ts
-    //   storage/cache/<type>/index.ts
     //   hooks/<type>/index.ts
     //   compaction/<type>/index.ts
     //
@@ -640,9 +617,6 @@ Set \`image: '${imageName}'\` in your agent config (or pass \`--image\` in the C
 
 Add your custom factories to convention-based folders:
 - \`tools/<type>/\` - Tool factories
-- \`storage/blob/<type>/\` - Blob storage factories
-- \`storage/database/<type>/\` - Database factories
-- \`storage/cache/<type>/\` - Cache factories
 - \`hooks/<type>/\` - Hook factories
 - \`compaction/<type>/\` - Compaction factories
 
@@ -831,94 +805,6 @@ export const factory: CompactionFactory<ExampleCompactionConfig> = {
         };
 
         return strategy;
-    },
-};
-`;
-}
-
-/**
- * Generates an example in-memory cache factory
- */
-export function generateExampleCacheFactory(cacheType: string): string {
-    return `import { z } from 'zod';
-import type { CacheFactory } from '@dexto/agent-config';
-import { MemoryCacheStore } from '@dexto/storage';
-
-const ConfigSchema = z
-    .object({
-        type: z.literal('${cacheType}'),
-    })
-    .strict();
-
-type ExampleCacheConfig = z.output<typeof ConfigSchema>;
-
-/**
- * Example cache factory
- *
- * Storage backends are resolved from image factories.
- * The bundler auto-discovers this module when placed in storage/cache/<type>/index.ts.
- */
-export const factory: CacheFactory<ExampleCacheConfig> = {
-    configSchema: ConfigSchema,
-    create: (_config, _logger) => new MemoryCacheStore(),
-};
-`;
-}
-
-/**
- * Generates an example in-memory database factory
- */
-export function generateExampleDatabaseFactory(databaseType: string): string {
-    return `import { z } from 'zod';
-import type { DatabaseFactory } from '@dexto/agent-config';
-import { MemoryDatabaseStore } from '@dexto/storage';
-
-const ConfigSchema = z
-    .object({
-        type: z.literal('${databaseType}'),
-    })
-    .strict();
-
-type ExampleDatabaseConfig = z.output<typeof ConfigSchema>;
-
-/**
- * Example database factory
- *
- * Storage backends are resolved from image factories.
- * The bundler auto-discovers this module when placed in storage/database/<type>/index.ts.
- */
-export const factory: DatabaseFactory<ExampleDatabaseConfig> = {
-    configSchema: ConfigSchema,
-    create: (_config, _logger) => new MemoryDatabaseStore(),
-};
-`;
-}
-
-/**
- * Generates an example in-memory blob store factory
- */
-export function generateExampleBlobStoreFactory(blobType: string): string {
-    return `import { z } from 'zod';
-import type { BlobStoreFactory } from '@dexto/agent-config';
-import { InMemoryBlobStoreSchema, MemoryBlobStore } from '@dexto/storage';
-
-const ConfigSchema = InMemoryBlobStoreSchema.extend({
-    type: z.literal('${blobType}'),
-}).strict();
-
-type ExampleBlobStoreConfig = z.output<typeof ConfigSchema>;
-
-/**
- * Example blob store factory
- *
- * Blob stores are resolved from image factories.
- * The bundler auto-discovers this module when placed in storage/blob/<type>/index.ts.
- */
-export const factory: BlobStoreFactory<ExampleBlobStoreConfig> = {
-    configSchema: ConfigSchema,
-    create: (config, logger) => {
-        const { type: _type, ...options } = config;
-        return new MemoryBlobStore(options, logger);
     },
 };
 `;

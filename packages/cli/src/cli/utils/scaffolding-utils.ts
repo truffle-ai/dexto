@@ -277,15 +277,7 @@ export async function createTsconfigForImage(projectPath: string): Promise<void>
             allowSyntheticDefaultImports: true,
             types: ['node'],
         },
-        include: [
-            'dexto.image.ts',
-            'tools/**/*',
-            'storage/blob/**/*',
-            'storage/database/**/*',
-            'storage/cache/**/*',
-            'compaction/**/*',
-            'hooks/**/*',
-        ],
+        include: ['dexto.image.ts', 'tools/**/*', 'compaction/**/*', 'hooks/**/*'],
         exclude: ['node_modules', 'dist'],
     };
 

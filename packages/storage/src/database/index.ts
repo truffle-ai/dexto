@@ -10,13 +10,12 @@
  * - `postgres`: Store data in PostgreSQL server
  *
  * ## Custom Factories
- * Product layers (CLI/server/platform) decide which factories are available by including them
- * in images (`DextoImage.storage.database`).
+ * Image implementations decide which factories to use inside their `storage.createStores`
+ * implementation.
  *
  * ## Usage
- * Database backends are typically constructed by the product-layer resolver (`@dexto/agent-config`)
- * via image-provided factory maps. For direct usage, call a factory's `create()` after validating
- * config with its `configSchema`.
+ * Database backends are typically constructed by an image's storage implementation. For direct
+ * usage, call a factory's `create()` after validating config with its `configSchema`.
  */
 
 // Export public API

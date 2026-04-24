@@ -5,8 +5,8 @@ import type { z } from 'zod';
 /**
  * Factory interface for creating blob store instances.
  *
- * Factories are plain exports (no global registries). Images decide which factories are
- * available by including them in `image.storage.blob`.
+ * Factories are plain exports (no global registries). Image storage implementations decide
+ * which factories they use.
  */
 export interface BlobStoreFactory<TConfig = unknown> {
     /**

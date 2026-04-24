@@ -9,13 +9,12 @@
  * - `in-memory`: Store blobs in RAM (for testing/development)
  *
  * ## Custom Factories
- * Product layers (CLI/server/platform) decide which factories are available by including them
- * in images (`DextoImage.storage.blob`).
+ * Image implementations decide which factories to use inside their `storage.createStores`
+ * implementation.
  *
  * ## Usage
- * Blob stores are typically constructed by the product-layer resolver (`@dexto/agent-config`)
- * via image-provided factory maps. For direct usage, call a factory's `create()` after validating
- * config with its `configSchema`.
+ * Blob stores are typically constructed by an image's storage implementation. For direct usage,
+ * call a factory's `create()` after validating config with its `configSchema`.
  */
 
 // Export public API

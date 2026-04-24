@@ -1,14 +1,14 @@
 # `@dexto/storage`
 
-Concrete storage backends (blob store, database, cache) and their config schemas/factories.
+Concrete storage backend helpers (blob store, database, cache) and their config schemas/factories.
 
 Core (`@dexto/core`) owns typed domain store contracts such as `ConversationStore`,
 `SessionStore`, `MemoryStore`, `ArtifactStore`, and `ToolStateStore`. This package provides the
-low-level backend factories (`BlobStore`, `Database`, `Cache`) that image/config resolution can use
-to compose a `DextoStores` implementation.
+low-level backend factories (`BlobStore`, `Database`, `Cache`) that image implementations can use
+internally to compose a `DextoStores` implementation.
 
-Product layers (CLI/server/apps) choose which concrete backends are available by including factories
-in an image (`DextoImage.storage.*`) and resolving config via `@dexto/agent-config`.
+Product layers (CLI/server/apps) can either use these helpers inside an image or provide a
+native `DextoStores` implementation directly.
 
 ## What this package exports
 
@@ -21,22 +21,28 @@ in an image (`DextoImage.storage.*`) and resolving config via `@dexto/agent-conf
 - **Concrete implementations** (Node runtime):
   - `LocalBlobStore`, `MemoryBlobStore`, `SQLiteStore`, `PostgresStore`, `RedisStore`, etc.
 
-## Using factories in an image
+## Using helpers in an image
 
 ```ts
 import type { DextoImage } from '@dexto/agent-config';
+import { BackendDextoStores } from '@dexto/core/storage';
 import {
   localBlobStoreFactory,
   sqliteDatabaseFactory,
   inMemoryCacheFactory,
+  StorageSchema,
 } from '@dexto/storage';
 
 export const myImage: DextoImage = {
   /* metadata/defaults/tools/hooks/compaction/logger ... */
   storage: {
-    blob: { local: localBlobStoreFactory },
-    database: { sqlite: sqliteDatabaseFactory },
-    cache: { 'in-memory': inMemoryCacheFactory },
+    configSchema: StorageSchema,
+    async createStores(config, logger) {
+      const blobStore = await localBlobStoreFactory.create(config.blob, logger);
+      const database = await sqliteDatabaseFactory.create(config.database, logger);
+      const cache = await inMemoryCacheFactory.create(config.cache, logger);
+      return new BackendDextoStores({ blobStore, database, cache }, logger);
+    },
   },
 };
 ```
@@ -59,26 +65,4 @@ storage:
 ```
 
 Those envelope schemas use `.passthrough()` so extra fields survive initial parsing. Detailed
-validation happens later in `@dexto/agent-config` by selecting the right factory from the loaded
-image and validating against that factory’s `configSchema`.
-
-## Optional dependencies
-
-Some backends rely on optional peer dependencies:
-
-- SQLite: `better-sqlite3`
-- Postgres: `pg`
-- Redis: `ioredis`
-
-Factories load these lazily and throw an actionable error if the dependency is missing.
-
-## Browser safety
-
-If you only need schemas/types (e.g., WebUI), import from:
-
-```ts
-import { StorageSchema } from '@dexto/storage/schemas';
-```
-
-Do not import from `@dexto/storage` in browser bundles, since the root entry also exports Node
-implementations.
+validation happens later inside the loaded image's `storage.createStores(...)` implementation.

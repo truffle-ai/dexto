@@ -18,7 +18,6 @@ import type {
 } from '../artifacts/types.js';
 import type { BlobData, BlobReference, BlobStore, StoredBlobMetadata } from '../blob/types.js';
 import type { Cache } from '../cache/types.js';
-import type { CacheStore } from '../cache-store/types.js';
 import type { Database } from '../database/types.js';
 import { DatabaseConversationStore } from '../conversation/database.js';
 import type { MemoryStore } from '../memories/types.js';
@@ -73,22 +72,6 @@ const DEFAULT_TOOL_PREFERENCES: SessionToolPreferences = {
     userAutoApproveTools: [],
     disabledTools: [],
 };
-
-class DatabaseBackedCacheStore implements CacheStore {
-    constructor(private readonly cache: Cache) {}
-
-    async get(input: { key: string }): Promise<unknown | undefined> {
-        return await this.cache.get(input.key);
-    }
-
-    async set(input: { key: string; value: unknown; ttlSeconds?: number }): Promise<void> {
-        await this.cache.set(input.key, input.value, input.ttlSeconds);
-    }
-
-    async delete(input: { key: string }): Promise<void> {
-        await this.cache.delete(input.key);
-    }
-}
 
 class DatabaseBackedArtifactStore implements ArtifactStore {
     constructor(private readonly blobStore: BlobStore) {}
@@ -680,18 +663,18 @@ class DatabaseBackedToolStateStore implements ToolStateStore {
     }
 }
 
-export interface DatabaseBackedDextoStoresBackends {
+export interface BackendDextoStoresBackends {
     cache: Cache;
     database: Database;
     blobStore: BlobStore;
 }
 
-export class DatabaseBackedDextoStores implements DextoStores {
+export class BackendDextoStores implements DextoStores {
     private connected = false;
     private readonly stores: DextoStoreMap;
 
     constructor(
-        private readonly backends: DatabaseBackedDextoStoresBackends,
+        private readonly backends: BackendDextoStoresBackends,
         logger: Logger
     ) {
         this.stores = {
@@ -713,7 +696,6 @@ export class DatabaseBackedDextoStores implements DextoStores {
             ),
             customPrompts: new DatabaseBackedCustomPromptStore(backends.database),
             artifacts: new DatabaseBackedArtifactStore(backends.blobStore),
-            cache: new DatabaseBackedCacheStore(backends.cache),
             runtimeEvents: new DatabaseBackedRuntimeEventStore(backends.database),
         };
     }
@@ -756,6 +738,6 @@ export class DatabaseBackedDextoStores implements DextoStores {
     }
 
     getStoreType(): string {
-        return 'database-backed';
+        return 'backend';
     }
 }

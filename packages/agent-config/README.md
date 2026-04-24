@@ -69,6 +69,9 @@ const options = toDextoAgentOptions({ config, services, image, hostContext });
 
 ## Images (no registries)
 
-Images are typed modules (`DextoImage`) that export plain `Record<string, Factory>` maps.
-Resolver logic does property access by config `type` (e.g., `image.tools[entry.type]`) — there are no
-global registries or side effects.
+Images are typed modules (`DextoImage`) that export plain factory surfaces.
+Tool/hook/compaction resolution still uses property access by config `type`
+(e.g., `image.tools[entry.type]`). Storage is resolved by the image as one
+`createStores(config.storage, ...)` call so images can compose or directly implement
+`DextoStores` without exposing low-level backend factories. There are no global registries or side
+effects.

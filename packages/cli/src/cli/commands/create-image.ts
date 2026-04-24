@@ -20,9 +20,6 @@ import {
     generateExampleTool,
     generateExampleHook,
     generateExampleCompaction,
-    generateExampleCacheFactory,
-    generateExampleDatabaseFactory,
-    generateExampleBlobStoreFactory,
 } from '../utils/template-engine.js';
 import fs from 'fs-extra';
 import { getExecutionContext } from '@dexto/agent-management';
@@ -141,18 +138,6 @@ export async function createImage(name?: string): Promise<string> {
         const exampleCompactionCode = generateExampleCompaction('example-compaction');
         await fs.writeFile('compaction/example-compaction/index.ts', exampleCompactionCode);
 
-        await ensureDirectory('storage/cache/example-cache');
-        const exampleCacheCode = generateExampleCacheFactory('example-cache');
-        await fs.writeFile('storage/cache/example-cache/index.ts', exampleCacheCode);
-
-        await ensureDirectory('storage/database/example-database');
-        const exampleDatabaseCode = generateExampleDatabaseFactory('example-database');
-        await fs.writeFile('storage/database/example-database/index.ts', exampleDatabaseCode);
-
-        await ensureDirectory('storage/blob/example-blob');
-        const exampleBlobCode = generateExampleBlobStoreFactory('example-blob');
-        await fs.writeFile('storage/blob/example-blob/index.ts', exampleBlobCode);
-
         spinner.message('Generating configuration files...');
 
         // Create dexto.image.ts
@@ -248,9 +233,6 @@ export async function createImage(name?: string): Promise<string> {
             `\n${chalk.gray('Add your custom providers to the convention-based folders:')}`
         );
         console.log(`  ${chalk.gray('tools/')}            - Tool factories`);
-        console.log(`  ${chalk.gray('storage/blob/')}     - Blob storage factories`);
-        console.log(`  ${chalk.gray('storage/database/')} - Database factories`);
-        console.log(`  ${chalk.gray('storage/cache/')}    - Cache factories`);
         console.log(`  ${chalk.gray('compaction/')}       - Compaction factories`);
         console.log(`  ${chalk.gray('hooks/')}            - Hook factories`);
 

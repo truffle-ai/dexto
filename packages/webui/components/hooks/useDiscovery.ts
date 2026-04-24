@@ -21,5 +21,5 @@ export function useDiscovery(enabled: boolean = true) {
 
 // Export types using the standard inference pattern
 export type DiscoveryResponse = NonNullable<ReturnType<typeof useDiscovery>['data']>;
-export type DiscoveredFactory = DiscoveryResponse['blob'][number];
+export type DiscoveredFactory = DiscoveryResponse['storage'][number];
 export type ToolInfo = DiscoveryResponse['builtinTools'][number];

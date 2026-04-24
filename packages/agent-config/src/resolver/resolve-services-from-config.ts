@@ -1,5 +1,4 @@
 import type { Hook, Logger, Tool } from '@dexto/core';
-import { DatabaseBackedDextoStores } from '@dexto/core/storage';
 import type { ToolFactoryEntry, ValidatedAgentConfig } from '../schemas/agent-config.js';
 import type { DextoHostContext, DextoImage, ImageResolutionContext } from '../image/types.js';
 import type { ResolvedServices } from './types.js';
@@ -59,35 +58,8 @@ export async function resolveServicesFromConfig<
     const logger = image.logger.create(loggerConfig, resolutionContext);
 
     // 2) Storage
-    const blobFactory = resolveByType({
-        kind: 'blob storage',
-        type: config.storage.blob.type,
-        factories: image.storage.blob,
-        imageName,
-    });
-    const databaseFactory = resolveByType({
-        kind: 'database',
-        type: config.storage.database.type,
-        factories: image.storage.database,
-        imageName,
-    });
-    const cacheFactory = resolveByType({
-        kind: 'cache',
-        type: config.storage.cache.type,
-        factories: image.storage.cache,
-        imageName,
-    });
-
-    const blobConfig = blobFactory.configSchema.parse(config.storage.blob);
-    const databaseConfig = databaseFactory.configSchema.parse(config.storage.database);
-    const cacheConfig = cacheFactory.configSchema.parse(config.storage.cache);
-
-    const storageBackends = {
-        blobStore: await blobFactory.create(blobConfig, logger, resolutionContext),
-        database: await databaseFactory.create(databaseConfig, logger, resolutionContext),
-        cache: await cacheFactory.create(cacheConfig, logger, resolutionContext),
-    };
-    const stores = new DatabaseBackedDextoStores(storageBackends, logger);
+    const storageConfig = image.storage.configSchema.parse(config.storage);
+    const stores = await image.storage.createStores(storageConfig, logger, resolutionContext);
 
     // 3) Tools
     const toolEntries = config.tools ?? image.defaults?.tools ?? [];

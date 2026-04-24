@@ -1,8 +1,5 @@
 export type {
-    BlobStoreFactory,
-    CacheFactory,
     CompactionFactory,
-    DatabaseFactory,
     DextoImage,
     DextoHostContext,
     DextoImageRuntimeConfigOverrides,
@@ -10,6 +7,7 @@ export type {
     ImageResolutionContext,
     LoggerFactory,
     ResolveImageRuntimeConfigOptions,
+    StorageFactory,
     HookFactory,
     ToolFactory,
 } from './image/types.js';

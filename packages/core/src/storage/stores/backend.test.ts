@@ -5,17 +5,14 @@ import {
     createInMemoryCache,
     createInMemoryDatabase,
 } from '../../test-utils/in-memory-storage.js';
-import { DatabaseBackedDextoStores } from './database-backed.js';
+import { BackendDextoStores } from './backend.js';
 
-describe('DatabaseBackedDextoStores', () => {
+describe('BackendDextoStores', () => {
     it('adapts existing database, cache, and blob backends into typed stores', async () => {
         const database = createInMemoryDatabase();
         const cache = createInMemoryCache();
         const blobStore = createInMemoryBlobStore();
-        const stores = new DatabaseBackedDextoStores(
-            { cache, database, blobStore },
-            createMockLogger()
-        );
+        const stores = new BackendDextoStores({ cache, database, blobStore }, createMockLogger());
 
         await stores.connect();
         expect(stores.isConnected()).toBe(true);
@@ -43,14 +40,12 @@ describe('DatabaseBackedDextoStores', () => {
             sessionId: 'session-1',
             toolName: 'todo_write',
         });
-        await stores.getStore('cache').set({ key: 'cache-key', value: 'cache-value' });
         const artifact = await stores.getStore('artifacts').store({
             data: Buffer.from('artifact'),
             metadata: { mimeType: 'text/plain' },
         });
 
         expect(await database.getRange('messages:session-1', 0, 10)).toHaveLength(1);
-        expect(await cache.get('cache-key')).toBe('cache-value');
         expect(await stores.getStore('messageQueue').load({ sessionId: 'session-1' })).toEqual([
             {
                 id: 'queued-1',

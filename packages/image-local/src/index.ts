@@ -13,12 +13,16 @@ import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
 import {
     ContentPolicyHook,
+    BackendDextoStores,
     ResponseSanitizerHook,
     defaultLoggerFactory,
     NoOpCompactionStrategy,
     ReactiveOverflowCompactionStrategy,
+    type Logger,
 } from '@dexto/core';
 import {
+    StorageSchema,
+    type ValidatedStorageConfig,
     localBlobStoreFactory,
     inMemoryBlobStoreFactory,
     sqliteDatabaseFactory,
@@ -153,6 +157,50 @@ const reactiveOverflowCompactionFactory: CompactionFactory<ReactiveOverflowCompa
         }),
 };
 
+async function createLocalStores(config: ValidatedStorageConfig, logger: Logger) {
+    const blobStore =
+        config.blob.type === 'local'
+            ? await localBlobStoreFactory.create(
+                  localBlobStoreFactory.configSchema.parse(config.blob),
+                  logger
+              )
+            : await inMemoryBlobStoreFactory.create(
+                  inMemoryBlobStoreFactory.configSchema.parse(config.blob),
+                  logger
+              );
+
+    let database;
+    if (config.database.type === 'sqlite') {
+        database = await sqliteDatabaseFactory.create(
+            sqliteDatabaseFactory.configSchema.parse(config.database),
+            logger
+        );
+    } else if (config.database.type === 'postgres') {
+        database = await postgresDatabaseFactory.create(
+            postgresDatabaseFactory.configSchema.parse(config.database),
+            logger
+        );
+    } else {
+        database = await inMemoryDatabaseFactory.create(
+            inMemoryDatabaseFactory.configSchema.parse(config.database),
+            logger
+        );
+    }
+
+    const cache =
+        config.cache.type === 'redis'
+            ? await redisCacheFactory.create(
+                  redisCacheFactory.configSchema.parse(config.cache),
+                  logger
+              )
+            : await inMemoryCacheFactory.create(
+                  inMemoryCacheFactory.configSchema.parse(config.cache),
+                  logger
+              );
+
+    return new BackendDextoStores({ blobStore, database, cache }, logger);
+}
+
 const imageLocal: DextoImage = {
     metadata: {
         name: imageMetadata.name,
@@ -220,19 +268,8 @@ const imageLocal: DextoImage = {
         'agent-spawner': agentSpawnerToolsFactory,
     },
     storage: {
-        blob: {
-            local: localBlobStoreFactory,
-            'in-memory': inMemoryBlobStoreFactory,
-        },
-        database: {
-            sqlite: sqliteDatabaseFactory,
-            postgres: postgresDatabaseFactory,
-            'in-memory': inMemoryDatabaseFactory,
-        },
-        cache: {
-            'in-memory': inMemoryCacheFactory,
-            redis: redisCacheFactory,
-        },
+        configSchema: StorageSchema,
+        createStores: createLocalStores,
     },
     hooks: {
         'content-policy': contentPolicyFactory,

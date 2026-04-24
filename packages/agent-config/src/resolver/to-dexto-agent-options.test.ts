@@ -8,7 +8,7 @@ import type {
 import { AgentConfigSchema } from '../schemas/agent-config.js';
 import type { ResolvedServices } from './types.js';
 import { toDextoAgentOptions } from './to-dexto-agent-options.js';
-import { DatabaseBackedDextoStores } from '@dexto/core/storage';
+import { BackendDextoStores } from '@dexto/core/storage';
 import {
     createMockBlobStore,
     createMockCache,
@@ -19,7 +19,7 @@ import {
 
 describe('toDextoAgentOptions', () => {
     function createMockStores() {
-        return new DatabaseBackedDextoStores(
+        return new BackendDextoStores(
             {
                 blobStore: createMockBlobStore('in-memory'),
                 database: createMockDatabase('in-memory'),
@@ -41,24 +41,8 @@ describe('toDextoAgentOptions', () => {
                 },
             },
             storage: {
-                blob: {
-                    'in-memory': {
-                        configSchema: z.any(),
-                        create: () => createMockBlobStore('in-memory'),
-                    },
-                },
-                database: {
-                    'in-memory': {
-                        configSchema: z.any(),
-                        create: () => createMockDatabase('in-memory'),
-                    },
-                },
-                cache: {
-                    'in-memory': {
-                        configSchema: z.any(),
-                        create: () => createMockCache('in-memory'),
-                    },
-                },
+                configSchema: z.any(),
+                createStores: () => createMockStores(),
             },
             hooks: {},
             compaction: {},

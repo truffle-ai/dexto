@@ -14,7 +14,7 @@ import { PromptsSchema } from '../prompts/schemas.js';
 import { createLogger } from '../logger/factory.js';
 import type { SessionData } from './session-manager.js';
 import { ServersConfigSchema } from '../mcp/schemas.js';
-import { DatabaseBackedDextoStores, InMemoryDextoStores } from '../storage/index.js';
+import { BackendDextoStores, InMemoryDextoStores } from '../storage/index.js';
 import {
     createInMemoryBlobStore,
     createInMemoryCache,
@@ -401,7 +401,7 @@ describe('Session Integration: Core-owned Interaction State Persistence', () => 
             ...baseSettings,
             agentId,
             logger,
-            stores: new DatabaseBackedDextoStores(
+            stores: new BackendDextoStores(
                 {
                     blobStore: storage.blob,
                     cache: storage.cache,

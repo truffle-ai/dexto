@@ -8,10 +8,10 @@ import type { Logger } from '../../../logger/v2/types.js';
 // TODO: Re-evaluate storage + permissions config together to avoid duplication
 // Currently we have:
 // - InMemoryAllowedToolsProvider with its own Map<string, boolean>
-// - StorageAllowedToolsProvider using config.storage.database
-// - But config.storage.database might ALSO be in-memory (separate storage!)
-// This creates potential duplication when storage backend is in-memory.
-// Consider: Always use StorageAllowedToolsProvider and let storage backend handle memory vs persistence.
+// - StorageAllowedToolsProvider using the typed ToolPreferenceStore
+// - But an image may still back that store with in-memory storage
+// This creates potential duplication when both provider and store are in-memory.
+// Consider: Always use StorageAllowedToolsProvider and let store implementation handle memory vs persistence.
 
 export type AllowedToolsConfig =
     | {

@@ -1,6 +1,5 @@
 import type { ApprovalStore } from '../approvals/types.js';
 import type { ArtifactStore } from '../artifacts/types.js';
-import type { CacheStore } from '../cache-store/types.js';
 import type { ConversationStore } from '../conversation/types.js';
 import type { MemoryStore } from '../memories/types.js';
 import type { SessionMessageQueueStore } from '../message-queue/types.js';
@@ -22,7 +21,6 @@ export interface DextoStoreMap {
     messageQueue: SessionMessageQueueStore;
     customPrompts: CustomPromptStore;
     artifacts: ArtifactStore;
-    cache: CacheStore;
     runtimeEvents: RuntimeEventStore;
 }
 

@@ -2,7 +2,7 @@
 
 Bundler for convention-based Dexto images.
 
-It consumes a `dexto.image.ts` (metadata + defaults) and a convention folder layout (tools/storage/hooks/compaction),
+It consumes a `dexto.image.ts` (metadata + defaults) and a convention folder layout (tools/hooks/compaction),
 then produces a distributable package that **default-exports a typed `DextoImage`** (no side effects, no registries).
 
 ## CLI
@@ -24,9 +24,6 @@ Each `<type>/index.ts` must export a `factory` constant with `{ configSchema, cr
 
 ```
 tools/<type>/index.ts
-storage/blob/<type>/index.ts
-storage/database/<type>/index.ts
-storage/cache/<type>/index.ts
 hooks/<type>/index.ts
 compaction/<type>/index.ts
 ```
@@ -36,7 +33,8 @@ compaction/<type>/index.ts
 The generated default export matches `@dexto/agent-config`’s `DextoImage` interface:
 
 - `metadata` + optional `defaults`
-- `tools`, `storage.*`, `hooks`, `compaction` factory maps (keyed by config `type`)
+- `tools`, `hooks`, `compaction` factory maps (keyed by config `type`)
+- `storage.createStores` inherited from the base image, or a generated placeholder for custom base images
 - `logger` factory
 
 ## Related

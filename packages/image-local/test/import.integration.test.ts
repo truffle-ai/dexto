@@ -40,9 +40,8 @@ describe('Image Local - Import Integration', () => {
         expect(image.tools['creator-tools']).toBeDefined();
         expect(image.tools['agent-spawner']).toBeDefined();
 
-        expect(image.storage.blob['local']).toBeDefined();
-        expect(image.storage.database['sqlite']).toBeDefined();
-        expect(image.storage.cache['in-memory']).toBeDefined();
+        expect(image.storage.configSchema).toBeDefined();
+        expect(image.storage.createStores).toBeDefined();
 
         expect(image.hooks['content-policy']).toBeDefined();
         expect(image.hooks['response-sanitizer']).toBeDefined();

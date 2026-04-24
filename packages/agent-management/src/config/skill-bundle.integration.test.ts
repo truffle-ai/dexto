@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
     createLogger,
-    DatabaseBackedDextoStores,
+    BackendDextoStores,
     DextoAgent,
     LoggerConfigSchema,
     type BlobData,
@@ -296,7 +296,7 @@ function normalizeBlobReference(reference: string): string {
 }
 
 function createInMemoryStores(logger: Logger): DextoStores {
-    return new DatabaseBackedDextoStores(
+    return new BackendDextoStores(
         {
             blobStore: new InMemoryBlobStore(),
             database: new InMemoryDatabase(),

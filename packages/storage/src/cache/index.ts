@@ -9,13 +9,12 @@
  * - `redis`: Store data in Redis server
  *
  * ## Custom Factories
- * Product layers (CLI/server/platform) decide which factories are available by including them
- * in images (`DextoImage.storage.cache`).
+ * Image implementations decide which factories to use inside their `storage.createStores`
+ * implementation.
  *
  * ## Usage
- * Cache backends are typically constructed by the product-layer resolver (`@dexto/agent-config`)
- * via image-provided factory maps. For direct usage, call a factory's `create()` after validating
- * config with its `configSchema`.
+ * Cache backends are typically constructed by an image's storage implementation. For direct usage,
+ * call a factory's `create()` after validating config with its `configSchema`.
  */
 
 // Export public API

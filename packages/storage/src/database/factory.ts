@@ -5,8 +5,8 @@ import type { z } from 'zod';
 /**
  * Factory interface for creating database instances.
  *
- * Factories are plain exports (no global registries). Images decide which factories are
- * available by including them in `image.storage.database`.
+ * Factories are plain exports (no global registries). Image storage implementations decide
+ * which factories they use.
  */
 export interface DatabaseFactory<TConfig = unknown> {
     /**

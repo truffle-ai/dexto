@@ -14,7 +14,7 @@ export type GetAgentConfigPathFn = (
 const DiscoveredFactorySchema = z
     .object({
         type: z.string().describe('Factory type identifier'),
-        category: z.enum(['blob', 'database', 'compaction', 'tools']).describe('Factory category'),
+        category: z.enum(['storage', 'compaction', 'tools']).describe('Factory category'),
         metadata: z
             .object({
                 displayName: z.string().optional().describe('Human-readable display name'),
@@ -37,8 +37,7 @@ const ToolSchema = z
 
 const DiscoveryResponseSchema = z
     .object({
-        blob: z.array(DiscoveredFactorySchema).describe('Blob storage factories'),
-        database: z.array(DiscoveredFactorySchema).describe('Database factories'),
+        storage: z.array(DiscoveredFactorySchema).describe('Storage factory'),
         compaction: z.array(DiscoveredFactorySchema).describe('Compaction strategy factories'),
         toolFactories: z.array(DiscoveredFactorySchema).describe('Tool factories'),
         builtinTools: z.array(ToolSchema).describe('Built-in tools available for configuration'),
@@ -112,17 +111,13 @@ async function listDiscoveryFactories(options: {
 }) {
     const image = await resolveImage(options);
 
-    const blob = Object.entries(image.storage.blob).map(([type, factory]) => ({
-        type,
-        category: 'blob' as const,
-        metadata: toMetadata(factory.metadata),
-    }));
-
-    const database = Object.entries(image.storage.database).map(([type, factory]) => ({
-        type,
-        category: 'database' as const,
-        metadata: toMetadata(factory.metadata),
-    }));
+    const storage = [
+        {
+            type: 'stores',
+            category: 'storage' as const,
+            metadata: toMetadata(image.storage.metadata),
+        },
+    ];
 
     const compaction = Object.entries(image.compaction).map(([type, factory]) => ({
         type,
@@ -150,7 +145,7 @@ async function listDiscoveryFactories(options: {
             metadata: toMetadata(factory.metadata),
         }));
 
-    return { blob, database, compaction, toolFactories: toolFactoriesList, builtinTools };
+    return { storage, compaction, toolFactories: toolFactoriesList, builtinTools };
 }
 
 const discoveryRoute = createRoute({

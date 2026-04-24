@@ -17,7 +17,6 @@ import type {
     ArtifactStore,
     StoredArtifactMetadata,
 } from '../artifacts/types.js';
-import type { CacheStore } from '../cache-store/types.js';
 import type { ConversationStore } from '../conversation/types.js';
 import type { MemoryStore } from '../memories/types.js';
 import type { SessionMessageQueueStore } from '../message-queue/types.js';
@@ -452,41 +451,6 @@ class InMemoryArtifactStore implements ArtifactStore {
     }
 }
 
-type CacheEntry = {
-    value: unknown;
-    expiresAt?: number;
-};
-
-class InMemoryCacheStore implements CacheStore {
-    private readonly entries = new Map<string, CacheEntry>();
-
-    async get(input: { key: string }): Promise<unknown | undefined> {
-        const entry = this.entries.get(input.key);
-        if (!entry) {
-            return undefined;
-        }
-        if (entry.expiresAt !== undefined && Date.now() >= entry.expiresAt) {
-            this.entries.delete(input.key);
-            return undefined;
-        }
-        return structuredClone(entry.value);
-    }
-
-    async set(input: { key: string; value: unknown; ttlSeconds?: number }): Promise<void> {
-        const entry: CacheEntry = {
-            value: structuredClone(input.value),
-            ...(input.ttlSeconds !== undefined && {
-                expiresAt: Date.now() + input.ttlSeconds * 1000,
-            }),
-        };
-        this.entries.set(input.key, entry);
-    }
-
-    async delete(input: { key: string }): Promise<void> {
-        this.entries.delete(input.key);
-    }
-}
-
 class InMemoryRuntimeEventStore implements RuntimeEventStore {
     private readonly events: RuntimeEventRecord[] = [];
 
@@ -552,7 +516,6 @@ export class InMemoryDextoStores implements DextoStores {
         messageQueue: new InMemorySessionMessageQueueStore(),
         customPrompts: new InMemoryCustomPromptStore(),
         artifacts: new InMemoryArtifactStore(),
-        cache: new InMemoryCacheStore(),
         runtimeEvents: new InMemoryRuntimeEventStore(),
     };
 

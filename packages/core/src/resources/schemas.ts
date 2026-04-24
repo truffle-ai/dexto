@@ -79,8 +79,8 @@ export type ValidatedFileSystemResourceConfig = z.output<typeof FileSystemResour
  * Schema for blob storage resource configuration
  *
  * NOTE: This only enables the blob resource provider.
- * Actual blob storage settings (size limits, backend, cleanup) are configured
- * in the 'storage.blob' section of the agent config.
+ * Actual artifact storage settings (size limits, backend, cleanup) are configured
+ * by the loaded image's storage implementation.
  */
 const BlobResourceSchema = z
     .object({
@@ -88,7 +88,7 @@ const BlobResourceSchema = z
     })
     .strict()
     .describe(
-        'Blob resource provider configuration - actual storage settings are in storage.blob section'
+        'Blob resource provider configuration - actual storage settings come from the image storage implementation'
     );
 
 /**
