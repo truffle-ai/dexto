@@ -4,12 +4,14 @@ import type { BlobStore } from './blob/types.js';
 import { StorageError } from './errors.js';
 import type { Logger } from '../logger/v2/types.js';
 import { DextoLogComponent } from '../logger/v2/types.js';
+import { DatabaseBackedDextoStores } from './stores/database-backed.js';
+import type { DextoStoreMap, DextoStoreName, DextoStores } from './stores/types.js';
 
 const HEALTH_CHECK_KEY = 'storage_manager_health_check';
 
 /**
  * Storage manager that initializes and manages storage backends.
- * Handles cache, database, and blob backends with automatic fallbacks.
+ * Handles typed runtime stores with temporary access to low-level backends while callers migrate.
  *
  * Lifecycle:
  * 1. new StorageManager({ cache, database, blobStore }) - Creates manager with concrete backends
@@ -27,6 +29,7 @@ export class StorageManager {
     private cache: Cache;
     private database: Database;
     private blobStore: BlobStore;
+    private stores: DextoStores;
     private initialized = true;
     private connected = false;
     private logger: Logger;
@@ -36,6 +39,7 @@ export class StorageManager {
         this.database = backends.database;
         this.blobStore = backends.blobStore;
         this.logger = logger.createChild(DextoLogComponent.STORAGE);
+        this.stores = new DatabaseBackedDextoStores(backends, this.logger);
     }
 
     /**
@@ -59,35 +63,11 @@ export class StorageManager {
             return;
         }
 
-        // Establish connections with rollback on partial failure
-        const connected: ('cache' | 'database' | 'blob')[] = [];
         try {
-            await this.cache.connect();
-            connected.push('cache');
-
-            await this.database.connect();
-            connected.push('database');
-
-            await this.blobStore.connect();
-            connected.push('blob');
-
+            await this.stores.connect();
             this.connected = true;
         } catch (error) {
-            // Rollback: disconnect any stores that were successfully connected
-            this.logger.warn(
-                `Storage connection failed, rolling back ${connected.length} connected stores`
-            );
-            for (const store of connected.reverse()) {
-                try {
-                    if (store === 'cache') await this.cache.disconnect();
-                    else if (store === 'database') await this.database.disconnect();
-                    else if (store === 'blob') await this.blobStore.disconnect();
-                } catch (disconnectError) {
-                    this.logger.error(
-                        `Failed to rollback ${store} during connection failure: ${disconnectError}`
-                    );
-                }
-            }
+            await this.rollbackConnectionFailure();
             throw error;
         }
     }
@@ -95,43 +75,19 @@ export class StorageManager {
     async disconnect(): Promise<void> {
         if (!this.connected) return;
 
-        // Disconnect all stores concurrently, continue even if some fail
-        const results = await Promise.allSettled([
-            this.cache.disconnect(),
-            this.database.disconnect(),
-            this.blobStore.disconnect(),
-        ]);
-
-        // Track errors from failed disconnections
-        const errors: Error[] = [];
-        const storeNames = ['cache', 'database', 'blob store'];
-
-        results.forEach((result, index) => {
-            if (result.status === 'rejected') {
-                const storeName = storeNames[index];
-                const error = result.reason;
-                this.logger.error(`Failed to disconnect ${storeName}: ${error}`);
-                errors.push(error instanceof Error ? error : new Error(String(error)));
-            }
-        });
-
+        await this.stores.disconnect();
         this.connected = false;
-
-        // If any disconnections failed, throw an aggregated error
-        if (errors.length > 0) {
-            throw StorageError.connectionFailed(
-                `Failed to disconnect ${errors.length} storage backend(s): ${errors.map((e) => e.message).join(', ')}`
-            );
-        }
     }
 
     isConnected(): boolean {
-        return (
-            this.connected &&
-            this.cache.isConnected() &&
-            this.database.isConnected() &&
-            this.blobStore.isConnected()
-        );
+        return this.connected && this.stores.isConnected();
+    }
+
+    getStore<K extends DextoStoreName>(name: K): DextoStoreMap[K] {
+        if (!this.connected) {
+            throw StorageError.managerNotConnected('getStore');
+        }
+        return this.stores.getStore(name);
     }
 
     /**
@@ -247,5 +203,22 @@ export class StorageManager {
             blob: blobHealthy,
             overall: cacheHealthy && databaseHealthy && blobHealthy,
         };
+    }
+
+    private async rollbackConnectionFailure(): Promise<void> {
+        this.logger.warn('Storage connection failed, rolling back connected stores');
+        const results = await Promise.allSettled([
+            this.cache.isConnected() ? this.cache.disconnect() : Promise.resolve(),
+            this.database.isConnected() ? this.database.disconnect() : Promise.resolve(),
+            this.blobStore.isConnected() ? this.blobStore.disconnect() : Promise.resolve(),
+        ]);
+
+        for (const result of results) {
+            if (result.status === 'rejected') {
+                this.logger.error(
+                    `Failed to rollback storage connection: ${String(result.reason)}`
+                );
+            }
+        }
     }
 }
