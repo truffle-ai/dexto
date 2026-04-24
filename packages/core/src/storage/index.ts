@@ -29,6 +29,7 @@ export type {
 
 export { InMemoryDextoStores } from './stores/in-memory.js';
 export type { DextoStoreMap, DextoStoreName, DextoStores } from './stores/types.js';
+export { DatabaseConversationStore } from './conversation/database.js';
 export type { ConversationStore } from './conversation/types.js';
 export type { ApprovalStore } from './approvals/types.js';
 export type { ToolPreferenceStore } from './tool-preferences/types.js';
