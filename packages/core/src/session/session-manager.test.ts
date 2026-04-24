@@ -1703,7 +1703,7 @@ describe('SessionManager', () => {
             // But session should still exist in storage (not deleted)
             expect(mockStorageManager.database.delete).not.toHaveBeenCalledWith(sessionKey);
 
-            // Chat history should still be accessible through DatabaseHistoryProvider
+            // Chat history should still be accessible through the conversation store
             // (The actual history is stored separately from session metadata)
         });
 

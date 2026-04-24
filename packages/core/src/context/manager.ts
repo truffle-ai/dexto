@@ -26,7 +26,7 @@ import { getResourceKind } from './media-helpers.js';
 /**
  * Manages conversation history and provides message formatting capabilities for the LLM context.
  * The ContextManager is responsible for:
- * - Validating and storing conversation messages via the history provider
+ * - Validating and storing conversation messages via the conversation store
  * - Managing the system prompt
  * - Formatting messages for specific LLM providers through an injected formatter
  * - Providing access to conversation history
@@ -789,7 +789,7 @@ export class ContextManager<TMessage = unknown> {
         }
 
         this.logger.debug(
-            `ContextManager: Adding message to history provider: ${JSON.stringify(message, null, 2)}`
+            `ContextManager: Adding message to conversation store: ${JSON.stringify(message, null, 2)}`
         );
 
         // Save to conversation store
@@ -980,7 +980,7 @@ export class ContextManager<TMessage = unknown> {
      * @param contributorContext The DynamicContributorContext for system prompt contributors and formatting
      * @param llmContext The llmContext for the formatter to decide which messages to include based on the model's capabilities
      * @param systemPrompt (Optional) Precomputed system prompt string. If provided, it will be used instead of recomputing the system prompt. Useful for avoiding duplicate computation when both the formatted messages and the raw system prompt are needed in the same request.
-     * @param history (Optional) Pre-fetched and potentially compressed history. If not provided, will fetch from history provider.
+     * @param history (Optional) Pre-fetched and potentially compressed history. If not provided, will fetch from the conversation store.
      * @returns Formatted messages ready to send to the LLM provider API
      * @throws Error if formatting or compression fails critically
      */
