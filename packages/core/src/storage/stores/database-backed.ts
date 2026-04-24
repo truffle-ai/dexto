@@ -1,10 +1,9 @@
 import { z } from 'zod';
 import type { ApprovalRequest, ApprovalResponse } from '../../approval/types.js';
 import { ApprovalRequestSchema, ApprovalResponseSchema } from '../../approval/schemas.js';
-import type { SessionApprovalState } from '../../approval/session-approval-store.js';
 import type { QueuedMessage } from '../../session/types.js';
 import type { SessionToolPreferences } from '../../tools/session-tool-preferences-store.js';
-import type { ApprovalStore } from '../approvals/types.js';
+import type { ApprovalStore, SessionApprovalState } from '../approvals/types.js';
 import type {
     ArtifactData,
     ArtifactInput,

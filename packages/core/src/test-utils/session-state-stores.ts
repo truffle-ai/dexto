@@ -1,8 +1,9 @@
 import type { Logger } from '../logger/v2/types.js';
 import type { StorageManager } from '../storage/index.js';
-import { SessionApprovalStore } from '../approval/session-approval-store.js';
 import type { QueuedMessage } from '../session/types.js';
+import type { ApprovalStore } from '../storage/approvals/types.js';
 import type { SessionMessageQueueStore } from '../storage/message-queue/types.js';
+import { InMemoryDextoStores } from '../storage/stores/in-memory.js';
 import { SessionToolPreferencesStore } from '../tools/session-tool-preferences-store.js';
 import { createInMemoryCache, createInMemoryDatabase } from './in-memory-storage.js';
 
@@ -20,9 +21,10 @@ export function createInMemorySessionStateStorage(): SessionStateStorage {
 
 export function createInMemorySessionApprovalStore(
     logger: Logger,
-    storageManager: SessionStateStorage = createInMemorySessionStateStorage()
-): SessionApprovalStore {
-    return new SessionApprovalStore(storageManager as StorageManager, logger);
+    _storageManager: SessionStateStorage = createInMemorySessionStateStorage()
+): ApprovalStore {
+    void logger;
+    return new InMemoryDextoStores().getStore('approvals');
 }
 
 export function createInMemorySessionToolPreferencesStore(

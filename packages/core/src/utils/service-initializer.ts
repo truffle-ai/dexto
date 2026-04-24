@@ -24,7 +24,6 @@ import type { AgentRuntimeSettings } from '../agent/runtime-config.js';
 import { AgentEventBus } from '../events/index.js';
 import { ResourceManager } from '../resources/manager.js';
 import { ApprovalManager } from '../approval/manager.js';
-import { SessionApprovalStore } from '../approval/session-approval-store.js';
 import { MemoryManager } from '../memory/index.js';
 import { HookManager } from '../hooks/manager.js';
 import type { Hook } from '../hooks/types.js';
@@ -147,9 +146,7 @@ export async function createAgentServices(
     logger.debug('Storage manager initialized', await storageManager.getInfo());
 
     const sessionCacheTtlMs = config.sessions?.sessionTTL ?? 3600000;
-    const sessionApprovalStore = new SessionApprovalStore(storageManager, logger, {
-        cacheTtlMs: sessionCacheTtlMs,
-    });
+    const approvalStore = storageManager.getStore('approvals');
     const sessionToolPreferencesStore = new SessionToolPreferencesStore(storageManager, logger, {
         cacheTtlMs: sessionCacheTtlMs,
     });
@@ -182,7 +179,7 @@ export async function createAgentServices(
             },
         },
         logger,
-        sessionApprovalStore
+        approvalStore
     );
     logger.debug('Approval system initialized');
 

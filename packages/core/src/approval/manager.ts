@@ -17,11 +17,11 @@ import { DextoLogComponent } from '../logger/v2/types.js';
 import { ApprovalError } from './errors.js';
 import { patternCovers } from '../tools/pattern-utils.js';
 import type { PermissionsMode } from '../tools/schemas.js';
-import {
-    SessionApprovalStore,
-    type PersistedApprovedDirectory,
-    type SessionApprovalState,
-} from './session-approval-store.js';
+import type {
+    ApprovalStore,
+    PersistedApprovedDirectory,
+    SessionApprovalState,
+} from '../storage/approvals/types.js';
 
 const GLOBAL_APPROVAL_SCOPE = '__global__';
 
@@ -116,7 +116,7 @@ export class ApprovalManager {
     constructor(
         config: ApprovalManagerConfig,
         logger: Logger,
-        private readonly sessionApprovalStore: SessionApprovalStore
+        private readonly approvalStore: ApprovalStore
     ) {
         this.config = config;
         this.logger = logger.createChild(DextoLogComponent.APPROVAL);
@@ -132,6 +132,10 @@ export class ApprovalManager {
 
     private getScopeLabel(sessionId?: string): string {
         return sessionId ?? 'global';
+    }
+
+    private sessionScope(sessionId: string | undefined): { sessionId?: string } {
+        return sessionId === undefined ? {} : { sessionId };
     }
 
     private getApprovalTimeout(type: ApprovalType, timeout?: number): number | undefined {
@@ -205,7 +209,10 @@ export class ApprovalManager {
             toolPatterns: this.snapshotToolPatterns(scopeKey),
             approvedDirectories: this.snapshotApprovedDirectories(scopeKey),
         };
-        await this.sessionApprovalStore.save(sessionId, state);
+        await this.approvalStore.saveSessionState({
+            ...this.sessionScope(sessionId),
+            state,
+        });
     }
 
     private hydrateScope(sessionId: string | undefined, state: SessionApprovalState): void {
@@ -238,7 +245,7 @@ export class ApprovalManager {
                 return;
             }
 
-            const state = await this.sessionApprovalStore.load(sessionId);
+            const state = await this.approvalStore.loadSessionState(this.sessionScope(sessionId));
             this.hydrateScope(sessionId, state);
             this.loadedScopes.add(scopeKey);
 
@@ -260,7 +267,7 @@ export class ApprovalManager {
         const scopeKey = this.getScopeKey(sessionId);
         await this.runWithScopeLock(scopeKey, async () => {
             this.evictSessionState(sessionId);
-            await this.sessionApprovalStore.delete(sessionId);
+            await this.approvalStore.deleteSessionState(this.sessionScope(sessionId));
         });
     }
 

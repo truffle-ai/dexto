@@ -9,7 +9,7 @@ import { DextoRuntimeError } from '../errors/index.js';
 import { ApprovalErrorCode } from './error-codes.js';
 import { createMockLogger } from '../logger/v2/test-utils.js';
 import type { Logger } from '../logger/v2/types.js';
-import type { SessionApprovalState } from './session-approval-store.js';
+import type { SessionApprovalState } from '../storage/approvals/types.js';
 import { createInMemorySessionApprovalStore } from '../test-utils/session-state-stores.js';
 
 function createDeferred<T>() {
@@ -881,29 +881,27 @@ describe('ApprovalManager', () => {
                     approvedDirectories: [],
                 };
                 const store = {
-                    load: vi.fn().mockImplementation(async (requestedSessionId?: string) => {
+                    loadSessionState: vi.fn().mockImplementation(async (input) => {
                         return structuredClone(
-                            persistedState.get(requestedSessionId ?? '__global__') ?? emptyState
+                            persistedState.get(input.sessionId ?? '__global__') ?? emptyState
                         );
                     }),
-                    save: vi
-                        .fn()
-                        .mockImplementation(
-                            async (
-                                requestedSessionId: string | undefined,
-                                state: SessionApprovalState
-                            ) => {
-                                saveStarted.resolve();
-                                await releaseSave.promise;
-                                persistedState.set(
-                                    requestedSessionId ?? '__global__',
-                                    structuredClone(state)
-                                );
-                            }
-                        ),
-                    delete: vi.fn().mockImplementation(async (requestedSessionId?: string) => {
-                        persistedState.delete(requestedSessionId ?? '__global__');
+                    saveSessionState: vi.fn().mockImplementation(async (input) => {
+                        saveStarted.resolve();
+                        await releaseSave.promise;
+                        persistedState.set(
+                            input.sessionId ?? '__global__',
+                            structuredClone(input.state)
+                        );
                     }),
+                    deleteSessionState: vi.fn().mockImplementation(async (input) => {
+                        persistedState.delete(input.sessionId ?? '__global__');
+                    }),
+                    createRequest: vi.fn(),
+                    getRequest: vi.fn(),
+                    listPending: vi.fn(),
+                    saveResponse: vi.fn(),
+                    getResponse: vi.fn(),
                 };
                 const manager = new ApprovalManager(
                     {

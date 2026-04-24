@@ -1,5 +1,14 @@
 import type { ApprovalRequest, ApprovalResponse } from '../../approval/types.js';
-import type { SessionApprovalState } from '../../approval/session-approval-store.js';
+
+export interface PersistedApprovedDirectory {
+    path: string;
+    type: 'session' | 'once';
+}
+
+export interface SessionApprovalState {
+    toolPatterns: Record<string, string[]>;
+    approvedDirectories: PersistedApprovedDirectory[];
+}
 
 export interface ApprovalStore {
     createRequest(input: { request: ApprovalRequest }): Promise<void>;
