@@ -1,7 +1,12 @@
 import { z } from 'zod';
-import { ToolError, createLocalToolCallHeader, defineTool, truncateForHeader } from '@dexto/core';
-import type { Tool, ToolExecutionContext } from '@dexto/core';
-import type { SearchOptions } from '@dexto/core';
+import {
+    ToolError,
+    createLocalToolCallHeader,
+    defineTool,
+    truncateForHeader,
+} from '@dexto/core/tools';
+import type { SearchOptions } from '@dexto/core/search';
+import type { Tool, ToolExecutionContext } from '@dexto/core/tools';
 
 const SearchHistoryInputSchema = z
     .object({

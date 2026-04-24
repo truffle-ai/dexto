@@ -1,12 +1,9 @@
 import { z } from 'zod';
-import { ToolError, createLocalToolCallHeader, defineTool, flattenPromptResult } from '@dexto/core';
-import type {
-    McpServerConfig,
-    PromptInfo,
-    TaskForkOptions,
-    Tool,
-    ToolExecutionContext,
-} from '@dexto/core';
+import { ToolError, createLocalToolCallHeader, defineTool } from '@dexto/core/tools';
+import { flattenPromptResult } from '@dexto/core/prompts';
+import type { PromptInfo } from '@dexto/core/prompts';
+import type { McpServerConfig } from '@dexto/core/mcp';
+import type { TaskForkOptions, Tool, ToolExecutionContext } from '@dexto/core/tools';
 
 const InvokeSkillInputSchema = z
     .object({

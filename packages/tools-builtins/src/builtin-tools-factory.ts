@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import type { ToolFactory } from '@dexto/agent-config';
-import type { Tool } from '@dexto/core';
+import type { Tool } from '@dexto/core/tools';
 import { createAskUserTool } from './implementations/ask-user-tool.js';
 import { createDelegateToUrlTool } from './implementations/delegate-to-url-tool.js';
 import { createGetResourceTool } from './implementations/get-resource-tool.js';

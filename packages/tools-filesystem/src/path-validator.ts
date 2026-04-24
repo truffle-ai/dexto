@@ -7,7 +7,7 @@
 import * as path from 'node:path';
 import * as fs from 'node:fs/promises';
 import { FileSystemConfig, PathValidation } from './types.js';
-import type { Logger } from '@dexto/core';
+import type { Logger } from '@dexto/core/logger';
 import { expandHomeShorthand, resolveUserPath } from './path-utils.js';
 
 /**

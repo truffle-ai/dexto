@@ -7,11 +7,10 @@
 
 import * as path from 'node:path';
 import { z } from 'zod';
-import { createLocalToolCallHeader, defineTool, truncateForHeader } from '@dexto/core';
-import type { Tool, ToolExecutionContext } from '@dexto/core';
+import { createLocalToolCallHeader, defineTool, truncateForHeader } from '@dexto/core/tools';
+import type { ShellDisplayData, Tool, ToolExecutionContext } from '@dexto/core/tools';
 import { ProcessService } from './process-service.js';
 import { ProcessError } from './errors.js';
-import type { ShellDisplayData } from '@dexto/core';
 import {
     generateCommandPatternKey,
     generateCommandPatternSuggestions,

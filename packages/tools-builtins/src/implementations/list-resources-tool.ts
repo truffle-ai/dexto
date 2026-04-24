@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { ToolError, createLocalToolCallHeader, defineTool } from '@dexto/core';
-import type { Tool, ToolExecutionContext } from '@dexto/core';
+import { ToolError, createLocalToolCallHeader, defineTool } from '@dexto/core/tools';
+import type { Tool, ToolExecutionContext } from '@dexto/core/tools';
 
 const ListResourcesInputSchema = z
     .object({

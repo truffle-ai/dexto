@@ -11,7 +11,7 @@ import {
     SystemPromptConfigSchema,
     PermissionsConfigSchema,
     ResourcesConfigSchema,
-} from '@dexto/core';
+} from '@dexto/core/config';
 import { StorageSchema } from '@dexto/storage/schemas';
 import { z } from 'zod';
 import { HooksConfigSchema } from './hooks.js';

@@ -1,13 +1,7 @@
 import { z } from 'zod';
-import type { Tool, ToolExecutionContext } from '@dexto/core';
-import {
-    DextoRuntimeError,
-    ErrorScope,
-    ErrorType,
-    createLocalToolCallHeader,
-    defineTool,
-    truncateForHeader,
-} from '@dexto/core';
+import type { Tool, ToolExecutionContext } from '@dexto/core/tools';
+import { DextoRuntimeError, ErrorScope, ErrorType } from '@dexto/core/errors';
+import { createLocalToolCallHeader, defineTool, truncateForHeader } from '@dexto/core/tools';
 import { promises as dns, type LookupAddress, type LookupOptions } from 'node:dns';
 import { isIP } from 'node:net';
 import { TextDecoder } from 'node:util';

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { EnvExpandedString, ErrorScope, ErrorType, StorageErrorCode } from '@dexto/core';
+import { EnvExpandedString, ErrorScope, ErrorType, StorageErrorCode } from '@dexto/core/config';
 
 export const CACHE_TYPES = ['in-memory', 'redis'] as const;
 export type CacheType = (typeof CACHE_TYPES)[number];

@@ -6,8 +6,10 @@
  */
 
 import { nanoid } from 'nanoid';
-import type { Database, AgentEventBus, Logger } from '@dexto/core';
-import { DextoRuntimeError } from '@dexto/core';
+import type { AgentEventBus } from '@dexto/core/events';
+import type { Logger } from '@dexto/core/logger';
+import type { Database } from '@dexto/core/storage';
+import { DextoRuntimeError } from '@dexto/core/errors';
 import { TodoError } from './errors.js';
 import type { Todo, TodoInput, TodoUpdateResult, TodoConfig, TodoStatus } from './types.js';
 import { TODO_STATUS_VALUES } from './types.js';

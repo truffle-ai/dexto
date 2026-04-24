@@ -1,5 +1,5 @@
 import type { ToolFactory } from '@dexto/agent-config';
-import type { ToolExecutionContext } from '@dexto/core';
+import type { ToolExecutionContext } from '@dexto/core/tools';
 import { ProcessService } from './process-service.js';
 import { createBashExecTool } from './bash-exec-tool.js';
 import { createBashOutputTool } from './bash-output-tool.js';

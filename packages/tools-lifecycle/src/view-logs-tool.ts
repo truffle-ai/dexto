@@ -1,7 +1,7 @@
 import * as fs from 'node:fs/promises';
 import { z } from 'zod';
-import { ToolError, createLocalToolCallHeader, defineTool } from '@dexto/core';
-import type { Tool, ToolExecutionContext } from '@dexto/core';
+import { ToolError, createLocalToolCallHeader, defineTool } from '@dexto/core/tools';
+import type { Tool, ToolExecutionContext } from '@dexto/core/tools';
 
 const LOG_LEVEL_VALUES = ['debug', 'info', 'warn', 'error', 'silly'] as const;
 type LogLevel = (typeof LOG_LEVEL_VALUES)[number];

@@ -1,6 +1,6 @@
-import { DextoMcpClient, McpServerConfigSchema } from '@dexto/core';
-import { ToolError } from '@dexto/core';
-import type { Logger } from '@dexto/core';
+import { DextoMcpClient, McpServerConfigSchema } from '@dexto/core/mcp';
+import { ToolError } from '@dexto/core/tools';
+import type { Logger } from '@dexto/core/logger';
 
 const EXA_SERVER_URL = 'https://mcp.exa.ai/mcp';
 

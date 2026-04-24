@@ -1,6 +1,11 @@
 import { z } from 'zod';
-import { ToolError, createLocalToolCallHeader, defineTool, truncateForHeader } from '@dexto/core';
-import type { Tool, ToolExecutionContext } from '@dexto/core';
+import {
+    ToolError,
+    createLocalToolCallHeader,
+    defineTool,
+    truncateForHeader,
+} from '@dexto/core/tools';
+import type { Tool, ToolExecutionContext } from '@dexto/core/tools';
 
 const GetResourceInputSchema = z
     .object({

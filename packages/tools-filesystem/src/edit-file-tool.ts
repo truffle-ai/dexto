@@ -9,14 +9,13 @@ import { z } from 'zod';
 import { createPatch } from 'diff';
 import {
     createLocalToolCallHeader,
-    DextoRuntimeError,
     ToolError,
     ToolErrorCode,
     defineTool,
     truncateForHeader,
-} from '@dexto/core';
-import type { Tool, ToolExecutionContext } from '@dexto/core';
-import type { DiffDisplayData } from '@dexto/core';
+} from '@dexto/core/tools';
+import { DextoRuntimeError } from '@dexto/core/errors';
+import type { DiffDisplayData, Tool, ToolExecutionContext } from '@dexto/core/tools';
 import type { FileSystemServiceGetter } from './file-tool-types.js';
 import { FileSystemErrorCode } from './error-codes.js';
 import { createDirectoryAccessApprovalHandlers, resolveFilePath } from './directory-approval.js';

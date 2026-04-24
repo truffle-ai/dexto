@@ -1,5 +1,5 @@
 import type { ToolFactory } from '@dexto/agent-config';
-import type { Tool } from '@dexto/core';
+import type { Tool } from '@dexto/core/tools';
 import {
     LifecycleToolsConfigSchema,
     type LifecycleToolsConfig,

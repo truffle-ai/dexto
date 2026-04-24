@@ -1,6 +1,6 @@
 import type { ToolFactory } from '@dexto/agent-config';
-import type { ToolExecutionContext } from '@dexto/core';
-import { ToolError } from '@dexto/core';
+import type { ToolExecutionContext } from '@dexto/core/tools';
+import { ToolError } from '@dexto/core/tools';
 import { TodoService } from './todo-service.js';
 import { createTodoWriteTool, type TodoServiceGetter } from './todo-write-tool.js';
 import { TodoToolsConfigSchema, type TodoToolsConfig } from './tool-factory-config.js';

@@ -18,8 +18,8 @@ import {
 } from './types.js';
 import { CommandValidator } from './command-validator.js';
 import { ProcessError } from './errors.js';
-import type { Logger } from '@dexto/core';
-import { DextoLogComponent } from '@dexto/core';
+import type { Logger } from '@dexto/core/logger';
+import { DextoLogComponent } from '@dexto/core/logger';
 
 const DEFAULT_TIMEOUT = 120000; // 2 minutes
 

@@ -4,7 +4,7 @@
  * Provides typed errors for plan operations following the DextoRuntimeError pattern.
  */
 
-import { DextoRuntimeError, ErrorType } from '@dexto/core';
+import { DextoRuntimeError, ErrorType } from '@dexto/core/errors';
 
 /**
  * Error codes for plan operations

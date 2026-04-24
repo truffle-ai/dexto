@@ -1,7 +1,9 @@
 import * as path from 'node:path';
 import type { z, ZodTypeAny } from 'zod';
-import { ApprovalStatus, ApprovalType, ToolError } from '@dexto/core';
-import type { ApprovalRequestDetails, ApprovalResponse, ToolExecutionContext } from '@dexto/core';
+import { ApprovalStatus, ApprovalType } from '@dexto/core/approval';
+import type { ApprovalRequestDetails, ApprovalResponse } from '@dexto/core/approval';
+import { ToolError } from '@dexto/core/tools';
+import type { ToolExecutionContext } from '@dexto/core/tools';
 import type { FileSystemService } from './filesystem-service.js';
 import type { FileSystemServiceGetter } from './file-tool-types.js';
 import { resolveUserPath } from './path-utils.js';
