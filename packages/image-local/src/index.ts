@@ -23,13 +23,20 @@ import {
 import {
     StorageSchema,
     type ValidatedStorageConfig,
-    localBlobStoreFactory,
-    inMemoryBlobStoreFactory,
-    sqliteDatabaseFactory,
-    postgresDatabaseFactory,
-    inMemoryDatabaseFactory,
-    inMemoryCacheFactory,
-    redisCacheFactory,
+    LocalBlobStoreSchema,
+    InMemoryBlobStoreSchema,
+    SqliteDatabaseSchema,
+    PostgresDatabaseSchema,
+    InMemoryDatabaseSchema,
+    RedisCacheSchema,
+    InMemoryCacheSchema,
+    LocalBlobStore,
+    MemoryBlobStore,
+    SQLiteStore,
+    PostgresStore,
+    MemoryDatabaseStore,
+    RedisStore,
+    MemoryCacheStore,
 } from '@dexto/storage';
 import { builtinToolsFactory } from '@dexto/tools-builtins';
 import { fileSystemToolsFactory } from '@dexto/tools-filesystem';
@@ -158,45 +165,37 @@ const reactiveOverflowCompactionFactory: CompactionFactory<ReactiveOverflowCompa
 };
 
 async function createLocalStores(config: ValidatedStorageConfig, logger: Logger) {
-    const blobStore =
-        config.blob.type === 'local'
-            ? await localBlobStoreFactory.create(
-                  localBlobStoreFactory.configSchema.parse(config.blob),
-                  logger
-              )
-            : await inMemoryBlobStoreFactory.create(
-                  inMemoryBlobStoreFactory.configSchema.parse(config.blob),
-                  logger
-              );
-
-    let database;
-    if (config.database.type === 'sqlite') {
-        database = await sqliteDatabaseFactory.create(
-            sqliteDatabaseFactory.configSchema.parse(config.database),
-            logger
-        );
-    } else if (config.database.type === 'postgres') {
-        database = await postgresDatabaseFactory.create(
-            postgresDatabaseFactory.configSchema.parse(config.database),
-            logger
-        );
+    let blobStore;
+    if (config.blob.type === 'local') {
+        blobStore = new LocalBlobStore(LocalBlobStoreSchema.parse(config.blob), logger);
     } else {
-        database = await inMemoryDatabaseFactory.create(
-            inMemoryDatabaseFactory.configSchema.parse(config.database),
+        const memoryBlobConfig = InMemoryBlobStoreSchema.parse(config.blob);
+        blobStore = new MemoryBlobStore(
+            {
+                maxBlobSize: memoryBlobConfig.maxBlobSize,
+                maxTotalSize: memoryBlobConfig.maxTotalSize,
+            },
             logger
         );
     }
 
-    const cache =
-        config.cache.type === 'redis'
-            ? await redisCacheFactory.create(
-                  redisCacheFactory.configSchema.parse(config.cache),
-                  logger
-              )
-            : await inMemoryCacheFactory.create(
-                  inMemoryCacheFactory.configSchema.parse(config.cache),
-                  logger
-              );
+    let database;
+    if (config.database.type === 'sqlite') {
+        database = new SQLiteStore(SqliteDatabaseSchema.parse(config.database), logger);
+    } else if (config.database.type === 'postgres') {
+        database = new PostgresStore(PostgresDatabaseSchema.parse(config.database), logger);
+    } else {
+        InMemoryDatabaseSchema.parse(config.database);
+        database = new MemoryDatabaseStore();
+    }
+
+    let cache;
+    if (config.cache.type === 'redis') {
+        cache = new RedisStore(RedisCacheSchema.parse(config.cache), logger);
+    } else {
+        InMemoryCacheSchema.parse(config.cache);
+        cache = new MemoryCacheStore();
+    }
 
     return new BackendDextoStores({ blobStore, database, cache }, logger);
 }

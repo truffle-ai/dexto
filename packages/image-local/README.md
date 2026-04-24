@@ -7,7 +7,7 @@ This package default-exports a typed `DextoImage` (no side effects, no registrie
 
 ## What’s included
 
-- **Storage factories**: local filesystem blob store, SQLite database, in-memory cache (plus in-memory alternatives; Postgres/Redis factories are included but require optional deps)
+- **Storage**: local filesystem blob store, SQLite database, in-memory cache (plus in-memory alternatives; Postgres/Redis backends require optional deps)
 - **Tool factories**: builtin, filesystem, process, todo, plan, agent-spawner
 - **Hooks**: content-policy, response-sanitizer
 - **Compaction**: reactive-overflow, noop

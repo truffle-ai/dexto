@@ -73,5 +73,5 @@ Images are typed modules (`DextoImage`) that export plain factory surfaces.
 Tool/hook/compaction resolution still uses property access by config `type`
 (e.g., `image.tools[entry.type]`). Storage is resolved by the image as one
 `createStores(config.storage, ...)` call so images can compose or directly implement
-`DextoStores` without exposing low-level backend factories. There are no global registries or side
-effects.
+`DextoStores` without exposing lower-level backend construction details. There are no global
+registries or side effects.

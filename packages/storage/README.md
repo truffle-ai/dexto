@@ -1,10 +1,10 @@
 # `@dexto/storage`
 
-Concrete storage backend helpers (blob store, database, cache) and their config schemas/factories.
+Concrete storage backend implementations (blob store, database, cache) and their config schemas.
 
 Core (`@dexto/core`) owns typed domain store contracts such as `ConversationStore`,
-`SessionStore`, `MemoryStore`, `ArtifactStore`, and `ToolStateStore`. This package provides the
-low-level backend factories (`BlobStore`, `Database`, `Cache`) that image implementations can use
+`SessionStore`, `MemoryStore`, `ArtifactStore`, and `ToolStateStore`. This package provides Node
+backend implementations (`BlobStore`, `Database`, `Cache`) that image implementations can use
 internally to compose a `DextoStores` implementation.
 
 Product layers (CLI/server/apps) can either use these helpers inside an image or provide a
@@ -12,10 +12,6 @@ native `DextoStores` implementation directly.
 
 ## What this package exports
 
-- **Factories** (for image modules):
-  - Blob: `localBlobStoreFactory`, `inMemoryBlobStoreFactory`
-  - Database: `sqliteDatabaseFactory`, `postgresDatabaseFactory`, `inMemoryDatabaseFactory`
-  - Cache: `inMemoryCacheFactory`, `redisCacheFactory`
 - **Schemas** (for config parsing + UI):
   - Import from `@dexto/storage/schemas` for browser-safe schema-only exports.
 - **Concrete implementations** (Node runtime):
@@ -27,10 +23,12 @@ native `DextoStores` implementation directly.
 import type { DextoImage } from '@dexto/agent-config';
 import { BackendDextoStores } from '@dexto/core/storage';
 import {
-  localBlobStoreFactory,
-  sqliteDatabaseFactory,
-  inMemoryCacheFactory,
   StorageSchema,
+  LocalBlobStore,
+  LocalBlobStoreSchema,
+  SQLiteStore,
+  SqliteDatabaseSchema,
+  MemoryCacheStore,
 } from '@dexto/storage';
 
 export const myImage: DextoImage = {
@@ -38,9 +36,9 @@ export const myImage: DextoImage = {
   storage: {
     configSchema: StorageSchema,
     async createStores(config, logger) {
-      const blobStore = await localBlobStoreFactory.create(config.blob, logger);
-      const database = await sqliteDatabaseFactory.create(config.database, logger);
-      const cache = await inMemoryCacheFactory.create(config.cache, logger);
+      const blobStore = new LocalBlobStore(LocalBlobStoreSchema.parse(config.blob), logger);
+      const database = new SQLiteStore(SqliteDatabaseSchema.parse(config.database), logger);
+      const cache = new MemoryCacheStore();
       return new BackendDextoStores({ blobStore, database, cache }, logger);
     },
   },

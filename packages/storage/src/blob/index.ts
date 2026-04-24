@@ -2,23 +2,12 @@
  * Blob Storage Module
  *
  * This module provides a flexible blob storage system with support for
- * multiple backends through a factory pattern.
- *
- * ## Built-in Factories
- * - `local`: Store blobs on the local filesystem
- * - `in-memory`: Store blobs in RAM (for testing/development)
- *
- * ## Custom Factories
- * Image implementations decide which factories to use inside their `storage.createStores`
- * implementation.
+ * multiple concrete backends.
  *
  * ## Usage
- * Blob stores are typically constructed by an image's storage implementation. For direct usage,
- * call a factory's `create()` after validating config with its `configSchema`.
+ * Blob stores are typically constructed by an image's storage implementation after validating
+ * config with the matching schema.
  */
-
-// Export public API
-export type { BlobStoreFactory } from './factory.js';
 
 // Export types and interfaces
 export type {
@@ -30,9 +19,6 @@ export type {
     BlobStats,
     StoredBlobMetadata,
 } from './types.js';
-
-// Export built-in factories (plain exports; no registries)
-export { localBlobStoreFactory, inMemoryBlobStoreFactory } from './factories/index.js';
 
 // Export schemas and config types
 export {

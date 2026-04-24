@@ -107,5 +107,5 @@ export type BlobStoreConfig =
     | LocalBlobStoreConfig
     | { type: string; [key: string]: unknown }; // Custom backend configs
 
-// Export individual schemas for use in factories
+// Export individual schemas for image-level config resolution.
 export { InMemoryBlobStoreSchema, LocalBlobStoreSchema };
