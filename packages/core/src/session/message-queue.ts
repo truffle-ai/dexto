@@ -2,23 +2,22 @@ import type { SessionEventBus } from '../events/index.js';
 import type { QueuedMessage, CoalescedMessage } from './types.js';
 import type { ContentPart } from '../context/types.js';
 import type { Logger } from '../logger/v2/types.js';
-import type { MessageQueueStore } from './message-queue-store.js';
+import type { SessionMessageQueueStore } from '../storage/message-queue/types.js';
 
-type MessageQueueBackingStore = Pick<MessageQueueStore, 'load' | 'save' | 'delete'>;
+type MessageQueueBackingStore = SessionMessageQueueStore;
 
 class EphemeralMessageQueueStore implements MessageQueueBackingStore {
-    async load(sessionId: string): Promise<QueuedMessage[]> {
-        void sessionId;
+    async load(input: { sessionId: string }): Promise<QueuedMessage[]> {
+        void input;
         return [];
     }
 
-    async save(sessionId: string, queue: QueuedMessage[]): Promise<void> {
-        void sessionId;
-        void queue;
+    async save(input: { sessionId: string; queue: QueuedMessage[] }): Promise<void> {
+        void input;
     }
 
-    async delete(sessionId: string): Promise<void> {
-        void sessionId;
+    async delete(input: { sessionId: string }): Promise<void> {
+        void input;
     }
 }
 
@@ -103,7 +102,7 @@ export class MessageQueueService {
                 return;
             }
 
-            this.queue = await this.store.load(this.sessionId);
+            this.queue = await this.store.load({ sessionId: this.sessionId });
             if (this.queue.length > 0) {
                 this.logger.debug(
                     `Restored ${this.queue.length} queued message(s) for session ${this.sessionId}`
@@ -120,7 +119,7 @@ export class MessageQueueService {
     }
 
     private async persistQueue(): Promise<void> {
-        await this.store.save(this.sessionId, this.queue);
+        await this.store.save({ sessionId: this.sessionId, queue: this.queue });
     }
 
     private runWithMutationLock<T>(fn: () => Promise<T>): Promise<T> {

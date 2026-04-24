@@ -1,8 +1,8 @@
 import type { Logger } from '../logger/v2/types.js';
 import type { StorageManager } from '../storage/index.js';
 import { SessionApprovalStore } from '../approval/session-approval-store.js';
-import type { MessageQueueStore } from '../session/message-queue-store.js';
 import type { QueuedMessage } from '../session/types.js';
+import type { SessionMessageQueueStore } from '../storage/message-queue/types.js';
 import { SessionToolPreferencesStore } from '../tools/session-tool-preferences-store.js';
 import { createInMemoryCache, createInMemoryDatabase } from './in-memory-storage.js';
 
@@ -32,26 +32,23 @@ export function createInMemorySessionToolPreferencesStore(
     return new SessionToolPreferencesStore(storageManager as StorageManager, logger);
 }
 
-export function createInMemoryMessageQueueStore(): Pick<
-    MessageQueueStore,
-    'load' | 'save' | 'delete'
-> {
+export function createInMemoryMessageQueueStore(): SessionMessageQueueStore {
     const queues = new Map<string, QueuedMessage[]>();
 
     return {
-        async load(sessionId: string): Promise<QueuedMessage[]> {
-            return structuredClone(queues.get(sessionId) ?? []);
+        async load(input: { sessionId: string }): Promise<QueuedMessage[]> {
+            return structuredClone(queues.get(input.sessionId) ?? []);
         },
-        async save(sessionId: string, queue: QueuedMessage[]): Promise<void> {
-            if (queue.length === 0) {
-                queues.delete(sessionId);
+        async save(input: { sessionId: string; queue: QueuedMessage[] }): Promise<void> {
+            if (input.queue.length === 0) {
+                queues.delete(input.sessionId);
                 return;
             }
 
-            queues.set(sessionId, structuredClone(queue));
+            queues.set(input.sessionId, structuredClone(input.queue));
         },
-        async delete(sessionId: string): Promise<void> {
-            queues.delete(sessionId);
+        async delete(input: { sessionId: string }): Promise<void> {
+            queues.delete(input.sessionId);
         },
     };
 }

@@ -24,7 +24,7 @@ import { DextoRuntimeError, ErrorScope, ErrorType } from '../errors/index.js';
 import { HookErrorCode } from '../hooks/error-codes.js';
 import type { InternalMessage, ContentPart } from '../context/types.js';
 import { MessageQueueService, type UserMessageInput } from './message-queue.js';
-import type { MessageQueueStore } from './message-queue-store.js';
+import type { SessionMessageQueueStore } from '../storage/message-queue/types.js';
 import type { ContentInput } from '../agent/types.js';
 import { getUsagePricingMetadata, hasMeaningfulTokenUsage } from '../llm/usage-metadata.js';
 import type { CompactionStrategy } from '../context/compaction/types.js';
@@ -150,7 +150,7 @@ export class ChatSession {
             hookManager: HookManager;
             mcpManager: MCPManager;
             sessionManager: import('./session-manager.js').SessionManager;
-            messageQueueStore: Pick<MessageQueueStore, 'load' | 'save' | 'delete'>;
+            messageQueueStore: SessionMessageQueueStore;
             languageModelFactory?: LanguageModelFactory;
             workspaceManager?: import('../workspace/manager.js').WorkspaceManager;
             compactionStrategy: CompactionStrategy | null;

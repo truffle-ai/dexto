@@ -282,8 +282,12 @@ describe('SessionManager', () => {
 
             await sessionManager.init();
 
-            expect(mockServices.messageQueueStore.delete).toHaveBeenCalledWith('session-1');
-            expect(mockServices.messageQueueStore.delete).toHaveBeenCalledWith('session-2');
+            expect(mockServices.messageQueueStore.delete).toHaveBeenCalledWith({
+                sessionId: 'session-1',
+            });
+            expect(mockServices.messageQueueStore.delete).toHaveBeenCalledWith({
+                sessionId: 'session-2',
+            });
         });
 
         test('should restore valid sessions from persistent storage on startup', async () => {
@@ -327,7 +331,9 @@ describe('SessionManager', () => {
             expect(mockServices.approvalManager.deleteSessionState).toHaveBeenCalledWith(
                 'expired-session'
             );
-            expect(mockServices.messageQueueStore.delete).toHaveBeenCalledWith('expired-session');
+            expect(mockServices.messageQueueStore.delete).toHaveBeenCalledWith({
+                sessionId: 'expired-session',
+            });
             expect(mockServices.stateManager.clearSessionOverride).toHaveBeenCalledWith(
                 'expired-session'
             );
@@ -1198,7 +1204,9 @@ describe('SessionManager', () => {
 
             await sessionManager.cleanup();
 
-            expect(mockServices.messageQueueStore.delete).toHaveBeenCalledWith('session-1');
+            expect(mockServices.messageQueueStore.delete).toHaveBeenCalledWith({
+                sessionId: 'session-1',
+            });
         });
 
         test('should handle cleanup errors gracefully', async () => {

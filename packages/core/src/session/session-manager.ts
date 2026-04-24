@@ -19,7 +19,7 @@ import {
     SessionPromptContributorSchema,
     type SessionPromptContributor,
 } from '../systemPrompt/schemas.js';
-import type { MessageQueueStore } from './message-queue-store.js';
+import type { SessionMessageQueueStore } from '../storage/message-queue/types.js';
 export type SessionLoggerFactory = (options: {
     baseLogger: Logger;
     agentId: string;
@@ -148,7 +148,7 @@ export class SessionManager {
             resourceManager: import('../resources/index.js').ResourceManager;
             hookManager: HookManager;
             mcpManager: import('../mcp/manager.js').MCPManager;
-            messageQueueStore: Pick<MessageQueueStore, 'load' | 'save' | 'delete'>;
+            messageQueueStore: SessionMessageQueueStore;
             compactionStrategy: CompactionStrategy | null;
             workspaceManager?: import('../workspace/manager.js').WorkspaceManager;
         },
@@ -258,9 +258,9 @@ export class SessionManager {
 
             await Promise.all(
                 queueKeys.map((key) =>
-                    this.services.messageQueueStore.delete(
-                        key.slice(SessionManager.MESSAGE_QUEUE_KEY_PREFIX.length)
-                    )
+                    this.services.messageQueueStore.delete({
+                        sessionId: key.slice(SessionManager.MESSAGE_QUEUE_KEY_PREFIX.length),
+                    })
                 )
             );
 
@@ -1361,7 +1361,7 @@ export class SessionManager {
         await Promise.all([
             this.services.toolManager.deleteSessionState(sessionId),
             this.services.approvalManager.deleteSessionState(sessionId),
-            this.services.messageQueueStore.delete(sessionId),
+            this.services.messageQueueStore.delete({ sessionId }),
         ]);
     }
 

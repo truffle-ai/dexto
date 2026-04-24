@@ -309,8 +309,8 @@ describe('MessageQueueService', () => {
                     loadStarted.resolve();
                     return await releaseLoad.promise;
                 }),
-                save: vi.fn().mockImplementation(async (_sessionId, nextQueue) => {
-                    savedQueues.push(structuredClone(nextQueue));
+                save: vi.fn().mockImplementation(async (input) => {
+                    savedQueues.push(structuredClone(input.queue));
                 }),
                 delete: vi.fn().mockResolvedValue(undefined),
             });

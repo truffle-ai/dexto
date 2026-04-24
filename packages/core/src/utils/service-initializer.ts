@@ -29,7 +29,6 @@ import { MemoryManager } from '../memory/index.js';
 import { HookManager } from '../hooks/manager.js';
 import type { Hook } from '../hooks/types.js';
 import type { CompactionStrategy } from '../context/compaction/types.js';
-import { MessageQueueStore } from '../session/message-queue-store.js';
 import { SessionToolPreferencesStore } from '../tools/session-tool-preferences-store.js';
 import type { LanguageModelFactory } from '../llm/services/types.js';
 
@@ -154,9 +153,7 @@ export async function createAgentServices(
     const sessionToolPreferencesStore = new SessionToolPreferencesStore(storageManager, logger, {
         cacheTtlMs: sessionCacheTtlMs,
     });
-    const messageQueueStore = new MessageQueueStore(storageManager, logger, {
-        cacheTtlMs: sessionCacheTtlMs,
-    });
+    const messageQueueStore = storageManager.getStore('messageQueue');
 
     // 2.5 Initialize workspace manager (uses persistent database)
     const workspaceManager = new WorkspaceManager(
