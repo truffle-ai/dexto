@@ -25,7 +25,7 @@ See [Core Services](./services.md) for detailed information about:
 - **MCPManager** - Tool coordination
 - **ToolManager** - Tool execution
 - **SessionManager** - Conversation state
-- **StorageManager** - Data persistence
+- **DextoStores** - Typed storage domains for conversation, sessions, memory, artifacts, tools, and runtime state
 - **SystemPromptManager** - System prompts
 - **AgentEventBus** - Event coordination
 - **Telemetry** - Distributed tracing and observability

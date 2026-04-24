@@ -12,7 +12,7 @@ Dexto's architecture is built around core services that handle different aspects
 | **MCPManager** | Tool coordination | Connects to MCP servers, manages tools and resources |
 | **ToolManager** | Tool execution | Executes tools, handles confirmations, manages internal tools |
 | **SessionManager** | Conversation state | Manages chat sessions, conversation history |
-| **StorageManager** | Data persistence | Handles cache and database storage |
+| **DextoStores** | Data persistence | Provides typed stores for conversations, sessions, memory, artifacts, tools, and runtime state |
 | **SystemPromptManager** | System prompts | Manages system prompt assembly and dynamic content |
 | **AgentEventBus** | Event coordination | Handles inter-service communication |
 
@@ -25,26 +25,28 @@ graph TB
     DA --> MM[MCPManager]
     DA --> TM[ToolManager]
     DA --> SPM[SystemPromptManager]
-    DA --> STM[StorageManager]
+    DA --> DS[DextoStores]
     DA --> AEB[AgentEventBus]
 
     MM --> TM
-    TM --> STM
-    SM --> STM
-    SPM --> STM
+    TM --> DS
+    SM --> DS
+    SPM --> DS
 
     AEB -.-> SM
     AEB -.-> MM
     AEB -.-> TM
 
     subgraph "Storage Layer"
-        STM
+        DS
         Cache[(Cache)]
         DB[(Database)]
+        Blob[(Blob Store)]
     end
 
-    STM --> Cache
-    STM --> DB
+    DS --> Cache
+    DS --> DB
+    DS --> Blob
 ```
 </ExpandableMermaid>
 
@@ -162,13 +164,19 @@ const response = await agent.generate("Hello", session.id);
 console.log(response.content);
 ```
 
-## StorageManager
+## DextoStores
 
-**Data persistence** using two-tier architecture.
+**Data persistence** through typed domain stores.
 
-### Storage Tiers
+Core services depend on narrow stores such as `ConversationStore`, `SessionStore`, `MemoryStore`,
+`ArtifactStore`, and `ToolStateStore`. Product/image layers still configure low-level cache,
+database, and blob backends, and `@dexto/agent-config` composes them into a `DextoStores`
+implementation for the agent.
+
+### Backend Tiers
 - **Cache** - Fast, ephemeral (Redis or in-memory)
 - **Database** - Persistent, reliable (PostgreSQL, SQLite)
+- **Blob store** - Artifact/resource data (local or in-memory)
 
 ### Backends
 | Backend | Use Case | Configuration |
@@ -272,8 +280,8 @@ const failedConnections = agent.mcpManager.getFailedConnections();
 // Check tool availability
 const toolStats = await agent.toolManager.getToolStats();
 
-// Check storage status
-const storageHealth = agent.storageManager.getStatus();
+// Inspect a typed store directly when debugging
+const sessions = await agent.services.stores.getStore('sessions').listSessionIds();
 ```
 
 ### Common Issues

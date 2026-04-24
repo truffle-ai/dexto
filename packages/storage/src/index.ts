@@ -3,8 +3,8 @@
  *
  * Concrete storage backends + config schemas + factory objects.
  *
- * Core keeps only the storage *interfaces* (`BlobStore`, `Database`, `Cache`) and `StorageManager`.
- * Product layers (CLI/server/platform) choose which factories to include via images.
+ * Core keeps typed domain store contracts. This package provides low-level backend factories that
+ * image/config resolution composes into `DextoStores`.
  */
 
 export type { StorageConfig, ValidatedStorageConfig } from './schemas.js';

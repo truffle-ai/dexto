@@ -2,7 +2,11 @@
 
 Concrete storage backends (blob store, database, cache) and their config schemas/factories.
 
-Core (`@dexto/core`) owns the **interfaces** (`BlobStore`, `Database`, `Cache`) and `StorageManager`.
+Core (`@dexto/core`) owns typed domain store contracts such as `ConversationStore`,
+`SessionStore`, `MemoryStore`, `ArtifactStore`, and `ToolStateStore`. This package provides the
+low-level backend factories (`BlobStore`, `Database`, `Cache`) that image/config resolution can use
+to compose a `DextoStores` implementation.
+
 Product layers (CLI/server/apps) choose which concrete backends are available by including factories
 in an image (`DextoImage.storage.*`) and resolving config via `@dexto/agent-config`.
 
