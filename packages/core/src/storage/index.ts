@@ -26,3 +26,22 @@ export type {
     BlobData,
     BlobStats,
 } from './blob/types.js';
+
+export { InMemoryDextoStores } from './stores/in-memory.js';
+export type { DextoStoreMap, DextoStoreName, DextoStores } from './stores/types.js';
+export type { ConversationStore } from './conversation/types.js';
+export type { ApprovalStore } from './approvals/types.js';
+export type { ToolPreferenceStore } from './tool-preferences/types.js';
+export type { SessionMessageQueueStore } from './message-queue/types.js';
+export type {
+    ArtifactData,
+    ArtifactFormat,
+    ArtifactInput,
+    ArtifactMetadata,
+    ArtifactReference,
+    ArtifactStats,
+    ArtifactStore,
+    StoredArtifactMetadata,
+} from './artifacts/types.js';
+export type { CacheStore } from './cache-store/types.js';
+export type { RuntimeEventRecord, RuntimeEventStore } from './runtime-events/types.js';
