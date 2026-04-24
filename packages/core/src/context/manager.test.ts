@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ContextManager } from './manager.js';
-import { MemoryHistoryProvider } from '../session/history/memory.js';
 import { createMockLogger } from '../logger/v2/test-utils.js';
 import type { ContentPart, InternalMessage, SanitizedToolResult } from './types.js';
 import type { ValidatedLLMConfig } from '../llm/schemas.js';
@@ -10,6 +9,7 @@ import type { ResourceManager } from '../resources/manager.js';
 import type { BlobStore } from '../storage/blob/types.js';
 import type { DynamicContributorContext } from '../systemPrompt/types.js';
 import type { MCPManager } from '../mcp/manager.js';
+import { InMemoryDextoStores } from '../storage/stores/in-memory.js';
 
 // Create mock dependencies
 const mockLogger = createMockLogger();
@@ -77,7 +77,7 @@ function createContextManager(options?: {
     systemPromptManager?: SystemPromptManager;
     resourceManager?: ResourceManager;
 }) {
-    const historyProvider = new MemoryHistoryProvider(mockLogger);
+    const conversationStore = new InMemoryDextoStores().getStore('conversation');
     const formatter = options?.formatter ?? createMockFormatter();
     const systemPromptManager = options?.systemPromptManager ?? createMockSystemPromptManager();
     const resourceManager = options?.resourceManager ?? createMockResourceManager();
@@ -88,7 +88,7 @@ function createContextManager(options?: {
         formatter,
         systemPromptManager,
         4096, // maxInputTokens
-        historyProvider,
+        conversationStore,
         'test-session-id',
         resourceManager,
         mockLogger

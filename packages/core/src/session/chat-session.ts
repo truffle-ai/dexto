@@ -1,14 +1,14 @@
 import { randomUUID } from 'crypto';
-import { createDatabaseHistoryProvider } from './history/factory.js';
 import { createLLMService } from '../llm/services/factory.js';
 import type { ContextManager } from '../context/index.js';
-import type { ConversationHistoryProvider } from './history/types.js';
 import type { CreateLLMServiceOptions, LanguageModelFactory } from '../llm/services/types.js';
 import type { SystemPromptManager } from '../systemPrompt/manager.js';
 import type { ToolManager } from '../tools/tool-manager.js';
 import type { ValidatedLLMConfig } from '../llm/schemas.js';
 import type { AgentStateManager } from '../agent/state-manager.js';
 import type { StorageManager } from '../storage/index.js';
+import { DatabaseConversationStore } from '../storage/index.js';
+import type { ConversationStore } from '../storage/index.js';
 import type { HookManager } from '../hooks/manager.js';
 import type { MCPManager } from '../mcp/manager.js';
 import type { BeforeLLMRequestPayload, BeforeResponsePayload } from '../hooks/types.js';
@@ -92,10 +92,10 @@ export class ChatSession {
     public readonly eventBus: SessionEventBus;
 
     /**
-     * History provider that persists conversation messages.
+     * Store that persists conversation messages.
      * Shared across LLM switches to maintain conversation continuity.
      */
-    private historyProvider!: ConversationHistoryProvider;
+    private conversationStore!: ConversationStore;
 
     /**
      * Handles AI model interactions, tool execution, and response generation for this session.
@@ -131,7 +131,7 @@ export class ChatSession {
      * Creates a new ChatSession instance.
      *
      * Each session creates its own isolated services:
-     * - ConversationHistoryProvider (with session-specific storage, shared across LLM switches)
+     * - ConversationStore (with session-specific storage, shared across LLM switches)
      * - LLM service (creates its own properly-typed ContextManager internally)
      * - SessionEventBus (session-local event handling)
      *
@@ -266,11 +266,10 @@ export class ChatSession {
 
         await this.messageQueue.initialize();
 
-        // Create session-specific history provider directly with database backend
+        // Create conversation store directly with database backend
         // This persists across LLM switches to maintain conversation history
-        this.historyProvider = createDatabaseHistoryProvider(
+        this.conversationStore = new DatabaseConversationStore(
             this.services.storageManager.getDatabase(),
-            this.id,
             this.logger
         );
 
@@ -295,7 +294,7 @@ export class ChatSession {
             llmConfig,
             this.services.toolManager,
             this.services.systemPromptManager,
-            this.historyProvider,
+            this.conversationStore,
             this.eventBus,
             this.id,
             this.services.resourceManager,
@@ -344,8 +343,8 @@ export class ChatSession {
         };
 
         // Add both messages to history
-        await this.historyProvider.saveMessage(userMessage);
-        await this.historyProvider.saveMessage(assistantMessage);
+        await this.conversationStore.saveMessage({ sessionId: this.id, message: userMessage });
+        await this.conversationStore.saveMessage({ sessionId: this.id, message: assistantMessage });
 
         // Emit response event so UI updates immediately on blocked interactions
         // This ensures listeners relying on llm:response know a response was added
@@ -614,7 +613,7 @@ export class ChatSession {
      * ```
      */
     public async getHistory() {
-        return await this.historyProvider.getHistory();
+        return await this.conversationStore.listMessages({ sessionId: this.id });
     }
 
     /**

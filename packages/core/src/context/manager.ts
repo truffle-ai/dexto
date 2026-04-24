@@ -16,7 +16,7 @@ import {
 import type { SanitizedToolResult } from './types.js';
 import { DynamicContributorContext } from '../systemPrompt/types.js';
 import { SystemPromptManager } from '../systemPrompt/manager.js';
-import type { ConversationHistoryProvider } from '../session/history/types.js';
+import type { ConversationStore } from '../storage/conversation/types.js';
 import { ContextError } from './errors.js';
 import { ValidatedLLMConfig } from '../llm/schemas.js';
 import type { ToolPresentationSnapshotV1 } from '../tools/types.js';
@@ -31,7 +31,7 @@ import { getResourceKind } from './media-helpers.js';
  * - Formatting messages for specific LLM providers through an injected formatter
  * - Providing access to conversation history
  *
- * Note: All conversation history is stored and retrieved via the injected ConversationHistoryProvider.
+ * Note: All conversation history is stored and retrieved via the injected ConversationStore.
  * The ContextManager does not maintain an internal history cache.
  * Token counting is handled by the LLM API response, not local estimation.
  *
@@ -80,7 +80,7 @@ export class ContextManager<TMessage = unknown> {
      */
     private lastCallMessageCount: number | null = null;
 
-    private historyProvider: ConversationHistoryProvider;
+    private conversationStore: ConversationStore;
     private readonly sessionId: string;
 
     /**
@@ -238,7 +238,7 @@ export class ContextManager<TMessage = unknown> {
      * @param formatter Formatter implementation for the target LLM provider
      * @param systemPromptManager SystemPromptManager instance for the conversation
      * @param maxInputTokens Maximum token limit for the conversation history.
-     * @param historyProvider Session-scoped ConversationHistoryProvider instance for managing conversation history
+     * @param conversationStore Store for managing conversation history
      * @param sessionId Unique identifier for the conversation session (readonly, for debugging)
      * @param resourceManager ResourceManager for resolving blob references in messages
      * @param logger Logger instance for logging
@@ -248,7 +248,7 @@ export class ContextManager<TMessage = unknown> {
         formatter: VercelMessageFormatter,
         systemPromptManager: SystemPromptManager,
         maxInputTokens: number,
-        historyProvider: ConversationHistoryProvider,
+        conversationStore: ConversationStore,
         sessionId: string,
         resourceManager: import('../resources/index.js').ResourceManager,
         logger: Logger
@@ -257,13 +257,13 @@ export class ContextManager<TMessage = unknown> {
         this.formatter = formatter;
         this.systemPromptManager = systemPromptManager;
         this.maxInputTokens = maxInputTokens;
-        this.historyProvider = historyProvider;
+        this.conversationStore = conversationStore;
         this.sessionId = sessionId;
         this.resourceManager = resourceManager;
         this.logger = logger.createChild(DextoLogComponent.CONTEXT);
 
         this.logger.debug(
-            `ContextManager: Initialized for session ${sessionId} - history will be managed by ${historyProvider.constructor.name}`
+            `ContextManager: Initialized for session ${sessionId} - history will be managed by ${conversationStore.constructor.name}`
         );
     }
 
@@ -416,7 +416,7 @@ export class ContextManager<TMessage = unknown> {
      * This marks the boundary for "new messages" calculation.
      */
     async recordLastCallMessageCount(): Promise<void> {
-        const history = await this.historyProvider.getHistory();
+        const history = await this.conversationStore.listMessages({ sessionId: this.sessionId });
         this.lastCallMessageCount = history.length;
         this.logger.debug(`Recorded lastCallMessageCount: ${this.lastCallMessageCount}`);
     }
@@ -465,7 +465,9 @@ export class ContextManager<TMessage = unknown> {
             prunedToolCount: number;
         };
     }> {
-        const fullHistory = await this.historyProvider.getHistory();
+        const fullHistory = await this.conversationStore.listMessages({
+            sessionId: this.sessionId,
+        });
         const originalCount = fullHistory.length;
 
         // Step 1: Filter compacted (remove pre-summary messages)
@@ -526,7 +528,7 @@ export class ContextManager<TMessage = unknown> {
      * @returns Promise that resolves to a read-only copy of the conversation history
      */
     async getHistory(): Promise<Readonly<InternalMessage[]>> {
-        const history = await this.historyProvider.getHistory();
+        const history = await this.conversationStore.listMessages({ sessionId: this.sessionId });
         return [...history];
     }
 
@@ -536,7 +538,7 @@ export class ContextManager<TMessage = unknown> {
      * This ensures all message updates are persisted before returning control to the caller.
      */
     async flush(): Promise<void> {
-        await this.historyProvider.flush();
+        await this.conversationStore.flush({ sessionId: this.sessionId });
     }
 
     /**
@@ -570,7 +572,7 @@ export class ContextManager<TMessage = unknown> {
      * Used for streaming responses.
      */
     async appendAssistantText(messageId: string, text: string): Promise<void> {
-        const history = await this.historyProvider.getHistory();
+        const history = await this.conversationStore.listMessages({ sessionId: this.sessionId });
         const messageIndex = history.findIndex((m) => m.id === messageId);
 
         if (messageIndex === -1) {
@@ -599,7 +601,7 @@ export class ContextManager<TMessage = unknown> {
             }
         }
 
-        await this.historyProvider.updateMessage(message);
+        await this.conversationStore.updateMessage({ sessionId: this.sessionId, message });
     }
 
     /**
@@ -607,7 +609,7 @@ export class ContextManager<TMessage = unknown> {
      * Used for streaming responses.
      */
     async addToolCall(messageId: string, toolCall: ToolCall): Promise<void> {
-        const history = await this.historyProvider.getHistory();
+        const history = await this.conversationStore.listMessages({ sessionId: this.sessionId });
         const messageIndex = history.findIndex((m) => m.id === messageId);
 
         if (messageIndex === -1) {
@@ -628,7 +630,7 @@ export class ContextManager<TMessage = unknown> {
         }
 
         message.toolCalls.push(toolCall);
-        await this.historyProvider.updateMessage(message);
+        await this.conversationStore.updateMessage({ sessionId: this.sessionId, message });
     }
 
     /**
@@ -639,7 +641,7 @@ export class ContextManager<TMessage = unknown> {
         messageId: string,
         updates: Partial<InternalMessage>
     ): Promise<void> {
-        const history = await this.historyProvider.getHistory();
+        const history = await this.conversationStore.listMessages({ sessionId: this.sessionId });
         const messageIndex = history.findIndex((m) => m.id === messageId);
 
         if (messageIndex === -1) {
@@ -656,7 +658,7 @@ export class ContextManager<TMessage = unknown> {
         }
 
         Object.assign(message, updates);
-        await this.historyProvider.updateMessage(message);
+        await this.conversationStore.updateMessage({ sessionId: this.sessionId, message });
     }
 
     /**
@@ -676,7 +678,7 @@ export class ContextManager<TMessage = unknown> {
             return 0;
         }
 
-        const history = await this.historyProvider.getHistory();
+        const history = await this.conversationStore.listMessages({ sessionId: this.sessionId });
         const timestamp = Date.now();
         let markedCount = 0;
 
@@ -701,7 +703,7 @@ export class ContextManager<TMessage = unknown> {
             }
 
             message.compactedAt = timestamp;
-            await this.historyProvider.updateMessage(message);
+            await this.conversationStore.updateMessage({ sessionId: this.sessionId, message });
             markedCount++;
         }
 
@@ -790,11 +792,11 @@ export class ContextManager<TMessage = unknown> {
             `ContextManager: Adding message to history provider: ${JSON.stringify(message, null, 2)}`
         );
 
-        // Save to history provider
-        await this.historyProvider.saveMessage(message);
+        // Save to conversation store
+        await this.conversationStore.saveMessage({ sessionId: this.sessionId, message });
 
         // Get updated history for logging
-        const history = await this.historyProvider.getHistory();
+        const history = await this.conversationStore.listMessages({ sessionId: this.sessionId });
         this.logger.debug(`ContextManager: History now contains ${history.length} messages`);
 
         // Note: Compression is currently handled lazily in getFormattedMessages
@@ -991,7 +993,7 @@ export class ContextManager<TMessage = unknown> {
         // TMessage type is provided by the service that instantiates ContextManager
         // Use provided history or fetch from provider
         let messageHistory: InternalMessage[] =
-            history ?? (await this.historyProvider.getHistory());
+            history ?? (await this.conversationStore.listMessages({ sessionId: this.sessionId }));
 
         // Determine allowed media types for expansion
         // Priority: User-specified config > Model capabilities from registry
@@ -1179,7 +1181,9 @@ export class ContextManager<TMessage = unknown> {
         const lastInput = this.lastActualInputTokens;
         const lastOutput = this.lastActualOutputTokens;
         const lastMsgCount = this.lastCallMessageCount;
-        const currentHistory = await this.historyProvider.getHistory();
+        const currentHistory = await this.conversationStore.listMessages({
+            sessionId: this.sessionId,
+        });
 
         // Get pure estimate as fallback and for breakdown calculation
         const pureEstimate = estimateContextTokens(systemPrompt, preparedHistory, tools);
@@ -1313,7 +1317,9 @@ export class ContextManager<TMessage = unknown> {
         const lastInput = this.lastActualInputTokens;
         const lastOutput = this.lastActualOutputTokens;
         const lastMsgCount = this.lastCallMessageCount;
-        const currentHistory = await this.historyProvider.getHistory();
+        const currentHistory = await this.conversationStore.listMessages({
+            sessionId: this.sessionId,
+        });
 
         // Use actuals-based formula if we have all the required values
         if (lastInput !== null && lastOutput !== null && lastMsgCount !== null) {
@@ -1353,7 +1359,7 @@ export class ContextManager<TMessage = unknown> {
      */
     async resetConversation(): Promise<void> {
         // Clear persisted history
-        await this.historyProvider.clearHistory();
+        await this.conversationStore.clearMessages({ sessionId: this.sessionId });
         this.resetActualTokenTracking();
         this.logger.debug(
             `ContextManager: Conversation history cleared for session ${this.sessionId}`

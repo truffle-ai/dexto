@@ -7,7 +7,6 @@ import { ResourceManager } from '../../resources/index.js';
 import { MessageQueueService } from '../../session/message-queue.js';
 import { SystemPromptManager } from '../../systemPrompt/manager.js';
 import { VercelMessageFormatter } from '../formatters/vercel.js';
-import { MemoryHistoryProvider } from '../../session/history/memory.js';
 import { MCPManager } from '../../mcp/manager.js';
 import { ApprovalManager } from '../../approval/manager.js';
 import { createLogger } from '../../logger/factory.js';
@@ -19,6 +18,8 @@ import type { LanguageModel, ModelMessage } from 'ai';
 import type { LLMContext } from '../types.js';
 import type { ValidatedLLMConfig } from '../schemas.js';
 import type { Logger } from '../../logger/v2/types.js';
+import { InMemoryDextoStores } from '../../storage/stores/in-memory.js';
+import type { ConversationStore } from '../../storage/conversation/types.js';
 import {
     createInMemoryMessageQueueStore,
     createInMemorySessionApprovalStore,
@@ -126,7 +127,7 @@ describe('TurnExecutor Integration Tests', () => {
     let resourceManager: ResourceManager;
     let messageQueue: MessageQueueService;
     let logger: Logger;
-    let historyProvider: MemoryHistoryProvider;
+    let conversationStore: ConversationStore;
     let mcpManager: MCPManager;
     let approvalManager: ApprovalManager;
     let storageManager: StorageManager;
@@ -168,8 +169,8 @@ describe('TurnExecutor Integration Tests', () => {
         );
         await resourceManager.initialize();
 
-        // Create real history provider
-        historyProvider = new MemoryHistoryProvider(logger);
+        // Create real conversation store
+        conversationStore = new InMemoryDextoStores().getStore('conversation');
 
         // Create real memory manager and system prompt manager
         const memoryManager = new MemoryManager(storageManager.getDatabase(), logger);
@@ -199,7 +200,7 @@ describe('TurnExecutor Integration Tests', () => {
             formatter,
             systemPromptManager,
             100000,
-            historyProvider,
+            conversationStore,
             sessionId,
             resourceManager,
             logger

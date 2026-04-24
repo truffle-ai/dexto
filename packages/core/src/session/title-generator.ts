@@ -6,7 +6,7 @@ import type { Logger } from '../logger/v2/types.js';
 import type { CreateLLMServiceOptions, LanguageModelFactory } from '../llm/services/types.js';
 import { createLLMService } from '../llm/services/factory.js';
 import { SessionEventBus } from '../events/index.js';
-import { MemoryHistoryProvider } from './history/memory.js';
+import { InMemoryDextoStores } from '../storage/index.js';
 import { MessageQueueService } from './message-queue.js';
 
 export interface GenerateSessionTitleResult {
@@ -36,7 +36,7 @@ export async function generateSessionTitle(
     }
 
     try {
-        const history = new MemoryHistoryProvider(logger);
+        const conversationStore = new InMemoryDextoStores().getStore('conversation');
         const bus = new SessionEventBus();
         const sessionId = `titlegen-${Math.random().toString(36).slice(2)}`;
         const options: CreateLLMServiceOptions = {
@@ -46,7 +46,7 @@ export async function generateSessionTitle(
             config,
             toolManager,
             systemPromptManager,
-            history,
+            conversationStore,
             bus,
             sessionId,
             resourceManager,

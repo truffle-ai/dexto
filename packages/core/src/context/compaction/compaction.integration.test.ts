@@ -5,7 +5,6 @@ import { ReactiveOverflowCompactionStrategy } from './strategies/reactive-overfl
 import { VercelMessageFormatter } from '../../llm/formatters/vercel.js';
 import { SystemPromptManager } from '../../systemPrompt/manager.js';
 import { SystemPromptConfigSchema } from '../../systemPrompt/schemas.js';
-import { MemoryHistoryProvider } from '../../session/history/memory.js';
 import { ResourceManager } from '../../resources/index.js';
 import { MCPManager } from '../../mcp/manager.js';
 import { MemoryManager } from '../../memory/index.js';
@@ -18,6 +17,8 @@ import type { LanguageModel } from 'ai';
 import type { ValidatedLLMConfig } from '../../llm/schemas.js';
 import type { Logger } from '../../logger/v2/types.js';
 import type { InternalMessage } from '../types.js';
+import { InMemoryDextoStores } from '../../storage/stores/in-memory.js';
+import type { ConversationStore } from '../../storage/conversation/types.js';
 
 // Only mock the AI SDK's generateText - everything else is real
 vi.mock('ai', async (importOriginal) => {
@@ -53,7 +54,7 @@ describe('Context Compaction Integration Tests', () => {
     let contextManager: ContextManager<ModelMessage>;
     let compactionStrategy: ReactiveOverflowCompactionStrategy;
     let logger: Logger;
-    let historyProvider: MemoryHistoryProvider;
+    let conversationStore: ConversationStore;
     let storageManager: StorageManager;
     let mcpManager: MCPManager;
     let resourceManager: ResourceManager;
@@ -89,8 +90,8 @@ describe('Context Compaction Integration Tests', () => {
         );
         await resourceManager.initialize();
 
-        // Create real history provider
-        historyProvider = new MemoryHistoryProvider(logger);
+        // Create real conversation store
+        conversationStore = new InMemoryDextoStores().getStore('conversation');
 
         // Create real memory and system prompt managers
         const memoryManager = new MemoryManager(storageManager.getDatabase(), logger);
@@ -117,7 +118,7 @@ describe('Context Compaction Integration Tests', () => {
             formatter,
             systemPromptManager,
             100000,
-            historyProvider,
+            conversationStore,
             sessionId,
             resourceManager,
             logger
@@ -268,7 +269,7 @@ describe('Context Compaction Integration Tests', () => {
             // 1. Only the most recent summary should be visible
             const summariesInFiltered = filteredFinal.filter((m) => m.metadata?.isSummary);
             expect(summariesInFiltered).toHaveLength(1);
-            expect(summariesInFiltered[0]).toBe(summary3);
+            expect(summariesInFiltered[0]).toStrictEqual(summary3);
 
             // 2. Neither summary1 nor summary2 should be in the result
             expect(filteredFinal).not.toContain(summary1);

@@ -6,9 +6,6 @@ import { SessionErrorCode } from './error-codes.js';
 import { ErrorScope, ErrorType } from '../errors/types.js';
 
 // Mock all dependencies
-vi.mock('./history/factory.js', () => ({
-    createDatabaseHistoryProvider: vi.fn(),
-}));
 vi.mock('../llm/services/factory.js', () => ({
     createLLMService: vi.fn(),
 }));
@@ -29,12 +26,10 @@ vi.mock('../logger/index.js', () => ({
     },
 }));
 
-import { createDatabaseHistoryProvider } from './history/factory.js';
 import { createLLMService } from '../llm/services/factory.js';
 import { getEffectiveMaxInputTokens } from '../llm/registry/index.js';
 import { createMockLogger } from '../logger/v2/test-utils.js';
 
-const mockCreateDatabaseHistoryProvider = vi.mocked(createDatabaseHistoryProvider);
 const mockCreateLLMService = vi.mocked(createLLMService);
 const mockGetEffectiveMaxInputTokens = vi.mocked(getEffectiveMaxInputTokens);
 
@@ -51,7 +46,6 @@ function createDeferred<T>() {
 describe('ChatSession', () => {
     let chatSession: ChatSession;
     let mockServices: any;
-    let mockHistoryProvider: any;
     let mockLLMService: any;
     let mockCache: any;
     let mockDatabase: any;
@@ -70,14 +64,6 @@ describe('ChatSession', () => {
 
     beforeEach(() => {
         vi.resetAllMocks();
-
-        // Mock history provider
-        mockHistoryProvider = {
-            addMessage: vi.fn().mockResolvedValue(undefined),
-            getMessages: vi.fn().mockResolvedValue([]),
-            clearHistory: vi.fn().mockResolvedValue(undefined),
-            getMessageCount: vi.fn().mockResolvedValue(0),
-        };
 
         // Mock LLM service
         mockContextManager = {
@@ -193,8 +179,6 @@ describe('ChatSession', () => {
             },
         };
 
-        // Set up factory mocks
-        mockCreateDatabaseHistoryProvider.mockReturnValue(mockHistoryProvider);
         mockCreateLLMService.mockReturnValue(mockLLMService);
         mockGetEffectiveMaxInputTokens.mockReturnValue(128000);
 
@@ -218,11 +202,18 @@ describe('ChatSession', () => {
         test('should initialize with unified storage system', async () => {
             await chatSession.init();
 
-            // Verify createDatabaseHistoryProvider is called with the database backend, sessionId, and logger
-            expect(mockCreateDatabaseHistoryProvider).toHaveBeenCalledWith(
-                mockDatabase,
+            expect(mockServices.storageManager.getDatabase).toHaveBeenCalled();
+            expect(mockCreateLLMService).toHaveBeenCalledWith(
+                mockLLMConfig,
+                mockServices.toolManager,
+                mockServices.systemPromptManager,
+                expect.any(Object),
+                chatSession.eventBus,
                 sessionId,
-                expect.any(Object) // Logger object
+                mockServices.resourceManager,
+                expect.any(Object),
+                expect.any(Object),
+                undefined
             );
         });
 
@@ -240,7 +231,7 @@ describe('ChatSession', () => {
                 mockLLMConfig,
                 mockServices.toolManager,
                 mockServices.systemPromptManager,
-                mockHistoryProvider,
+                expect.any(Object),
                 chatSession.eventBus,
                 sessionId,
                 mockServices.resourceManager,
@@ -268,7 +259,7 @@ describe('ChatSession', () => {
                 mockLLMConfig,
                 mockServices.toolManager,
                 mockServices.systemPromptManager,
-                mockHistoryProvider,
+                expect.any(Object),
                 chatSession.eventBus,
                 sessionId,
                 mockServices.resourceManager,
@@ -398,7 +389,7 @@ describe('ChatSession', () => {
                 newConfig,
                 mockServices.toolManager,
                 mockServices.systemPromptManager,
-                mockHistoryProvider,
+                expect.any(Object),
                 chatSession.eventBus,
                 sessionId,
                 mockServices.resourceManager,
@@ -429,7 +420,7 @@ describe('ChatSession', () => {
                 newConfig,
                 mockServices.toolManager,
                 mockServices.systemPromptManager,
-                mockHistoryProvider,
+                expect.any(Object),
                 chatSession.eventBus,
                 sessionId,
                 mockServices.resourceManager,
@@ -466,7 +457,7 @@ describe('ChatSession', () => {
 
     describe('Error Handling and Resilience', () => {
         test('should handle storage initialization failures gracefully', async () => {
-            mockCreateDatabaseHistoryProvider.mockImplementation(() => {
+            mockServices.storageManager.getDatabase.mockImplementation(() => {
                 throw new Error('Storage initialization failed');
             });
 
@@ -544,19 +535,19 @@ describe('ChatSession', () => {
             );
         });
 
-        test('should delegate history operations to history provider', async () => {
+        test('should read conversation history from the conversation store', async () => {
             const mockHistory = [
                 { role: 'user', content: 'Hello' },
                 { role: 'assistant', content: 'Hi there!' },
             ];
 
-            mockHistoryProvider.getHistory = vi.fn().mockResolvedValue(mockHistory);
+            mockDatabase.getRange.mockResolvedValue(mockHistory);
 
             await chatSession.init();
             const history = await chatSession.getHistory();
 
             expect(history).toEqual(mockHistory);
-            expect(mockHistoryProvider.getHistory).toHaveBeenCalled();
+            expect(mockDatabase.getRange).toHaveBeenCalledWith(`messages:${sessionId}`, 0, 10000);
         });
     });
 
@@ -569,7 +560,7 @@ describe('ChatSession', () => {
                 mockLLMConfig,
                 mockServices.toolManager,
                 mockServices.systemPromptManager,
-                mockHistoryProvider,
+                expect.any(Object),
                 chatSession.eventBus, // Session-specific event bus
                 sessionId,
                 mockServices.resourceManager, // ResourceManager parameter
@@ -582,12 +573,7 @@ describe('ChatSession', () => {
                 undefined
             );
 
-            // Verify session-specific history provider creation
-            expect(mockCreateDatabaseHistoryProvider).toHaveBeenCalledWith(
-                mockDatabase,
-                sessionId,
-                expect.any(Object) // Logger object
-            );
+            expect(mockServices.storageManager.getDatabase).toHaveBeenCalled();
         });
     });
 
