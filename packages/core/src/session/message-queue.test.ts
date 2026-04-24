@@ -313,6 +313,7 @@ describe('MessageQueueService', () => {
                     savedQueues.push(structuredClone(input.queue));
                 }),
                 delete: vi.fn().mockResolvedValue(undefined),
+                listSessionIds: vi.fn().mockResolvedValue([]),
             });
 
             const initializePromise = serializedQueue.initialize();

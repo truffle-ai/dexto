@@ -6,7 +6,6 @@ import type { ValidatedLLMConfig } from '../llm/schemas.js';
 import type { VercelMessageFormatter } from '../llm/formatters/vercel.js';
 import type { SystemPromptManager } from '../systemPrompt/manager.js';
 import type { ResourceManager } from '../resources/manager.js';
-import type { BlobStore } from '../storage/blob/types.js';
 import type { DynamicContributorContext } from '../systemPrompt/types.js';
 import type { MCPManager } from '../mcp/manager.js';
 import { InMemoryDextoStores } from '../storage/stores/in-memory.js';
@@ -46,28 +45,11 @@ function createMockSystemPromptManager(): SystemPromptManager {
     } as unknown as SystemPromptManager;
 }
 
-function createMockBlobStore(): BlobStore {
-    return {
-        store: vi.fn(),
-        retrieve: vi.fn(),
-        exists: vi.fn(),
-        delete: vi.fn(),
-        cleanup: vi.fn(),
-        getStats: vi.fn(),
-        listBlobs: vi.fn(),
-        getStoragePath: vi.fn(),
-        connect: vi.fn(),
-        disconnect: vi.fn(),
-        isConnected: vi.fn().mockReturnValue(true),
-        getStoreType: vi.fn().mockReturnValue('mock'),
-    } as unknown as BlobStore;
-}
-
 function createMockResourceManager(): ResourceManager {
-    const mockBlobStore = createMockBlobStore();
+    const stores = new InMemoryDextoStores();
     return {
         read: vi.fn(),
-        getBlobStore: vi.fn().mockReturnValue(mockBlobStore),
+        getArtifactStore: vi.fn().mockReturnValue(stores.getStore('artifacts')),
     } as unknown as ResourceManager;
 }
 
@@ -204,6 +186,7 @@ describe('ContextManager', () => {
     describe('getFormattedMessages', () => {
         it('should only rehydrate the most recent binary media messages for the LLM', async () => {
             const formatter = createMockFormatter();
+            const stores = new InMemoryDextoStores();
             const resourceManager = {
                 read: vi.fn(async (uri: string) => {
                     if (uri === 'blob:old-image') {
@@ -226,7 +209,7 @@ describe('ContextManager', () => {
                     }
                     throw new Error(`Unexpected blob URI: ${uri}`);
                 }),
-                getBlobStore: vi.fn().mockReturnValue(createMockBlobStore()),
+                getArtifactStore: vi.fn().mockReturnValue(stores.getStore('artifacts')),
             } as unknown as ResourceManager;
 
             const contextManager = createContextManager({

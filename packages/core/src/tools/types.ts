@@ -9,9 +9,7 @@ import type { WorkspaceContext } from '../workspace/types.js';
 import type { ApprovalRequestDetails, ApprovalResponse } from '../approval/types.js';
 import type { ApprovalManager } from '../approval/manager.js';
 import type { DextoAgent } from '../agent/DextoAgent.js';
-import type { Cache } from '../storage/cache/types.js';
-import type { BlobStore } from '../storage/blob/types.js';
-import type { Database } from '../storage/database/types.js';
+import type { ToolStateStore } from '../storage/index.js';
 import type { MCPManager } from '../mcp/manager.js';
 import type { PromptManager } from '../prompts/prompt-manager.js';
 import type { ResourceManager } from '../resources/manager.js';
@@ -88,16 +86,8 @@ export interface ToolExecutionContext extends ToolExecutionContextBase {
      */
     agent?: DextoAgent | undefined;
 
-    /**
-     * Concrete storage backends (DI-first).
-     */
-    storage?:
-        | {
-              blob: BlobStore;
-              database: Database;
-              cache: Cache;
-          }
-        | undefined;
+    /** Durable state store scoped for tool-owned data. */
+    toolState?: ToolStateStore | undefined;
 
     /**
      * Runtime services available to tools. These are injected at execution time (not factory time)

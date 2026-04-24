@@ -1,20 +1,17 @@
 import { randomUUID } from 'crypto';
-import type { Database } from '../storage/database/types.js';
 import type { AgentEventBus } from '../events/index.js';
 import type { Logger } from '../logger/v2/types.js';
 import { DextoLogComponent } from '../logger/v2/types.js';
 import type { SetWorkspaceInput, WorkspaceContext } from './types.js';
 import { WorkspaceError } from './errors.js';
-
-const WORKSPACE_KEY_PREFIX = 'workspace:item:';
-const WORKSPACE_CURRENT_KEY = 'workspace:current';
+import type { WorkspaceStore } from '../storage/workspaces/types.js';
 
 export class WorkspaceManager {
     private logger: Logger;
     private currentWorkspace: WorkspaceContext | undefined;
 
     constructor(
-        private database: Database,
+        private workspaceStore: WorkspaceStore,
         private agentEventBus: AgentEventBus,
         logger: Logger
     ) {
@@ -29,7 +26,7 @@ export class WorkspaceManager {
         }
 
         const now = Date.now();
-        const existing = await this.findByPath(path);
+        const existing = await this.workspaceStore.findWorkspaceByPath({ path });
 
         const resolvedName = input.name ?? existing?.name;
 
@@ -47,8 +44,8 @@ export class WorkspaceManager {
                   lastActiveAt: now,
               };
 
-        await this.database.set(this.toKey(workspace.id), workspace);
-        await this.database.set(WORKSPACE_CURRENT_KEY, workspace.id);
+        await this.workspaceStore.saveWorkspace({ workspace });
+        await this.workspaceStore.setCurrentWorkspace({ id: workspace.id });
         this.currentWorkspace = workspace;
 
         this.agentEventBus.emit('workspace:changed', { workspace });
@@ -58,7 +55,7 @@ export class WorkspaceManager {
     }
 
     async clearWorkspace(): Promise<void> {
-        await this.database.delete(WORKSPACE_CURRENT_KEY);
+        await this.workspaceStore.clearCurrentWorkspace();
         this.currentWorkspace = undefined;
         this.agentEventBus.emit('workspace:changed', { workspace: null });
         this.logger.info('Workspace cleared');
@@ -69,12 +66,12 @@ export class WorkspaceManager {
             return this.currentWorkspace;
         }
 
-        const currentId = await this.database.get<string>(WORKSPACE_CURRENT_KEY);
+        const currentId = await this.workspaceStore.getCurrentWorkspaceId();
         if (!currentId) {
             return undefined;
         }
 
-        const workspace = await this.database.get<WorkspaceContext>(this.toKey(currentId));
+        const workspace = await this.workspaceStore.getWorkspace({ id: currentId });
         if (!workspace) {
             return undefined;
         }
@@ -84,31 +81,8 @@ export class WorkspaceManager {
     }
 
     async listWorkspaces(): Promise<WorkspaceContext[]> {
-        const keys = await this.database.list(WORKSPACE_KEY_PREFIX);
-        const workspaces: WorkspaceContext[] = [];
-
-        for (const key of keys) {
-            const workspace = await this.database.get<WorkspaceContext>(key);
-            if (workspace) {
-                workspaces.push(workspace);
-            }
-        }
+        const workspaces = await this.workspaceStore.listWorkspaces();
 
         return workspaces.sort((a, b) => (b.lastActiveAt ?? 0) - (a.lastActiveAt ?? 0));
-    }
-
-    private async findByPath(path: string): Promise<WorkspaceContext | undefined> {
-        const keys = await this.database.list(WORKSPACE_KEY_PREFIX);
-        for (const key of keys) {
-            const workspace = await this.database.get<WorkspaceContext>(key);
-            if (workspace?.path === path) {
-                return workspace;
-            }
-        }
-        return undefined;
-    }
-
-    private toKey(id: string): string {
-        return `${WORKSPACE_KEY_PREFIX}${id}`;
     }
 }

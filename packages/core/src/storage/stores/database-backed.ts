@@ -1,7 +1,11 @@
 import { z } from 'zod';
 import type { ApprovalRequest, ApprovalResponse } from '../../approval/types.js';
 import { ApprovalRequestSchema, ApprovalResponseSchema } from '../../approval/schemas.js';
+import type { Memory } from '../../memory/types.js';
+import type { StoredCustomPrompt } from '../../prompts/providers/custom-prompt-provider.js';
+import type { SessionData } from '../../session/session-manager.js';
 import type { QueuedMessage } from '../../session/types.js';
+import type { WorkspaceContext } from '../../workspace/types.js';
 import type { SessionToolPreferences } from '../../tools/session-tool-preferences-store.js';
 import type { ApprovalStore, SessionApprovalState } from '../approvals/types.js';
 import type {
@@ -17,15 +21,25 @@ import type { Cache } from '../cache/types.js';
 import type { CacheStore } from '../cache-store/types.js';
 import type { Database } from '../database/types.js';
 import { DatabaseConversationStore } from '../conversation/database.js';
+import type { MemoryStore } from '../memories/types.js';
 import type { SessionMessageQueueStore } from '../message-queue/types.js';
+import type { CustomPromptStore } from '../prompts/types.js';
 import type { RuntimeEventRecord, RuntimeEventStore } from '../runtime-events/types.js';
+import type { SessionStore } from '../sessions/types.js';
+import type { ToolStateStore } from '../tool-state/types.js';
 import type { ToolPreferenceStore } from '../tool-preferences/types.js';
+import type { WorkspaceStore } from '../workspaces/types.js';
 import type { DextoStoreMap, DextoStoreName, DextoStores } from './types.js';
 import type { Logger } from '../../logger/v2/types.js';
 
 const GLOBAL_SCOPE = 'global';
+const MEMORY_KEY_PREFIX = 'memory:item:';
+const CUSTOM_PROMPT_KEY_PREFIX = 'prompt:custom:';
 const RUNTIME_EVENTS_KEY = 'runtime-events';
 const RUNTIME_EVENTS_LIMIT = 10000;
+const TOOL_STATE_KEY_PREFIX = 'tool-state:';
+const WORKSPACE_KEY_PREFIX = 'workspace:item:';
+const WORKSPACE_CURRENT_KEY = 'workspace:current';
 
 const ApprovedDirectoryTypeSchema = z.enum(['session', 'once']);
 
@@ -296,6 +310,133 @@ class DatabaseBackedApprovalStore implements ApprovalStore {
     }
 }
 
+class DatabaseBackedSessionStore implements SessionStore {
+    constructor(
+        private readonly database: Database,
+        private readonly cache: Cache
+    ) {}
+
+    async listSessionIds(): Promise<string[]> {
+        const keys = await this.database.list('session:');
+        return keys.map((key) => key.replace('session:', ''));
+    }
+
+    async getSession(input: { sessionId: string }): Promise<SessionData | undefined> {
+        const key = this.key(input.sessionId);
+        const cached = await this.cache.get<SessionData>(key);
+        if (cached !== undefined) {
+            return structuredClone(cached);
+        }
+
+        const session = await this.database.get<SessionData>(key);
+        return session ? structuredClone(session) : undefined;
+    }
+
+    async saveSession(input: {
+        sessionId: string;
+        session: SessionData;
+        ttlSeconds?: number;
+    }): Promise<void> {
+        const key = this.key(input.sessionId);
+        await this.database.set(key, input.session);
+        await this.cache.set(key, input.session, input.ttlSeconds);
+    }
+
+    async deleteSession(input: { sessionId: string }): Promise<void> {
+        const key = this.key(input.sessionId);
+        await Promise.all([this.database.delete(key), this.cache.delete(key)]);
+    }
+
+    async evictSession(input: { sessionId: string }): Promise<void> {
+        await this.cache.delete(this.key(input.sessionId));
+    }
+
+    private key(sessionId: string): string {
+        return `session:${sessionId}`;
+    }
+}
+
+class DatabaseBackedMemoryStore implements MemoryStore {
+    constructor(private readonly database: Database) {}
+
+    async create(input: { memory: Memory }): Promise<void> {
+        await this.database.set(this.key(input.memory.id), input.memory);
+    }
+
+    async get(input: { id: string }): Promise<Memory | undefined> {
+        return await this.database.get<Memory>(this.key(input.id));
+    }
+
+    async update(input: { memory: Memory }): Promise<void> {
+        await this.database.set(this.key(input.memory.id), input.memory);
+    }
+
+    async delete(input: { id: string }): Promise<void> {
+        await this.database.delete(this.key(input.id));
+    }
+
+    async list(): Promise<Memory[]> {
+        const keys = await this.database.list(MEMORY_KEY_PREFIX);
+        const memories: Memory[] = [];
+        for (const key of keys) {
+            const memory = await this.database.get<Memory>(key);
+            if (memory) {
+                memories.push(memory);
+            }
+        }
+        return memories;
+    }
+
+    private key(id: string): string {
+        return `${MEMORY_KEY_PREFIX}${id}`;
+    }
+}
+
+class DatabaseBackedWorkspaceStore implements WorkspaceStore {
+    constructor(private readonly database: Database) {}
+
+    async saveWorkspace(input: { workspace: WorkspaceContext }): Promise<void> {
+        await this.database.set(this.key(input.workspace.id), input.workspace);
+    }
+
+    async getWorkspace(input: { id: string }): Promise<WorkspaceContext | undefined> {
+        return await this.database.get<WorkspaceContext>(this.key(input.id));
+    }
+
+    async findWorkspaceByPath(input: { path: string }): Promise<WorkspaceContext | undefined> {
+        const workspaces = await this.listWorkspaces();
+        return workspaces.find((workspace) => workspace.path === input.path);
+    }
+
+    async listWorkspaces(): Promise<WorkspaceContext[]> {
+        const keys = await this.database.list(WORKSPACE_KEY_PREFIX);
+        const workspaces: WorkspaceContext[] = [];
+        for (const key of keys) {
+            const workspace = await this.database.get<WorkspaceContext>(key);
+            if (workspace) {
+                workspaces.push(workspace);
+            }
+        }
+        return workspaces;
+    }
+
+    async setCurrentWorkspace(input: { id: string }): Promise<void> {
+        await this.database.set(WORKSPACE_CURRENT_KEY, input.id);
+    }
+
+    async getCurrentWorkspaceId(): Promise<string | undefined> {
+        return await this.database.get<string>(WORKSPACE_CURRENT_KEY);
+    }
+
+    async clearCurrentWorkspace(): Promise<void> {
+        await this.database.delete(WORKSPACE_CURRENT_KEY);
+    }
+
+    private key(id: string): string {
+        return `${WORKSPACE_KEY_PREFIX}${id}`;
+    }
+}
+
 class DatabaseBackedToolPreferenceStore implements ToolPreferenceStore {
     constructor(
         private readonly database: Database,
@@ -397,6 +538,11 @@ class DatabaseBackedSessionMessageQueueStore implements SessionMessageQueueStore
         private readonly logger: Logger
     ) {}
 
+    async listSessionIds(): Promise<string[]> {
+        const keys = await this.database.list('session-message-queue:');
+        return keys.map((key) => key.replace('session-message-queue:', ''));
+    }
+
     async load(input: { sessionId: string }): Promise<QueuedMessage[]> {
         const key = this.key(input.sessionId);
         const cached = await this.cache.get<unknown>(key);
@@ -441,6 +587,38 @@ class DatabaseBackedSessionMessageQueueStore implements SessionMessageQueueStore
     }
 }
 
+class DatabaseBackedCustomPromptStore implements CustomPromptStore {
+    constructor(private readonly database: Database) {}
+
+    async save(input: { prompt: StoredCustomPrompt }): Promise<void> {
+        await this.database.set(this.key(input.prompt.name), input.prompt);
+    }
+
+    async get(input: { name: string }): Promise<StoredCustomPrompt | undefined> {
+        return await this.database.get<StoredCustomPrompt>(this.key(input.name));
+    }
+
+    async delete(input: { name: string }): Promise<void> {
+        await this.database.delete(this.key(input.name));
+    }
+
+    async list(): Promise<StoredCustomPrompt[]> {
+        const keys = await this.database.list(CUSTOM_PROMPT_KEY_PREFIX);
+        const prompts: StoredCustomPrompt[] = [];
+        for (const key of keys) {
+            const prompt = await this.database.get<StoredCustomPrompt>(key);
+            if (prompt) {
+                prompts.push(prompt);
+            }
+        }
+        return prompts;
+    }
+
+    private key(name: string): string {
+        return `${CUSTOM_PROMPT_KEY_PREFIX}${name}`;
+    }
+}
+
 class DatabaseBackedRuntimeEventStore implements RuntimeEventStore {
     constructor(private readonly database: Database) {}
 
@@ -471,6 +649,37 @@ class DatabaseBackedRuntimeEventStore implements RuntimeEventStore {
     }
 }
 
+class DatabaseBackedToolStateStore implements ToolStateStore {
+    constructor(private readonly database: Database) {}
+
+    async get<T>(input: { toolName: string; key: string }): Promise<T | undefined> {
+        return await this.database.get<T>(this.toKey(input));
+    }
+
+    async set<T>(input: { toolName: string; key: string; value: T }): Promise<void> {
+        await this.database.set(this.toKey(input), input.value);
+    }
+
+    async delete(input: { toolName: string; key: string }): Promise<void> {
+        await this.database.delete(this.toKey(input));
+    }
+
+    async listKeys(input: { toolName: string; prefix?: string }): Promise<string[]> {
+        const prefix = this.toKey({ toolName: input.toolName, key: input.prefix ?? '' });
+        return (await this.database.list(prefix)).map((key) =>
+            key.slice(this.scopePrefix(input.toolName).length)
+        );
+    }
+
+    private toKey(input: { toolName: string; key: string }): string {
+        return `${this.scopePrefix(input.toolName)}${input.key}`;
+    }
+
+    private scopePrefix(toolName: string): string {
+        return `${TOOL_STATE_KEY_PREFIX}${toolName}:`;
+    }
+}
+
 export interface DatabaseBackedDextoStoresBackends {
     cache: Cache;
     database: Database;
@@ -487,17 +696,22 @@ export class DatabaseBackedDextoStores implements DextoStores {
     ) {
         this.stores = {
             conversation: new DatabaseConversationStore(backends.database, logger),
+            sessions: new DatabaseBackedSessionStore(backends.database, backends.cache),
+            memories: new DatabaseBackedMemoryStore(backends.database),
+            workspaces: new DatabaseBackedWorkspaceStore(backends.database),
             approvals: new DatabaseBackedApprovalStore(backends.database, backends.cache, logger),
             toolPreferences: new DatabaseBackedToolPreferenceStore(
                 backends.database,
                 backends.cache,
                 logger
             ),
+            toolState: new DatabaseBackedToolStateStore(backends.database),
             messageQueue: new DatabaseBackedSessionMessageQueueStore(
                 backends.database,
                 backends.cache,
                 logger
             ),
+            customPrompts: new DatabaseBackedCustomPromptStore(backends.database),
             artifacts: new DatabaseBackedArtifactStore(backends.blobStore),
             cache: new DatabaseBackedCacheStore(backends.cache),
             runtimeEvents: new DatabaseBackedRuntimeEventStore(backends.database),

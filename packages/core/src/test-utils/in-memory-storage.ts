@@ -9,8 +9,6 @@ import type {
     BlobStore,
     StoredBlobMetadata,
 } from '../storage/blob/types.js';
-import { StorageManager } from '../storage/storage-manager.js';
-import type { Logger } from '../logger/v2/types.js';
 import { createHash, randomUUID } from 'crypto';
 import { promises as fs } from 'fs';
 import os from 'os';
@@ -313,15 +311,14 @@ export function createInMemoryBlobStore(): BlobStore {
     return new InMemoryBlobStore();
 }
 
-export async function createInMemoryStorageManager(logger: Logger): Promise<StorageManager> {
-    const manager = new StorageManager(
-        {
-            cache: createInMemoryCache(),
-            database: createInMemoryDatabase(),
-            blobStore: createInMemoryBlobStore(),
-        },
-        logger
-    );
-    await manager.connect();
-    return manager;
+export function createInMemoryStorageBackends(): {
+    cache: Cache;
+    database: Database;
+    blobStore: BlobStore;
+} {
+    return {
+        cache: createInMemoryCache(),
+        database: createInMemoryDatabase(),
+        blobStore: createInMemoryBlobStore(),
+    };
 }

@@ -15,7 +15,7 @@ import { SystemPromptManager } from '../systemPrompt/manager.js';
 import { AgentStateManager } from '../agent/state-manager.js';
 import { SessionManager } from '../session/index.js';
 import { SearchService } from '../search/index.js';
-import { StorageManager } from '../storage/index.js';
+import type { DextoStores } from '../storage/index.js';
 import { AgentError } from '../agent/errors.js';
 import { WorkspaceManager } from '../workspace/index.js';
 import { createAllowedToolsProvider } from '../tools/confirmation/allowed-tools-provider/factory.js';
@@ -43,7 +43,7 @@ export type AgentServices = {
     sessionManager: SessionManager;
     workspaceManager: WorkspaceManager;
     searchService: SearchService;
-    storageManager: StorageManager;
+    stores: DextoStores;
     resourceManager: ResourceManager;
     approvalManager: ApprovalManager;
     memoryManager: MemoryManager;
@@ -79,7 +79,7 @@ export type InitializeServicesOptions = {
     mcpAuthProviderFactory?: import('../mcp/types.js').McpAuthProviderFactory | null;
     toolManager?: ToolManager;
     toolManagerFactory?: ToolManagerFactory;
-    storageManager?: StorageManager;
+    stores?: DextoStores;
     hooks?: Hook[] | undefined;
     telemetryBootstrap?: TelemetryBootstrap | undefined;
 };
@@ -128,33 +128,38 @@ export async function createAgentServices(
     // 1. Use the event bus provided by DextoAgent constructor
     logger.debug('Using pre-created agent event bus');
 
-    // 2. Initialize storage manager (schema provides in-memory defaults, CLI enrichment adds filesystem paths)
-    logger.debug('Initializing storage manager');
-    const storageManager =
-        overrides?.storageManager ??
+    // 2. Initialize typed stores (config/image layers own backend resolution)
+    logger.debug('Initializing typed stores');
+    const stores =
+        overrides?.stores ??
         (() => {
             throw AgentError.initializationFailed(
-                'StorageManager must be provided via overrides.storageManager during the DI refactor'
+                'DextoStores must be provided via overrides.stores during the DI refactor'
             );
         })();
 
-    if (!storageManager.isConnected()) {
-        await storageManager.initialize();
-        await storageManager.connect();
+    if (!stores.isConnected()) {
+        await stores.connect();
     }
 
-    logger.debug('Storage manager initialized', await storageManager.getInfo());
+    logger.debug('Typed stores initialized', { type: stores.getStoreType() });
 
     const sessionCacheTtlMs = config.sessions?.sessionTTL ?? 3600000;
-    const approvalStore = storageManager.getStore('approvals');
-    const sessionToolPreferencesStore = new SessionToolPreferencesStore(storageManager, logger, {
-        cacheTtlMs: sessionCacheTtlMs,
-    });
-    const messageQueueStore = storageManager.getStore('messageQueue');
+    const approvalStore = stores.getStore('approvals');
+    const sessionStore = stores.getStore('sessions');
+    const conversationStore = stores.getStore('conversation');
+    const sessionToolPreferencesStore = new SessionToolPreferencesStore(
+        stores.getStore('toolPreferences'),
+        logger,
+        {
+            cacheTtlMs: sessionCacheTtlMs,
+        }
+    );
+    const messageQueueStore = stores.getStore('messageQueue');
 
     // 2.5 Initialize workspace manager (uses persistent database)
     const workspaceManager = new WorkspaceManager(
-        storageManager.getDatabase(),
+        stores.getStore('workspaces'),
         agentEventBus,
         logger
     );
@@ -195,10 +200,10 @@ export async function createAgentServices(
     logger.debug('Approval manager connected to MCP manager for elicitation support');
 
     // 5. Initialize search service
-    const searchService = new SearchService(storageManager.getDatabase(), logger);
+    const searchService = new SearchService(conversationStore, sessionStore, logger);
 
     // 6. Initialize memory manager
-    const memoryManager = new MemoryManager(storageManager.getDatabase(), logger);
+    const memoryManager = new MemoryManager(stores.getStore('memories'), logger);
     logger.debug('Memory manager initialized');
 
     // 6.5 Initialize hook manager
@@ -206,7 +211,7 @@ export async function createAgentServices(
     const hookManager = new HookManager(
         {
             agentEventBus,
-            storageManager,
+            stores,
         },
         hooks,
         logger
@@ -222,7 +227,7 @@ export async function createAgentServices(
         mcpManager,
         {
             resourcesConfig: config.resources,
-            blobStore: storageManager.getBlobStore(),
+            artifactStore: stores.getStore('artifacts'),
         },
         agentEventBus,
         logger
@@ -234,7 +239,7 @@ export async function createAgentServices(
     const allowedToolsProvider = createAllowedToolsProvider(
         {
             type: config.permissions.allowedToolsStorage,
-            storageManager,
+            toolPreferenceStore: stores.getStore('toolPreferences'),
         },
         logger
     );
@@ -292,7 +297,8 @@ export async function createAgentServices(
             toolManager,
             approvalManager,
             agentEventBus,
-            storageManager, // Add storage manager to session services
+            sessionStore,
+            conversationStore,
             resourceManager, // Add resource manager for blob storage
             hookManager, // Add hook manager for hook execution
             mcpManager, // Add MCP manager for ChatSession
@@ -332,7 +338,7 @@ export async function createAgentServices(
         sessionManager,
         workspaceManager,
         searchService,
-        storageManager,
+        stores,
         resourceManager,
         approvalManager,
         memoryManager,

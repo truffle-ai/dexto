@@ -16,11 +16,7 @@ import { AgentErrorCode } from './error-codes.js';
 import { LLMErrorCode } from '../llm/error-codes.js';
 import { createLogger } from '../logger/factory.js';
 import { AgentEventBus, type StreamingEvent } from '../events/index.js';
-import {
-    createInMemoryBlobStore,
-    createInMemoryCache,
-    createInMemoryDatabase,
-} from '../test-utils/in-memory-storage.js';
+import { InMemoryDextoStores } from '../storage/index.js';
 
 // Mock the createAgentServices function
 vi.mock('../utils/service-initializer.js', () => ({
@@ -63,11 +59,7 @@ describe('DextoAgent Lifecycle Management', () => {
         return new DextoAgent({
             ...settings,
             logger: agentLogger,
-            storage: {
-                blob: createInMemoryBlobStore(),
-                database: createInMemoryDatabase(),
-                cache: createInMemoryCache(),
-            },
+            stores: new InMemoryDextoStores(),
             tools: [],
             hooks: [],
         });
@@ -102,6 +94,9 @@ describe('DextoAgent Lifecycle Management', () => {
             resources: ResourcesConfigSchema.parse([]),
             prompts: PromptsSchema.parse([]),
         };
+
+        const stores = new InMemoryDextoStores();
+        vi.spyOn(stores, 'disconnect').mockResolvedValue(undefined);
 
         mockServices = {
             mcpManager: {
@@ -140,12 +135,7 @@ describe('DextoAgent Lifecycle Management', () => {
                 listWorkspaces: vi.fn(),
             } as any,
             searchService: {} as any,
-            storageManager: {
-                disconnect: vi.fn(),
-                getDatabase: vi.fn().mockReturnValue({}),
-                getCache: vi.fn().mockReturnValue({}),
-                getBlobStore: vi.fn().mockReturnValue({}),
-            } as any,
+            stores,
             resourceManager: {} as any,
             approvalManager: {
                 requestToolApproval: vi.fn(),
@@ -166,7 +156,7 @@ describe('DextoAgent Lifecycle Management', () => {
         // Set up default behaviors for mock functions that will be overridden in tests
         (mockServices.sessionManager.cleanup as any).mockResolvedValue(undefined);
         (mockServices.mcpManager.disconnectAll as any).mockResolvedValue(undefined);
-        (mockServices.storageManager!.disconnect as any).mockResolvedValue(undefined);
+        (mockServices.stores.disconnect as any).mockResolvedValue(undefined);
     });
 
     describe('Constructor Patterns', () => {
@@ -221,11 +211,7 @@ describe('DextoAgent Lifecycle Management', () => {
                     }),
                     agentId: mockValidatedConfig.agentId,
                 }),
-                storage: {
-                    blob: createInMemoryBlobStore(),
-                    database: createInMemoryDatabase(),
-                    cache: createInMemoryCache(),
-                },
+                stores: new InMemoryDextoStores(),
                 tools: [],
                 hooks: [],
                 overrides: {
@@ -362,11 +348,7 @@ describe('DextoAgent Lifecycle Management', () => {
             const agent = new DextoAgent({
                 ...mockValidatedConfig,
                 logger: agentLogger,
-                storage: {
-                    blob: createInMemoryBlobStore(),
-                    database: createInMemoryDatabase(),
-                    cache: createInMemoryCache(),
-                },
+                stores: new InMemoryDextoStores(),
                 tools: [],
                 hooks: [],
                 overrides: {
@@ -421,7 +403,7 @@ describe('DextoAgent Lifecycle Management', () => {
             expect(agent.isStopped()).toBe(true);
             expect(mockServices.sessionManager.cleanup).toHaveBeenCalled();
             expect(mockServices.mcpManager.disconnectAll).toHaveBeenCalled();
-            expect(mockServices.storageManager!.disconnect).toHaveBeenCalled();
+            expect(mockServices.stores.disconnect).toHaveBeenCalled();
         });
 
         test('should throw error when stopping before start', async () => {
@@ -460,7 +442,7 @@ describe('DextoAgent Lifecycle Management', () => {
 
             // Should still try to clean other services
             expect(mockServices.mcpManager.disconnectAll).toHaveBeenCalled();
-            expect(mockServices.storageManager!.disconnect).toHaveBeenCalled();
+            expect(mockServices.stores.disconnect).toHaveBeenCalled();
         });
     });
 
@@ -1053,7 +1035,7 @@ describe('DextoAgent Lifecycle Management', () => {
                 return Promise.resolve();
             });
 
-            (mockServices.storageManager!.disconnect as any).mockImplementation(() => {
+            (mockServices.stores.disconnect as any).mockImplementation(() => {
                 cleanupOrder.push('storage');
                 return Promise.resolve();
             });

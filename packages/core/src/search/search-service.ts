@@ -1,6 +1,7 @@
 import type { Logger } from '../logger/v2/types.js';
 import { DextoLogComponent } from '../logger/v2/types.js';
-import type { Database } from '../storage/types.js';
+import type { ConversationStore } from '../storage/conversation/types.js';
+import type { SessionStore } from '../storage/sessions/types.js';
 import type { InternalMessage } from '../context/types.js';
 import type {
     SearchOptions,
@@ -18,7 +19,8 @@ export class SearchService {
     private logger: Logger;
 
     constructor(
-        private database: Database,
+        private conversationStore: ConversationStore,
+        private sessionStore: SessionStore,
         logger: Logger
     ) {
         this.logger = logger.createChild(DextoLogComponent.SESSION);
@@ -162,14 +164,7 @@ export class SearchService {
         sessionId: string,
         role?: string
     ): Promise<SearchResult[]> {
-        const messagesKey = `messages:${sessionId}`;
-        // TODO: Consider implementing pagination or using database search capabilities
-        const MAX_MESSAGES_PER_SEARCH = 10000; // Configurable limit
-        const messages = await this.database.getRange<InternalMessage>(
-            messagesKey,
-            0,
-            MAX_MESSAGES_PER_SEARCH
-        );
+        const messages = await this.conversationStore.listMessages({ sessionId });
 
         const results: SearchResult[] = [];
         const lowerQuery = query.toLowerCase();
@@ -290,8 +285,7 @@ export class SearchService {
      * Get all session IDs
      */
     private async getSessionIds(): Promise<string[]> {
-        const sessionKeys = await this.database.list('session:');
-        return sessionKeys.map((key: string) => key.replace('session:', ''));
+        return await this.sessionStore.listSessionIds();
     }
 
     /**
@@ -302,12 +296,7 @@ export class SearchService {
         lastActivity: number;
         messageCount: number;
     }> {
-        const sessionKey = `session:${sessionId}`;
-        const sessionData = await this.database.get<{
-            createdAt: number;
-            lastActivity: number;
-            messageCount: number;
-        }>(sessionKey);
+        const sessionData = await this.sessionStore.getSession({ sessionId });
 
         if (!sessionData) {
             throw new Error(`Session metadata not found: ${sessionId}`);

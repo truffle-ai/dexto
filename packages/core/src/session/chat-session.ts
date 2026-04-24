@@ -6,8 +6,6 @@ import type { SystemPromptManager } from '../systemPrompt/manager.js';
 import type { ToolManager } from '../tools/tool-manager.js';
 import type { ValidatedLLMConfig } from '../llm/schemas.js';
 import type { AgentStateManager } from '../agent/state-manager.js';
-import type { StorageManager } from '../storage/index.js';
-import { DatabaseConversationStore } from '../storage/index.js';
 import type { ConversationStore } from '../storage/index.js';
 import type { HookManager } from '../hooks/manager.js';
 import type { MCPManager } from '../mcp/manager.js';
@@ -145,7 +143,7 @@ export class ChatSession {
             systemPromptManager: SystemPromptManager;
             toolManager: ToolManager;
             agentEventBus: AgentEventBus;
-            storageManager: StorageManager;
+            conversationStore: ConversationStore;
             resourceManager: import('../resources/index.js').ResourceManager;
             hookManager: HookManager;
             mcpManager: MCPManager;
@@ -266,12 +264,7 @@ export class ChatSession {
 
         await this.messageQueue.initialize();
 
-        // Create conversation store directly with database backend
-        // This persists across LLM switches to maintain conversation history
-        this.conversationStore = new DatabaseConversationStore(
-            this.services.storageManager.getDatabase(),
-            this.logger
-        );
+        this.conversationStore = this.services.conversationStore;
 
         this.llmService = await this.createSessionLLMService(llmConfig, runtimeConfig.usageScopeId);
 

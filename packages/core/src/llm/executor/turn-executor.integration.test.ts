@@ -10,15 +10,14 @@ import { VercelMessageFormatter } from '../formatters/vercel.js';
 import { MCPManager } from '../../mcp/manager.js';
 import { ApprovalManager } from '../../approval/manager.js';
 import { createLogger } from '../../logger/factory.js';
-import { StorageManager } from '../../storage/storage-manager.js';
 import { MemoryManager } from '../../memory/index.js';
 import { SystemPromptConfigSchema } from '../../systemPrompt/schemas.js';
-import { createInMemoryStorageManager } from '../../test-utils/in-memory-storage.js';
 import type { LanguageModel, ModelMessage } from 'ai';
 import type { LLMContext } from '../types.js';
 import type { ValidatedLLMConfig } from '../schemas.js';
 import type { Logger } from '../../logger/v2/types.js';
 import { InMemoryDextoStores } from '../../storage/stores/in-memory.js';
+import type { DextoStores } from '../../storage/index.js';
 import type { ConversationStore } from '../../storage/conversation/types.js';
 import {
     createInMemoryMessageQueueStore,
@@ -130,7 +129,7 @@ describe('TurnExecutor Integration Tests', () => {
     let conversationStore: ConversationStore;
     let mcpManager: MCPManager;
     let approvalManager: ApprovalManager;
-    let storageManager: StorageManager;
+    let stores: DextoStores;
 
     const sessionId = 'test-session';
     const llmContext: LLMContext = { provider: 'openai', model: 'gpt-4' };
@@ -151,8 +150,8 @@ describe('TurnExecutor Integration Tests', () => {
         agentEventBus = new AgentEventBus();
         sessionEventBus = new SessionEventBus();
 
-        // Create real storage manager with in-memory backends
-        storageManager = await createInMemoryStorageManager(logger);
+        stores = new InMemoryDextoStores();
+        await stores.connect();
 
         // Create real MCP manager
         mcpManager = new MCPManager(logger, agentEventBus);
@@ -162,7 +161,7 @@ describe('TurnExecutor Integration Tests', () => {
             mcpManager,
             {
                 resourcesConfig: [],
-                blobStore: storageManager.getBlobStore(),
+                artifactStore: stores.getStore('artifacts'),
             },
             agentEventBus,
             logger
@@ -170,10 +169,10 @@ describe('TurnExecutor Integration Tests', () => {
         await resourceManager.initialize();
 
         // Create real conversation store
-        conversationStore = new InMemoryDextoStores().getStore('conversation');
+        conversationStore = stores.getStore('conversation');
 
         // Create real memory manager and system prompt manager
-        const memoryManager = new MemoryManager(storageManager.getDatabase(), logger);
+        const memoryManager = new MemoryManager(stores.getStore('memories'), logger);
         const systemPromptConfig = SystemPromptConfigSchema.parse('You are a helpful assistant.');
         const systemPromptManager = new SystemPromptManager(
             systemPromptConfig,
@@ -269,6 +268,7 @@ describe('TurnExecutor Integration Tests', () => {
 
     afterEach(async () => {
         vi.restoreAllMocks();
+        await stores.disconnect();
         logger.destroy();
     });
 

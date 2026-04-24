@@ -5,7 +5,7 @@ import type { MCPManager } from '../mcp/manager.js';
 import type { ToolManager } from '../tools/tool-manager.js';
 import type { AgentStateManager } from '../agent/state-manager.js';
 import type { AgentEventBus } from '../events/index.js';
-import type { StorageManager } from '../storage/index.js';
+import type { DextoStores } from '../storage/index.js';
 import type { HostRuntimeContext } from '../runtime/index.js';
 
 /**
@@ -81,7 +81,7 @@ export interface HookExecutionContext {
         readonly toolManager: ToolManager;
         readonly stateManager: AgentStateManager;
         readonly agentEventBus: AgentEventBus;
-        readonly storageManager: StorageManager;
+        readonly stores: DextoStores;
     };
 }
 

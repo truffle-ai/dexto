@@ -8,8 +8,6 @@ import { SystemPromptConfigSchema } from '../../systemPrompt/schemas.js';
 import { ResourceManager } from '../../resources/index.js';
 import { MCPManager } from '../../mcp/manager.js';
 import { MemoryManager } from '../../memory/index.js';
-import { StorageManager } from '../../storage/storage-manager.js';
-import { createInMemoryStorageManager } from '../../test-utils/in-memory-storage.js';
 import { createLogger } from '../../logger/factory.js';
 import { AgentEventBus } from '../../events/index.js';
 import type { ModelMessage } from 'ai';
@@ -18,6 +16,7 @@ import type { ValidatedLLMConfig } from '../../llm/schemas.js';
 import type { Logger } from '../../logger/v2/types.js';
 import type { InternalMessage } from '../types.js';
 import { InMemoryDextoStores } from '../../storage/stores/in-memory.js';
+import type { DextoStores } from '../../storage/index.js';
 import type { ConversationStore } from '../../storage/conversation/types.js';
 
 // Only mock the AI SDK's generateText - everything else is real
@@ -55,7 +54,7 @@ describe('Context Compaction Integration Tests', () => {
     let compactionStrategy: ReactiveOverflowCompactionStrategy;
     let logger: Logger;
     let conversationStore: ConversationStore;
-    let storageManager: StorageManager;
+    let stores: DextoStores;
     let mcpManager: MCPManager;
     let resourceManager: ResourceManager;
 
@@ -73,8 +72,8 @@ describe('Context Compaction Integration Tests', () => {
             agentId: 'test-agent',
         });
 
-        // Create real storage manager with in-memory backends
-        storageManager = await createInMemoryStorageManager(logger);
+        stores = new InMemoryDextoStores();
+        await stores.connect();
 
         // Create real MCP and resource managers
         const agentEventBus = new AgentEventBus();
@@ -83,7 +82,7 @@ describe('Context Compaction Integration Tests', () => {
             mcpManager,
             {
                 resourcesConfig: [],
-                blobStore: storageManager.getBlobStore(),
+                artifactStore: stores.getStore('artifacts'),
             },
             agentEventBus,
             logger
@@ -91,10 +90,10 @@ describe('Context Compaction Integration Tests', () => {
         await resourceManager.initialize();
 
         // Create real conversation store
-        conversationStore = new InMemoryDextoStores().getStore('conversation');
+        conversationStore = stores.getStore('conversation');
 
         // Create real memory and system prompt managers
-        const memoryManager = new MemoryManager(storageManager.getDatabase(), logger);
+        const memoryManager = new MemoryManager(stores.getStore('memories'), logger);
         const systemPromptConfig = SystemPromptConfigSchema.parse('You are a helpful assistant.');
         const systemPromptManager = new SystemPromptManager(
             systemPromptConfig,
@@ -135,6 +134,7 @@ describe('Context Compaction Integration Tests', () => {
 
     afterEach(async () => {
         vi.restoreAllMocks();
+        await stores.disconnect();
         logger.destroy();
     });
 

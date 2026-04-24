@@ -2,6 +2,7 @@ import { describe, test, expect } from 'vitest';
 import { PromptManager } from './prompt-manager.js';
 import type { PromptDefinition } from './types.js';
 import { createSilentMockLogger } from '../logger/v2/test-utils.js';
+import { InMemoryDextoStores } from '../storage/index.js';
 
 const mockLogger = createSilentMockLogger();
 
@@ -34,21 +35,17 @@ describe('PromptManager MCP args mapping/filtering', () => {
     test('maps positional to named and filters internal keys for MCP', async () => {
         const capture: any = {};
         const fakeMCP = makeFakeMCPManager(capture);
-        const resourceManagerStub = { getBlobStore: () => undefined } as any;
+        const stores = new InMemoryDextoStores();
+        const resourceManagerStub = { getArtifactStore: () => stores.getStore('artifacts') } as any;
         const agentConfig: any = { prompts: [] };
         const eventBus: any = { on: () => {}, emit: () => {} };
-        const dbStub: any = {
-            connect: async () => {},
-            list: async () => [],
-            get: async () => undefined,
-        };
 
         const pm = new PromptManager(
             fakeMCP,
             resourceManagerStub,
             agentConfig,
             eventBus,
-            dbStub,
+            stores,
             mockLogger
         );
         await pm.initialize();
@@ -75,7 +72,8 @@ describe('PromptManager getPromptDefinition', () => {
                 return { messages: [] };
             },
         } as any;
-        const resourceManagerStub = { getBlobStore: () => undefined } as any;
+        const stores = new InMemoryDextoStores();
+        const resourceManagerStub = { getArtifactStore: () => stores.getStore('artifacts') } as any;
         const agentConfig: any = {
             prompts: [
                 {
@@ -88,18 +86,13 @@ describe('PromptManager getPromptDefinition', () => {
             ],
         };
         const eventBus: any = { on: () => {}, emit: () => {} };
-        const dbStub: any = {
-            connect: async () => {},
-            list: async () => [],
-            get: async () => undefined,
-        };
 
         const pm = new PromptManager(
             fakeMCP,
             resourceManagerStub,
             agentConfig,
             eventBus,
-            dbStub,
+            stores,
             mockLogger
         );
         await pm.initialize();
@@ -124,7 +117,8 @@ describe('PromptManager getPromptDefinition', () => {
                 return { messages: [] };
             },
         } as any;
-        const resourceManagerStub = { getBlobStore: () => undefined } as any;
+        const stores = new InMemoryDextoStores();
+        const resourceManagerStub = { getArtifactStore: () => stores.getStore('artifacts') } as any;
         const agentConfig: any = {
             prompts: [
                 {
@@ -136,18 +130,13 @@ describe('PromptManager getPromptDefinition', () => {
             ],
         };
         const eventBus: any = { on: () => {}, emit: () => {} };
-        const dbStub: any = {
-            connect: async () => {},
-            list: async () => [],
-            get: async () => undefined,
-        };
 
         const pm = new PromptManager(
             fakeMCP,
             resourceManagerStub,
             agentConfig,
             eventBus,
-            dbStub,
+            stores,
             mockLogger
         );
         await pm.initialize();
@@ -174,7 +163,8 @@ describe('PromptManager resolvePrompt', () => {
                 return { messages: [] };
             },
         } as any;
-        const resourceManagerStub = { getBlobStore: () => undefined } as any;
+        const stores = new InMemoryDextoStores();
+        const resourceManagerStub = { getArtifactStore: () => stores.getStore('artifacts') } as any;
         const agentConfig: any = {
             prompts: [
                 {
@@ -188,18 +178,13 @@ describe('PromptManager resolvePrompt', () => {
             ],
         };
         const eventBus: any = { on: () => {}, emit: () => {} };
-        const dbStub: any = {
-            connect: async () => {},
-            list: async () => [],
-            get: async () => undefined,
-        };
 
         const pm = new PromptManager(
             fakeMCP,
             resourceManagerStub,
             agentConfig,
             eventBus,
-            dbStub,
+            stores,
             mockLogger
         );
         await pm.initialize();

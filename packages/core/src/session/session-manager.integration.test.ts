@@ -14,11 +14,22 @@ import { PromptsSchema } from '../prompts/schemas.js';
 import { createLogger } from '../logger/factory.js';
 import type { SessionData } from './session-manager.js';
 import { ServersConfigSchema } from '../mcp/schemas.js';
+import { DatabaseBackedDextoStores, InMemoryDextoStores } from '../storage/index.js';
 import {
     createInMemoryBlobStore,
     createInMemoryCache,
     createInMemoryDatabase,
 } from '../test-utils/in-memory-storage.js';
+import type { InternalMessage } from '../context/types.js';
+
+function textMessage(id: string, role: 'user' | 'assistant', text: string): InternalMessage {
+    return {
+        id,
+        role,
+        content: [{ type: 'text', text }],
+        timestamp: Date.now(),
+    };
+}
 
 /**
  * Full end-to-end integration tests for chat history preservation.
@@ -62,11 +73,7 @@ describe('Session Integration: Chat History Preservation', () => {
         agent = new DextoAgent({
             ...testSettings,
             logger,
-            storage: {
-                blob: createInMemoryBlobStore(),
-                database: createInMemoryDatabase(),
-                cache: createInMemoryCache(),
-            },
+            stores: new InMemoryDextoStores(),
             tools: [],
             hooks: [],
         });
@@ -89,35 +96,58 @@ describe('Session Integration: Chat History Preservation', () => {
         // Step 2: Simulate adding messages to the session
         // In a real scenario, this would happen through agent.run() calls
         // For testing, we'll access the underlying storage directly
-        const storage = agent.services.storageManager;
-        const messagesKey = `messages:${sessionId}`;
-        const chatHistory = [
-            { role: 'user', content: 'What is 2+2?' },
-            { role: 'assistant', content: '2+2 equals 4.' },
-            { role: 'user', content: 'Thank you!' },
+        const conversationStore = agent.services.stores.getStore('conversation');
+        const sessionStore = agent.services.stores.getStore('sessions');
+        const chatHistory: InternalMessage[] = [
             {
+                id: 'msg-1',
+                role: 'user',
+                content: [{ type: 'text', text: 'What is 2+2?' }],
+                timestamp: 1,
+            },
+            {
+                id: 'msg-2',
                 role: 'assistant',
-                content: "You're welcome! Is there anything else I can help you with?",
+                content: [{ type: 'text', text: '2+2 equals 4.' }],
+                timestamp: 2,
+            },
+            {
+                id: 'msg-3',
+                role: 'user',
+                content: [{ type: 'text', text: 'Thank you!' }],
+                timestamp: 3,
+            },
+            {
+                id: 'msg-4',
+                role: 'assistant',
+                content: [
+                    {
+                        type: 'text',
+                        text: "You're welcome! Is there anything else I can help you with?",
+                    },
+                ],
+                timestamp: 4,
             },
         ];
-        await storage.getDatabase().set(messagesKey, chatHistory);
+        for (const message of chatHistory) {
+            await conversationStore.saveMessage({ sessionId, message });
+        }
 
         // Step 3: Verify session exists and has history
         const activeSession = await agent.getSession(sessionId);
         expect(activeSession).toBeDefined();
         expect(activeSession!.id).toBe(sessionId);
 
-        const storedHistory = await storage.getDatabase().get(messagesKey);
+        const storedHistory = await conversationStore.listMessages({ sessionId });
         expect(storedHistory).toEqual(chatHistory);
 
         // Step 4: Force session expiry by manipulating lastActivity timestamp
         await new Promise((resolve) => setTimeout(resolve, 150)); // Wait > TTL
 
-        const sessionKey = `session:${sessionId}`;
-        const sessionData = await storage.getDatabase().get<SessionData>(sessionKey);
+        const sessionData = await sessionStore.getSession({ sessionId });
         if (sessionData) {
             sessionData.lastActivity = Date.now() - 200; // Mark as expired
-            await storage.getDatabase().set(sessionKey, sessionData);
+            await sessionStore.saveSession({ sessionId, session: sessionData });
         }
 
         // Access private method to manually trigger cleanup for testing session expiry behavior
@@ -129,8 +159,8 @@ describe('Session Integration: Chat History Preservation', () => {
         expect(sessionsMap.has(sessionId)).toBe(false);
 
         // But storage should still have both session metadata and chat history
-        expect(await storage.getDatabase().get(sessionKey)).toBeDefined();
-        expect(await storage.getDatabase().get(messagesKey)).toEqual(chatHistory);
+        expect(await sessionStore.getSession({ sessionId })).toBeDefined();
+        expect(await conversationStore.listMessages({ sessionId })).toEqual(chatHistory);
 
         // Step 6: Access session again through DextoAgent - should restore seamlessly
         const restoredSession = await agent.getSession(sessionId);
@@ -141,14 +171,19 @@ describe('Session Integration: Chat History Preservation', () => {
         expect(sessionsMap.has(sessionId)).toBe(true);
 
         // Chat history should still be intact
-        const restoredHistory = await storage.getDatabase().get(messagesKey);
+        const restoredHistory = await conversationStore.listMessages({ sessionId });
         expect(restoredHistory).toEqual(chatHistory);
 
         // Step 7: Verify we can continue the conversation
-        const newMessage = { role: 'user', content: 'One more question: what is 3+3?' };
-        await storage.getDatabase().set(messagesKey, [...chatHistory, newMessage]);
+        const newMessage: InternalMessage = {
+            id: 'msg-5',
+            role: 'user',
+            content: [{ type: 'text', text: 'One more question: what is 3+3?' }],
+            timestamp: 5,
+        };
+        await conversationStore.saveMessage({ sessionId, message: newMessage });
 
-        const finalHistory = await storage.getDatabase().get<any[]>(messagesKey);
+        const finalHistory = await conversationStore.listMessages({ sessionId });
         expect(finalHistory).toBeDefined();
         expect(finalHistory!).toHaveLength(5);
         expect(finalHistory![4]).toEqual(newMessage);
@@ -175,17 +210,16 @@ describe('Session Integration: Chat History Preservation', () => {
         // Create session and add history
         await agent.createSession(sessionId);
 
-        const storage = agent.services.storageManager;
-        const messagesKey = `messages:${sessionId}`;
-        const sessionKey = `session:${sessionId}`;
-        const history = [{ role: 'user', content: 'Hello!' }];
+        const conversationStore = agent.services.stores.getStore('conversation');
+        const sessionStore = agent.services.stores.getStore('sessions');
+        const history = [textMessage('delete-msg-1', 'user', 'Hello!')];
 
-        await storage.getDatabase().set(messagesKey, history);
+        await conversationStore.saveMessage({ sessionId, message: history[0]! });
 
         // Verify everything exists
         expect(await agent.getSession(sessionId)).toBeDefined();
-        expect(await storage.getDatabase().get(sessionKey)).toBeDefined();
-        expect(await storage.getDatabase().get(messagesKey)).toEqual(history);
+        expect(await sessionStore.getSession({ sessionId })).toBeDefined();
+        expect(await conversationStore.listMessages({ sessionId })).toEqual(history);
 
         // Delete session through DextoAgent
         await agent.deleteSession(sessionId);
@@ -193,8 +227,8 @@ describe('Session Integration: Chat History Preservation', () => {
         // Everything should be gone including chat history
         const deletedSession = await agent.getSession(sessionId);
         expect(deletedSession).toBeUndefined();
-        expect(await storage.getDatabase().get(sessionKey)).toBeUndefined();
-        expect(await storage.getDatabase().get(messagesKey)).toBeUndefined();
+        expect(await sessionStore.getSession({ sessionId })).toBeUndefined();
+        expect(await conversationStore.listMessages({ sessionId })).toEqual([]);
     });
 
     test('full integration: forked session stores parent lineage and clones history', async () => {
@@ -202,28 +236,27 @@ describe('Session Integration: Chat History Preservation', () => {
         const parentSession = await agent.createSession(parentSessionId);
         expect(parentSession.id).toBe(parentSessionId);
 
-        const storage = agent.services.storageManager;
-        const parentMessagesKey = `messages:${parentSessionId}`;
-        const parentSessionKey = `session:${parentSessionId}`;
-        const parentHistory = [
-            { role: 'user', content: 'Parent question 1' },
-            { role: 'assistant', content: 'Parent answer 1' },
-            { role: 'user', content: 'Parent question 2' },
+        const conversationStore = agent.services.stores.getStore('conversation');
+        const sessionStore = agent.services.stores.getStore('sessions');
+        const parentHistory: InternalMessage[] = [
+            textMessage('parent-msg-1', 'user', 'Parent question 1'),
+            textMessage('parent-msg-2', 'assistant', 'Parent answer 1'),
+            textMessage('parent-msg-3', 'user', 'Parent question 2'),
         ];
 
         for (const message of parentHistory) {
-            await storage.getDatabase().append(parentMessagesKey, message);
+            await conversationStore.saveMessage({ sessionId: parentSessionId, message });
         }
 
         await agent.setSessionTitle(parentSessionId, 'Parent Session Title');
         await agent.switchLLM({ model: 'gpt-5' }, parentSessionId);
 
-        const parentSessionData = await storage.getDatabase().get<SessionData>(parentSessionKey);
+        const parentSessionData = await sessionStore.getSession({ sessionId: parentSessionId });
         if (!parentSessionData) {
             throw new Error('Parent session data not found');
         }
         parentSessionData.messageCount = parentHistory.length;
-        await storage.getDatabase().set(parentSessionKey, parentSessionData);
+        await sessionStore.saveSession({ sessionId: parentSessionId, session: parentSessionData });
 
         const childSession = await agent.forkSession(parentSessionId);
         const childSessionId = childSession.id;
@@ -238,9 +271,7 @@ describe('Session Integration: Chat History Preservation', () => {
         expect(childMetadata?.estimatedCost).toBeUndefined();
         expect(childMetadata?.modelStats).toBeUndefined();
 
-        const childHistory = await storage
-            .getDatabase()
-            .getRange<(typeof parentHistory)[number]>(`messages:${childSessionId}`, 0, 100);
+        const childHistory = await conversationStore.listMessages({ sessionId: childSessionId });
         expect(childHistory).toEqual(parentHistory);
 
         const childSessionData = await agent.sessionManager.getSessionData(childSessionId);
@@ -249,16 +280,23 @@ describe('Session Integration: Chat History Preservation', () => {
 
     test('full integration: multiple concurrent sessions with independent histories', async () => {
         const sessionIds = ['concurrent-1', 'concurrent-2', 'concurrent-3'];
-        const histories = sessionIds.map((_, index) => [
-            { role: 'user', content: `Message from session ${index + 1}` },
-            { role: 'assistant', content: `Response to session ${index + 1}` },
+        const histories = sessionIds.map((_, index): InternalMessage[] => [
+            textMessage(`concurrent-${index}-msg-1`, 'user', `Message from session ${index + 1}`),
+            textMessage(
+                `concurrent-${index}-msg-2`,
+                'assistant',
+                `Response to session ${index + 1}`
+            ),
         ]);
 
         // Create multiple sessions with different histories
-        const storage = agent.services.storageManager;
+        const conversationStore = agent.services.stores.getStore('conversation');
+        const sessionStore = agent.services.stores.getStore('sessions');
         for (let i = 0; i < sessionIds.length; i++) {
             await agent.createSession(sessionIds[i]);
-            await storage.getDatabase().set(`messages:${sessionIds[i]}`, histories[i]);
+            for (const message of histories[i]!) {
+                await conversationStore.saveMessage({ sessionId: sessionIds[i]!, message });
+            }
         }
 
         // Verify all sessions exist and have correct histories
@@ -268,19 +306,17 @@ describe('Session Integration: Chat History Preservation', () => {
             expect(session).toBeDefined();
             expect(session!.id).toBe(sessionId);
 
-            const history = await storage.getDatabase().get(`messages:${sessionId}`);
+            const history = await conversationStore.listMessages({ sessionId });
             expect(history).toEqual(histories[i]);
         }
 
         // Force expiry and cleanup for all sessions
         await new Promise((resolve) => setTimeout(resolve, 150));
         for (const sessionId of sessionIds) {
-            const sessionData = await storage
-                .getDatabase()
-                .get<SessionData>(`session:${sessionId}`);
+            const sessionData = await sessionStore.getSession({ sessionId });
             if (sessionData) {
                 sessionData.lastActivity = Date.now() - 200;
-                await storage.getDatabase().set(`session:${sessionId}`, sessionData);
+                await sessionStore.saveSession({ sessionId, session: sessionData });
             }
         }
 
@@ -295,7 +331,7 @@ describe('Session Integration: Chat History Preservation', () => {
 
         // But histories should be preserved in storage
         for (let i = 0; i < sessionIds.length; i++) {
-            const history = await storage.getDatabase().get(`messages:${sessionIds[i]}`);
+            const history = await conversationStore.listMessages({ sessionId: sessionIds[i]! });
             expect(history).toEqual(histories[i]);
         }
 
@@ -310,7 +346,7 @@ describe('Session Integration: Chat History Preservation', () => {
             expect(sessionsMap.has(sessionId)).toBe(true);
 
             // Verify history is still intact and independent
-            const history = await storage.getDatabase().get(`messages:${sessionId}`);
+            const history = await conversationStore.listMessages({ sessionId });
             expect(history).toEqual(histories[i]);
         }
     });
@@ -365,7 +401,14 @@ describe('Session Integration: Core-owned Interaction State Persistence', () => 
             ...baseSettings,
             agentId,
             logger,
-            storage,
+            stores: new DatabaseBackedDextoStores(
+                {
+                    blobStore: storage.blob,
+                    cache: storage.cache,
+                    database: storage.database,
+                },
+                logger
+            ),
             tools: [
                 {
                     id: 'allowed_tool',
@@ -429,9 +472,9 @@ describe('Session Integration: Core-owned Interaction State Persistence', () => 
                 sessionId
             );
 
-            const persistedSession = await agent1.services.storageManager
-                .getDatabase()
-                .get<SessionData>(`session:${sessionId}`);
+            const persistedSession = await sharedStorage.database.get<SessionData>(
+                `session:${sessionId}`
+            );
             expect(persistedSession?.llmOverride).toEqual(
                 expect.objectContaining({
                     provider: 'openai',
@@ -439,24 +482,23 @@ describe('Session Integration: Core-owned Interaction State Persistence', () => 
                 })
             );
 
-            const persistedQueue = await agent1.services.storageManager
-                .getDatabase()
-                .get<Array<{ content: Array<{ type: string; text?: string }> }>>(queueKey);
+            const persistedQueue =
+                await sharedStorage.database.get<
+                    Array<{ content: Array<{ type: string; text?: string }> }>
+                >(queueKey);
             expect(persistedQueue).toHaveLength(1);
             expect(persistedQueue?.[0]?.content).toEqual([
                 { type: 'text', text: 'resume with plan B' },
             ]);
 
             expect(
-                await agent1.services.storageManager
-                    .getDatabase()
-                    .get(`session-tool-preferences:${sessionId}`)
+                await sharedStorage.database.get(`session-tool-preferences:${sessionId}`)
             ).toEqual({
                 userAutoApproveTools: ['allowed_tool'],
                 disabledTools: ['disabled_tool'],
             });
 
-            const persistedApprovals = await agent1.services.storageManager.getDatabase().get<{
+            const persistedApprovals = await sharedStorage.database.get<{
                 toolPatterns?: Record<string, string[]>;
                 approvedDirectories?: Array<{ path: string; type: string }>;
             }>(`session-approvals:${sessionId}`);
@@ -584,7 +626,7 @@ describe('Session Integration: Core-owned Interaction State Persistence', () => 
             sessionId
         );
 
-        const database = agent1.services.storageManager.getDatabase();
+        const database = sharedStorage.database;
         const expiredSession = await database.get<SessionData>(`session:${sessionId}`);
         if (!expiredSession) {
             throw new Error(`Expected session '${sessionId}' to exist`);
@@ -717,11 +759,7 @@ describe('Session Integration: Multi-Model Token Tracking', () => {
         agent = new DextoAgent({
             ...testSettings,
             logger,
-            storage: {
-                blob: createInMemoryBlobStore(),
-                database: createInMemoryDatabase(),
-                cache: createInMemoryCache(),
-            },
+            stores: new InMemoryDextoStores(),
             tools: [],
             hooks: [],
         });
@@ -1136,42 +1174,48 @@ describe('Session Integration: Multi-Model Token Tracking', () => {
         const sessionId = 'history-partial-blob-expansion';
         await agent.createSession(sessionId);
 
-        const storedBlob = await agent.services.storageManager
-            .getBlobStore()
-            .store('aW1hZ2UtZGF0YQ==', {
+        const artifactStore = agent.services.stores.getStore('artifacts');
+        const storedBlob = await artifactStore.store({
+            data: 'aW1hZ2UtZGF0YQ==',
+            metadata: {
                 mimeType: 'image/png',
                 originalName: 'demo.png',
                 source: 'tool',
-            });
-
-        const database = agent.services.storageManager.getDatabase();
-        await database.append(`messages:${sessionId}`, {
-            id: 'tool-message-1',
-            role: 'tool',
-            toolCallId: 'call-1',
-            name: 'read_media_file',
-            success: true,
-            content: [
-                {
-                    type: 'image',
-                    image: `@${storedBlob.uri}`,
-                    mimeType: 'image/png',
-                },
-                {
-                    type: 'file',
-                    data: '@blob:missing-blob-id',
-                    mimeType: 'application/pdf',
-                    filename: 'missing.pdf',
-                },
-            ],
+            },
         });
 
-        const sessionData = await database.get<SessionData>(`session:${sessionId}`);
+        const conversationStore = agent.services.stores.getStore('conversation');
+        const sessionStore = agent.services.stores.getStore('sessions');
+        await conversationStore.saveMessage({
+            sessionId,
+            message: {
+                id: 'tool-message-1',
+                role: 'tool',
+                toolCallId: 'call-1',
+                name: 'read_media_file',
+                success: true,
+                content: [
+                    {
+                        type: 'image',
+                        image: `@${storedBlob.uri}`,
+                        mimeType: 'image/png',
+                    },
+                    {
+                        type: 'file',
+                        data: '@blob:missing-blob-id',
+                        mimeType: 'application/pdf',
+                        filename: 'missing.pdf',
+                    },
+                ],
+            },
+        });
+
+        const sessionData = await sessionStore.getSession({ sessionId });
         if (!sessionData) {
             throw new Error(`Expected session '${sessionId}' to exist`);
         }
         sessionData.messageCount = 1;
-        await database.set(`session:${sessionId}`, sessionData);
+        await sessionStore.saveSession({ sessionId, session: sessionData });
         await agent.endSession(sessionId);
 
         const history = await agent.getSessionHistory(sessionId);
@@ -1199,39 +1243,45 @@ describe('Session Integration: Multi-Model Token Tracking', () => {
         const sessionId = 'history-resource-blob-expansion';
         await agent.createSession(sessionId);
 
-        const storedBlob = await agent.services.storageManager
-            .getBlobStore()
-            .store('aW1hZ2UtZGF0YQ==', {
+        const artifactStore = agent.services.stores.getStore('artifacts');
+        const storedBlob = await artifactStore.store({
+            data: 'aW1hZ2UtZGF0YQ==',
+            metadata: {
                 mimeType: 'image/png',
                 originalName: 'demo.png',
                 source: 'tool',
-            });
-
-        const database = agent.services.storageManager.getDatabase();
-        await database.append(`messages:${sessionId}`, {
-            id: 'tool-message-resource-blob',
-            role: 'tool',
-            toolCallId: 'call-resource-blob',
-            name: 'read_media_file',
-            success: true,
-            content: [
-                {
-                    type: 'resource',
-                    uri: storedBlob.uri,
-                    name: 'image',
-                    mimeType: 'image/png',
-                    kind: 'image',
-                    metadata: { source: 'tool' },
-                },
-            ],
+            },
         });
 
-        const sessionData = await database.get<SessionData>(`session:${sessionId}`);
+        const conversationStore = agent.services.stores.getStore('conversation');
+        const sessionStore = agent.services.stores.getStore('sessions');
+        await conversationStore.saveMessage({
+            sessionId,
+            message: {
+                id: 'tool-message-resource-blob',
+                role: 'tool',
+                toolCallId: 'call-resource-blob',
+                name: 'read_media_file',
+                success: true,
+                content: [
+                    {
+                        type: 'resource',
+                        uri: storedBlob.uri,
+                        name: 'image',
+                        mimeType: 'image/png',
+                        kind: 'image',
+                        metadata: { source: 'tool' },
+                    },
+                ],
+            },
+        });
+
+        const sessionData = await sessionStore.getSession({ sessionId });
         if (!sessionData) {
             throw new Error(`Expected session '${sessionId}' to exist`);
         }
         sessionData.messageCount = 1;
-        await database.set(`session:${sessionId}`, sessionData);
+        await sessionStore.saveSession({ sessionId, session: sessionData });
         await agent.endSession(sessionId);
 
         const history = await agent.getSessionHistory(sessionId);
@@ -1257,35 +1307,41 @@ describe('Session Integration: Multi-Model Token Tracking', () => {
         const sessionId = 'history-text-blob-expansion';
         await agent.createSession(sessionId);
 
-        const storedBlob = await agent.services.storageManager
-            .getBlobStore()
-            .store('Very large persisted text payload', {
+        const artifactStore = agent.services.stores.getStore('artifacts');
+        const storedBlob = await artifactStore.store({
+            data: 'Very large persisted text payload',
+            metadata: {
                 mimeType: 'text/plain',
                 originalName: 'payload.txt',
                 source: 'tool',
-            });
-
-        const database = agent.services.storageManager.getDatabase();
-        await database.append(`messages:${sessionId}`, {
-            id: 'tool-message-text-blob',
-            role: 'tool',
-            toolCallId: 'call-text-blob',
-            name: 'read_file',
-            success: true,
-            content: [
-                {
-                    type: 'text',
-                    text: `Expanded content: @${storedBlob.uri}`,
-                },
-            ],
+            },
         });
 
-        const sessionData = await database.get<SessionData>(`session:${sessionId}`);
+        const conversationStore = agent.services.stores.getStore('conversation');
+        const sessionStore = agent.services.stores.getStore('sessions');
+        await conversationStore.saveMessage({
+            sessionId,
+            message: {
+                id: 'tool-message-text-blob',
+                role: 'tool',
+                toolCallId: 'call-text-blob',
+                name: 'read_file',
+                success: true,
+                content: [
+                    {
+                        type: 'text',
+                        text: `Expanded content: @${storedBlob.uri}`,
+                    },
+                ],
+            },
+        });
+
+        const sessionData = await sessionStore.getSession({ sessionId });
         if (!sessionData) {
             throw new Error(`Expected session '${sessionId}' to exist`);
         }
         sessionData.messageCount = 1;
-        await database.set(`session:${sessionId}`, sessionData);
+        await sessionStore.saveSession({ sessionId, session: sessionData });
         await agent.endSession(sessionId);
 
         const history = await agent.getSessionHistory(sessionId);

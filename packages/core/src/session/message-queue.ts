@@ -7,6 +7,10 @@ import type { SessionMessageQueueStore } from '../storage/message-queue/types.js
 type MessageQueueBackingStore = SessionMessageQueueStore;
 
 class EphemeralMessageQueueStore implements MessageQueueBackingStore {
+    async listSessionIds(): Promise<string[]> {
+        return [];
+    }
+
     async load(input: { sessionId: string }): Promise<QueuedMessage[]> {
         void input;
         return [];

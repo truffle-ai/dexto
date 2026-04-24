@@ -1,7 +1,7 @@
 import { InMemoryAllowedToolsProvider } from './in-memory.js';
 import { StorageAllowedToolsProvider } from './storage.js';
 import type { AllowedToolsProvider } from './types.js';
-import type { StorageManager } from '../../../storage/index.js';
+import type { ToolPreferenceStore } from '../../../storage/index.js';
 import { ToolError } from '../../errors.js';
 import type { Logger } from '../../../logger/v2/types.js';
 
@@ -19,7 +19,7 @@ export type AllowedToolsConfig =
       }
     | {
           type: 'storage';
-          storageManager: StorageManager;
+          toolPreferenceStore: ToolPreferenceStore;
       };
 
 /**
@@ -33,7 +33,7 @@ export function createAllowedToolsProvider(
         case 'memory':
             return new InMemoryAllowedToolsProvider();
         case 'storage':
-            return new StorageAllowedToolsProvider(config.storageManager, logger);
+            return new StorageAllowedToolsProvider(config.toolPreferenceStore, logger);
         default: {
             // Exhaustive check; at runtime this guards malformed config
             const _exhaustive: never = config;

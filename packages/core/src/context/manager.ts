@@ -286,7 +286,7 @@ export class ContextManager<TMessage = unknown> {
             source?: 'user' | 'system';
         }
     ): Promise<string | Uint8Array | Buffer | ArrayBuffer | URL> {
-        const blobService = this.resourceManager.getBlobStore();
+        const artifactStore = this.resourceManager.getArtifactStore();
 
         // Estimate data size to decide if we should store as blob
         let shouldStoreAsBlob = false;
@@ -334,24 +334,29 @@ export class ContextManager<TMessage = unknown> {
                         ? Buffer.from(data, 'utf-8')
                         : data;
 
-                const blobRef = await blobService.store(blobInput, {
-                    mimeType: metadata.mimeType,
-                    originalName: metadata.originalName,
-                    source: metadata.source || 'user',
+                const artifactRef = await artifactStore.store({
+                    data: blobInput,
+                    metadata: {
+                        mimeType: metadata.mimeType,
+                        ...(metadata.originalName !== undefined && {
+                            originalName: metadata.originalName,
+                        }),
+                        source: metadata.source || 'user',
+                    },
                 });
 
                 this.logger.info(
-                    `Stored user input as blob: ${blobRef.uri} (${estimatedSize} bytes, ${metadata.mimeType})`
+                    `Stored user input as artifact: ${artifactRef.uri} (${estimatedSize} bytes, ${metadata.mimeType})`
                 );
 
                 // Emit event to invalidate resource cache so uploaded images appear in @ autocomplete
                 this.resourceManager.emitCacheInvalidated({
-                    resourceUri: blobRef.uri,
+                    resourceUri: artifactRef.uri,
                     serverName: 'internal',
                     action: 'blob_stored',
                 });
 
-                return `@${blobRef.uri}`; // Return @blob:id reference for ResourceManager
+                return `@${artifactRef.uri}`; // Return @blob:id reference for ResourceManager
             } catch (error) {
                 this.logger.warn(`Failed to store user input as blob: ${String(error)}`);
                 // Fallback to storing original data

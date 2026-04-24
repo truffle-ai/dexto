@@ -129,6 +129,21 @@ describe('ChatSession', () => {
             getBlobStore: vi.fn().mockReturnValue(mockBlobStore),
             disconnect: vi.fn().mockResolvedValue(undefined),
         };
+        const mockConversationStore = {
+            listMessages: vi.fn(async ({ sessionId }) =>
+                mockDatabase.getRange(`messages:${sessionId}`, 0)
+            ),
+            saveMessage: vi.fn(async ({ sessionId, message }) =>
+                mockDatabase.append(`messages:${sessionId}`, message)
+            ),
+            updateMessage: vi.fn(async ({ sessionId, message }) =>
+                mockDatabase.append(`messages:${sessionId}`, message)
+            ),
+            clearMessages: vi.fn(async ({ sessionId }) =>
+                mockDatabase.delete(`messages:${sessionId}`)
+            ),
+            flush: vi.fn().mockResolvedValue(undefined),
+        };
 
         // Mock services
         mockServices = {
@@ -153,6 +168,7 @@ describe('ChatSession', () => {
             },
             compactionStrategy: null,
             storageManager: mockStorageManager,
+            conversationStore: mockConversationStore,
             resourceManager: {
                 getBlobStore: vi.fn(),
                 readResource: vi.fn(),
@@ -202,7 +218,7 @@ describe('ChatSession', () => {
         test('should initialize with unified storage system', async () => {
             await chatSession.init();
 
-            expect(mockServices.storageManager.getDatabase).toHaveBeenCalled();
+            expect(mockServices.conversationStore.listMessages).not.toHaveBeenCalled();
             expect(mockCreateLLMService).toHaveBeenCalledWith(
                 mockLLMConfig,
                 mockServices.toolManager,
@@ -457,11 +473,10 @@ describe('ChatSession', () => {
 
     describe('Error Handling and Resilience', () => {
         test('should handle storage initialization failures gracefully', async () => {
-            mockServices.storageManager.getDatabase.mockImplementation(() => {
-                throw new Error('Storage initialization failed');
-            });
+            mockServices.messageQueueStore.load.mockRejectedValue(
+                new Error('Storage initialization failed')
+            );
 
-            // The init method should throw the error since it doesn't catch it
             await expect(chatSession.init()).rejects.toThrow('Storage initialization failed');
         });
 
@@ -547,7 +562,9 @@ describe('ChatSession', () => {
             const history = await chatSession.getHistory();
 
             expect(history).toEqual(mockHistory);
-            expect(mockDatabase.getRange).toHaveBeenCalledWith(`messages:${sessionId}`, 0, 10000);
+            expect(mockServices.conversationStore.listMessages).toHaveBeenCalledWith({
+                sessionId,
+            });
         });
     });
 
@@ -573,7 +590,7 @@ describe('ChatSession', () => {
                 undefined
             );
 
-            expect(mockServices.storageManager.getDatabase).toHaveBeenCalled();
+            expect(mockCreateLLMService).toHaveBeenCalledTimes(1);
         });
     });
 

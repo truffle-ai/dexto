@@ -292,7 +292,7 @@ export class StreamProcessor {
                         const sanitized = await sanitizeToolResult(
                             rawResult,
                             {
-                                blobStore: this.resourceManager.getBlobStore(),
+                                artifactStore: this.resourceManager.getArtifactStore(),
                                 toolName: event.toolName,
                                 toolCallId: event.toolCallId,
                                 success: true,

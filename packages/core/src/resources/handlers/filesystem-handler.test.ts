@@ -51,7 +51,7 @@ describe('FileSystemResourceHandler', () => {
             },
             logger as any
         );
-        await handler.initialize({ blobStore: {} as any });
+        await handler.initialize({ artifactStore: {} as any });
 
         const filePath = path.join(tempDir, 'diagram.png');
         const bytes = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x00, 0x01]);
@@ -89,7 +89,7 @@ describe('FileSystemResourceHandler', () => {
             },
             logger as any
         );
-        await handler.initialize({ blobStore: {} as any });
+        await handler.initialize({ artifactStore: {} as any });
 
         const filePath = path.join(tempDir, 'notes.txt');
         await fs.writeFile(filePath, 'hello from resources');

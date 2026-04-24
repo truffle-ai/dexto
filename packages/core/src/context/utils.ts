@@ -45,7 +45,7 @@ export interface NormalizedToolResult {
 }
 
 interface PersistToolMediaOptions {
-    blobStore?: import('../storage/blob/types.js').BlobStore;
+    artifactStore?: import('../storage/artifacts/types.js').ArtifactStore;
     toolName?: string;
     toolCallId?: string;
 }
@@ -1350,7 +1350,7 @@ export async function persistToolMedia(
     logger: Logger
 ): Promise<PersistToolMediaResult> {
     const parts = normalized.parts.map((part) => clonePart(part));
-    const blobStore = options.blobStore;
+    const artifactStore = options.artifactStore;
     const namingOptions: ToolBlobNamingOptions | undefined =
         options.toolName || options.toolCallId
             ? {
@@ -1368,7 +1368,7 @@ export async function persistToolMedia(
         url?: string;
     }> = [];
 
-    if (blobStore) {
+    if (artifactStore) {
         for (const hint of normalized.inlineMedia) {
             if (!shouldPersistInlineMedia(hint)) {
                 continue;
@@ -1383,17 +1383,23 @@ export async function persistToolMedia(
                         namingOptions
                     );
 
-                const blobRef = await blobStore.store(hint.data, {
-                    mimeType: hint.mimeType,
-                    originalName,
-                    source: 'tool',
+                const blobRef = await artifactStore.store({
+                    data: hint.data,
+                    metadata: {
+                        mimeType: hint.mimeType,
+                        originalName,
+                        source: 'tool',
+                    },
                 });
 
                 const resourceUri = blobRef.uri;
                 let publicUrl: string | undefined;
 
                 try {
-                    const urlResult = await blobStore.retrieve(resourceUri, 'url');
+                    const urlResult = await artifactStore.retrieve({
+                        reference: resourceUri,
+                        format: 'url',
+                    });
                     if (urlResult.format === 'url') {
                         publicUrl = urlResult.data;
                     }
@@ -1467,7 +1473,7 @@ export async function persistToolMedia(
 export async function sanitizeToolResultToContentWithBlobs(
     result: unknown,
     logger: Logger,
-    blobStore?: import('../storage/blob/types.js').BlobStore,
+    artifactStore?: import('../storage/artifacts/types.js').ArtifactStore,
     namingOptions?: ToolBlobNamingOptions
 ): Promise<InternalMessage['content']> {
     try {
@@ -1483,17 +1489,20 @@ export async function sanitizeToolResultToContentWithBlobs(
 
                 // Check if we should store as blob based on size
                 const approxSize = Math.floor((dataUri.base64.length * 3) / 4);
-                const shouldStoreAsBlob = blobStore && approxSize > 1024; // Store blobs > 1KB
+                const shouldStoreAsBlob = artifactStore && approxSize > 1024; // Store blobs > 1KB
 
                 if (shouldStoreAsBlob) {
                     try {
                         logger.debug(
                             `Storing data URI as blob (${approxSize} bytes, ${mediaType})`
                         );
-                        const blobRef = await blobStore.store(result, {
-                            mimeType: mediaType,
-                            source: 'tool',
-                            originalName: buildToolBlobName('output', mediaType, namingOptions),
+                        const blobRef = await artifactStore.store({
+                            data: result,
+                            metadata: {
+                                mimeType: mediaType,
+                                source: 'tool',
+                                originalName: buildToolBlobName('output', mediaType, namingOptions),
+                            },
                         });
                         logger.debug(`Stored blob: ${blobRef.uri} (${approxSize} bytes)`);
 
@@ -1549,7 +1558,7 @@ export async function sanitizeToolResultToContentWithBlobs(
                 const processedItem = await sanitizeToolResultToContentWithBlobs(
                     item,
                     logger,
-                    blobStore,
+                    artifactStore,
                     namingOptions
                 );
 
@@ -1625,22 +1634,27 @@ export async function sanitizeToolResultToContentWithBlobs(
                                     typeof fileData === 'string'
                                         ? Math.floor((fileData.length * 3) / 4)
                                         : 0;
-                                const shouldStoreAsBlob = blobStore && approxSize > 1024;
+                                const shouldStoreAsBlob = artifactStore && approxSize > 1024;
 
                                 if (shouldStoreAsBlob) {
                                     try {
                                         logger.debug(
                                             `Storing MCP resource as blob (${approxSize} bytes, ${mimeType})`
                                         );
-                                        const blobRef = await blobStore.store(fileData, {
-                                            mimeType,
-                                            source: 'tool',
-                                            originalName: buildToolBlobName(
-                                                mimeType.startsWith('image/') ? 'image' : 'file',
+                                        const blobRef = await artifactStore.store({
+                                            data: fileData,
+                                            metadata: {
                                                 mimeType,
-                                                namingOptions,
-                                                resource.title
-                                            ),
+                                                source: 'tool',
+                                                originalName: buildToolBlobName(
+                                                    mimeType.startsWith('image/')
+                                                        ? 'image'
+                                                        : 'file',
+                                                    mimeType,
+                                                    namingOptions,
+                                                    resource.title
+                                                ),
+                                            },
                                         });
                                         logger.debug(
                                             `Stored MCP resource blob: ${blobRef.uri} (${approxSize} bytes)`
@@ -1702,22 +1716,25 @@ export async function sanitizeToolResultToContentWithBlobs(
                                 typeof fileData === 'string'
                                     ? Math.floor((fileData.length * 3) / 4)
                                     : 0;
-                            const shouldStoreAsBlob = blobStore && approxSize > 1024;
+                            const shouldStoreAsBlob = artifactStore && approxSize > 1024;
 
                             if (shouldStoreAsBlob) {
                                 try {
                                     logger.debug(
                                         `Storing MCP content item as blob (${approxSize} bytes, ${mimeType})`
                                     );
-                                    const blobRef = await blobStore.store(fileData, {
-                                        mimeType,
-                                        source: 'tool',
-                                        originalName: buildToolBlobName(
-                                            item.type === 'image' ? 'image' : 'file',
+                                    const blobRef = await artifactStore.store({
+                                        data: fileData,
+                                        metadata: {
                                             mimeType,
-                                            namingOptions,
-                                            item.filename
-                                        ),
+                                            source: 'tool',
+                                            originalName: buildToolBlobName(
+                                                item.type === 'image' ? 'image' : 'file',
+                                                mimeType,
+                                                namingOptions,
+                                                item.filename
+                                            ),
+                                        },
                                     });
                                     logger.debug(
                                         `Stored MCP blob: ${blobRef.uri} (${approxSize} bytes)`
@@ -1773,14 +1790,17 @@ export async function sanitizeToolResultToContentWithBlobs(
                 // Check if we should store as blob
                 const approxSize =
                     typeof imageData === 'string' ? Math.floor((imageData.length * 3) / 4) : 0;
-                const shouldStoreAsBlob = blobStore && approxSize > 1024;
+                const shouldStoreAsBlob = artifactStore && approxSize > 1024;
 
                 if (shouldStoreAsBlob) {
                     try {
-                        const blobRef = await blobStore.store(imageData, {
-                            mimeType,
-                            source: 'tool',
-                            originalName: buildToolBlobName('image', mimeType, namingOptions),
+                        const blobRef = await artifactStore.store({
+                            data: imageData,
+                            metadata: {
+                                mimeType,
+                                source: 'tool',
+                                originalName: buildToolBlobName('image', mimeType, namingOptions),
+                            },
                         });
                         logger.debug(
                             `Stored tool image as blob: ${blobRef.uri} (${approxSize} bytes)`
@@ -1809,19 +1829,22 @@ export async function sanitizeToolResultToContentWithBlobs(
                 // Check if we should store as blob
                 const approxSize =
                     typeof fileData === 'string' ? Math.floor((fileData.length * 3) / 4) : 0;
-                const shouldStoreAsBlob = blobStore && approxSize > 1024;
+                const shouldStoreAsBlob = artifactStore && approxSize > 1024;
 
                 if (shouldStoreAsBlob) {
                     try {
-                        const blobRef = await blobStore.store(fileData, {
-                            mimeType,
-                            source: 'tool',
-                            originalName: buildToolBlobName(
-                                'file',
+                        const blobRef = await artifactStore.store({
+                            data: fileData,
+                            metadata: {
                                 mimeType,
-                                namingOptions,
-                                anyObj.filename
-                            ),
+                                source: 'tool',
+                                originalName: buildToolBlobName(
+                                    'file',
+                                    mimeType,
+                                    namingOptions,
+                                    anyObj.filename
+                                ),
+                            },
                         });
                         logger.debug(
                             `Stored tool file as blob: ${blobRef.uri} (${approxSize} bytes)`
@@ -1923,7 +1946,7 @@ function extractResourceDescriptors(
 export async function sanitizeToolResult(
     result: unknown,
     options: {
-        blobStore?: import('../storage/blob/types.js').BlobStore;
+        artifactStore?: import('../storage/artifacts/types.js').ArtifactStore;
         toolName: string;
         toolCallId: string;
         success: boolean;
@@ -1951,7 +1974,7 @@ export async function sanitizeToolResult(
     const persisted = await persistToolMedia(
         normalized,
         {
-            ...(options.blobStore ? { blobStore: options.blobStore } : {}),
+            ...(options.artifactStore ? { artifactStore: options.artifactStore } : {}),
             toolName: options.toolName,
             toolCallId: options.toolCallId,
         },

@@ -1,13 +1,13 @@
 import { describe, expect, it, test, beforeEach, vi } from 'vitest';
 import type {
-    BlobStore,
-    BlobInput,
-    BlobMetadata,
-    BlobReference,
-    BlobData,
-    BlobStats,
-    StoredBlobMetadata,
-} from '../storage/blob/types.js';
+    ArtifactStore,
+    ArtifactInput,
+    ArtifactMetadata,
+    ArtifactReference,
+    ArtifactData,
+    ArtifactStats,
+    StoredArtifactMetadata,
+} from '../storage/artifacts/types.js';
 import {
     normalizeToolResult,
     persistToolMedia,
@@ -41,23 +41,26 @@ const mockValidateModelFileSupport = vi.mocked(registry.validateModelFileSupport
 // Create a mock logger for tests
 const mockLogger = createMockLogger();
 
-class FakeBlobStore implements BlobStore {
+class FakeArtifactStore implements ArtifactStore {
     private counter = 0;
-    private connected = true;
     private readonly storage = new Map<string, Buffer>();
-    private readonly metadata = new Map<string, StoredBlobMetadata>();
+    private readonly metadata = new Map<string, StoredArtifactMetadata>();
 
-    async store(input: BlobInput, metadata: BlobMetadata = {}): Promise<BlobReference> {
-        const buffer = this.toBuffer(input);
+    async store(input: {
+        data: ArtifactInput;
+        metadata?: ArtifactMetadata;
+    }): Promise<ArtifactReference> {
+        const buffer = this.toBuffer(input.data);
         const id = `fake-${this.counter++}`;
-        const storedMetadata: StoredBlobMetadata = {
+        const metadata = input.metadata ?? {};
+        const storedMetadata: StoredArtifactMetadata = {
             id,
             mimeType: metadata.mimeType ?? 'application/octet-stream',
-            originalName: metadata.originalName,
             createdAt: metadata.createdAt ?? new Date(),
             size: buffer.length,
             hash: id,
-            source: metadata.source,
+            ...(metadata.originalName !== undefined && { originalName: metadata.originalName }),
+            ...(metadata.source !== undefined && { source: metadata.source }),
         };
 
         this.storage.set(id, buffer);
@@ -70,31 +73,40 @@ class FakeBlobStore implements BlobStore {
         };
     }
 
-    async retrieve(
-        _reference: string,
-        _format?: 'base64' | 'buffer' | 'path' | 'stream' | 'url'
-    ): Promise<BlobData> {
-        throw new Error('Not implemented in FakeBlobStore');
+    async retrieve(input: {
+        reference: string;
+        format?: 'base64' | 'buffer' | 'path' | 'stream' | 'url';
+    }): Promise<ArtifactData> {
+        const id = this.parse(input.reference);
+        const buffer = this.storage.get(id);
+        const metadata = this.metadata.get(id);
+        if (!buffer || !metadata) {
+            throw new Error('Artifact not found');
+        }
+        if (input.format === 'url') {
+            return { format: 'url', data: `memory://fake/${id}`, metadata };
+        }
+        return { format: 'base64', data: buffer.toString('base64'), metadata };
     }
 
-    async exists(reference: string): Promise<boolean> {
-        return this.storage.has(this.parse(reference));
+    async exists(input: { reference: string }): Promise<boolean> {
+        return this.storage.has(this.parse(input.reference));
     }
 
-    async delete(reference: string): Promise<void> {
-        const id = this.parse(reference);
+    async delete(input: { reference: string }): Promise<void> {
+        const id = this.parse(input.reference);
         this.storage.delete(id);
         this.metadata.delete(id);
     }
 
-    async cleanup(_olderThan?: Date | undefined): Promise<number> {
+    async cleanup(_input?: { olderThan?: Date }): Promise<number> {
         const count = this.storage.size;
         this.storage.clear();
         this.metadata.clear();
         return count;
     }
 
-    async getStats(): Promise<BlobStats> {
+    async getStats(): Promise<ArtifactStats> {
         let totalSize = 0;
         for (const buffer of this.storage.values()) {
             totalSize += buffer.length;
@@ -107,7 +119,7 @@ class FakeBlobStore implements BlobStore {
         };
     }
 
-    async listBlobs(): Promise<BlobReference[]> {
+    async listArtifacts(): Promise<ArtifactReference[]> {
         return Array.from(this.metadata.values()).map((meta) => ({
             id: meta.id,
             uri: `blob:${meta.id}`,
@@ -119,23 +131,7 @@ class FakeBlobStore implements BlobStore {
         return undefined;
     }
 
-    async connect(): Promise<void> {
-        this.connected = true;
-    }
-
-    async disconnect(): Promise<void> {
-        this.connected = false;
-    }
-
-    isConnected(): boolean {
-        return this.connected;
-    }
-
-    getStoreType(): string {
-        return 'fake';
-    }
-
-    private toBuffer(input: BlobInput): Buffer {
+    private toBuffer(input: ArtifactInput): Buffer {
         if (Buffer.isBuffer(input)) {
             return input;
         }
@@ -196,14 +192,14 @@ describe('sanitizeToolResult success tracking', () => {
     });
 
     it('should preserve success status through blob storage', async () => {
-        const store = new FakeBlobStore();
+        const store = new FakeArtifactStore();
         const payload = Buffer.alloc(4096, 7);
         const dataUri = `data:image/jpeg;base64,${payload.toString('base64')}`;
 
         const result = await sanitizeToolResult(
             dataUri,
             {
-                blobStore: store,
+                artifactStore: store,
                 toolName: 'image_tool',
                 toolCallId: 'call-789',
                 success: true,
@@ -283,12 +279,12 @@ describe('tool result normalization pipeline', () => {
         const dataUri = `data:image/jpeg;base64,${payload.toString('base64')}`;
 
         const normalized = await normalizeToolResult(dataUri, mockLogger);
-        const store = new FakeBlobStore();
+        const store = new FakeArtifactStore();
 
         const persisted = await persistToolMedia(
             normalized,
             {
-                blobStore: store,
+                artifactStore: store,
                 toolName: 'image_tool',
                 toolCallId: 'call-123',
             },
@@ -337,11 +333,11 @@ describe('tool result normalization pipeline', () => {
         // Video should be persisted regardless of size
         expect(hint.mimeType).toBe('video/mp4');
 
-        const store = new FakeBlobStore();
+        const store = new FakeArtifactStore();
         const persisted = await persistToolMedia(
             normalized,
             {
-                blobStore: store,
+                artifactStore: store,
                 toolName: 'video_tool',
                 toolCallId: 'call-456',
             },

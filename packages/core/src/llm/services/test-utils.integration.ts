@@ -16,11 +16,7 @@ import { ServersConfigSchema } from '../../mcp/schemas.js';
 import { ResourcesConfigSchema } from '../../resources/schemas.js';
 import { PromptsSchema } from '../../prompts/schemas.js';
 import { createLogger } from '../../logger/factory.js';
-import {
-    createInMemoryBlobStore,
-    createInMemoryCache,
-    createInMemoryDatabase,
-} from '../../test-utils/in-memory-storage.js';
+import { InMemoryDextoStores } from '../../storage/index.js';
 
 /**
  * Shared utilities for LLM service integration tests
@@ -51,11 +47,7 @@ export async function createTestEnvironment(
     const agent = new DextoAgent({
         ...settings,
         logger,
-        storage: {
-            blob: createInMemoryBlobStore(),
-            database: createInMemoryDatabase(),
-            cache: createInMemoryCache(),
-        },
+        stores: new InMemoryDextoStores(),
         tools: [],
         hooks: [],
     });

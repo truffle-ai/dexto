@@ -1,7 +1,7 @@
 import { describe, test, expect, beforeAll } from 'vitest';
 import { CustomPromptProvider } from './custom-prompt-provider.js';
-import { createInMemoryDatabase } from '../../test-utils/in-memory-storage.js';
-import type { Database } from '../../storage/database/types.js';
+import { InMemoryDextoStores } from '../../storage/index.js';
+import type { DextoStores } from '../../storage/index.js';
 
 const mockLogger = {
     debug: () => {},
@@ -15,16 +15,21 @@ const mockLogger = {
 } as any;
 
 describe('CustomPromptProvider', () => {
-    let db: Database;
+    let stores: DextoStores;
     const resourceManagerStub = { getBlobStore: () => undefined } as any;
 
     beforeAll(async () => {
-        db = createInMemoryDatabase();
-        await db.connect();
+        stores = new InMemoryDextoStores();
+        await stores.connect();
     });
 
     test('appends Context at END when no placeholders', async () => {
-        const provider = new CustomPromptProvider(db as any, resourceManagerStub, mockLogger);
+        const provider = new CustomPromptProvider(
+            stores.getStore('customPrompts'),
+            stores.getStore('artifacts'),
+            resourceManagerStub,
+            mockLogger
+        );
         await provider.createPrompt({ name: 'c1', content: 'Simple content' });
         const res = await provider.getPrompt('c1', { _context: 'CTX' } as any);
         const text = (res.messages?.[0]?.content as any).text as string;
@@ -32,7 +37,12 @@ describe('CustomPromptProvider', () => {
     });
 
     test('replaces named placeholders and does not append when used', async () => {
-        const provider = new CustomPromptProvider(db as any, resourceManagerStub, mockLogger);
+        const provider = new CustomPromptProvider(
+            stores.getStore('customPrompts'),
+            stores.getStore('artifacts'),
+            resourceManagerStub,
+            mockLogger
+        );
         await provider.createPrompt({
             name: 'c2',
             content: 'Process: {{data}} with mode {{mode}}',

@@ -1,16 +1,8 @@
 /**
  * @dexto/core storage surface
  *
- * Core exposes only:
- * - storage interfaces (`BlobStore`, `Database`, `Cache`)
- * - the `StorageManager` lifecycle wrapper
- * - storage error types/codes
- *
- * Concrete implementations + config schemas live in `@dexto/storage`.
+ * Core exposes typed store contracts and concrete in-memory/database-backed store composition.
  */
-
-export { StorageManager } from './storage-manager.js';
-export type { StorageBackends } from './storage-manager.js';
 
 export { StorageError } from './errors.js';
 export { StorageErrorCode } from './error-codes.js';
@@ -33,8 +25,13 @@ export type { DatabaseBackedDextoStoresBackends } from './stores/database-backed
 export type { DextoStoreMap, DextoStoreName, DextoStores } from './stores/types.js';
 export { DatabaseConversationStore } from './conversation/database.js';
 export type { ConversationStore } from './conversation/types.js';
+export type { SessionStore } from './sessions/types.js';
+export type { MemoryStore } from './memories/types.js';
+export type { WorkspaceStore } from './workspaces/types.js';
+export type { CustomPromptStore } from './prompts/types.js';
 export type { ApprovalStore } from './approvals/types.js';
 export type { ToolPreferenceStore } from './tool-preferences/types.js';
+export type { ToolStateStore } from './tool-state/types.js';
 export type { SessionMessageQueueStore } from './message-queue/types.js';
 export type {
     ArtifactData,

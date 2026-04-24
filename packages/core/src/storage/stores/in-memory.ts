@@ -1,7 +1,11 @@
 import { createHash, randomUUID } from 'crypto';
 import type { ApprovalRequest, ApprovalResponse } from '../../approval/types.js';
 import type { InternalMessage } from '../../context/types.js';
+import type { Memory } from '../../memory/types.js';
+import type { StoredCustomPrompt } from '../../prompts/providers/custom-prompt-provider.js';
+import type { SessionData } from '../../session/session-manager.js';
 import type { QueuedMessage } from '../../session/types.js';
+import type { WorkspaceContext } from '../../workspace/types.js';
 import type { SessionToolPreferences } from '../../tools/session-tool-preferences-store.js';
 import type { ApprovalStore, SessionApprovalState } from '../approvals/types.js';
 import type {
@@ -15,9 +19,14 @@ import type {
 } from '../artifacts/types.js';
 import type { CacheStore } from '../cache-store/types.js';
 import type { ConversationStore } from '../conversation/types.js';
+import type { MemoryStore } from '../memories/types.js';
 import type { SessionMessageQueueStore } from '../message-queue/types.js';
+import type { CustomPromptStore } from '../prompts/types.js';
 import type { RuntimeEventRecord, RuntimeEventStore } from '../runtime-events/types.js';
+import type { SessionStore } from '../sessions/types.js';
+import type { ToolStateStore } from '../tool-state/types.js';
 import type { ToolPreferenceStore } from '../tool-preferences/types.js';
+import type { WorkspaceStore } from '../workspaces/types.js';
 import { StorageError } from '../errors.js';
 import type { DextoStoreMap, DextoStoreName, DextoStores } from './types.js';
 
@@ -127,6 +136,98 @@ class InMemoryApprovalStore implements ApprovalStore {
     }
 }
 
+class InMemorySessionStore implements SessionStore {
+    private readonly sessions = new Map<string, SessionData>();
+
+    async listSessionIds(): Promise<string[]> {
+        return Array.from(this.sessions.keys());
+    }
+
+    async getSession(input: { sessionId: string }): Promise<SessionData | undefined> {
+        const session = this.sessions.get(input.sessionId);
+        return session ? structuredClone(session) : undefined;
+    }
+
+    async saveSession(input: {
+        sessionId: string;
+        session: SessionData;
+        ttlSeconds?: number;
+    }): Promise<void> {
+        void input.ttlSeconds;
+        this.sessions.set(input.sessionId, structuredClone(input.session));
+    }
+
+    async deleteSession(input: { sessionId: string }): Promise<void> {
+        this.sessions.delete(input.sessionId);
+    }
+
+    async evictSession(_input: { sessionId: string }): Promise<void> {}
+}
+
+class InMemoryMemoryStore implements MemoryStore {
+    private readonly memories = new Map<string, Memory>();
+
+    async create(input: { memory: Memory }): Promise<void> {
+        this.memories.set(input.memory.id, structuredClone(input.memory));
+    }
+
+    async get(input: { id: string }): Promise<Memory | undefined> {
+        const memory = this.memories.get(input.id);
+        return memory ? structuredClone(memory) : undefined;
+    }
+
+    async update(input: { memory: Memory }): Promise<void> {
+        this.memories.set(input.memory.id, structuredClone(input.memory));
+    }
+
+    async delete(input: { id: string }): Promise<void> {
+        this.memories.delete(input.id);
+    }
+
+    async list(): Promise<Memory[]> {
+        return structuredClone(Array.from(this.memories.values()));
+    }
+}
+
+class InMemoryWorkspaceStore implements WorkspaceStore {
+    private readonly workspaces = new Map<string, WorkspaceContext>();
+    private currentWorkspaceId: string | undefined;
+
+    async saveWorkspace(input: { workspace: WorkspaceContext }): Promise<void> {
+        this.workspaces.set(input.workspace.id, structuredClone(input.workspace));
+    }
+
+    async getWorkspace(input: { id: string }): Promise<WorkspaceContext | undefined> {
+        const workspace = this.workspaces.get(input.id);
+        return workspace ? structuredClone(workspace) : undefined;
+    }
+
+    async findWorkspaceByPath(input: { path: string }): Promise<WorkspaceContext | undefined> {
+        for (const workspace of this.workspaces.values()) {
+            if (workspace.path === input.path) {
+                return structuredClone(workspace);
+            }
+        }
+        return undefined;
+    }
+
+    async listWorkspaces(): Promise<WorkspaceContext[]> {
+        return structuredClone(Array.from(this.workspaces.values()));
+    }
+
+    async setCurrentWorkspace(input: { id: string }): Promise<void> {
+        this.currentWorkspaceId = input.id;
+    }
+
+    async getCurrentWorkspaceId(): Promise<string | undefined> {
+        return this.currentWorkspaceId;
+    }
+
+    async clearCurrentWorkspace(): Promise<void> {
+        this.currentWorkspaceId = undefined;
+    }
+}
+
 class InMemoryToolPreferenceStore implements ToolPreferenceStore {
     private readonly allowedTools = new Map<string, Set<string>>();
     private readonly sessionPreferences = new Map<string, SessionToolPreferences>();
@@ -183,6 +284,10 @@ class InMemoryToolPreferenceStore implements ToolPreferenceStore {
 class InMemorySessionMessageQueueStore implements SessionMessageQueueStore {
     private readonly queues = new Map<string, QueuedMessage[]>();
 
+    async listSessionIds(): Promise<string[]> {
+        return Array.from(this.queues.keys());
+    }
+
     async load(input: { sessionId: string }): Promise<QueuedMessage[]> {
         return structuredClone(this.queues.get(input.sessionId) ?? []);
     }
@@ -201,6 +306,27 @@ class InMemorySessionMessageQueueStore implements SessionMessageQueueStore {
     }
 }
 
+class InMemoryCustomPromptStore implements CustomPromptStore {
+    private readonly prompts = new Map<string, StoredCustomPrompt>();
+
+    async save(input: { prompt: StoredCustomPrompt }): Promise<void> {
+        this.prompts.set(input.prompt.name, structuredClone(input.prompt));
+    }
+
+    async get(input: { name: string }): Promise<StoredCustomPrompt | undefined> {
+        const prompt = this.prompts.get(input.name);
+        return prompt ? structuredClone(prompt) : undefined;
+    }
+
+    async delete(input: { name: string }): Promise<void> {
+        this.prompts.delete(input.name);
+    }
+
+    async list(): Promise<StoredCustomPrompt[]> {
+        return structuredClone(Array.from(this.prompts.values()));
+    }
+}
+
 class InMemoryArtifactStore implements ArtifactStore {
     private readonly artifacts = new Map<
         string,
@@ -216,7 +342,7 @@ class InMemoryArtifactStore implements ArtifactStore {
         const hash = createHash('sha256').update(data).digest('hex');
         const metadata = this.createMetadata(id, data, hash, input.metadata);
         this.artifacts.set(id, { data, metadata });
-        return { id, uri: `artifact:${id}`, metadata: structuredClone(metadata) };
+        return { id, uri: `blob:${id}`, metadata: structuredClone(metadata) };
     }
 
     async retrieve(input: {
@@ -279,7 +405,7 @@ class InMemoryArtifactStore implements ArtifactStore {
     async listArtifacts(): Promise<ArtifactReference[]> {
         return Array.from(this.artifacts.values()).map((artifact) => ({
             id: artifact.metadata.id,
-            uri: `artifact:${artifact.metadata.id}`,
+            uri: `blob:${artifact.metadata.id}`,
             metadata: structuredClone(artifact.metadata),
         }));
     }
@@ -290,7 +416,7 @@ class InMemoryArtifactStore implements ArtifactStore {
 
     private toBuffer(input: ArtifactInput): Buffer {
         if (typeof input === 'string') {
-            return Buffer.from(input);
+            return Buffer.from(input, 'base64');
         }
         if (input instanceof Uint8Array) {
             return Buffer.from(input);
@@ -318,6 +444,9 @@ class InMemoryArtifactStore implements ArtifactStore {
     private toId(reference: string): string {
         if (reference.startsWith('artifact:')) {
             return reference.slice('artifact:'.length);
+        }
+        if (reference.startsWith('blob:')) {
+            return reference.slice('blob:'.length);
         }
         return reference;
     }
@@ -383,13 +512,45 @@ class InMemoryRuntimeEventStore implements RuntimeEventStore {
     }
 }
 
+class InMemoryToolStateStore implements ToolStateStore {
+    private readonly values = new Map<string, unknown>();
+
+    async get<T>(input: { toolName: string; key: string }): Promise<T | undefined> {
+        return structuredClone(this.values.get(this.toKey(input))) as T | undefined;
+    }
+
+    async set<T>(input: { toolName: string; key: string; value: T }): Promise<void> {
+        this.values.set(this.toKey(input), structuredClone(input.value));
+    }
+
+    async delete(input: { toolName: string; key: string }): Promise<void> {
+        this.values.delete(this.toKey(input));
+    }
+
+    async listKeys(input: { toolName: string; prefix?: string }): Promise<string[]> {
+        const prefix = this.toKey({ toolName: input.toolName, key: input.prefix ?? '' });
+        return Array.from(this.values.keys())
+            .filter((key) => key.startsWith(prefix))
+            .map((key) => key.slice(this.toKey({ toolName: input.toolName, key: '' }).length));
+    }
+
+    private toKey(input: { toolName: string; key: string }): string {
+        return `${input.toolName}:${input.key}`;
+    }
+}
+
 export class InMemoryDextoStores implements DextoStores {
     private connected = false;
     private readonly stores: DextoStoreMap = {
         conversation: new InMemoryConversationStore(),
+        sessions: new InMemorySessionStore(),
+        memories: new InMemoryMemoryStore(),
+        workspaces: new InMemoryWorkspaceStore(),
         approvals: new InMemoryApprovalStore(),
         toolPreferences: new InMemoryToolPreferenceStore(),
+        toolState: new InMemoryToolStateStore(),
         messageQueue: new InMemorySessionMessageQueueStore(),
+        customPrompts: new InMemoryCustomPromptStore(),
         artifacts: new InMemoryArtifactStore(),
         cache: new InMemoryCacheStore(),
         runtimeEvents: new InMemoryRuntimeEventStore(),

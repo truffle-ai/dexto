@@ -8,7 +8,6 @@ import { SystemPromptManager } from '../systemPrompt/manager.js';
 import { SkillsContributor } from '../systemPrompt/contributors.js';
 import { ResourceManager, expandMessageReferences } from '../resources/index.js';
 import { expandBlobReferences, fileTypesToMimePatterns } from '../context/utils.js';
-import { StorageManager } from '../storage/index.js';
 import type { ContentPart, InternalMessage } from '../context/types.js';
 import { PromptManager } from '../prompts/index.js';
 import type { PromptsConfig } from '../prompts/schemas.js';
@@ -273,7 +272,7 @@ export class DextoAgent {
     constructor(options: DextoAgentOptions) {
         const {
             logger,
-            storage,
+            stores,
             tools: toolsInput,
             hooks: hooksInput,
             compaction,
@@ -294,15 +293,8 @@ export class DextoAgent {
 
         const overrides: InitializeServicesOptions = { ...(overridesInput ?? {}) };
 
-        if (overrides.storageManager === undefined) {
-            overrides.storageManager = new StorageManager(
-                {
-                    cache: storage.cache,
-                    database: storage.database,
-                    blobStore: storage.blob,
-                },
-                this.logger
-            );
+        if (overrides.stores === undefined) {
+            overrides.stores = stores;
         }
 
         if (overrides.hooks === undefined) {
@@ -410,18 +402,13 @@ export class DextoAgent {
                 this.resourceManager,
                 this.config,
                 this.agentEventBus,
-                services.storageManager.getDatabase(),
+                services.stores,
                 this.logger
             );
             await promptManager.initialize();
             Object.assign(this, { promptManager });
 
             // Provide ToolExecutionContext to tools at runtime (late-binding to avoid init ordering cycles)
-            const toolExecutionStorage = {
-                blob: services.storageManager.getBlobStore(),
-                database: services.storageManager.getDatabase(),
-                cache: services.storageManager.getCache(),
-            };
             const toolExecutionServices = {
                 approval: services.approvalManager,
                 search: services.searchService,
@@ -436,7 +423,7 @@ export class DextoAgent {
                     hostRuntime: baseContext.runContext.hostRuntime,
                 }),
                 agent: this,
-                storage: toolExecutionStorage,
+                toolState: services.stores.getStore('toolState'),
                 services: toolExecutionServices,
             }));
 
@@ -560,15 +547,15 @@ export class DextoAgent {
                 shutdownErrors.push(new Error(`ResourceManager cleanup failed: ${err.message}`));
             }
 
-            // 4. Close storage backends
+            // 4. Close stores
             try {
-                if (this.services?.storageManager) {
-                    await this.services.storageManager.disconnect();
-                    this.logger.debug('Storage manager disconnected successfully');
+                if (this.services?.stores) {
+                    await this.services.stores.disconnect();
+                    this.logger.debug('Stores disconnected successfully');
                 }
             } catch (error) {
                 const err = error instanceof Error ? error : new Error(String(error));
-                shutdownErrors.push(new Error(`Storage disconnect failed: ${err.message}`));
+                shutdownErrors.push(new Error(`Store disconnect failed: ${err.message}`));
             }
 
             // Note: Telemetry is NOT shut down here

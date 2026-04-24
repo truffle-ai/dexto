@@ -7,6 +7,7 @@ import type { ResourceManager } from '../../resources/index.js';
 import type { Logger } from '../../logger/v2/types.js';
 import type { ToolPresentationSnapshotV1 } from '../../tools/types.js';
 import type { ToolCallMetadata } from '../../tools/tool-call-metadata.js';
+import { InMemoryDextoStores } from '../../storage/index.js';
 
 /**
  * Creates a mock async generator that yields events
@@ -42,8 +43,9 @@ function createMocks() {
         }),
     } as unknown as SessionEventBus;
 
+    const stores = new InMemoryDextoStores();
     const mockResourceManager = {
-        getBlobStore: vi.fn().mockReturnValue({}),
+        getArtifactStore: vi.fn().mockReturnValue(stores.getStore('artifacts')),
     } as unknown as ResourceManager;
 
     const mockLogger = {

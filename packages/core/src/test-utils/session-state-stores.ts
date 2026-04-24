@@ -1,37 +1,22 @@
 import type { Logger } from '../logger/v2/types.js';
-import type { StorageManager } from '../storage/index.js';
 import type { QueuedMessage } from '../session/types.js';
 import type { ApprovalStore } from '../storage/approvals/types.js';
 import type { SessionMessageQueueStore } from '../storage/message-queue/types.js';
 import { InMemoryDextoStores } from '../storage/stores/in-memory.js';
 import { SessionToolPreferencesStore } from '../tools/session-tool-preferences-store.js';
-import { createInMemoryCache, createInMemoryDatabase } from './in-memory-storage.js';
 
-type SessionStateStorage = Pick<StorageManager, 'getCache' | 'getDatabase'>;
-
-export function createInMemorySessionStateStorage(): SessionStateStorage {
-    const cache = createInMemoryCache();
-    const database = createInMemoryDatabase();
-
-    return {
-        getCache: () => cache,
-        getDatabase: () => database,
-    };
-}
-
-export function createInMemorySessionApprovalStore(
-    logger: Logger,
-    _storageManager: SessionStateStorage = createInMemorySessionStateStorage()
-): ApprovalStore {
+export function createInMemorySessionApprovalStore(logger: Logger): ApprovalStore {
     void logger;
     return new InMemoryDextoStores().getStore('approvals');
 }
 
 export function createInMemorySessionToolPreferencesStore(
-    logger: Logger,
-    storageManager: SessionStateStorage = createInMemorySessionStateStorage()
+    logger: Logger
 ): SessionToolPreferencesStore {
-    return new SessionToolPreferencesStore(storageManager as StorageManager, logger);
+    return new SessionToolPreferencesStore(
+        new InMemoryDextoStores().getStore('toolPreferences'),
+        logger
+    );
 }
 
 export function createInMemoryMessageQueueStore(): SessionMessageQueueStore {
@@ -51,6 +36,9 @@ export function createInMemoryMessageQueueStore(): SessionMessageQueueStore {
         },
         async delete(input: { sessionId: string }): Promise<void> {
             queues.delete(input.sessionId);
+        },
+        async listSessionIds(): Promise<string[]> {
+            return Array.from(queues.keys());
         },
     };
 }

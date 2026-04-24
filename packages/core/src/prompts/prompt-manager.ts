@@ -14,7 +14,7 @@ import { PromptError } from './errors.js';
 import type { Logger } from '../logger/v2/types.js';
 import { DextoLogComponent } from '../logger/v2/types.js';
 import type { ResourceManager } from '../resources/manager.js';
-import type { Database } from '../storage/database/types.js';
+import type { DextoStores } from '../storage/index.js';
 import { normalizePromptArgs, flattenPromptResult } from './utils.js';
 
 interface PromptCacheEntry {
@@ -37,7 +37,7 @@ export class PromptManager {
         resourceManager: ResourceManager,
         agentConfig: AgentRuntimeSettings,
         private readonly eventBus: AgentEventBus,
-        private readonly database: Database,
+        stores: DextoStores,
         logger: Logger
     ) {
         this.logger = logger.createChild(DextoLogComponent.PROMPT);
@@ -46,7 +46,12 @@ export class PromptManager {
         this.providers.set('config', this.configProvider);
         this.providers.set(
             'custom',
-            new CustomPromptProvider(this.database, resourceManager, this.logger)
+            new CustomPromptProvider(
+                stores.getStore('customPrompts'),
+                stores.getStore('artifacts'),
+                resourceManager,
+                this.logger
+            )
         );
 
         this.logger.debug(

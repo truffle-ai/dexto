@@ -6,6 +6,7 @@ import { createMockLogger } from '../logger/v2/test-utils.js';
 import { LLMConfigSchema } from '../llm/schemas.js';
 import { DextoRuntimeError } from '../errors/DextoRuntimeError.js';
 import { HookErrorCode } from './error-codes.js';
+import { InMemoryDextoStores } from '../storage/index.js';
 
 function createExecutionContextOptions(): HookExecutionContextOptions {
     const llmConfig = LLMConfigSchema.parse({
@@ -46,7 +47,7 @@ describe('HookManager', () => {
         const hookManager = new HookManager(
             {
                 agentEventBus: {} as unknown as import('../events/index.js').AgentEventBus,
-                storageManager: {} as unknown as import('../storage/index.js').StorageManager,
+                stores: new InMemoryDextoStores(),
             },
             [{} satisfies Hook],
             logger
@@ -75,7 +76,7 @@ describe('HookManager', () => {
         const hookManager = new HookManager(
             {
                 agentEventBus: {} as unknown as import('../events/index.js').AgentEventBus,
-                storageManager: {} as unknown as import('../storage/index.js').StorageManager,
+                stores: new InMemoryDextoStores(),
             },
             [hookA, hookB],
             logger
@@ -108,7 +109,7 @@ describe('HookManager', () => {
         const hookManager = new HookManager(
             {
                 agentEventBus: {} as unknown as import('../events/index.js').AgentEventBus,
-                storageManager: {} as unknown as import('../storage/index.js').StorageManager,
+                stores: new InMemoryDextoStores(),
             },
             [hook],
             logger
@@ -148,7 +149,7 @@ describe('HookManager', () => {
         const hookManager = new HookManager(
             {
                 agentEventBus: {} as unknown as import('../events/index.js').AgentEventBus,
-                storageManager: {} as unknown as import('../storage/index.js').StorageManager,
+                stores: new InMemoryDextoStores(),
             },
             [hookA, hookB],
             logger
@@ -181,7 +182,7 @@ describe('HookManager', () => {
         const hookManager = new HookManager(
             {
                 agentEventBus: {} as unknown as import('../events/index.js').AgentEventBus,
-                storageManager: {} as unknown as import('../storage/index.js').StorageManager,
+                stores: new InMemoryDextoStores(),
             },
             [hook],
             logger
@@ -219,7 +220,7 @@ describe('HookManager', () => {
         const hookManager = new HookManager(
             {
                 agentEventBus: {} as unknown as import('../events/index.js').AgentEventBus,
-                storageManager: {} as unknown as import('../storage/index.js').StorageManager,
+                stores: new InMemoryDextoStores(),
             },
             [hook],
             logger
