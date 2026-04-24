@@ -8,6 +8,7 @@ import type {
 import { AgentConfigSchema } from '../schemas/agent-config.js';
 import type { ResolvedServices } from './types.js';
 import { toDextoAgentOptions } from './to-dexto-agent-options.js';
+import { DatabaseBackedDextoStores } from '@dexto/core/storage';
 import {
     createMockBlobStore,
     createMockCache,
@@ -17,6 +18,17 @@ import {
 } from './__fixtures__/test-mocks.js';
 
 describe('toDextoAgentOptions', () => {
+    function createMockStores() {
+        return new DatabaseBackedDextoStores(
+            {
+                blobStore: createMockBlobStore('in-memory'),
+                database: createMockDatabase('in-memory'),
+                cache: createMockCache('in-memory'),
+            },
+            createMockLogger()
+        );
+    }
+
     function createMockImage<THostContext extends DextoHostContext = DextoHostContext>(
         overrides?: Partial<DextoImage<THostContext>>
     ): DextoImage<THostContext> {
@@ -79,11 +91,7 @@ describe('toDextoAgentOptions', () => {
         const logger = createMockLogger();
         const services: ResolvedServices = {
             logger,
-            storage: {
-                blob: createMockBlobStore('in-memory'),
-                database: createMockDatabase('in-memory'),
-                cache: createMockCache('in-memory'),
-            },
+            stores: createMockStores(),
             tools: [createMockTool('foo')],
             toolkitLoader: async () => [],
             hooks: [],
@@ -108,7 +116,7 @@ describe('toDextoAgentOptions', () => {
         expect(options.overrides).toEqual({});
 
         expect(options.logger).toBe(logger);
-        expect(options.storage.blob.getStoreType()).toBe('in-memory');
+        expect(options.stores.getStore('artifacts')).toBeDefined();
         expect((options.tools ?? []).map((t) => t.id)).toEqual(['foo']);
         expect(options.hooks).toEqual([]);
         expect(options.compaction).toBeNull();
@@ -134,11 +142,7 @@ describe('toDextoAgentOptions', () => {
         const logger = createMockLogger();
         const services: ResolvedServices = {
             logger,
-            storage: {
-                blob: createMockBlobStore('in-memory'),
-                database: createMockDatabase('in-memory'),
-                cache: createMockCache('in-memory'),
-            },
+            stores: createMockStores(),
             tools: [createMockTool('foo')],
             toolkitLoader: async () => [],
             hooks: [],
@@ -175,11 +179,7 @@ describe('toDextoAgentOptions', () => {
         const logger = createMockLogger();
         const services: ResolvedServices = {
             logger,
-            storage: {
-                blob: createMockBlobStore('in-memory'),
-                database: createMockDatabase('in-memory'),
-                cache: createMockCache('in-memory'),
-            },
+            stores: createMockStores(),
             tools: [createMockTool('foo')],
             toolkitLoader: async () => [],
             hooks: [],

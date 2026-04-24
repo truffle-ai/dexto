@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { TextDecoder } from 'node:util';
-import type { StreamingEvent } from '@dexto/core';
+import type { InternalMessage, StreamingEvent } from '@dexto/core';
 import { ApprovalType } from '@dexto/core';
 import {
     createTestAgent,
@@ -478,37 +478,38 @@ describe('Hono API Integration Tests', () => {
                 sessionId,
             });
 
-            const database = testServer.agent.services.storageManager.getDatabase();
-            await database.append(`messages:${sessionId}`, {
-                role: 'tool',
-                toolCallId: 'call-resource-history',
-                name: 'read_media_file',
-                success: true,
-                content: [
-                    { type: 'text', text: 'Loaded local video resource.' },
-                    {
-                        type: 'resource',
-                        uri: '/tmp/demo-video.mp4',
-                        name: 'demo-video.mp4',
-                        mimeType: 'video/mp4',
-                        kind: 'video',
-                        metadata: {
-                            originalPath: '/tmp/demo-video.mp4',
-                            mtimeMs: 1234.5,
-                            source: 'filesystem',
+            const conversationStore = testServer.agent.services.stores.getStore('conversation');
+            const sessionStore = testServer.agent.services.stores.getStore('sessions');
+            await conversationStore.saveMessage({
+                sessionId,
+                message: {
+                    role: 'tool',
+                    toolCallId: 'call-resource-history',
+                    name: 'read_media_file',
+                    success: true,
+                    content: [
+                        { type: 'text', text: 'Loaded local video resource.' },
+                        {
+                            type: 'resource',
+                            uri: '/tmp/demo-video.mp4',
+                            name: 'demo-video.mp4',
+                            mimeType: 'video/mp4',
+                            kind: 'video',
+                            metadata: {
+                                mtimeMs: 1234.5,
+                                source: 'filesystem',
+                            },
                         },
-                    },
-                ],
+                    ],
+                },
             });
 
-            const sessionData = await database.get<
-                { messageCount: number } & Record<string, unknown>
-            >(`session:${sessionId}`);
+            const sessionData = await sessionStore.getSession({ sessionId });
             if (!sessionData) {
                 throw new Error(`Expected session '${sessionId}' to exist`);
             }
             sessionData.messageCount = 1;
-            await database.set(`session:${sessionId}`, sessionData);
+            await sessionStore.saveSession({ sessionId, session: sessionData });
             await testServer.agent.endSession(sessionId);
 
             const res = await httpRequest(
@@ -541,36 +542,41 @@ describe('Hono API Integration Tests', () => {
                 sessionId,
             });
 
-            const blobStore = testServer.agent.services.storageManager.getBlobStore();
-            const storedBlob = await blobStore.store('iVBORw0KGgo=', {
-                mimeType: 'image/png',
-                originalName: 'demo-image.png',
-                source: 'tool',
+            const artifactStore = testServer.agent.services.stores.getStore('artifacts');
+            const storedBlob = await artifactStore.store({
+                data: 'iVBORw0KGgo=',
+                metadata: {
+                    mimeType: 'image/png',
+                    originalName: 'demo-image.png',
+                    source: 'tool',
+                },
             });
 
-            const database = testServer.agent.services.storageManager.getDatabase();
-            await database.append(`messages:${sessionId}`, {
-                role: 'tool',
-                toolCallId: 'call-history-blob',
-                name: 'read_media_file',
-                success: true,
-                content: [
-                    {
-                        type: 'image',
-                        image: `@${storedBlob.uri}`,
-                        mimeType: 'image/png',
-                    },
-                ],
+            const conversationStore = testServer.agent.services.stores.getStore('conversation');
+            const sessionStore = testServer.agent.services.stores.getStore('sessions');
+            await conversationStore.saveMessage({
+                sessionId,
+                message: {
+                    role: 'tool',
+                    toolCallId: 'call-history-blob',
+                    name: 'read_media_file',
+                    success: true,
+                    content: [
+                        {
+                            type: 'image',
+                            image: `@${storedBlob.uri}`,
+                            mimeType: 'image/png',
+                        },
+                    ],
+                },
             });
 
-            const sessionData = await database.get<
-                { messageCount: number } & Record<string, unknown>
-            >(`session:${sessionId}`);
+            const sessionData = await sessionStore.getSession({ sessionId });
             if (!sessionData) {
                 throw new Error(`Expected session '${sessionId}' to exist`);
             }
             sessionData.messageCount = 1;
-            await database.set(`session:${sessionId}`, sessionData);
+            await sessionStore.saveSession({ sessionId, session: sessionData });
 
             const res = await httpRequest(
                 testServer.baseUrl,
@@ -596,30 +602,32 @@ describe('Hono API Integration Tests', () => {
                 sessionId,
             });
 
-            const database = testServer.agent.services.storageManager.getDatabase();
-            await database.append(`messages:${sessionId}`, {
-                role: 'tool',
-                toolCallId: 'call-history-missing-blob',
-                name: 'read_media_file',
-                success: true,
-                content: [
-                    {
-                        type: 'file',
-                        data: '@blob:missing-history-blob',
-                        mimeType: 'application/pdf',
-                        filename: 'missing.pdf',
-                    },
-                ],
+            const conversationStore = testServer.agent.services.stores.getStore('conversation');
+            const sessionStore = testServer.agent.services.stores.getStore('sessions');
+            await conversationStore.saveMessage({
+                sessionId,
+                message: {
+                    role: 'tool',
+                    toolCallId: 'call-history-missing-blob',
+                    name: 'read_media_file',
+                    success: true,
+                    content: [
+                        {
+                            type: 'file',
+                            data: '@blob:missing-history-blob',
+                            mimeType: 'application/pdf',
+                            filename: 'missing.pdf',
+                        },
+                    ],
+                },
             });
 
-            const sessionData = await database.get<
-                { messageCount: number } & Record<string, unknown>
-            >(`session:${sessionId}`);
+            const sessionData = await sessionStore.getSession({ sessionId });
             if (!sessionData) {
                 throw new Error(`Expected session '${sessionId}' to exist`);
             }
             sessionData.messageCount = 1;
-            await database.set(`session:${sessionId}`, sessionData);
+            await sessionStore.saveSession({ sessionId, session: sessionData });
 
             const readSpy = vi
                 .spyOn(testServer.agent.resourceManager, 'read')
@@ -685,24 +693,26 @@ describe('Hono API Integration Tests', () => {
                 sessionId: parentSessionId,
             });
 
-            const parentHistory = [
-                { role: 'user', content: 'fork me 1' },
-                { role: 'assistant', content: 'forked 1' },
-                { role: 'user', content: 'fork me 2' },
+            const parentHistory: InternalMessage[] = [
+                { role: 'user', content: [{ type: 'text', text: 'fork me 1' }] },
+                { role: 'assistant', content: [{ type: 'text', text: 'forked 1' }] },
+                { role: 'user', content: [{ type: 'text', text: 'fork me 2' }] },
             ];
 
-            const database = testServer.agent.services.storageManager.getDatabase();
+            const conversationStore = testServer.agent.services.stores.getStore('conversation');
+            const sessionStore = testServer.agent.services.stores.getStore('sessions');
             for (const message of parentHistory) {
-                await database.append(`messages:${parentSessionId}`, message);
+                await conversationStore.saveMessage({ sessionId: parentSessionId, message });
             }
-            const parentSessionData = await database.get<
-                { messageCount: number } & Record<string, unknown>
-            >(`session:${parentSessionId}`);
+            const parentSessionData = await sessionStore.getSession({ sessionId: parentSessionId });
             if (!parentSessionData) {
                 throw new Error(`Expected parent session '${parentSessionId}' to exist`);
             }
             parentSessionData.messageCount = parentHistory.length;
-            await database.set(`session:${parentSessionId}`, parentSessionData);
+            await sessionStore.saveSession({
+                sessionId: parentSessionId,
+                session: parentSessionData,
+            });
 
             const forkRes = await httpRequest(
                 testServer.baseUrl,
@@ -712,11 +722,9 @@ describe('Hono API Integration Tests', () => {
             expect(forkRes.status).toBe(201);
             const childSessionId = (forkRes.body as { session: { id: string } }).session.id;
 
-            const childHistory = await testServer.agent.services.storageManager
-                .getDatabase()
-                .getRange<
-                    (typeof parentHistory)[number]
-                >(`messages:${childSessionId}`, 0, parentHistory.length);
+            const childHistory = await conversationStore.listMessages({
+                sessionId: childSessionId,
+            });
             expect(childHistory).toEqual(parentHistory);
 
             const childDetailsRes = await httpRequest(

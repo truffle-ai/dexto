@@ -6,7 +6,8 @@ import cron from 'node-cron';
 import cronParser from 'cron-parser';
 import { randomUUID } from 'crypto';
 import { DextoRuntimeError } from '@dexto/core';
-import type { StorageManager, Logger } from '@dexto/core';
+import type { Logger } from '@dexto/core';
+import type { ToolStateStore } from '@dexto/core/storage';
 import type { SchedulerToolsConfig } from './schemas.js';
 import {
     CreateScheduleInputSchema,
@@ -42,13 +43,13 @@ export class SchedulerManager {
     private cachedSchedules: Schedule[] | undefined;
 
     constructor(
-        storageManager: StorageManager,
+        toolStateStore: ToolStateStore,
         private config: SchedulerToolsConfig,
         private logger: Logger,
         options?: { storageNamespace?: string }
     ) {
         this.storage = new ScheduleStorage(
-            storageManager,
+            toolStateStore,
             config.maxExecutionHistory,
             logger,
             options?.storageNamespace

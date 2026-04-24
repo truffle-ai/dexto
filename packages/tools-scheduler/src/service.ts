@@ -1,4 +1,5 @@
-import type { Logger, StorageManager } from '@dexto/core';
+import type { Logger } from '@dexto/core';
+import type { ToolStateStore } from '@dexto/core/storage';
 import { SchedulerToolsConfigSchema, type SchedulerToolsConfig } from './schemas.js';
 import type { ScheduleExecutorFn } from './types.js';
 import { SchedulerManager } from './manager.js';
@@ -6,7 +7,7 @@ import { SchedulerManager } from './manager.js';
 /**
  * Options for constructing a scheduler service.
  *
- * @property storageManager Storage manager used for persistence.
+ * @property toolStateStore Store used for scheduler persistence.
  * @property logger Logger used by the scheduler manager.
  * @property config Optional scheduler config. Defaults to `SchedulerToolsConfigSchema` when omitted.
  * @property storageNamespace Optional namespace for scheduler storage.
@@ -14,7 +15,7 @@ import { SchedulerManager } from './manager.js';
  * @property autoStart When false, initializes without starting the scheduler.
  */
 export type SchedulerServiceOptions = {
-    storageManager: StorageManager;
+    toolStateStore: ToolStateStore;
     logger: Logger;
     config?: SchedulerToolsConfig;
     storageNamespace?: string;
@@ -38,7 +39,7 @@ export async function createSchedulerService(
     const resolvedConfig =
         options.config ?? SchedulerToolsConfigSchema.parse({ type: 'scheduler-tools' });
     const manager = new SchedulerManager(
-        options.storageManager,
+        options.toolStateStore,
         resolvedConfig,
         options.logger,
         options.storageNamespace ? { storageNamespace: options.storageNamespace } : undefined

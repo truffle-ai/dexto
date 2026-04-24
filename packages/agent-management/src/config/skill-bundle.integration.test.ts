@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
     createLogger,
+    DatabaseBackedDextoStores,
     DextoAgent,
     LoggerConfigSchema,
     type BlobData,
@@ -18,6 +19,8 @@ import {
     type Cache,
     type Database,
     type DextoAgentOptions,
+    type DextoStores,
+    type Logger,
     type StoredBlobMetadata,
     type Tool,
 } from '@dexto/core';
@@ -292,12 +295,15 @@ function normalizeBlobReference(reference: string): string {
     return reference.startsWith('blob:') ? reference.slice('blob:'.length) : reference;
 }
 
-function createInMemoryStorage(): DextoAgentOptions['storage'] {
-    return {
-        blob: new InMemoryBlobStore(),
-        database: new InMemoryDatabase(),
-        cache: new InMemoryCache(),
-    };
+function createInMemoryStores(logger: Logger): DextoStores {
+    return new DatabaseBackedDextoStores(
+        {
+            blobStore: new InMemoryBlobStore(),
+            database: new InMemoryDatabase(),
+            cache: new InMemoryCache(),
+        },
+        logger
+    );
 }
 
 function createRuntimeAgentOptions(
@@ -331,7 +337,7 @@ function createRuntimeAgentOptions(
         resources: enriched.resources,
         prompts: enriched.prompts,
         logger,
-        storage: createInMemoryStorage(),
+        stores: createInMemoryStores(logger),
         tools,
         hooks: [],
     };

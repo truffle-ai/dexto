@@ -236,9 +236,9 @@ describe('resolveServicesFromConfig', () => {
 
         const services = await resolveServicesFromConfig(validated, image);
 
-        expect(services.storage.blob.getStoreType()).toBe('in-memory');
-        expect(services.storage.database.getStoreType()).toBe('in-memory');
-        expect(services.storage.cache.getStoreType()).toBe('in-memory');
+        expect(services.stores.getStore('artifacts').getStoragePath()).toBeUndefined();
+        expect(services.stores.getStore('cache')).toBeDefined();
+        expect(services.stores.getStore('conversation')).toBeDefined();
 
         expect(services.tools.map((t) => t.id)).toEqual(['foo']);
         expect(fooFactoryCreate).toHaveBeenCalledTimes(1);

@@ -4,28 +4,30 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { TodoService } from './todo-service.js';
-import type { Database, AgentEventBus, Logger } from '@dexto/core';
+import type { AgentEventBus, Logger } from '@dexto/core';
+import type { ToolStateStore } from '@dexto/core/storage';
 import type { TodoInput } from './types.js';
 
-// Mock database
-function createMockDatabase(): Database {
+function createMockToolStateStore(): ToolStateStore {
     const store = new Map<string, unknown>();
     return {
-        get: vi.fn().mockImplementation(async (key: string) => store.get(key)),
-        set: vi.fn().mockImplementation(async (key: string, value: unknown) => {
-            store.set(key, value);
+        get: vi
+            .fn()
+            .mockImplementation(async (input: { toolName: string; key: string }) =>
+                store.get(`${input.toolName}:${input.key}`)
+            ),
+        set: vi
+            .fn()
+            .mockImplementation(
+                async (input: { toolName: string; key: string; value: unknown }) => {
+                    store.set(`${input.toolName}:${input.key}`, input.value);
+                }
+            ),
+        delete: vi.fn().mockImplementation(async (input: { toolName: string; key: string }) => {
+            store.delete(`${input.toolName}:${input.key}`);
         }),
-        delete: vi.fn().mockImplementation(async (key: string) => {
-            store.delete(key);
-        }),
-        list: vi.fn().mockResolvedValue([]),
-        append: vi.fn().mockResolvedValue(undefined),
-        getRange: vi.fn().mockResolvedValue([]),
-        connect: vi.fn().mockResolvedValue(undefined),
-        disconnect: vi.fn().mockResolvedValue(undefined),
-        isConnected: vi.fn().mockReturnValue(true),
-        getStoreType: vi.fn().mockReturnValue('mock'),
-    } as Database;
+        listKeys: vi.fn().mockResolvedValue([]),
+    };
 }
 
 // Mock event bus
@@ -57,22 +59,22 @@ function createMockLogger(): Logger {
 
 describe('TodoService', () => {
     let service: TodoService;
-    let mockDb: Database;
+    let mockToolState: ToolStateStore;
     let mockEventBus: AgentEventBus;
     let mockLogger: Logger;
 
     beforeEach(async () => {
-        mockDb = createMockDatabase();
+        mockToolState = createMockToolStateStore();
         mockEventBus = createMockEventBus();
         mockLogger = createMockLogger();
 
-        service = new TodoService(mockDb, mockEventBus, mockLogger);
+        service = new TodoService(mockToolState, mockEventBus, mockLogger);
         await service.initialize();
     });
 
     describe('initialize', () => {
         it('should initialize successfully', async () => {
-            const newService = new TodoService(mockDb, mockEventBus, mockLogger);
+            const newService = new TodoService(mockToolState, mockEventBus, mockLogger);
             await expect(newService.initialize()).resolves.not.toThrow();
         });
 
@@ -161,7 +163,7 @@ describe('TodoService', () => {
         });
 
         it('should respect maxTodosPerSession limit', async () => {
-            const limitedService = new TodoService(mockDb, mockEventBus, mockLogger, {
+            const limitedService = new TodoService(mockToolState, mockEventBus, mockLogger, {
                 maxTodosPerSession: 2,
             });
             await limitedService.initialize();
@@ -178,7 +180,7 @@ describe('TodoService', () => {
         });
 
         it('should not emit events when enableEvents is false', async () => {
-            const silentService = new TodoService(mockDb, mockEventBus, mockLogger, {
+            const silentService = new TodoService(mockToolState, mockEventBus, mockLogger, {
                 enableEvents: false,
             });
             await silentService.initialize();
@@ -215,7 +217,7 @@ describe('TodoService', () => {
 
     describe('error handling', () => {
         it('should throw if not initialized', async () => {
-            const uninitService = new TodoService(mockDb, mockEventBus, mockLogger);
+            const uninitService = new TodoService(mockToolState, mockEventBus, mockLogger);
 
             await expect(uninitService.getTodos('session')).rejects.toThrow(/not been initialized/);
             await expect(uninitService.updateTodos('session', [])).rejects.toThrow(

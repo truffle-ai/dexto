@@ -23,7 +23,7 @@ function createTestContext(logFilePath: string | null): ToolExecutionContext {
             destroy: async () => {},
         },
         services: undefined,
-        storage: undefined,
+        toolState: undefined,
         agent: undefined,
     };
 }

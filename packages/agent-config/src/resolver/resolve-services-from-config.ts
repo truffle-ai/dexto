@@ -1,4 +1,5 @@
 import type { Hook, Logger, Tool } from '@dexto/core';
+import { DatabaseBackedDextoStores } from '@dexto/core/storage';
 import type { ToolFactoryEntry, ValidatedAgentConfig } from '../schemas/agent-config.js';
 import type { DextoHostContext, DextoImage, ImageResolutionContext } from '../image/types.js';
 import type { ResolvedServices } from './types.js';
@@ -81,11 +82,12 @@ export async function resolveServicesFromConfig<
     const databaseConfig = databaseFactory.configSchema.parse(config.storage.database);
     const cacheConfig = cacheFactory.configSchema.parse(config.storage.cache);
 
-    const storage = {
-        blob: await blobFactory.create(blobConfig, logger, resolutionContext),
+    const storageBackends = {
+        blobStore: await blobFactory.create(blobConfig, logger, resolutionContext),
         database: await databaseFactory.create(databaseConfig, logger, resolutionContext),
         cache: await cacheFactory.create(cacheConfig, logger, resolutionContext),
     };
+    const stores = new DatabaseBackedDextoStores(storageBackends, logger);
 
     // 3) Tools
     const toolEntries = config.tools ?? image.defaults?.tools ?? [];
@@ -146,7 +148,7 @@ export async function resolveServicesFromConfig<
         compaction = await factory.create(parsedConfig, resolutionContext);
     }
 
-    return { logger, storage, tools, toolkitLoader, hooks, compaction };
+    return { logger, stores, tools, toolkitLoader, hooks, compaction };
 }
 
 export function resolveToolsFromEntries<

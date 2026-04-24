@@ -2,11 +2,13 @@
  * Storage layer for schedules and execution logs
  */
 
-import type { StorageManager, Logger } from '@dexto/core';
+import type { Logger } from '@dexto/core';
+import type { ToolStateStore } from '@dexto/core/storage';
 import type { Schedule, ExecutionLog } from './types.js';
 import { SchedulerError } from './errors.js';
 
 const DEFAULT_SCHEDULER_NAMESPACE = 'default';
+const SCHEDULER_TOOL_STATE_NAME = 'scheduler';
 
 /**
  * Storage layer for scheduler persistence
@@ -18,7 +20,7 @@ export class ScheduleStorage {
     private scheduleListKey: string;
 
     constructor(
-        private storageManager: StorageManager,
+        private toolStateStore: ToolStateStore,
         private maxExecutionHistory: number,
         private logger: Logger,
         namespace?: string
@@ -39,7 +41,7 @@ export class ScheduleStorage {
         const key = `${this.schedulePrefix}${schedule.id}`;
         let persisted = false;
         try {
-            await this.storageManager.getDatabase().set(key, schedule);
+            await this.setState(key, schedule);
             persisted = true;
 
             // Maintain list of schedule IDs for efficient listing
@@ -49,7 +51,7 @@ export class ScheduleStorage {
         } catch (error) {
             if (persisted) {
                 try {
-                    await this.storageManager.getDatabase().delete(key);
+                    await this.deleteState(key);
                 } catch (cleanupError) {
                     this.logger.error(
                         `Failed to rollback schedule ${schedule.id} after list update failure: ${cleanupError instanceof Error ? cleanupError.message : String(cleanupError)}`
@@ -69,7 +71,7 @@ export class ScheduleStorage {
     async loadSchedule(scheduleId: string): Promise<Schedule | null> {
         try {
             const key = `${this.schedulePrefix}${scheduleId}`;
-            const schedule = await this.storageManager.getDatabase().get<Schedule>(key);
+            const schedule = await this.getState<Schedule>(key);
             return schedule || null;
         } catch (error) {
             throw SchedulerError.storageReadFailed(
@@ -85,8 +87,7 @@ export class ScheduleStorage {
     async listSchedules(): Promise<Schedule[]> {
         try {
             // Get list of schedule IDs
-            const scheduleIds =
-                (await this.storageManager.getDatabase().get<string[]>(this.scheduleListKey)) || [];
+            const scheduleIds = (await this.getState<string[]>(this.scheduleListKey)) || [];
 
             // Load all schedules
             const schedules: Schedule[] = [];
@@ -119,7 +120,7 @@ export class ScheduleStorage {
             await this.removeScheduleFromList(scheduleId);
             removedFromList = true;
 
-            await this.storageManager.getDatabase().delete(key);
+            await this.deleteState(key);
             deletedSchedule = true;
 
             // Clean up execution logs for this schedule
@@ -153,7 +154,7 @@ export class ScheduleStorage {
     async saveExecutionLog(log: ExecutionLog): Promise<void> {
         try {
             const key = `${this.executionLogPrefix}${log.scheduleId}:${log.id}`;
-            await this.storageManager.getDatabase().set(key, log);
+            await this.setState(key, log);
 
             // Maintain execution history limit
             await this.pruneExecutionHistory(log.scheduleId);
@@ -175,12 +176,12 @@ export class ScheduleStorage {
     async getExecutionLogs(scheduleId: string, limit?: number): Promise<ExecutionLog[]> {
         try {
             const prefix = `${this.executionLogPrefix}${scheduleId}:`;
-            const keys = await this.storageManager.getDatabase().list(prefix);
+            const keys = await this.listStateKeys(prefix);
 
             // Load all logs
             const logs: ExecutionLog[] = [];
             for (const key of keys) {
-                const log = await this.storageManager.getDatabase().get<ExecutionLog>(key);
+                const log = await this.getState<ExecutionLog>(key);
                 if (log) {
                     logs.push(log);
                 }
@@ -205,10 +206,10 @@ export class ScheduleStorage {
     private async deleteExecutionLogs(scheduleId: string): Promise<void> {
         try {
             const prefix = `${this.executionLogPrefix}${scheduleId}:`;
-            const keys = await this.storageManager.getDatabase().list(prefix);
+            const keys = await this.listStateKeys(prefix);
 
             for (const key of keys) {
-                await this.storageManager.getDatabase().delete(key);
+                await this.deleteState(key);
             }
 
             this.logger.debug(`Execution logs deleted for schedule ${scheduleId}`);
@@ -233,7 +234,7 @@ export class ScheduleStorage {
 
                 for (const log of logsToDelete) {
                     const key = `${this.executionLogPrefix}${scheduleId}:${log.id}`;
-                    await this.storageManager.getDatabase().delete(key);
+                    await this.deleteState(key);
                 }
 
                 this.logger.debug(
@@ -253,12 +254,11 @@ export class ScheduleStorage {
      */
     private async addScheduleToList(scheduleId: string): Promise<void> {
         await this.withListLock(async () => {
-            const scheduleIds =
-                (await this.storageManager.getDatabase().get<string[]>(this.scheduleListKey)) || [];
+            const scheduleIds = (await this.getState<string[]>(this.scheduleListKey)) || [];
 
             if (!scheduleIds.includes(scheduleId)) {
                 scheduleIds.push(scheduleId);
-                await this.storageManager.getDatabase().set(this.scheduleListKey, scheduleIds);
+                await this.setState(this.scheduleListKey, scheduleIds);
             }
         });
     }
@@ -268,12 +268,11 @@ export class ScheduleStorage {
      */
     private async removeScheduleFromList(scheduleId: string): Promise<void> {
         await this.withListLock(async () => {
-            const scheduleIds =
-                (await this.storageManager.getDatabase().get<string[]>(this.scheduleListKey)) || [];
+            const scheduleIds = (await this.getState<string[]>(this.scheduleListKey)) || [];
 
-            const filtered = scheduleIds.filter((id) => id !== scheduleId);
+            const filtered = scheduleIds.filter((id: string) => id !== scheduleId);
 
-            await this.storageManager.getDatabase().set(this.scheduleListKey, filtered);
+            await this.setState(this.scheduleListKey, filtered);
         });
     }
 
@@ -293,5 +292,24 @@ export class ScheduleStorage {
                 release();
             }
         }
+    }
+
+    private async getState<T>(key: string): Promise<T | undefined> {
+        return await this.toolStateStore.get<T>({ toolName: SCHEDULER_TOOL_STATE_NAME, key });
+    }
+
+    private async setState<T>(key: string, value: T): Promise<void> {
+        await this.toolStateStore.set({ toolName: SCHEDULER_TOOL_STATE_NAME, key, value });
+    }
+
+    private async deleteState(key: string): Promise<void> {
+        await this.toolStateStore.delete({ toolName: SCHEDULER_TOOL_STATE_NAME, key });
+    }
+
+    private async listStateKeys(prefix: string): Promise<string[]> {
+        return await this.toolStateStore.listKeys({
+            toolName: SCHEDULER_TOOL_STATE_NAME,
+            prefix,
+        });
     }
 }

@@ -21,11 +21,9 @@ export const todoToolsFactory: ToolFactory<TodoToolsConfig> = {
             }
 
             const logger = context.logger;
-            const database = context.storage?.database;
-            if (!database) {
-                throw ToolError.configInvalid(
-                    'todo-tools requires ToolExecutionContext.storage.database'
-                );
+            const toolState = context.toolState;
+            if (!toolState) {
+                throw ToolError.configInvalid('todo-tools requires ToolExecutionContext.toolState');
             }
 
             const agent = context.agent;
@@ -33,7 +31,7 @@ export const todoToolsFactory: ToolFactory<TodoToolsConfig> = {
                 throw ToolError.configInvalid('todo-tools requires ToolExecutionContext.agent');
             }
 
-            todoService = new TodoService(database, agent, logger, {
+            todoService = new TodoService(toolState, agent, logger, {
                 maxTodosPerSession: config.maxTodosPerSession,
                 enableEvents: config.enableEvents,
             });

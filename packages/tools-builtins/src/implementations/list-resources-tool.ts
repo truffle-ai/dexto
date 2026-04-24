@@ -37,7 +37,7 @@ interface ResourceInfo {
 /**
  * Create the `list_resources` tool.
  *
- * Lists stored resources (backed by the configured BlobStore) and returns references
+ * Lists stored resources (backed by the configured artifact store) and returns references
  * that can be passed to `get_resource`.
  * Requires `ToolExecutionContext.services.resources`.
  */
@@ -73,21 +73,21 @@ export function createListResourcesTool(): Tool<typeof ListResourcesInputSchema>
             }
 
             try {
-                const blobStore = resourceManager.getBlobStore();
-                const allBlobs = await blobStore.listBlobs();
+                const artifactStore = resourceManager.getArtifactStore();
+                const artifacts = await artifactStore.listArtifacts();
 
                 const resources: ResourceInfo[] = [];
 
-                for (const blob of allBlobs) {
-                    if (blob.metadata.source === 'system') {
+                for (const artifact of artifacts) {
+                    if (artifact.metadata.source === 'system') {
                         continue;
                     }
 
-                    if (source !== 'all' && blob.metadata.source !== source) {
+                    if (source !== 'all' && artifact.metadata.source !== source) {
                         continue;
                     }
 
-                    const mimeType = blob.metadata.mimeType;
+                    const mimeType = artifact.metadata.mimeType;
                     let resourceKind: 'image' | 'audio' | 'video' | 'binary' = 'binary';
                     if (mimeType.startsWith('image/')) resourceKind = 'image';
                     else if (mimeType.startsWith('audio/')) resourceKind = 'audio';
@@ -98,13 +98,15 @@ export function createListResourcesTool(): Tool<typeof ListResourcesInputSchema>
                     }
 
                     resources.push({
-                        reference: blob.uri,
+                        reference: artifact.uri,
                         kind: resourceKind,
-                        mimeType: blob.metadata.mimeType,
-                        ...(blob.metadata.originalName && { filename: blob.metadata.originalName }),
-                        source: blob.metadata.source || 'tool',
-                        size: blob.metadata.size,
-                        createdAt: blob.metadata.createdAt.toISOString(),
+                        mimeType: artifact.metadata.mimeType,
+                        ...(artifact.metadata.originalName && {
+                            filename: artifact.metadata.originalName,
+                        }),
+                        source: artifact.metadata.source || 'tool',
+                        size: artifact.metadata.size,
+                        createdAt: artifact.metadata.createdAt.toISOString(),
                     });
                 }
 

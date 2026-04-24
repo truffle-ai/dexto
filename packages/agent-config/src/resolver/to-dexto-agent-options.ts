@@ -42,7 +42,7 @@ export function toDextoAgentOptions<THostContext extends DextoHostContext = Dext
         prompts: config.prompts,
         ...(imageRuntimeConfig ?? {}),
         logger: services.logger,
-        storage: services.storage,
+        stores: services.stores,
         tools: services.tools,
         toolkitLoader: services.toolkitLoader,
         hooks: services.hooks,
