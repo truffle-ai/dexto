@@ -62,6 +62,8 @@ import {
     isPath,
     resolveApiKeyForProvider,
     getPrimaryApiKeyEnvVar,
+    initializeCorePaths,
+    initializeOpenRouterRegistry,
 } from '@dexto/core';
 import {
     applyImageDefaults,
@@ -83,6 +85,7 @@ import {
     resolveBundledScript,
     enrichAgentConfig,
     isDextoAuthEnabled,
+    getDextoGlobalPath,
 } from '@dexto/agent-management';
 import { validateCliOptions, handleCliOptionsError } from './cli/utils/options.js';
 import { validateAgentConfig } from './cli/utils/config-validation.js';
@@ -110,6 +113,28 @@ import type { CLISetupOptionsInput } from './cli/commands/setup.js';
 import type { UpgradeCommandOptions } from './cli/commands/upgrade.js';
 import type { UninstallCliCommandOptions } from './cli/commands/uninstall.js';
 import { ensureImageImporterConfigured } from './cli/utils/image-importer.js';
+
+/**
+ * Initialize core services with paths from agent-management.
+ * This must be called early in the CLI lifecycle.
+ */
+function initializeCore(): void {
+    const globalDir = getDextoGlobalPath('');
+    const cacheDir = getDextoGlobalPath('cache');
+    const depsDir = getDextoGlobalPath('deps');
+    const authPath = path.join(globalDir, 'auth.json');
+
+    initializeCorePaths({
+        globalCacheDir: cacheDir,
+        globalDepsDir: depsDir,
+        globalAuthPath: authPath,
+    });
+
+    initializeOpenRouterRegistry(path.join(cacheDir, 'openrouter-models.json'));
+}
+
+// 1) INITIALIZE CORE
+initializeCore();
 
 const program = new Command();
 

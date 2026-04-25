@@ -25,6 +25,7 @@
 export * from './agent/index.js';
 
 // Configuration
+export * from './config/paths.js';
 // Config loading has been moved to @dexto/agent-management
 // Import from '@dexto/agent-management' instead:
 // - loadAgentConfig

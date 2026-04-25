@@ -14,14 +14,14 @@
 - [x] Verify Phase 2 (CLI Build)
 
 ## Phase 3: Decouple Core Internals (Dependency Injection)
-- [ ] Create `core/src/config/paths.ts`
-- [ ] Refactor `utils/api-key-resolver.ts` to use `CorePaths`
-- [ ] Refactor `llm/registry/auto-update.ts` to use `CorePaths`
-- [ ] Refactor `llm/providers/codex-app-server.ts` to use `CorePaths`
-- [ ] Refactor `llm/providers/local/node-llama-provider.ts` to use `CorePaths`
-- [ ] Refactor `llm/providers/openrouter-model-registry.ts` with late-binding initializer
-- [ ] Inject paths in `packages/cli/src/index-main.ts` at startup
-- [ ] Verify Phase 3 (Core & CLI interaction)
+- [x] Create `core/src/config/paths.ts`
+- [x] Refactor `utils/api-key-resolver.ts` to use `CorePaths`
+- [x] Refactor `llm/registry/auto-update.ts` to use `CorePaths`
+- [x] Refactor `llm/providers/codex-app-server.ts` to use `CorePaths`
+- [x] Refactor `llm/providers/local/node-llama-provider.ts` to use `CorePaths`
+- [x] Refactor `llm/providers/openrouter-model-registry.ts` with late-binding initializer
+- [x] Inject paths in `packages/cli/src/index-main.ts` at startup
+- [x] Verify Phase 3 (Core & CLI interaction)
 
 ## Phase 4: Clean Up Core
 - [ ] Remove `vcs` module from `core`

@@ -14,12 +14,10 @@
 import { promises as fs } from 'node:fs';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
-import { getDextoGlobalPath } from '../../utils/path.js';
 import { logger } from '../../logger/logger.js';
 
 const OPENROUTER_MODELS_ENDPOINT = 'https://openrouter.ai/api/v1/models';
 const CACHE_FILENAME = 'openrouter-models.json';
-const CACHE_SUBDIR = 'cache';
 const CACHE_TTL_MS = 1000 * 60 * 60 * 24; // 24 hours
 const MIN_REFRESH_INTERVAL_MS = 1000 * 60 * 5; // 5 minutes throttle between refresh attempts
 
@@ -63,7 +61,7 @@ interface RefreshOptions {
 /** Default context length when not available from API */
 const DEFAULT_CONTEXT_LENGTH = 128000;
 
-class OpenRouterModelRegistry {
+export class OpenRouterModelRegistry {
     /** Map from normalized model ID to model info */
     private models: Map<string, OpenRouterModelInfo> | null = null;
     private lastFetchedAt: number | null = null;
@@ -468,37 +466,56 @@ class OpenRouterModelRegistry {
     }
 }
 
-// Singleton instance with global cache path
-const cachePath = getDextoGlobalPath(CACHE_SUBDIR, CACHE_FILENAME);
-export const openRouterModelRegistry = new OpenRouterModelRegistry(cachePath);
+// Global registry instance (late-bound via initializeOpenRouterRegistry)
+let globalRegistry: OpenRouterModelRegistry | null = null;
+
+/**
+ * Initialize the global OpenRouter model registry with a cache path.
+ * Must be called by the host before any lookups are performed.
+ */
+export function initializeOpenRouterRegistry(cachePath: string) {
+    if (globalRegistry) return;
+    globalRegistry = new OpenRouterModelRegistry(cachePath);
+}
+
+/**
+ * Create a new OpenRouter model registry instance.
+ */
+export function createOpenRouterModelRegistry(cachePath: string): OpenRouterModelRegistry {
+    return new OpenRouterModelRegistry(cachePath);
+}
+
+function getGlobalRegistry(): OpenRouterModelRegistry | null {
+    return globalRegistry;
+}
 
 /**
  * Look up a model ID against the OpenRouter catalog.
  * @returns 'valid' if model exists, 'invalid' if not found, 'unknown' if cache is stale/empty
  */
 export function lookupOpenRouterModel(modelId: string): LookupStatus {
-    return openRouterModelRegistry.lookup(modelId);
+    return getGlobalRegistry()?.lookup(modelId) ?? 'unknown';
 }
 
 /**
  * Schedule a non-blocking background refresh of the OpenRouter model cache.
  */
 export function scheduleOpenRouterModelRefresh(options?: RefreshOptions): void {
-    openRouterModelRegistry.scheduleRefresh(options);
+    getGlobalRegistry()?.scheduleRefresh(options);
 }
 
 /**
  * Perform a blocking refresh of the OpenRouter model cache.
  */
 export async function refreshOpenRouterModelCache(options?: RefreshOptions): Promise<void> {
-    await openRouterModelRegistry.refresh(options);
+    await getGlobalRegistry()?.refresh(options);
 }
 
 /**
  * Get all cached OpenRouter model IDs (or null if cache is empty).
  */
 export function getCachedOpenRouterModels(): string[] | null {
-    return openRouterModelRegistry.getCachedModels();
+    return getGlobalRegistry()?.getCachedModels() ?? null;
 }
 
 /**
@@ -506,7 +523,7 @@ export function getCachedOpenRouterModels(): string[] | null {
  * Expired models are filtered out.
  */
 export function getCachedOpenRouterModelsWithInfo(): OpenRouterModelInfo[] | null {
-    return openRouterModelRegistry.getCachedModelsWithInfo();
+    return getGlobalRegistry()?.getCachedModelsWithInfo() ?? null;
 }
 
 /**
@@ -514,7 +531,7 @@ export function getCachedOpenRouterModelsWithInfo(): OpenRouterModelInfo[] | nul
  * @returns context length if model is in cache, null if not found or cache is stale
  */
 export function getOpenRouterModelContextLength(modelId: string): number | null {
-    return openRouterModelRegistry.getContextLength(modelId);
+    return getGlobalRegistry()?.getContextLength(modelId) ?? null;
 }
 
 /**
@@ -522,7 +539,7 @@ export function getOpenRouterModelContextLength(modelId: string): number | null 
  * @returns model info if found in cache, null otherwise
  */
 export function getOpenRouterModelInfo(modelId: string): OpenRouterModelInfo | null {
-    return openRouterModelRegistry.getModelInfo(modelId);
+    return getGlobalRegistry()?.getModelInfo(modelId) ?? null;
 }
 
 /**
@@ -533,11 +550,16 @@ export function getOpenRouterModelCacheInfo(): {
     modelCount: number;
     isFresh: boolean;
 } {
-    return openRouterModelRegistry.getCacheMetadata();
+    return (
+        getGlobalRegistry()?.getCacheMetadata() ?? {
+            lastFetchedAt: null,
+            modelCount: 0,
+            isFresh: false,
+        }
+    );
 }
 
 // Export internal constants for testing purposes
 export const __TEST_ONLY__ = {
-    cachePath,
     CACHE_TTL_MS,
 };

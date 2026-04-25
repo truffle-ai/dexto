@@ -1,7 +1,7 @@
 import { promises as fs } from 'node:fs';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
-import { getDextoGlobalPath } from '../../utils/path.js';
+import { CorePaths } from '../../config/paths.js';
 import { logger as defaultLogger } from '../../logger/logger.js';
 import type { Logger } from '../../logger/v2/types.js';
 import type { LLMProvider } from '../types.js';
@@ -12,7 +12,6 @@ import { buildModelsByProviderFromRemote } from './sync.js';
 
 type LogLike = Pick<Logger, 'debug' | 'info' | 'warn' | 'error'>;
 
-const CACHE_SUBDIR = 'cache';
 const CACHE_FILENAME = 'llm-registry-models.json';
 const CACHE_SCHEMA_VERSION = 1;
 
@@ -52,7 +51,12 @@ function getTtlMs(): number {
 }
 
 function getCachePath(): string {
-    return getDextoGlobalPath(CACHE_SUBDIR, CACHE_FILENAME);
+    const baseDir = CorePaths.globalCacheDir;
+    if (!baseDir) {
+        // Return empty if not initialized; consumers will handle missing path
+        return '';
+    }
+    return path.join(baseDir, CACHE_FILENAME);
 }
 
 function isModelInfo(value: unknown): value is ModelInfo {
@@ -175,7 +179,7 @@ function tryLoadCacheFromDisk(
     log?: LogLike
 ): { fetchedAt: number; modelsByProvider: Record<LLMProvider, ModelInfo[]> } | null {
     const cachePath = getCachePath();
-    if (!existsSync(cachePath)) return null;
+    if (!cachePath || !existsSync(cachePath)) return null;
 
     try {
         const text = readFileSync(cachePath, 'utf-8');
@@ -293,6 +297,10 @@ export async function refreshLlmRegistryCache(options?: {
         });
 
         const cachePath = getCachePath();
+        if (!cachePath) {
+            log?.warn?.('LLM registry cache path not configured, skipping write');
+            return;
+        }
         await writeCacheFile(cachePath, modelsByProvider);
         applyModelsByProvider(modelsByProvider);
         lastFetchedAt = Date.now();

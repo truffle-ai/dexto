@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from 'fs';
 import type { LLMProvider } from '../llm/types.js';
-import { getDextoGlobalPath } from './path.js';
+import { CorePaths } from '../config/paths.js';
 
 /**
  * Utility for resolving API keys from environment variables.
@@ -42,8 +42,8 @@ export const PROVIDER_API_KEY_MAP: Record<LLMProvider, string[]> = {
 };
 
 function resolveDextoApiKeyFromAuthConfig(): string | undefined {
-    const authPath = getDextoGlobalPath('', 'auth.json');
-    if (!existsSync(authPath)) {
+    const authPath = CorePaths.globalAuthPath;
+    if (!authPath || !existsSync(authPath)) {
         return undefined;
     }
 

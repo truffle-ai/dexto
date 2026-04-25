@@ -16,7 +16,7 @@ import type {
 } from '@ai-sdk/provider';
 import { DextoRuntimeError } from '../../errors/DextoRuntimeError.js';
 import { ErrorScope, ErrorType } from '../../errors/types.js';
-import { getDextoGlobalPath } from '../../utils/path.js';
+import { CorePaths } from '../../config/paths.js';
 import { safeStringify } from '../../utils/safe-stringify.js';
 import { LLMErrorCode } from '../error-codes.js';
 import { LLMError } from '../errors.js';
@@ -254,12 +254,11 @@ function normalizeCodexStartupError(error: unknown, command: string): Error {
 
 function getManagedCodexCommand(): string | null {
     try {
-        const candidate = path.join(
-            getDextoGlobalPath('deps'),
-            'node_modules',
-            '.bin',
-            MANAGED_CODEX_BINARY
-        );
+        const depsDir = CorePaths.globalDepsDir;
+        if (!depsDir) {
+            return null;
+        }
+        const candidate = path.join(depsDir, 'node_modules', '.bin', MANAGED_CODEX_BINARY);
         return fs.existsSync(candidate) ? candidate : null;
     } catch {
         return null;
