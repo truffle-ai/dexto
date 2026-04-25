@@ -8,7 +8,8 @@ import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { glob } from 'glob';
 import safeRegex from 'safe-regex';
-import { DextoRuntimeError, getDextoPath, Logger, DextoLogComponent } from '@dexto/core';
+import { DextoRuntimeError, Logger, DextoLogComponent } from '@dexto/core';
+import { getDextoPath } from '@dexto/agent-management';
 import {
     FileSystemConfig,
     FileContent,

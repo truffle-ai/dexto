@@ -17,7 +17,6 @@ import path from 'node:path';
 import { logger } from '../../logger/logger.js';
 
 const OPENROUTER_MODELS_ENDPOINT = 'https://openrouter.ai/api/v1/models';
-const CACHE_FILENAME = 'openrouter-models.json';
 const CACHE_TTL_MS = 1000 * 60 * 60 * 24; // 24 hours
 const MIN_REFRESH_INTERVAL_MS = 1000 * 60 * 5; // 5 minutes throttle between refresh attempts
 

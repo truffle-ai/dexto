@@ -5,7 +5,6 @@ import os from 'node:os';
 import path from 'node:path';
 import type { ModelInfo } from './index.js';
 import type { LLMProvider } from '../types.js';
-import { CorePaths } from '../../config/paths.js';
 
 const TEST_ROOT = mkdtempSync(path.join(os.tmpdir(), 'dexto-llm-registry-auto-update-'));
 

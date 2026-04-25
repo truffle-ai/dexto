@@ -2,21 +2,14 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { requiresSetup, isFirstTimeUser } from './setup-utils.js';
 
 // Mock dependencies
-vi.mock('@dexto/agent-management', async () => {
-    const actual = await vi.importActual('@dexto/agent-management');
+vi.mock('@dexto/agent-management', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('@dexto/agent-management')>();
     return {
         ...actual,
         findDextoProjectRoot: vi.fn(),
         findProjectRegistryPathSync: vi.fn(),
         globalPreferencesExist: vi.fn(),
         loadGlobalPreferences: vi.fn(),
-    };
-});
-
-vi.mock('@dexto/core', async () => {
-    const actual = await vi.importActual('@dexto/core');
-    return {
-        ...actual,
         getExecutionContext: vi.fn(),
     };
 });

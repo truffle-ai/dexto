@@ -3,7 +3,7 @@
  * Each method creates a properly typed error with VCS scope
  */
 
-import { DextoRuntimeError, ErrorScope, ErrorType } from '@dexto/core';
+import { DextoRuntimeError, ErrorType } from '@dexto/core';
 import { VCErrorCode } from './error-codes.js';
 
 /**
