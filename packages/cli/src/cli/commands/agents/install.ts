@@ -15,6 +15,7 @@ const InstallCommandSchema = z
         agents: z.array(z.string().min(1, 'Agent name cannot be empty')),
         all: z.boolean().default(false),
         force: z.boolean().default(false),
+        injectPreferences: z.boolean().default(true),
     })
     .strict();
 
