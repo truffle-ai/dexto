@@ -560,7 +560,7 @@ program
                 // ——— WORKTREE CREATION ———
                 // Handle --worktree flag: create worktree and spawn new dexto process
                 if (opts.worktree !== undefined) {
-                    const { findGitRepoRoot } = await import('@dexto/core');
+                    const { findGitRepoRoot } = await import('@dexto/agent-management');
                     const gitRoot = findGitRepoRoot(process.cwd());
                     // Check if we're in a git repo (required for worktree)
                     if (!gitRoot) {
@@ -582,7 +582,7 @@ program
 
                     // 2. Import worktree utilities
                     const { isGitAvailable, worktreeExists, createWorktree, isValidWorktreeName } =
-                        await import('@dexto/core');
+                        await import('@dexto/agent-management');
 
                     // 3. Check if worktree name is valid
                     if (!isValidWorktreeName(worktreeName)) {
@@ -601,7 +601,7 @@ program
                     }
 
                     // 5. Check if already in a worktree
-                    const { isInWorktree } = await import('@dexto/core');
+                    const { isInWorktree } = await import('@dexto/agent-management');
                     if (isInWorktree()) {
                         console.error('❌ Already in a worktree. Run from main project directory.');
                         safeExit('worktree', 1, 'already-in-worktree');

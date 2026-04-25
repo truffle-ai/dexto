@@ -7,7 +7,7 @@ import {
     loadGlobalPreferences,
     type GlobalPreferences,
 } from '@dexto/agent-management';
-import { getExecutionContext } from '@dexto/core';
+import { getExecutionContext } from '@dexto/agent-management';
 import { existsSync, statSync } from 'node:fs';
 import path from 'node:path';
 

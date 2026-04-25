@@ -22,13 +22,9 @@
 import type React from 'react';
 import { useEffect, useRef } from 'react';
 import { setMaxListeners } from 'events';
-import {
-    getModelDisplayName,
-    parseCodexBaseURL,
-    getWorktreeContext,
-    type QueuedMessage,
-    type ContentPart,
-} from '@dexto/core';
+import { getModelDisplayName, parseCodexBaseURL } from '@dexto/core';
+import { getWorktreeContext } from '@dexto/agent-management';
+import type { QueuedMessage, ContentPart } from '@dexto/core';
 import type { Message, UIState, SessionState, InputState } from '../state/types.js';
 import type { ApprovalRequest } from '../components/ApprovalPrompt.js';
 import { generateMessageId } from '../utils/idGenerator.js';

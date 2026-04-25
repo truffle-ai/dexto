@@ -10,6 +10,7 @@ import type { McpServerConfig, McpServerStatus, McpServerType } from '@dexto/cor
 import type { TextBuffer } from '../components/shared/text-buffer.js';
 import type { Key } from '../hooks/useInputOrchestrator.js';
 import { ApprovalStatus, DenialReason, isUserMessage } from '@dexto/core';
+import { getExecutionContext } from '@dexto/agent-management';
 import type { Message, UIState, InputState, SessionState } from '../state/types.js';
 import {
     ApprovalPrompt,
@@ -2760,7 +2761,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
             ]);
 
             try {
-                const { removeWorktree } = await import('@dexto/core');
+                const { removeWorktree } = await import('@dexto/agent-management');
                 const { parentProjectRoot, worktreeName } = state;
 
                 if (!parentProjectRoot) {

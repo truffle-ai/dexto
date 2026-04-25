@@ -9,9 +9,9 @@
 - [x] Verify Phase 1 (Build & Unit Tests)
 
 ## Phase 2: Redirect CLI & TUI Consumers
-- [ ] Update `packages/cli/src/` imports to use `@dexto/agent-management`
-- [ ] Update `packages/tui/src/` imports to use `@dexto/agent-management`
-- [ ] Verify Phase 2 (CLI Build)
+- [x] Update `packages/cli/src/` imports to use `@dexto/agent-management`
+- [x] Update `packages/tui/src/` imports to use `@dexto/agent-management`
+- [x] Verify Phase 2 (CLI Build)
 
 ## Phase 3: Decouple Core Internals (Dependency Injection)
 - [ ] Create `core/src/config/paths.ts`

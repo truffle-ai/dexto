@@ -26,8 +26,8 @@ const {
     findProjectRegistryPathSync,
     globalPreferencesExist,
     loadGlobalPreferences,
+    getExecutionContext,
 } = await import('@dexto/agent-management');
-const { getExecutionContext } = await import('@dexto/core');
 
 describe('requiresSetup', () => {
     const originalEnv = process.env.DEXTO_DEV_MODE;

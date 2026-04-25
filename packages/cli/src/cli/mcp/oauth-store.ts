@@ -1,6 +1,6 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
-import { getDextoPath } from '@dexto/core';
+import { getDextoPath } from '@dexto/agent-management';
 import type {
     OAuthTokens,
     OAuthClientInformationMixed,

@@ -1,7 +1,7 @@
 import { existsSync, promises as fs } from 'fs';
 import path from 'path';
 import { setTimeout as delay } from 'timers/promises';
-import { getDextoGlobalPath } from '@dexto/core';
+import { getDextoGlobalPath } from '@dexto/agent-management';
 import { z } from 'zod';
 
 const DEPLOY_LINKS_FILENAME = 'links.json';

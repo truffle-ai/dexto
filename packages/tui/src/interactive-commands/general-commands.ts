@@ -12,7 +12,8 @@
 
 import chalk from 'chalk';
 import { spawn } from 'child_process';
-import { parseCodexBaseURL, isInWorktree, hasUnstagedChanges } from '@dexto/core';
+import { parseCodexBaseURL } from '@dexto/core';
+import { isInWorktree, hasUnstagedChanges } from '@dexto/agent-management';
 import type { CommandDefinition, CommandHandlerResult, CommandContext } from './command-parser.js';
 import { formatForInkCli } from './utils/format-output.js';
 import { CommandOutputHelper } from './utils/command-output.js';

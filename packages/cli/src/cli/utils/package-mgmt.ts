@@ -1,4 +1,5 @@
-import { findPackageRoot, logger } from '@dexto/core';
+import { findPackageRoot } from '@dexto/agent-management';
+import { logger } from '@dexto/core';
 import fsExtra from 'fs-extra';
 import path from 'path';
 import { PackageJson } from 'type-fest';
