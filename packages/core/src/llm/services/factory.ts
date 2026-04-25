@@ -28,7 +28,6 @@ import { requiresApiKey } from '../registry/index.js';
 import { getPrimaryApiKeyEnvVar, resolveApiKeyForProvider } from '../../utils/api-key-resolver.js';
 import { createCodexLanguageModel } from '../providers/codex-app-server.js';
 import { isCodexBaseURL } from '../providers/codex-base-url.js';
-import { findDextoProjectRoot } from '../../utils/execution-context.js';
 import {
     ANTHROPIC_BETA_HEADER,
     ANTHROPIC_INTERLEAVED_THINKING_BETA,
@@ -77,11 +76,7 @@ const DEXTO_GATEWAY_HEADERS = {
 } as const;
 
 function resolveProviderWorkingDirectory(explicitCwd?: string): string {
-    if (explicitCwd && explicitCwd.trim().length > 0) {
-        return explicitCwd;
-    }
-
-    return findDextoProjectRoot(process.cwd()) ?? process.cwd();
+    return explicitCwd ?? process.cwd();
 }
 
 /**
@@ -210,7 +205,7 @@ export function createVercelModel(
                 apiKey: apiKey ?? '',
                 baseURL: dextoBaseURL,
                 headers,
-                // This is an OpenRouter-compatible gateway; keep strict mode to enable OR features.
+                // This is an OpenRouter-compatible gateway; keep split mode to enable OR features.
                 compatibility: 'strict',
             });
             const chatModel = provider.chat(model);

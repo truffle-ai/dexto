@@ -5,11 +5,14 @@ import os from 'node:os';
 import path from 'node:path';
 import type { ModelInfo } from './index.js';
 import type { LLMProvider } from '../types.js';
+import { CorePaths } from '../../config/paths.js';
 
 const TEST_ROOT = mkdtempSync(path.join(os.tmpdir(), 'dexto-llm-registry-auto-update-'));
 
-vi.mock('../../utils/path.js', () => ({
-    getDextoGlobalPath: (...parts: string[]) => path.join(TEST_ROOT, ...parts),
+vi.mock('../../config/paths.js', () => ({
+    CorePaths: {
+        globalCacheDir: TEST_ROOT,
+    },
 }));
 
 vi.mock('./sync.js', () => ({

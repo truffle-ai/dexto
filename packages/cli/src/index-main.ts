@@ -59,7 +59,6 @@ import {
     startLlmRegistryAutoUpdate,
     DextoAgent,
     type LLMProvider,
-    isPath,
     resolveApiKeyForProvider,
     getPrimaryApiKeyEnvVar,
     initializeCorePaths,
@@ -86,6 +85,7 @@ import {
     enrichAgentConfig,
     isDextoAuthEnabled,
     getDextoGlobalPath,
+    isPath,
 } from '@dexto/agent-management';
 import { validateCliOptions, handleCliOptionsError } from './cli/utils/options.js';
 import { validateAgentConfig } from './cli/utils/config-validation.js';

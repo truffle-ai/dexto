@@ -2,9 +2,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { tmpdir } from 'node:os';
+import { CorePaths } from '../config/paths.js';
 
-vi.mock('./path.js', () => ({
-    getDextoGlobalPath: vi.fn(),
+vi.mock('../config/paths.js', () => ({
+    CorePaths: {
+        globalAuthPath: '',
+    },
 }));
 
 describe('resolveApiKeyForProvider', () => {
@@ -18,11 +21,7 @@ describe('resolveApiKeyForProvider', () => {
         tempDir = fs.mkdtempSync(path.join(tmpdir(), 'dexto-api-key-resolver-'));
         authPath = path.join(tempDir, 'auth.json');
 
-        const pathUtils = await import('./path.js');
-        vi.mocked(pathUtils.getDextoGlobalPath).mockImplementation(
-            (_type: string, filename?: string) =>
-                filename ? path.join(tempDir, filename) : tempDir
-        );
+        CorePaths.globalAuthPath = authPath;
     });
 
     afterEach(() => {

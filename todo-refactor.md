@@ -24,11 +24,11 @@
 - [x] Verify Phase 3 (Core & CLI interaction)
 
 ## Phase 4: Clean Up Core
-- [ ] Remove `vcs` module from `core`
-- [ ] Delete `packages/core/src/utils/path.ts`
-- [ ] Delete `packages/core/src/utils/execution-context.ts`
-- [ ] Remove dead exports from `core/src/index.ts` and `core/src/utils/index.ts`
-- [ ] Verify Phase 4 (Final Build)
+- [x] Remove `vcs` module from `core`
+- [x] Delete `packages/core/src/utils/path.ts`
+- [x] Delete `packages/core/src/utils/execution-context.ts`
+- [x] Remove dead exports from `core/src/index.ts` and `core/src/utils/index.ts`
+- [x] Verify Phase 4 (Final Build)
 
 ## Phase 5: Final Validation
 - [ ] Run full project quality checks (`scripts/quality-checks.sh`)

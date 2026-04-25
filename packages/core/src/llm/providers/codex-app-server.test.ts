@@ -8,7 +8,7 @@ import type {
 } from '@ai-sdk/provider';
 import { DextoRuntimeError } from '../../errors/DextoRuntimeError.js';
 import { LLMErrorCode } from '../error-codes.js';
-import * as pathUtils from '../../utils/path.js';
+import { CorePaths } from '../../config/paths.js';
 import { CodexAppServerClient, createCodexLanguageModel } from './codex-app-server.js';
 
 type TestNotification = {
@@ -594,10 +594,9 @@ describe('createCodexLanguageModel', () => {
         });
     });
 
-    it('falls back to the default codex command when managed-path resolution throws', () => {
-        vi.spyOn(pathUtils, 'getDextoGlobalPath').mockImplementation(() => {
-            throw new Error('path resolution failed');
-        });
+    it('falls back to the default codex command when managed-path resolution fails', () => {
+        // Mock CorePaths to return empty for globalDepsDir
+        vi.spyOn(CorePaths, 'globalDepsDir', 'get').mockReturnValue('');
 
         const ClientCtor = CodexAppServerClient as unknown as {
             new (options?: unknown): CodexAppServerClient;
