@@ -18,9 +18,6 @@ export * from './defer.js';
 export * from './async-context.js';
 export * from './env.js';
 
-// VCS worktree operations
-export { hasUnstagedChanges } from '../vcs/index.js';
-
 // API key STORAGE has been moved to @dexto/agent-management
 // These functions write to .env files and are CLI/server concerns, not core runtime
 // Import from '@dexto/agent-management' instead:

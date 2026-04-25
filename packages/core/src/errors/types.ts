@@ -14,7 +14,9 @@ import type { ApprovalErrorCode } from '../approval/error-codes.js';
 import type { MemoryErrorCode } from '../memory/error-codes.js';
 import type { HookErrorCode } from '../hooks/error-codes.js';
 import type { TelemetryErrorCode } from '../telemetry/error-codes.js';
-import type { VCErrorCode } from '../vcs/error-codes.js';
+
+// VCErrorCode has been moved to @dexto/agent-management
+// Import from there if needed for error type unions
 
 /**
  * Error scopes representing functional domains in the system
@@ -36,7 +38,6 @@ export enum ErrorScope {
     MEMORY = 'memory', // Memory management and storage
     HOOK = 'hook', // Hook loading, validation, and execution
     TELEMETRY = 'telemetry', // Telemetry initialization and export operations
-    VCS = 'vcs', // Version control system operations (git worktrees, branches)
 }
 
 /**
@@ -75,8 +76,7 @@ export type DextoErrorCode =
     | ApprovalErrorCode
     | MemoryErrorCode
     | HookErrorCode
-    | TelemetryErrorCode
-    | VCErrorCode;
+    | TelemetryErrorCode;
 
 /** Severity of an issue */
 export type Severity = 'error' | 'warning';

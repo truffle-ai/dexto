@@ -5,7 +5,7 @@
 import { walkUpDirectories } from './fs-walk.js';
 import { existsSync, readFileSync, realpathSync, readdirSync, statSync } from 'fs';
 import * as path from 'path';
-import { isInWorktree, getWorktreeContext } from './path.js';
+import { getWorktreeContext } from './path.js';
 
 export { getWorktreeContext };
 

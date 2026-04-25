@@ -106,6 +106,11 @@ export {
     findPackageRoot,
     resolveBundledScript,
     ensureDextoGlobalDirectory,
+    isInWorktree,
+    getWorktreeRootFromPath,
+    getWorktreeName,
+    getParentProjectRoot,
+    getWorktreeContext,
 } from './utils/path.js';
 export {
     getExecutionContext,
@@ -296,3 +301,6 @@ export {
     type MarketplaceUpdateResult,
     type MarketplaceInstallResult,
 } from './plugins/index.js';
+
+// VCS (Git operations, worktrees)
+export * from './vcs/index.js';

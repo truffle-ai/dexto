@@ -5,6 +5,9 @@
 import { walkUpDirectories } from './fs-walk.js';
 import { existsSync, readFileSync, realpathSync, readdirSync, statSync } from 'fs';
 import * as path from 'path';
+import { getWorktreeContext } from './path.js';
+
+export { getWorktreeContext };
 
 export type ExecutionContext = 'dexto-source' | 'dexto-project' | 'global-cli';
 

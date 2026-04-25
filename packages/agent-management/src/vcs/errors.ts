@@ -3,8 +3,7 @@
  * Each method creates a properly typed error with VCS scope
  */
 
-import { DextoRuntimeError } from '../errors/index.js';
-import { ErrorScope, ErrorType } from '../errors/types.js';
+import { DextoRuntimeError, ErrorScope, ErrorType } from '@dexto/core';
 import { VCErrorCode } from './error-codes.js';
 
 /**
@@ -17,7 +16,7 @@ export class VCSError {
     static gitNotAvailable(): DextoRuntimeError {
         return new DextoRuntimeError(
             VCErrorCode.GIT_NOT_AVAILABLE,
-            ErrorScope.VCS,
+            'vcs',
             ErrorType.SYSTEM,
             'Git executable is not available. Please install git.',
             undefined,
@@ -31,7 +30,7 @@ export class VCSError {
     static notGitRepo(path: string): DextoRuntimeError {
         return new DextoRuntimeError(
             VCErrorCode.NOT_GIT_REPO,
-            ErrorScope.VCS,
+            'vcs',
             ErrorType.USER,
             `Not a git repository: ${path}`,
             { path }
@@ -44,7 +43,7 @@ export class VCSError {
     static worktreeExists(name: string, path: string): DextoRuntimeError {
         return new DextoRuntimeError(
             VCErrorCode.WORKTREE_EXISTS,
-            ErrorScope.VCS,
+            'vcs',
             ErrorType.CONFLICT,
             `Worktree '${name}' already exists at ${path}`,
             { name, path }
@@ -57,7 +56,7 @@ export class VCSError {
     static worktreeNotFound(name: string): DextoRuntimeError {
         return new DextoRuntimeError(
             VCErrorCode.WORKTREE_NOT_FOUND,
-            ErrorScope.VCS,
+            'vcs',
             ErrorType.NOT_FOUND,
             `Worktree '${name}' not found`,
             { name }
@@ -70,7 +69,7 @@ export class VCSError {
     static invalidWorktreeName(name: string): DextoRuntimeError {
         return new DextoRuntimeError(
             VCErrorCode.INVALID_WORKTREE_NAME,
-            ErrorScope.VCS,
+            'vcs',
             ErrorType.USER,
             `Invalid worktree name '${name}'. Use only letters, numbers, dots, dashes, and underscores.`,
             { name }
@@ -87,7 +86,7 @@ export class VCSError {
     ): DextoRuntimeError {
         return new DextoRuntimeError(
             VCErrorCode.WORKTREE_CREATE_FAILED,
-            ErrorScope.VCS,
+            'vcs',
             ErrorType.SYSTEM,
             `Failed to create worktree '${name}': ${reason}`,
             { name, reason, ...details }
@@ -104,7 +103,7 @@ export class VCSError {
     ): DextoRuntimeError {
         return new DextoRuntimeError(
             VCErrorCode.WORKTREE_OPERATION_FAILED,
-            ErrorScope.VCS,
+            'vcs',
             ErrorType.SYSTEM,
             `Worktree operation '${operation}' failed: ${reason}`,
             { operation, reason, ...details }
@@ -121,7 +120,7 @@ export class VCSError {
     ): DextoRuntimeError {
         return new DextoRuntimeError(
             VCErrorCode.GIT_COMMAND_FAILED,
-            ErrorScope.VCS,
+            'vcs',
             ErrorType.SYSTEM,
             `Git command '${command}' failed: ${reason}`,
             { command, reason, ...details }
@@ -134,7 +133,7 @@ export class VCSError {
     static gitBranchFailed(operation: string, name: string, reason: string): DextoRuntimeError {
         return new DextoRuntimeError(
             VCErrorCode.GIT_BRANCH_FAILED,
-            ErrorScope.VCS,
+            'vcs',
             ErrorType.SYSTEM,
             `Git branch ${operation} '${name}' failed: ${reason}`,
             { operation, name, reason }

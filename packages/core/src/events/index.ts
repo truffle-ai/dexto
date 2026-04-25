@@ -458,6 +458,7 @@ interface AgentOwnEventMapBase {
 
     /**
      * Fired when /exit is run in a worktree and user should be prompted for cleanup.
+     * TODO: refactor event system to decouple file/CLI operations from core
      */
     'worktree:exit-prompt': {
         worktreePath: string;
