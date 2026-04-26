@@ -1,6 +1,13 @@
 export { ChatSession } from './chat-session.js';
 export { SessionManager } from './session-manager.js';
-export type { SessionMetadata, SessionLoggerFactory } from './session-manager.js';
+export type {
+    ModelStatistics,
+    SessionData,
+    SessionLoggerFactory,
+    SessionMetadata,
+    SessionTokenUsage,
+    SessionUsageTracking,
+} from './session-manager.js';
 export { SessionErrorCode } from './error-codes.js';
 export { SessionError } from './errors.js';
 export { MessageQueueService } from './message-queue.js';
