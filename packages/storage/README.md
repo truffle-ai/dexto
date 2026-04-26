@@ -21,7 +21,12 @@ native `DextoStores` implementation directly.
 
 ```ts
 import type { DextoImage } from '@dexto/agent-config';
-import { BackendDextoStores } from '@dexto/core/storage';
+import {
+  BackendDextoStores,
+  DatabaseBackedArtifactStore,
+  DatabaseBackedSessionStore,
+  // ...other typed store adapters
+} from '@dexto/core/storage';
 import {
   StorageSchema,
   LocalBlobStore,
@@ -39,7 +44,27 @@ export const myImage: DextoImage = {
       const blobStore = new LocalBlobStore(LocalBlobStoreSchema.parse(config.blob), logger);
       const database = new SQLiteStore(SqliteDatabaseSchema.parse(config.database), logger);
       const cache = new MemoryCacheStore();
-      return new BackendDextoStores({ blobStore, database, cache }, logger);
+
+      return new BackendDextoStores(
+        {
+          sessions: new DatabaseBackedSessionStore(database, cache),
+          artifacts: new DatabaseBackedArtifactStore(blobStore),
+          // ...provide every DextoStoreMap domain
+        },
+        {
+          async connect() {
+            await cache.connect();
+            await database.connect();
+            await blobStore.connect();
+          },
+          async disconnect() {
+            await Promise.all([cache.disconnect(), database.disconnect(), blobStore.disconnect()]);
+          },
+          isConnected() {
+            return cache.isConnected() && database.isConnected() && blobStore.isConnected();
+          },
+        },
+      );
     },
   },
 };

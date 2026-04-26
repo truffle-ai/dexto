@@ -1,17 +1,11 @@
 import { describe, it, expect, vi } from 'vitest';
 import { z } from 'zod';
 import type { CompactionStrategy, Hook, Logger } from '@dexto/core';
-import { BackendDextoStores } from '@dexto/core/storage';
+import { InMemoryDextoStores } from '@dexto/core/storage';
 import type { DextoHostContext, DextoImage, ImageResolutionContext } from '../image/types.js';
 import { AgentConfigSchema, type AgentConfig } from '../schemas/agent-config.js';
 import { resolveServicesFromConfig } from './resolve-services-from-config.js';
-import {
-    createMockBlobStore,
-    createMockCache,
-    createMockDatabase,
-    createMockLogger,
-    createMockTool,
-} from './__fixtures__/test-mocks.js';
+import { createMockLogger, createMockTool } from './__fixtures__/test-mocks.js';
 
 describe('resolveServicesFromConfig', () => {
     const baseConfig: AgentConfig = {
@@ -29,15 +23,8 @@ describe('resolveServicesFromConfig', () => {
         compaction: { type: 'noop', enabled: false },
     };
 
-    function createMockStores(logger = createMockLogger()) {
-        return new BackendDextoStores(
-            {
-                blobStore: createMockBlobStore('in-memory'),
-                database: createMockDatabase('in-memory'),
-                cache: createMockCache('in-memory'),
-            },
-            logger
-        );
+    function createMockStores(_logger = createMockLogger()) {
+        return new InMemoryDextoStores();
     }
 
     function createMockImage<THostContext extends DextoHostContext = DextoHostContext>(

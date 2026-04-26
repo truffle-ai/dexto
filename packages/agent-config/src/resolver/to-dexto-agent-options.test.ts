@@ -8,25 +8,12 @@ import type {
 import { AgentConfigSchema } from '../schemas/agent-config.js';
 import type { ResolvedServices } from './types.js';
 import { toDextoAgentOptions } from './to-dexto-agent-options.js';
-import { BackendDextoStores } from '@dexto/core/storage';
-import {
-    createMockBlobStore,
-    createMockCache,
-    createMockDatabase,
-    createMockLogger,
-    createMockTool,
-} from './__fixtures__/test-mocks.js';
+import { InMemoryDextoStores } from '@dexto/core/storage';
+import { createMockLogger, createMockTool } from './__fixtures__/test-mocks.js';
 
 describe('toDextoAgentOptions', () => {
     function createMockStores() {
-        return new BackendDextoStores(
-            {
-                blobStore: createMockBlobStore('in-memory'),
-                database: createMockDatabase('in-memory'),
-                cache: createMockCache('in-memory'),
-            },
-            createMockLogger()
-        );
+        return new InMemoryDextoStores();
     }
 
     function createMockImage<THostContext extends DextoHostContext = DextoHostContext>(
