@@ -13,7 +13,7 @@ import type { ConversationHistoryProvider } from './types.js';
  * - getHistory(): Returns cached messages after first load (eliminates repeated DB reads)
  * - saveMessage(): Updates cache AND writes to DB immediately (new messages are critical)
  * - updateMessage(): Updates cache immediately, debounces DB writes (batches rapid updates)
- * - flush(): Forces all pending updates to DB (called at turn boundaries)
+ * - flush(): Appends the latest pending updates to DB (called at turn boundaries)
  * - clearHistory(): Clears cache and DB immediately
  *
  * Durability guarantees:
@@ -26,7 +26,7 @@ export class DatabaseHistoryProvider implements ConversationHistoryProvider {
 
     // Cache state
     private cache: InternalMessage[] | null = null;
-    private dirty = false;
+    private pendingUpdates = new Map<string, InternalMessage>();
     private flushTimer: ReturnType<typeof setTimeout> | null = null;
     private flushPromise: Promise<void> | null = null;
 
@@ -55,30 +55,28 @@ export class DatabaseHistoryProvider implements ConversationHistoryProvider {
                     );
                 }
 
-                // Deduplicate messages by ID (keep first occurrence to preserve order)
-                const seen = new Set<string>();
+                // Deduplicate message updates by ID: keep the latest version in the original slot.
+                const seenIndexes = new Map<string, number>();
                 this.cache = [];
                 let duplicateCount = 0;
 
                 for (const msg of rawMessages) {
-                    if (msg.id && seen.has(msg.id)) {
+                    const seenIndex = msg.id ? seenIndexes.get(msg.id) : undefined;
+                    if (seenIndex !== undefined) {
                         duplicateCount++;
-                        continue; // Skip duplicate
+                        this.cache[seenIndex] = msg;
+                        continue;
                     }
                     if (msg.id) {
-                        seen.add(msg.id);
+                        seenIndexes.set(msg.id, this.cache.length);
                     }
                     this.cache.push(msg);
                 }
 
-                // Log and self-heal if duplicates found (indicates prior data corruption)
                 if (duplicateCount > 0) {
                     this.logger.warn(
-                        `DatabaseHistoryProvider: Found ${duplicateCount} duplicate messages for session ${this.sessionId}, deduped to ${this.cache.length}`
+                        `DatabaseHistoryProvider: Found ${duplicateCount} duplicate message updates for session ${this.sessionId}, deduped to ${this.cache.length}`
                     );
-                    // Mark dirty to rewrite clean data on next flush
-                    this.dirty = true;
-                    this.scheduleFlush();
                 } else {
                     this.logger.debug(
                         `DatabaseHistoryProvider: Loaded ${this.cache.length} messages for session ${this.sessionId}`
@@ -155,12 +153,14 @@ export class DatabaseHistoryProvider implements ConversationHistoryProvider {
         }
 
         // Update cache immediately (fast, in-memory)
-        const index = this.cache!.findIndex((m) => m.id === message.id);
+        const cache = this.cache;
+        if (cache === null) {
+            return;
+        }
+        const index = cache.findIndex((m) => m.id === message.id);
         if (index !== -1) {
-            this.cache![index] = message;
-            this.dirty = true;
-
-            // Schedule debounced flush
+            cache[index] = message;
+            this.pendingUpdates.set(message.id, message);
             this.scheduleFlush();
 
             this.logger.debug(
@@ -179,7 +179,7 @@ export class DatabaseHistoryProvider implements ConversationHistoryProvider {
 
         // Clear cache
         this.cache = [];
-        this.dirty = false;
+        this.pendingUpdates.clear();
 
         // Clear DB
         const key = this.getMessagesKey();
@@ -199,107 +199,69 @@ export class DatabaseHistoryProvider implements ConversationHistoryProvider {
         }
     }
 
-    /**
-     * Flush any pending updates to the database.
-     * Should be called at turn boundaries to ensure durability.
-     */
     async flush(): Promise<void> {
-        // If a flush is already in progress, wait for it
         if (this.flushPromise) {
             await this.flushPromise;
-            return;
         }
 
-        // Cancel any scheduled flush since we're flushing now
         this.cancelPendingFlush();
 
-        // Nothing to flush
-        if (!this.dirty || !this.cache) {
-            return;
-        }
-
-        // Perform the flush
-        this.flushPromise = this.doFlush();
-        try {
-            await this.flushPromise;
-        } finally {
-            this.flushPromise = null;
+        // Drain updates that arrive while flushPendingUpdates() awaits.
+        while (this.pendingUpdates.size > 0) {
+            this.flushPromise = this.flushPendingUpdates();
+            try {
+                await this.flushPromise;
+            } finally {
+                this.flushPromise = null;
+            }
         }
     }
 
-    /**
-     * Internal flush implementation.
-     * Writes entire cache to DB (delete + re-append all).
-     */
-    private async doFlush(): Promise<void> {
-        if (!this.dirty || !this.cache) {
-            return;
-        }
-
+    private async flushPendingUpdates(): Promise<void> {
         const key = this.getMessagesKey();
-
-        // Take a snapshot of cache to avoid race conditions with concurrent saveMessage() calls.
-        // If saveMessage() is called during flush, it will append to the live cache AND write to DB.
-        // By iterating over a snapshot, we avoid re-appending messages that were already written.
-        const snapshot = [...this.cache];
-        const messageCount = snapshot.length;
+        const updates = [...this.pendingUpdates.values()];
+        this.pendingUpdates.clear();
 
         this.logger.debug(
-            `DatabaseHistoryProvider: FLUSH START key=${key} snapshotSize=${messageCount} ids=[${snapshot.map((m) => m.id).join(',')}]`
+            `DatabaseHistoryProvider: FLUSH UPDATES key=${key} count=${updates.length} ids=[${updates.map((m) => m.id).join(',')}]`
         );
 
+        let failedIndex = updates.length;
         try {
-            // Atomic replace: delete all + re-append from snapshot
-            await this.database.delete(key);
-            this.logger.debug(`DatabaseHistoryProvider: FLUSH DELETED key=${key}`);
-
-            for (const msg of snapshot) {
-                await this.database.append(key, msg);
-            }
-            this.logger.debug(
-                `DatabaseHistoryProvider: FLUSH REAPPENDED key=${key} count=${messageCount}`
-            );
-
-            // Only clear dirty if no new updates were scheduled during flush.
-            // If flushTimer exists, updateMessage() was called during the flush,
-            // so keep dirty=true to ensure the scheduled flush persists those updates.
-            if (!this.flushTimer) {
-                this.dirty = false;
+            for (const [index, message] of updates.entries()) {
+                failedIndex = index;
+                await this.database.append(key, message);
             }
         } catch (error) {
+            for (const message of updates.slice(failedIndex)) {
+                if (message.id && !this.pendingUpdates.has(message.id)) {
+                    this.pendingUpdates.set(message.id, message);
+                }
+            }
             this.logger.error(
-                `DatabaseHistoryProvider: Error flushing messages for session ${this.sessionId}: ${error instanceof Error ? error.message : String(error)}`
+                `DatabaseHistoryProvider: Error flushing message updates for session ${this.sessionId}: ${error instanceof Error ? error.message : String(error)}`
             );
             throw SessionError.storageFailed(
                 this.sessionId,
-                'flush messages',
+                'flush message updates',
                 error instanceof Error ? error.message : String(error)
             );
         }
     }
 
-    /**
-     * Schedule a debounced flush.
-     * Batches rapid updateMessage() calls into a single DB write.
-     */
     private scheduleFlush(): void {
-        // Already scheduled
         if (this.flushTimer) {
             return;
         }
 
         this.flushTimer = setTimeout(() => {
             this.flushTimer = null;
-            // Use flush() instead of doFlush() to respect flushPromise concurrency guard
             this.flush().catch(() => {
-                // Error already logged in doFlush
+                // Error already logged in flushPendingUpdates.
             });
         }, DatabaseHistoryProvider.FLUSH_DELAY_MS);
     }
 
-    /**
-     * Cancel any pending scheduled flush.
-     */
     private cancelPendingFlush(): void {
         if (this.flushTimer) {
             clearTimeout(this.flushTimer);
