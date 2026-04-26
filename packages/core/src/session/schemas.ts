@@ -48,6 +48,43 @@ export const SessionDataSchema = z
     })
     .strict();
 
+function normalizeUsageTracking(
+    value: z.output<typeof SessionUsageTrackingSchema> | undefined
+): SessionData['usageTracking'] {
+    if (value === undefined) {
+        return undefined;
+    }
+
+    return {
+        ...(value.hasUntrackedChatGPTLoginUsage === undefined
+            ? {}
+            : { hasUntrackedChatGPTLoginUsage: value.hasUntrackedChatGPTLoginUsage }),
+    };
+}
+
+export function parseSessionData(value: unknown): SessionData {
+    const parsed = SessionDataSchema.parse(value);
+    const usageTracking = normalizeUsageTracking(parsed.usageTracking);
+
+    return {
+        createdAt: parsed.createdAt,
+        id: parsed.id,
+        lastActivity: parsed.lastActivity,
+        messageCount: parsed.messageCount,
+        ...(parsed.estimatedCost === undefined ? {} : { estimatedCost: parsed.estimatedCost }),
+        ...(parsed.llmOverride === undefined ? {} : { llmOverride: parsed.llmOverride }),
+        ...(parsed.metadata === undefined ? {} : { metadata: parsed.metadata }),
+        ...(parsed.modelStats === undefined ? {} : { modelStats: parsed.modelStats }),
+        ...(parsed.parentSessionId === undefined
+            ? {}
+            : { parentSessionId: parsed.parentSessionId }),
+        ...(parsed.tokenUsage === undefined ? {} : { tokenUsage: parsed.tokenUsage }),
+        ...(usageTracking === undefined ? {} : { usageTracking }),
+        ...(parsed.userId === undefined ? {} : { userId: parsed.userId }),
+        ...(parsed.workspaceId === undefined ? {} : { workspaceId: parsed.workspaceId }),
+    };
+}
+
 export const SessionConfigSchema = z
     .object({
         maxSessions: z

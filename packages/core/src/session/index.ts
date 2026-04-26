@@ -20,5 +20,6 @@ export {
     SessionDataSchema,
     SessionTokenUsageSchema,
     SessionUsageTrackingSchema,
+    parseSessionData,
 } from './schemas.js';
 export type { SessionConfig, ValidatedSessionConfig } from './schemas.js';

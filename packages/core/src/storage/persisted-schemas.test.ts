@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ApprovalType } from '../approval/index.js';
 import { InternalMessageSchema } from '../context/index.js';
-import { QueuedMessagesSchema, SessionDataSchema } from '../session/index.js';
+import { QueuedMessagesSchema, SessionDataSchema, parseSessionData } from '../session/index.js';
 import { SessionToolPreferencesSchema } from '../tools/index.js';
 import { SessionApprovalStateSchema } from './index.js';
 
@@ -26,6 +26,24 @@ describe('persisted storage schemas', () => {
         expect(SessionToolPreferencesSchema.parse({})).toEqual({
             disabledTools: [],
             userAutoApproveTools: [],
+        });
+    });
+
+    it('normalizes optional session fields for exact optional property consumers', () => {
+        expect(
+            parseSessionData({
+                createdAt: 1,
+                id: 'session-1',
+                lastActivity: 2,
+                messageCount: 3,
+                usageTracking: {},
+            })
+        ).toEqual({
+            createdAt: 1,
+            id: 'session-1',
+            lastActivity: 2,
+            messageCount: 3,
+            usageTracking: {},
         });
     });
 
