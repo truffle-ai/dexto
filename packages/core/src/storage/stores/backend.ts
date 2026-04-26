@@ -1,4 +1,3 @@
-import { z } from 'zod';
 import type { ApprovalRequest, ApprovalResponse } from '../../approval/types.js';
 import { ApprovalRequestSchema, ApprovalResponseSchema } from '../../approval/schemas.js';
 import type { Memory } from '../../memory/types.js';
@@ -6,8 +5,15 @@ import type { StoredCustomPrompt } from '../../prompts/providers/custom-prompt-p
 import type { SessionData } from '../../session/session-manager.js';
 import type { QueuedMessage } from '../../session/types.js';
 import type { WorkspaceContext } from '../../workspace/types.js';
-import type { SessionToolPreferences } from '../../tools/session-tool-preferences-store.js';
-import type { ApprovalStore, SessionApprovalState } from '../approvals/types.js';
+import {
+    SessionToolPreferencesSchema,
+    type SessionToolPreferences,
+} from '../../tools/session-tool-preferences-store.js';
+import {
+    SessionApprovalStateSchema,
+    type ApprovalStore,
+    type SessionApprovalState,
+} from '../approvals/types.js';
 import type {
     ArtifactData,
     ArtifactInput,
@@ -39,29 +45,6 @@ const RUNTIME_EVENTS_LIMIT = 10000;
 const TOOL_STATE_KEY_PREFIX = 'tool-state:';
 const WORKSPACE_KEY_PREFIX = 'workspace:item:';
 const WORKSPACE_CURRENT_KEY = 'workspace:current';
-
-const ApprovedDirectoryTypeSchema = z.enum(['session', 'once']);
-
-const PersistedApprovedDirectorySchema = z
-    .object({
-        path: z.string(),
-        type: ApprovedDirectoryTypeSchema,
-    })
-    .strict();
-
-const SessionApprovalStateSchema = z
-    .object({
-        toolPatterns: z.record(z.array(z.string())).default({}),
-        approvedDirectories: z.array(PersistedApprovedDirectorySchema).default([]),
-    })
-    .strict();
-
-const SessionToolPreferencesSchema = z
-    .object({
-        userAutoApproveTools: z.array(z.string()).default([]),
-        disabledTools: z.array(z.string()).default([]),
-    })
-    .strict();
 
 const DEFAULT_APPROVAL_STATE: SessionApprovalState = {
     toolPatterns: {},

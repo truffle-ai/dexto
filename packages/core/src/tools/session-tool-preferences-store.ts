@@ -2,7 +2,7 @@ import { z } from 'zod';
 import type { ToolPreferenceStore } from '../storage/index.js';
 import type { Logger } from '../logger/v2/types.js';
 
-const SessionToolPreferencesSchema = z
+export const SessionToolPreferencesSchema = z
     .object({
         userAutoApproveTools: z.array(z.string()).default([]),
         disabledTools: z.array(z.string()).default([]),
