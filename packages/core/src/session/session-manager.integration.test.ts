@@ -14,7 +14,21 @@ import { PromptsSchema } from '../prompts/schemas.js';
 import { createLogger } from '../logger/factory.js';
 import type { SessionData } from './session-manager.js';
 import { ServersConfigSchema } from '../mcp/schemas.js';
-import { BackendDextoStores, InMemoryDextoStores } from '../storage/index.js';
+import { DatabaseConversationStore } from '../storage/conversation/database.js';
+import {
+    BackendDextoStores,
+    DatabaseBackedApprovalStore,
+    DatabaseBackedArtifactStore,
+    DatabaseBackedCustomPromptStore,
+    DatabaseBackedMemoryStore,
+    DatabaseBackedRuntimeEventStore,
+    DatabaseBackedSessionMessageQueueStore,
+    DatabaseBackedSessionStore,
+    DatabaseBackedToolPreferenceStore,
+    DatabaseBackedToolStateStore,
+    DatabaseBackedWorkspaceStore,
+    InMemoryDextoStores,
+} from '../storage/index.js';
 import {
     createInMemoryBlobStore,
     createInMemoryCache,
@@ -403,11 +417,51 @@ describe('Session Integration: Core-owned Interaction State Persistence', () => 
             logger,
             stores: new BackendDextoStores(
                 {
-                    blobStore: storage.blob,
-                    cache: storage.cache,
-                    database: storage.database,
+                    conversation: new DatabaseConversationStore(storage.database, logger),
+                    sessions: new DatabaseBackedSessionStore(storage.database, storage.cache),
+                    memories: new DatabaseBackedMemoryStore(storage.database),
+                    workspaces: new DatabaseBackedWorkspaceStore(storage.database),
+                    approvals: new DatabaseBackedApprovalStore(
+                        storage.database,
+                        storage.cache,
+                        logger
+                    ),
+                    toolPreferences: new DatabaseBackedToolPreferenceStore(
+                        storage.database,
+                        storage.cache,
+                        logger
+                    ),
+                    toolState: new DatabaseBackedToolStateStore(storage.database),
+                    messageQueue: new DatabaseBackedSessionMessageQueueStore(
+                        storage.database,
+                        storage.cache,
+                        logger
+                    ),
+                    customPrompts: new DatabaseBackedCustomPromptStore(storage.database),
+                    artifacts: new DatabaseBackedArtifactStore(storage.blob),
+                    runtimeEvents: new DatabaseBackedRuntimeEventStore(storage.database),
                 },
-                logger
+                {
+                    async connect(): Promise<void> {
+                        await storage.cache.connect();
+                        await storage.database.connect();
+                        await storage.blob.connect();
+                    },
+                    async disconnect(): Promise<void> {
+                        await Promise.all([
+                            storage.cache.disconnect(),
+                            storage.database.disconnect(),
+                            storage.blob.disconnect(),
+                        ]);
+                    },
+                    isConnected(): boolean {
+                        return (
+                            storage.cache.isConnected() &&
+                            storage.database.isConnected() &&
+                            storage.blob.isConnected()
+                        );
+                    },
+                }
             ),
             tools: [
                 {

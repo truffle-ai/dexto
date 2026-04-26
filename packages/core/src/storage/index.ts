@@ -20,8 +20,20 @@ export type {
 } from './blob/types.js';
 
 export { InMemoryDextoStores } from './stores/in-memory.js';
-export { BackendDextoStores } from './stores/backend.js';
-export type { BackendDextoStoresBackends } from './stores/backend.js';
+export {
+    BackendDextoStores,
+    DatabaseBackedApprovalStore,
+    DatabaseBackedArtifactStore,
+    DatabaseBackedCustomPromptStore,
+    DatabaseBackedMemoryStore,
+    DatabaseBackedRuntimeEventStore,
+    DatabaseBackedSessionMessageQueueStore,
+    DatabaseBackedSessionStore,
+    DatabaseBackedToolPreferenceStore,
+    DatabaseBackedToolStateStore,
+    DatabaseBackedWorkspaceStore,
+} from './stores/backend.js';
+export type { DextoStoresLifecycle } from './stores/backend.js';
 export type { DextoStoreMap, DextoStoreName, DextoStores } from './stores/types.js';
 export { DatabaseConversationStore } from './conversation/database.js';
 export type { ConversationStore } from './conversation/types.js';

@@ -5,14 +5,59 @@ import {
     createInMemoryCache,
     createInMemoryDatabase,
 } from '../../test-utils/in-memory-storage.js';
-import { BackendDextoStores } from './backend.js';
+import { DatabaseConversationStore } from '../conversation/database.js';
+import {
+    BackendDextoStores,
+    DatabaseBackedArtifactStore,
+    DatabaseBackedApprovalStore,
+    DatabaseBackedCustomPromptStore,
+    DatabaseBackedMemoryStore,
+    DatabaseBackedRuntimeEventStore,
+    DatabaseBackedSessionMessageQueueStore,
+    DatabaseBackedSessionStore,
+    DatabaseBackedToolPreferenceStore,
+    DatabaseBackedToolStateStore,
+    DatabaseBackedWorkspaceStore,
+} from './backend.js';
 
 describe('BackendDextoStores', () => {
     it('adapts existing database, cache, and blob backends into typed stores', async () => {
         const database = createInMemoryDatabase();
         const cache = createInMemoryCache();
         const blobStore = createInMemoryBlobStore();
-        const stores = new BackendDextoStores({ cache, database, blobStore }, createMockLogger());
+        const logger = createMockLogger();
+        const stores = new BackendDextoStores(
+            {
+                conversation: new DatabaseConversationStore(database, logger),
+                sessions: new DatabaseBackedSessionStore(database, cache),
+                memories: new DatabaseBackedMemoryStore(database),
+                workspaces: new DatabaseBackedWorkspaceStore(database),
+                approvals: new DatabaseBackedApprovalStore(database, cache, logger),
+                toolPreferences: new DatabaseBackedToolPreferenceStore(database, cache, logger),
+                toolState: new DatabaseBackedToolStateStore(database),
+                messageQueue: new DatabaseBackedSessionMessageQueueStore(database, cache, logger),
+                customPrompts: new DatabaseBackedCustomPromptStore(database),
+                artifacts: new DatabaseBackedArtifactStore(blobStore),
+                runtimeEvents: new DatabaseBackedRuntimeEventStore(database),
+            },
+            {
+                async connect(): Promise<void> {
+                    await cache.connect();
+                    await database.connect();
+                    await blobStore.connect();
+                },
+                async disconnect(): Promise<void> {
+                    await Promise.all([
+                        cache.disconnect(),
+                        database.disconnect(),
+                        blobStore.disconnect(),
+                    ]);
+                },
+                isConnected(): boolean {
+                    return cache.isConnected() && database.isConnected() && blobStore.isConnected();
+                },
+            }
+        );
 
         await stores.connect();
         expect(stores.isConnected()).toBe(true);

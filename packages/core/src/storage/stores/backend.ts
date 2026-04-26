@@ -25,7 +25,6 @@ import type {
 import type { BlobData, BlobReference, BlobStore, StoredBlobMetadata } from '../blob/types.js';
 import type { Cache } from '../cache/types.js';
 import type { Database } from '../database/types.js';
-import { DatabaseConversationStore } from '../conversation/database.js';
 import type { MemoryStore } from '../memories/types.js';
 import type { SessionMessageQueueStore } from '../message-queue/types.js';
 import type { CustomPromptStore } from '../prompts/types.js';
@@ -56,7 +55,7 @@ const DEFAULT_TOOL_PREFERENCES: SessionToolPreferences = {
     disabledTools: [],
 };
 
-class DatabaseBackedArtifactStore implements ArtifactStore {
+export class DatabaseBackedArtifactStore implements ArtifactStore {
     constructor(private readonly blobStore: BlobStore) {}
 
     async store(input: {
@@ -162,7 +161,7 @@ class DatabaseBackedArtifactStore implements ArtifactStore {
     }
 }
 
-class DatabaseBackedApprovalStore implements ApprovalStore {
+export class DatabaseBackedApprovalStore implements ApprovalStore {
     constructor(
         private readonly database: Database,
         private readonly cache: Cache,
@@ -276,7 +275,7 @@ class DatabaseBackedApprovalStore implements ApprovalStore {
     }
 }
 
-class DatabaseBackedSessionStore implements SessionStore {
+export class DatabaseBackedSessionStore implements SessionStore {
     constructor(
         private readonly database: Database,
         private readonly cache: Cache
@@ -322,7 +321,7 @@ class DatabaseBackedSessionStore implements SessionStore {
     }
 }
 
-class DatabaseBackedMemoryStore implements MemoryStore {
+export class DatabaseBackedMemoryStore implements MemoryStore {
     constructor(private readonly database: Database) {}
 
     async create(input: { memory: Memory }): Promise<void> {
@@ -358,7 +357,7 @@ class DatabaseBackedMemoryStore implements MemoryStore {
     }
 }
 
-class DatabaseBackedWorkspaceStore implements WorkspaceStore {
+export class DatabaseBackedWorkspaceStore implements WorkspaceStore {
     constructor(private readonly database: Database) {}
 
     async saveWorkspace(input: { workspace: WorkspaceContext }): Promise<void> {
@@ -403,7 +402,7 @@ class DatabaseBackedWorkspaceStore implements WorkspaceStore {
     }
 }
 
-class DatabaseBackedToolPreferenceStore implements ToolPreferenceStore {
+export class DatabaseBackedToolPreferenceStore implements ToolPreferenceStore {
     constructor(
         private readonly database: Database,
         private readonly cache: Cache,
@@ -497,7 +496,7 @@ class DatabaseBackedToolPreferenceStore implements ToolPreferenceStore {
     }
 }
 
-class DatabaseBackedSessionMessageQueueStore implements SessionMessageQueueStore {
+export class DatabaseBackedSessionMessageQueueStore implements SessionMessageQueueStore {
     constructor(
         private readonly database: Database,
         private readonly cache: Cache,
@@ -553,7 +552,7 @@ class DatabaseBackedSessionMessageQueueStore implements SessionMessageQueueStore
     }
 }
 
-class DatabaseBackedCustomPromptStore implements CustomPromptStore {
+export class DatabaseBackedCustomPromptStore implements CustomPromptStore {
     constructor(private readonly database: Database) {}
 
     async save(input: { prompt: StoredCustomPrompt }): Promise<void> {
@@ -585,7 +584,7 @@ class DatabaseBackedCustomPromptStore implements CustomPromptStore {
     }
 }
 
-class DatabaseBackedRuntimeEventStore implements RuntimeEventStore {
+export class DatabaseBackedRuntimeEventStore implements RuntimeEventStore {
     constructor(private readonly database: Database) {}
 
     async append(input: { event: RuntimeEventRecord }): Promise<void> {
@@ -615,7 +614,7 @@ class DatabaseBackedRuntimeEventStore implements RuntimeEventStore {
     }
 }
 
-class DatabaseBackedToolStateStore implements ToolStateStore {
+export class DatabaseBackedToolStateStore implements ToolStateStore {
     constructor(private readonly database: Database) {}
 
     async get<T>(input: { toolName: string; key: string }): Promise<T | undefined> {
@@ -646,42 +645,28 @@ class DatabaseBackedToolStateStore implements ToolStateStore {
     }
 }
 
-export interface BackendDextoStoresBackends {
-    cache: Cache;
-    database: Database;
-    blobStore: BlobStore;
+export interface DextoStoresLifecycle {
+    connect(): Promise<void>;
+    disconnect(): Promise<void>;
+    isConnected(): boolean;
 }
+
+const NOOP_LIFECYCLE: DextoStoresLifecycle = {
+    async connect(): Promise<void> {},
+    async disconnect(): Promise<void> {},
+    isConnected(): boolean {
+        return true;
+    },
+};
 
 export class BackendDextoStores implements DextoStores {
     private connected = false;
-    private readonly stores: DextoStoreMap;
 
     constructor(
-        private readonly backends: BackendDextoStoresBackends,
-        logger: Logger
-    ) {
-        this.stores = {
-            conversation: new DatabaseConversationStore(backends.database, logger),
-            sessions: new DatabaseBackedSessionStore(backends.database, backends.cache),
-            memories: new DatabaseBackedMemoryStore(backends.database),
-            workspaces: new DatabaseBackedWorkspaceStore(backends.database),
-            approvals: new DatabaseBackedApprovalStore(backends.database, backends.cache, logger),
-            toolPreferences: new DatabaseBackedToolPreferenceStore(
-                backends.database,
-                backends.cache,
-                logger
-            ),
-            toolState: new DatabaseBackedToolStateStore(backends.database),
-            messageQueue: new DatabaseBackedSessionMessageQueueStore(
-                backends.database,
-                backends.cache,
-                logger
-            ),
-            customPrompts: new DatabaseBackedCustomPromptStore(backends.database),
-            artifacts: new DatabaseBackedArtifactStore(backends.blobStore),
-            runtimeEvents: new DatabaseBackedRuntimeEventStore(backends.database),
-        };
-    }
+        private readonly stores: DextoStoreMap,
+        private readonly lifecycle: DextoStoresLifecycle = NOOP_LIFECYCLE,
+        private readonly storeType = 'backend'
+    ) {}
 
     getStore<K extends DextoStoreName>(name: K): DextoStoreMap[K] {
         return this.stores[name];
@@ -692,9 +677,7 @@ export class BackendDextoStores implements DextoStores {
             return;
         }
 
-        await this.backends.cache.connect();
-        await this.backends.database.connect();
-        await this.backends.blobStore.connect();
+        await this.lifecycle.connect();
         this.connected = true;
     }
 
@@ -703,24 +686,15 @@ export class BackendDextoStores implements DextoStores {
             return;
         }
 
-        await Promise.all([
-            this.backends.cache.disconnect(),
-            this.backends.database.disconnect(),
-            this.backends.blobStore.disconnect(),
-        ]);
+        await this.lifecycle.disconnect();
         this.connected = false;
     }
 
     isConnected(): boolean {
-        return (
-            this.connected &&
-            this.backends.cache.isConnected() &&
-            this.backends.database.isConnected() &&
-            this.backends.blobStore.isConnected()
-        );
+        return this.connected && this.lifecycle.isConnected();
     }
 
     getStoreType(): string {
-        return 'backend';
+        return this.storeType;
     }
 }

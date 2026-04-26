@@ -14,6 +14,17 @@ import { z } from 'zod';
 import {
     ContentPolicyHook,
     BackendDextoStores,
+    DatabaseBackedApprovalStore,
+    DatabaseBackedArtifactStore,
+    DatabaseBackedCustomPromptStore,
+    DatabaseBackedMemoryStore,
+    DatabaseBackedRuntimeEventStore,
+    DatabaseBackedSessionMessageQueueStore,
+    DatabaseBackedSessionStore,
+    DatabaseBackedToolPreferenceStore,
+    DatabaseBackedToolStateStore,
+    DatabaseBackedWorkspaceStore,
+    DatabaseConversationStore,
     ResponseSanitizerHook,
     defaultLoggerFactory,
     NoOpCompactionStrategy,
@@ -197,7 +208,39 @@ async function createLocalStores(config: ValidatedStorageConfig, logger: Logger)
         cache = new MemoryCacheStore();
     }
 
-    return new BackendDextoStores({ blobStore, database, cache }, logger);
+    return new BackendDextoStores(
+        {
+            conversation: new DatabaseConversationStore(database, logger),
+            sessions: new DatabaseBackedSessionStore(database, cache),
+            memories: new DatabaseBackedMemoryStore(database),
+            workspaces: new DatabaseBackedWorkspaceStore(database),
+            approvals: new DatabaseBackedApprovalStore(database, cache, logger),
+            toolPreferences: new DatabaseBackedToolPreferenceStore(database, cache, logger),
+            toolState: new DatabaseBackedToolStateStore(database),
+            messageQueue: new DatabaseBackedSessionMessageQueueStore(database, cache, logger),
+            customPrompts: new DatabaseBackedCustomPromptStore(database),
+            artifacts: new DatabaseBackedArtifactStore(blobStore),
+            runtimeEvents: new DatabaseBackedRuntimeEventStore(database),
+        },
+        {
+            async connect(): Promise<void> {
+                await cache.connect();
+                await database.connect();
+                await blobStore.connect();
+            },
+            async disconnect(): Promise<void> {
+                await Promise.all([
+                    cache.disconnect(),
+                    database.disconnect(),
+                    blobStore.disconnect(),
+                ]);
+            },
+            isConnected(): boolean {
+                return cache.isConnected() && database.isConnected() && blobStore.isConnected();
+            },
+        },
+        'backend'
+    );
 }
 
 const imageLocal: DextoImage = {
