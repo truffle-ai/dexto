@@ -1,7 +1,12 @@
 import type { ModelMessage, AssistantContent, ToolContent, ToolResultPart } from 'ai';
 import { LLMContext } from '../types.js';
 import type { InternalMessage, AssistantMessage, ToolMessage } from '../../context/types.js';
-import { getImageData, getFileData, filterMessagesByLLMCapabilities } from '../../context/utils.js';
+import {
+    getImageData,
+    getFileData,
+    filterMessagesByLLMCapabilities,
+    parseDataUri,
+} from '../../context/utils.js';
 import type { Logger } from '../../logger/v2/types.js';
 import { DextoLogComponent } from '../../logger/v2/types.js';
 
@@ -19,6 +24,17 @@ function toUrlIfString<T>(value: T): T | URL {
         }
     }
     return value;
+}
+
+function normalizeToolMediaData(data: string): string | null {
+    const dataUri = parseDataUri(data);
+    if (dataUri) return dataUri.base64;
+
+    if (/^https?:\/\//i.test(data) || data.startsWith('blob:') || data.startsWith('@blob:')) {
+        return null;
+    }
+
+    return data;
 }
 
 /**
@@ -340,16 +356,26 @@ export class VercelMessageFormatter {
                         return { type: 'text' as const, text: part.text };
                     }
                     if (part.type === 'image') {
+                        const data = getImageData(part, this.logger);
+                        const mediaData = normalizeToolMediaData(data);
+                        if (!mediaData) {
+                            return { type: 'text' as const, text: `Attached image: ${data}` };
+                        }
                         return {
                             type: 'media' as const,
-                            data: getImageData(part, this.logger),
+                            data: mediaData,
                             mediaType: part.mimeType || 'image/jpeg',
                         };
                     }
                     if (part.type === 'file') {
+                        const data = getFileData(part, this.logger);
+                        const mediaData = normalizeToolMediaData(data);
+                        if (!mediaData) {
+                            return { type: 'text' as const, text: `Attached file: ${data}` };
+                        }
                         return {
                             type: 'media' as const,
-                            data: getFileData(part, this.logger),
+                            data: mediaData,
                             mediaType: part.mimeType,
                         };
                     }
