@@ -100,6 +100,15 @@ export interface AgentEventSubscriber {
     subscribe(eventBus: AgentEventBus): void;
 }
 
+export type SessionTitleSource = 'existing' | 'llm' | 'heuristic';
+
+export interface SessionTitleGenerationDetails {
+    title: string;
+    source: SessionTitleSource;
+    reason?: string;
+    timedOut?: boolean;
+}
+
 /**
  * The main entry point into Dexto's core functionality.
  *
@@ -1679,6 +1688,19 @@ export class DextoAgent {
      * @returns Promise that resolves to the generated title, or null if generation failed
      */
     public async generateSessionTitle(sessionId: string): Promise<string | null> {
+        const result = await this.generateSessionTitleDetails(sessionId);
+        return result?.title ?? null;
+    }
+
+    /**
+     * Generate a title for a session and report whether it came from the LLM or heuristic fallback.
+     *
+     * @param sessionId Session ID to generate title for
+     * @returns Promise that resolves to title details, or null if generation failed
+     */
+    public async generateSessionTitleDetails(
+        sessionId: string
+    ): Promise<SessionTitleGenerationDetails | null> {
         this.ensureStarted();
 
         // Get session metadata to check if title already exists
@@ -1690,7 +1712,10 @@ export class DextoAgent {
             this.logger.debug(
                 `[SessionTitle] Session ${sessionId} already has title '${metadata.title}'`
             );
-            return metadata.title;
+            return {
+                source: 'existing',
+                title: metadata.title,
+            };
         }
 
         // Get first user message
@@ -1722,19 +1747,12 @@ export class DextoAgent {
         const llmConfig = this.getEffectiveConfig(sessionId).llm;
 
         // Generate title
-        const result = await generateSessionTitle(
-            llmConfig,
-            this.toolManager,
-            this.systemPromptManager,
-            this.resourceManager,
-            userText,
-            this.logger,
-            {
-                ...(this.overrides.languageModelFactory !== undefined && {
-                    languageModelFactory: this.overrides.languageModelFactory,
-                }),
-            }
-        );
+        const result = await generateSessionTitle(llmConfig, userText, this.logger, {
+            providerContext: { sessionId },
+            ...(this.overrides.languageModelFactory !== undefined && {
+                languageModelFactory: this.overrides.languageModelFactory,
+            }),
+        });
 
         let title = result.title;
         if (!title) {
@@ -1742,6 +1760,14 @@ export class DextoAgent {
             title = deriveHeuristicTitle(userText);
             if (title) {
                 this.logger.info(`[SessionTitle] Using heuristic title for ${sessionId}: ${title}`);
+                const details = {
+                    ...(result.error !== undefined && { reason: result.error }),
+                    ...(result.timedOut !== undefined && { timedOut: result.timedOut }),
+                    source: 'heuristic',
+                    title,
+                } satisfies SessionTitleGenerationDetails;
+                await this.sessionManager.setSessionTitle(sessionId, title, { ifUnsetOnly: true });
+                return details;
             } else {
                 this.logger.debug(`[SessionTitle] No suitable title derived for ${sessionId}`);
                 return null;
@@ -1753,7 +1779,10 @@ export class DextoAgent {
         // Save title
         await this.sessionManager.setSessionTitle(sessionId, title, { ifUnsetOnly: true });
 
-        return title;
+        return {
+            source: 'llm',
+            title,
+        };
     }
 
     /**

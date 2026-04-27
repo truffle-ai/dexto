@@ -1,4 +1,5 @@
 export { DextoAgent } from './DextoAgent.js';
+export type { SessionTitleGenerationDetails, SessionTitleSource } from './DextoAgent.js';
 export {
     AgentCardSchema,
     SecuritySchemeSchema,

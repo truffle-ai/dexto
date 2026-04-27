@@ -235,19 +235,55 @@ describe('DextoAgent Lifecycle Management', () => {
 
             await agent.start();
 
+            await expect(agent.generateSessionTitleDetails('session-123')).resolves.toEqual({
+                source: 'llm',
+                title: 'Generated title',
+            });
             await expect(agent.generateSessionTitle('session-123')).resolves.toBe(
                 'Generated title'
             );
             expect(mockGenerateSessionTitle).toHaveBeenCalledWith(
                 mockValidatedConfig.llm,
-                mockServices.toolManager,
-                mockServices.systemPromptManager,
-                mockServices.resourceManager,
                 'Need a title for this session',
                 expect.any(Object),
                 {
                     languageModelFactory,
+                    providerContext: { sessionId: 'session-123' },
                 }
+            );
+        });
+
+        test('reports heuristic title provenance when LLM title generation fails', async () => {
+            const agent = createTestAgent(mockValidatedConfig);
+
+            (mockServices.sessionManager.getSessionMetadata as any).mockResolvedValue({
+                createdAt: Date.now(),
+                lastActivity: Date.now(),
+                messageCount: 1,
+            });
+            (mockServices.sessionManager.getSession as any).mockResolvedValue({
+                getHistory: vi.fn().mockResolvedValue([
+                    {
+                        role: 'user',
+                        content: 'summarize cloudflare storage adapter decisions',
+                    },
+                ]),
+            });
+            mockGenerateSessionTitle.mockResolvedValueOnce({
+                error: 'LLM returned empty title',
+            });
+
+            await agent.start();
+
+            await expect(agent.generateSessionTitleDetails('session-123')).resolves.toEqual({
+                reason: 'LLM returned empty title',
+                source: 'heuristic',
+                title: 'Summarize cloudflare storage adapter decisions',
+            });
+            expect(mockServices.sessionManager.setSessionTitle).toHaveBeenCalledWith(
+                'session-123',
+                'Summarize cloudflare storage adapter decisions',
+                { ifUnsetOnly: true }
             );
         });
     });
