@@ -25,4 +25,4 @@
 
 Add media-aware filesystem reads and resource-backed multimodal handling.
 
-This expands supported file type capabilities for audio, video, and document inputs, preserves resource references for history and UI rehydration, and updates prompt/session handling to project multimodal content more reliably across core, server, and WebUI flows.
+This expands supported file type capabilities for audio, video, and document inputs, preserves resource references for history and UI rehydration, and updates prompt/session handling to project multimodal content more reliably across core, server, and WebUI flows. Tool results with mixed text and media are now formatted as structured content parts instead of stringifying media objects into prompt text.

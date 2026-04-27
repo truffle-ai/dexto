@@ -218,6 +218,59 @@ describe('VercelMessageFormatter', () => {
             expect(toolCallPart).toBeDefined();
             expect(toolCallPart!.providerOptions).toEqual(toolProviderOptions);
         });
+
+        test('should preserve mixed text and media tool results as content parts', () => {
+            const formatter = new VercelMessageFormatter(mockLogger);
+            const messages: InternalMessage[] = [
+                {
+                    role: 'assistant',
+                    content: [{ type: 'text', text: 'Reading image' }],
+                    toolCalls: [
+                        {
+                            id: 'call-1',
+                            type: 'function',
+                            function: { name: 'read_media_file', arguments: '{}' },
+                        },
+                    ],
+                },
+                {
+                    role: 'tool',
+                    toolCallId: 'call-1',
+                    name: 'read_media_file',
+                    success: true,
+                    content: [
+                        { type: 'text', text: 'Attached image: blob:abc123' },
+                        { type: 'image', image: 'base64-image-data', mimeType: 'image/png' },
+                        { type: 'text', text: '[Stored resource_ref:blob:abc123]' },
+                    ],
+                },
+            ];
+
+            const result = formatter.format(
+                messages,
+                { provider: 'openai', model: 'gpt-5.4-mini' },
+                null
+            );
+
+            const toolMessage = result.find((m) => m.role === 'tool');
+            expect(toolMessage).toBeDefined();
+
+            const content = toolMessage!.content as Array<{
+                type: string;
+                output: {
+                    type: string;
+                    value: Array<{ type: string; text?: string; data?: string }>;
+                };
+            }>;
+            const output = content[0]?.output;
+
+            expect(output?.type).toBe('content');
+            expect(output?.value).toEqual([
+                { type: 'text', text: 'Attached image: blob:abc123' },
+                { type: 'media', data: 'base64-image-data', mediaType: 'image/png' },
+                { type: 'text', text: '[Stored resource_ref:blob:abc123]' },
+            ]);
+        });
     });
 
     describe('Reasoning round-trip', () => {
