@@ -1,7 +1,12 @@
 import type { ModelMessage, AssistantContent, ToolContent, ToolResultPart } from 'ai';
 import { LLMContext } from '../types.js';
 import type { InternalMessage, AssistantMessage, ToolMessage } from '../../context/types.js';
-import { getImageData, getFileData, filterMessagesByLLMCapabilities } from '../../context/utils.js';
+import {
+    getImageData,
+    getFileData,
+    filterMessagesByLLMCapabilities,
+    parseDataUri,
+} from '../../context/utils.js';
 import type { Logger } from '../../logger/v2/types.js';
 import { DextoLogComponent } from '../../logger/v2/types.js';
 
@@ -19,6 +24,17 @@ function toUrlIfString<T>(value: T): T | URL {
         }
     }
     return value;
+}
+
+function normalizeToolMediaData(data: string): string | null {
+    const dataUri = parseDataUri(data);
+    if (dataUri) return dataUri.base64;
+
+    if (/^https?:\/\//i.test(data) || data.startsWith('blob:') || data.startsWith('@blob:')) {
+        return null;
+    }
+
+    return data;
 }
 
 /**
@@ -334,55 +350,64 @@ export class VercelMessageFormatter {
     private formatToolMessage(msg: ToolMessage): { content: ToolContent } {
         let toolResultPart: ToolResultPart;
         if (Array.isArray(msg.content)) {
-            if (msg.content[0]?.type === 'image') {
-                const imagePart = msg.content[0];
-                const imageDataBase64 = getImageData(imagePart, this.logger);
+            const content = msg.content
+                .map((part) => {
+                    if (part.type === 'text') {
+                        return { type: 'text' as const, text: part.text };
+                    }
+                    if (part.type === 'image') {
+                        const data = getImageData(part, this.logger);
+                        const mediaData = normalizeToolMediaData(data);
+                        if (!mediaData) {
+                            return { type: 'text' as const, text: `Attached image: ${data}` };
+                        }
+                        return {
+                            type: 'media' as const,
+                            data: mediaData,
+                            mediaType: part.mimeType || 'image/jpeg',
+                        };
+                    }
+                    if (part.type === 'file') {
+                        const data = getFileData(part, this.logger);
+                        const mediaData = normalizeToolMediaData(data);
+                        if (!mediaData) {
+                            return { type: 'text' as const, text: `Attached file: ${data}` };
+                        }
+                        return {
+                            type: 'media' as const,
+                            data: mediaData,
+                            mediaType: part.mimeType,
+                        };
+                    }
+                    if (part.type === 'resource') {
+                        return { type: 'text' as const, text: `${part.name}: ${part.uri}` };
+                    }
+                    return null;
+                })
+                .filter((part) => part !== null);
+
+            if (content.some((part) => part.type === 'media')) {
                 toolResultPart = {
                     type: 'tool-result',
                     toolCallId: msg.toolCallId,
                     toolName: msg.name,
                     output: {
                         type: 'content',
-                        value: [
-                            {
-                                type: 'media',
-                                data: imageDataBase64,
-                                mediaType: imagePart.mimeType || 'image/jpeg',
-                            },
-                        ],
-                    },
-                };
-            } else if (msg.content[0]?.type === 'file') {
-                const filePart = msg.content[0];
-                const fileDataBase64 = getFileData(filePart, this.logger);
-                toolResultPart = {
-                    type: 'tool-result',
-                    toolCallId: msg.toolCallId,
-                    toolName: msg.name,
-                    output: {
-                        type: 'content',
-                        value: [
-                            {
-                                type: 'media',
-                                data: fileDataBase64,
-                                mediaType: filePart.mimeType,
-                            },
-                        ],
+                        value: content,
                     },
                 };
             } else {
-                const textContent = Array.isArray(msg.content)
-                    ? msg.content
-                          .map((part) => (part.type === 'text' ? part.text : JSON.stringify(part)))
-                          .join('\n')
-                    : String(msg.content);
                 toolResultPart = {
                     type: 'tool-result',
                     toolCallId: msg.toolCallId,
                     toolName: msg.name,
                     output: {
                         type: 'text',
-                        value: textContent,
+                        value:
+                            content
+                                .filter((part) => part.type === 'text')
+                                .map((part) => part.text)
+                                .join('\n') || '[empty result]',
                     },
                 };
             }
