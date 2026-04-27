@@ -364,9 +364,18 @@ export function createMessagesRouter(getAgent: GetAgentFn, _approvalCoordinator?
                     return writeChain;
                 };
 
+                let sawFatalStreamError = false;
+
                 try {
                     // Stream LLM/tool events from iterator
                     for await (const event of iterator) {
+                        if (event.name === 'llm:error' && event.recoverable !== true) {
+                            sawFatalStreamError = true;
+                        }
+                        if (event.name === 'run:complete' && event.finishReason === 'error') {
+                            sawFatalStreamError = true;
+                        }
+
                         // Serialize errors properly since Error objects don't JSON.stringify well
                         const eventData =
                             event.name === 'llm:error' && event.error instanceof Error
@@ -382,13 +391,15 @@ export function createMessagesRouter(getAgent: GetAgentFn, _approvalCoordinator?
                         await enqueueSSEWrite(event.name, eventData);
                     }
                 } catch (error) {
-                    await enqueueSSEWrite('llm:error', {
-                        error: {
-                            message: error instanceof Error ? error.message : String(error),
-                        },
-                        recoverable: false,
-                        sessionId,
-                    });
+                    if (!sawFatalStreamError) {
+                        await enqueueSSEWrite('llm:error', {
+                            error: {
+                                message: error instanceof Error ? error.message : String(error),
+                            },
+                            recoverable: false,
+                            sessionId,
+                        });
+                    }
                 } finally {
                     requestDisconnectSignal.removeEventListener('abort', abortOnDisconnect);
                     abortController.abort(); // Cleanup subscriptions

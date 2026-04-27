@@ -1249,6 +1249,68 @@ describe('Hono API Integration Tests', () => {
             }
         });
 
+        it('POST /api/message-stream does not duplicate fatal stream errors after iterator rejection', async () => {
+            if (!testServer) throw new Error('Test server not initialized');
+
+            const sessionId = 'stream-session-fatal-error';
+            const agent = testServer.agent;
+            const originalStream = agent.stream;
+            const streamError = new Error('stream failed once');
+            const fatalEvent: StreamingEvent = {
+                name: 'llm:error',
+                error: streamError,
+                recoverable: false,
+                context: 'run_failed',
+                sessionId,
+            };
+
+            const mockedStream: typeof agent.stream = async function (
+                this: typeof agent,
+                _message,
+                _sessionId,
+                _options
+            ) {
+                expect(this).toBe(agent);
+                let emitted = false;
+                const iterator: AsyncIterableIterator<StreamingEvent> = {
+                    [Symbol.asyncIterator]() {
+                        return iterator;
+                    },
+                    async next() {
+                        if (!emitted) {
+                            emitted = true;
+                            return { done: false, value: fatalEvent };
+                        }
+                        throw streamError;
+                    },
+                };
+                return iterator;
+            };
+            agent.stream = mockedStream;
+
+            try {
+                await httpRequest(testServer.baseUrl, 'POST', '/api/sessions', { sessionId });
+
+                const response = await fetch(`${testServer.baseUrl}/api/message-stream`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        sessionId,
+                        content: 'Trigger an error',
+                    }),
+                });
+
+                expect(response.status).toBe(200);
+                const streamed = await response.text();
+                const errorEventMatches = streamed.match(/event: llm:error/g) ?? [];
+
+                expect(errorEventMatches).toHaveLength(1);
+                expect(streamed).toContain('stream failed once');
+            } finally {
+                agent.stream = originalStream;
+            }
+        });
+
         it('POST /api/message-stream aborts the disconnect signal when the client disconnects', async () => {
             if (!testServer) throw new Error('Test server not initialized');
 

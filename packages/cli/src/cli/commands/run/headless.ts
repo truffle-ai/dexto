@@ -241,95 +241,104 @@ export async function executeHeadlessRun(
     let totalTokens: number | undefined;
     let fatalError: Error | undefined;
 
-    for await (const event of await agent.stream(prompt, sessionId)) {
-        switch (event.name) {
-            case 'llm:tool-call': {
-                const callKey = event.callId ?? `anonymous-${++anonymousToolCallCounter}`;
-                const call = {
-                    toolName: event.toolName,
-                    args: event.args,
-                    startedAt: Date.now(),
-                };
-                toolCallState.set(callKey, call);
-                writeHeadlessTaggedLine(
-                    'TOOL',
-                    formatToolInvocationForHeadless(call.toolName, call.args)
-                );
-                break;
-            }
-
-            case 'tool:running': {
-                const runningCall = toolCallState.get(event.toolCallId);
-                if (runningCall) {
-                    runningCall.startedAt = Date.now();
-                }
-                break;
-            }
-
-            case 'llm:tool-result': {
-                let matchedCallKey: string | undefined = event.callId;
-                let matchedCall = matchedCallKey ? toolCallState.get(matchedCallKey) : undefined;
-
-                if (!matchedCall) {
-                    const reverseEntries = Array.from(toolCallState.entries()).reverse();
-                    const fallback = reverseEntries.find(
-                        ([, call]) => call.toolName === event.toolName
+    try {
+        for await (const event of await agent.stream(prompt, sessionId)) {
+            switch (event.name) {
+                case 'llm:tool-call': {
+                    const callKey = event.callId ?? `anonymous-${++anonymousToolCallCounter}`;
+                    const call = {
+                        toolName: event.toolName,
+                        args: event.args,
+                        startedAt: Date.now(),
+                    };
+                    toolCallState.set(callKey, call);
+                    writeHeadlessTaggedLine(
+                        'TOOL',
+                        formatToolInvocationForHeadless(call.toolName, call.args)
                     );
-                    if (fallback) {
-                        matchedCallKey = fallback[0];
-                        matchedCall = fallback[1];
+                    break;
+                }
+
+                case 'tool:running': {
+                    const runningCall = toolCallState.get(event.toolCallId);
+                    if (runningCall) {
+                        runningCall.startedAt = Date.now();
                     }
+                    break;
                 }
 
-                const toolName = matchedCall?.toolName ?? event.toolName;
-                const args = matchedCall?.args ?? {};
-                const invocation = formatToolInvocationForHeadless(toolName, args);
-                const durationText = matchedCall
-                    ? ` in ${formatHeadlessDuration(Date.now() - matchedCall.startedAt)}`
-                    : '';
-                const statusTag = event.success ? 'TOOL:OK' : 'TOOL:ERR';
+                case 'llm:tool-result': {
+                    let matchedCallKey: string | undefined = event.callId;
+                    let matchedCall = matchedCallKey
+                        ? toolCallState.get(matchedCallKey)
+                        : undefined;
 
-                writeHeadlessTaggedLine(statusTag, `${invocation}${durationText}`);
-                const output = extractToolOutputForHeadless(event);
-                if (output && output.trim().length > 0) {
-                    writeHeadlessTaggedBlock('TOOL:OUT', truncateOutputForHeadless(output));
+                    if (!matchedCall) {
+                        const reverseEntries = Array.from(toolCallState.entries()).reverse();
+                        const fallback = reverseEntries.find(
+                            ([, call]) => call.toolName === event.toolName
+                        );
+                        if (fallback) {
+                            matchedCallKey = fallback[0];
+                            matchedCall = fallback[1];
+                        }
+                    }
+
+                    const toolName = matchedCall?.toolName ?? event.toolName;
+                    const args = matchedCall?.args ?? {};
+                    const invocation = formatToolInvocationForHeadless(toolName, args);
+                    const durationText = matchedCall
+                        ? ` in ${formatHeadlessDuration(Date.now() - matchedCall.startedAt)}`
+                        : '';
+                    const statusTag = event.success ? 'TOOL:OK' : 'TOOL:ERR';
+
+                    writeHeadlessTaggedLine(statusTag, `${invocation}${durationText}`);
+                    const output = extractToolOutputForHeadless(event);
+                    if (output && output.trim().length > 0) {
+                        writeHeadlessTaggedBlock('TOOL:OUT', truncateOutputForHeadless(output));
+                    }
+
+                    if (matchedCallKey) {
+                        toolCallState.delete(matchedCallKey);
+                    }
+                    break;
                 }
 
-                if (matchedCallKey) {
-                    toolCallState.delete(matchedCallKey);
+                case 'llm:response': {
+                    finalMessage = event.content;
+                    totalTokens = getTotalTokensFromResponse(event);
+                    break;
                 }
-                break;
-            }
 
-            case 'llm:response': {
-                finalMessage = event.content;
-                totalTokens = getTotalTokensFromResponse(event);
-                break;
-            }
-
-            case 'llm:unsupported-input': {
-                writeHeadlessTaggedLine('WARNING', event.errors.join('; '));
-                break;
-            }
-
-            case 'llm:error': {
-                if (!event.recoverable) {
-                    fatalError = event.error;
-                    writeHeadlessTaggedLine('ERROR', event.error.message);
+                case 'llm:unsupported-input': {
+                    writeHeadlessTaggedLine('WARNING', event.errors.join('; '));
+                    break;
                 }
-                break;
-            }
 
-            case 'run:complete': {
-                if (event.finishReason === 'error' && event.error) {
-                    fatalError = event.error;
-                    writeHeadlessTaggedLine('ERROR', event.error.message);
+                case 'llm:error': {
+                    if (!event.recoverable) {
+                        fatalError = event.error;
+                        writeHeadlessTaggedLine('ERROR', event.error.message);
+                    }
+                    break;
                 }
-                break;
-            }
 
-            default:
-                break;
+                case 'run:complete': {
+                    if (event.finishReason === 'error' && event.error) {
+                        fatalError = event.error;
+                        writeHeadlessTaggedLine('ERROR', event.error.message);
+                    }
+                    break;
+                }
+
+                default:
+                    break;
+            }
+        }
+    } catch (error) {
+        if (fatalError === undefined) {
+            fatalError = error instanceof Error ? error : new Error(String(error));
+            writeHeadlessTaggedLine('ERROR', fatalError.message);
         }
     }
 

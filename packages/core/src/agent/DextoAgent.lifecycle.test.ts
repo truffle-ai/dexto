@@ -869,10 +869,16 @@ describe('DextoAgent Lifecycle Management', () => {
 
             await agent.start();
 
-            const events: StreamingEvent[] = [];
-            for await (const event of await agent.stream('hello', 'test-session')) {
-                events.push(event);
+            const iterator = await agent.stream('hello', 'test-session');
+            const first = await iterator.next();
+            const second = await iterator.next();
+
+            if (first.done || second.done) {
+                throw new Error(
+                    'Expected fatal llm:error and run:complete events before rejection'
+                );
             }
+            const events = [first.value, second.value];
 
             expect(events.map((event) => event.name)).toEqual(['llm:error', 'run:complete']);
             expect(events[0]).toMatchObject({
@@ -888,9 +894,10 @@ describe('DextoAgent Lifecycle Management', () => {
             expect(
                 events.some((event) => event.name === 'llm:error' && event.context === 'run_failed')
             ).toBe(false);
+            await expect(iterator.next()).rejects.toBe(mappedError);
         });
 
-        test('should still emit a fallback run_failed error when session streaming fails before any terminal event', async () => {
+        test('should reject with the original error when session streaming fails before any terminal event', async () => {
             const agent = createTestAgent(mockValidatedConfig);
             const streamError = new Error('Session stream failed before event emission');
             const sessionStream = vi.fn().mockRejectedValue(streamError);
@@ -901,21 +908,21 @@ describe('DextoAgent Lifecycle Management', () => {
 
             await agent.start();
 
-            const events: StreamingEvent[] = [];
-            for await (const event of await agent.stream('hello', 'test-session')) {
-                events.push(event);
+            const iterator = await agent.stream('hello', 'test-session');
+            const first = await iterator.next();
+            if (first.done) {
+                throw new Error('Expected fallback llm:error event before rejection');
             }
-
-            expect(events).toHaveLength(1);
-            expect(events[0]).toMatchObject({
+            expect(first.value).toMatchObject({
                 name: 'llm:error',
                 context: 'run_failed',
                 recoverable: false,
             });
-            if (events[0]?.name !== 'llm:error') {
+            if (first.value.name !== 'llm:error') {
                 throw new Error('Expected llm:error event');
             }
-            expect(events[0].error).toBe(streamError);
+            expect(first.value.error).toBe(streamError);
+            await expect(iterator.next()).rejects.toBe(streamError);
         });
     });
 

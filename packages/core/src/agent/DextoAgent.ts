@@ -940,6 +940,7 @@ export class DextoAgent {
         // Event queue for aggregation - now holds core events directly
         const eventQueue: StreamingEvent[] = [];
         let completed = false;
+        let terminalError: Error | undefined;
         let sawFatalErrorEvent = false;
         let sawRunCompleteEvent = false;
 
@@ -1050,6 +1051,7 @@ export class DextoAgent {
             if (data.sessionId !== sessionId) return;
             if (data.recoverable !== true) {
                 sawFatalErrorEvent = true;
+                terminalError = data.error;
             }
             eventQueue.push({ name: 'llm:error', ...data });
         };
@@ -1124,6 +1126,9 @@ export class DextoAgent {
         const runCompleteListener = (data: AgentEventMap['run:complete']) => {
             if (data.sessionId !== sessionId) return;
             sawRunCompleteEvent = true;
+            if (data.finishReason === 'error' && data.error !== undefined) {
+                terminalError = data.error;
+            }
             eventQueue.push({ name: 'run:complete', ...data });
             completed = true; // NOW close the iterator
         };
@@ -1357,6 +1362,7 @@ export class DextoAgent {
                     }
 
                     completed = true;
+                    terminalError = error;
                     this.logger.error(`Error in DextoAgent.stream: ${error.message}`);
 
                     const errorEvent: { name: 'llm:error' } & AgentEventMap['llm:error'] = {
@@ -1396,6 +1402,9 @@ export class DextoAgent {
                 if (completed) {
                     cleanupListeners();
                     controller.abort();
+                    if (terminalError !== undefined) {
+                        throw terminalError;
+                    }
                     return { done: true, value: undefined };
                 }
 
