@@ -224,14 +224,11 @@ export class SessionManager {
                         // Session is still valid, but don't create ChatSession until requested
                         this.logger.debug(`Session ${sessionId} restored from storage`);
                     } else {
-                        // Session expired, purge the session record plus any persisted
-                        // interaction state keyed off the same session ID.
-                        await Promise.all([
-                            this.services.sessionStore.deleteSession({ sessionId }),
-                            this.services.sessionStore.evictSession({ sessionId }),
-                            this.deleteSessionInteractionState(sessionId),
-                        ]);
-                        this.logger.debug(`Expired session ${sessionId} cleaned up during restore`);
+                        await this.services.sessionStore.evictSession({ sessionId });
+                        this.evictSessionInteractionState(sessionId);
+                        this.logger.debug(
+                            `Expired session ${sessionId} evicted during restore; durable history preserved`
+                        );
                     }
                 }
             }

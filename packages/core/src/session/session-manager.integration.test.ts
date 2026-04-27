@@ -656,7 +656,7 @@ describe('Session Integration: Core-owned Interaction State Persistence', () => 
         expect(await restoredAgent.getQueuedMessages(sessionId)).toEqual([]);
     });
 
-    test('drops persisted interaction state when startup cleanup purges an expired session', async () => {
+    test('preserves durable expired sessions when startup cleanup evicts runtime state', async () => {
         const sharedStorage = {
             blob: createInMemoryBlobStore(),
             cache: createInMemoryCache(),
@@ -688,35 +688,35 @@ describe('Session Integration: Core-owned Interaction State Persistence', () => 
 
         expiredSession.lastActivity = Date.now() - 120000;
         await database.set(`session:${sessionId}`, expiredSession);
-        await agent1.stop();
+        await agent1.services.sessionManager.cleanup();
 
         const agent2 = await createAgentWithSharedStorage('expired-state-agent-2', sharedStorage);
 
-        expect(await database.get(`session:${sessionId}`)).toBeUndefined();
+        expect(await database.get(`session:${sessionId}`)).toBeDefined();
         expect(await database.get(`session-message-queue:${sessionId}`)).toBeUndefined();
-        expect(await database.get(`session-tool-preferences:${sessionId}`)).toBeUndefined();
-        expect(await database.get(`session-approvals:${sessionId}`)).toBeUndefined();
+        expect(await database.get(`session-tool-preferences:${sessionId}`)).toBeDefined();
+        expect(await database.get(`session-approvals:${sessionId}`)).toBeDefined();
 
-        await agent2.createSession(sessionId);
+        await agent2.getSession(sessionId);
 
-        expect(agent2.hasSessionLLMOverride(sessionId)).toBe(false);
-        expect(agent2.getCurrentLLMConfig(sessionId).model).toBe('gpt-5-mini');
+        expect(agent2.hasSessionLLMOverride(sessionId)).toBe(true);
+        expect(agent2.getCurrentLLMConfig(sessionId).model).toBe('gpt-5');
         expect(await agent2.getQueuedMessages(sessionId)).toEqual([]);
-        expect(await agent2.getSessionAutoApproveTools(sessionId)).toEqual([]);
+        expect(await agent2.getSessionAutoApproveTools(sessionId)).toEqual(['allowed_tool']);
 
         const enabledTools = await agent2.getEnabledTools(sessionId);
         expect(Object.keys(enabledTools)).toContain('allowed_tool');
-        expect(Object.keys(enabledTools)).toContain('disabled_tool');
+        expect(Object.keys(enabledTools)).not.toContain('disabled_tool');
 
         expect(
             agent2.services.approvalManager.matchesPattern('bash_exec', 'git status *', sessionId)
-        ).toBe(false);
+        ).toBe(true);
         expect(
             agent2.services.approvalManager.isDirectorySessionApproved(
                 path.join(approvedDirectory, 'file.ts'),
                 sessionId
             )
-        ).toBe(false);
+        ).toBe(true);
     });
 
     test('newly created sessions do not inherit orphaned persisted interaction state', async () => {

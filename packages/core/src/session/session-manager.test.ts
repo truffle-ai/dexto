@@ -344,7 +344,7 @@ describe('SessionManager', () => {
             );
         });
 
-        test('should clean up expired sessions during startup restoration', async () => {
+        test('should evict expired sessions without deleting durable storage during startup restoration', async () => {
             const existingSessionKeys = ['session:expired-session'];
             const expiredMetadata = {
                 ...mockSessionData,
@@ -356,20 +356,20 @@ describe('SessionManager', () => {
 
             await sessionManager.init();
 
-            expect(mockStorageManager.database.delete).toHaveBeenCalledWith(
+            expect(mockStorageManager.database.delete).not.toHaveBeenCalledWith(
                 'session:expired-session'
             );
             expect(mockStorageManager.cache.delete).toHaveBeenCalledWith('session:expired-session');
-            expect(mockServices.toolManager.deleteSessionState).toHaveBeenCalledWith(
+            expect(mockServices.toolManager.evictSessionState).toHaveBeenCalledWith(
                 'expired-session'
             );
-            expect(mockServices.approvalManager.deleteSessionState).toHaveBeenCalledWith(
+            expect(mockServices.approvalManager.evictSessionState).toHaveBeenCalledWith(
                 'expired-session'
             );
-            expect(mockServices.messageQueueStore.delete).toHaveBeenCalledWith({
+            expect(mockServices.messageQueueStore.delete).not.toHaveBeenCalledWith({
                 sessionId: 'expired-session',
             });
-            expect(mockServices.stateManager.clearSessionOverride).toHaveBeenCalledWith(
+            expect(mockServices.stateManager.clearSessionOverride).not.toHaveBeenCalledWith(
                 'expired-session'
             );
         });
