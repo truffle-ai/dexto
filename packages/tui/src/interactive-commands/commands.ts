@@ -39,6 +39,7 @@ import { pluginCommands } from './plugin/index.js';
 import { systemCommands } from './system/index.js';
 import { toolCommands } from './tool-commands.js';
 import { promptCommands } from './prompt-commands.js';
+import { skillCommands } from './skill-commands.js';
 import { documentationCommands } from './documentation-commands.js';
 import { loginCommand, logoutCommand } from './auth/index.js';
 
@@ -86,6 +87,9 @@ const baseCommands: CommandDefinition[] = [
 
     // Prompt management commands
     ...promptCommands,
+
+    // Skill management commands
+    ...skillCommands,
 
     // System commands
     ...systemCommands,

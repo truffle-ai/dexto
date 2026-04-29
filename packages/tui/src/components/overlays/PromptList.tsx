@@ -181,7 +181,7 @@ const PromptList = forwardRef<PromptListHandle, PromptListProps>(function Prompt
         // Prompt item
         const prompt = item.prompt!;
         const displayName = prompt.displayName || prompt.name;
-        // For plugin skills, use namespace (plugin name) as source
+        // Plugin-provided prompts use namespace (plugin name) as source.
         const metadata = prompt.metadata as Record<string, unknown> | undefined;
         const effectiveSource = metadata?.namespace ? String(metadata.namespace) : prompt.source;
         const sourceInfo = getSourceIndicator(effectiveSource);
