@@ -21,6 +21,7 @@ import { createResourcesRouter, type ResourcesRouterSchema } from './routes/reso
 import { createMemoryRouter, type MemoryRouterSchema } from './routes/memory.js';
 import { createWorkspacesRouter, type WorkspacesRouterSchema } from './routes/workspaces.js';
 import { createSchedulesRouter, type SchedulesRouterSchema } from './routes/schedules.js';
+import { createSkillsRouter, type SkillsRouterSchema } from './routes/skills.js';
 import {
     createAgentsRouter,
     type AgentsRouterContext,
@@ -163,7 +164,8 @@ type IntegrationRouterSchema =
     | ResourcesRouterSchema
     | MemoryRouterSchema
     | WorkspacesRouterSchema
-    | SchedulesRouterSchema;
+    | SchedulesRouterSchema
+    | SkillsRouterSchema;
 
 type ManagementRouterSchema = ApprovalsRouterSchema | AgentsRouterSchema | QueueRouterSchema;
 
@@ -265,6 +267,7 @@ export function createDextoApp(options: CreateDextoAppOptions): DextoApp {
         [routePrefix, createMemoryRouter(getAgent)],
         [routePrefix, createWorkspacesRouter(getAgent)],
         [routePrefix, createSchedulesRouter(getAgent)],
+        [routePrefix, createSkillsRouter(getAgent)],
         [routePrefix, createApprovalsRouter(getAgent, approvalCoordinator)],
         [
             routePrefix,
@@ -363,6 +366,10 @@ export function createDextoApp(options: CreateDextoAppOptions): DextoApp {
             {
                 name: 'prompts',
                 description: 'Manage custom prompts and templates',
+            },
+            {
+                name: 'skills',
+                description: 'List and read available agent skills',
             },
             {
                 name: 'resources',

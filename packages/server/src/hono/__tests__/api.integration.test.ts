@@ -912,6 +912,21 @@ describe('Hono API Integration Tests', () => {
         });
     });
 
+    describe('Skills Routes', () => {
+        it('GET /api/skills returns skill catalog', async () => {
+            if (!testServer) throw new Error('Test server not initialized');
+            const res = await httpRequest(testServer.baseUrl, 'GET', '/api/skills');
+            expect(res.status).toBe(200);
+            expect(res.body).toHaveProperty('skills');
+        });
+
+        it('GET /api/skills/:id returns 404 for unknown skills', async () => {
+            if (!testServer) throw new Error('Test server not initialized');
+            const res = await httpRequest(testServer.baseUrl, 'GET', '/api/skills/missing');
+            expect(res.status).toBe(404);
+        });
+    });
+
     describe('Resources Routes', () => {
         it('GET /api/resources returns resource list', async () => {
             if (!testServer) throw new Error('Test server not initialized');

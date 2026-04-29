@@ -2,7 +2,7 @@
   "openapi": "3.0.0",
   "info": {
     "title": "Dexto API",
-    "version": "1.7.0",
+    "version": "1.7.1",
     "description": "OpenAPI spec for the Dexto REST API server"
   },
   "servers": [
@@ -65,6 +65,10 @@
     {
       "name": "prompts",
       "description": "Manage custom prompts and templates"
+    },
+    {
+      "name": "skills",
+      "description": "List and read available agent skills"
     },
     {
       "name": "resources",
@@ -29354,43 +29358,9 @@
                             },
                             "description": "Array of argument definitions"
                           },
-                          "disableModelInvocation": {
-                            "type": "boolean",
-                            "description": "Exclude from auto-invocation list in system prompt"
-                          },
                           "userInvocable": {
                             "type": "boolean",
                             "description": "Whether to show in slash command menu"
-                          },
-                          "allowedTools": {
-                            "type": "array",
-                            "items": {
-                              "type": "string"
-                            },
-                            "description": "Tools to auto-approve when this prompt is active"
-                          },
-                          "toolkits": {
-                            "type": "array",
-                            "items": {
-                              "type": "string"
-                            },
-                            "description": "Toolkits to load when invoked"
-                          },
-                          "model": {
-                            "type": "string",
-                            "description": "Model to use when this prompt is invoked"
-                          },
-                          "context": {
-                            "type": "string",
-                            "enum": [
-                              "inline",
-                              "fork"
-                            ],
-                            "description": "Execution context for this prompt"
-                          },
-                          "agent": {
-                            "type": "string",
-                            "description": "Agent ID to use for fork execution"
                           },
                           "source": {
                             "type": "string",
@@ -29732,43 +29702,9 @@
                           },
                           "description": "Array of argument definitions"
                         },
-                        "disableModelInvocation": {
-                          "type": "boolean",
-                          "description": "Exclude from auto-invocation list in system prompt"
-                        },
                         "userInvocable": {
                           "type": "boolean",
                           "description": "Whether to show in slash command menu"
-                        },
-                        "allowedTools": {
-                          "type": "array",
-                          "items": {
-                            "type": "string"
-                          },
-                          "description": "Tools to auto-approve when this prompt is active"
-                        },
-                        "toolkits": {
-                          "type": "array",
-                          "items": {
-                            "type": "string"
-                          },
-                          "description": "Toolkits to load when invoked"
-                        },
-                        "model": {
-                          "type": "string",
-                          "description": "Model to use when this prompt is invoked"
-                        },
-                        "context": {
-                          "type": "string",
-                          "enum": [
-                            "inline",
-                            "fork"
-                          ],
-                          "description": "Execution context for this prompt"
-                        },
-                        "agent": {
-                          "type": "string",
-                          "description": "Agent ID to use for fork execution"
                         },
                         "source": {
                           "type": "string",
@@ -30215,43 +30151,9 @@
                           },
                           "description": "Array of argument definitions"
                         },
-                        "disableModelInvocation": {
-                          "type": "boolean",
-                          "description": "Exclude from auto-invocation list in system prompt"
-                        },
                         "userInvocable": {
                           "type": "boolean",
                           "description": "Whether to show in slash command menu"
-                        },
-                        "allowedTools": {
-                          "type": "array",
-                          "items": {
-                            "type": "string"
-                          },
-                          "description": "Tools to auto-approve when this prompt is active"
-                        },
-                        "toolkits": {
-                          "type": "array",
-                          "items": {
-                            "type": "string"
-                          },
-                          "description": "Toolkits to load when invoked"
-                        },
-                        "model": {
-                          "type": "string",
-                          "description": "Model to use when this prompt is invoked"
-                        },
-                        "context": {
-                          "type": "string",
-                          "enum": [
-                            "inline",
-                            "fork"
-                          ],
-                          "description": "Execution context for this prompt"
-                        },
-                        "agent": {
-                          "type": "string",
-                          "description": "Agent ID to use for fork execution"
                         }
                       },
                       "required": [
@@ -36633,6 +36535,641 @@
                   ],
                   "additionalProperties": false,
                   "description": "Error API response"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/skills": {
+      "get": {
+        "summary": "List Skills",
+        "description": "Retrieves available skills from the active agent skill catalog",
+        "tags": [
+          "skills"
+        ],
+        "responses": {
+          "200": {
+            "description": "List all skills",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "skills": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "description": "Skill identifier"
+                          },
+                          "displayName": {
+                            "type": "string",
+                            "description": "Human-readable skill name"
+                          },
+                          "description": {
+                            "type": "string",
+                            "description": "Skill description"
+                          },
+                          "requirements": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "type": {
+                                  "type": "string",
+                                  "enum": [
+                                    "toolkit"
+                                  ],
+                                  "description": "Requirement type"
+                                },
+                                "name": {
+                                  "type": "string",
+                                  "description": "Required toolkit name"
+                                }
+                              },
+                              "required": [
+                                "type",
+                                "name"
+                              ],
+                              "additionalProperties": false,
+                              "description": "Skill requirement"
+                            },
+                            "description": "Skill runtime requirements"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "displayName"
+                        ],
+                        "additionalProperties": false,
+                        "description": "Skill catalog entry"
+                      },
+                      "description": "Array of available skills"
+                    }
+                  },
+                  "required": [
+                    "skills"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Skills list response"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "description": "Optional error class name"
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Human-readable error message"
+                    },
+                    "code": {
+                      "type": "string",
+                      "description": "Machine-readable error code"
+                    },
+                    "scope": {
+                      "type": "string",
+                      "description": "Domain that produced the error"
+                    },
+                    "type": {
+                      "type": "string",
+                      "description": "Error type used for HTTP status mapping"
+                    },
+                    "severity": {
+                      "type": "string",
+                      "enum": [
+                        "error",
+                        "warning"
+                      ],
+                      "description": "Optional error severity for lightweight failures"
+                    },
+                    "endpoint": {
+                      "type": "string",
+                      "description": "Request path that failed"
+                    },
+                    "method": {
+                      "type": "string",
+                      "description": "HTTP method for the failed request"
+                    },
+                    "traceId": {
+                      "type": "string",
+                      "description": "Optional trace identifier"
+                    },
+                    "recovery": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      ],
+                      "description": "Optional recovery guidance"
+                    },
+                    "context": {
+                      "type": "object",
+                      "additionalProperties": true,
+                      "description": "Optional structured error context"
+                    },
+                    "issues": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "code": {
+                            "type": "string",
+                            "description": "Machine-readable issue code"
+                          },
+                          "message": {
+                            "type": "string",
+                            "description": "Human-readable issue message"
+                          },
+                          "scope": {
+                            "type": "string",
+                            "description": "Domain that produced the issue"
+                          },
+                          "type": {
+                            "type": "string",
+                            "description": "Error type used for HTTP status mapping"
+                          },
+                          "severity": {
+                            "type": "string",
+                            "enum": [
+                              "error",
+                              "warning"
+                            ],
+                            "description": "Issue severity"
+                          },
+                          "path": {
+                            "type": "array",
+                            "items": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "number"
+                                }
+                              ]
+                            },
+                            "description": "Optional location for the issue"
+                          },
+                          "context": {
+                            "type": "object",
+                            "additionalProperties": true,
+                            "description": "Optional structured issue context"
+                          }
+                        },
+                        "required": [
+                          "code",
+                          "message",
+                          "scope",
+                          "type",
+                          "severity"
+                        ],
+                        "additionalProperties": false,
+                        "description": "Structured validation or runtime issue"
+                      },
+                      "description": "Validation issues when present"
+                    },
+                    "errorCount": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "description": "Number of errors"
+                    },
+                    "warningCount": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "description": "Number of warnings"
+                    },
+                    "stack": {
+                      "type": "string",
+                      "description": "Development-only stack trace"
+                    }
+                  },
+                  "required": [
+                    "message",
+                    "endpoint",
+                    "method"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Standard API error response"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/skills/{id}": {
+      "get": {
+        "summary": "Get Skill",
+        "description": "Fetches the full document for a specific skill",
+        "tags": [
+          "skills"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "The skill identifier"
+            },
+            "required": true,
+            "description": "The skill identifier",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Skill document",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "skill": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "description": "Skill identifier"
+                        },
+                        "displayName": {
+                          "type": "string",
+                          "description": "Human-readable skill name"
+                        },
+                        "description": {
+                          "type": "string",
+                          "description": "Skill description"
+                        },
+                        "requirements": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "type": {
+                                "type": "string",
+                                "enum": [
+                                  "toolkit"
+                                ],
+                                "description": "Requirement type"
+                              },
+                              "name": {
+                                "type": "string",
+                                "description": "Required toolkit name"
+                              }
+                            },
+                            "required": [
+                              "type",
+                              "name"
+                            ],
+                            "additionalProperties": false,
+                            "description": "Skill requirement"
+                          },
+                          "description": "Skill runtime requirements"
+                        },
+                        "instructions": {
+                          "type": "string",
+                          "description": "Full skill instructions"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "displayName",
+                        "instructions"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Skill document"
+                    }
+                  },
+                  "required": [
+                    "skill"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Get skill response"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Skill not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "description": "Optional error class name"
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Human-readable error message"
+                    },
+                    "code": {
+                      "type": "string",
+                      "description": "Machine-readable error code"
+                    },
+                    "scope": {
+                      "type": "string",
+                      "description": "Domain that produced the error"
+                    },
+                    "type": {
+                      "type": "string",
+                      "description": "Error type used for HTTP status mapping"
+                    },
+                    "severity": {
+                      "type": "string",
+                      "enum": [
+                        "error",
+                        "warning"
+                      ],
+                      "description": "Optional error severity for lightweight failures"
+                    },
+                    "endpoint": {
+                      "type": "string",
+                      "description": "Request path that failed"
+                    },
+                    "method": {
+                      "type": "string",
+                      "description": "HTTP method for the failed request"
+                    },
+                    "traceId": {
+                      "type": "string",
+                      "description": "Optional trace identifier"
+                    },
+                    "recovery": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      ],
+                      "description": "Optional recovery guidance"
+                    },
+                    "context": {
+                      "type": "object",
+                      "additionalProperties": true,
+                      "description": "Optional structured error context"
+                    },
+                    "issues": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "code": {
+                            "type": "string",
+                            "description": "Machine-readable issue code"
+                          },
+                          "message": {
+                            "type": "string",
+                            "description": "Human-readable issue message"
+                          },
+                          "scope": {
+                            "type": "string",
+                            "description": "Domain that produced the issue"
+                          },
+                          "type": {
+                            "type": "string",
+                            "description": "Error type used for HTTP status mapping"
+                          },
+                          "severity": {
+                            "type": "string",
+                            "enum": [
+                              "error",
+                              "warning"
+                            ],
+                            "description": "Issue severity"
+                          },
+                          "path": {
+                            "type": "array",
+                            "items": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "number"
+                                }
+                              ]
+                            },
+                            "description": "Optional location for the issue"
+                          },
+                          "context": {
+                            "type": "object",
+                            "additionalProperties": true,
+                            "description": "Optional structured issue context"
+                          }
+                        },
+                        "required": [
+                          "code",
+                          "message",
+                          "scope",
+                          "type",
+                          "severity"
+                        ],
+                        "additionalProperties": false,
+                        "description": "Structured validation or runtime issue"
+                      },
+                      "description": "Validation issues when present"
+                    },
+                    "errorCount": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "description": "Number of errors"
+                    },
+                    "warningCount": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "description": "Number of warnings"
+                    },
+                    "stack": {
+                      "type": "string",
+                      "description": "Development-only stack trace"
+                    }
+                  },
+                  "required": [
+                    "message",
+                    "endpoint",
+                    "method"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Standard API error response"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "description": "Optional error class name"
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Human-readable error message"
+                    },
+                    "code": {
+                      "type": "string",
+                      "description": "Machine-readable error code"
+                    },
+                    "scope": {
+                      "type": "string",
+                      "description": "Domain that produced the error"
+                    },
+                    "type": {
+                      "type": "string",
+                      "description": "Error type used for HTTP status mapping"
+                    },
+                    "severity": {
+                      "type": "string",
+                      "enum": [
+                        "error",
+                        "warning"
+                      ],
+                      "description": "Optional error severity for lightweight failures"
+                    },
+                    "endpoint": {
+                      "type": "string",
+                      "description": "Request path that failed"
+                    },
+                    "method": {
+                      "type": "string",
+                      "description": "HTTP method for the failed request"
+                    },
+                    "traceId": {
+                      "type": "string",
+                      "description": "Optional trace identifier"
+                    },
+                    "recovery": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      ],
+                      "description": "Optional recovery guidance"
+                    },
+                    "context": {
+                      "type": "object",
+                      "additionalProperties": true,
+                      "description": "Optional structured error context"
+                    },
+                    "issues": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "code": {
+                            "type": "string",
+                            "description": "Machine-readable issue code"
+                          },
+                          "message": {
+                            "type": "string",
+                            "description": "Human-readable issue message"
+                          },
+                          "scope": {
+                            "type": "string",
+                            "description": "Domain that produced the issue"
+                          },
+                          "type": {
+                            "type": "string",
+                            "description": "Error type used for HTTP status mapping"
+                          },
+                          "severity": {
+                            "type": "string",
+                            "enum": [
+                              "error",
+                              "warning"
+                            ],
+                            "description": "Issue severity"
+                          },
+                          "path": {
+                            "type": "array",
+                            "items": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "number"
+                                }
+                              ]
+                            },
+                            "description": "Optional location for the issue"
+                          },
+                          "context": {
+                            "type": "object",
+                            "additionalProperties": true,
+                            "description": "Optional structured issue context"
+                          }
+                        },
+                        "required": [
+                          "code",
+                          "message",
+                          "scope",
+                          "type",
+                          "severity"
+                        ],
+                        "additionalProperties": false,
+                        "description": "Structured validation or runtime issue"
+                      },
+                      "description": "Validation issues when present"
+                    },
+                    "errorCount": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "description": "Number of errors"
+                    },
+                    "warningCount": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "description": "Number of warnings"
+                    },
+                    "stack": {
+                      "type": "string",
+                      "description": "Development-only stack trace"
+                    }
+                  },
+                  "required": [
+                    "message",
+                    "endpoint",
+                    "method"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Standard API error response"
                 }
               }
             }
@@ -48667,33 +49204,32 @@
     },
     "/api/discovery": {
       "get": {
-        "summary": "Discover Available Factories and Tools",
-        "description": "Returns all available factories (storage, compaction, tools) for the currently active image.",
+        "summary": "Discover Available Image Extensions and Tools",
+        "description": "Returns available storage, compaction, and tool extensions for the currently active image.",
         "tags": [
           "discovery"
         ],
         "responses": {
           "200": {
-            "description": "Available factories grouped by category",
+            "description": "Available image extensions grouped by category",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "blob": {
+                    "storage": {
                       "type": "array",
                       "items": {
                         "type": "object",
                         "properties": {
                           "type": {
                             "type": "string",
-                            "description": "Factory type identifier"
+                            "description": "Extension type identifier"
                           },
                           "category": {
                             "type": "string",
                             "enum": [
-                              "blob",
-                              "database",
+                              "storage",
                               "compaction",
                               "tools"
                             ],
@@ -48708,67 +49244,22 @@
                               },
                               "description": {
                                 "type": "string",
-                                "description": "Factory description"
+                                "description": "Extension description"
                               }
                             },
                             "additionalProperties": {
                               "nullable": true
                             },
-                            "description": "Optional metadata about the factory"
+                            "description": "Optional metadata about the extension"
                           }
                         },
                         "required": [
                           "type",
                           "category"
                         ],
-                        "description": "Information about a registered factory"
+                        "description": "Information about a registered extension"
                       },
-                      "description": "Blob storage factories"
-                    },
-                    "database": {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "properties": {
-                          "type": {
-                            "type": "string",
-                            "description": "Factory type identifier"
-                          },
-                          "category": {
-                            "type": "string",
-                            "enum": [
-                              "blob",
-                              "database",
-                              "compaction",
-                              "tools"
-                            ],
-                            "description": "Factory category"
-                          },
-                          "metadata": {
-                            "type": "object",
-                            "properties": {
-                              "displayName": {
-                                "type": "string",
-                                "description": "Human-readable display name"
-                              },
-                              "description": {
-                                "type": "string",
-                                "description": "Factory description"
-                              }
-                            },
-                            "additionalProperties": {
-                              "nullable": true
-                            },
-                            "description": "Optional metadata about the factory"
-                          }
-                        },
-                        "required": [
-                          "type",
-                          "category"
-                        ],
-                        "description": "Information about a registered factory"
-                      },
-                      "description": "Database factories"
+                      "description": "Storage store provider"
                     },
                     "compaction": {
                       "type": "array",
@@ -48777,13 +49268,12 @@
                         "properties": {
                           "type": {
                             "type": "string",
-                            "description": "Factory type identifier"
+                            "description": "Extension type identifier"
                           },
                           "category": {
                             "type": "string",
                             "enum": [
-                              "blob",
-                              "database",
+                              "storage",
                               "compaction",
                               "tools"
                             ],
@@ -48798,20 +49288,20 @@
                               },
                               "description": {
                                 "type": "string",
-                                "description": "Factory description"
+                                "description": "Extension description"
                               }
                             },
                             "additionalProperties": {
                               "nullable": true
                             },
-                            "description": "Optional metadata about the factory"
+                            "description": "Optional metadata about the extension"
                           }
                         },
                         "required": [
                           "type",
                           "category"
                         ],
-                        "description": "Information about a registered factory"
+                        "description": "Information about a registered extension"
                       },
                       "description": "Compaction strategy factories"
                     },
@@ -48822,13 +49312,12 @@
                         "properties": {
                           "type": {
                             "type": "string",
-                            "description": "Factory type identifier"
+                            "description": "Extension type identifier"
                           },
                           "category": {
                             "type": "string",
                             "enum": [
-                              "blob",
-                              "database",
+                              "storage",
                               "compaction",
                               "tools"
                             ],
@@ -48843,20 +49332,20 @@
                               },
                               "description": {
                                 "type": "string",
-                                "description": "Factory description"
+                                "description": "Extension description"
                               }
                             },
                             "additionalProperties": {
                               "nullable": true
                             },
-                            "description": "Optional metadata about the factory"
+                            "description": "Optional metadata about the extension"
                           }
                         },
                         "required": [
                           "type",
                           "category"
                         ],
-                        "description": "Information about a registered factory"
+                        "description": "Information about a registered extension"
                       },
                       "description": "Tool factories"
                     },
@@ -48884,13 +49373,12 @@
                     }
                   },
                   "required": [
-                    "blob",
-                    "database",
+                    "storage",
                     "compaction",
                     "toolFactories",
                     "builtinTools"
                   ],
-                  "description": "Discovery response with factories grouped by category"
+                  "description": "Discovery response with image extensions grouped by category"
                 }
               }
             }

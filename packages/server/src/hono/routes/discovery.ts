@@ -13,18 +13,18 @@ export type GetAgentConfigPathFn = (
 
 const DiscoveredFactorySchema = z
     .object({
-        type: z.string().describe('Factory type identifier'),
+        type: z.string().describe('Extension type identifier'),
         category: z.enum(['storage', 'compaction', 'tools']).describe('Factory category'),
         metadata: z
             .object({
                 displayName: z.string().optional().describe('Human-readable display name'),
-                description: z.string().optional().describe('Factory description'),
+                description: z.string().optional().describe('Extension description'),
             })
             .passthrough()
             .optional()
-            .describe('Optional metadata about the factory'),
+            .describe('Optional metadata about the extension'),
     })
-    .describe('Information about a registered factory');
+    .describe('Information about a registered extension');
 
 const ToolSchema = z
     .object({
@@ -37,12 +37,12 @@ const ToolSchema = z
 
 const DiscoveryResponseSchema = z
     .object({
-        storage: z.array(DiscoveredFactorySchema).describe('Storage factory'),
+        storage: z.array(DiscoveredFactorySchema).describe('Storage store provider'),
         compaction: z.array(DiscoveredFactorySchema).describe('Compaction strategy factories'),
         toolFactories: z.array(DiscoveredFactorySchema).describe('Tool factories'),
         builtinTools: z.array(ToolSchema).describe('Built-in tools available for configuration'),
     })
-    .describe('Discovery response with factories grouped by category');
+    .describe('Discovery response with image extensions grouped by category');
 
 type DiscoveryMetadataValue = string | number | boolean | null;
 type DiscoveryMetadata = Record<string, DiscoveryMetadataValue>;
@@ -151,13 +151,13 @@ async function listDiscoveryFactories(options: {
 const discoveryRoute = createRoute({
     method: 'get',
     path: '/discovery',
-    summary: 'Discover Available Factories and Tools',
+    summary: 'Discover Available Image Extensions and Tools',
     description:
-        'Returns all available factories (storage, compaction, tools) for the currently active image.',
+        'Returns available storage, compaction, and tool extensions for the currently active image.',
     tags: ['discovery'],
     responses: {
         200: {
-            description: 'Available factories grouped by category',
+            description: 'Available image extensions grouped by category',
             content: { 'application/json': { schema: DiscoveryResponseSchema } },
         },
         500: InternalErrorResponse,
