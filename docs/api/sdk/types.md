@@ -18,7 +18,6 @@ import {
   Logger,
   AgentEventBus,
   SessionEventBus,
-  createStorageBackends,
   createAgentServices,
   
   // Configuration types
@@ -39,10 +38,11 @@ import {
   AgentEventMap,
   SessionEventMap,
   
-  // Storage types
-  StorageBackends,
-  CacheBackend,
-  DatabaseBackend,
+  // Store types
+  DextoStores,
+  ConversationStore,
+  SessionStore,
+  ArtifactStore,
   
   // Service types
   AgentServices,
@@ -486,47 +486,24 @@ export type StreamingEvent = {
 
 ---
 
-## Storage Types
+## Store Types
 
-### `StorageBackends`
+### `DextoStores`
 
-Container for storage backend instances.
+Container for typed domain stores used by core services.
 
 ```typescript
-interface StorageBackends {
-  cache: CacheBackend;
-  database: DatabaseBackend;
+interface DextoStores {
+  connect(): Promise<void>;
+  disconnect(): Promise<void>;
+  isConnected(): boolean;
+  getStore<K extends keyof DextoStoreMap>(key: K): DextoStoreMap[K];
 }
 ```
 
-### `CacheBackend`
-
-Interface for cache storage operations.
-
-```typescript
-interface CacheBackend {
-  get(key: string): Promise<any>;
-  set(key: string, value: any, ttl?: number): Promise<void>;
-  delete(key: string): Promise<void>;
-  clear(): Promise<void>;
-  disconnect?(): Promise<void>;
-}
-```
-
-### `DatabaseBackend`
-
-Interface for database storage operations.
-
-```typescript
-interface DatabaseBackend {
-  get(key: string): Promise<any>;
-  set(key: string, value: any): Promise<void>;
-  delete(key: string): Promise<void>;
-  append(key: string, value: any): Promise<void>;
-  getRange(key: string, start: number, end: number): Promise<any[]>;
-  disconnect?(): Promise<void>;
-}
-```
+Images and hosts decide how YAML `storage` input maps to concrete backing services. Core depends on
+typed stores such as `ConversationStore`, `SessionStore`, `MemoryStore`, `ArtifactStore`,
+`WorkspaceStore`, and `ToolStateStore`, not on cache/database/blob backend instances.
 
 ---
 
@@ -543,7 +520,7 @@ interface AgentServices {
   agentEventBus: AgentEventBus;
   stateManager: AgentStateManager;
   sessionManager: SessionManager;
-  storage: StorageBackends;
+  stores: DextoStores;
 }
 ```
 

@@ -1315,31 +1315,19 @@ export class ToolManager {
     }
 
     private resolveToolExecutionInvocation(
-        invocationOrSessionId?: ToolExecutionInvocation | string,
-        legacyAbortSignal?: AbortSignal
+        invocation?: ToolExecutionInvocation
     ): ToolExecutionInvocation & {
         sessionId?: string | undefined;
         hostRuntime?: ToolExecutionContext['hostRuntime'];
     } {
-        if (typeof invocationOrSessionId === 'string') {
-            return {
-                sessionId: invocationOrSessionId,
-                abortSignal: legacyAbortSignal,
-                hostRuntime: undefined,
-            };
+        if (typeof invocation !== 'object' && invocation !== undefined) {
+            throw new TypeError('Tool execution invocation must be an object');
         }
 
-        const invocation = invocationOrSessionId ?? {};
-        const sessionId = invocation.runContext?.sessionId ?? invocation.sessionId;
+        const options = invocation ?? {};
+        const sessionId = options.runContext?.sessionId ?? options.sessionId;
 
-        return {
-            ...invocation,
-            ...(invocation.abortSignal === undefined && legacyAbortSignal !== undefined
-                ? { abortSignal: legacyAbortSignal }
-                : {}),
-            sessionId,
-            hostRuntime: invocation.runContext?.hostRuntime,
-        };
+        return { ...options, sessionId, hostRuntime: options.runContext?.hostRuntime };
     }
 
     private validateLocalToolArgs(
@@ -1515,19 +1503,16 @@ export class ToolManager {
      * @param toolName Tool name (e.g., "edit_file", "mcp--filesystem--read_file")
      * @param args The arguments for the tool
      * @param toolCallId The unique tool call ID for tracking (from LLM or generated for direct calls)
-     * @param invocationOrSessionId Optional execution-scoped context for this tool call,
-     * or the legacy positional sessionId
-     * @param legacyAbortSignal Optional legacy positional abort signal
+     * @param invocation Optional execution-scoped context for this tool call
      */
     async executeTool(
         toolName: string,
         args: Record<string, unknown>,
         toolCallId: string,
-        invocationOrSessionId?: ToolExecutionInvocation | string,
-        legacyAbortSignal?: AbortSignal
+        invocation?: ToolExecutionInvocation
     ): Promise<import('./types.js').ToolExecutionResult> {
         const { sessionId, abortSignal, runContext, hostRuntime } =
-            this.resolveToolExecutionInvocation(invocationOrSessionId, legacyAbortSignal);
+            this.resolveToolExecutionInvocation(invocation);
         const { toolArgs: rawToolArgs, meta } = extractToolCallMeta(args);
         const eventMeta: ToolCallMetadata | undefined =
             Object.keys(meta).length > 0 ? meta : undefined;

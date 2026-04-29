@@ -310,15 +310,3 @@ export function createInMemoryDatabase(): Database {
 export function createInMemoryBlobStore(): BlobStore {
     return new InMemoryBlobStore();
 }
-
-export function createInMemoryStorageBackends(): {
-    cache: Cache;
-    database: Database;
-    blobStore: BlobStore;
-} {
-    return {
-        cache: createInMemoryCache(),
-        database: createInMemoryDatabase(),
-        blobStore: createInMemoryBlobStore(),
-    };
-}

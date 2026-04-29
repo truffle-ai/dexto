@@ -651,7 +651,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             );
         });
 
-        it('should support legacy positional sessionId and abortSignal arguments', async () => {
+        it('should reject positional sessionId and abortSignal arguments', async () => {
             mockMcpManager.getAllTools = vi.fn().mockResolvedValue({});
             const executeSpy = vi.fn().mockResolvedValue('ok');
 
@@ -679,27 +679,20 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             const controller = new AbortController();
 
             toolManager.setToolExecutionContextFactory((baseContext) => baseContext);
+            const executeToolWithRuntimeArgs = toolManager.executeTool.bind(
+                toolManager
+            ) as unknown as (...args: unknown[]) => Promise<unknown>;
 
-            await toolManager.executeTool(
-                'typed',
-                { count: '5' },
-                'call-legacy',
-                'session-legacy',
-                controller.signal
-            );
-
-            expect(executeSpy).toHaveBeenCalledWith(
-                { count: 5 },
-                expect.objectContaining({
-                    sessionId: 'session-legacy',
-                    abortSignal: controller.signal,
-                })
-            );
-            expect(mockApprovalManager.requestToolApproval).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    sessionId: 'session-legacy',
-                })
-            );
+            await expect(
+                executeToolWithRuntimeArgs(
+                    'typed',
+                    { count: '5' },
+                    'call-legacy',
+                    'session-legacy',
+                    controller.signal
+                )
+            ).rejects.toThrow('Tool execution invocation must be an object');
+            expect(executeSpy).not.toHaveBeenCalled();
         });
 
         it('should propagate host runtime through explicit run context during tool execution', async () => {

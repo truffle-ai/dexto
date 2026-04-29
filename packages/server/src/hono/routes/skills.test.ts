@@ -8,7 +8,6 @@ function createAgent() {
             id: 'review',
             displayName: 'Code Review',
             description: 'Review a change',
-            requirements: [{ type: 'toolkit' as const, name: 'filesystem' }],
         },
     ]);
     const get = vi.fn(async (id: string) =>
@@ -55,7 +54,6 @@ describe('createSkillsRouter', () => {
                     id: 'review',
                     displayName: 'Code Review',
                     description: 'Review a change',
-                    requirements: [{ type: 'toolkit', name: 'filesystem' }],
                 },
             ],
         });

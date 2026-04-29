@@ -36573,32 +36573,6 @@
                           "description": {
                             "type": "string",
                             "description": "Skill description"
-                          },
-                          "requirements": {
-                            "type": "array",
-                            "items": {
-                              "type": "object",
-                              "properties": {
-                                "type": {
-                                  "type": "string",
-                                  "enum": [
-                                    "toolkit"
-                                  ],
-                                  "description": "Requirement type"
-                                },
-                                "name": {
-                                  "type": "string",
-                                  "description": "Required toolkit name"
-                                }
-                              },
-                              "required": [
-                                "type",
-                                "name"
-                              ],
-                              "additionalProperties": false,
-                              "description": "Skill requirement"
-                            },
-                            "description": "Skill runtime requirements"
                           }
                         },
                         "required": [
@@ -36818,32 +36792,6 @@
                         "description": {
                           "type": "string",
                           "description": "Skill description"
-                        },
-                        "requirements": {
-                          "type": "array",
-                          "items": {
-                            "type": "object",
-                            "properties": {
-                              "type": {
-                                "type": "string",
-                                "enum": [
-                                  "toolkit"
-                                ],
-                                "description": "Requirement type"
-                              },
-                              "name": {
-                                "type": "string",
-                                "description": "Required toolkit name"
-                              }
-                            },
-                            "required": [
-                              "type",
-                              "name"
-                            ],
-                            "additionalProperties": false,
-                            "description": "Skill requirement"
-                          },
-                          "description": "Skill runtime requirements"
                         },
                         "instructions": {
                           "type": "string",

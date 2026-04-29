@@ -27,12 +27,14 @@ const GetSkillResponseSchema = z
     .strict()
     .describe('Get skill response');
 
-function serializeSkillSummary(skill: unknown) {
-    return SkillSummarySchema.parse(JSON.parse(JSON.stringify(skill)));
+function serializeSkillSummary(skill: z.input<typeof SkillSummarySchema>) {
+    const { id, displayName, description } = skill;
+    return SkillSummarySchema.parse({ id, displayName, description });
 }
 
-function serializeSkillDocument(skill: unknown) {
-    return SkillDocumentSchema.parse(JSON.parse(JSON.stringify(skill)));
+function serializeSkillDocument(skill: z.input<typeof SkillDocumentSchema>) {
+    const { id, displayName, description, instructions } = skill;
+    return SkillDocumentSchema.parse({ id, displayName, description, instructions });
 }
 
 const listRoute = createRoute({

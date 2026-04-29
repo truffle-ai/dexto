@@ -1,13 +1,7 @@
-export interface SkillRequirement {
-    type: 'toolkit';
-    name: string;
-}
-
 export interface SkillSummary {
     id: string;
     displayName: string;
     description?: string | undefined;
-    requirements?: SkillRequirement[] | undefined;
 }
 
 export interface SkillDocument extends SkillSummary {

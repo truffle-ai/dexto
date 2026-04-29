@@ -768,23 +768,11 @@ export type Workspace = z.output<typeof WorkspaceSchema>;
 
 // --- Skill Schemas ---
 
-export const SkillRequirementSchema = z
-    .object({
-        type: z.literal('toolkit').describe('Requirement type'),
-        name: z.string().describe('Required toolkit name'),
-    })
-    .strict()
-    .describe('Skill requirement');
-
 export const SkillSummarySchema = z
     .object({
         id: z.string().describe('Skill identifier'),
         displayName: z.string().describe('Human-readable skill name'),
         description: z.string().optional().describe('Skill description'),
-        requirements: z
-            .array(SkillRequirementSchema)
-            .optional()
-            .describe('Skill runtime requirements'),
     })
     .strict()
     .describe('Skill catalog entry');

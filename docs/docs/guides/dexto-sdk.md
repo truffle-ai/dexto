@@ -22,7 +22,8 @@ The SDK is built around a few core concepts:
 - **DextoAgent**: The main class for creating and managing agents.
 - **MCPManager**: A utility for managing MCP server connections.
 - **LLMService**: A service for interacting with large language models.
-- **StorageBackends**: A set of backends for persisting agent data.
+- **DextoStores**: Typed stores for conversations, sessions, memory, artifacts, workspaces, tools,
+  and runtime state. Images or hosts decide which backend implementations power those stores.
 
 ## Example Usage
 
