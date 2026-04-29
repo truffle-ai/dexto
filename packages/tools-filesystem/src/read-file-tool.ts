@@ -9,6 +9,8 @@ import { createLocalToolCallHeader, defineTool, truncateForHeader } from '@dexto
 import type { FileDisplayData, Tool, ToolExecutionContext } from '@dexto/core/tools';
 import type { FileSystemServiceGetter } from './file-tool-types.js';
 import { createDirectoryAccessApprovalHandlers, resolveFilePath } from './directory-approval.js';
+import type { ReadFileOptions } from './types.js';
+import { toWorkspaceRelativePath } from './workspace-paths.js';
 
 const ReadFileInputSchema = z
     .object({
@@ -59,25 +61,29 @@ export function createReadFileTool(
         }),
 
         async execute(input, context: ToolExecutionContext) {
-            const resolvedFileSystemService = await getFileSystemService(context);
+            if (!context.services) {
+                throw new Error('read_file requires ToolExecutionContext.services');
+            }
+            const handle = await context.services.workspaceManager.open({ intent: 'read' });
+            if (typeof handle.files.readText !== 'function') {
+                throw new Error(`Workspace file read unavailable: ${input.file_path}`);
+            }
 
-            // Input is validated by provider before reaching here
-            const { file_path, limit, offset } = input;
-            const { path: resolvedPath } = resolveFilePath(
-                resolvedFileSystemService.getWorkingDirectory(),
-                file_path
+            const workspacePath = toWorkspaceRelativePath(
+                'read_file',
+                handle.context.path,
+                input.file_path
             );
-
-            // Read file using FileSystemService
-            const result = await resolvedFileSystemService.readFile(resolvedPath, {
-                limit,
-                offset,
+            const content = await handle.files.readText(workspacePath);
+            const result = applyLineWindow(content, {
+                limit: input.limit,
+                offset: input.offset,
             });
 
             // Build display data
             const _display: FileDisplayData = {
                 type: 'file',
-                path: resolvedPath,
+                path: input.file_path,
                 operation: 'read',
                 size: result.size,
                 lineCount: result.lines,
@@ -89,9 +95,41 @@ export function createReadFileTool(
                 encoding: result.encoding,
                 truncated: result.truncated,
                 size: result.size,
-                ...(result.mimeType && { mimeType: result.mimeType }),
                 _display,
             };
         },
     });
+}
+
+function applyLineWindow(
+    content: string,
+    options: ReadFileOptions
+): {
+    content: string;
+    lines: number;
+    encoding: string;
+    truncated: boolean;
+    size: number;
+} {
+    const lines = content.split('\n');
+    if (!options.offset && options.limit === undefined) {
+        return {
+            content,
+            lines: lines.length,
+            encoding: 'utf-8',
+            truncated: false,
+            size: Buffer.byteLength(content, 'utf-8'),
+        };
+    }
+
+    const start = options.offset && options.offset > 0 ? Math.max(0, options.offset - 1) : 0;
+    const end = options.limit !== undefined ? start + options.limit : lines.length;
+    const selectedContent = lines.slice(start, end).join('\n');
+    return {
+        content: selectedContent,
+        lines: selectedContent.length > 0 ? selectedContent.split('\n').length : 0,
+        encoding: 'utf-8',
+        truncated: end < lines.length,
+        size: Buffer.byteLength(selectedContent, 'utf-8'),
+    };
 }

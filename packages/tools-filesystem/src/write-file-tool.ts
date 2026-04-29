@@ -24,6 +24,7 @@ import { FileSystemErrorCode } from './error-codes.js';
 import { BufferEncoding } from './types.js';
 import type { FileSystemServiceGetter } from './file-tool-types.js';
 import { createDirectoryAccessApprovalHandlers, resolveFilePath } from './directory-approval.js';
+import { isWorkspaceFileNotFound, toWorkspaceRelativePath } from './workspace-paths.js';
 
 /**
  * Cache for content hashes between preview and execute phases.
@@ -190,12 +191,11 @@ export function createWriteFileTool(
         },
 
         async execute(input, context: ToolExecutionContext) {
-            const resolvedFileSystemService = await getFileSystemService(context);
-
-            // Input is validated by provider before reaching here
             const { file_path, content, create_dirs, encoding } = input;
-            const { path: resolvedPath } = resolveFilePath(
-                resolvedFileSystemService.getWorkingDirectory(),
+            const handle = await openWorkspace(context, 'write_file');
+            const workspacePath = toWorkspaceRelativePath(
+                'write_file',
+                handle.context.path,
                 file_path
             );
 
@@ -205,22 +205,14 @@ export function createWriteFileTool(
             let fileExistsNow = false;
 
             try {
-                const originalFile = await resolvedFileSystemService.readFile(resolvedPath);
-                originalContent = originalFile.content;
+                originalContent = await handle.files.readText(workspacePath);
                 fileExistsNow = true;
             } catch (error) {
-                // Only treat FILE_NOT_FOUND as "create new file", rethrow other errors
-                if (
-                    error instanceof DextoRuntimeError &&
-                    error.code === FileSystemErrorCode.FILE_NOT_FOUND
-                ) {
-                    // File doesn't exist - this is a create operation
-                    originalContent = null;
-                    fileExistsNow = false;
-                } else {
-                    // Permission denied, I/O errors, etc. - rethrow
+                if (!isWorkspaceFileNotFound(error)) {
                     throw error;
                 }
+                originalContent = null;
+                fileExistsNow = false;
             }
 
             // Verify file hasn't changed since preview
@@ -231,13 +223,13 @@ export function createWriteFileTool(
                 if (expectedHash === FILE_NOT_EXISTS_MARKER) {
                     // File didn't exist at preview time - verify it still doesn't exist
                     if (fileExistsNow) {
-                        throw ToolError.fileModifiedSincePreview('write_file', resolvedPath);
+                        throw ToolError.fileModifiedSincePreview('write_file', file_path);
                     }
                 } else if (expectedHash !== null) {
                     // File existed at preview time - verify content hasn't changed
                     if (!fileExistsNow) {
                         // File was deleted between preview and execute
-                        throw ToolError.fileModifiedSincePreview('write_file', resolvedPath);
+                        throw ToolError.fileModifiedSincePreview('write_file', file_path);
                     }
                     if (originalContent === null) {
                         throw ToolError.executionFailed(
@@ -247,17 +239,13 @@ export function createWriteFileTool(
                     }
                     const currentHash = computeContentHash(originalContent);
                     if (expectedHash !== currentHash) {
-                        throw ToolError.fileModifiedSincePreview('write_file', resolvedPath);
+                        throw ToolError.fileModifiedSincePreview('write_file', file_path);
                     }
                 }
             }
 
-            // Write file using FileSystemService
-            // Backup behavior is controlled by config.enableBackups (default: false)
-            const result = await resolvedFileSystemService.writeFile(resolvedPath, content, {
-                createDirs: create_dirs,
-                encoding: encoding as BufferEncoding,
-            });
+            await handle.files.writeFile(workspacePath, content, { createDirs: create_dirs });
+            const bytesWritten = Buffer.byteLength(content, encoding as BufferEncoding);
 
             // Build display data based on operation type
             let _display: DiffDisplayData | FileDisplayData;
@@ -268,24 +256,30 @@ export function createWriteFileTool(
                 _display = {
                     type: 'file',
                     title: 'Create file',
-                    path: resolvedPath,
+                    path: file_path,
                     operation: 'create',
-                    size: result.bytesWritten,
+                    size: bytesWritten,
                     lineCount,
                     content,
                 };
             } else {
                 // File overwrite - generate diff using shared helper
-                _display = generateDiffPreview(resolvedPath, originalContent, content);
+                _display = generateDiffPreview(file_path, originalContent, content);
             }
 
             return {
-                success: result.success,
-                path: result.path,
-                bytes_written: result.bytesWritten,
-                ...(result.backupPath && { backup_path: result.backupPath }),
+                success: true,
+                path: file_path,
+                bytes_written: bytesWritten,
                 _display,
             };
         },
     });
+}
+
+async function openWorkspace(context: ToolExecutionContext, toolName: string) {
+    if (!context.services) {
+        throw new Error(`${toolName} requires ToolExecutionContext.services`);
+    }
+    return context.services.workspaceManager.open({ intent: 'write' });
 }

@@ -19,6 +19,7 @@ import type { DiffDisplayData, Tool, ToolExecutionContext } from '@dexto/core/to
 import type { FileSystemServiceGetter } from './file-tool-types.js';
 import { FileSystemErrorCode } from './error-codes.js';
 import { createDirectoryAccessApprovalHandlers, resolveFilePath } from './directory-approval.js';
+import { toWorkspaceRelativePath } from './workspace-paths.js';
 
 /**
  * Cache for content hashes between preview and execute phases.
@@ -197,17 +198,17 @@ export function createEditFileTool(
         },
 
         async execute(input, context: ToolExecutionContext) {
-            const resolvedFileSystemService = await getFileSystemService(context);
-
-            // Input is validated by provider before reaching here
             const { file_path, old_string, new_string, replace_all } = input;
-            const { path: resolvedPath } = resolveFilePath(
-                resolvedFileSystemService.getWorkingDirectory(),
+            const handle = await openWorkspace(context, 'edit_file');
+            const workspacePath = toWorkspaceRelativePath(
+                'edit_file',
+                handle.context.path,
                 file_path
             );
 
             // Check if file was modified since preview (safety check)
             // This prevents corrupting user edits made between preview approval and execution
+            let currentContent = await handle.files.readText(workspacePath);
             const toolCallId = context.toolCallId;
             if (toolCallId) {
                 const expectedHash = previewContentHashCache.get(toolCallId);
@@ -218,51 +219,59 @@ export function createEditFileTool(
                     previewContentHashCache.delete(toolCallId); // Clean up regardless of outcome
 
                     // Read current content to verify it hasn't changed
-                    let currentContent: string;
                     try {
-                        const currentFile = await resolvedFileSystemService.readFile(resolvedPath);
-                        currentContent = currentFile.content;
-                    } catch (error) {
+                        currentContent = await handle.files.readText(workspacePath);
+                    } catch {
                         // File was deleted between preview and execute - treat as modified
-                        if (
-                            error instanceof DextoRuntimeError &&
-                            error.code === FileSystemErrorCode.FILE_NOT_FOUND
-                        ) {
-                            throw ToolError.fileModifiedSincePreview('edit_file', resolvedPath);
-                        }
-                        throw error;
+                        throw ToolError.fileModifiedSincePreview('edit_file', file_path);
                     }
                     const currentHash = computeContentHash(currentContent);
 
                     if (expectedHash !== currentHash) {
-                        throw ToolError.fileModifiedSincePreview('edit_file', resolvedPath);
+                        throw ToolError.fileModifiedSincePreview('edit_file', file_path);
                     }
                 }
             }
 
-            // Edit file using FileSystemService
-            // Backup behavior is controlled by config.enableBackups (default: false)
-            // editFile returns originalContent and newContent, eliminating extra file reads
-            const result = await resolvedFileSystemService.editFile(resolvedPath, {
-                oldString: old_string,
-                newString: new_string,
-                replaceAll: replace_all,
-            });
+            const occurrences = currentContent.split(old_string).length - 1;
+            if (occurrences === 0) {
+                throw ToolError.validationFailed(
+                    'edit_file',
+                    `String not found in file: "${old_string.slice(0, 50)}${old_string.length > 50 ? '...' : ''}"`,
+                    {
+                        file_path,
+                        old_string_preview: old_string.slice(0, 100),
+                    }
+                );
+            }
+            if (!replace_all && occurrences > 1) {
+                throw ToolError.validationFailed(
+                    'edit_file',
+                    `String found ${occurrences} times in file. Set replace_all=true to replace all, or provide more context to make old_string unique.`,
+                    { file_path, occurrences }
+                );
+            }
 
-            // Generate display data using content returned from editFile
-            const _display = generateDiffPreview(
-                resolvedPath,
-                result.originalContent,
-                result.newContent
-            );
+            const newContent = replace_all
+                ? currentContent.split(old_string).join(new_string)
+                : currentContent.replace(old_string, new_string);
+            await handle.files.writeFile(workspacePath, newContent, { createDirs: false });
+
+            const _display = generateDiffPreview(file_path, currentContent, newContent);
 
             return {
-                success: result.success,
-                path: result.path,
-                changes_count: result.changesCount,
-                ...(result.backupPath && { backup_path: result.backupPath }),
+                success: true,
+                path: file_path,
+                changes_count: occurrences,
                 _display,
             };
         },
     });
+}
+
+async function openWorkspace(context: ToolExecutionContext, toolName: string) {
+    if (!context.services) {
+        throw new Error(`${toolName} requires ToolExecutionContext.services`);
+    }
+    return context.services.workspaceManager.open({ intent: 'write' });
 }

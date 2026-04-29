@@ -23,6 +23,7 @@ import {
     type ToolExecutionContext,
 } from '@dexto/core';
 import { InMemoryDextoStores } from '@dexto/core/storage';
+import { WorkspaceError } from '@dexto/core/workspace';
 import { FileSystemService } from './filesystem-service.js';
 import { createReadFileTool } from './read-file-tool.js';
 import { createWriteFileTool } from './write-file-tool.js';
@@ -55,8 +56,10 @@ const createMockLogger = (): Logger => {
 function createToolContext(
     logger: Logger,
     approval: ApprovalManager,
-    sessionId?: string
+    sessionId?: string,
+    workspacePath?: string
 ): ToolExecutionContext {
+    const workspaceRoot = workspacePath ?? tempWorkspaceRoot;
     return {
         logger,
         ...(sessionId !== undefined ? { sessionId } : {}),
@@ -65,10 +68,60 @@ function createToolContext(
             search: {} as unknown as ToolServices['search'],
             resources: {} as unknown as ToolServices['resources'],
             prompts: {} as unknown as ToolServices['prompts'],
+            skills: {} as unknown as ToolServices['skills'],
             mcp: {} as unknown as ToolServices['mcp'],
             taskForker: null,
+            workspaceManager: createWorkspaceManager(workspaceRoot),
         },
     };
+}
+
+let tempWorkspaceRoot = process.cwd();
+
+function createWorkspaceManager(workspaceRoot: string): ToolServices['workspaceManager'] {
+    return {
+        open: async () => ({
+            context: {
+                id: 'test-workspace',
+                path: workspaceRoot,
+                createdAt: Date.now(),
+                lastActiveAt: Date.now(),
+            },
+            capabilities: ['files'],
+            files: {
+                readFile: async (filePath: string) => {
+                    const resolved = resolveWorkspacePath(workspaceRoot, filePath);
+                    return readWorkspaceFile(resolved, filePath);
+                },
+                readText: async (filePath: string) => {
+                    const resolved = resolveWorkspacePath(workspaceRoot, filePath);
+                    return readWorkspaceFile(resolved, filePath);
+                },
+                writeFile: async (filePath: string, content: string) => {
+                    const resolved = resolveWorkspacePath(workspaceRoot, filePath);
+                    await fs.mkdir(path.dirname(resolved), { recursive: true });
+                    await fs.writeFile(resolved, content, 'utf8');
+                },
+                glob: vi.fn(async () => []),
+                listFiles: vi.fn(async () => []),
+            },
+        }),
+    } as unknown as ToolServices['workspaceManager'];
+}
+
+function resolveWorkspacePath(workspaceRoot: string, filePath: string): string {
+    return path.isAbsolute(filePath) ? filePath : path.join(workspaceRoot, filePath);
+}
+
+async function readWorkspaceFile(resolvedPath: string, filePath: string): Promise<string> {
+    try {
+        return await fs.readFile(resolvedPath, 'utf8');
+    } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+            throw WorkspaceError.fileNotFound(filePath);
+        }
+        throw error;
+    }
 }
 
 describe('Directory Approval Integration Tests', () => {
@@ -100,6 +153,7 @@ describe('Directory Approval Integration Tests', () => {
             mockLogger
         );
         await fileSystemService.initialize();
+        tempWorkspaceRoot = tempDir;
 
         approvalManager = new ApprovalManager(
             {
@@ -354,7 +408,7 @@ describe('Directory Approval Integration Tests', () => {
                             file_path: externalFile,
                             content: 'session-scoped write',
                         }),
-                        createToolContext(mockLogger, approvalManager, 'session-a')
+                        createToolContext(mockLogger, approvalManager, 'session-a', externalDir)
                     )
                 ).resolves.toEqual(
                     expect.objectContaining({
@@ -367,15 +421,20 @@ describe('Directory Approval Integration Tests', () => {
                     'session-scoped write'
                 );
 
+                const blockedInput = writeTool!.inputSchema.parse({
+                    file_path: path.join(externalDir, 'blocked.txt'),
+                    content: 'should fail',
+                });
                 await expect(
-                    writeTool!.execute!(
-                        writeTool!.inputSchema.parse({
-                            file_path: path.join(externalDir, 'blocked.txt'),
-                            content: 'should fail',
-                        }),
+                    writeTool!.approval!.override!(
+                        blockedInput,
                         createToolContext(mockLogger, approvalManager, 'session-b')
                     )
-                ).rejects.toBeInstanceOf(DextoRuntimeError);
+                ).resolves.toEqual(
+                    expect.objectContaining({
+                        type: 'directory_access',
+                    })
+                );
             } finally {
                 await fs.rm(externalDir, { recursive: true, force: true });
             }
@@ -405,9 +464,8 @@ describe('Directory Approval Integration Tests', () => {
             const readTool = tools.find((tool) => tool.id === 'read_file');
             expect(readTool).toBeDefined();
 
-            const baseContext = createToolContext(mockLogger, approvalManager);
             const contextA: ToolExecutionContext = {
-                ...baseContext,
+                ...createToolContext(mockLogger, approvalManager, 'session-a', workspaceA),
                 sessionId: 'session-a',
                 workspace: {
                     id: 'workspace-a',
@@ -417,7 +475,7 @@ describe('Directory Approval Integration Tests', () => {
                 },
             };
             const contextB: ToolExecutionContext = {
-                ...baseContext,
+                ...createToolContext(mockLogger, approvalManager, 'session-b', workspaceB),
                 sessionId: 'session-b',
                 workspace: {
                     id: 'workspace-b',
@@ -485,7 +543,12 @@ describe('Directory Approval Integration Tests', () => {
                 setDirectoryApprovalChecker: vi.fn(),
             };
 
-            const baseContext = createToolContext(mockLogger, approvalManager, 'session-a');
+            const baseContext = createToolContext(
+                mockLogger,
+                approvalManager,
+                'session-a',
+                workspace
+            );
             const context: ToolExecutionContext = {
                 ...baseContext,
                 workspace: {
