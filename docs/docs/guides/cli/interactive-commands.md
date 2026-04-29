@@ -67,12 +67,25 @@ Start an interactive session with `dexto` (Web UI) or `dexto --mode cli` (termin
 
 ## Prompts
 
+Prompts are prompt-only templates. They are user-invoked slash commands from config, command files,
+custom prompt storage, or MCP servers.
+
 | Command | Description |
 |---------|-------------|
 | `/prompts` | List all prompts |
 | `/use <prompt> [args]` | Execute a prompt |
 | `/<prompt-name>` | Execute prompt directly |
 | `/docs` | Open documentation |
+
+## Skills
+
+Skills are first-class capabilities backed by `SkillManager`, not prompts. The model can use them
+through skill tools when enabled, and users can inspect the catalog separately.
+
+| Command | Description |
+|---------|-------------|
+| `/skills` | List available skills |
+| `/skills <skill-id>` | Read a skill document |
 
 ## Keyboard Shortcuts
 

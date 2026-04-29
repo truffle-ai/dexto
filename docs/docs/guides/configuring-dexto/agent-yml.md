@@ -87,7 +87,7 @@ permissions:
       - ask_user
       - mcp--filesystem--read_file
 
-# Storage
+# Store input for the active image
 storage:
   cache:
     type: in-memory
@@ -429,7 +429,11 @@ mcpServers:
 For detailed storage options and examples, see **[Storage Configuration Guide](./storage)**.
 :::
 
-Storage backends for cache, database, and blob storage.
+Storage input for the active image. Core receives a connected `DextoStores`; the image decides how
+this config maps to concrete stores through `storage.createStores(...)`.
+
+The schema below is the local image shape. Hosted images can use hosted store implementations
+instead of exposing local backend details.
 
 ### Schema
 
@@ -443,7 +447,7 @@ storage:
     type: in-memory | local
 ```
 
-### Cache Types
+### Local Image Cache Types
 
 ```yaml
 # In-Memory
@@ -466,7 +470,7 @@ cache:
   idleTimeoutMillis: number
 ```
 
-### Database Types
+### Local Image Database Types
 
 ```yaml
 # In-Memory
@@ -493,7 +497,7 @@ database:
   maxConnections: number
 ```
 
-### Blob Storage Types
+### Local Image Artifact Storage Types
 
 ```yaml
 # In-Memory
@@ -818,7 +822,8 @@ Runtime configuration changes and environment overrides.
 
 ## Agent ID
 
-Unique identifier for this agent instance, used for per-agent isolation of logs, database, and blob storage.
+Unique identifier for this agent instance, used for per-agent isolation of logs and local image
+store paths.
 
 :::tip CLI Auto-Derives
 The CLI automatically derives the agent ID from your `agentCard.name` or config filename. You rarely need to set this manually.
@@ -858,7 +863,12 @@ Use this when you need explicit control over storage isolation or have multiple 
 
 ## Prompts
 
-Reusable prompts that can be defined inline or loaded from markdown files. Prompts with `showInStarters: true` appear as clickable buttons in the WebUI.
+Reusable prompt-only templates that can be defined inline or loaded from markdown files. Prompts
+with `showInStarters: true` appear as clickable buttons in the WebUI.
+
+Skills are separate first-class capabilities loaded by `SkillManager`. Do not add skills to
+`prompts`; put skills in `skills/<id>/SKILL.md` directories or provide a `SkillSource` through the
+active image.
 
 ### Schema
 

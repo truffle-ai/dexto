@@ -1,14 +1,16 @@
 # `@dexto/storage`
 
-Concrete storage backend implementations (blob store, database, cache) and their config schemas.
+Concrete Node storage helpers and config schemas for images that choose to build `DextoStores`
+from local backends.
 
 Core (`@dexto/core`) owns typed domain store contracts such as `ConversationStore`,
 `SessionStore`, `MemoryStore`, `ArtifactStore`, and `ToolStateStore`. This package provides Node
-backend implementations (`BlobStore`, `Database`, `Cache`) that image implementations can use
-internally to compose a `DextoStores` implementation.
+backend implementations that image implementations can use internally to compose a `DextoStores`
+implementation.
 
 Product layers (CLI/server/apps) can either use these helpers inside an image or provide a
-native `DextoStores` implementation directly.
+native `DextoStores` implementation directly. Core code should depend on typed stores, not these
+backend helper classes.
 
 ## What this package exports
 

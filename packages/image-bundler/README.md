@@ -4,6 +4,8 @@ Bundler for convention-based Dexto images.
 
 It consumes a `dexto.image.ts` (metadata + defaults) and a convention folder layout (tools/hooks/compaction),
 then produces a distributable package that **default-exports a typed `DextoImage`** (no side effects, no registries).
+The image is the boundary where tools, stores, workspace handles, and skill sources are supplied to
+hosts.
 
 ## CLI
 
@@ -36,6 +38,8 @@ The generated default export matches `@dexto/agent-config`’s `DextoImage` inte
 - `tools`, `hooks`, `compaction` factory maps (keyed by config `type`)
 - `storage.createStores` inherited from the base image, or a generated placeholder for custom base images
 - `logger` factory
+- optional `workspace.create` for `WorkspaceHandleProvider`
+- optional `skills.create` for `SkillSource` instances consumed by `SkillManager`
 
 ## Related
 

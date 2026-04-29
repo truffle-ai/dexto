@@ -12,8 +12,10 @@ Dexto's architecture is built around core services that handle different aspects
 | **MCPManager** | Tool coordination | Connects to MCP servers, manages tools and resources |
 | **ToolManager** | Tool execution | Executes tools, handles confirmations, manages internal tools |
 | **SessionManager** | Conversation state | Manages chat sessions, conversation history |
-| **DextoStores** | Data persistence | Provides typed stores for conversations, sessions, memory, artifacts, tools, and runtime state |
+| **DextoStores** | Data persistence | Provides typed stores for conversations, sessions, memory, artifacts, tools, workspaces, and runtime state |
 | **SystemPromptManager** | System prompts | Manages system prompt assembly and dynamic content |
+| **PromptManager** | Prompts | Manages prompt-only slash commands and MCP prompt templates |
+| **SkillManager** | Skills | Lists and reads first-class skills for tools, CLI commands, and API catalog endpoints |
 | **AgentEventBus** | Event coordination | Handles inter-service communication |
 
 ## Service Relationships
@@ -25,6 +27,8 @@ graph TB
     DA --> MM[MCPManager]
     DA --> TM[ToolManager]
     DA --> SPM[SystemPromptManager]
+    DA --> PM[PromptManager]
+    DA --> SK[SkillManager]
     DA --> DS[DextoStores]
     DA --> AEB[AgentEventBus]
 
@@ -32,21 +36,25 @@ graph TB
     TM --> DS
     SM --> DS
     SPM --> DS
+    PM --> DS
+    SK --> DS
+
+    subgraph "Typed Store Layer"
+        DS
+        Conversation[(ConversationStore)]
+        Sessions[(SessionStore)]
+        Artifacts[(ArtifactStore)]
+        Workspaces[(WorkspaceStore)]
+    end
+
+    DS --> Conversation
+    DS --> Sessions
+    DS --> Artifacts
+    DS --> Workspaces
 
     AEB -.-> SM
     AEB -.-> MM
     AEB -.-> TM
-
-    subgraph "Storage Layer"
-        DS
-        Cache[(Cache)]
-        DB[(Database)]
-        Blob[(Blob Store)]
-    end
-
-    DS --> Cache
-    DS --> DB
-    DS --> Blob
 ```
 </ExpandableMermaid>
 
@@ -169,33 +177,48 @@ console.log(response.content);
 **Data persistence** through typed domain stores.
 
 Core services depend on narrow stores such as `ConversationStore`, `SessionStore`, `MemoryStore`,
-`ArtifactStore`, and `ToolStateStore`. Product/image layers still configure low-level cache,
-database, and blob backends, and `@dexto/agent-config` composes them into a `DextoStores`
-implementation for the agent.
+`ArtifactStore`, `WorkspaceStore`, and `ToolStateStore`. Core consumes only these typed stores.
+Images own the runtime storage implementation and expose it with one
+`storage.createStores(config.storage, logger, context)` call.
 
-### Backend Tiers
-- **Cache** - Fast, ephemeral (Redis or in-memory)
-- **Database** - Persistent, reliable (PostgreSQL, SQLite)
-- **Blob store** - Artifact/resource data (local or in-memory)
-
-### Backends
-| Backend | Use Case | Configuration |
-|---------|----------|---------------|
-| **in-memory** | Development, testing | No config needed |
-| **sqlite** | Single instance, persistence | `path: ./data/dexto.db` |
-| **postgres** | Production, scaling | `connectionString: $POSTGRES_URL` |
-| **redis** | Fast caching | `url: $REDIS_URL` |
+Hosts can use the local image for filesystem-backed local stores or inject hosted store
+implementations for server/cloud runtimes. Core does not know whether a store is backed by
+SQLite, Postgres, Durable Objects, object storage, or memory.
 
 ### Usage Pattern
-```yaml
-storage:
-  cache:
-    type: redis                    # Fast access
-    url: $REDIS_URL
-  database:
-    type: postgres                 # Persistent storage
-    connectionString: $POSTGRES_CONNECTION_STRING
+```ts
+const services = await resolveServicesFromConfig(config, image, hostContext);
+const agent = new DextoAgent(toDextoAgentOptions({ config, services, image, hostContext }));
 ```
+
+## PromptManager
+
+**Prompt-only** slash commands and MCP prompt templates.
+
+Prompts are user-invoked templates. They can come from agent config, command markdown files, custom
+prompt storage, or connected MCP servers. They are not skills, and they are not auto-invoked by the
+model as capabilities.
+
+### Usage Example
+```yaml
+prompts:
+  - type: inline
+    id: quick-start
+    prompt: "Show me what you can do and how to work with you"
+    showInStarters: true
+```
+
+## SkillManager
+
+**First-class skill catalog** for agent capabilities.
+
+Skills are discovered from skill sources, exposed through `agent.skillManager`, and used by
+`read_skill` / `invoke_skill` tools when enabled. They are listed separately from prompts in the
+CLI with `/skills` and through the server catalog API at `GET /api/skills` and
+`GET /api/skills/{id}`.
+
+Skills are not prompt templates. Do not add skills to `prompts`; put them in skill directories or
+provide a `SkillSource` through the active image.
 
 ## SystemPromptManager
 
@@ -253,12 +276,13 @@ agent.on('llm:response', (event) => {
 
 Services are initialized automatically when `DextoAgent.start()` is called:
 
-1. **Storage** - Cache and database connections
+1. **Stores** - Typed store connection
 2. **Events** - Event bus setup
-3. **Prompts** - System prompt assembly
-4. **MCP** - Server connections
-5. **Tools** - Tool discovery and validation
-6. **Sessions** - Session management ready
+3. **Prompts and skills** - PromptManager and SkillManager setup
+4. **System prompt** - Contributor assembly
+5. **MCP** - Server connections
+6. **Tools** - Tool discovery and validation
+7. **Sessions** - Session management ready
 
 ## Debugging Services
 
@@ -286,9 +310,9 @@ const sessions = await agent.services.stores.getStore('sessions').listSessionIds
 
 ### Common Issues
 - **MCP connection failures** - Check command paths, network access
-- **Storage errors** - Verify database/Redis connections
+- **Store errors** - Verify the active image or host injected a connected `DextoStores`
 - **Tool execution timeouts** - Increase timeout in server config
-- **Session persistence issues** - Check database backend health
+- **Session persistence issues** - Check the active session and conversation stores
 
 ## Service Configuration
 
@@ -302,7 +326,7 @@ mcpServers:
     command: npx
     timeout: 30000
 
-# Storage backends
+# Store configuration for the active image
 storage:
   cache:
     type: redis

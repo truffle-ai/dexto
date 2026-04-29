@@ -46,18 +46,30 @@ Now load it:
 ```typescript
 import { DextoAgent } from '@dexto/core';
 import { loadAgentConfig, enrichAgentConfig } from '@dexto/agent-management';
+import {
+  AgentConfigSchema,
+  applyImageDefaults,
+  resolveServicesFromConfig,
+  toDextoAgentOptions,
+} from '@dexto/agent-config';
+import imageLocal from '@dexto/image-local';
 
-const config = await loadAgentConfig('my-agent.yml');
-const enriched = enrichAgentConfig(config, 'my-agent.yml');
+const rawConfig = await loadAgentConfig('my-agent.yml');
+const withDefaults = applyImageDefaults(rawConfig, imageLocal.defaults);
+const enriched = enrichAgentConfig(withDefaults, 'my-agent.yml');
 
-const agent = new DextoAgent(enriched, 'my-agent.yml');
+const config = AgentConfigSchema.parse(enriched);
+const services = await resolveServicesFromConfig(config, imageLocal);
+const agent = new DextoAgent(toDextoAgentOptions({ config, services }));
 await agent.start();
 ```
 
-**That's it.** Your config is now external, shareable, and version-controlled separately from your code.
+Your config is now external, shareable, and version-controlled separately from your code. The
+image resolves concrete tools, stores, skills, workspace access, logging, hooks, and compaction
+before the agent starts.
 
 ```bash
-npm install @dexto/agent-management
+npm install @dexto/core @dexto/agent-management @dexto/agent-config @dexto/image-local
 ```
 
 ## What These Functions Do
@@ -114,10 +126,13 @@ Load whichever you need:
 ```typescript
 async function createAgent(type: string): Promise<DextoAgent> {
   const path = `agents/${type}.yml`;
-  const config = await loadAgentConfig(path);
-  const enriched = enrichAgentConfig(config, path);
+  const rawConfig = await loadAgentConfig(path);
+  const withDefaults = applyImageDefaults(rawConfig, imageLocal.defaults);
+  const enriched = enrichAgentConfig(withDefaults, path);
 
-  const agent = new DextoAgent(enriched, path);
+  const config = AgentConfigSchema.parse(enriched);
+  const services = await resolveServicesFromConfig(config, imageLocal);
+  const agent = new DextoAgent(toDextoAgentOptions({ config, services }));
   await agent.start();
   return agent;
 }
@@ -141,11 +156,14 @@ const agent = await createAgent('coding-agent');
 **Hybrid approach**—load a file, override at runtime:
 
 ```typescript
-const config = await loadAgentConfig('base-agent.yml');
-config.llm.model = process.env.USE_ADVANCED ? 'gpt-4o' : 'gpt-4o-mini';
+const rawConfig = await loadAgentConfig('base-agent.yml');
+rawConfig.llm.model = process.env.USE_ADVANCED ? 'gpt-4o' : 'gpt-4o-mini';
 
-const enriched = enrichAgentConfig(config, 'base-agent.yml');
-const agent = new DextoAgent(enriched, 'base-agent.yml');
+const withDefaults = applyImageDefaults(rawConfig, imageLocal.defaults);
+const enriched = enrichAgentConfig(withDefaults, 'base-agent.yml');
+const config = AgentConfigSchema.parse(enriched);
+const services = await resolveServicesFromConfig(config, imageLocal);
+const agent = new DextoAgent(toDextoAgentOptions({ config, services }));
 ```
 
 ## What's Next?

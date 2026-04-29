@@ -3,8 +3,8 @@ import { client } from '@/lib/client';
 import { queryKeys } from '@/lib/queryKeys';
 
 /**
- * Hook to fetch available factories and capabilities.
- * Returns storage factories, compaction strategy factories, tool factories, and built-in tools.
+ * Hook to fetch available extension points and capabilities.
+ * Returns storage options, compaction strategy factories, tool factories, and built-in tools.
  */
 export function useDiscovery(enabled: boolean = true) {
     return useQuery({

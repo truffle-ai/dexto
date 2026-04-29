@@ -8,7 +8,8 @@ use `@dexto/agent-config` to:
 - validate agent config (`AgentConfigSchema`)
 - load an image module (`loadImage()`)
 - merge image defaults into raw config (`applyImageDefaults()`)
-- resolve factories from the image into concrete instances (`resolveServicesFromConfig()`)
+- resolve image factories into concrete stores, workspace handles, skills, tools, hooks, and logger
+  instances (`resolveServicesFromConfig()`)
 - convert the result into `DextoAgentOptions` (`toDextoAgentOptions()`)
 
 ## Quick example (apps)
@@ -75,3 +76,10 @@ Tool/hook/compaction resolution still uses property access by config `type`
 `createStores(config.storage, ...)` call so images can compose or directly implement
 `DextoStores` without exposing lower-level backend construction details. There are no global
 registries or side effects.
+
+Images may also provide:
+
+- `workspace.create(...)`: returns a `WorkspaceHandleProvider`. Local images usually return local
+  filesystem handles; hosted images can return handles backed by their own workspace runtime.
+- `skills.create(...)`: returns `SkillSource` instances consumed by `SkillManager`. Skills stay out
+  of prompt config; prompts remain prompt-only.
