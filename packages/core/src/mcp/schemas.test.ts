@@ -106,7 +106,7 @@ describe('MCP Schemas', () => {
                 };
                 const result = StdioServerConfigSchema.safeParse(invalidConfig);
                 expect(result.success).toBe(false);
-                expect(result.error?.issues[0]?.code).toBe(z.ZodIssueCode.invalid_enum_value);
+                expect(result.error?.issues[0]?.code).toBe(z.ZodIssueCode.invalid_value);
                 expect(result.error?.issues[0]?.path).toEqual(['connectionMode']);
             });
 
@@ -257,7 +257,7 @@ describe('MCP Schemas', () => {
                 };
                 const result = SseServerConfigSchema.safeParse(invalidConfig);
                 expect(result.success).toBe(false);
-                expect(result.error?.issues[0]?.code).toBe(z.ZodIssueCode.invalid_enum_value);
+                expect(result.error?.issues[0]?.code).toBe(z.ZodIssueCode.invalid_value);
                 expect(result.error?.issues[0]?.path).toEqual(['connectionMode']);
             });
 
@@ -403,7 +403,7 @@ describe('MCP Schemas', () => {
                 };
                 const result = HttpServerConfigSchema.safeParse(invalidConfig);
                 expect(result.success).toBe(false);
-                expect(result.error?.issues[0]?.code).toBe(z.ZodIssueCode.invalid_enum_value);
+                expect(result.error?.issues[0]?.code).toBe(z.ZodIssueCode.invalid_value);
                 expect(result.error?.issues[0]?.path).toEqual(['connectionMode']);
             });
 

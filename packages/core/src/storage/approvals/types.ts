@@ -10,7 +10,7 @@ export const PersistedApprovedDirectorySchema = z
 
 export const SessionApprovalStateSchema = z
     .object({
-        toolPatterns: z.record(z.array(z.string())).default({}),
+        toolPatterns: z.record(z.string(), z.array(z.string())).default({}),
         approvedDirectories: z.array(PersistedApprovedDirectorySchema).default([]),
     })
     .strict();

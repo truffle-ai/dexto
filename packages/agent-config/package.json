@@ -1,6 +1,6 @@
 {
   "name": "@dexto/agent-config",
-  "version": "1.6.26",
+  "version": "1.7.1",
   "private": false,
   "type": "module",
   "main": "./dist/index.js",
@@ -17,13 +17,14 @@
   "dependencies": {
     "@dexto/core": "workspace:*",
     "@dexto/storage": "workspace:*",
-    "zod": "^3.25.0"
+    "zod": "^4.3.6"
   },
   "devDependencies": {
-    "@types/node": "^22.13.5"
+    "@types/node": "^22.13.5",
+    "yaml": "^2.8.3"
   },
   "peerDependencies": {
-    "zod": "^3.25.0"
+    "zod": "^4.3.6"
   },
   "scripts": {
     "build": "cross-env NODE_OPTIONS=--max-old-space-size=4096 tsup && node ../../scripts/clean-tsbuildinfo.mjs && cross-env NODE_OPTIONS=--max-old-space-size=4096 tsc -b tsconfig.json --emitDeclarationOnly && node scripts/fix-dist-aliases.mjs",

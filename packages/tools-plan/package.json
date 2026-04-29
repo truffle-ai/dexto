@@ -1,6 +1,6 @@
 {
     "name": "@dexto/tools-plan",
-    "version": "1.6.26",
+    "version": "1.7.1",
     "description": "Implementation planning tools with session-linked plans",
     "type": "module",
     "main": "./dist/index.js",
@@ -26,7 +26,7 @@
         "@dexto/agent-config": "workspace:*",
         "@dexto/core": "workspace:*",
         "diff": "^8.0.3",
-        "zod": "^3.24.1"
+        "zod": "^4.3.6"
     },
     "devDependencies": {
         "@types/diff": "^7.0.0",

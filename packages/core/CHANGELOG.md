@@ -1,5 +1,34 @@
 # @dexto/core
 
+## 1.7.1
+
+### Patch Changes
+
+- d1da676: Preserve mixed text and media tool results as structured content parts instead of stringifying media objects into prompt text, and keep tool-result media payloads base64-only for Vercel AI SDK compatibility.
+- 3083fc9: Refresh the generated LLM model registry snapshot from the upstream catalog.
+- 9ad8077: Persist session message updates append-only to avoid truncating history during rehydration.
+
+## 1.7.0
+
+### Minor Changes
+
+- e447084: Upgrade internal schemas and validation flows to Zod 4 across the stack.
+
+    This preserves existing YAML parsing, env expansion, and default handling while
+    moving package internals to the Zod 4 APIs.
+
+## 1.6.27
+
+### Patch Changes
+
+- 6124420: Expose host-owned runtime IDs cleanly through core runtime flows.
+
+    Hosts can now provide runtime-owned IDs through core agent runtime configuration,
+    and those IDs are propagated consistently through runtime events, hooks, sessions,
+    and telemetry baggage and span attributes.
+
+- b2fa84d: Expand ignored directories and dotfiles in filesystem scanner
+
 ## 1.6.26
 
 ### Patch Changes

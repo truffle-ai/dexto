@@ -1,104 +1,111 @@
 import { z } from 'zod';
+import type { JSONSchema7, JSONSchema7Definition, JSONSchema7TypeName } from 'json-schema';
+
+function isJsonSchemaObject(schema: unknown): schema is JSONSchema7 {
+    return !!schema && typeof schema === 'object' && !Array.isArray(schema);
+}
+
+function getJsonSchemaTypes(schema: JSONSchema7): JSONSchema7TypeName[] {
+    const { type } = schema;
+    if (Array.isArray(type)) {
+        return type;
+    }
+    return type ? [type] : [];
+}
+
+function getJsonSchemaType(schema: JSONSchema7): JSONSchema7TypeName | undefined {
+    const types = getJsonSchemaTypes(schema);
+    return types.find((type) => type !== 'null') ?? types[0];
+}
+
+function hasNullableJsonSchemaType(schema: JSONSchema7): boolean {
+    return getJsonSchemaTypes(schema).includes('null');
+}
+
+function getZodTypeForJsonSchemaType(
+    propSchema: JSONSchema7,
+    type: JSONSchema7TypeName | undefined
+): z.ZodType {
+    switch (type) {
+        case 'string':
+            return z.string();
+        case 'number':
+            return z.number();
+        case 'integer':
+            return z.number().int();
+        case 'boolean':
+            return z.boolean();
+        case 'object':
+            return z.object(jsonSchemaToZodShape(propSchema));
+        case 'array': {
+            const itemSchema = getPropertySchema(propSchema.items);
+            return z.array(itemSchema ? getZodTypeFromProperty(itemSchema) : z.unknown());
+        }
+        case 'null':
+            return z.null();
+        default:
+            return z.unknown();
+    }
+}
+
+function getPropertySchema(
+    schema: JSONSchema7Definition | JSONSchema7Definition[] | undefined
+): JSONSchema7 | null {
+    return isJsonSchemaObject(schema) ? schema : null;
+}
 
 /**
  * Converts a JSON Schema object to a Zod raw shape.
  * This is a simplified converter that handles common MCP tool schemas.
  */
-export function jsonSchemaToZodShape(jsonSchema: any): z.ZodRawShape {
-    if (!jsonSchema || typeof jsonSchema !== 'object' || jsonSchema.type !== 'object') {
+export function jsonSchemaToZodShape(jsonSchema: unknown): z.ZodRawShape {
+    if (!isJsonSchemaObject(jsonSchema) || getJsonSchemaType(jsonSchema) !== 'object') {
         return {};
     }
 
-    const shape: z.ZodRawShape = {};
+    const shape: Record<string, z.ZodType> = {};
 
-    if (jsonSchema.properties) {
-        for (const [key, property] of Object.entries(jsonSchema.properties)) {
-            const propSchema = property as any;
-            let zodType: z.ZodTypeAny;
-            switch (propSchema.type) {
-                case 'string':
-                    zodType = z.string();
-                    break;
-                case 'number':
-                    zodType = z.number();
-                    break;
-                case 'integer':
-                    zodType = z.number().int();
-                    break;
-                case 'boolean':
-                    zodType = z.boolean();
-                    break;
-                case 'array':
-                    if (propSchema.items) {
-                        const itemType = getZodTypeFromProperty(propSchema.items);
-                        zodType = z.array(itemType);
-                    } else {
-                        zodType = z.array(z.any());
-                    }
-                    break;
-                case 'object':
-                    zodType = z.object(jsonSchemaToZodShape(propSchema));
-                    break;
-                default:
-                    zodType = z.any();
-            }
+    const properties = jsonSchema.properties ?? {};
+    for (const [key, property] of Object.entries(properties)) {
+        const propSchema = getPropertySchema(property);
+        let zodType = propSchema ? getZodTypeFromProperty(propSchema) : z.unknown();
 
-            // Add description if present using custom metadata
-            if (propSchema.description) {
-                // Try to add description as custom property (this might get picked up by the SDK)
-                (zodType as any)._def.description = propSchema.description;
-                zodType = zodType.describe(propSchema.description);
-            }
-
-            // Make optional if not in required array
-            if (!jsonSchema.required || !jsonSchema.required.includes(key)) {
-                zodType = zodType.optional();
-            }
-
-            shape[key] = zodType;
+        if (!Array.isArray(jsonSchema.required) || !jsonSchema.required.includes(key)) {
+            zodType = zodType.optional();
         }
+
+        shape[key] = zodType;
     }
 
-    return shape;
+    return shape as z.ZodRawShape;
 }
 
 /**
  * Helper function to get a Zod type from a property schema
  */
-export function getZodTypeFromProperty(propSchema: any): z.ZodTypeAny {
-    let zodType: z.ZodTypeAny;
+export function getZodTypeFromProperty(propSchema: JSONSchema7): z.ZodType {
+    const nonNullTypes = getJsonSchemaTypes(propSchema).filter(
+        (type): type is Exclude<JSONSchema7TypeName, 'null'> => type !== 'null'
+    );
 
-    switch (propSchema.type) {
-        case 'string':
-            zodType = z.string();
-            break;
-        case 'number':
-            zodType = z.number();
-            break;
-        case 'integer':
-            zodType = z.number().int();
-            break;
-        case 'boolean':
-            zodType = z.boolean();
-            break;
-        case 'object':
-            zodType = z.object(jsonSchemaToZodShape(propSchema));
-            break;
-        case 'array':
-            if (propSchema.items) {
-                zodType = z.array(getZodTypeFromProperty(propSchema.items));
-            } else {
-                zodType = z.array(z.any());
-            }
-            break;
-        default:
-            zodType = z.any();
+    let zodType: z.ZodType;
+    if (nonNullTypes.length === 0) {
+        zodType = hasNullableJsonSchemaType(propSchema) ? z.null() : z.unknown();
+    } else {
+        const zodTypes = nonNullTypes.map((type) => getZodTypeForJsonSchemaType(propSchema, type));
+        const [firstType, secondType, ...restTypes] = zodTypes;
+        if (!firstType) {
+            zodType = z.unknown();
+        } else {
+            zodType = secondType ? z.union([firstType, secondType, ...restTypes]) : firstType;
+        }
     }
 
-    // Add description if present using custom metadata
+    if (hasNullableJsonSchemaType(propSchema) && nonNullTypes.length > 0) {
+        zodType = zodType.nullable();
+    }
+
     if (propSchema.description) {
-        // Try to add description as custom property (this might get picked up by the SDK)
-        (zodType as any)._def.description = propSchema.description;
         zodType = zodType.describe(propSchema.description);
     }
 

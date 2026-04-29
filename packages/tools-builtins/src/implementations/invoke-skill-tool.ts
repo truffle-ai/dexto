@@ -18,8 +18,13 @@ const InvokeSkillInputSchema = z
         skill: z
             .string()
             .min(1, 'Skill name is required')
-            .describe('The name of the skill to invoke'),
-        args: z.record(z.string()).optional().describe('Optional arguments to pass to the skill'),
+            .describe(
+                'The name of the skill to invoke (e.g., "plugin-name:skill-name" or "skill-name")'
+            ),
+        args: z
+            .record(z.string(), z.string())
+            .optional()
+            .describe('Optional arguments to pass to the skill'),
         taskContext: z
             .string()
             .optional()

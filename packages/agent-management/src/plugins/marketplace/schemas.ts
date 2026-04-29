@@ -33,7 +33,7 @@ export const KnownMarketplacesFileSchema = z
     .object({
         version: z.number().default(1).describe('File format version'),
         marketplaces: z
-            .record(MarketplaceEntrySchema)
+            .record(z.string(), MarketplaceEntrySchema)
             .default({})
             .describe('Registered marketplaces by name'),
     })

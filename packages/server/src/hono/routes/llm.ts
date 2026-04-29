@@ -259,7 +259,7 @@ const catalogRoute = createRoute({
                             z
                                 .object({
                                     providers: z
-                                        .record(z.enum(LLM_PROVIDERS), ProviderCatalogSchema)
+                                        .partialRecord(z.enum(LLM_PROVIDERS), ProviderCatalogSchema)
                                         .describe(
                                             'Providers grouped by ID with their models and capabilities'
                                         ),
@@ -876,7 +876,7 @@ export function createLlmRouter(getAgent: GetAgentFn) {
             const includeModels = queryParams.includeModels ?? true;
             const scope = queryParams.scope ?? 'all';
 
-            const providers: Record<string, ProviderCatalog> = {};
+            const providers: Partial<Record<LLMProvider, ProviderCatalog>> = {};
 
             for (const provider of LLM_PROVIDERS) {
                 // Skip dexto-nova provider when feature is not enabled
@@ -912,7 +912,7 @@ export function createLlmRouter(getAgent: GetAgentFn) {
                 };
             }
 
-            let filtered: Record<string, ProviderCatalog> = { ...providers };
+            let filtered: Partial<Record<LLMProvider, ProviderCatalog>> = { ...providers };
 
             if (queryParams.provider && queryParams.provider.length > 0) {
                 const allowed = new Set(
@@ -920,27 +920,27 @@ export function createLlmRouter(getAgent: GetAgentFn) {
                         (LLM_PROVIDERS as readonly string[]).includes(p)
                     )
                 );
-                const filteredByProvider: Record<string, ProviderCatalog> = {};
+                const filteredByProvider: Partial<Record<LLMProvider, ProviderCatalog>> = {};
                 for (const [id, catalog] of Object.entries(filtered)) {
                     if (allowed.has(id)) {
-                        filteredByProvider[id] = catalog;
+                        filteredByProvider[id as LLMProvider] = catalog;
                     }
                 }
                 filtered = filteredByProvider;
             }
 
             if (typeof queryParams.hasKey === 'boolean') {
-                const byKey: Record<string, ProviderCatalog> = {};
+                const byKey: Partial<Record<LLMProvider, ProviderCatalog>> = {};
                 for (const [id, catalog] of Object.entries(filtered)) {
                     if (catalog.hasApiKey === queryParams.hasKey) {
-                        byKey[id] = catalog;
+                        byKey[id as LLMProvider] = catalog;
                     }
                 }
                 filtered = byKey;
             }
 
             if (queryParams.fileType) {
-                const byFileType: Record<string, ProviderCatalog> = {};
+                const byFileType: Partial<Record<LLMProvider, ProviderCatalog>> = {};
                 for (const [id, catalog] of Object.entries(filtered)) {
                     const models = catalog.models.filter((model) => {
                         const modelTypes =
@@ -951,18 +951,18 @@ export function createLlmRouter(getAgent: GetAgentFn) {
                         return modelTypes.includes(queryParams.fileType!);
                     });
                     if (models.length > 0) {
-                        byFileType[id] = { ...catalog, models };
+                        byFileType[id as LLMProvider] = { ...catalog, models };
                     }
                 }
                 filtered = byFileType;
             }
 
             if (queryParams.defaultOnly) {
-                const byDefault: Record<string, ProviderCatalog> = {};
+                const byDefault: Partial<Record<LLMProvider, ProviderCatalog>> = {};
                 for (const [id, catalog] of Object.entries(filtered)) {
                     const models = catalog.models.filter((model) => model.default === true);
                     if (models.length > 0) {
-                        byDefault[id] = { ...catalog, models };
+                        byDefault[id as LLMProvider] = { ...catalog, models };
                     }
                 }
                 filtered = byDefault;

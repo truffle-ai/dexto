@@ -140,7 +140,7 @@ export class AgentManager {
             if (error instanceof ZodError) {
                 throw RegistryError.registryParseError(
                     this.registryPath,
-                    `Invalid registry schema: ${error.errors.map((e) => e.message).join(', ')}`
+                    `Invalid registry schema: ${error.issues.map((e) => e.message).join(', ')}`
                 );
             }
             throw RegistryError.registryParseError(

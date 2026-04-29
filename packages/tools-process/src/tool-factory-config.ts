@@ -79,7 +79,7 @@ export const ProcessToolsConfigSchema = z
             .default(DEFAULT_BLOCKED_COMMANDS)
             .describe('Blocked command patterns (applies to all security levels)'),
         environment: z
-            .record(z.string())
+            .record(z.string(), z.string())
             .default(DEFAULT_ENVIRONMENT)
             .describe('Custom environment variables to set for command execution'),
     })

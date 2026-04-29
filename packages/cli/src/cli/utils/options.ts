@@ -21,7 +21,7 @@ export function validateCliOptions(opts: any): void {
             strict: z.boolean().optional().default(false),
             verbose: z.boolean().optional().default(true),
             mode: z.enum(['web', 'cli', 'server', 'discord', 'telegram', 'mcp'], {
-                errorMap: () => ({
+                error: () => ({
                     message:
                         'Mode must be one of "web", "cli", "server", "discord", "telegram", or "mcp"',
                 }),
@@ -121,7 +121,7 @@ export function validateCliOptions(opts: any): void {
 export function handleCliOptionsError(error: unknown): never {
     if (error instanceof z.ZodError) {
         console.error(chalk.red('❌ Invalid command-line options detected:'));
-        error.errors.forEach((err) => {
+        error.issues.forEach((err) => {
             const fieldName = err.path.join('.') || 'Unknown Option';
             console.error(chalk.red(`   • Option '${fieldName}': ${err.message}`));
         });

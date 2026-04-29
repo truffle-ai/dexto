@@ -40,7 +40,12 @@ import { DextoValidationError } from '../errors/DextoValidationError.js';
 import { ensureOk } from '../errors/result-bridge.js';
 import { fail, zodToIssues } from '../utils/result.js';
 import { resolveAndValidateMcpServerConfig } from '../mcp/resolver.js';
-import type { McpServerConfig, McpServerStatus, McpConnectionStatus } from '../mcp/schemas.js';
+import type {
+    McpServerConfig,
+    McpServerStatus,
+    McpConnectionStatus,
+    ValidatedMcpServerConfig,
+} from '../mcp/schemas.js';
 import {
     getSupportedProviders,
     getDefaultModelForProvider,
@@ -3493,7 +3498,7 @@ export class DextoAgent {
             : this.stateManager.getRuntimeConfig();
     }
 
-    public getMcpServerConfig(name: string): McpServerConfig | undefined {
+    public getMcpServerConfig(name: string): ValidatedMcpServerConfig | undefined {
         this.ensureStarted();
         const config = this.stateManager.getRuntimeConfig().mcpServers[name];
         if (config) return config;

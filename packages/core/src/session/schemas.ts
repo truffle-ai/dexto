@@ -38,7 +38,7 @@ export const SessionDataSchema = z
         lastActivity: z.number(),
         llmOverride: z.custom<NonNullable<SessionData['llmOverride']>>().optional(),
         messageCount: z.number(),
-        metadata: z.record(z.unknown()).optional(),
+        metadata: z.record(z.string(), z.unknown()).optional(),
         modelStats: z.array(ModelStatisticsSchema).optional(),
         parentSessionId: z.string().optional(),
         tokenUsage: SessionTokenUsageSchema.optional(),

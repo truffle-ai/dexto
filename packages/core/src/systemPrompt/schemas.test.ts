@@ -1,10 +1,39 @@
 import { describe, it, expect } from 'vitest';
+import { z } from 'zod';
 import * as path from 'path';
 import {
     SystemPromptConfigSchema,
     type SystemPromptConfig,
     type ValidatedSystemPromptConfig,
 } from './schemas.js';
+
+function flattenNestedIssues(issues: readonly z.core.$ZodIssue[]): z.core.$ZodIssue[] {
+    return issues.flatMap((issue) => {
+        if (issue.code === 'invalid_union') {
+            return [issue, ...flattenNestedIssues(issue.errors.flat())];
+        }
+
+        return [issue];
+    });
+}
+
+function findNestedIssue(
+    unionIssue: z.core.$ZodIssue | undefined,
+    expectedPath: Array<string | number>,
+    expectedCode?: string
+): z.core.$ZodIssue | undefined {
+    if (!unionIssue || unionIssue.code !== 'invalid_union') {
+        return undefined;
+    }
+
+    return flattenNestedIssues(unionIssue.errors.flat()).find((issue) => {
+        const matchesPath =
+            issue.path.length === expectedPath.length &&
+            issue.path.every((segment, index) => segment === expectedPath[index]);
+        const matchesCode = expectedCode ? issue.code === expectedCode : true;
+        return matchesPath && matchesCode;
+    });
+}
 
 describe('SystemPromptConfigSchema', () => {
     describe('String Input Transform', () => {
@@ -45,7 +74,7 @@ You can help with:
             expect(result.contributors).toHaveLength(1);
             const contributor = result.contributors[0];
             if (contributor?.type === 'static') {
-                expect((contributor! as any).content).toBe(multilinePrompt);
+                expect(contributor.content).toBe(multilinePrompt);
             }
         });
     });
@@ -135,13 +164,11 @@ You can help with:
             };
             const result = SystemPromptConfigSchema.safeParse(invalidStatic);
             expect(result.success).toBe(false);
-            // For union schemas, the actual error is in unionErrors[1] (second branch - the object branch)
-            // TODO: Fix typing - unionErrors not properly typed in Zod
-            const unionError = result.error?.issues[0] as any;
+            const unionError = result.error?.issues[0];
             expect(unionError?.code).toBe('invalid_union');
-            const objectErrors = unionError?.unionErrors?.[1]?.issues;
-            expect(objectErrors?.[0]?.path).toEqual(['contributors', 0, 'content']);
-            expect(objectErrors?.[0]?.code).toBe('invalid_type');
+            const nestedIssue = findNestedIssue(unionError, ['contributors', 0, 'content']);
+            expect(nestedIssue?.path).toEqual(['contributors', 0, 'content']);
+            expect(nestedIssue?.code).toBe('invalid_type');
         });
 
         it('should validate dynamic contributors', () => {
@@ -158,13 +185,11 @@ You can help with:
             };
             const result = SystemPromptConfigSchema.safeParse(invalidDynamic);
             expect(result.success).toBe(false);
-            // For union schemas, the actual error is in unionErrors[1] (second branch - the object branch)
-            // TODO: Fix typing - unionErrors not properly typed in Zod
-            const unionError = result.error?.issues[0] as any;
+            const unionError = result.error?.issues[0];
             expect(unionError?.code).toBe('invalid_union');
-            const objectErrors = unionError?.unionErrors?.[1]?.issues;
-            expect(objectErrors?.[0]?.path).toEqual(['contributors', 0, 'source']);
-            expect(objectErrors?.[0]?.code).toBe('invalid_type');
+            const nestedIssue = findNestedIssue(unionError, ['contributors', 0, 'source']);
+            expect(nestedIssue?.path).toEqual(['contributors', 0, 'source']);
+            expect(nestedIssue?.code).toBe('invalid_value');
         });
 
         it('should validate dynamic contributor source enum', () => {
@@ -185,13 +210,11 @@ You can help with:
             };
             const result = SystemPromptConfigSchema.safeParse(invalidSource);
             expect(result.success).toBe(false);
-            // For union schemas, the actual error is in unionErrors[1] (second branch - the object branch)
-            // TODO: Fix typing - unionErrors not properly typed in Zod
-            const unionError = result.error?.issues[0] as any;
+            const unionError = result.error?.issues[0];
             expect(unionError?.code).toBe('invalid_union');
-            const objectErrors = unionError?.unionErrors?.[1]?.issues;
-            expect(objectErrors?.[0]?.path).toEqual(['contributors', 0, 'source']);
-            expect(objectErrors?.[0]?.code).toBe('invalid_enum_value');
+            const nestedIssue = findNestedIssue(unionError, ['contributors', 0, 'source']);
+            expect(nestedIssue?.path).toEqual(['contributors', 0, 'source']);
+            expect(nestedIssue?.code).toBe('invalid_value');
         });
 
         it('should validate file contributors', () => {
@@ -233,13 +256,15 @@ You can help with:
                 ],
             });
             expect(result.success).toBe(false);
-            // For union schemas, the actual error is in unionErrors[1] (second branch - the object branch)
-            // TODO: Fix typing - unionErrors not properly typed in Zod
-            const unionError = result.error?.issues[0] as any;
+            const unionError = result.error?.issues[0];
             expect(unionError?.code).toBe('invalid_union');
-            const objectErrors = unionError?.unionErrors?.[1]?.issues;
-            expect(objectErrors?.[0]?.path).toEqual(['contributors', 0, 'type']);
-            expect(objectErrors?.[0]?.code).toBe('invalid_union_discriminator');
+            const nestedIssue = findNestedIssue(
+                unionError,
+                ['contributors', 0, 'type'],
+                'invalid_union'
+            );
+            expect(nestedIssue?.path).toEqual(['contributors', 0, 'type']);
+            expect(nestedIssue?.code).toBe('invalid_union');
         });
 
         it('should reject extra fields with strict validation', () => {
@@ -248,7 +273,10 @@ You can help with:
                 unknownField: 'should fail',
             });
             expect(result.success).toBe(false);
-            expect(result.error?.issues[0]?.code).toBe('unrecognized_keys');
+            const unionError = result.error?.issues[0];
+            expect(unionError?.code).toBe('invalid_union');
+            const nestedIssue = findNestedIssue(unionError, [], 'unrecognized_keys');
+            expect(nestedIssue?.code).toBe('unrecognized_keys');
         });
     });
 
@@ -331,7 +359,11 @@ You can help with:
 
             const result = SystemPromptConfigSchema.parse(complexConfig);
             expect(result.contributors).toHaveLength(3);
-            expect(result.contributors.map((c) => c.id)).toEqual(['main', 'context', 'date']);
+            expect(Array.from(result.contributors, (contributor) => contributor.id)).toEqual([
+                'main',
+                'context',
+                'date',
+            ]);
         });
 
         it('should handle template-style configuration', () => {

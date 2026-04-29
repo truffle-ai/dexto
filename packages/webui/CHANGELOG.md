@@ -1,5 +1,44 @@
 # @dexto/webui
 
+## 1.7.1
+
+### Patch Changes
+
+- Updated dependencies [d1da676]
+- Updated dependencies [3083fc9]
+- Updated dependencies [9ad8077]
+    - @dexto/core@1.7.1
+    - @dexto/agent-config@1.7.1
+    - @dexto/analytics@1.7.1
+    - @dexto/client-sdk@1.7.1
+    - @dexto/storage@1.7.1
+    - @dexto/registry@1.7.1
+
+## 1.7.0
+
+### Patch Changes
+
+- Updated dependencies [e447084]
+    - @dexto/core@1.7.0
+    - @dexto/agent-config@1.7.0
+    - @dexto/analytics@1.7.0
+    - @dexto/client-sdk@1.7.0
+    - @dexto/storage@1.7.0
+    - @dexto/registry@1.7.0
+
+## 1.6.27
+
+### Patch Changes
+
+- Updated dependencies [6124420]
+- Updated dependencies [b2fa84d]
+    - @dexto/core@1.6.27
+    - @dexto/agent-config@1.6.27
+    - @dexto/analytics@1.6.27
+    - @dexto/client-sdk@1.6.27
+    - @dexto/storage@1.6.27
+    - @dexto/registry@1.6.27
+
 ## 1.6.26
 
 ### Patch Changes

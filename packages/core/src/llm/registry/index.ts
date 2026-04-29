@@ -13,7 +13,7 @@
  * For now, keeping SDK dependency is simpler and auto-updates with SDK releases.
  */
 
-import { LLMConfig } from '../schemas.js';
+import type { ValidatedLLMConfig } from '../schemas.js';
 import { LLMError } from '../errors.js';
 import { LLMErrorCode } from '../error-codes.js';
 import { DextoRuntimeError } from '../../errors/DextoRuntimeError.js';
@@ -230,6 +230,11 @@ export interface ProviderInfo {
 
 /** Fallback when we cannot determine the model's input-token limit */
 export const DEFAULT_MAX_INPUT_TOKENS = 128000;
+
+type EffectiveMaxInputTokensConfig = Pick<
+    ValidatedLLMConfig,
+    'provider' | 'model' | 'baseURL' | 'maxInputTokens'
+>;
 
 // Use imported constant LLM_PROVIDERS
 
@@ -1138,7 +1143,7 @@ export function validateModelFileSupport(
  * 2. Registry lookup for known provider/model.
  *
  * @param config The validated LLM configuration.
- * @param logger Optional logger instance for logging.
+ * @param logger Logger instance for logging.
  * @returns The effective maximum input token count for the LLM.
  *
  * Notes:
@@ -1147,7 +1152,10 @@ export function validateModelFileSupport(
  * - If `baseURL` is not set and the model isn't found in the registry, this throws.
  * TODO: make more readable
  */
-export function getEffectiveMaxInputTokens(config: LLMConfig, logger: Logger): number {
+export function getEffectiveMaxInputTokens(
+    config: EffectiveMaxInputTokensConfig,
+    logger: Logger
+): number {
     const configuredMaxInputTokens = config.maxInputTokens;
 
     // Priority 1: Explicit config override or required value with baseURL

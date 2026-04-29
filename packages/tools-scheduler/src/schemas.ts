@@ -69,7 +69,10 @@ export const CreateScheduleInputSchema = z
             ),
         timezone: z.string().optional().describe('Optional timezone (defaults to config timezone)'),
         enabled: z.boolean().default(true).describe('Whether schedule is enabled'),
-        metadata: z.record(z.unknown()).optional().describe('Optional metadata for the task'),
+        metadata: z
+            .record(z.string(), z.unknown())
+            .optional()
+            .describe('Optional metadata for the task'),
         workspacePath: z
             .string()
             .optional()
@@ -122,7 +125,7 @@ const UpdateScheduleFieldsSchema = z
             .describe('Updated instruction - what should happen when this schedule triggers'),
         timezone: z.string().optional().describe('Updated timezone'),
         enabled: z.boolean().optional().describe('Updated enabled state'),
-        metadata: z.record(z.unknown()).optional().describe('Updated metadata'),
+        metadata: z.record(z.string(), z.unknown()).optional().describe('Updated metadata'),
         workspacePath: z
             .string()
             .optional()

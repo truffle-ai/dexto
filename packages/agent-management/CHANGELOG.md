@@ -1,5 +1,44 @@
 # @dexto/agent-management
 
+## 1.7.1
+
+### Patch Changes
+
+- Updated dependencies [d1da676]
+- Updated dependencies [3083fc9]
+- Updated dependencies [9ad8077]
+    - @dexto/core@1.7.1
+    - @dexto/agent-config@1.7.1
+    - @dexto/orchestration@1.7.1
+    - @dexto/tools-builtins@1.7.1
+
+## 1.7.0
+
+### Patch Changes
+
+- Updated dependencies [e447084]
+    - @dexto/core@1.7.0
+    - @dexto/agent-config@1.7.0
+    - @dexto/orchestration@1.7.0
+    - @dexto/tools-builtins@1.7.0
+
+## 1.6.27
+
+### Patch Changes
+
+- 6124420: Expose host-owned runtime IDs cleanly through core runtime flows.
+
+    Hosts can now provide runtime-owned IDs through core agent runtime configuration,
+    and those IDs are propagated consistently through runtime events, hooks, sessions,
+    and telemetry baggage and span attributes.
+
+- Updated dependencies [6124420]
+- Updated dependencies [b2fa84d]
+    - @dexto/core@1.6.27
+    - @dexto/agent-config@1.6.27
+    - @dexto/orchestration@1.6.27
+    - @dexto/tools-builtins@1.6.27
+
 ## 1.6.26
 
 ### Patch Changes

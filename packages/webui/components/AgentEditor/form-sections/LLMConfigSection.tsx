@@ -47,6 +47,13 @@ export function LLMConfigSection({
         onChange({ ...value, [field]: newValue });
     };
 
+    const maxIterationsValue = typeof value.maxIterations === 'number' ? value.maxIterations : '';
+    const temperatureValue = typeof value.temperature === 'number' ? value.temperature : '';
+    const maxInputTokensValue =
+        typeof value.maxInputTokens === 'number' ? value.maxInputTokens : '';
+    const maxOutputTokensValue =
+        typeof value.maxOutputTokens === 'number' ? value.maxOutputTokens : '';
+
     return (
         <Collapsible
             title="LLM Configuration"
@@ -175,7 +182,7 @@ export function LLMConfigSection({
                     <Input
                         id="maxIterations"
                         type="number"
-                        value={value.maxIterations !== undefined ? value.maxIterations : ''}
+                        value={maxIterationsValue}
                         onChange={(e) => {
                             const val = e.target.value;
                             if (val === '') {
@@ -229,7 +236,7 @@ export function LLMConfigSection({
                     <Input
                         id="temperature"
                         type="number"
-                        value={value.temperature !== undefined ? value.temperature : ''}
+                        value={temperatureValue}
                         onChange={(e) =>
                             handleChange(
                                 'temperature',
@@ -259,7 +266,7 @@ export function LLMConfigSection({
                         <Input
                             id="maxInputTokens"
                             type="number"
-                            value={value.maxInputTokens || ''}
+                            value={maxInputTokensValue}
                             onChange={(e) =>
                                 handleChange(
                                     'maxInputTokens',
@@ -286,7 +293,7 @@ export function LLMConfigSection({
                         <Input
                             id="maxOutputTokens"
                             type="number"
-                            value={value.maxOutputTokens || ''}
+                            value={maxOutputTokensValue}
                             onChange={(e) =>
                                 handleChange(
                                     'maxOutputTokens',

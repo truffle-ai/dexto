@@ -102,7 +102,7 @@ export const ToolLimitsSchema = z
     .strict();
 
 export const ToolsConfigSchema = z
-    .record(ToolLimitsSchema)
+    .record(z.string(), ToolLimitsSchema)
     .describe('Per-tool configuration limits');
 
 export type ToolsConfig = z.output<typeof ToolsConfigSchema>;

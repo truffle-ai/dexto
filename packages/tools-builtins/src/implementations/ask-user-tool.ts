@@ -17,7 +17,12 @@ const AskUserInputSchema = z
         schema: z
             .object({
                 type: z.literal('object'),
-                properties: z.record(z.string(), z.record(z.unknown())),
+                // JSON Schema properties can be object schemas or boolean schemas.
+                // enrichSchemaTitles and parseElicitationSchema both skip non-object entries safely.
+                properties: z.record(
+                    z.string(),
+                    z.union([z.boolean(), z.record(z.string(), z.unknown())])
+                ),
                 required: z.array(z.string()).optional(),
             })
             .passthrough()

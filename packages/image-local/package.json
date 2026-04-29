@@ -1,6 +1,6 @@
 {
     "name": "@dexto/image-local",
-    "version": "1.6.26",
+    "version": "1.7.1",
     "description": "Local development base image for Dexto agents with filesystem and process tools",
     "type": "module",
     "main": "./dist/index.js",
@@ -39,7 +39,7 @@
         "@dexto/tools-scheduler": "workspace:*",
         "@dexto/tools-todo": "workspace:*",
         "glob": "^12.0.0",
-        "zod": "^3.25.0"
+        "zod": "^4.3.6"
     },
     "devDependencies": {
         "tsup": "^8.0.0",

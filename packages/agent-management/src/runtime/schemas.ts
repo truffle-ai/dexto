@@ -51,7 +51,7 @@ export type ValidatedAgentRuntimeConfig = z.output<typeof AgentRuntimeConfigSche
  */
 export const SpawnConfigSchema = z
     .object({
-        agentConfig: z.record(z.unknown()).describe('Base agent configuration'),
+        agentConfig: z.record(z.string(), z.unknown()).describe('Base agent configuration'),
 
         ephemeral: z
             .boolean()
@@ -71,7 +71,7 @@ export const SpawnConfigSchema = z
             .describe('Optional group identifier for logical grouping'),
 
         metadata: z
-            .record(z.unknown())
+            .record(z.string(), z.unknown())
             .optional()
             .describe('Optional metadata for tracking relationships or context'),
     })

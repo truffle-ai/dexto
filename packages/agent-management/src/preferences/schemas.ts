@@ -223,11 +223,11 @@ export const GlobalPreferencesSchema = z
 
         defaults: PreferenceDefaultsSchema.describe('Default behavior preferences (required)'),
 
-        setup: PreferenceSetupSchema.default({ completed: false }).describe(
+        setup: PreferenceSetupSchema.prefault({ completed: false }).describe(
             'Setup completion tracking'
         ),
 
-        sounds: PreferenceSoundsSchema.default({}).describe(
+        sounds: PreferenceSoundsSchema.prefault({}).describe(
             'Sound notification preferences (defaults applied for legacy preferences)'
         ),
     })

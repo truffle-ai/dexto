@@ -218,6 +218,148 @@ describe('VercelMessageFormatter', () => {
             expect(toolCallPart).toBeDefined();
             expect(toolCallPart!.providerOptions).toEqual(toolProviderOptions);
         });
+
+        test('should preserve mixed text and media tool results as content parts', () => {
+            const formatter = new VercelMessageFormatter(mockLogger);
+            const messages: InternalMessage[] = [
+                {
+                    role: 'assistant',
+                    content: [{ type: 'text', text: 'Reading image' }],
+                    toolCalls: [
+                        {
+                            id: 'call-1',
+                            type: 'function',
+                            function: { name: 'read_media_file', arguments: '{}' },
+                        },
+                    ],
+                },
+                {
+                    role: 'tool',
+                    toolCallId: 'call-1',
+                    name: 'read_media_file',
+                    success: true,
+                    content: [
+                        { type: 'text', text: 'Attached image: blob:abc123' },
+                        { type: 'image', image: 'base64-image-data', mimeType: 'image/png' },
+                        { type: 'text', text: '[Stored resource_ref:blob:abc123]' },
+                    ],
+                },
+            ];
+
+            const result = formatter.format(
+                messages,
+                { provider: 'openai', model: 'gpt-5.4-mini' },
+                null
+            );
+
+            const toolMessage = result.find((m) => m.role === 'tool');
+            expect(toolMessage).toBeDefined();
+
+            const content = toolMessage!.content as Array<{
+                type: string;
+                output: {
+                    type: string;
+                    value: Array<{ type: string; text?: string; data?: string }>;
+                };
+            }>;
+            const output = content[0]?.output;
+
+            expect(output?.type).toBe('content');
+            expect(output?.value).toEqual([
+                { type: 'text', text: 'Attached image: blob:abc123' },
+                { type: 'media', data: 'base64-image-data', mediaType: 'image/png' },
+                { type: 'text', text: '[Stored resource_ref:blob:abc123]' },
+            ]);
+        });
+
+        test('should strip data URI prefixes from tool-result media data', () => {
+            const formatter = new VercelMessageFormatter(mockLogger);
+            const messages: InternalMessage[] = [
+                {
+                    role: 'assistant',
+                    content: [{ type: 'text', text: 'Reading image' }],
+                    toolCalls: [
+                        {
+                            id: 'call-1',
+                            type: 'function',
+                            function: { name: 'read_media_file', arguments: '{}' },
+                        },
+                    ],
+                },
+                {
+                    role: 'tool',
+                    toolCallId: 'call-1',
+                    name: 'read_media_file',
+                    success: true,
+                    content: [
+                        {
+                            type: 'image',
+                            image: 'data:image/png;base64,base64-image-data',
+                            mimeType: 'image/png',
+                        },
+                    ],
+                },
+            ];
+
+            const result = formatter.format(
+                messages,
+                { provider: 'openai', model: 'gpt-5.4-mini' },
+                null
+            );
+            const toolMessage = result.find((m) => m.role === 'tool');
+            const content = toolMessage!.content as Array<{
+                output: { type: string; value: Array<{ type: string; data?: string }> };
+            }>;
+
+            expect(content[0]?.output.value).toEqual([
+                { type: 'media', data: 'base64-image-data', mediaType: 'image/png' },
+            ]);
+        });
+
+        test('should keep tool-result URL media as text references', () => {
+            const formatter = new VercelMessageFormatter(mockLogger);
+            const messages: InternalMessage[] = [
+                {
+                    role: 'assistant',
+                    content: [{ type: 'text', text: 'Reading image' }],
+                    toolCalls: [
+                        {
+                            id: 'call-1',
+                            type: 'function',
+                            function: { name: 'read_media_file', arguments: '{}' },
+                        },
+                    ],
+                },
+                {
+                    role: 'tool',
+                    toolCallId: 'call-1',
+                    name: 'read_media_file',
+                    success: true,
+                    content: [
+                        {
+                            type: 'image',
+                            image: 'https://example.com/image.png',
+                            mimeType: 'image/png',
+                        },
+                    ],
+                },
+            ];
+
+            const result = formatter.format(
+                messages,
+                { provider: 'openai', model: 'gpt-5.4-mini' },
+                null
+            );
+            const toolMessage = result.find((m) => m.role === 'tool');
+            const content = toolMessage!.content as Array<{
+                output: { type: string; value: string };
+            }>;
+
+            expect(content[0]?.output).toEqual({
+                type: 'text',
+                value: 'Attached image: https://example.com/image.png',
+            });
+        });
     });
 
     describe('Reasoning round-trip', () => {
