@@ -1,5 +1,13 @@
 # @dexto/core
 
+## 1.7.1
+
+### Patch Changes
+
+- d1da676: Preserve mixed text and media tool results as structured content parts instead of stringifying media objects into prompt text, and keep tool-result media payloads base64-only for Vercel AI SDK compatibility.
+- 3083fc9: Refresh the generated LLM model registry snapshot from the upstream catalog.
+- 9ad8077: Persist session message updates append-only to avoid truncating history during rehydration.
+
 ## 1.7.0
 
 ### Minor Changes
