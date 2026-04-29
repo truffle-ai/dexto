@@ -5,6 +5,8 @@ import type {
     Logger,
     CompactionStrategy as CompactionStrategy,
     Tool,
+    WorkspaceHandleProvider,
+    SkillSource,
 } from '@dexto/core';
 import type { z } from 'zod';
 import type { AgentConfig, ValidatedAgentConfig } from '../schemas/agent-config.js';
@@ -44,6 +46,7 @@ export interface DextoHostContext<
     mode?: 'local' | 'server' | 'hosted';
     sessionId?: string;
     workspaceId?: string;
+    workspaceRoot?: string;
     runId?: string;
     attemptId?: string;
     clients?: TClients;
@@ -144,6 +147,18 @@ export interface LoggerFactory<
     metadata?: Record<string, unknown> | undefined;
 }
 
+export interface WorkspaceHandleProviderFactory<
+    THostContext extends DextoHostContext = DextoHostContext,
+> {
+    create(context?: ImageResolutionContext<THostContext>): WorkspaceHandleProvider;
+    metadata?: Record<string, unknown> | undefined;
+}
+
+export interface SkillSourceFactory<THostContext extends DextoHostContext = DextoHostContext> {
+    create(context?: ImageResolutionContext<THostContext>): SkillSource[] | Promise<SkillSource[]>;
+    metadata?: Record<string, unknown> | undefined;
+}
+
 /**
  * An image is a typed module that bundles defaults and a set of factories that a host (CLI/server/app)
  * may use to resolve config → concrete instances.
@@ -177,6 +192,8 @@ export interface DextoImage<THostContext extends DextoHostContext = DextoHostCon
     hooks: Record<string, HookFactory<unknown, THostContext>>;
     compaction: Record<string, CompactionFactory<unknown, THostContext>>;
     logger: LoggerFactory<unknown, THostContext>;
+    workspace?: WorkspaceHandleProviderFactory<THostContext> | undefined;
+    skills?: SkillSourceFactory<THostContext> | undefined;
     resolveRuntimeConfig?(
         options: ResolveImageRuntimeConfigOptions<THostContext>
     ): DextoImageRuntimeConfigOverrides | undefined;

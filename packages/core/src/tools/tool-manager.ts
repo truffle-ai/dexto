@@ -116,9 +116,8 @@ export class ToolManager {
     private cacheValid: boolean = false;
     private logger: Logger;
 
-    // Session-level auto-approve tools for skills
-    // When a skill with allowedTools is invoked, those tools are auto-approved (skip confirmation)
-    // This is ADDITIVE - other tools are NOT blocked, they just go through normal approval flow
+    // Session-level auto-approve tools set by runtime callers.
+    // This is ADDITIVE - other tools are NOT blocked, they just go through normal approval flow.
     private sessionAutoApproveTools: Map<string, string[]> = new Map();
     // Session-level auto-approve tools set by users (UI)
     private sessionUserAutoApproveTools: Map<string, string[]> = new Map();
@@ -2115,7 +2114,7 @@ export class ToolManager {
      *
      * Precedence order (highest to lowest):
      * 1. Directory access requirement (outside-root paths)
-     * 2. Session auto-approve (skill allowed-tools)
+     * 2. Session auto-approve
      * 3. Static allow list
      * 4. Dynamic "remembered" allowed list
      * 5. Tool approval patterns
@@ -2141,7 +2140,7 @@ export class ToolManager {
             return null;
         }
 
-        // 3. Check session auto-approve (skill allowed-tools)
+        // 3. Check session auto-approve
         if (sessionId && this.isToolAutoApprovedForSession(sessionId, toolName)) {
             this.logger.info(
                 `Tool '${toolName}' is in session's auto-approve list – skipping confirmation (session: ${sessionId})`

@@ -5,6 +5,7 @@ import type { Tool } from '../tools/types.js';
 import type { InitializeServicesOptions, ToolkitLoader } from '../utils/service-initializer.js';
 import type { DextoStores } from '../storage/stores/types.js';
 import type { DextoAgentConfigInput } from './runtime-config.js';
+import type { SkillSource } from '../skills/index.js';
 
 /**
  * Constructor options for {@link DextoAgent}.
@@ -48,9 +49,11 @@ export interface DextoAgentOptions {
     /** Concrete tool implementations (DI-first). */
     tools?: Tool[] | undefined;
 
+    /** Host-provided skill sources, such as package, plugin, or user-local skill roots. */
+    skillSources?: SkillSource[] | undefined;
+
     /**
      * Toolkits loader resolved from image factories.
-     * Used to dynamically load toolkits requested by prompts/skills.
      */
     toolkitLoader?: ToolkitLoader | undefined;
 

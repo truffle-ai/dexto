@@ -30,6 +30,7 @@ import type { Hook } from '../hooks/types.js';
 import type { CompactionStrategy } from '../context/compaction/types.js';
 import { SessionToolPreferencesStore } from '../tools/session-tool-preferences-store.js';
 import type { LanguageModelFactory } from '../llm/services/types.js';
+import type { WorkspaceHandleProvider } from '../workspace/types.js';
 
 /**
  * Type for the core agent services returned by createAgentServices
@@ -81,6 +82,7 @@ export type InitializeServicesOptions = {
     toolManagerFactory?: ToolManagerFactory;
     stores?: DextoStores;
     hooks?: Hook[] | undefined;
+    workspaceHandleProvider?: WorkspaceHandleProvider | undefined;
     telemetryBootstrap?: TelemetryBootstrap | undefined;
 };
 
@@ -161,7 +163,8 @@ export async function createAgentServices(
     const workspaceManager = new WorkspaceManager(
         stores.getStore('workspaces'),
         agentEventBus,
-        logger
+        logger,
+        overrides?.workspaceHandleProvider
     );
     logger.debug('Workspace manager initialized');
 

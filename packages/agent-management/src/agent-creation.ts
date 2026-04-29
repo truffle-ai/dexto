@@ -113,7 +113,11 @@ export async function createDextoAgentFromConfig(
     }
 
     const validatedConfig = AgentConfigSchema.parse(enrichedConfig);
-    const services = await resolveServicesFromConfig(validatedConfig, image, hostContext);
+    const resolvedHostContext = {
+        ...(hostContext ?? {}),
+        ...(enrichOptions?.workspaceRoot ? { workspaceRoot: enrichOptions.workspaceRoot } : {}),
+    };
+    const services = await resolveServicesFromConfig(validatedConfig, image, resolvedHostContext);
     const mergedOverrides: InitializeServicesOptions | undefined = overrides
         ? { ...overrides }
         : undefined;
@@ -123,7 +127,7 @@ export async function createDextoAgentFromConfig(
             config: validatedConfig,
             services,
             image,
-            ...(hostContext ? { hostContext } : {}),
+            hostContext: resolvedHostContext,
             ...(runtimeOverrides ? { runtimeOverrides } : {}),
             overrides: mergedOverrides,
         })

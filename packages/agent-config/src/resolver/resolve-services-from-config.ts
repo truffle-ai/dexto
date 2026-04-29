@@ -60,6 +60,8 @@ export async function resolveServicesFromConfig<
     // 2) Storage
     const storageConfig = image.storage.configSchema.parse(config.storage);
     const stores = await image.storage.createStores(storageConfig, logger, resolutionContext);
+    const workspaceHandleProvider = image.workspace?.create(resolutionContext);
+    const skillSources = (await image.skills?.create(resolutionContext)) ?? [];
 
     // 3) Tools
     const toolEntries = config.tools ?? image.defaults?.tools ?? [];
@@ -120,7 +122,16 @@ export async function resolveServicesFromConfig<
         compaction = await factory.create(parsedConfig, resolutionContext);
     }
 
-    return { logger, stores, tools, toolkitLoader, hooks, compaction };
+    return {
+        logger,
+        stores,
+        tools,
+        skillSources,
+        toolkitLoader,
+        ...(workspaceHandleProvider !== undefined && { workspaceHandleProvider }),
+        hooks,
+        compaction,
+    };
 }
 
 export function resolveToolsFromEntries<

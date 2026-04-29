@@ -41,45 +41,8 @@ const stripBackgroundCompletion = (text: string): string =>
 
 import { generateMessageId } from './idGenerator.js';
 
-/**
- * Regex to detect skill invocation messages.
- * Matches: <skill-invocation>...skill: "config:skill-name"...</skill-invocation>
- * Works for both fork and inline skills.
- */
-const SKILL_INVOCATION_REGEX =
-    /<skill-invocation>[\s\S]*?skill:\s*"(?:config:)?([^"]+)"[\s\S]*?<\/skill-invocation>/;
-
 const AUTOMATION_TRIGGER_REGEX =
     /<scheduled_automation_trigger>[\s\S]*?<\/scheduled_automation_trigger>/;
-
-/**
- * Formats a skill invocation message for clean display.
- * Converts verbose <skill-invocation> blocks to clean /skill-name format.
- * Works for both fork skills (just the tag) and inline skills (tag + content).
- *
- * @param content - The message content to check and format
- * @returns Formatted content if it's a skill invocation, original content otherwise
- */
-export function formatSkillInvocationMessage(content: string): string {
-    const match = content.match(SKILL_INVOCATION_REGEX);
-    if (match) {
-        const skillName = match[1];
-        // Extract task context if present
-        const contextMatch = content.match(/Task context:\s*(.+?)(?:\n|$)/);
-        if (contextMatch) {
-            return `/${skillName} ${contextMatch[1]}`;
-        }
-        return `/${skillName}`;
-    }
-    return content;
-}
-
-/**
- * Checks if a message content is a skill invocation.
- */
-export function isSkillInvocationMessage(content: string): boolean {
-    return SKILL_INVOCATION_REGEX.test(content);
-}
 
 export function extractAutomationTriggerInfo(content: string): {
     label: string;
@@ -618,11 +581,6 @@ export function convertHistoryToUIMessages(
             });
 
             textContent = stripAutomationTriggerTags(textContent);
-        }
-
-        // Format skill invocation messages for cleaner display
-        if (msg.role === 'user') {
-            textContent = formatSkillInvocationMessage(textContent);
         }
 
         uiMessages.push({

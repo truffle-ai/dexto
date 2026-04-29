@@ -60,7 +60,7 @@ describe('PromptManager MCP args mapping/filtering', () => {
 });
 
 describe('PromptManager getPromptDefinition', () => {
-    test('returns context field from config prompts', async () => {
+    test('returns prompt fields from config prompts without skill execution metadata', async () => {
         const fakeMCP = {
             getAllPromptMetadata() {
                 return [];
@@ -78,10 +78,9 @@ describe('PromptManager getPromptDefinition', () => {
             prompts: [
                 {
                     type: 'inline',
-                    id: 'fork-skill',
-                    prompt: 'A skill with fork context',
-                    description: 'Test fork skill',
-                    context: 'fork',
+                    id: 'review',
+                    prompt: 'Review this',
+                    description: 'Review prompt',
                 },
             ],
         };
@@ -96,57 +95,14 @@ describe('PromptManager getPromptDefinition', () => {
             mockLogger
         );
         await pm.initialize();
-        const def = await pm.getPromptDefinition('config:fork-skill');
+        const def = await pm.getPromptDefinition('config:review');
 
         expect(def).toMatchObject({
-            name: 'config:fork-skill',
-            description: 'Test fork skill',
-            context: 'fork',
+            name: 'config:review',
+            description: 'Review prompt',
         });
-    });
-
-    test('returns undefined context when not specified', async () => {
-        const fakeMCP = {
-            getAllPromptMetadata() {
-                return [];
-            },
-            getPromptMetadata() {
-                return undefined;
-            },
-            async getPrompt() {
-                return { messages: [] };
-            },
-        } as any;
-        const stores = new InMemoryDextoStores();
-        const resourceManagerStub = { getArtifactStore: () => stores.getStore('artifacts') } as any;
-        const agentConfig: any = {
-            prompts: [
-                {
-                    type: 'inline',
-                    id: 'inline-skill',
-                    prompt: 'A skill without context',
-                    description: 'Test inline skill',
-                },
-            ],
-        };
-        const eventBus: any = { on: () => {}, emit: () => {} };
-
-        const pm = new PromptManager(
-            fakeMCP,
-            resourceManagerStub,
-            agentConfig,
-            eventBus,
-            stores,
-            mockLogger
-        );
-        await pm.initialize();
-        const def = await pm.getPromptDefinition('config:inline-skill');
-
-        expect(def).toMatchObject({
-            name: 'config:inline-skill',
-            description: 'Test inline skill',
-        });
-        expect(def?.context).toBeUndefined();
+        expect(def).not.toHaveProperty('context');
+        expect(def).not.toHaveProperty('allowedTools');
     });
 });
 
@@ -173,7 +129,6 @@ describe('PromptManager resolvePrompt', () => {
                     description: 'Internal plan-mode prompt',
                     prompt: 'You are in PLAN MODE.\nUse `plan_create`.',
                     'user-invocable': false,
-                    'disable-model-invocation': true,
                 },
             ],
         };

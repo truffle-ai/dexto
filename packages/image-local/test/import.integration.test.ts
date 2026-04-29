@@ -29,7 +29,6 @@ describe('Image Local - Import Integration', () => {
             type: 'inline',
             id: 'dexto-plan-mode',
             'user-invocable': false,
-            'disable-model-invocation': true,
         });
 
         expect(image.tools['builtin-tools']).toBeDefined();

@@ -10,6 +10,7 @@
  * - list_resources
  * - get_resource
  * - invoke_skill
+ * - read_skill
  */
 export { builtinToolsFactory, BuiltinToolsConfigSchema } from './builtin-tools-factory.js';
 export { BUILTIN_TOOL_NAMES } from './builtin-tools-factory.js';

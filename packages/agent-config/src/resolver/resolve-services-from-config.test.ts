@@ -210,6 +210,24 @@ describe('resolveServicesFromConfig', () => {
         expect(barFactoryCreate).not.toHaveBeenCalled();
     });
 
+    it('resolves workspace handle provider from image runtime services', async () => {
+        const workspaceHandleProvider = {
+            open: vi.fn(),
+        };
+        const workspaceCreate = vi.fn(() => workspaceHandleProvider);
+        const image = createMockImage({
+            workspace: {
+                create: workspaceCreate,
+            },
+        });
+        const validated = AgentConfigSchema.parse(baseConfig);
+
+        const services = await resolveServicesFromConfig(validated, image);
+
+        expect(workspaceCreate).toHaveBeenCalledWith({ agentId: validated.agentId });
+        expect(services.workspaceHandleProvider).toBe(workspaceHandleProvider);
+    });
+
     it('uses image.defaults.tools when config.tools is omitted', async () => {
         const fooFactoryCreate = vi.fn(() => [createMockTool('foo')]);
 

@@ -67,6 +67,7 @@ describe('toDextoAgentOptions', () => {
             toolkitLoader: async () => [],
             hooks: [],
             compaction: null,
+            skillSources: [],
         };
 
         const options = toDextoAgentOptions({
@@ -94,6 +95,40 @@ describe('toDextoAgentOptions', () => {
         expect(options.toolkitLoader).toBe(services.toolkitLoader);
     });
 
+    it('passes resolved workspace handle provider through service overrides', () => {
+        const validated = AgentConfigSchema.parse({
+            systemPrompt: 'You are a helpful assistant',
+            llm: {
+                provider: 'openai',
+                model: 'gpt-4o-mini',
+                apiKey: 'test-key',
+            },
+            storage: {
+                cache: { type: 'in-memory' },
+                database: { type: 'in-memory' },
+                blob: { type: 'in-memory' },
+            },
+            compaction: { type: 'noop', enabled: false },
+        });
+        const workspaceHandleProvider = { open: vi.fn() };
+        const services: ResolvedServices = {
+            logger: createMockLogger(),
+            stores: createMockStores(),
+            tools: [],
+            hooks: [],
+            compaction: null,
+            skillSources: [],
+            workspaceHandleProvider,
+        };
+
+        const options = toDextoAgentOptions({
+            config: validated,
+            services,
+        });
+
+        expect(options.overrides?.workspaceHandleProvider).toBe(workspaceHandleProvider);
+    });
+
     it('applies runtime overrides outside the validated agent config', () => {
         const validated = AgentConfigSchema.parse({
             systemPrompt: 'You are a helpful assistant',
@@ -118,6 +153,7 @@ describe('toDextoAgentOptions', () => {
             toolkitLoader: async () => [],
             hooks: [],
             compaction: null,
+            skillSources: [],
         };
 
         const options = toDextoAgentOptions({
@@ -155,6 +191,7 @@ describe('toDextoAgentOptions', () => {
             toolkitLoader: async () => [],
             hooks: [],
             compaction: null,
+            skillSources: [],
         };
 
         type HostedContext = DextoHostContext<

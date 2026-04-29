@@ -20,7 +20,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     tools: [
         {
             name: 'echo_message',
-            description: 'Echo a test message from the skill-bundled MCP server.',
+            description: 'Echo a test message from the bundled sample MCP server.',
             inputSchema: {
                 type: 'object',
                 properties: {
@@ -47,7 +47,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         content: [
             {
                 type: 'text',
-                text: `Echo from skill MCP: ${message}`,
+                text: `Echo from bundled sample MCP: ${message}`,
             },
         ],
     };

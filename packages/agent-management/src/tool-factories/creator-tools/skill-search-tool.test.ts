@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { creatorToolsFactory } from './factory.js';
-import type { Logger, PromptInfo, ToolExecutionContext } from '@dexto/core';
+import type { Logger, SkillSummary, ToolExecutionContext } from '@dexto/core';
 
 function createMockLogger(): Logger {
     const logger: Logger = {
@@ -35,20 +35,19 @@ function getSkillSearchTool() {
 describe('skill_search tool', () => {
     it('matches hyphenated skills with space queries', async () => {
         const logger = createMockLogger();
-        const promptSet: Record<string, PromptInfo> = {
-            'config:create-automation': {
-                name: 'config:create-automation',
+        const skills: SkillSummary[] = [
+            {
+                id: 'create-automation',
                 displayName: 'create-automation',
                 description: 'Create automations',
-                source: 'config',
             },
-        };
+        ];
 
         const context: ToolExecutionContext = {
             logger,
             services: {
-                prompts: {
-                    list: async () => promptSet,
+                skills: {
+                    list: async () => skills,
                 },
             },
         } as ToolExecutionContext;
@@ -67,27 +66,24 @@ describe('skill_search tool', () => {
 
     it('returns all loaded skills when no query is provided', async () => {
         const logger = createMockLogger();
-        const promptSet: Record<string, PromptInfo> = {
-            'config:create-automation': {
-                name: 'config:create-automation',
+        const skills: SkillSummary[] = [
+            {
+                id: 'create-automation',
                 displayName: 'create-automation',
                 description: 'Create automations',
-                source: 'config',
             },
-            'config:archived-skill': {
-                name: 'config:archived-skill',
+            {
+                id: 'archived-skill',
                 displayName: 'archived-skill',
                 description: 'Hidden but loaded',
-                source: 'config',
-                disableModelInvocation: true,
             },
-        };
+        ];
 
         const context: ToolExecutionContext = {
             logger,
             services: {
-                prompts: {
-                    list: async () => promptSet,
+                skills: {
+                    list: async () => skills,
                 },
             },
         } as ToolExecutionContext;

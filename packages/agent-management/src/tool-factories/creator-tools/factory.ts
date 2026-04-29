@@ -1,16 +1,13 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
-import { parse as yamlParse } from 'yaml';
 import type { ToolFactory } from '@dexto/agent-config';
 import {
     ToolError,
     defineTool,
     assertValidPromptName,
-    loadBundledMcpConfigFromDirectory,
     type Tool,
     type ToolExecutionContext,
-    type PromptsConfig,
-    type PromptInfo,
+    type SkillSummary,
 } from '@dexto/core';
 import { discoverStandaloneSkills, getSkillSearchPaths } from '../../plugins/discover-skills.js';
 import {
@@ -27,7 +24,7 @@ import { z } from 'zod';
  * - validation (ids + inputs)
  * - safety (path confinement)
  * - consistent frontmatter shaping
- * - prompt refresh so skills are immediately available
+ * - skill refresh so skills are immediately available
  * - scope-aware paths (workspace/global)
  */
 const SkillCreateInputSchema = z
@@ -35,14 +32,6 @@ const SkillCreateInputSchema = z
         id: z.string().min(1).describe('Skill id (kebab-case).'),
         description: z.string().min(1).describe('Short description of what the skill does.'),
         content: z.string().min(1).describe('Skill body (markdown) without frontmatter.'),
-        allowedTools: z
-            .array(z.string().min(1))
-            .optional()
-            .describe('Optional allowed-tools list for the skill frontmatter.'),
-        toolkits: z
-            .array(z.string().min(1))
-            .optional()
-            .describe('Optional toolkits list for the skill frontmatter.'),
         scope: z.enum(['global', 'workspace']).optional(),
         overwrite: z.boolean().optional(),
     })
@@ -53,14 +42,6 @@ const SkillUpdateInputSchema = z
         id: z.string().min(1),
         content: z.string().min(1).describe('New SKILL.md body (markdown) without frontmatter.'),
         description: z.string().min(1).optional(),
-        allowedTools: z
-            .array(z.string().min(1))
-            .optional()
-            .describe('Optional allowed-tools list for the skill frontmatter.'),
-        toolkits: z
-            .array(z.string().min(1))
-            .optional()
-            .describe('Optional toolkits list for the skill frontmatter.'),
         scope: z.enum(['global', 'workspace']).optional(),
     })
     .strict();
@@ -124,10 +105,6 @@ type SkillSearchEntry = {
     id: string;
     name: string;
     description?: string;
-    displayName?: string;
-    commandName?: string;
-    context?: PromptInfo['context'];
-    agent?: string;
 };
 
 type ToolCatalogEntry = {
@@ -152,8 +129,8 @@ function matchesSkillQuery(value: string | undefined, query: string): boolean {
     return normalizeSkillQuery(value).includes(normalizedQuery);
 }
 
-function resolvePromptSkillName(info: PromptInfo, id: string): string {
-    return info.displayName || info.name || id;
+function resolveSkillName(info: SkillSummary): string {
+    return info.displayName || info.id;
 }
 
 function resolveWorkspaceBasePath(context: ToolExecutionContext): string {
@@ -179,33 +156,6 @@ function resolveWorkspaceSkillDirs(context: ToolExecutionContext): {
         secondary: path.join(base, '.agents', 'skills'),
         legacy: path.join(base, '.dexto', 'skills'),
     };
-}
-
-function findRegisteredSkillFile(
-    skillId: string,
-    context: ToolExecutionContext
-): string | undefined {
-    const prompts = context.agent?.getEffectiveConfig().prompts;
-    if (!Array.isArray(prompts)) {
-        return undefined;
-    }
-
-    for (const prompt of prompts) {
-        if (!prompt || typeof prompt !== 'object' || prompt.type !== 'file') {
-            continue;
-        }
-
-        const filePath = typeof prompt.file === 'string' ? prompt.file : undefined;
-        if (!filePath || path.basename(filePath) !== 'SKILL.md') {
-            continue;
-        }
-
-        if (path.basename(path.dirname(filePath)) === skillId) {
-            return filePath;
-        }
-    }
-
-    return undefined;
 }
 
 function resolveSkillBaseDirectory(
@@ -276,21 +226,6 @@ async function resolveExistingSkillLocation(
     skillDir: string;
     skillFile: string;
 }> {
-    if (input.scope !== 'global') {
-        const registeredSkillFile = findRegisteredSkillFile(input.id.trim(), context);
-        if (registeredSkillFile) {
-            const skillDir = path.dirname(registeredSkillFile);
-            const baseDir = path.dirname(skillDir);
-            ensurePathWithinBase(baseDir, skillDir, 'skill_refresh');
-            return {
-                baseDir,
-                scope: 'workspace',
-                skillDir,
-                skillFile: registeredSkillFile,
-            };
-        }
-    }
-
     const { baseDir, scope } = await resolveSkillUpdateDirectory(input, context);
     const skillDir = path.join(baseDir, input.id.trim());
     ensurePathWithinBase(baseDir, skillDir, 'skill_refresh');
@@ -348,17 +283,10 @@ function resolveSkillCreateInput(
     };
 }
 
-function formatFrontmatterList(key: string, values: string[]): string {
-    const normalized = values.map((value) => JSON.stringify(value.trim()));
-    return `${key}: [${normalized.join(', ')}]`;
-}
-
 function buildSkillMarkdownFromParts(options: {
     id: string;
     description: string;
     content: string;
-    allowedTools?: string[] | undefined;
-    toolkits?: string[] | undefined;
 }): string {
     const id = options.id.trim();
     const title = titleizeSkillId(id) || id;
@@ -367,12 +295,6 @@ function buildSkillMarkdownFromParts(options: {
 
     lines.push(formatFrontmatterLine('name', id));
     lines.push(formatFrontmatterLine('description', options.description.trim()));
-    if (options.toolkits && options.toolkits.length > 0) {
-        lines.push(formatFrontmatterList('toolkits', options.toolkits));
-    }
-    if (options.allowedTools && options.allowedTools.length > 0) {
-        lines.push(formatFrontmatterList('allowed-tools', options.allowedTools));
-    }
 
     lines.push('---', '', `# ${title}`);
     if (body.length > 0) {
@@ -393,113 +315,44 @@ function buildSkillMarkdown(input: ResolvedSkillCreateInput): string {
         id: input.id,
         description: input.description,
         content: input.content,
-        allowedTools: input.allowedTools,
-        toolkits: input.toolkits,
     });
 }
 
-async function readSkillFrontmatter(skillFile: string): Promise<{
-    name?: string;
-    description?: string;
-    allowedTools?: string[];
-    toolkits?: string[];
-}> {
+function frontmatterDescription(markdown: string): string | undefined {
+    if (!markdown.startsWith('---\n')) return undefined;
+    const end = markdown.indexOf('\n---', 4);
+    if (end < 0) return undefined;
+    const line = markdown
+        .slice(4, end)
+        .split('\n')
+        .find((candidate) => candidate.trim().startsWith('description:'));
+    return line?.split(':').slice(1).join(':').trim().replace(/^"|"$/g, '') || undefined;
+}
+
+async function readSkillDescription(skillFile: string): Promise<string | undefined> {
     try {
         const raw = await fs.readFile(skillFile, 'utf-8');
-        const match = raw.match(/^---\s*\n([\s\S]*?)\n---\s*\n/);
-        if (!match) return {};
-        const frontmatter = yamlParse(match[1] ?? '') as Record<string, unknown> | null;
-        if (!frontmatter || typeof frontmatter !== 'object') return {};
-        const name = typeof frontmatter.name === 'string' ? frontmatter.name.trim() : undefined;
-        const description =
-            typeof frontmatter.description === 'string'
-                ? frontmatter.description.trim()
-                : undefined;
-        const allowedToolsRaw = frontmatter['allowed-tools'];
-        const toolkitsRaw = frontmatter.toolkits;
-        const allowedTools = Array.isArray(allowedToolsRaw)
-            ? allowedToolsRaw
-                  .filter((item): item is string => typeof item === 'string')
-                  .map((item) => item.trim())
-                  .filter((item) => item.length > 0)
-            : undefined;
-        const toolkits = Array.isArray(toolkitsRaw)
-            ? toolkitsRaw
-                  .filter((item): item is string => typeof item === 'string')
-                  .map((item) => item.trim())
-                  .filter((item) => item.length > 0)
-            : undefined;
-        const result: {
-            name?: string;
-            description?: string;
-            allowedTools?: string[];
-            toolkits?: string[];
-        } = {};
-        if (name) result.name = name;
-        if (description) result.description = description;
-        if (allowedTools && allowedTools.length > 0) result.allowedTools = allowedTools;
-        if (toolkits && toolkits.length > 0) result.toolkits = toolkits;
-        return result;
+        return frontmatterDescription(raw);
     } catch {
-        return {};
+        return undefined;
     }
 }
 
-async function refreshAgentPrompts(
-    context: ToolExecutionContext,
-    skillFile: string
-): Promise<boolean> {
-    const agent = context.agent;
-    if (!agent) return false;
-
-    const effective = agent.getEffectiveConfig();
-    const existingPrompts = Array.isArray(effective.prompts) ? [...effective.prompts] : [];
-    const alreadyPresent = existingPrompts.some((prompt) => {
-        if (!prompt || typeof prompt !== 'object') return false;
-        const record = prompt as { type?: string; file?: string };
-        return record.type === 'file' && record.file === skillFile;
-    });
-
-    const nextPrompts: PromptsConfig = alreadyPresent
-        ? (existingPrompts as PromptsConfig)
-        : ([...existingPrompts, { type: 'file', file: skillFile }] as PromptsConfig);
-
-    await agent.refreshPrompts(nextPrompts);
+async function refreshAgentSkills(context: ToolExecutionContext): Promise<boolean> {
+    const skillManager = context.services?.skills;
+    if (!skillManager) return false;
+    await skillManager.refresh();
     return true;
 }
 
-function buildSkillBundleNotes(bundledMcpServers: string[]): string[] {
-    const notes = [
-        'Creating or editing files under mcps/ only defines bundled MCP config. It does not implement or verify the target MCP server.',
-        'After editing SKILL.md or bundled MCP files with non-creator tools, run skill_refresh so the current session sees the latest skill content and MCP metadata.',
-    ];
-
-    if (bundledMcpServers.length > 0) {
-        notes.push(
-            'Bundled MCP config is present. Only describe the skill as shipping a real MCP when the config points at a bundled runnable server or a verified external command/package.'
-        );
-    }
-
-    return notes;
-}
-
-function inspectSkillBundle(
-    skillDir: string,
-    skillId: string
-): {
-    bundledMcpServers: string[];
-    bundledMcpWarnings: string[];
+function inspectSkillBundle(): {
     notes: string[];
 } {
-    const bundledMcpResult = loadBundledMcpConfigFromDirectory(skillDir, skillId, {
-        scanNestedMcps: true,
-    });
-    const bundledMcpServers = Object.keys(bundledMcpResult.mcpServers ?? {});
-
     return {
-        bundledMcpServers,
-        bundledMcpWarnings: bundledMcpResult.warnings,
-        notes: buildSkillBundleNotes(bundledMcpServers),
+        notes: [
+            'Files under mcps/ are inert bundled files. Configure MCP servers through normal MCP configuration paths.',
+            'After editing SKILL.md or bundled files with non-creator tools, run skill_refresh so the current session sees the latest skill content.',
+        ],
     };
 }
 
@@ -516,7 +369,7 @@ export const creatorToolsFactory: ToolFactory<CreatorToolsConfig> = {
         const skillCreateTool = defineTool({
             id: 'skill_create',
             description:
-                'Create a standalone SKILL.md file, scaffold bundled resource directories, and register it with the running agent. This scaffolds mcps/ but does not implement or verify an MCP server.',
+                'Create a standalone SKILL.md file, scaffold bundled resource directories, and register it with the running agent. Files under mcps/ are inert bundled files.',
             inputSchema: SkillCreateInputSchema,
             execute: async (input, context) => {
                 const resolvedInput = resolveSkillCreateInput(input);
@@ -548,9 +401,9 @@ export const creatorToolsFactory: ToolFactory<CreatorToolsConfig> = {
                     )
                 );
 
-                const refreshed = await refreshAgentPrompts(context, skillFile);
+                const refreshed = await refreshAgentSkills(context);
                 const displayName = titleizeSkillId(skillId) || skillId;
-                const bundleDetails = inspectSkillBundle(skillDir, skillId);
+                const bundleDetails = inspectSkillBundle();
 
                 return {
                     created: true,
@@ -562,7 +415,7 @@ export const creatorToolsFactory: ToolFactory<CreatorToolsConfig> = {
                     resourceDirectories: SKILL_RESOURCE_DIRECTORIES.map((directory) =>
                         path.join(skillDir, directory)
                     ),
-                    promptsRefreshed: refreshed,
+                    skillsRefreshed: refreshed,
                     ...bundleDetails,
                 };
             },
@@ -579,10 +432,7 @@ export const creatorToolsFactory: ToolFactory<CreatorToolsConfig> = {
                     hint: 'Use kebab-case skill ids (e.g., release-notes)',
                 });
 
-                const { scope, skillDir, skillFile } = await resolveExistingSkillLocation(
-                    input,
-                    context
-                );
+                const { scope, skillFile } = await resolveExistingSkillLocation(input, context);
                 const exists = await pathExists(skillFile);
                 if (!exists) {
                     throw ToolError.validationFailed(
@@ -591,8 +441,8 @@ export const creatorToolsFactory: ToolFactory<CreatorToolsConfig> = {
                     );
                 }
 
-                const existing = await readSkillFrontmatter(skillFile);
-                const description = input.description?.trim() || existing.description;
+                const existingDescription = await readSkillDescription(skillFile);
+                const description = input.description?.trim() || existingDescription;
                 if (!description) {
                     throw ToolError.validationFailed(
                         'skill_update',
@@ -600,21 +450,15 @@ export const creatorToolsFactory: ToolFactory<CreatorToolsConfig> = {
                     );
                 }
 
-                const allowedTools =
-                    input.allowedTools !== undefined ? input.allowedTools : existing.allowedTools;
-                const toolkits = input.toolkits !== undefined ? input.toolkits : existing.toolkits;
-
                 const markdown = buildSkillMarkdownFromParts({
                     id: skillId,
                     description,
                     content: input.content.trim(),
-                    allowedTools,
-                    toolkits,
                 });
 
                 await fs.writeFile(skillFile, markdown, 'utf-8');
-                const refreshed = await refreshAgentPrompts(context, skillFile);
-                const bundleDetails = inspectSkillBundle(skillDir, skillId);
+                const refreshed = await refreshAgentSkills(context);
+                const bundleDetails = inspectSkillBundle();
 
                 return {
                     updated: true,
@@ -622,7 +466,7 @@ export const creatorToolsFactory: ToolFactory<CreatorToolsConfig> = {
                     description,
                     scope,
                     path: skillFile,
-                    promptsRefreshed: refreshed,
+                    skillsRefreshed: refreshed,
                     ...bundleDetails,
                 };
             },
@@ -631,7 +475,7 @@ export const creatorToolsFactory: ToolFactory<CreatorToolsConfig> = {
         const skillRefreshTool = defineTool({
             id: 'skill_refresh',
             description:
-                'Refresh one standalone skill bundle in the current session after editing SKILL.md, mcps/, scripts/, or references/. Rebuilds prompt metadata so bundled MCP servers can be discovered without restarting.',
+                'Refresh one standalone skill bundle in the current session after editing SKILL.md, handlers/, scripts/, mcps/, or references/.',
             inputSchema: SkillRefreshInputSchema,
             execute: async (input, context) => {
                 const skillId = input.id.trim();
@@ -640,16 +484,13 @@ export const creatorToolsFactory: ToolFactory<CreatorToolsConfig> = {
                     hint: 'Use kebab-case skill ids (e.g., release-notes)',
                 });
 
-                if (!context.agent) {
+                if (!context.services?.skills) {
                     throw ToolError.configInvalid(
-                        'skill_refresh requires ToolExecutionContext.agent'
+                        'skill_refresh requires ToolExecutionContext.services.skills'
                     );
                 }
 
-                const { scope, skillDir, skillFile } = await resolveExistingSkillLocation(
-                    input,
-                    context
-                );
+                const { scope, skillFile } = await resolveExistingSkillLocation(input, context);
                 const exists = await pathExists(skillFile);
                 if (!exists) {
                     throw ToolError.validationFailed(
@@ -658,15 +499,15 @@ export const creatorToolsFactory: ToolFactory<CreatorToolsConfig> = {
                     );
                 }
 
-                const refreshed = await refreshAgentPrompts(context, skillFile);
-                const bundleDetails = inspectSkillBundle(skillDir, skillId);
+                const refreshed = await refreshAgentSkills(context);
+                const bundleDetails = inspectSkillBundle();
 
                 return {
                     refreshed: true,
                     id: skillId,
                     scope,
                     path: skillFile,
-                    promptsRefreshed: refreshed,
+                    skillsRefreshed: refreshed,
                     ...bundleDetails,
                 };
             },
@@ -681,30 +522,24 @@ export const creatorToolsFactory: ToolFactory<CreatorToolsConfig> = {
                 const normalizedQuery = normalizeSkillQuery(query);
                 const hasQuery = normalizedQuery.length > 0;
                 const limit = input.limit ?? (hasQuery ? undefined : 50);
-                const promptManager = context.services?.prompts;
-                if (!promptManager) {
+                const skillManager = context.services?.skills;
+                if (!skillManager) {
                     throw ToolError.configInvalid(
-                        'skill_search requires ToolExecutionContext.services.prompts'
+                        'skill_search requires ToolExecutionContext.services.skills'
                     );
                 }
 
-                const loaded = await promptManager.list();
-                let results: SkillSearchEntry[] = Object.entries(loaded).map(([id, info]) => ({
-                    id,
-                    name: resolvePromptSkillName(info, id),
-                    ...(info.displayName ? { displayName: info.displayName } : {}),
-                    ...(info.commandName ? { commandName: info.commandName } : {}),
+                const loaded = await skillManager.list();
+                let results: SkillSearchEntry[] = loaded.map((info) => ({
+                    id: info.id,
+                    name: resolveSkillName(info),
                     ...(info.description ? { description: info.description } : {}),
-                    ...(info.context ? { context: info.context } : {}),
-                    ...(info.agent ? { agent: info.agent } : {}),
                 }));
 
                 if (hasQuery && normalizedQuery) {
                     results = results.filter((entry) => {
                         if (matchesSkillQuery(entry.id, normalizedQuery)) return true;
                         if (matchesSkillQuery(entry.name, normalizedQuery)) return true;
-                        if (matchesSkillQuery(entry.displayName, normalizedQuery)) return true;
-                        if (matchesSkillQuery(entry.commandName, normalizedQuery)) return true;
                         if (matchesSkillQuery(entry.description, normalizedQuery)) return true;
                         return false;
                     });
@@ -795,7 +630,7 @@ export const creatorToolsFactory: ToolFactory<CreatorToolsConfig> = {
                     tools: limited,
                     _hint:
                         limited.length > 0
-                            ? 'Use tool ids in allowed-tools. Use toolkits from the agent config or image defaults.'
+                            ? 'Use exact tool ids when configuring agent permissions.'
                             : 'No tools matched the query.',
                 };
             },

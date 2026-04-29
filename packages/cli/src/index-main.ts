@@ -463,12 +463,13 @@ async function bootstrapAgentFromGlobalOpts(options: {
     };
 
     const validatedConfig = AgentConfigSchema.parse(enrichedConfig);
-    const services = await resolveServicesFromConfig(validatedConfig, image);
+    const services = await resolveServicesFromConfig(validatedConfig, image, { workspaceRoot });
     const agent = new DextoAgent(
         toDextoAgentOptions({
             config: validatedConfig,
             services,
             image,
+            hostContext: { workspaceRoot },
         })
     );
     await agent.start();
@@ -1094,12 +1095,15 @@ program
                               })
                             : null;
 
-                    const services = await resolveServicesFromConfig(validatedConfig, image);
+                    const services = await resolveServicesFromConfig(validatedConfig, image, {
+                        workspaceRoot,
+                    });
                     agent = new DextoAgent(
                         toDextoAgentOptions({
                             config: validatedConfig,
                             services,
                             image,
+                            hostContext: { workspaceRoot },
                             overrides: {
                                 sessionLoggerFactory,
                                 mcpAuthProviderFactory,

@@ -58,9 +58,11 @@ import { schedulerToolsFactory } from '@dexto/tools-scheduler';
 import { lifecycleToolsFactory } from '@dexto/tools-lifecycle';
 import {
     agentSpawnerToolsFactory,
+    createLocalSkillSources,
     creatorToolsFactory,
     getDextoPackageRoot,
 } from '@dexto/agent-management';
+import { LocalWorkspaceHandleProvider } from './local-workspace-handle-provider.js';
 
 function readPackageJson(packageJsonPath: string): { name?: string; version?: string } | null {
     if (!existsSync(packageJsonPath)) {
@@ -276,7 +278,6 @@ const imageLocal: DextoImage = {
                 description:
                     'Internal prompt used by the CLI plan mode toggle. This is injected into the first user message when plan mode is enabled.',
                 'user-invocable': false,
-                'disable-model-invocation': true,
                 prompt: [
                     'You are in PLAN MODE.',
                     '',
@@ -322,6 +323,16 @@ const imageLocal: DextoImage = {
         noop: noopCompactionFactory,
     },
     logger: defaultLoggerFactory,
+    workspace: {
+        create: () => new LocalWorkspaceHandleProvider(),
+    },
+    skills: {
+        create: (context) =>
+            createLocalSkillSources({
+                workspaceRoot: context?.hostContext?.workspaceRoot,
+            }),
+    },
 };
 
 export default imageLocal;
+export { LocalWorkspaceHandleProvider };

@@ -103,6 +103,11 @@
             "import": "./dist/search/index.js",
             "require": "./dist/search/index.cjs"
         },
+        "./skills": {
+            "types": "./dist/skills/index.d.ts",
+            "import": "./dist/skills/index.js",
+            "require": "./dist/skills/index.cjs"
+        },
         "./session": {
             "types": "./dist/session/index.d.ts",
             "import": "./dist/session/index.js",

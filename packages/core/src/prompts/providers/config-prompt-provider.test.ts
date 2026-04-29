@@ -386,7 +386,7 @@ describe('ConfigPromptProvider', () => {
             });
         });
 
-        test('loads Claude Code SKILL.md format (uses name: instead of id:)', async () => {
+        test('does not use skill-only name frontmatter as prompt id', async () => {
             const config = makeAgentConfig([
                 {
                     type: 'file',
@@ -401,11 +401,8 @@ describe('ConfigPromptProvider', () => {
 
             expect(result.prompts).toHaveLength(1);
             expect(result.prompts[0]).toMatchObject({
-                // name: field in frontmatter should be used as id
-                name: 'config:my-plugin:test-skill',
-                // displayName is now just the skill id (without namespace prefix)
-                // commandName (computed by PromptManager) handles collision resolution
-                displayName: 'test-skill',
+                name: 'config:my-plugin:claude-skill',
+                displayName: 'claude-skill',
                 description: 'A test skill using Claude Code SKILL.md format with name field.',
                 source: 'config',
             });
@@ -548,7 +545,7 @@ describe('ConfigPromptProvider', () => {
             expect(text).toContain('detailed style');
         });
 
-        test('SKILL.md uses parent directory name as id (Claude Code convention)', async () => {
+        test('does not represent SKILL.md files as prompts', async () => {
             const config = makeAgentConfig([
                 {
                     type: 'file',
@@ -560,54 +557,12 @@ describe('ConfigPromptProvider', () => {
             const provider = new ConfigPromptProvider(config, mockLogger);
             const result = await provider.listPrompts();
 
-            expect(result.prompts).toHaveLength(1);
-            expect(result.prompts[0]).toMatchObject({
-                // Should use directory name "my-test-skill" as id, not "SKILL"
-                name: 'config:my-test-skill',
-                displayName: 'my-test-skill',
-                description: 'Test skill using directory name as id',
-                source: 'config',
-            });
-        });
-
-        test('parses context: fork from SKILL.md frontmatter', async () => {
-            const config = makeAgentConfig([
-                {
-                    type: 'file',
-                    file: join(FIXTURES_DIR, 'my-test-skill', 'SKILL.md'),
-                    showInStarters: false,
-                },
-            ]);
-
-            const provider = new ConfigPromptProvider(config, mockLogger);
-            const result = await provider.listPrompts();
-
-            expect(result.prompts).toHaveLength(1);
-            // context should be parsed from frontmatter
-            expect(result.prompts[0]?.context).toBe('fork');
-        });
-
-        test('getPromptDefinition includes context field', async () => {
-            const config = makeAgentConfig([
-                {
-                    type: 'file',
-                    file: join(FIXTURES_DIR, 'my-test-skill', 'SKILL.md'),
-                    showInStarters: false,
-                },
-            ]);
-
-            const provider = new ConfigPromptProvider(config, mockLogger);
-            const def = await provider.getPromptDefinition('config:my-test-skill');
-
-            expect(def).toMatchObject({
-                name: 'config:my-test-skill',
-                context: 'fork',
-            });
+            expect(result.prompts).toHaveLength(0);
         });
     });
 
-    describe('allowed-tools passthrough', () => {
-        test('preserves allowed-tools from file prompts', async () => {
+    describe('skill-only metadata', () => {
+        test('does not expose allowed-tools or toolkits from file prompts', async () => {
             const config = makeAgentConfig([
                 {
                     type: 'file',
@@ -618,93 +573,13 @@ describe('ConfigPromptProvider', () => {
 
             const provider = new ConfigPromptProvider(config, mockLogger);
             const def = await provider.getPromptDefinition('config:skill-with-tools');
-
-            expect(def).not.toBeNull();
-            expect(def!.allowedTools).toEqual(['bash', 'Read', 'WRITE', 'edit', 'keep_as_is']);
-        });
-
-        test('captures toolkits in file prompt metadata', async () => {
-            const config = makeAgentConfig([
-                {
-                    type: 'file',
-                    file: join(FIXTURES_DIR, 'skill-with-tools.md'),
-                    showInStarters: false,
-                },
-            ]);
-
-            const provider = new ConfigPromptProvider(config, mockLogger);
             const list = await provider.listPrompts();
             const prompt = list.prompts.find((item) => item.name === 'config:skill-with-tools');
 
-            expect(prompt?.metadata?.toolkits).toEqual(['creator-tools']);
-            expect(prompt?.toolkits).toEqual(['creator-tools']);
-        });
-
-        test('captures bundled MCP servers for skill bundles', async () => {
-            const config = makeAgentConfig([
-                {
-                    type: 'file',
-                    file: join(FIXTURES_DIR, 'my-test-skill', 'SKILL.md'),
-                    showInStarters: false,
-                },
-            ]);
-
-            const provider = new ConfigPromptProvider(config, mockLogger);
-            const list = await provider.listPrompts();
-            const prompt = list.prompts.find((item) => item.name === 'config:my-test-skill');
-            const mcpServers = prompt?.metadata?.mcpServers as
-                | Record<string, Record<string, unknown>>
-                | undefined;
-
-            expect(mcpServers).toBeDefined();
-            expect(mcpServers?.skill_fixture_echo).toMatchObject({
-                type: 'stdio',
-                command: 'node',
-            });
-            expect(mcpServers?.skill_fixture_echo?.args).toEqual([
-                join(FIXTURES_DIR, 'my-test-skill', 'scripts', 'fixture-echo-server.mjs'),
-            ]);
-        });
-
-        test('preserves allowed-tools from inline prompts', async () => {
-            const config = makeAgentConfig([
-                {
-                    type: 'inline',
-                    id: 'inline-with-tools',
-                    title: 'Inline With Tools',
-                    prompt: 'Test prompt',
-                    'allowed-tools': ['BASH', 'Grep', 'glob', 'mcp--some_server'],
-                },
-            ]);
-
-            const provider = new ConfigPromptProvider(config, mockLogger);
-            const def = await provider.getPromptDefinition('config:inline-with-tools');
-
             expect(def).not.toBeNull();
-            expect(def!.allowedTools).toEqual([
-                'BASH',
-                'Grep',
-                'glob',
-                'mcp--some_server', // MCP tools pass through unchanged
-            ]);
-        });
-
-        test('preserves unknown tool names unchanged', async () => {
-            const config = makeAgentConfig([
-                {
-                    type: 'inline',
-                    id: 'unknown-tools',
-                    title: 'Unknown Tools',
-                    prompt: 'Test prompt',
-                    'allowed-tools': ['unknown_tool', 'another-custom', 'legacy--foo'],
-                },
-            ]);
-
-            const provider = new ConfigPromptProvider(config, mockLogger);
-            const def = await provider.getPromptDefinition('config:unknown-tools');
-
-            expect(def).not.toBeNull();
-            expect(def!.allowedTools).toEqual(['unknown_tool', 'another-custom', 'legacy--foo']);
+            expect(def).not.toHaveProperty('allowedTools');
+            expect(prompt).not.toHaveProperty('toolkits');
+            expect(prompt?.metadata).not.toHaveProperty('toolkits');
         });
     });
 });

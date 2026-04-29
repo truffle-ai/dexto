@@ -11,30 +11,15 @@ export interface PromptArgument {
 }
 
 /**
- * MCP-compliant prompt definition with Dexto extensions
- * Base structure matches MCP SDK's Prompt, extended with Claude Code compatibility fields
+ * MCP-compliant prompt definition with Dexto extensions.
  */
 export interface PromptDefinition {
     name: string;
     title?: string | undefined;
     description?: string | undefined;
     arguments?: PromptArgument[] | undefined;
-    // Claude Code compatibility fields (Phase 1)
-    /** Exclude from auto-invocation list in system prompt */
-    disableModelInvocation?: boolean | undefined;
-    /** Show in slash command menu (false = hidden but auto-invocable by LLM) */
+    /** Show in slash command menu (false = hidden but available for explicit internal use) */
     userInvocable?: boolean | undefined;
-    // Per-prompt overrides (Phase 2)
-    /** Tools to auto-approve when this prompt is active (additive) */
-    allowedTools?: string[] | undefined;
-    /** Toolkits to load when this prompt is invoked */
-    toolkits?: string[] | undefined;
-    /** Model to use when this prompt is invoked */
-    model?: string | undefined;
-    /** Execution context: 'inline' runs in current session, 'fork' spawns isolated subagent */
-    context?: 'inline' | 'fork' | undefined;
-    /** Agent ID from registry to use for fork execution */
-    agent?: string | undefined;
 }
 
 /**
@@ -48,8 +33,8 @@ export interface PromptDefinition {
  *   "config:namespace:id" for config prompts or just "promptName" for MCP/custom.
  *
  * - **displayName**: User-friendly base name without system prefixes. Set by providers
- *   to just the skill/prompt id (e.g., "plan" not "config:tools:plan"). For MCP and
- *   custom prompts, this equals `name` since they have no internal prefixes.
+ *   to just the prompt id (e.g., "plan" not "config:tools:plan"). For MCP and custom
+ *   prompts, this equals `name` since they have no internal prefixes.
  *
  * - **commandName**: Collision-resolved slash command name computed by PromptManager.
  *   If multiple prompts share the same displayName, commandName adds a source prefix
@@ -63,10 +48,6 @@ export interface PromptInfo extends PromptDefinition {
     displayName?: string | undefined;
     /** Collision-resolved command name computed by PromptManager (e.g., "plan" or "config:plan") */
     commandName?: string | undefined;
-    /** Execution context: 'inline' runs in current session, 'fork' spawns isolated subagent */
-    context?: 'inline' | 'fork' | undefined;
-    /** Agent ID from registry to use for fork execution */
-    agent?: string | undefined;
     metadata?: Record<string, unknown>;
 }
 
@@ -84,23 +65,13 @@ export interface PromptListResult {
 }
 
 /**
- * Result type for resolvePrompt including optional per-prompt overrides
+ * Result type for resolvePrompt.
  */
 export interface ResolvedPromptResult {
     /** The resolved prompt text with arguments applied */
     text: string;
     /** Resource URIs referenced by the prompt */
     resources: string[];
-    /** Tools to auto-approve when this prompt is active (additive) */
-    allowedTools?: string[] | undefined;
-    /** Toolkits to load when this prompt is invoked */
-    toolkits?: string[] | undefined;
-    /** Model to use when this prompt is invoked */
-    model?: string | undefined;
-    /** Execution context: 'inline' runs in current session, 'fork' spawns isolated subagent */
-    context?: 'inline' | 'fork' | undefined;
-    /** Agent ID from registry to use for fork execution */
-    agent?: string | undefined;
 }
 
 /**

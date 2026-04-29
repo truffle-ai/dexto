@@ -6,6 +6,12 @@ import { MCPManager } from '../mcp/manager.js';
 import { ToolManager } from '../tools/tool-manager.js';
 import { SystemPromptManager } from '../systemPrompt/manager.js';
 import { SkillsContributor } from '../systemPrompt/contributors.js';
+import {
+    CompositeSkillManager,
+    WorkspaceSkillSource,
+    type SkillManager,
+    type SkillSource,
+} from '../skills/index.js';
 import { ResourceManager, expandMessageReferences } from '../resources/index.js';
 import { expandBlobReferences, fileTypesToMimePatterns } from '../context/utils.js';
 import type { ContentPart, InternalMessage } from '../context/types.js';
@@ -191,6 +197,7 @@ export class DextoAgent {
     public readonly systemPromptManager!: SystemPromptManager;
     private readonly agentEventBus: AgentEventBus;
     public readonly promptManager!: PromptManager;
+    public readonly skillManager!: SkillManager;
     public readonly stateManager!: AgentStateManager;
     public readonly sessionManager!: SessionManager;
     public readonly workspaceManager!: WorkspaceManager;
@@ -228,6 +235,7 @@ export class DextoAgent {
     private readonly toolkitLoader: ToolkitLoader | undefined;
     private readonly loadedToolkits: Set<string> = new Set();
     private readonly loadingToolkits: Set<string> = new Set();
+    private readonly skillSources: SkillSource[];
 
     // DI-provided local tools.
     private tools: Tool[];
@@ -312,6 +320,7 @@ export class DextoAgent {
 
         this.overrides = overrides;
         this.toolkitLoader = options.toolkitLoader;
+        this.skillSources = options.skillSources ?? [];
 
         if (overrides.mcpAuthProviderFactory !== undefined) {
             this.mcpAuthProviderFactory = overrides.mcpAuthProviderFactory;
@@ -405,7 +414,7 @@ export class DextoAgent {
 
             // Initialize prompts manager (aggregates MCP, internal, starter prompts)
             // File prompts automatically resolve custom slash commands
-            // Must be initialized before toolManager so invoke_skill tool can access prompts
+            // Must be initialized before toolManager so read_skill/invoke_skill can access skills.
             const promptManager = new PromptManager(
                 this.mcpManager,
                 this.resourceManager,
@@ -415,7 +424,11 @@ export class DextoAgent {
                 this.logger
             );
             await promptManager.initialize();
-            Object.assign(this, { promptManager });
+            const skillManager = new CompositeSkillManager([
+                ...this.skillSources,
+                new WorkspaceSkillSource(services.workspaceManager),
+            ]);
+            Object.assign(this, { promptManager, skillManager });
 
             // Provide ToolExecutionContext to tools at runtime (late-binding to avoid init ordering cycles)
             const toolExecutionServices = {
@@ -423,8 +436,10 @@ export class DextoAgent {
                 search: services.searchService,
                 resources: services.resourceManager,
                 prompts: promptManager,
+                skills: skillManager,
                 mcp: services.mcpManager,
                 taskForker: null,
+                workspaceManager: services.workspaceManager,
             };
             services.toolManager.setToolExecutionContextFactory((baseContext) => ({
                 ...baseContext,
@@ -444,7 +459,7 @@ export class DextoAgent {
                 const skillsContributor = new SkillsContributor(
                     'skills',
                     50, // Priority after memories (40) but before most other content
-                    promptManager,
+                    skillManager,
                     this.logger
                 );
                 services.systemPromptManager.addContributor(skillsContributor);
@@ -3447,11 +3462,10 @@ export class DextoAgent {
      * - Prompt key resolution (resolving aliases)
      * - Argument normalization (including special _context field)
      * - Prompt execution and flattening
-     * - Returning per-prompt overrides (allowedTools, model) for the invoker to apply
      *
      * @param name The prompt name or alias
      * @param options Optional configuration for prompt resolution
-     * @returns Promise resolving to the resolved text, resource URIs, and optional overrides
+     * @returns Promise resolving to the resolved text and resource URIs.
      */
     public async resolvePrompt(
         name: string,

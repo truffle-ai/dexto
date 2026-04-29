@@ -2,7 +2,13 @@ import { randomUUID } from 'crypto';
 import type { AgentEventBus } from '../events/index.js';
 import type { Logger } from '../logger/v2/types.js';
 import { DextoLogComponent } from '../logger/v2/types.js';
-import type { SetWorkspaceInput, WorkspaceContext } from './types.js';
+import type {
+    OpenWorkspaceInput,
+    SetWorkspaceInput,
+    WorkspaceContext,
+    WorkspaceHandle,
+    WorkspaceHandleProvider,
+} from './types.js';
 import { WorkspaceError } from './errors.js';
 import type { WorkspaceStore } from '../storage/workspaces/types.js';
 
@@ -13,7 +19,8 @@ export class WorkspaceManager {
     constructor(
         private workspaceStore: WorkspaceStore,
         private agentEventBus: AgentEventBus,
-        logger: Logger
+        logger: Logger,
+        private handleProvider?: WorkspaceHandleProvider
     ) {
         this.logger = logger.createChild(DextoLogComponent.AGENT);
         this.logger.debug('WorkspaceManager initialized');
@@ -84,5 +91,20 @@ export class WorkspaceManager {
         const workspaces = await this.workspaceStore.listWorkspaces();
 
         return workspaces.sort((a, b) => (b.lastActiveAt ?? 0) - (a.lastActiveAt ?? 0));
+    }
+
+    async open(input?: OpenWorkspaceInput): Promise<WorkspaceHandle> {
+        const workspace = await this.getWorkspace();
+        if (!workspace) {
+            throw WorkspaceError.currentWorkspaceRequired();
+        }
+        if (!this.handleProvider) {
+            throw WorkspaceError.handleProviderRequired();
+        }
+
+        return this.handleProvider.open({
+            context: workspace,
+            ...(input !== undefined && { input }),
+        });
     }
 }

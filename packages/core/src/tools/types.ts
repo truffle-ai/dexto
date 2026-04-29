@@ -17,6 +17,8 @@ import type { SearchService } from '../search/search-service.js';
 import type { Logger } from '../logger/v2/types.js';
 import type { HostRuntimeContext } from '../runtime/index.js';
 import type { AgentRunContext } from '../runtime/run-context.js';
+import type { SkillManager } from '../skills/index.js';
+import type { WorkspaceManager } from '../workspace/index.js';
 
 /**
  * Interface for forking execution to an isolated sub-agent context.
@@ -51,8 +53,10 @@ export interface ToolServices {
     search: SearchService;
     resources: ResourceManager;
     prompts: PromptManager;
+    skills: SkillManager;
     mcp: MCPManager;
     taskForker: TaskForker | null;
+    workspaceManager: WorkspaceManager;
 }
 
 /**
@@ -264,9 +268,9 @@ export interface Tool<TSchema extends ZodTypeAny = ZodTypeAny> {
     /**
      * Optional aliases for this tool id.
      *
-     * Used to support external prompt/skill ecosystems that refer to tools by short names
-     * (e.g. Claude Code "bash", "read", "grep" in allowed-tools). Aliases are resolved
-     * by {@link ToolManager} when applying session auto-approve lists.
+     * Used when external tool catalogs refer to tools by short names
+     * (e.g. Claude Code "bash", "read", "grep"). Aliases are resolved
+     * by {@link ToolManager} when applying tool approval policy lists.
      */
     aliases?: string[] | undefined;
 

@@ -1048,22 +1048,7 @@ export const PromptDefinitionSchema = z
             .array(PromptArgumentSchema)
             .optional()
             .describe('Array of argument definitions'),
-        disableModelInvocation: z
-            .boolean()
-            .optional()
-            .describe('Exclude from auto-invocation list in system prompt'),
         userInvocable: z.boolean().optional().describe('Whether to show in slash command menu'),
-        allowedTools: z
-            .array(z.string())
-            .optional()
-            .describe('Tools to auto-approve when this prompt is active'),
-        toolkits: z.array(z.string()).optional().describe('Toolkits to load when invoked'),
-        model: z.string().optional().describe('Model to use when this prompt is invoked'),
-        context: z
-            .enum(['inline', 'fork'])
-            .optional()
-            .describe('Execution context for this prompt'),
-        agent: z.string().optional().describe('Agent ID to use for fork execution'),
     })
     .strict()
     .describe('Prompt definition (MCP-compliant)');
@@ -1079,22 +1064,7 @@ export const PromptInfoSchema = z
             .array(PromptArgumentSchema)
             .optional()
             .describe('Array of argument definitions'),
-        disableModelInvocation: z
-            .boolean()
-            .optional()
-            .describe('Exclude from auto-invocation list in system prompt'),
         userInvocable: z.boolean().optional().describe('Whether to show in slash command menu'),
-        allowedTools: z
-            .array(z.string())
-            .optional()
-            .describe('Tools to auto-approve when this prompt is active'),
-        toolkits: z.array(z.string()).optional().describe('Toolkits to load when invoked'),
-        model: z.string().optional().describe('Model to use when this prompt is invoked'),
-        context: z
-            .enum(['inline', 'fork'])
-            .optional()
-            .describe('Execution context for this prompt'),
-        agent: z.string().optional().describe('Agent ID to use for fork execution'),
         source: z.enum(['mcp', 'config', 'custom']).describe('Source of the prompt'),
         displayName: z.string().optional().describe('Base display name set by provider'),
         commandName: z.string().optional().describe('Collision-resolved slash command name'),
