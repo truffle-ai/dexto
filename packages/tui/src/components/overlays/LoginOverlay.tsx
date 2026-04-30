@@ -9,12 +9,11 @@ import React, {
 import { Box, Text } from 'ink';
 import type { Key } from '../../hooks/useInputOrchestrator.js';
 import {
-    type TuiDextoApiKeyProvisionStatus as DextoApiKeyProvisionStatus,
+    type TuiDeviceApiKeyLoginResult,
     type TuiDeviceLoginPrompt as DeviceLoginPrompt,
-    type TuiOAuthResult as OAuthResult,
     loadAuth,
     performDeviceCodeLogin,
-    persistOAuthLoginResult,
+    persistDeviceApiKeyLoginResult,
 } from '../../host/index.js';
 
 export type LoginOverlayOutcome =
@@ -63,20 +62,13 @@ const LoginOverlay = forwardRef<LoginOverlayHandle, LoginOverlayProps>(function 
         setStatus(message);
     }, []);
 
-    const handleProvisionStatus = useCallback(
-        (provisionStatus: DextoApiKeyProvisionStatus) => {
-            safeSetStatus(provisionStatus.message);
-        },
-        [safeSetStatus]
-    );
-
     const cancelInFlight = useCallback(() => {
         abortControllerRef.current?.abort(new Error('Authentication cancelled'));
         abortControllerRef.current = null;
     }, []);
 
     const runDeviceLogin = useCallback(
-        async (abortController: AbortController): Promise<OAuthResult> => {
+        async (abortController: AbortController): Promise<TuiDeviceApiKeyLoginResult> => {
             setStep('starting');
             safeSetStatus('Starting device code login...');
             setAuthUrl(null);
@@ -115,9 +107,7 @@ const LoginOverlay = forwardRef<LoginOverlayHandle, LoginOverlayProps>(function 
             setStep('finalizing');
             safeSetStatus('Finalizing login...');
 
-            const persisted = await persistOAuthLoginResult(result, {
-                onProvisionStatus: handleProvisionStatus,
-            });
+            const persisted = await persistDeviceApiKeyLoginResult(result);
 
             if (!isActiveRef.current || abortController.signal.aborted) return;
             onDone({
@@ -138,7 +128,7 @@ const LoginOverlay = forwardRef<LoginOverlayHandle, LoginOverlayProps>(function 
         } finally {
             abortControllerRef.current = null;
         }
-    }, [cancelInFlight, handleProvisionStatus, onDone, runDeviceLogin, safeSetStatus]);
+    }, [cancelInFlight, onDone, runDeviceLogin, safeSetStatus]);
 
     // Initialize when shown
     useEffect(() => {

@@ -1,6 +1,7 @@
 import { type DextoApiKeyProvisionStatus, ensureDextoApiKeyForAuthToken } from './dexto-api-key.js';
 import type { OAuthResult } from './oauth.js';
 import { loadAuth, storeAuth, type AuthConfig } from './service.js';
+import type { DeviceApiKeyLoginResult } from './types.js';
 
 export interface PersistOAuthLoginOptions {
     onProvisionStatus?: ((status: DextoApiKeyProvisionStatus) => void) | undefined;
@@ -82,5 +83,21 @@ export async function persistOAuthLoginResult(
         userId: result.user?.id,
         keyId: ensured?.keyId ?? preservedDextoApiKey?.dextoKeyId ?? undefined,
         hasDextoApiKey: Boolean(ensured?.dextoApiKey ?? preservedDextoApiKey?.dextoApiKey),
+    };
+}
+
+export async function persistDeviceApiKeyLoginResult(
+    result: DeviceApiKeyLoginResult
+): Promise<PersistedLoginResult> {
+    await storeAuth({
+        dextoApiKey: result.dextoApiKey,
+        dextoKeyId: result.dextoKeyId,
+        dextoApiKeySource: 'provisioned',
+        createdAt: Date.now(),
+    });
+
+    return {
+        keyId: result.dextoKeyId,
+        hasDextoApiKey: true,
     };
 }

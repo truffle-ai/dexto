@@ -7,6 +7,7 @@ import {
     isAuthenticated,
     loadAuth,
     performDeviceCodeLogin,
+    persistDeviceApiKeyLoginResult,
     persistOAuthLoginResult,
     storeAuth,
 } from '../../auth/index.js';
@@ -14,6 +15,7 @@ import {
 export interface LoginCommandOptions {
     apiKey?: string;
     token?: string;
+    platformUrl?: string | undefined;
     interactive?: boolean;
 }
 
@@ -83,13 +85,15 @@ export async function handleLoginCommand(options: LoginCommandOptions = {}): Pro
         }
 
         if (options.interactive === false) {
-            await handleDeviceLogin();
+            await handleDeviceLogin(
+                options.platformUrl ? { platformUrl: options.platformUrl } : {}
+            );
             console.log(chalk.green('🎉 Login successful!'));
             return;
         }
 
         p.intro(chalk.inverse(' Login to Dexto '));
-        await handleDeviceLogin();
+        await handleDeviceLogin(options.platformUrl ? { platformUrl: options.platformUrl } : {});
         p.outro(chalk.green('🎉 Login successful!'));
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
@@ -103,9 +107,10 @@ export async function handleAutoLogin(): Promise<void> {
     await handleDeviceLogin();
 }
 
-export async function handleDeviceLogin(): Promise<void> {
+export async function handleDeviceLogin(options: { platformUrl?: string } = {}): Promise<void> {
     try {
         const result = await performDeviceCodeLogin({
+            ...(options.platformUrl ? { apiUrl: options.platformUrl } : {}),
             onPrompt: (prompt) => {
                 console.log(chalk.cyan('\nUse any browser to complete login:'));
                 if (prompt.verificationUrlComplete) {
@@ -121,10 +126,8 @@ export async function handleDeviceLogin(): Promise<void> {
             },
         });
 
-        const persisted = await persistOAuthLoginResult(result);
-        if (persisted.email) {
-            console.log(chalk.dim(`\nWelcome back, ${persisted.email}`));
-        }
+        const persisted = await persistDeviceApiKeyLoginResult(result);
+        console.log(chalk.dim(`\nSaved Dexto API key ${persisted.keyId ?? ''}`.trim()));
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         if (isCancellationError(errorMessage)) {

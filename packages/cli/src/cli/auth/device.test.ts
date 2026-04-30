@@ -3,7 +3,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const mocked = vi.hoisted(() => ({
     startDeviceCodeLogin: vi.fn(),
     pollDeviceCodeLogin: vi.fn(),
-    fetchSupabaseUser: vi.fn(),
     getDextoApiClient: vi.fn(),
     constructedWith: [] as unknown[],
 }));
@@ -25,10 +24,6 @@ vi.mock('./api-client.js', () => ({
         pollDeviceCodeLogin(deviceCode: string, options?: { signal?: AbortSignal | undefined }) {
             return mocked.pollDeviceCodeLogin(deviceCode, options);
         }
-
-        fetchSupabaseUser(accessToken: string, options?: { signal?: AbortSignal | undefined }) {
-            return mocked.fetchSupabaseUser(accessToken, options);
-        }
     },
     getDextoApiClient: mocked.getDextoApiClient,
 }));
@@ -40,13 +35,11 @@ describe('performDeviceCodeLogin', () => {
         vi.useFakeTimers();
         mocked.startDeviceCodeLogin.mockReset();
         mocked.pollDeviceCodeLogin.mockReset();
-        mocked.fetchSupabaseUser.mockReset();
         mocked.getDextoApiClient.mockReset();
         mocked.constructedWith.length = 0;
         mocked.getDextoApiClient.mockImplementation(() => ({
             startDeviceCodeLogin: mocked.startDeviceCodeLogin,
             pollDeviceCodeLogin: mocked.pollDeviceCodeLogin,
-            fetchSupabaseUser: mocked.fetchSupabaseUser,
         }));
     });
 
@@ -68,19 +61,16 @@ describe('performDeviceCodeLogin', () => {
         mocked.pollDeviceCodeLogin
             .mockResolvedValueOnce({ status: 'transientError' })
             .mockResolvedValueOnce({
-                status: 'success',
-                token: {
-                    accessToken: 'access-token',
-                    refreshToken: 'refresh-token',
-                    expiresIn: 3600,
+                status: 'approved',
+                apiKey: {
+                    id: 'key-id',
+                    keyDisplay: 'dxt_abc...',
+                    name: 'Dexto CLI Key',
+                    scopes: ['gateway:use'],
+                    status: 'active',
+                    fullKey: 'dxt_full_key',
                 },
             });
-
-        mocked.fetchSupabaseUser.mockResolvedValue({
-            id: 'user-id',
-            email: 'user@example.com',
-            name: 'User Example',
-        });
 
         const onPrompt = vi.fn();
 
@@ -95,10 +85,11 @@ describe('performDeviceCodeLogin', () => {
 
         expect(onPrompt).toHaveBeenCalledTimes(1);
         expect(mocked.pollDeviceCodeLogin).toHaveBeenCalledTimes(2);
-        expect(mocked.fetchSupabaseUser).toHaveBeenCalledWith('access-token', expect.anything());
-        expect(result.accessToken).toBe('access-token');
-        expect(result.refreshToken).toBe('refresh-token');
-        expect(result.user?.email).toBe('user@example.com');
+        expect(result).toEqual({
+            dextoApiKey: 'dxt_full_key',
+            dextoKeyDisplay: 'dxt_abc...',
+            dextoKeyId: 'key-id',
+        });
     });
 
     it('uses single apiUrl constructor path when apiUrl override is provided', async () => {
@@ -112,15 +103,16 @@ describe('performDeviceCodeLogin', () => {
         });
 
         mocked.pollDeviceCodeLogin.mockResolvedValue({
-            status: 'success',
-            token: {
-                accessToken: 'access-token',
-                refreshToken: 'refresh-token',
-                expiresIn: 3600,
+            status: 'approved',
+            apiKey: {
+                id: 'key-id',
+                keyDisplay: 'dxt_abc...',
+                name: 'Dexto CLI Key',
+                scopes: ['gateway:use'],
+                status: 'active',
+                fullKey: 'dxt_full_key',
             },
         });
-
-        mocked.fetchSupabaseUser.mockResolvedValue(undefined);
 
         const loginPromise = performDeviceCodeLogin({
             apiUrl: 'http://gateway.local',

@@ -293,9 +293,7 @@ describe('resolveServicesFromConfig', () => {
             },
         } satisfies AgentConfig);
 
-        await expect(resolveServicesFromConfig(validated, image)).rejects.toThrow(
-            'Invalid literal value'
-        );
+        await expect(resolveServicesFromConfig(validated, image)).rejects.toThrow('invalid_value');
     });
 
     it('preserves tool ids returned by factories', async () => {
