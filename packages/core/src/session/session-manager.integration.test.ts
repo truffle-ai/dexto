@@ -6,6 +6,7 @@ import { DextoAgent } from '../agent/DextoAgent.js';
 import type { AgentRuntimeSettings } from '../agent/runtime-config.js';
 import { SystemPromptConfigSchema } from '../systemPrompt/schemas.js';
 import { LLMConfigSchema } from '../llm/schemas.js';
+import type { TokenUsage } from '../llm/types.js';
 import { LoggerConfigSchema } from '../logger/index.js';
 import { SessionConfigSchema } from './schemas.js';
 import { PermissionsConfigSchema, ElicitationConfigSchema } from '../tools/schemas.js';
@@ -1189,6 +1190,41 @@ describe('Session Integration: Multi-Model Token Tracking', () => {
 
         expect(metadata?.estimatedCost).toBeUndefined();
         expect(metadata?.modelStats?.[0]?.estimatedCost).toBe(0);
+    });
+
+    test('normalizes runtime null usage and non-finite cost before persistence', async () => {
+        const sessionId = 'runtime-null-usage-session';
+        await agent.createSession(sessionId);
+
+        const sessionManager = agent.sessionManager;
+
+        await sessionManager.accumulateTokenUsage(
+            sessionId,
+            {
+                inputTokens: null,
+                outputTokens: 6,
+                reasoningTokens: null,
+                cacheReadTokens: null,
+                cacheWriteTokens: 0,
+                totalTokens: 4560,
+            } as unknown as TokenUsage,
+            Number.NaN,
+            { provider: 'dexto-nova', model: 'openai/gpt-5-mini' }
+        );
+
+        const metadata = await sessionManager.getSessionMetadata(sessionId);
+
+        expect(metadata?.estimatedCost).toBeUndefined();
+        expect(metadata?.tokenUsage).toEqual({
+            inputTokens: 0,
+            outputTokens: 6,
+            reasoningTokens: 0,
+            cacheReadTokens: 0,
+            cacheWriteTokens: 0,
+            totalTokens: 4560,
+        });
+        expect(metadata?.modelStats?.[0]?.estimatedCost).toBe(0);
+        expect(metadata?.modelStats?.[0]?.tokenUsage).toEqual(metadata?.tokenUsage);
     });
 
     test('should handle concurrent token accumulation with mutex', async () => {

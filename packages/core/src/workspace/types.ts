@@ -29,7 +29,11 @@ export interface WorkspaceFiles {
 }
 
 export interface WorkspaceProcesses {
-    exec(input: { command: string; cwd?: string }): Promise<{ stdout: string; stderr: string }>;
+    exec(input: {
+        command: string;
+        cwd?: string;
+        timeout?: number;
+    }): Promise<{ exitCode?: number; stdout: string; stderr: string }>;
 }
 
 export interface WorkspacePreview {

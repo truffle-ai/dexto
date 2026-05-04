@@ -921,6 +921,92 @@ describe('StreamProcessor', () => {
             });
         });
 
+        test('treats null usage fields from providers as missing', async () => {
+            const mocks = createMocks();
+            const processor = new StreamProcessor(
+                mocks.contextManager,
+                mocks.eventBus,
+                mocks.resourceManager,
+                mocks.abortController.signal,
+                mocks.config,
+                mocks.logger,
+                true
+            );
+
+            const events = [
+                { type: 'text-delta', text: 'Response' },
+                {
+                    type: 'finish',
+                    finishReason: 'stop',
+                    totalUsage: {
+                        inputTokens: null,
+                        outputTokens: null,
+                        totalTokens: null,
+                        reasoningTokens: null,
+                        cachedInputTokens: null,
+                        inputTokenDetails: {
+                            noCacheTokens: null,
+                            cacheReadTokens: null,
+                            cacheWriteTokens: null,
+                        },
+                    },
+                },
+            ];
+
+            const result = await processor.process(() => createMockStream(events) as never);
+
+            expect(result.usage).toEqual({
+                inputTokens: 0,
+                outputTokens: 0,
+                totalTokens: 0,
+                cacheReadTokens: 0,
+                cacheWriteTokens: 0,
+            });
+        });
+
+        test('treats NaN usage fields from providers as missing', async () => {
+            const mocks = createMocks();
+            const processor = new StreamProcessor(
+                mocks.contextManager,
+                mocks.eventBus,
+                mocks.resourceManager,
+                mocks.abortController.signal,
+                mocks.config,
+                mocks.logger,
+                true
+            );
+
+            const events = [
+                { type: 'text-delta', text: 'Response' },
+                {
+                    type: 'finish',
+                    finishReason: 'stop',
+                    totalUsage: {
+                        inputTokens: Number.NaN,
+                        outputTokens: 6,
+                        totalTokens: 4560,
+                        reasoningTokens: Number.NaN,
+                        cachedInputTokens: Number.NaN,
+                        inputTokenDetails: {
+                            noCacheTokens: Number.NaN,
+                            cacheReadTokens: Number.NaN,
+                            cacheWriteTokens: 0,
+                        },
+                    },
+                },
+            ];
+
+            const result = await processor.process(() => createMockStream(events) as never);
+
+            expect(result.usage).toEqual({
+                inputTokens: 0,
+                outputTokens: 6,
+                totalTokens: 4560,
+                cacheReadTokens: 0,
+                cacheWriteTokens: 0,
+            });
+        });
+
         test('subtracts cached input tokens from inputTokens when cachedInputTokens is present', async () => {
             const mocks = createMocks();
             const processor = new StreamProcessor(

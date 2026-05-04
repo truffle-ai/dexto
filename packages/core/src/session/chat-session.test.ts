@@ -4,6 +4,7 @@ import { type ValidatedLLMConfig } from '../llm/schemas.js';
 import { LLMConfigSchema } from '../llm/schemas.js';
 import { SessionErrorCode } from './error-codes.js';
 import { ErrorScope, ErrorType } from '../errors/types.js';
+import type { SessionEventMap } from '../events/index.js';
 
 // Mock all dependencies
 vi.mock('../llm/services/factory.js', () => ({
@@ -720,6 +721,42 @@ describe('ChatSession', () => {
             // Should log warning but not throw (fire-and-forget pattern)
             expect(mockLogger.warn).toHaveBeenCalledWith(
                 expect.stringContaining('Failed to accumulate token usage')
+            );
+        });
+
+        test('normalizes provider null token counts before accumulation', async () => {
+            const payload = {
+                content: 'Test response',
+                provider: 'dexto-nova',
+                model: 'openai/gpt-5-mini',
+                tokenUsage: {
+                    inputTokens: null,
+                    outputTokens: 6,
+                    reasoningTokens: null,
+                    cacheReadTokens: null,
+                    cacheWriteTokens: 0,
+                    totalTokens: 4560,
+                },
+            } as unknown as SessionEventMap['llm:response'];
+
+            chatSession.eventBus.emit('llm:response', payload);
+
+            await new Promise((resolve) => setTimeout(resolve, 0));
+
+            expect(mockServices.sessionManager.accumulateTokenUsage).toHaveBeenCalledWith(
+                sessionId,
+                {
+                    inputTokens: 0,
+                    outputTokens: 6,
+                    cacheReadTokens: 0,
+                    cacheWriteTokens: 0,
+                    totalTokens: 4560,
+                },
+                expect.any(Number),
+                {
+                    provider: 'dexto-nova',
+                    model: 'openai/gpt-5-mini',
+                }
             );
         });
 

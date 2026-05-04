@@ -15,17 +15,21 @@ import type { TokenUsageCostBreakdown } from '../registry/index.js';
 import type { LLMProvider, LLMPricingStatus, ReasoningVariant, TokenUsage } from '../types.js';
 
 type UsageLike = {
-    inputTokens?: number | undefined;
-    outputTokens?: number | undefined;
-    totalTokens?: number | undefined;
-    reasoningTokens?: number | undefined;
-    cachedInputTokens?: number | undefined;
+    inputTokens?: number | null | undefined;
+    outputTokens?: number | null | undefined;
+    totalTokens?: number | null | undefined;
+    reasoningTokens?: number | null | undefined;
+    cachedInputTokens?: number | null | undefined;
     inputTokenDetails?: {
-        noCacheTokens?: number | undefined;
-        cacheReadTokens?: number | undefined;
-        cacheWriteTokens?: number | undefined;
+        noCacheTokens?: number | null | undefined;
+        cacheReadTokens?: number | null | undefined;
+        cacheWriteTokens?: number | null | undefined;
     };
 };
+
+function finiteUsageCount(value: unknown): number | undefined {
+    return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+}
 
 type FullStreamPart =
     StreamTextResult<VercelToolSet, unknown>['fullStream'] extends AsyncIterable<infer Part>
@@ -639,12 +643,12 @@ export class StreamProcessor {
             | undefined;
 
         const cacheWriteTokens =
-            anthropicMeta?.['cacheCreationInputTokens'] ??
-            bedrockMeta?.usage?.['cacheWriteInputTokens'] ??
+            finiteUsageCount(anthropicMeta?.['cacheCreationInputTokens']) ??
+            finiteUsageCount(bedrockMeta?.usage?.['cacheWriteInputTokens']) ??
             0;
         const cacheReadTokens =
-            anthropicMeta?.['cacheReadInputTokens'] ??
-            bedrockMeta?.usage?.['cacheReadInputTokens'] ??
+            finiteUsageCount(anthropicMeta?.['cacheReadInputTokens']) ??
+            finiteUsageCount(bedrockMeta?.usage?.['cacheReadInputTokens']) ??
             0;
 
         return { cacheReadTokens, cacheWriteTokens };
@@ -654,28 +658,30 @@ export class StreamProcessor {
         usage: UsageLike | undefined,
         providerMetadata?: Record<string, unknown>
     ): TokenUsage {
-        const inputTokensRaw = usage?.inputTokens ?? 0;
-        const outputTokens = usage?.outputTokens ?? 0;
-        const totalTokens = usage?.totalTokens ?? 0;
-        const reasoningTokens = usage?.reasoningTokens;
-        const cachedInputTokens = usage?.cachedInputTokens;
+        const inputTokensRaw = finiteUsageCount(usage?.inputTokens) ?? 0;
+        const outputTokens = finiteUsageCount(usage?.outputTokens) ?? 0;
+        const totalTokens = finiteUsageCount(usage?.totalTokens) ?? 0;
+        const reasoningTokens = finiteUsageCount(usage?.reasoningTokens);
+        const cachedInputTokens = finiteUsageCount(usage?.cachedInputTokens);
         const inputTokenDetails = usage?.inputTokenDetails;
 
         const providerCache = this.getCacheTokensFromProviderMetadata(providerMetadata);
         const cacheReadTokens =
-            inputTokenDetails?.cacheReadTokens ??
+            finiteUsageCount(inputTokenDetails?.cacheReadTokens) ??
             cachedInputTokens ??
             providerCache.cacheReadTokens ??
             0;
         const cacheWriteTokens =
-            inputTokenDetails?.cacheWriteTokens ?? providerCache.cacheWriteTokens ?? 0;
+            finiteUsageCount(inputTokenDetails?.cacheWriteTokens) ??
+            providerCache.cacheWriteTokens ??
+            0;
 
         const needsCacheWriteAdjustment =
             inputTokenDetails === undefined &&
             cachedInputTokens !== undefined &&
             providerCache.cacheWriteTokens > 0;
         const noCacheTokens =
-            inputTokenDetails?.noCacheTokens ??
+            finiteUsageCount(inputTokenDetails?.noCacheTokens) ??
             (cachedInputTokens !== undefined
                 ? inputTokensRaw -
                   cachedInputTokens -

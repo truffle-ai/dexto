@@ -24,7 +24,11 @@ import type { InternalMessage, ContentPart } from '../context/types.js';
 import { MessageQueueService, type UserMessageInput } from './message-queue.js';
 import type { SessionMessageQueueStore } from '../storage/message-queue/types.js';
 import type { ContentInput } from '../agent/types.js';
-import { getUsagePricingMetadata, hasMeaningfulTokenUsage } from '../llm/usage-metadata.js';
+import {
+    getUsagePricingMetadata,
+    hasMeaningfulTokenUsage,
+    normalizeTokenUsageForAccounting,
+} from '../llm/usage-metadata.js';
 import type { CompactionStrategy } from '../context/compaction/types.js';
 import { parseCodexBaseURL } from '../llm/providers/codex-base-url.js';
 import type { VercelLLMService } from '../llm/services/vercel.js';
@@ -206,11 +210,12 @@ export class ChatSession {
     private setupTokenAccumulation(): void {
         this.tokenAccumulatorListener = (payload: SessionEventMap['llm:response']) => {
             if (payload.tokenUsage) {
+                const tokenUsage = normalizeTokenUsageForAccounting(payload.tokenUsage);
                 const llmConfig = this.services.stateManager.getLLMConfig(this.id);
                 const isChatGPTLogin =
                     llmConfig.provider === 'openai-compatible' &&
                     parseCodexBaseURL(llmConfig.baseURL)?.authMode === 'chatgpt';
-                const hasMeaningfulUsage = hasMeaningfulTokenUsage(payload.tokenUsage);
+                const hasMeaningfulUsage = hasMeaningfulTokenUsage(tokenUsage);
 
                 if (isChatGPTLogin && !hasMeaningfulUsage) {
                     this.services.sessionManager
@@ -232,14 +237,14 @@ export class ChatSession {
                 const pricingMetadata = getUsagePricingMetadata({
                     provider: modelInfo.provider,
                     model: modelInfo.model,
-                    tokenUsage: payload.tokenUsage,
+                    tokenUsage,
                 });
 
                 // Fire and forget - don't block the event flow
                 this.services.sessionManager
                     .accumulateTokenUsage(
                         this.id,
-                        payload.tokenUsage,
+                        tokenUsage,
                         payload.estimatedCost ?? pricingMetadata.estimatedCost,
                         modelInfo
                     )

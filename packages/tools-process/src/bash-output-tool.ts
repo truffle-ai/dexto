@@ -34,7 +34,9 @@ export function createBashOutputTool(
                 }),
         },
         async execute(input, context: ToolExecutionContext) {
-            const resolvedProcessService = await getProcessService(context);
+            const resolvedProcessService = await getProcessService(context, {
+                background: true,
+            });
 
             // Input is validated by provider before reaching here
             const { process_id } = input;

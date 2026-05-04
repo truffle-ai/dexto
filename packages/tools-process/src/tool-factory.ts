@@ -1,11 +1,16 @@
 import type { ToolFactory } from '@dexto/agent-config';
 import type { ToolExecutionContext } from '@dexto/core/tools';
+import type { WorkspaceHandle } from '@dexto/core/workspace';
 import { ProcessService } from './process-service.js';
 import { createBashExecTool } from './bash-exec-tool.js';
 import { createBashOutputTool } from './bash-output-tool.js';
 import { createKillProcessTool } from './kill-process-tool.js';
 import { ProcessToolsConfigSchema, type ProcessToolsConfig } from './tool-factory-config.js';
-import type { ProcessConfig } from './types.js';
+import { CommandValidator } from './command-validator.js';
+import { ProcessError } from './errors.js';
+import type { ExecuteOptions, ProcessConfig, ProcessOutput } from './types.js';
+import type { ProcessCommandService } from './bash-exec-tool.js';
+import { WorkspaceErrorCodes } from '@dexto/core/workspace';
 
 export const processToolsFactory: ToolFactory<ProcessToolsConfig> = {
     configSchema: ProcessToolsConfigSchema,
@@ -50,8 +55,17 @@ export const processToolsFactory: ToolFactory<ProcessToolsConfig> = {
         };
 
         const getProcessService = async (
-            context: ToolExecutionContext
-        ): Promise<ProcessService> => {
+            context: ToolExecutionContext,
+            options: { background?: boolean } = {}
+        ): Promise<ProcessCommandService> => {
+            const workspaceProcessService =
+                options.background === true
+                    ? null
+                    : await createWorkspaceProcessService(context, processConfig);
+            if (workspaceProcessService !== null) {
+                return workspaceProcessService;
+            }
+
             const injectedService = resolveInjectedService(context);
             if (injectedService) {
                 applyWorkspace(context, injectedService);
@@ -82,3 +96,107 @@ export const processToolsFactory: ToolFactory<ProcessToolsConfig> = {
         ];
     },
 };
+
+async function createWorkspaceProcessService(
+    context: ToolExecutionContext,
+    processConfig: ProcessConfig
+): Promise<WorkspaceProcessService | null> {
+    const workspaceManager = context.services?.workspaceManager;
+    if (workspaceManager === undefined) {
+        return null;
+    }
+
+    let handle: WorkspaceHandle;
+    try {
+        handle = await workspaceManager.open({ intent: 'process' });
+    } catch (error) {
+        if (isWorkspaceUnavailable(error)) {
+            return null;
+        }
+        throw error;
+    }
+    if (handle.processes === undefined) {
+        return null;
+    }
+
+    return new WorkspaceProcessService(processConfig, context, handle);
+}
+
+function isWorkspaceUnavailable(error: unknown): boolean {
+    if (
+        typeof error === 'object' &&
+        error !== null &&
+        'issues' in error &&
+        Array.isArray(error.issues)
+    ) {
+        return error.issues.some(
+            (issue) =>
+                typeof issue === 'object' &&
+                issue !== null &&
+                'code' in issue &&
+                (issue.code === WorkspaceErrorCodes.CURRENT_WORKSPACE_REQUIRED ||
+                    issue.code === WorkspaceErrorCodes.HANDLE_PROVIDER_REQUIRED)
+        );
+    }
+
+    return false;
+}
+
+class WorkspaceProcessService implements ProcessCommandService {
+    private readonly commandValidator: CommandValidator;
+
+    constructor(
+        private readonly processConfig: ProcessConfig,
+        private readonly context: ToolExecutionContext,
+        private readonly handle: WorkspaceHandle
+    ) {
+        this.commandValidator = new CommandValidator(processConfig, context.logger);
+    }
+
+    async executeCommand(command: string, options: ExecuteOptions = {}) {
+        if (options.runInBackground === true) {
+            throw ProcessError.executionFailed(
+                command,
+                'Workspace process handles do not support background execution yet'
+            );
+        }
+
+        const validation = this.commandValidator.validateCommand(command);
+        if (!validation.isValid || !validation.normalizedCommand) {
+            throw ProcessError.invalidCommand(command, validation.error || 'Unknown error');
+        }
+
+        const startedAt = Date.now();
+        const result = await this.handle.processes?.exec({
+            command: validation.normalizedCommand,
+            ...(options.cwd === undefined ? {} : { cwd: options.cwd }),
+            ...(options.timeout === undefined ? {} : { timeout: options.timeout }),
+        });
+
+        if (result === undefined) {
+            throw ProcessError.executionFailed(command, 'Workspace process execution unavailable');
+        }
+
+        return {
+            duration: Date.now() - startedAt,
+            exitCode: result.exitCode ?? 0,
+            stderr: result.stderr,
+            stdout: result.stdout,
+        };
+    }
+
+    getConfig(): Readonly<ProcessConfig> {
+        return {
+            ...this.processConfig,
+            workingDirectory: this.handle.context.path,
+        };
+    }
+
+    async getProcessOutput(processId: string): Promise<ProcessOutput> {
+        throw ProcessError.processNotFound(processId);
+    }
+
+    async killProcess(processId: string): Promise<void> {
+        throw ProcessError.processNotFound(processId);
+    }
+}

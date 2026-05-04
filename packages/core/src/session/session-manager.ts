@@ -11,6 +11,7 @@ import type { HookManager } from '../hooks/manager.js';
 import type { ApprovalManager } from '../approval/manager.js';
 import { SessionError } from './errors.js';
 import type { TokenUsage } from '../llm/types.js';
+import { normalizeTokenUsageForAccounting } from '../llm/usage-metadata.js';
 import type { LanguageModelFactory } from '../llm/services/types.js';
 import type { CompactionStrategy } from '../context/compaction/types.js';
 import { ZodError } from 'zod';
@@ -950,12 +951,14 @@ export class SessionManager {
 
         await this.runWithSessionDataLock(sessionId, async () => {
             const sessionData = await this.services.sessionStore.getSession({ sessionId });
+            const normalizedUsage = normalizeTokenUsageForAccounting(usage);
+            const finiteCost = typeof cost === 'number' && Number.isFinite(cost) ? cost : undefined;
 
             if (!sessionData) return;
 
             // Update per-model statistics if model info provided
             if (modelInfo) {
-                this.updateModelStats(sessionData, usage, cost, modelInfo);
+                this.updateModelStats(sessionData, normalizedUsage, finiteCost, modelInfo);
             }
 
             // Initialize if needed
@@ -971,11 +974,11 @@ export class SessionManager {
             }
 
             // Accumulate aggregate totals using helper
-            this.accumulateTokensInto(sessionData.tokenUsage, usage);
+            this.accumulateTokensInto(sessionData.tokenUsage, normalizedUsage);
 
             // Add cost if provided
-            if (cost !== undefined) {
-                sessionData.estimatedCost = (sessionData.estimatedCost ?? 0) + cost;
+            if (finiteCost !== undefined) {
+                sessionData.estimatedCost = (sessionData.estimatedCost ?? 0) + finiteCost;
             }
 
             sessionData.lastActivity = Date.now();
