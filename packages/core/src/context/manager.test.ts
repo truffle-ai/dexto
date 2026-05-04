@@ -276,6 +276,58 @@ describe('ContextManager', () => {
                 { type: 'image', image: 'new-image-data', mimeType: 'image/png' },
             ]);
         });
+
+        it('should not rehydrate tool media for the LLM', async () => {
+            const formatter = createMockFormatter();
+            const resourceManager = {
+                read: vi.fn(async (uri: string) => {
+                    if (uri === 'blob:tool-image') {
+                        return {
+                            contents: [{ blob: 'tool-image-data', mimeType: 'image/png' }],
+                            _meta: { size: 4096, originalName: 'tool-image.png' },
+                        };
+                    }
+                    throw new Error(`Unexpected blob URI: ${uri}`);
+                }),
+                getBlobStore: vi.fn().mockReturnValue(createMockBlobStore()),
+            } as unknown as ResourceManager;
+
+            const contextManager = createContextManager({
+                formatter,
+                resourceManager,
+                llmConfig: {
+                    ...createMockLLMConfig(),
+                    allowedMediaTypes: ['image/*'],
+                } as ValidatedLLMConfig,
+            });
+
+            await contextManager.getFormattedMessages(
+                createMockContributorContext(),
+                { provider: 'openai', model: 'gpt-4' },
+                'System prompt',
+                [
+                    {
+                        role: 'tool',
+                        toolCallId: 'call-tool-image',
+                        name: 'read_media_file',
+                        success: true,
+                        content: [
+                            {
+                                type: 'image',
+                                image: '@blob:tool-image',
+                                mimeType: 'image/png',
+                            },
+                        ],
+                    } as InternalMessage,
+                ]
+            );
+
+            const formattedHistory = vi.mocked(formatter.format).mock
+                .calls[0]?.[0] as InternalMessage[];
+            expect(formattedHistory[0]?.content).toEqual([
+                { type: 'text', text: '[Image: tool-image.png (4 KB)]' },
+            ]);
+        });
     });
 
     describe('addAssistantMessage', () => {
