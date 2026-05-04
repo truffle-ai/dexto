@@ -28,7 +28,15 @@ export function toWorkspaceRelativePath(
 }
 
 export function isWorkspaceFileNotFound(error: unknown): boolean {
-    return error instanceof DextoRuntimeError && error.code === WorkspaceErrorCodes.FILE_NOT_FOUND;
+    if (error instanceof DextoRuntimeError && error.code === WorkspaceErrorCodes.FILE_NOT_FOUND) {
+        return true;
+    }
+    return (
+        typeof error === 'object' &&
+        error !== null &&
+        'code' in error &&
+        error.code === WorkspaceErrorCodes.FILE_NOT_FOUND
+    );
 }
 
 export function assertWorkspaceRelativeGlob(toolName: string, pattern: string): void {

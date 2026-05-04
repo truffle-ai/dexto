@@ -211,6 +211,30 @@ describe('write_file tool', () => {
         ).resolves.toBe('content');
     });
 
+    it('generates file creation previews through WorkspaceManager.open in hosted mode', async () => {
+        const getFileSystemService = vi.fn(async () => {
+            throw new Error('write_file preview must not use FileSystemService in workspace mode');
+        });
+        const tool = createWriteFileTool(getFileSystemService);
+
+        const preview = await tool.presentation!.preview!(
+            tool.inputSchema.parse({
+                file_path: 'workspace-new.txt',
+                content: 'workspace content',
+            }),
+            createToolContext(mockLogger, { toolCallId: 'workspace-preview-create' })
+        );
+
+        expect(getFileSystemService).not.toHaveBeenCalled();
+        expect(preview).toMatchObject({
+            content: 'workspace content',
+            operation: 'create',
+            path: 'workspace-new.txt',
+            title: 'Create file',
+            type: 'file',
+        });
+    });
+
     it('normalizes workspace-contained absolute paths before writing', async () => {
         const writeFile = vi.fn(async () => undefined);
         const workspaceManager = {
@@ -360,7 +384,14 @@ describe('write_file tool', () => {
 
                 const preview = await tool.presentation!.preview!(
                     parsedInput,
-                    createToolContext(mockLogger, { toolCallId })
+                    createToolContext(mockLogger, {
+                        services: {
+                            ...createWorkspaceServices(tempDir),
+                            workspaceManager:
+                                undefined as unknown as ToolServices['workspaceManager'],
+                        },
+                        toolCallId,
+                    })
                 );
 
                 expect(preview).toBeDefined();

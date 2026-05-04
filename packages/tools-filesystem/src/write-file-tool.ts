@@ -122,6 +122,41 @@ export function createWriteFileTool(
              */
             preview: async (input, context: ToolExecutionContext) => {
                 const { file_path, content } = input;
+                const workspaceManager = context.services?.workspaceManager;
+                if (workspaceManager !== undefined) {
+                    const handle = await workspaceManager.open({ intent: 'write' });
+                    const workspacePath = toWorkspaceRelativePath(
+                        'write_file',
+                        handle.context.path,
+                        file_path
+                    );
+                    try {
+                        const originalContent = await handle.files.readText(workspacePath);
+                        if (context.toolCallId) {
+                            previewContentHashCache.set(
+                                context.toolCallId,
+                                computeContentHash(originalContent)
+                            );
+                        }
+                        return generateDiffPreview(file_path, originalContent, content);
+                    } catch (error) {
+                        if (!isWorkspaceFileNotFound(error)) {
+                            throw error;
+                        }
+                        if (context.toolCallId) {
+                            previewContentHashCache.set(context.toolCallId, FILE_NOT_EXISTS_MARKER);
+                        }
+                        return {
+                            type: 'file',
+                            title: 'Create file',
+                            path: file_path,
+                            operation: 'create',
+                            size: Buffer.byteLength(content, 'utf8'),
+                            lineCount: content.split('\n').length,
+                            content,
+                        } satisfies FileDisplayData;
+                    }
+                }
 
                 const resolvedFileSystemService = await getFileSystemService(context);
                 const { path: resolvedPath } = resolveFilePath(
