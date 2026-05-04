@@ -533,7 +533,7 @@ describe('Hono API Integration Tests', () => {
             });
         });
 
-        it('GET /api/sessions/:id/history expands blob-backed media parts by default', async () => {
+        it('GET /api/sessions/:id/history preserves blob-backed media refs', async () => {
             if (!testServer) throw new Error('Test server not initialized');
             const sessionId = 'test-session-history-expanded-blobs';
 
@@ -583,7 +583,7 @@ describe('Hono API Integration Tests', () => {
             expect(history).toHaveLength(1);
             expect(history[0]?.content[0]).toEqual({
                 type: 'image',
-                image: 'iVBORw0KGgo=',
+                image: `@${storedBlob.uri}`,
                 mimeType: 'image/png',
             });
         });
@@ -641,7 +641,7 @@ describe('Hono API Integration Tests', () => {
                     mimeType: 'application/pdf',
                     filename: 'missing.pdf',
                 });
-                expect(readSpy).toHaveBeenCalledTimes(1);
+                expect(readSpy).not.toHaveBeenCalled();
             } finally {
                 readSpy.mockRestore();
             }

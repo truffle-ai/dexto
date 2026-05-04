@@ -1022,9 +1022,10 @@ export class ContextManager<TMessage = unknown> {
             );
         }
 
-        // Resolve blob references using resource manager with filtering
-        // Only user and tool messages can contain blob references (images, files)
-        // System and assistant messages have string-only content - no blob expansion needed
+        // Resolve blob references using resource manager with filtering.
+        // Only recent user media is rehydrated into model-visible binary parts.
+        // Tool media stays as compact resource text so large tool outputs cannot
+        // balloon the prompt on later turns.
         this.logger.debug('Resolving blob references in message history before formatting');
         const retainedMediaMessageIndexes = new Set<number>();
         let retainedMediaMessages = 0;
@@ -1033,7 +1034,8 @@ export class ContextManager<TMessage = unknown> {
                 break;
             }
 
-            if (ContextManager.hasRetainableMedia(messageHistory[index]!)) {
+            const message = messageHistory[index]!;
+            if (isUserMessage(message) && ContextManager.hasRetainableMedia(message)) {
                 retainedMediaMessageIndexes.add(index);
                 retainedMediaMessages += 1;
             }
@@ -1062,7 +1064,7 @@ export class ContextManager<TMessage = unknown> {
                         this.resourceManager,
                         this.logger,
                         allowedMediaTypes,
-                        expandMatchingMedia
+                        false
                     );
                     return { ...message, content: expandedContent };
                 }
