@@ -1,5 +1,11 @@
 # @dexto/core
 
+## 1.7.2
+
+### Patch Changes
+
+- 867b718: Keep session history blob references compact for API consumers and avoid rehydrating tool media into later model prompts.
+
 ## 1.7.1
 
 ### Patch Changes

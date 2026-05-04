@@ -1,5 +1,23 @@
 # dexto
 
+## 1.7.2
+
+### Patch Changes
+
+- 867b718: Keep session history blob references compact for API consumers and avoid rehydrating tool media into later model prompts.
+- Updated dependencies [867b718]
+    - @dexto/core@1.7.2
+    - @dexto/server@1.7.2
+    - @dexto/agent-config@1.7.2
+    - @dexto/agent-management@1.7.2
+    - @dexto/analytics@1.7.2
+    - @dexto/client-sdk@1.7.2
+    - @dexto/image-local@1.7.2
+    - @dexto/image-logger-agent@1.7.2
+    - @dexto/storage@1.7.2
+    - @dexto/tui@1.7.2
+    - @dexto/registry@1.7.2
+
 ## 1.7.1
 
 ### Patch Changes
