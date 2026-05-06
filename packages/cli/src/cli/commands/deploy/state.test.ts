@@ -7,7 +7,7 @@ const { stateRoot } = vi.hoisted(() => ({
     stateRoot: { current: '' },
 }));
 
-vi.mock('@dexto/core', () => ({
+vi.mock('@dexto/agent-management', () => ({
     getDextoGlobalPath: (type: string, filename?: string) => {
         const basePath = path.join(stateRoot.current, '.dexto', type);
         return filename ? path.join(basePath, filename) : basePath;

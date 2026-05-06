@@ -57,6 +57,7 @@ export const AGENT_EVENT_NAMES = [
     'agent:stopped',
     'tool:background',
     'tool:background-completed',
+    'worktree:exit-prompt',
 ] as const;
 
 export const FORWARDED_SESSION_EVENT_NAMES = [
@@ -454,6 +455,14 @@ interface AgentOwnEventMapBase {
      * Fired when the agent is fully stopped.
      */
     'agent:stopped': void;
+
+    /**
+     * Fired when /exit is run in a worktree and user should be prompted for cleanup.
+     * TODO: refactor event system to decouple file/CLI operations from core
+     */
+    'worktree:exit-prompt': {
+        worktreePath: string;
+    };
 }
 
 export type ToolBackgroundEvent = AgentEventMap['tool:background'];

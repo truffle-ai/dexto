@@ -22,12 +22,9 @@
 import type React from 'react';
 import { useEffect, useRef } from 'react';
 import { setMaxListeners } from 'events';
-import {
-    getModelDisplayName,
-    parseCodexBaseURL,
-    type QueuedMessage,
-    type ContentPart,
-} from '@dexto/core';
+import { getModelDisplayName, parseCodexBaseURL } from '@dexto/core';
+import { getWorktreeContext } from '@dexto/agent-management';
+import type { QueuedMessage, ContentPart } from '@dexto/core';
 import type { Message, UIState, SessionState, InputState } from '../state/types.js';
 import type { ApprovalRequest } from '../components/ApprovalPrompt.js';
 import { generateMessageId } from '../utils/idGenerator.js';
@@ -249,6 +246,26 @@ export function useAgentEvents({
                     activeOverlay: 'none',
                     chatgptRateLimitStatus: null,
                     insufficientCredits: null,
+                }));
+            },
+            { signal }
+        );
+
+        // Handle worktree exit prompt
+        agent.on(
+            'worktree:exit-prompt',
+            (payload) => {
+                const { worktreePath } = payload;
+                const context = getWorktreeContext(worktreePath);
+
+                setUi((prev) => ({
+                    ...prev,
+                    activeOverlay: 'worktree-exit',
+                    worktreeExitState: {
+                        worktreePath,
+                        worktreeName: context?.name ?? 'unknown',
+                        parentProjectRoot: context?.parentProjectRoot ?? '',
+                    },
                 }));
             },
             { signal }

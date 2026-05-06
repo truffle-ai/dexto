@@ -18,6 +18,7 @@ export {
     getOpenRouterModelCacheInfo,
     getOpenRouterModelContextLength,
     getOpenRouterModelInfo,
+    initializeOpenRouterRegistry,
     type LookupStatus,
     type OpenRouterModelInfo,
 } from './providers/openrouter-model-registry.js';

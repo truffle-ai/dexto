@@ -13,6 +13,7 @@
 import chalk from 'chalk';
 import { spawn } from 'child_process';
 import { parseCodexBaseURL } from '@dexto/core';
+import { isInWorktree, hasUnstagedChanges } from '@dexto/agent-management';
 import type { CommandDefinition, CommandHandlerResult, CommandContext } from './command-parser.js';
 import { formatForInkCli } from './utils/format-output.js';
 import { CommandOutputHelper } from './utils/command-output.js';
@@ -280,6 +281,25 @@ export const generalCommands: CommandDefinition[] = [
                 agent.logger.debug(
                     `Failed to collect session stats on exit: ${error instanceof Error ? error.message : String(error)}`
                 );
+            }
+
+            // Check if in a worktree and prompt for cleanup if no unstaged changes
+            if (isInWorktree(process.cwd())) {
+                try {
+                    const worktreePath = process.cwd();
+                    const unstaged = await hasUnstagedChanges(worktreePath);
+                    if (!unstaged) {
+                        // Emit prompt for worktree cleanup
+                        // This will be handled by useAgentEvents to show the overlay
+                        agent.emit('worktree:exit-prompt', { worktreePath });
+                        return true;
+                    }
+                } catch (error) {
+                    // If worktree check fails, proceed with normal exit
+                    agent.logger.debug(
+                        `Worktree exit check failed: ${error instanceof Error ? error.message : String(error)}`
+                    );
+                }
             }
 
             // Trigger graceful exit - this will unmount the Ink app

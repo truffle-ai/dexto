@@ -376,7 +376,8 @@ export type OverlayType =
     | 'plugin-actions'
     | 'marketplace-browser'
     | 'marketplace-add'
-    | 'command-output';
+    | 'command-output'
+    | 'worktree-exit';
 
 /**
  * Temporary modal output for slash commands (e.g., /help, /stats).
@@ -473,6 +474,16 @@ export interface UIState {
     planModeActive: boolean; // True when plan mode indicator is shown
     planModeInitialized: boolean; // True after first message sent in plan mode (prevents re-injection)
     commandOutput: CommandOutputState | null; // Command output modal state
+    worktreeExitState: WorktreeExitState | null; // Worktree exit prompt state
+}
+
+/**
+ * Worktree exit prompt state
+ */
+export interface WorktreeExitState {
+    worktreePath: string;
+    worktreeName: string;
+    parentProjectRoot: string;
 }
 
 /**

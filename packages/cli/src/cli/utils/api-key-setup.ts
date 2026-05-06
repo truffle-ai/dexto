@@ -3,7 +3,8 @@
 import * as p from '@clack/prompts';
 import chalk from 'chalk';
 import type { LLMProvider } from '@dexto/core';
-import { logger, getExecutionContext } from '@dexto/core';
+import { logger } from '@dexto/core';
+import { getExecutionContext } from '@dexto/agent-management';
 import { saveProviderApiKey } from '@dexto/agent-management';
 import { applyLayeredEnvironmentLoading } from '../../utils/env.js';
 import {

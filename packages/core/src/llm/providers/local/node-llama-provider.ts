@@ -12,7 +12,7 @@
 import type { GPUInfo } from './types.js';
 import { LocalModelError } from './errors.js';
 import { detectGPU } from './gpu-detector.js';
-import { getDextoGlobalPath } from '../../../utils/path.js';
+import { CorePaths } from '../../../config/paths.js';
 import { createRequire } from 'module';
 import * as path from 'path';
 
@@ -20,7 +20,11 @@ import * as path from 'path';
  * Get the global deps path where node-llama-cpp may be installed.
  */
 function getGlobalNodeLlamaCppPath(): string {
-    return path.join(getDextoGlobalPath('deps'), 'node_modules', 'node-llama-cpp');
+    const depsDir = CorePaths.globalDepsDir;
+    if (!depsDir) {
+        return '';
+    }
+    return path.join(depsDir, 'node_modules', 'node-llama-cpp');
 }
 
 /**
@@ -40,6 +44,7 @@ export async function isNodeLlamaCppInstalled(): Promise<boolean> {
     // Try 2: Global deps location (~/.dexto/deps/node_modules/node-llama-cpp)
     try {
         const globalPath = getGlobalNodeLlamaCppPath();
+        if (!globalPath) return false;
         const require = createRequire(import.meta.url);
         require.resolve(globalPath);
         return true;
@@ -66,6 +71,7 @@ async function importNodeLlamaCpp(): Promise<Record<string, unknown> | null> {
     // Try 2: Global deps location (~/.dexto/deps/node_modules/node-llama-cpp)
     try {
         const globalPath = getGlobalNodeLlamaCppPath();
+        if (!globalPath) return null;
         // Use dynamic import with full path to entry point (ES modules don't support directory imports)
         const entryPoint = path.join(globalPath, 'dist', 'index.js');
         // @ts-ignore - Dynamic path import

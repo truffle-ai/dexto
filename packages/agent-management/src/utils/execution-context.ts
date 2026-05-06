@@ -5,6 +5,9 @@
 import { walkUpDirectories } from './fs-walk.js';
 import { existsSync, readFileSync, realpathSync, readdirSync, statSync } from 'fs';
 import * as path from 'path';
+import { getWorktreeContext } from './path.js';
+
+export { getWorktreeContext };
 
 export type ExecutionContext = 'dexto-source' | 'dexto-project' | 'global-cli';
 
@@ -178,6 +181,26 @@ export function findDextoProjectRoot(startPath: string = process.cwd()): string 
         return forcedProjectRoot;
     }
     return walkUpDirectories(startPath, isDextoProjectDirectory);
+}
+
+/**
+ * Find the root of the Git repository containing the given path
+ * Walks up looking for .git directory
+ * @param startPath Starting directory path
+ * @returns Git repository root or null if not in a git repo
+ */
+export function findGitRepoRoot(startPath: string = process.cwd()): string | null {
+    let currentPath = path.resolve(startPath);
+    const rootPath = path.parse(currentPath).root;
+
+    while (currentPath !== rootPath) {
+        if (existsSync(path.join(currentPath, '.git'))) {
+            return currentPath;
+        }
+        currentPath = path.dirname(currentPath);
+    }
+
+    return null;
 }
 
 /**

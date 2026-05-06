@@ -59,9 +59,10 @@ import {
     startLlmRegistryAutoUpdate,
     DextoAgent,
     type LLMProvider,
-    isPath,
     resolveApiKeyForProvider,
     getPrimaryApiKeyEnvVar,
+    initializeCorePaths,
+    initializeOpenRouterRegistry,
 } from '@dexto/core';
 import {
     applyImageDefaults,
@@ -83,6 +84,8 @@ import {
     resolveBundledScript,
     enrichAgentConfig,
     isDextoAuthEnabled,
+    getDextoGlobalPath,
+    isPath,
 } from '@dexto/agent-management';
 import { validateCliOptions, handleCliOptionsError } from './cli/utils/options.js';
 import { validateAgentConfig } from './cli/utils/config-validation.js';
@@ -110,6 +113,28 @@ import type { CLISetupOptionsInput } from './cli/commands/setup.js';
 import type { UpgradeCommandOptions } from './cli/commands/upgrade.js';
 import type { UninstallCliCommandOptions } from './cli/commands/uninstall.js';
 import { ensureImageImporterConfigured } from './cli/utils/image-importer.js';
+
+/**
+ * Initialize core services with paths from agent-management.
+ * This must be called early in the CLI lifecycle.
+ */
+function initializeCore(): void {
+    const globalDir = getDextoGlobalPath('');
+    const cacheDir = getDextoGlobalPath('cache');
+    const depsDir = getDextoGlobalPath('deps');
+    const authPath = path.join(globalDir, 'auth.json');
+
+    initializeCorePaths({
+        globalCacheDir: cacheDir,
+        globalDepsDir: depsDir,
+        globalAuthPath: authPath,
+    });
+
+    initializeOpenRouterRegistry(path.join(cacheDir, 'openrouter-models.json'));
+}
+
+// 1) INITIALIZE CORE
+initializeCore();
 
 const program = new Command();
 
@@ -184,6 +209,10 @@ program
     .option(
         '--dev',
         '[maintainers] Use local ./agents instead of ~/.dexto (for dexto repo development)'
+    )
+    .option(
+        '-w, --worktree <name>',
+        'Create Git worktree and open Dexto session in .dexto/worktree/<name>'
     )
     .enablePositionalOptions();
 
@@ -547,11 +576,127 @@ program
                 }
 
                 const opts = program.opts();
-                const workspaceRoot = findDextoProjectRoot(process.cwd()) ?? process.cwd();
 
                 // Set dev mode early to use local repo agents instead of ~/.dexto
                 if (opts.dev) {
                     process.env.DEXTO_DEV_MODE = 'true';
+                }
+
+                // ——— WORKTREE CREATION ———
+                // Handle --worktree flag: create worktree and spawn new dexto process
+                if (opts.worktree !== undefined) {
+                    const { findGitRepoRoot } = await import('@dexto/agent-management');
+                    const gitRoot = findGitRepoRoot(process.cwd());
+                    // Check if we're in a git repo (required for worktree)
+                    if (!gitRoot) {
+                        console.error('❌ Not in a Git repository.');
+                        console.error(
+                            '   Please run this command from a directory that is under Git version control.'
+                        );
+                        safeExit('worktree', 1, 'not-git-repo');
+                    }
+
+                    const worktreeName = String(opts.worktree).trim();
+
+                    // 1. Check if worktree name was provided
+                    if (!worktreeName) {
+                        console.error('❌ Worktree name is required.');
+                        console.error('Usage: dexto --worktree <name>');
+                        safeExit('worktree', 1, 'worktree-name-required');
+                    }
+
+                    // 2. Import worktree utilities
+                    const { isGitAvailable, worktreeExists, createWorktree, isValidWorktreeName } =
+                        await import('@dexto/agent-management');
+
+                    // 3. Check if worktree name is valid
+                    if (!isValidWorktreeName(worktreeName)) {
+                        console.error(`❌ Invalid worktree name '${worktreeName}'.`);
+                        console.error(
+                            '   Use only letters, numbers, dots, dashes, and underscores.'
+                        );
+                        console.error(`   Examples: my-feature, bug-123, feature.new`);
+                        safeExit('worktree', 1, 'invalid-worktree-name');
+                    }
+
+                    // 4. Check if git is available
+                    if (!(await isGitAvailable())) {
+                        console.error('❌ Git is not available. Please install git.');
+                        safeExit('worktree', 1, 'git-not-available');
+                    }
+
+                    // 5. Check if already in a worktree
+                    const { isInWorktree } = await import('@dexto/agent-management');
+                    if (isInWorktree()) {
+                        console.error('❌ Already in a worktree. Run from main project directory.');
+                        safeExit('worktree', 1, 'already-in-worktree');
+                    }
+
+                    // 6. Check if worktree already exists
+                    if (worktreeExists(gitRoot, worktreeName)) {
+                        const existingWorktreePath = path.join(
+                            gitRoot,
+                            '.dexto',
+                            'worktree',
+                            worktreeName
+                        );
+                        console.error(
+                            `❌ Worktree '${worktreeName}' already exists at ${existingWorktreePath}.`
+                        );
+                        console.error(
+                            `💡 Run: dexto from ${existingWorktreePath} to start a session there`
+                        );
+                        safeExit('worktree', 1, 'worktree-exists');
+                    }
+
+                    // 7. Create worktree
+                    try {
+                        const worktreePath = await createWorktree(gitRoot, worktreeName);
+
+                        // 9. Spawn new dexto process in worktree
+                        const { spawn } = await import('child_process');
+                        const dextoPath = process.argv[1] ?? 'dexto';
+                        // Filter out --worktree and its argument from child args using index-based iteration
+                        const rawArgs = process.argv.slice(2);
+                        const childArgs: string[] = [];
+                        for (let i = 0; i < rawArgs.length; i += 1) {
+                            const arg = rawArgs[i];
+                            if (arg === undefined) {
+                                continue;
+                            }
+                            if (arg === '--worktree' || arg === '-w') {
+                                i += 1; // Skip the next arg (worktree name)
+                            } else if (arg.startsWith('--worktree=') || arg.startsWith('-w=')) {
+                                // Skip --worktree=value
+                            } else {
+                                childArgs.push(arg);
+                            }
+                        }
+
+                        const childEnv = { ...process.env };
+                        // Let the worktree child re-detect its project context from cwd
+                        delete childEnv.DEXTO_PROJECT_ROOT;
+
+                        const child = spawn(dextoPath, childArgs, {
+                            cwd: worktreePath,
+                            stdio: 'inherit',
+                            env: childEnv,
+                        });
+
+                        child.on('exit', (code) => {
+                            // Exit directly - safeExit throws ExitSignal which won't propagate from event callback
+                            process.exit(code ?? 0);
+                        });
+                        child.on('error', (err) => {
+                            console.error(`❌ Failed to spawn dexto process: ${err.message}`);
+                            process.exit(1);
+                        });
+
+                        return; // Exit parent process
+                    } catch (err) {
+                        console.error(`❌ Failed to create worktree: ${err}`);
+                        safeExit('worktree', 1, 'worktree-creation-failed');
+                    }
                 }
 
                 // ——— LOAD DEFAULT MODE FROM PREFERENCES ———
@@ -677,6 +822,7 @@ program
                 let resolvedPath: string;
                 let image: DextoImage;
                 let imageName: string;
+                const workspaceRoot = findDextoProjectRoot(process.cwd()) ?? process.cwd();
 
                 // Determine validation mode early - used throughout config loading and agent creation
                 // Use relaxed validation for interactive modes (web/cli) where users can configure later

@@ -4,8 +4,8 @@ import * as path from 'node:path';
 import { tmpdir } from 'node:os';
 import { canUseDextoProvider, getDextoApiKeyFromAuth, isDextoAuthenticated } from './dexto-auth.js';
 
-vi.mock('@dexto/core', async () => {
-    const actual = await vi.importActual<typeof import('@dexto/core')>('@dexto/core');
+vi.mock('./path.js', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('./path.js')>();
     return {
         ...actual,
         getDextoGlobalPath: vi.fn(),
@@ -24,8 +24,8 @@ describe('dexto auth utils', () => {
         tempDir = fs.mkdtempSync(path.join(tmpdir(), 'dexto-auth-test-'));
         authPath = path.join(tempDir, 'auth.json');
 
-        const core = await import('@dexto/core');
-        mockGetDextoGlobalPath = vi.mocked(core.getDextoGlobalPath);
+        const pathUtils = await import('./path.js');
+        mockGetDextoGlobalPath = vi.mocked(pathUtils.getDextoGlobalPath);
         mockGetDextoGlobalPath.mockImplementation((_type: string, filename?: string) => {
             return filename ? path.join(tempDir, filename) : tempDir;
         });

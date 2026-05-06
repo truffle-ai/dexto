@@ -15,6 +15,9 @@ import type { MemoryErrorCode } from '../memory/error-codes.js';
 import type { HookErrorCode } from '../hooks/error-codes.js';
 import type { TelemetryErrorCode } from '../telemetry/error-codes.js';
 
+// VCErrorCode has been moved to @dexto/agent-management
+// Import from there if needed for error type unions
+
 /**
  * Error scopes representing functional domains in the system
  * Each scope owns its validation and error logic
