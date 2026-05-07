@@ -196,9 +196,7 @@ describe('edit_file tool', () => {
         );
 
         expect(readText).toHaveBeenCalledWith('workspace.txt');
-        expect(writeFile).toHaveBeenCalledWith('workspace.txt', 'hello workspace', {
-            createDirs: false,
-        });
+        expect(writeFile).toHaveBeenCalledWith('workspace.txt', 'hello workspace');
     });
 
     it('rejects external absolute paths before file provider calls', async () => {

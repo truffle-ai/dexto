@@ -255,7 +255,7 @@ export function createEditFileTool(
             const newContent = replace_all
                 ? currentContent.split(old_string).join(new_string)
                 : currentContent.replace(old_string, new_string);
-            await handle.files.writeFile(workspacePath, newContent, { createDirs: false });
+            await handle.files.writeFile(workspacePath, newContent);
 
             const _display = generateDiffPreview(file_path, currentContent, newContent);
 

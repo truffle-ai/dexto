@@ -65,18 +65,15 @@ describe('LocalWorkspaceHandleProvider', () => {
         );
     });
 
-    it('honors createDirs when writing files', async () => {
+    it('creates parent directories when writing files', async () => {
         const provider = new LocalWorkspaceHandleProvider();
         const handle = await provider.open({
             context: context(),
             input: { intent: 'write' },
         });
 
-        await expect(handle.files.writeFile('missing/file.txt', 'nope')).rejects.toMatchObject({
-            code: 'workspace/file_not_found',
-        });
         await expect(
-            handle.files.writeFile('created/file.txt', 'created', { createDirs: true })
+            handle.files.writeFile('created/file.txt', 'created')
         ).resolves.toBeUndefined();
         await expect(handle.files.readText('created/file.txt')).resolves.toBe('created');
     });

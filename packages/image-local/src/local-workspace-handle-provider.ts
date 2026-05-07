@@ -70,15 +70,9 @@ class LocalWorkspaceFiles {
         return files.sort();
     };
 
-    writeFile = async (
-        filePath: string,
-        content: string,
-        options: { createDirs?: boolean } = {}
-    ): Promise<void> => {
+    writeFile = async (filePath: string, content: string): Promise<void> => {
         const resolvedPath = this.resolveInsideRoot(filePath);
-        if (options.createDirs) {
-            await mkdir(path.dirname(resolvedPath), { recursive: true });
-        }
+        await mkdir(path.dirname(resolvedPath), { recursive: true });
         try {
             await writeFile(resolvedPath, content, 'utf-8');
         } catch (error) {

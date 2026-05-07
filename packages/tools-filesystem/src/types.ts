@@ -203,8 +203,6 @@ export interface SearchResult {
  * Options for writing files
  */
 export interface WriteFileOptions {
-    /** Create parent directories if they don't exist */
-    createDirs?: boolean | undefined;
     /** File encoding (default: utf-8) */
     encoding?: BufferEncoding | undefined;
     /** Create backup before overwriting */

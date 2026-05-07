@@ -66,15 +66,9 @@ function createWorkspaceServices(
                 readFile: async (filePath: string) => readWorkspaceFile(workspaceRoot, filePath),
                 readText: async (filePath: string) => readWorkspaceFile(workspaceRoot, filePath),
                 glob: vi.fn(async () => []),
-                writeFile: async (
-                    filePath: string,
-                    content: string,
-                    options: { createDirs?: boolean } = {}
-                ) => {
+                writeFile: async (filePath: string, content: string) => {
                     const resolvedPath = resolveWorkspacePath(workspaceRoot, filePath);
-                    if (options.createDirs) {
-                        await fs.mkdir(path.dirname(resolvedPath), { recursive: true });
-                    }
+                    await fs.mkdir(path.dirname(resolvedPath), { recursive: true });
                     try {
                         await fs.writeFile(resolvedPath, content, 'utf-8');
                     } catch (error) {
@@ -178,67 +172,37 @@ describe('write_file tool', () => {
         );
     });
 
-    it('fails for missing parent directories when create_dirs is false', async () => {
+    it('creates missing parent directories by default', async () => {
         const tool = createWriteFileTool(vi.fn());
         const parsedInput = tool.inputSchema.parse({
             file_path: 'missing-parent/file.txt',
             content: 'content',
-            create_dirs: false,
-        });
-
-        await expect(
-            tool.execute(parsedInput, createToolContext(mockLogger))
-        ).rejects.toMatchObject({
-            code: ToolErrorCode.EXECUTION_FAILED,
-            message: expect.stringContaining('Retry with create_dirs=true'),
-        });
-        await expect(fs.stat(path.join(tempDir, 'missing-parent'))).rejects.toThrow();
-    });
-
-    it('creates missing parent directories when create_dirs is true', async () => {
-        const tool = createWriteFileTool(vi.fn());
-        const parsedInput = tool.inputSchema.parse({
-            file_path: 'created-parent/file.txt',
-            content: 'content',
-            create_dirs: true,
         });
 
         await expect(
             tool.execute(parsedInput, createToolContext(mockLogger))
         ).resolves.toMatchObject({
             success: true,
-            path: 'created-parent/file.txt',
+            path: 'missing-parent/file.txt',
         });
         await expect(
-            fs.readFile(path.join(tempDir, 'created-parent', 'file.txt'), 'utf-8')
+            fs.readFile(path.join(tempDir, 'missing-parent', 'file.txt'), 'utf-8')
         ).resolves.toBe('content');
     });
 
-    it('generates file creation previews through WorkspaceManager.open in hosted mode', async () => {
-        const getFileSystemService = vi.fn(async () => {
-            throw new Error('write_file preview must not use FileSystemService in workspace mode');
-        });
-        const tool = createWriteFileTool(getFileSystemService);
+    it('rejects obsolete create_dirs input', async () => {
+        const tool = createWriteFileTool(vi.fn());
 
-        const preview = await tool.presentation!.preview!(
+        expect(() =>
             tool.inputSchema.parse({
-                file_path: 'workspace-new.txt',
-                content: 'workspace content',
-            }),
-            createToolContext(mockLogger, { toolCallId: 'workspace-preview-create' })
-        );
-
-        expect(getFileSystemService).not.toHaveBeenCalled();
-        expect(preview).toMatchObject({
-            content: 'workspace content',
-            operation: 'create',
-            path: 'workspace-new.txt',
-            title: 'Create file',
-            type: 'file',
-        });
+                file_path: 'file.txt',
+                content: 'content',
+                create_dirs: true,
+            })
+        ).toThrow();
     });
 
-    it('normalizes workspace-contained absolute paths before writing', async () => {
+    it('passes normalized workspace paths to the provider without write options', async () => {
         const writeFile = vi.fn(async () => undefined);
         const workspaceManager = {
             open: vi.fn(async () => ({
@@ -274,13 +238,34 @@ describe('write_file tool', () => {
             tool.inputSchema.parse({
                 file_path: path.join(tempDir, 'nested', 'file.txt'),
                 content: 'content',
-                create_dirs: true,
             }),
             context
         );
 
-        expect(writeFile).toHaveBeenCalledWith('nested/file.txt', 'content', {
-            createDirs: true,
+        expect(writeFile).toHaveBeenCalledWith('nested/file.txt', 'content');
+    });
+
+    it('generates file creation previews through WorkspaceManager.open in hosted mode', async () => {
+        const getFileSystemService = vi.fn(async () => {
+            throw new Error('write_file preview must not use FileSystemService in workspace mode');
+        });
+        const tool = createWriteFileTool(getFileSystemService);
+
+        const preview = await tool.presentation!.preview!(
+            tool.inputSchema.parse({
+                file_path: 'workspace-new.txt',
+                content: 'workspace content',
+            }),
+            createToolContext(mockLogger, { toolCallId: 'workspace-preview-create' })
+        );
+
+        expect(getFileSystemService).not.toHaveBeenCalled();
+        expect(preview).toMatchObject({
+            content: 'workspace content',
+            operation: 'create',
+            path: 'workspace-new.txt',
+            title: 'Create file',
+            type: 'file',
         });
     });
 
@@ -547,7 +532,6 @@ describe('write_file tool', () => {
                 const parsedInput = tool.inputSchema.parse({
                     file_path: 'nested/new-file.txt',
                     content: 'brand new content',
-                    create_dirs: true,
                 });
 
                 const result = (await tool.execute(

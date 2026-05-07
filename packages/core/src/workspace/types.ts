@@ -24,7 +24,7 @@ export interface WorkspaceFiles {
     readFile(path: string): Promise<string>;
     readText(path: string): Promise<string>;
     glob(pattern: string): Promise<string[]>;
-    writeFile(path: string, content: string, options?: { createDirs?: boolean }): Promise<void>;
+    writeFile(path: string, content: string): Promise<void>;
     listFiles(path?: string): Promise<string[]>;
 }
 

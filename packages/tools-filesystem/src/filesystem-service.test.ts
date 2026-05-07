@@ -270,9 +270,7 @@ describe('FileSystemService', () => {
 
                 // Write to a new file (no backup needed since file doesn't exist)
                 const testFile = path.join(tempDir, 'new-file.txt');
-                const result = await fileSystemService.writeFile(testFile, 'content', {
-                    createDirs: true,
-                });
+                const result = await fileSystemService.writeFile(testFile, 'content');
 
                 expect(result.success).toBe(true);
                 expect(result.backupPath).toBeUndefined();

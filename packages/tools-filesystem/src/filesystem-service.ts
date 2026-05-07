@@ -962,11 +962,8 @@ export class FileSystemService {
         }
 
         try {
-            // Create parent directories if needed
-            if (options.createDirs) {
-                const dir = path.dirname(normalizedPath);
-                await fs.mkdir(dir, { recursive: true });
-            }
+            const dir = path.dirname(normalizedPath);
+            await fs.mkdir(dir, { recursive: true });
 
             // Write file
             await fs.writeFile(normalizedPath, content, encoding);

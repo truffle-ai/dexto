@@ -55,11 +55,6 @@ const WriteFileInputSchema = z
                 'Path where the file should be written. Relative paths resolve inside the active workspace; absolute paths must stay inside the active workspace.'
             ),
         content: z.string().describe('Content to write to the file'),
-        create_dirs: z
-            .boolean()
-            .optional()
-            .default(false)
-            .describe("Create parent directories if they don't exist (default: false)"),
         encoding: z
             .enum(['utf-8', 'ascii', 'latin1', 'utf16le'])
             .optional()
@@ -102,7 +97,7 @@ export function createWriteFileTool(
         id: 'write_file',
         aliases: ['write'],
         description:
-            'Write content to a file inside the active workspace. Creates a new file or overwrites an existing file. Relative paths resolve inside the workspace; absolute paths must stay inside it. Use create_dirs=true to create missing parent directories. Requires approval for all write operations. Returns success status, path, bytes written, and display data.',
+            'Write content to a file inside the active workspace. Creates missing parent directories, creates new files, and overwrites existing files. Relative paths resolve inside the workspace; absolute paths must stay inside it. Requires approval for all write operations. Returns success status, path, bytes written, and display data.',
         inputSchema: WriteFileInputSchema,
 
         ...createDirectoryAccessApprovalHandlers({
@@ -231,7 +226,7 @@ export function createWriteFileTool(
         },
 
         async execute(input, context: ToolExecutionContext) {
-            const { file_path, content, create_dirs, encoding } = input;
+            const { file_path, content, encoding } = input;
             const handle = await openWorkspace(context, 'write_file');
             const workspacePath = toWorkspaceRelativePath(
                 'write_file',
@@ -284,17 +279,7 @@ export function createWriteFileTool(
                 }
             }
 
-            try {
-                await handle.files.writeFile(workspacePath, content, { createDirs: create_dirs });
-            } catch (error) {
-                if (isWorkspaceFileNotFound(error) && !create_dirs) {
-                    throw ToolError.executionFailed(
-                        'write_file',
-                        `Parent directory for '${file_path}' does not exist. Retry with create_dirs=true to create missing directories.`
-                    );
-                }
-                throw error;
-            }
+            await handle.files.writeFile(workspacePath, content);
             const bytesWritten = Buffer.byteLength(content, encoding as BufferEncoding);
 
             // Build display data based on operation type
