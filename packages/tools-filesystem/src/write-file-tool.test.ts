@@ -188,7 +188,10 @@ describe('write_file tool', () => {
 
         await expect(
             tool.execute(parsedInput, createToolContext(mockLogger))
-        ).rejects.toMatchObject({ code: 'workspace/file_not_found' });
+        ).rejects.toMatchObject({
+            code: ToolErrorCode.EXECUTION_FAILED,
+            message: expect.stringContaining('Retry with create_dirs=true'),
+        });
         await expect(fs.stat(path.join(tempDir, 'missing-parent'))).rejects.toThrow();
     });
 
