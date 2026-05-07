@@ -99,7 +99,7 @@ export function createEditFileTool(
         presentation: {
             describeHeader: (input) =>
                 createLocalToolCallHeader({
-                    title: 'Update',
+                    title: 'Edit',
                     argsText: truncateForHeader(input.file_path, 140),
                 }),
 

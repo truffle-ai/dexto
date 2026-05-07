@@ -243,6 +243,23 @@ describe('edit_file tool', () => {
         expect(writeFile).not.toHaveBeenCalled();
     });
 
+    it('should describe edit calls with an Edit header', () => {
+        const tool = createEditFileTool(async () => fileSystemService);
+        const header = tool.presentation?.describeHeader?.(
+            tool.inputSchema.parse({
+                file_path: 'snake.py',
+                old_string: 'old',
+                new_string: 'new',
+            }),
+            createToolContext(mockLogger)
+        );
+
+        expect(header).toEqual({
+            argsText: 'snake.py',
+            title: 'Edit',
+        });
+    });
+
     describe('File Modification Detection', () => {
         it('should generate preview for files outside config-allowed roots (preview read only)', async () => {
             const tool = createEditFileTool(async () => fileSystemService);
