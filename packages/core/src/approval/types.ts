@@ -301,6 +301,14 @@ export type ApprovalResponse = z.output<typeof ApprovalResponseSchema>;
  */
 export type ApprovalRequestDetails = z.output<typeof ApprovalRequestDetailsSchema>;
 
+export type DirectoryAccessApprovalRequestDetails = Omit<
+    ApprovalRequestDetails,
+    'type' | 'metadata'
+> & {
+    type: 'directory_access';
+    metadata: DirectoryAccessMetadata;
+};
+
 /**
  * Handler interface for processing approval requests.
  *

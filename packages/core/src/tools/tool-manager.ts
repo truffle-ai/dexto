@@ -6,6 +6,7 @@ import {
     ToolExecutionContextBase,
     Tool,
     ToolPresentationSnapshotV1,
+    ToolApprovalOverrideResult,
 } from './types.js';
 import type { ToolDisplayData } from './display-types.js';
 import { ToolError } from './errors.js';
@@ -22,6 +23,8 @@ import type {
     ApprovalResponse,
     ApprovalRequestDetails,
     DirectoryAccessMetadata,
+    DirectoryAccessApprovalRequestDetails,
+    ToolApprovalMetadata,
 } from '../approval/types.js';
 import type { AllowedToolsProvider } from './confirmation/allowed-tools-provider/types.js';
 import type { HookManager } from '../hooks/manager.js';
@@ -56,6 +59,31 @@ type ToolExecutionInvocation = {
     abortSignal?: AbortSignal | undefined;
     runContext?: AgentRunContext | undefined;
 };
+
+export type PreparedToolExecution =
+    | {
+          kind: 'ready';
+          args: Record<string, unknown>;
+          approval: { required: false } | { required: true; status: 'approved' };
+          presentationSnapshot: ToolPresentationSnapshotV1;
+      }
+    | {
+          kind: 'approval_required';
+          args: Record<string, unknown>;
+          approval:
+              | { kind: 'tool_approval'; request: ApprovalRequest }
+              | {
+                    kind: 'custom_approval';
+                    request: ApprovalRequest;
+                    onGrantedRequest: ApprovalRequestDetails;
+                }
+              | {
+                    kind: 'directory_access';
+                    request: ApprovalRequest;
+                    onGrantedRequest: DirectoryAccessApprovalRequestDetails;
+                };
+          presentationSnapshot: ToolPresentationSnapshotV1;
+      };
 /**
  * Unified Tool Manager - Single interface for all tool operations
  *
@@ -750,7 +778,7 @@ export class ToolManager {
         | ((
               args: Record<string, unknown>,
               context: ToolExecutionContext
-          ) => Promise<ApprovalRequestDetails | null> | ApprovalRequestDetails | null)
+          ) => Promise<ToolApprovalOverrideResult> | ToolApprovalOverrideResult)
         | undefined {
         const tool = this.agentTools.get(toolName);
         return tool?.approval?.override;
@@ -1495,6 +1523,54 @@ export class ToolManager {
         return this.toolsCache;
     }
 
+    async prepareToolExecution(
+        toolName: string,
+        args: Record<string, unknown>,
+        toolCallId: string,
+        invocation?: ToolExecutionInvocation
+    ): Promise<PreparedToolExecution> {
+        const { sessionId, runContext, hostRuntime } =
+            this.resolveToolExecutionInvocation(invocation);
+        const { toolArgs, meta } = extractToolCallMeta(args);
+        const eventMeta: ToolCallMetadata | undefined =
+            Object.keys(meta).length > 0 ? meta : undefined;
+        const callDescription =
+            typeof meta.callDescription === 'string'
+                ? meta.callDescription
+                : typeof toolArgs.description === 'string'
+                  ? toolArgs.description
+                  : undefined;
+
+        if (sessionId) {
+            const presentationSnapshot = this.getToolPresentationSnapshotForToolCallEvent(
+                toolName,
+                toolArgs,
+                toolCallId,
+                sessionId,
+                runContext
+            );
+            this.agentEventBus.emit('llm:tool-call', {
+                toolName,
+                presentationSnapshot,
+                args: toolArgs,
+                ...(eventMeta !== undefined ? { meta: eventMeta } : {}),
+                ...(callDescription !== undefined && { callDescription }),
+                callId: toolCallId,
+                sessionId,
+                ...(hostRuntime !== undefined && { hostRuntime }),
+            });
+        }
+
+        return this.prepareToolApproval(
+            toolName,
+            toolArgs,
+            toolCallId,
+            sessionId,
+            runContext,
+            callDescription
+        );
+    }
+
     /**
      * Execute a tool by routing based on prefix:
      * - MCP tools: `mcp--...`
@@ -1517,59 +1593,23 @@ export class ToolManager {
         const eventMeta: ToolCallMetadata | undefined =
             Object.keys(meta).length > 0 ? meta : undefined;
         let toolArgs = rawToolArgs;
-        const callDescription =
-            typeof meta.callDescription === 'string'
-                ? meta.callDescription
-                : typeof rawToolArgs.description === 'string'
-                  ? rawToolArgs.description
-                  : undefined;
         const backgroundTasksEnabled = isBackgroundTasksEnabled();
 
         this.logger.debug(`🔧 Tool execution requested: '${toolName}' (toolCallId: ${toolCallId})`);
         this.logger.debug(`Tool args: ${JSON.stringify(toolArgs, null, 2)}`);
 
-        // IMPORTANT: Emit llm:tool-call FIRST, before approval handling.
-        // This ensures correct event ordering - llm:tool-call must arrive before approval:request
-        // in the CLI's event stream.
-        //
-        // Why this is needed: The Vercel SDK enqueues tool-call to the stream BEFORE calling execute(),
-        // but our async iterator hasn't read from the queue yet. Meanwhile, execute() runs synchronously
-        // until its first await, and EventEmitter.emit() is synchronous. So events emitted here arrive
-        // before our iterator processes the queued tool-call. By emitting here, we guarantee llm:tool-call
-        // arrives before approval:request.
-        if (sessionId) {
-            const presentationSnapshot = this.getToolPresentationSnapshotForToolCallEvent(
-                toolName,
-                toolArgs,
-                toolCallId,
-                sessionId,
-                runContext
-            );
-            this.agentEventBus.emit('llm:tool-call', {
-                toolName,
-                presentationSnapshot,
-                args: toolArgs,
-                ...(eventMeta !== undefined ? { meta: eventMeta } : {}),
-                ...(callDescription !== undefined && { callDescription }),
-                callId: toolCallId,
-                sessionId,
-                ...(hostRuntime !== undefined && { hostRuntime }),
-            });
-        }
-
-        // Handle approval/confirmation flow - returns whether approval was required
+        const prepared = await this.prepareToolExecution(toolName, args, toolCallId, invocation);
         const {
             requireApproval,
             approvalStatus,
             args: validatedToolArgs,
             presentationSnapshot: callSnapshot,
-        } = await this.handleToolApproval(
+        } = await this.resolvePreparedToolApproval(
+            prepared,
             toolName,
-            toolArgs,
             toolCallId,
             sessionId,
-            runContext,
-            callDescription
+            runContext
         );
         toolArgs = validatedToolArgs;
 
@@ -1950,24 +1990,14 @@ export class ToolManager {
         );
     }
 
-    /**
-     * Handle tool approval flow. Checks various precedence levels to determine
-     * if a tool should be auto-approved, denied, or requires manual approval.
-     */
-    private async handleToolApproval(
+    private async prepareToolApproval(
         toolName: string,
         args: Record<string, unknown>,
         toolCallId: string,
         sessionId?: string,
         runContext?: AgentRunContext,
         callDescription?: string
-    ): Promise<{
-        requireApproval: boolean;
-        approvalStatus?: 'approved' | 'rejected';
-        args: Record<string, unknown>;
-        presentationSnapshot: ToolPresentationSnapshotV1;
-    }> {
-        // 1. Check static alwaysDeny list (highest priority - security-first)
+    ): Promise<PreparedToolExecution> {
         if (this.isInAlwaysDenyList(toolName)) {
             this.logger.info(
                 `Tool '${toolName}' is in static deny list – blocking execution (session: ${sessionId ?? 'global'})`
@@ -1984,9 +2014,8 @@ export class ToolManager {
             runContext
         );
 
-        // 2. Tool-specific approval override (directory access and other custom approvals)
         let directoryAccess: DirectoryAccessMetadata | undefined;
-        let directoryAccessApprovalRequest: ApprovalRequestDetails | undefined;
+        let directoryAccessApprovalRequest: DirectoryAccessApprovalRequestDetails | undefined;
 
         if (!toolName.startsWith(ToolManager.MCP_TOOL_PREFIX)) {
             const getApprovalOverride = this.getToolApprovalOverrideFn(toolName);
@@ -1996,78 +2025,40 @@ export class ToolManager {
                     toolCallId,
                     runContext,
                 });
-                const approvalRequest = await getApprovalOverride(validatedArgs, context);
+                const approvalOverride = await getApprovalOverride(validatedArgs, context);
 
-                if (approvalRequest) {
-                    // Directory access is handled via the normal tool approval UI so we can show
-                    // tool previews/diffs (directory session choice is presented as an extra option).
-                    if (approvalRequest.type === ApprovalType.DIRECTORY_ACCESS) {
-                        const metadata = approvalRequest.metadata;
-                        if (
-                            typeof metadata !== 'object' ||
-                            metadata === null ||
-                            typeof (metadata as DirectoryAccessMetadata).path !== 'string' ||
-                            typeof (metadata as DirectoryAccessMetadata).parentDir !== 'string' ||
-                            typeof (metadata as DirectoryAccessMetadata).operation !== 'string' ||
-                            typeof (metadata as DirectoryAccessMetadata).toolName !== 'string'
-                        ) {
-                            throw ToolError.configInvalid(
-                                `Tool '${toolName}' returned invalid directory access metadata`
-                            );
-                        }
-
-                        directoryAccess = metadata as DirectoryAccessMetadata;
-                        directoryAccessApprovalRequest = approvalRequest;
+                if (approvalOverride) {
+                    if (approvalOverride.kind === 'directory_access') {
+                        directoryAccess = approvalOverride.request.metadata;
+                        directoryAccessApprovalRequest = approvalOverride.request;
                     } else {
-                        this.logger.debug(
-                            `Tool '${toolName}' requested custom approval: type=${approvalRequest.type}`
-                        );
-
-                        // Add sessionId to the approval request if not already present
-                        if (sessionId && !approvalRequest.sessionId) {
-                            approvalRequest.sessionId = sessionId;
+                        if (sessionId && !approvalOverride.request.sessionId) {
+                            approvalOverride.request.sessionId = sessionId;
                         }
                         if (
                             runContext?.hostRuntime !== undefined &&
-                            approvalRequest.hostRuntime === undefined
+                            approvalOverride.request.hostRuntime === undefined
                         ) {
-                            approvalRequest.hostRuntime = runContext.hostRuntime;
+                            approvalOverride.request.hostRuntime = runContext.hostRuntime;
                         }
 
-                        const response =
-                            await this.approvalManager.requestApproval(approvalRequest);
-
-                        if (response.status === ApprovalStatus.APPROVED) {
-                            const onGranted = this.getToolApprovalOnGrantedFn(toolName);
-                            if (onGranted) {
-                                await Promise.resolve(
-                                    onGranted(response, context, approvalRequest)
-                                );
-                            }
-
-                            this.logger.info(
-                                `Custom approval granted for '${toolName}', type=${approvalRequest.type}, session=${sessionId ?? 'global'}`
-                            );
-                            return {
-                                requireApproval: true,
-                                approvalStatus: 'approved',
-                                args: validatedArgs,
-                                presentationSnapshot,
-                            };
-                        }
-
-                        // Handle denial - throw appropriate error based on approval type
-                        this.logger.info(
-                            `Custom approval denied for '${toolName}', type=${approvalRequest.type}, reason=${response.reason ?? 'unknown'}`
-                        );
-
-                        throw ToolError.executionDenied(toolName, sessionId);
+                        return {
+                            kind: 'approval_required',
+                            args: validatedArgs,
+                            approval: {
+                                kind: 'custom_approval',
+                                request: this.approvalManager.createApprovalRequest(
+                                    approvalOverride.request
+                                ),
+                                onGrantedRequest: approvalOverride.request,
+                            },
+                            presentationSnapshot,
+                        };
                     }
                 }
             }
         }
 
-        // Try quick resolution first (auto-approve/deny based on policies)
         const quickResult = await this.tryQuickApprovalResolution(
             toolName,
             validatedArgs,
@@ -2075,22 +2066,140 @@ export class ToolManager {
             directoryAccess
         );
         if (quickResult !== null) {
-            return { ...quickResult, args: validatedArgs, presentationSnapshot };
+            return {
+                kind: 'ready',
+                args: validatedArgs,
+                approval:
+                    quickResult.requireApproval === true
+                        ? { required: true, status: 'approved' }
+                        : { required: false },
+                presentationSnapshot,
+            };
         }
 
-        // Fall back to manual approval flow
-        const manualResult = await this.requestManualApproval(
+        this.logger.info(
+            `Tool approval requested for ${toolName}, sessionId: ${sessionId ?? 'global'}`
+        );
+
+        const displayPreview = await this.generateToolPreview(
             toolName,
             validatedArgs,
             toolCallId,
             sessionId,
-            runContext,
-            directoryAccess,
-            directoryAccessApprovalRequest,
-            callDescription,
-            presentationSnapshot
+            runContext
         );
-        return { ...manualResult, args: validatedArgs, presentationSnapshot };
+        const hostRuntime = runContext?.hostRuntime ?? directoryAccessApprovalRequest?.hostRuntime;
+        const suggestedPatterns = this.getToolSuggestedPatterns(toolName, validatedArgs);
+        const metadata: ToolApprovalMetadata & {
+            sessionId?: string;
+            hostRuntime?: ApprovalRequestDetails['hostRuntime'];
+        } = {
+            toolName,
+            ...(presentationSnapshot !== undefined && { presentationSnapshot }),
+            toolCallId,
+            args: validatedArgs,
+            ...(callDescription !== undefined && { description: callDescription }),
+            ...(sessionId !== undefined && { sessionId }),
+            ...(hostRuntime !== undefined && { hostRuntime }),
+            ...(displayPreview !== undefined && { displayPreview }),
+            ...(directoryAccess !== undefined && { directoryAccess }),
+            ...(suggestedPatterns !== undefined && { suggestedPatterns }),
+        };
+
+        if (directoryAccessApprovalRequest !== undefined) {
+            return {
+                kind: 'approval_required',
+                args: validatedArgs,
+                approval: {
+                    kind: 'directory_access',
+                    request: this.approvalManager.createToolApprovalRequest(metadata),
+                    onGrantedRequest: directoryAccessApprovalRequest,
+                },
+                presentationSnapshot,
+            };
+        }
+
+        return {
+            kind: 'approval_required',
+            args: validatedArgs,
+            approval: {
+                kind: 'tool_approval',
+                request: this.approvalManager.createToolApprovalRequest(metadata),
+            },
+            presentationSnapshot,
+        };
+    }
+
+    private async resolvePreparedToolApproval(
+        prepared: PreparedToolExecution,
+        toolName: string,
+        toolCallId: string,
+        sessionId?: string,
+        runContext?: AgentRunContext
+    ): Promise<{
+        requireApproval: boolean;
+        approvalStatus?: 'approved';
+        args: Record<string, unknown>;
+        presentationSnapshot: ToolPresentationSnapshotV1;
+    }> {
+        if (prepared.kind === 'ready') {
+            return {
+                requireApproval: prepared.approval.required,
+                ...(prepared.approval.required ? { approvalStatus: prepared.approval.status } : {}),
+                args: prepared.args,
+                presentationSnapshot: prepared.presentationSnapshot,
+            };
+        }
+
+        const response = await this.approvalManager.handleApprovalRequest(
+            prepared.approval.request
+        );
+
+        if (response.status !== ApprovalStatus.APPROVED) {
+            this.handleApprovalDenied(toolName, response, sessionId);
+        }
+
+        if (prepared.approval.kind === 'directory_access') {
+            const onGranted = this.getToolApprovalOnGrantedFn(toolName);
+            if (onGranted) {
+                const context = this.buildToolExecutionContext({
+                    sessionId,
+                    toolCallId,
+                    runContext,
+                });
+                await Promise.resolve(
+                    onGranted(response, context, prepared.approval.onGrantedRequest)
+                );
+            }
+        }
+
+        if (prepared.approval.kind === 'custom_approval') {
+            const onGranted = this.getToolApprovalOnGrantedFn(toolName);
+            if (onGranted) {
+                const context = this.buildToolExecutionContext({
+                    sessionId,
+                    toolCallId,
+                    runContext,
+                });
+                await Promise.resolve(
+                    onGranted(response, context, prepared.approval.onGrantedRequest)
+                );
+            }
+        }
+
+        if (prepared.approval.kind !== 'custom_approval' && response.data) {
+            await this.handleRememberChoice(toolName, response, sessionId);
+        }
+
+        this.logger.info(
+            `Tool approval approved for ${toolName}, sessionId: ${sessionId ?? 'global'}`
+        );
+        return {
+            requireApproval: true,
+            approvalStatus: 'approved',
+            args: prepared.args,
+            presentationSnapshot: prepared.presentationSnapshot,
+        };
     }
 
     /**
@@ -2171,94 +2280,6 @@ export class ToolManager {
 
         // Needs manual approval
         return null;
-    }
-
-    /**
-     * Request manual approval from the user for a tool execution.
-     * Generates preview, sends approval request, and handles the response.
-     */
-    private async requestManualApproval(
-        toolName: string,
-        args: Record<string, unknown>,
-        toolCallId: string,
-        sessionId?: string,
-        runContext?: AgentRunContext,
-        directoryAccess?: DirectoryAccessMetadata,
-        directoryAccessApprovalRequest?: ApprovalRequestDetails,
-        callDescription?: string,
-        presentationSnapshot?: ToolPresentationSnapshotV1
-    ): Promise<{ requireApproval: boolean; approvalStatus: 'approved' | 'rejected' }> {
-        this.logger.info(
-            `Tool approval requested for ${toolName}, sessionId: ${sessionId ?? 'global'}`
-        );
-
-        try {
-            // Generate preview for approval UI
-            const displayPreview = await this.generateToolPreview(
-                toolName,
-                args,
-                toolCallId,
-                sessionId,
-                runContext
-            );
-            const hostRuntime =
-                runContext?.hostRuntime ?? directoryAccessApprovalRequest?.hostRuntime;
-
-            // Get suggested patterns if applicable
-            const suggestedPatterns = this.getToolSuggestedPatterns(toolName, args);
-
-            // Build and send approval request
-            const response = await this.approvalManager.requestToolApproval({
-                toolName,
-                ...(presentationSnapshot !== undefined && { presentationSnapshot }),
-                toolCallId,
-                args,
-                ...(callDescription !== undefined && { description: callDescription }),
-                ...(sessionId !== undefined && { sessionId }),
-                ...(hostRuntime !== undefined && { hostRuntime }),
-                ...(displayPreview !== undefined && { displayPreview }),
-                ...(directoryAccess !== undefined && { directoryAccess }),
-                ...(suggestedPatterns !== undefined && { suggestedPatterns }),
-            });
-
-            // Let tools handle approval responses (e.g., remember directory)
-            if (
-                response.status === ApprovalStatus.APPROVED &&
-                directoryAccessApprovalRequest !== undefined
-            ) {
-                const onGranted = this.getToolApprovalOnGrantedFn(toolName);
-                if (onGranted) {
-                    const context = this.buildToolExecutionContext({
-                        sessionId,
-                        toolCallId,
-                        runContext,
-                    });
-                    await Promise.resolve(
-                        onGranted(response, context, directoryAccessApprovalRequest)
-                    );
-                }
-            }
-
-            // Handle "remember" choices if approved
-            if (response.status === ApprovalStatus.APPROVED && response.data) {
-                await this.handleRememberChoice(toolName, response, sessionId);
-            }
-
-            // Process response
-            if (response.status !== ApprovalStatus.APPROVED) {
-                this.handleApprovalDenied(toolName, response, sessionId);
-            }
-
-            this.logger.info(
-                `Tool approval approved for ${toolName}, sessionId: ${sessionId ?? 'global'}`
-            );
-            return { requireApproval: true, approvalStatus: 'approved' };
-        } catch (error) {
-            this.logger.error(
-                `Tool approval error for ${toolName}: ${error instanceof Error ? error.message : String(error)}`
-            );
-            throw error;
-        }
     }
 
     /**
