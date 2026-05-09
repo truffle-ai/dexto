@@ -680,17 +680,10 @@ export class ApprovalManager {
     }
 
     /**
-     * Build a generic approval request without dispatching it.
-     */
-    createApprovalRequest(details: ApprovalRequestDetails): ApprovalRequest {
-        return createApprovalRequest(details);
-    }
-
-    /**
      * Request a generic approval
      */
     async requestApproval(details: ApprovalRequestDetails): Promise<ApprovalResponse> {
-        const request = this.createApprovalRequest(details);
+        const request = createApprovalRequest(details);
 
         // Check elicitation config if this is an elicitation request
         if (request.type === ApprovalType.ELICITATION && !this.config.elicitation.enabled) {
@@ -700,13 +693,14 @@ export class ApprovalManager {
         }
 
         // Handle all approval types uniformly
-        return this.handleApprovalRequest(request);
+        return this.handleApproval(request);
     }
 
     /**
      * Handle approval requests (tool approval, elicitation, command confirmation, directory access, custom)
+     * @private
      */
-    async handleApprovalRequest(request: ApprovalRequest): Promise<ApprovalResponse> {
+    private async handleApproval(request: ApprovalRequest): Promise<ApprovalResponse> {
         // Elicitation always uses manual mode (requires handler)
         if (request.type === ApprovalType.ELICITATION) {
             const handler = this.ensureHandler();
@@ -756,15 +750,15 @@ export class ApprovalManager {
      * TODO: Make sessionId required once all callers are updated to pass it
      * Tool confirmations always happen in session context during LLM execution
      */
-    createToolApprovalRequest(
+    async requestToolApproval(
         metadata: ToolApprovalMetadata & {
             sessionId?: string;
             hostRuntime?: ApprovalRequestDetails['hostRuntime'];
             timeout?: number;
         }
-    ): ApprovalRequest {
+    ): Promise<ApprovalResponse> {
         const { sessionId, hostRuntime, timeout, ...toolMetadata } = metadata;
-        return this.createApprovalRequest(
+        return this.requestApproval(
             this.createApprovalDetails(
                 ApprovalType.TOOL_APPROVAL,
                 toolMetadata,
@@ -773,16 +767,6 @@ export class ApprovalManager {
                 timeout
             )
         );
-    }
-
-    async requestToolApproval(
-        metadata: ToolApprovalMetadata & {
-            sessionId?: string;
-            hostRuntime?: ApprovalRequestDetails['hostRuntime'];
-            timeout?: number;
-        }
-    ): Promise<ApprovalResponse> {
-        return this.handleApprovalRequest(this.createToolApprovalRequest(metadata));
     }
 
     /**

@@ -8,7 +8,6 @@ export type {
     ApprovalRequest,
     ApprovalResponse,
     ApprovalRequestDetails,
-    DirectoryAccessApprovalRequestDetails,
     ElicitationMetadata,
     ElicitationRequest,
     ElicitationResponse,

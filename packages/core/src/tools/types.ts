@@ -6,11 +6,7 @@ import type { JSONSchema7 } from 'json-schema';
 import type { z, ZodTypeAny } from 'zod';
 import type { ToolDisplayData } from './display-types.js';
 import type { WorkspaceContext } from '../workspace/types.js';
-import type {
-    ApprovalRequestDetails,
-    ApprovalResponse,
-    DirectoryAccessApprovalRequestDetails,
-} from '../approval/types.js';
+import type { ApprovalRequestDetails, ApprovalResponse } from '../approval/types.js';
 import type { ApprovalManager } from '../approval/manager.js';
 import type { DextoAgent } from '../agent/DextoAgent.js';
 import type { ToolStateStore } from '../storage/index.js';
@@ -286,7 +282,7 @@ export interface ToolApproval<TSchema extends ZodTypeAny = ZodTypeAny> {
     override?(
         input: z.output<TSchema>,
         context: ToolExecutionContext
-    ): Promise<ToolApprovalOverrideResult> | ToolApprovalOverrideResult;
+    ): Promise<ApprovalRequestDetails | null> | ApprovalRequestDetails | null;
 
     onGranted?(
         response: ApprovalResponse,
@@ -298,11 +294,6 @@ export interface ToolApproval<TSchema extends ZodTypeAny = ZodTypeAny> {
 
     suggestPatterns?(input: z.output<TSchema>): string[];
 }
-
-export type ToolApprovalOverrideResult =
-    | { kind: 'approval'; request: ApprovalRequestDetails }
-    | { kind: 'directory_access'; request: DirectoryAccessApprovalRequestDetails }
-    | null;
 
 export interface ToolPresentation<TSchema extends ZodTypeAny = ZodTypeAny> {
     /**

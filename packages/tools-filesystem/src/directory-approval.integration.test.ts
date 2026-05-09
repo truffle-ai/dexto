@@ -206,7 +206,7 @@ describe('Directory Approval Integration Tests', () => {
             );
 
             expect(metadata).not.toBeNull();
-            expect(metadata?.request).toMatchObject({
+            expect(metadata).toMatchObject({
                 type: 'directory_access',
                 metadata: {
                     path: path.resolve(externalPath),
@@ -271,7 +271,7 @@ describe('Directory Approval Integration Tests', () => {
                     data: { rememberDirectory: true },
                 },
                 sessionAContext,
-                approvalRequest!.request
+                approvalRequest!
             );
 
             expect(
@@ -302,7 +302,7 @@ describe('Directory Approval Integration Tests', () => {
             );
 
             expect(metadata).not.toBeNull();
-            expect(metadata?.request).toMatchObject({
+            expect(metadata).toMatchObject({
                 type: 'directory_access',
                 metadata: {
                     path: path.resolve(externalPath),
@@ -329,7 +329,7 @@ describe('Directory Approval Integration Tests', () => {
             );
 
             expect(metadata).not.toBeNull();
-            expect(metadata?.request).toMatchObject({
+            expect(metadata).toMatchObject({
                 type: 'directory_access',
                 metadata: {
                     path: path.resolve(externalPath),
@@ -432,10 +432,7 @@ describe('Directory Approval Integration Tests', () => {
                     )
                 ).resolves.toEqual(
                     expect.objectContaining({
-                        kind: 'directory_access',
-                        request: expect.objectContaining({
-                            type: 'directory_access',
-                        }),
+                        type: 'directory_access',
                     })
                 );
             } finally {

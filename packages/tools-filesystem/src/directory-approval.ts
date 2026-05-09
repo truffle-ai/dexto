@@ -1,11 +1,7 @@
 import * as path from 'node:path';
 import type { z, ZodTypeAny } from 'zod';
 import { ApprovalStatus, ApprovalType } from '@dexto/core/approval';
-import type {
-    ApprovalRequestDetails,
-    ApprovalResponse,
-    DirectoryAccessApprovalRequestDetails,
-} from '@dexto/core/approval';
+import type { ApprovalRequestDetails, ApprovalResponse } from '@dexto/core/approval';
 import { ToolError } from '@dexto/core/tools';
 import type { ToolExecutionContext } from '@dexto/core/tools';
 import type { FileSystemService } from './filesystem-service.js';
@@ -41,10 +37,7 @@ export function createDirectoryAccessApprovalHandlers<const TSchema extends ZodT
         override: (
             input: z.output<TSchema>,
             context: ToolExecutionContext
-        ) => Promise<{
-            kind: 'directory_access';
-            request: DirectoryAccessApprovalRequestDetails;
-        } | null>;
+        ) => Promise<ApprovalRequestDetails | null>;
         onGranted: (
             response: ApprovalResponse,
             context: ToolExecutionContext,
@@ -76,15 +69,12 @@ export function createDirectoryAccessApprovalHandlers<const TSchema extends ZodT
                 }
 
                 return {
-                    kind: 'directory_access',
-                    request: {
-                        type: ApprovalType.DIRECTORY_ACCESS,
-                        metadata: {
-                            path: paths.path,
-                            parentDir: paths.parentDir,
-                            operation: options.operation,
-                            toolName: options.toolName,
-                        },
+                    type: ApprovalType.DIRECTORY_ACCESS,
+                    metadata: {
+                        path: paths.path,
+                        parentDir: paths.parentDir,
+                        operation: options.operation,
+                        toolName: options.toolName,
                     },
                 };
             },

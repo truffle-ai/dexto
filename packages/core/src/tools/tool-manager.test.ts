@@ -9,7 +9,7 @@ import { ErrorScope, ErrorType } from '../errors/types.js';
 import { AgentEventBus } from '../events/index.js';
 import type { ApprovalManager } from '../approval/manager.js';
 import type { AllowedToolsProvider } from './confirmation/allowed-tools-provider/types.js';
-import { ApprovalStatus, ApprovalType, type ApprovalRequest } from '../approval/types.js';
+import { ApprovalStatus, ApprovalType } from '../approval/types.js';
 import { createMockLogger } from '../logger/v2/test-utils.js';
 import { SessionError } from '../session/errors.js';
 import { createInMemorySessionToolPreferencesStore } from '../test-utils/session-state-stores.js';
@@ -80,32 +80,10 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
         } as any;
 
         mockApprovalManager = {
-            createApprovalRequest: vi.fn((details) => ({
-                approvalId: 'test-approval-id',
-                timestamp: new Date('2026-01-01T00:00:00.000Z'),
-                ...details,
-            })),
-            createToolApprovalRequest: vi.fn((metadata) => {
-                const { sessionId, hostRuntime, timeout, ...toolMetadata } = metadata;
-                return {
-                    approvalId: 'test-approval-id',
-                    type: ApprovalType.TOOL_APPROVAL,
-                    ...(sessionId !== undefined && { sessionId }),
-                    ...(hostRuntime !== undefined && { hostRuntime }),
-                    ...(timeout !== undefined && { timeout }),
-                    timestamp: new Date('2026-01-01T00:00:00.000Z'),
-                    metadata: toolMetadata,
-                };
-            }),
             requestApproval: vi.fn().mockResolvedValue({
                 approvalId: 'test-custom-approval-id',
                 status: ApprovalStatus.APPROVED,
                 data: { rememberDirectory: false },
-            }),
-            handleApprovalRequest: vi.fn().mockResolvedValue({
-                approvalId: 'test-prepared-approval-id',
-                status: ApprovalStatus.APPROVED,
-                data: { rememberChoice: false },
             }),
             requestToolApproval: vi.fn().mockResolvedValue({
                 approvalId: 'test-approval-id',
@@ -120,28 +98,6 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             cancelApproval: vi.fn(),
             cancelAllApprovals: vi.fn(),
         } as any;
-        (mockApprovalManager.handleApprovalRequest as any).mockImplementation(
-            async (request: ApprovalRequest) => {
-                if (request.type === ApprovalType.TOOL_APPROVAL) {
-                    return (mockApprovalManager.requestToolApproval as any)({
-                        ...request.metadata,
-                        ...(request.sessionId !== undefined && { sessionId: request.sessionId }),
-                        ...(request.hostRuntime !== undefined && {
-                            hostRuntime: request.hostRuntime,
-                        }),
-                        ...(request.timeout !== undefined && { timeout: request.timeout }),
-                    });
-                }
-
-                return (mockApprovalManager.requestApproval as any)({
-                    type: request.type,
-                    metadata: request.metadata,
-                    ...(request.sessionId !== undefined && { sessionId: request.sessionId }),
-                    ...(request.hostRuntime !== undefined && { hostRuntime: request.hostRuntime }),
-                    ...(request.timeout !== undefined && { timeout: request.timeout }),
-                });
-            }
-        );
 
         mockAllowedToolsProvider = {
             isToolAllowed: vi.fn().mockResolvedValue(false),
@@ -828,15 +784,12 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     override: vi.fn().mockImplementation(async () => {
                         callOrder.push('approval.override');
                         return {
-                            kind: 'directory_access',
-                            request: {
-                                type: ApprovalType.DIRECTORY_ACCESS,
-                                metadata: {
-                                    path: '/tmp/example.txt',
-                                    parentDir: '/tmp',
-                                    operation: 'read',
-                                    toolName: 'fs_like_tool',
-                                },
+                            type: ApprovalType.DIRECTORY_ACCESS,
+                            metadata: {
+                                path: '/tmp/example.txt',
+                                parentDir: '/tmp',
+                                operation: 'read',
+                                toolName: 'fs_like_tool',
                             },
                         };
                     }),
@@ -953,17 +906,14 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     .strict(),
                 approval: {
                     override: vi.fn().mockResolvedValue({
-                        kind: 'directory_access',
-                        request: {
-                            type: ApprovalType.DIRECTORY_ACCESS,
-                            metadata: {
-                                path: '/tmp/example.txt',
-                                parentDir: '/tmp',
-                                operation: 'read',
-                                toolName: 'fs_like_tool',
-                            },
-                            hostRuntime,
+                        type: ApprovalType.DIRECTORY_ACCESS,
+                        metadata: {
+                            path: '/tmp/example.txt',
+                            parentDir: '/tmp',
+                            operation: 'read',
+                            toolName: 'fs_like_tool',
                         },
+                        hostRuntime,
                     }),
                 },
                 execute: vi.fn().mockResolvedValue('ok'),
@@ -1008,15 +958,12 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     .strict(),
                 approval: {
                     override: vi.fn().mockResolvedValue({
-                        kind: 'directory_access',
-                        request: {
-                            type: ApprovalType.DIRECTORY_ACCESS,
-                            metadata: {
-                                path: '/tmp/example.txt',
-                                parentDir: '/tmp',
-                                operation: 'read',
-                                toolName: 'fs_like_tool',
-                            },
+                        type: ApprovalType.DIRECTORY_ACCESS,
+                        metadata: {
+                            path: '/tmp/example.txt',
+                            parentDir: '/tmp',
+                            operation: 'read',
+                            toolName: 'fs_like_tool',
                         },
                     }),
                     onGranted: vi.fn(),
@@ -1224,64 +1171,6 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     suggestedPatterns: ['git status', 'git diff'],
                 })
             );
-        });
-
-        it('prepares manual tool approvals without waiting for the approval response or running the tool', async () => {
-            mockMcpManager.getAllTools = vi.fn().mockResolvedValue({});
-            const execute = vi.fn().mockResolvedValue('ok');
-
-            const tool = defineTool({
-                id: 'bash_like_tool',
-                description: 'Bash-like tool with patterns',
-                inputSchema: z
-                    .object({
-                        command: z.string(),
-                    })
-                    .strict(),
-                approval: {
-                    patternKey: () => 'git:*',
-                    suggestPatterns: () => ['git status', 'git diff'],
-                },
-                execute,
-            });
-
-            const toolManager = createToolManager(
-                mockMcpManager,
-                mockApprovalManager,
-                mockAllowedToolsProvider,
-                'manual',
-                mockAgentEventBus,
-                { alwaysAllow: [], alwaysDeny: [] },
-                [tool],
-                mockLogger
-            );
-            toolManager.setToolExecutionContextFactory((baseContext) => baseContext);
-
-            const prepared = await toolManager.prepareToolExecution(
-                'bash_like_tool',
-                { command: 'git status' },
-                'call-1',
-                { sessionId: 'session-1' }
-            );
-
-            expect(prepared).toMatchObject({
-                approval: {
-                    kind: 'tool_approval',
-                    request: {
-                        metadata: {
-                            args: { command: 'git status' },
-                            suggestedPatterns: ['git status', 'git diff'],
-                            toolCallId: 'call-1',
-                            toolName: 'bash_like_tool',
-                        },
-                        sessionId: 'session-1',
-                        type: ApprovalType.TOOL_APPROVAL,
-                    },
-                },
-                kind: 'approval_required',
-            });
-            expect(mockApprovalManager.requestToolApproval).not.toHaveBeenCalled();
-            expect(execute).not.toHaveBeenCalled();
         });
 
         it('should fall back to args.description for approval description when __meta.callDescription is missing', async () => {
