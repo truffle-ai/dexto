@@ -72,6 +72,7 @@ export class VercelLLMService {
     private logger: Logger;
     private resourceManager: ResourceManager;
     private messageQueue: MessageQueueService;
+    private followUpQueue: MessageQueueService;
     private compactionStrategy:
         | import('../../context/compaction/types.js').CompactionStrategy
         | null;
@@ -96,6 +97,7 @@ export class VercelLLMService {
         resourceManager: ResourceManager,
         logger: Logger,
         messageQueue: MessageQueueService,
+        followUpQueue: MessageQueueService,
         usageScopeId?: string,
         compactionStrategy?: import('../../context/compaction/types.js').CompactionStrategy | null
     ) {
@@ -110,6 +112,7 @@ export class VercelLLMService {
         this.compactionStrategy = compactionStrategy ?? null;
 
         this.messageQueue = messageQueue;
+        this.followUpQueue = followUpQueue;
 
         // Create properly-typed ContextManager for Vercel
         const formatter = new VercelMessageFormatter(this.logger);
@@ -172,6 +175,7 @@ export class VercelLLMService {
             { provider: this.config.provider, model: this.getModelId() },
             this.logger,
             this.messageQueue,
+            this.followUpQueue,
             this.modelLimits,
             externalSignal,
             this.compactionStrategy,
@@ -308,6 +312,10 @@ export class VercelLLMService {
      */
     getMessageQueue(): MessageQueueService {
         return this.messageQueue;
+    }
+
+    getFollowUpQueue(): MessageQueueService {
+        return this.followUpQueue;
     }
 
     /**

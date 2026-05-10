@@ -32,6 +32,8 @@ export {
     DatabaseBackedToolPreferenceStore,
     DatabaseBackedToolStateStore,
     DatabaseBackedWorkspaceStore,
+    SESSION_FOLLOW_UP_QUEUE_KEY_PREFIX,
+    SESSION_MESSAGE_QUEUE_KEY_PREFIX,
 } from './stores/backend.js';
 export type { DextoStoresLifecycle } from './stores/backend.js';
 export type { DextoStoreMap, DextoStoreName, DextoStores } from './stores/types.js';

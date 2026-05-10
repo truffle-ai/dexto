@@ -150,6 +150,7 @@ export class SessionManager {
             hookManager: HookManager;
             mcpManager: import('../mcp/manager.js').MCPManager;
             messageQueueStore: SessionMessageQueueStore;
+            followUpQueueStore: SessionMessageQueueStore;
             compactionStrategy: CompactionStrategy | null;
             workspaceManager?: import('../workspace/manager.js').WorkspaceManager;
         },
@@ -243,18 +244,21 @@ export class SessionManager {
 
     private async clearPersistedQueuedMessages(reason: 'startup' | 'shutdown'): Promise<void> {
         try {
-            const queuedSessionIds = await this.services.messageQueueStore.listSessionIds();
-            if (queuedSessionIds.length === 0) {
+            const steerSessionIds = await this.services.messageQueueStore.listSessionIds();
+            const followUpSessionIds = await this.services.followUpQueueStore.listSessionIds();
+            const sessionIds = Array.from(new Set([...steerSessionIds, ...followUpSessionIds]));
+            if (sessionIds.length === 0) {
                 return;
             }
 
             await Promise.all(
-                queuedSessionIds.map((sessionId) =>
-                    this.services.messageQueueStore.delete({ sessionId })
-                )
+                sessionIds.flatMap((sessionId) => [
+                    this.services.messageQueueStore.delete({ sessionId }),
+                    this.services.followUpQueueStore.delete({ sessionId }),
+                ])
             );
 
-            const message = `${reason === 'startup' ? 'Cleared stale queued follow-up state from previous agent run' : 'Cleared queued follow-up state during agent shutdown'} (${queuedSessionIds.length} session bucket(s))`;
+            const message = `${reason === 'startup' ? 'Cleared stale pending input state from previous agent run' : 'Cleared pending input state during agent shutdown'} (${sessionIds.length} session bucket(s))`;
             if (reason === 'startup') {
                 // TODO(issue-743): Replace startup purge with explicit resume semantics for interrupted queued follow-ups.
                 this.logger.info(message);
@@ -1291,6 +1295,7 @@ export class SessionManager {
             this.services.toolManager.deleteSessionState(sessionId),
             this.services.approvalManager.deleteSessionState(sessionId),
             this.services.messageQueueStore.delete({ sessionId }),
+            this.services.followUpQueueStore.delete({ sessionId }),
         ]);
     }
 

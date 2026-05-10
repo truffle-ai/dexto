@@ -19,7 +19,8 @@ import { PromptManager } from '../prompts/index.js';
 import type { PromptsConfig } from '../prompts/schemas.js';
 import { AgentStateManager } from './state-manager.js';
 import { SessionManager, ChatSession, SessionError } from '../session/index.js';
-import type { SessionMetadata } from '../session/index.js';
+import type { QueuedMessage, SessionMetadata } from '../session/index.js';
+import type { UserMessageInput } from '../session/message-queue.js';
 import {
     AgentServices,
     type InitializeServicesOptions,
@@ -1470,7 +1471,7 @@ export class DextoAgent {
      */
     public async queueMessage(
         sessionId: string,
-        message: import('../session/message-queue.js').UserMessageInput
+        message: UserMessageInput
     ): Promise<{ queued: true; position: number; id: string }> {
         this.ensureStarted();
         const session = await this.sessionManager.getSession(sessionId, false);
@@ -1481,19 +1482,85 @@ export class DextoAgent {
     }
 
     /**
+     * Queue a message as active-turn steer input for a session.
+     * The message is injected at the next executor boundary while the current turn is active.
+     *
+     * @param sessionId Session id
+     * @param message The user message to use as steer input
+     * @returns Queue position and message ID
+     */
+    public async steer(
+        sessionId: string,
+        message: UserMessageInput
+    ): Promise<{ queued: true; position: number; id: string }> {
+        this.ensureStarted();
+        const session = await this.sessionManager.getSession(sessionId, false);
+        if (!session) {
+            throw SessionError.notFound(sessionId);
+        }
+        return session.steer(message);
+    }
+
+    /**
+     * Queue a message as follow-up work for a session.
+     * The message is processed only after the active turn would otherwise stop.
+     *
+     * @param sessionId Session id
+     * @param message The user message to queue as follow-up work
+     * @returns Queue position and message ID
+     */
+    public async followUp(
+        sessionId: string,
+        message: UserMessageInput
+    ): Promise<{ queued: true; position: number; id: string }> {
+        this.ensureStarted();
+        const session = await this.sessionManager.getSession(sessionId, false);
+        if (!session) {
+            throw SessionError.notFound(sessionId);
+        }
+        return session.followUp(message);
+    }
+
+    /**
      * Get all queued messages for a session.
      * @param sessionId Session id
      * @returns Array of queued messages
      */
-    public async getQueuedMessages(
-        sessionId: string
-    ): Promise<import('../session/types.js').QueuedMessage[]> {
+    public async getQueuedMessages(sessionId: string): Promise<QueuedMessage[]> {
         this.ensureStarted();
         const session = await this.sessionManager.getSession(sessionId, false);
         if (!session) {
             throw SessionError.notFound(sessionId);
         }
         return session.getQueuedMessages();
+    }
+
+    /**
+     * Get all steer messages for a session.
+     * @param sessionId Session id
+     * @returns Array of steer messages
+     */
+    public async getSteerMessages(sessionId: string): Promise<QueuedMessage[]> {
+        this.ensureStarted();
+        const session = await this.sessionManager.getSession(sessionId, false);
+        if (!session) {
+            throw SessionError.notFound(sessionId);
+        }
+        return session.getSteerMessages();
+    }
+
+    /**
+     * Get all follow-up messages for a session.
+     * @param sessionId Session id
+     * @returns Array of follow-up messages
+     */
+    public async getFollowUpMessages(sessionId: string): Promise<QueuedMessage[]> {
+        this.ensureStarted();
+        const session = await this.sessionManager.getSession(sessionId, false);
+        if (!session) {
+            throw SessionError.notFound(sessionId);
+        }
+        return session.getFollowUpMessages();
     }
 
     /**
@@ -1512,6 +1579,36 @@ export class DextoAgent {
     }
 
     /**
+     * Remove a steer message.
+     * @param sessionId Session id
+     * @param messageId The ID of the steer message to remove
+     * @returns true if message was found and removed, false otherwise
+     */
+    public async removeSteerMessage(sessionId: string, messageId: string): Promise<boolean> {
+        this.ensureStarted();
+        const session = await this.sessionManager.getSession(sessionId, false);
+        if (!session) {
+            throw SessionError.notFound(sessionId);
+        }
+        return session.removeSteerMessage(messageId);
+    }
+
+    /**
+     * Remove a follow-up message.
+     * @param sessionId Session id
+     * @param messageId The ID of the follow-up message to remove
+     * @returns true if message was found and removed, false otherwise
+     */
+    public async removeFollowUpMessage(sessionId: string, messageId: string): Promise<boolean> {
+        this.ensureStarted();
+        const session = await this.sessionManager.getSession(sessionId, false);
+        if (!session) {
+            throw SessionError.notFound(sessionId);
+        }
+        return session.removeFollowUpMessage(messageId);
+    }
+
+    /**
      * Clear all queued messages for a session.
      * @param sessionId Session id
      * @returns Number of messages that were cleared
@@ -1523,6 +1620,34 @@ export class DextoAgent {
             throw SessionError.notFound(sessionId);
         }
         return session.clearMessageQueue();
+    }
+
+    /**
+     * Clear all steer messages for a session.
+     * @param sessionId Session id
+     * @returns Number of messages that were cleared
+     */
+    public async clearSteerQueue(sessionId: string): Promise<number> {
+        this.ensureStarted();
+        const session = await this.sessionManager.getSession(sessionId, false);
+        if (!session) {
+            throw SessionError.notFound(sessionId);
+        }
+        return session.clearSteerQueue();
+    }
+
+    /**
+     * Clear all follow-up messages for a session.
+     * @param sessionId Session id
+     * @returns Number of messages that were cleared
+     */
+    public async clearFollowUpQueue(sessionId: string): Promise<number> {
+        this.ensureStarted();
+        const session = await this.sessionManager.getSession(sessionId, false);
+        if (!session) {
+            throw SessionError.notFound(sessionId);
+        }
+        return session.clearFollowUpQueue();
     }
 
     /**

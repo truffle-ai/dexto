@@ -197,6 +197,12 @@ describe('SessionManager', () => {
                 save: vi.fn().mockResolvedValue(undefined),
                 delete: vi.fn().mockResolvedValue(undefined),
             },
+            followUpQueueStore: {
+                listSessionIds: vi.fn(async () => []),
+                load: vi.fn().mockResolvedValue([]),
+                save: vi.fn().mockResolvedValue(undefined),
+                delete: vi.fn().mockResolvedValue(undefined),
+            },
         };
 
         // Parse LLM config now that mocks are set up

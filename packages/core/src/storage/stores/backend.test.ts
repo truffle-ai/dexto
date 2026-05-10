@@ -18,6 +18,8 @@ import {
     DatabaseBackedToolPreferenceStore,
     DatabaseBackedToolStateStore,
     DatabaseBackedWorkspaceStore,
+    SESSION_FOLLOW_UP_QUEUE_KEY_PREFIX,
+    SESSION_MESSAGE_QUEUE_KEY_PREFIX,
 } from './backend.js';
 
 describe('BackendDextoStores', () => {
@@ -35,7 +37,18 @@ describe('BackendDextoStores', () => {
                 approvals: new DatabaseBackedApprovalStore(database, cache, logger),
                 toolPreferences: new DatabaseBackedToolPreferenceStore(database, cache, logger),
                 toolState: new DatabaseBackedToolStateStore(database),
-                messageQueue: new DatabaseBackedSessionMessageQueueStore(database, cache, logger),
+                messageQueue: new DatabaseBackedSessionMessageQueueStore(
+                    database,
+                    cache,
+                    logger,
+                    SESSION_MESSAGE_QUEUE_KEY_PREFIX
+                ),
+                followUpQueue: new DatabaseBackedSessionMessageQueueStore(
+                    database,
+                    cache,
+                    logger,
+                    SESSION_FOLLOW_UP_QUEUE_KEY_PREFIX
+                ),
                 customPrompts: new DatabaseBackedCustomPromptStore(database),
                 artifacts: new DatabaseBackedArtifactStore(blobStore),
                 runtimeEvents: new DatabaseBackedRuntimeEventStore(database),
@@ -81,6 +94,16 @@ describe('BackendDextoStores', () => {
                 },
             ],
         });
+        await stores.getStore('followUpQueue').save({
+            sessionId: 'session-1',
+            queue: [
+                {
+                    id: 'follow-up-1',
+                    content: [{ type: 'text', text: 'later' }],
+                    queuedAt: 3,
+                },
+            ],
+        });
         await stores.getStore('toolPreferences').allowTool({
             sessionId: 'session-1',
             toolName: 'todo_write',
@@ -96,6 +119,13 @@ describe('BackendDextoStores', () => {
                 id: 'queued-1',
                 content: [{ type: 'text', text: 'next' }],
                 queuedAt: 2,
+            },
+        ]);
+        expect(await stores.getStore('followUpQueue').load({ sessionId: 'session-1' })).toEqual([
+            {
+                id: 'follow-up-1',
+                content: [{ type: 'text', text: 'later' }],
+                queuedAt: 3,
             },
         ]);
         expect(

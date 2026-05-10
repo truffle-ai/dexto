@@ -115,6 +115,7 @@ export class TurnExecutor {
         private llmContext: LLMContext,
         logger: Logger,
         private messageQueue: MessageQueueService,
+        private followUpQueue: MessageQueueService,
         private modelLimits?: ModelLimits,
         private externalSignal?: AbortSignal,
         compactionStrategy: CompactionStrategy | null = null,
@@ -434,16 +435,14 @@ export class TurnExecutor {
 
                 // 8. Check termination conditions
                 if (result.finishReason !== 'tool-calls') {
-                    // Check queue before terminating - process queued messages if any
-                    // Note: Hard cancel clears the queue BEFORE aborting, so if messages exist
-                    // here it means soft cancel - we should continue processing them
-                    const queuedOnTerminate = await this.messageQueue.dequeueAll();
-                    if (queuedOnTerminate) {
+                    // Follow-ups run only after the active turn naturally reaches a stop point.
+                    const followUpOnTerminate = await this.followUpQueue.dequeueAll();
+                    if (followUpOnTerminate) {
                         this.logger.debug(
-                            `Continuing: ${queuedOnTerminate.messages.length} queued message(s) to process`
+                            `Continuing: ${followUpOnTerminate.messages.length} follow-up message(s) to process`
                         );
-                        await this.injectQueuedMessages(queuedOnTerminate);
-                        continue; // Keep looping with fresh controller - process queued messages
+                        await this.injectQueuedMessages(followUpOnTerminate);
+                        continue;
                     }
 
                     this.logger.debug(`Terminating: finishReason is "${result.finishReason}"`);
@@ -1031,7 +1030,7 @@ export class TurnExecutor {
         // Clear any pending queued messages
         void this.messageQueue.clear().catch((error) => {
             this.logger.warn(
-                `Failed to clear queued follow-up messages during cleanup: ${
+                `Failed to clear queued steer messages during cleanup: ${
                     error instanceof Error ? error.message : String(error)
                 }`
             );

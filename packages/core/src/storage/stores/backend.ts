@@ -44,6 +44,12 @@ const RUNTIME_EVENTS_LIMIT = 10000;
 const TOOL_STATE_KEY_PREFIX = 'tool-state:';
 const WORKSPACE_KEY_PREFIX = 'workspace:item:';
 const WORKSPACE_CURRENT_KEY = 'workspace:current';
+export const SESSION_MESSAGE_QUEUE_KEY_PREFIX = 'session-message-queue';
+export const SESSION_FOLLOW_UP_QUEUE_KEY_PREFIX = 'session-follow-up-queue';
+
+type SessionMessageQueueKeyPrefix =
+    | typeof SESSION_MESSAGE_QUEUE_KEY_PREFIX
+    | typeof SESSION_FOLLOW_UP_QUEUE_KEY_PREFIX;
 
 const DEFAULT_APPROVAL_STATE: SessionApprovalState = {
     toolPatterns: {},
@@ -500,12 +506,14 @@ export class DatabaseBackedSessionMessageQueueStore implements SessionMessageQue
     constructor(
         private readonly database: Database,
         private readonly cache: Cache,
-        private readonly logger: Logger
+        private readonly logger: Logger,
+        private readonly keyPrefix: SessionMessageQueueKeyPrefix
     ) {}
 
     async listSessionIds(): Promise<string[]> {
-        const keys = await this.database.list('session-message-queue:');
-        return keys.map((key) => key.replace('session-message-queue:', ''));
+        const prefix = `${this.keyPrefix}:`;
+        const keys = await this.database.list(prefix);
+        return keys.map((key) => key.replace(prefix, ''));
     }
 
     async load(input: { sessionId: string }): Promise<QueuedMessage[]> {
@@ -548,7 +556,7 @@ export class DatabaseBackedSessionMessageQueueStore implements SessionMessageQue
     }
 
     private key(sessionId: string): string {
-        return `session-message-queue:${sessionId}`;
+        return `${this.keyPrefix}:${sessionId}`;
     }
 }
 

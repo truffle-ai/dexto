@@ -29,6 +29,8 @@ import {
     DatabaseBackedToolStateStore,
     DatabaseBackedWorkspaceStore,
     InMemoryDextoStores,
+    SESSION_FOLLOW_UP_QUEUE_KEY_PREFIX,
+    SESSION_MESSAGE_QUEUE_KEY_PREFIX,
 } from '../storage/index.js';
 import {
     createInMemoryBlobStore,
@@ -436,7 +438,14 @@ describe('Session Integration: Core-owned Interaction State Persistence', () => 
                     messageQueue: new DatabaseBackedSessionMessageQueueStore(
                         storage.database,
                         storage.cache,
-                        logger
+                        logger,
+                        SESSION_MESSAGE_QUEUE_KEY_PREFIX
+                    ),
+                    followUpQueue: new DatabaseBackedSessionMessageQueueStore(
+                        storage.database,
+                        storage.cache,
+                        logger,
+                        SESSION_FOLLOW_UP_QUEUE_KEY_PREFIX
                     ),
                     customPrompts: new DatabaseBackedCustomPromptStore(storage.database),
                     artifacts: new DatabaseBackedArtifactStore(storage.blob),

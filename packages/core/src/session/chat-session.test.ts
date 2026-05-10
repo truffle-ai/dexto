@@ -183,6 +183,11 @@ describe('ChatSession', () => {
                 save: vi.fn().mockResolvedValue(undefined),
                 delete: vi.fn().mockResolvedValue(undefined),
             },
+            followUpQueueStore: {
+                load: vi.fn().mockResolvedValue([]),
+                save: vi.fn().mockResolvedValue(undefined),
+                delete: vi.fn().mockResolvedValue(undefined),
+            },
             hookManager: {
                 executeHooks: vi.fn().mockImplementation(async (_point, payload) => payload),
                 cleanup: vi.fn(),

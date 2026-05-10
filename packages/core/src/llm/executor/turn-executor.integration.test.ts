@@ -125,6 +125,7 @@ describe('TurnExecutor Integration Tests', () => {
     let agentEventBus: AgentEventBus;
     let resourceManager: ResourceManager;
     let messageQueue: MessageQueueService;
+    let followUpQueue: MessageQueueService;
     let logger: Logger;
     let conversationStore: ConversationStore;
     let mcpManager: MCPManager;
@@ -242,6 +243,12 @@ describe('TurnExecutor Integration Tests', () => {
             sessionId,
             createInMemoryMessageQueueStore()
         );
+        followUpQueue = new MessageQueueService(
+            sessionEventBus,
+            logger,
+            sessionId,
+            createInMemoryMessageQueueStore()
+        );
 
         // Default streamText mock - simple text response
         vi.mocked(streamText).mockImplementation(
@@ -262,7 +269,8 @@ describe('TurnExecutor Integration Tests', () => {
             { maxSteps: 10, maxOutputTokens: 4096, temperature: 0.7 },
             llmContext,
             logger,
-            messageQueue
+            messageQueue,
+            followUpQueue
         );
     });
 
@@ -392,7 +400,8 @@ describe('TurnExecutor Integration Tests', () => {
                 { maxSteps: 3, maxOutputTokens: 4096, temperature: 0.7 },
                 llmContext,
                 logger,
-                messageQueue
+                messageQueue,
+                followUpQueue
             );
 
             await contextManager.addUserMessage([{ type: 'text', text: 'Keep going' }]);
@@ -428,7 +437,7 @@ describe('TurnExecutor Integration Tests', () => {
             vi.mocked(streamText).mockImplementation(() => {
                 callCount++;
                 if (callCount === 1) {
-                    const queuedFollowUp = messageQueue.enqueue({
+                    const queuedFollowUp = followUpQueue.enqueue({
                         content: [{ type: 'text', text: 'Follow-up question' }],
                     });
                     const firstStream = createMockStream({
@@ -481,7 +490,8 @@ describe('TurnExecutor Integration Tests', () => {
                 { maxSteps: 10, baseURL: 'https://custom.api.com' },
                 llmContext,
                 logger,
-                messageQueue
+                messageQueue,
+                followUpQueue
             );
 
             await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
@@ -506,7 +516,8 @@ describe('TurnExecutor Integration Tests', () => {
                 { maxSteps: 10, baseURL: 'https://custom.api.com' },
                 llmContext,
                 logger,
-                newMessageQueue
+                newMessageQueue,
+                followUpQueue
             );
 
             await executor2.execute({ mcpManager }, true);
@@ -526,7 +537,8 @@ describe('TurnExecutor Integration Tests', () => {
                 { maxSteps: 10, baseURL: 'https://no-tools.api.com' },
                 llmContext,
                 logger,
-                messageQueue
+                messageQueue,
+                followUpQueue
             );
 
             await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
@@ -557,7 +569,8 @@ describe('TurnExecutor Integration Tests', () => {
                 { maxSteps: 10 }, // No baseURL
                 ollamaLlmContext,
                 logger,
-                messageQueue
+                messageQueue,
+                followUpQueue
             );
 
             await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
@@ -590,7 +603,8 @@ describe('TurnExecutor Integration Tests', () => {
                 { maxSteps: 10, baseURL: 'https://no-tools.api.com' },
                 llmContext,
                 logger,
-                messageQueue
+                messageQueue,
+                followUpQueue
             );
 
             await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
@@ -626,7 +640,8 @@ describe('TurnExecutor Integration Tests', () => {
                 { maxSteps: 10, baseURL: 'codex://chatgpt' },
                 { provider: 'openai-compatible', model: 'gpt-5.4' },
                 logger,
-                messageQueue
+                messageQueue,
+                followUpQueue
             );
 
             await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
@@ -714,6 +729,23 @@ describe('TurnExecutor Integration Tests', () => {
 
             await expect(messageQueue.dequeueAll()).resolves.toBeNull();
         });
+
+        it('should preserve follow-up queue on error', async () => {
+            await followUpQueue.enqueue({ content: [{ type: 'text', text: 'After error' }] });
+
+            vi.mocked(streamText).mockImplementation(() => {
+                throw new Error('Failed');
+            });
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
+            await expect(executor.execute({ mcpManager }, true)).rejects.toThrow();
+
+            await expect(followUpQueue.getAll()).toEqual([
+                expect.objectContaining({
+                    content: [{ type: 'text', text: 'After error' }],
+                }),
+            ]);
+        });
     });
 
     describe('External Abort Signal', () => {
@@ -746,6 +778,7 @@ describe('TurnExecutor Integration Tests', () => {
                 llmContext,
                 logger,
                 messageQueue,
+                followUpQueue,
                 undefined,
                 abortController.signal
             );

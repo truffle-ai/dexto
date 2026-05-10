@@ -261,7 +261,7 @@ export class MessageQueueService {
 
         const getUserPrefix = (index: number, total: number, mixed: boolean): string | null => {
             if (mixed) {
-                return `User follow-up ${index + 1}`;
+                return `User message ${index + 1}`;
             }
             if (total <= 1) return null;
             if (total === 2) {

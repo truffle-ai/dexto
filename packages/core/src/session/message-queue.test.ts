@@ -240,7 +240,7 @@ describe('MessageQueueService', () => {
 
             expect(result?.combinedContent[0]).toEqual({
                 type: 'text',
-                text: 'User follow-up 1: user note',
+                text: 'User message 1: user note',
             });
             expect(result?.combinedContent[2]).toEqual({ type: 'text', text: 'bg payload' });
         });

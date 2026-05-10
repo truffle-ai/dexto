@@ -19,6 +19,7 @@ export interface DextoStoreMap {
     toolPreferences: ToolPreferenceStore;
     toolState: ToolStateStore;
     messageQueue: SessionMessageQueueStore;
+    followUpQueue: SessionMessageQueueStore;
     customPrompts: CustomPromptStore;
     artifacts: ArtifactStore;
     runtimeEvents: RuntimeEventStore;

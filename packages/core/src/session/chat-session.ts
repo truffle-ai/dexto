@@ -21,6 +21,7 @@ import { DextoLogComponent } from '../logger/v2/types.js';
 import { DextoRuntimeError, ErrorScope, ErrorType } from '../errors/index.js';
 import { HookErrorCode } from '../hooks/error-codes.js';
 import type { InternalMessage, ContentPart } from '../context/types.js';
+import type { QueuedMessage } from './types.js';
 import { MessageQueueService, type UserMessageInput } from './message-queue.js';
 import type { SessionMessageQueueStore } from '../storage/message-queue/types.js';
 import type { ContentInput } from '../agent/types.js';
@@ -112,6 +113,7 @@ export class ChatSession {
      * Reused across LLM switches so mid-task follow-ups survive service recreation.
      */
     private messageQueue!: MessageQueueService;
+    private followUpQueue!: MessageQueueService;
 
     private activeForwarderCleanup: (() => void) | null = null;
 
@@ -153,6 +155,7 @@ export class ChatSession {
             mcpManager: MCPManager;
             sessionManager: import('./session-manager.js').SessionManager;
             messageQueueStore: SessionMessageQueueStore;
+            followUpQueueStore: SessionMessageQueueStore;
             languageModelFactory?: LanguageModelFactory;
             workspaceManager?: import('../workspace/manager.js').WorkspaceManager;
             compactionStrategy: CompactionStrategy | null;
@@ -168,6 +171,12 @@ export class ChatSession {
             this.logger,
             this.id,
             this.services.messageQueueStore
+        );
+        this.followUpQueue = new MessageQueueService(
+            this.eventBus,
+            this.logger,
+            this.id,
+            this.services.followUpQueueStore
         );
 
         this.setupTokenAccumulation();
@@ -268,6 +277,7 @@ export class ChatSession {
         const llmConfig = runtimeConfig.llm;
 
         await this.messageQueue.initialize();
+        await this.followUpQueue.initialize();
 
         this.conversationStore = this.services.conversationStore;
 
@@ -286,6 +296,7 @@ export class ChatSession {
             compactionStrategy: this.services.compactionStrategy,
             ...(workspace?.path !== undefined && { cwd: workspace.path }),
             messageQueue: this.messageQueue,
+            followUpQueue: this.followUpQueue,
         };
 
         return createLLMService(
@@ -765,8 +776,8 @@ export class ChatSession {
     }
 
     /**
-     * Queue a message for processing when the session is busy.
-     * The message will be injected into the conversation when the current turn completes.
+     * Queue a message as active-turn steer input.
+     * The message is injected at the next executor boundary while the current turn is active.
      *
      * @param message The user message to queue
      * @returns Queue position and message ID
@@ -778,11 +789,52 @@ export class ChatSession {
     }
 
     /**
+     * Queue a message as active-turn steer input.
+     * The message is injected at the next executor boundary while the current turn is active.
+     *
+     * @param message The user message to use as steer input
+     * @returns Queue position and message ID
+     */
+    public async steer(
+        message: UserMessageInput
+    ): Promise<{ queued: true; position: number; id: string }> {
+        return await this.llmService.getMessageQueue().enqueue(message);
+    }
+
+    /**
+     * Queue a follow-up message for processing after the current turn naturally completes.
+     *
+     * @param message The user message to queue as follow-up work
+     * @returns Queue position and message ID
+     */
+    public async followUp(
+        message: UserMessageInput
+    ): Promise<{ queued: true; position: number; id: string }> {
+        return await this.llmService.getFollowUpQueue().enqueue(message);
+    }
+
+    /**
      * Get all messages currently in the queue.
      * @returns Array of queued messages
      */
-    public getQueuedMessages(): import('./types.js').QueuedMessage[] {
+    public getQueuedMessages(): QueuedMessage[] {
         return this.llmService.getMessageQueue().getAll();
+    }
+
+    /**
+     * Get all steer messages currently queued.
+     * @returns Array of steer messages
+     */
+    public getSteerMessages(): QueuedMessage[] {
+        return this.llmService.getMessageQueue().getAll();
+    }
+
+    /**
+     * Get all follow-up messages currently queued.
+     * @returns Array of follow-up messages
+     */
+    public getFollowUpMessages(): QueuedMessage[] {
+        return this.llmService.getFollowUpQueue().getAll();
     }
 
     /**
@@ -795,11 +847,51 @@ export class ChatSession {
     }
 
     /**
+     * Remove a steer message.
+     * @param id Message ID to remove
+     * @returns true if message was found and removed; false otherwise
+     */
+    public async removeSteerMessage(id: string): Promise<boolean> {
+        return await this.llmService.getMessageQueue().remove(id);
+    }
+
+    /**
+     * Remove a follow-up message.
+     * @param id Message ID to remove
+     * @returns true if message was found and removed; false otherwise
+     */
+    public async removeFollowUpMessage(id: string): Promise<boolean> {
+        return await this.llmService.getFollowUpQueue().remove(id);
+    }
+
+    /**
      * Clear all queued messages.
      * @returns Number of messages that were cleared
      */
     public async clearMessageQueue(): Promise<number> {
         const queue = this.llmService.getMessageQueue();
+        const count = queue.pendingCount();
+        await queue.clear();
+        return count;
+    }
+
+    /**
+     * Clear all steer messages.
+     * @returns Number of messages that were cleared
+     */
+    public async clearSteerQueue(): Promise<number> {
+        const queue = this.llmService.getMessageQueue();
+        const count = queue.pendingCount();
+        await queue.clear();
+        return count;
+    }
+
+    /**
+     * Clear all follow-up messages.
+     * @returns Number of messages that were cleared
+     */
+    public async clearFollowUpQueue(): Promise<number> {
+        const queue = this.llmService.getFollowUpQueue();
         const count = queue.pendingCount();
         await queue.clear();
         return count;
