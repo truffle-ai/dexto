@@ -52,6 +52,8 @@ interface InputContainerProps {
     /** If provided, auto-submits once when the UI is ready */
     initialPrompt?: string | undefined;
     approval: ApprovalRequest | null;
+    /** Active-turn input waiting for the next executor boundary */
+    steerMessages: QueuedMessage[];
     /** Follow-up messages waiting to run after the current turn */
     queuedMessages: QueuedMessage[];
     setInput: React.Dispatch<React.SetStateAction<InputState>>;
@@ -96,6 +98,7 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
             session,
             initialPrompt,
             approval,
+            steerMessages,
             queuedMessages,
             setInput,
             setUi,
@@ -251,6 +254,29 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                 ui.isProcessing,
             ]
         );
+
+        const handleCurrentTurnEdit = useCallback((): boolean => {
+            if (steerMessages.length === 0 || !session.id) {
+                return false;
+            }
+
+            const lastSteer = steerMessages[steerMessages.length - 1];
+            if (!lastSteer) {
+                return false;
+            }
+
+            const text = extractTextFromContent(lastSteer.content);
+            buffer.setText(text);
+            setInput((prev) => ({
+                ...prev,
+                value: text,
+                editingQueuedFollowUp: false,
+            }));
+            agent.removeSteerMessage(session.id, lastSteer.id).catch(() => {
+                // Silently ignore errors - queue might have been cleared
+            });
+            return true;
+        }, [agent, buffer, session.id, setInput, steerMessages]);
 
         // Handle overlay triggers
         // Allow triggers while processing (for queuing), but not during approval
@@ -938,6 +964,7 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                 isActive={isInputActive}
                 placeholder={placeholder}
                 onHistoryNavigate={canNavigateHistory ? handleHistoryNavigate : undefined}
+                onCurrentTurnEdit={handleCurrentTurnEdit}
                 onTriggerOverlay={handleTriggerOverlay}
                 onKeyboardScroll={onKeyboardScroll}
                 imageCount={input.images.length}

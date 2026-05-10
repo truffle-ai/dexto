@@ -26,6 +26,8 @@ interface InputAreaProps {
     placeholder?: string | undefined;
     /** History navigation callback */
     onHistoryNavigate?: ((direction: 'up' | 'down') => void) | undefined;
+    /** Edit latest current-turn input callback */
+    onCurrentTurnEdit?: (() => boolean) | undefined;
     /** Overlay trigger callback */
     onTriggerOverlay?: ((trigger: OverlayTrigger) => void) | undefined;
     /** Keyboard scroll callback (for alternate buffer mode) */
@@ -60,6 +62,7 @@ export function InputArea({
     isActive,
     placeholder,
     onHistoryNavigate,
+    onCurrentTurnEdit,
     onTriggerOverlay,
     onKeyboardScroll,
     imageCount,
@@ -83,6 +86,7 @@ export function InputArea({
                 isDisabled={isDisabled}
                 isActive={isActive}
                 onHistoryNavigate={onHistoryNavigate}
+                onCurrentTurnEdit={onCurrentTurnEdit}
                 onTriggerOverlay={onTriggerOverlay}
                 onKeyboardScroll={onKeyboardScroll}
                 imageCount={imageCount}

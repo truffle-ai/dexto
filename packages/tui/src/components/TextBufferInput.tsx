@@ -41,6 +41,8 @@ interface TextBufferInputProps {
     isDisabled?: boolean | undefined;
     /** Called for history navigation (up/down at boundaries) */
     onHistoryNavigate?: ((direction: 'up' | 'down') => void) | undefined;
+    /** Called before Alt+Up jumps to top; return true to consume */
+    onCurrentTurnEdit?: (() => boolean) | undefined;
     /** Called to trigger overlay (slash command, @mention) */
     onTriggerOverlay?: ((trigger: OverlayTrigger) => void) | undefined;
     /** Maximum lines to show in viewport */
@@ -115,6 +117,7 @@ export function TextBufferInput({
     placeholder,
     isDisabled = false,
     onHistoryNavigate,
+    onCurrentTurnEdit,
     onTriggerOverlay,
     maxViewportLines = 10,
     isActive,
@@ -434,8 +437,11 @@ export function TextBufferInput({
                 buffer.move(key.meta || key.ctrl ? 'wordRight' : 'right');
                 return;
             }
-            // Cmd+Up: Move to start of input
+            // Alt+Up edits current-turn input when available; otherwise jump to start.
             if (key.meta && key.name === 'up') {
+                if (onCurrentTurnEdit?.()) {
+                    return;
+                }
                 buffer.moveToOffset(0);
                 return;
             }
@@ -552,6 +558,7 @@ export function TextBufferInput({
             onSubmit,
             onQueueSubmit,
             onHistoryNavigate,
+            onCurrentTurnEdit,
             onTriggerOverlay,
             onKeyboardScroll,
             // imageCount intentionally omitted - callback uses imageCountRef which is synced via useEffect

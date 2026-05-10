@@ -26,7 +26,7 @@ import { useScrollable } from '../../contexts/index.js';
 // Components
 import { Header } from '../chat/Header.js';
 import { MessageItem } from '../chat/MessageItem.js';
-import { QueuedMessagesDisplay } from '../chat/QueuedMessagesDisplay.js';
+import { QUEUE_EDIT_SHORTCUTS, QueuedMessagesDisplay } from '../chat/QueuedMessagesDisplay.js';
 import { StatusBar } from '../StatusBar.js';
 import { HistorySearchBar } from '../HistorySearchBar.js';
 import { Footer } from '../Footer.js';
@@ -357,13 +357,13 @@ export function AlternateBufferCLI({
 
                         <QueuedMessagesDisplay
                             messages={steerMessages}
-                            label="steering current turn"
-                            hint="accepted"
+                            label="current-turn input"
+                            hint={QUEUE_EDIT_SHORTCUTS.currentTurn}
                         />
                         <QueuedMessagesDisplay
                             messages={queuedMessages}
                             label="queued follow-up"
-                            hint="↑ to edit"
+                            hint={QUEUE_EDIT_SHORTCUTS.followUp}
                         />
                     </>
                 )}
@@ -376,6 +376,7 @@ export function AlternateBufferCLI({
                     session={session}
                     initialPrompt={initialPrompt}
                     approval={approval}
+                    steerMessages={steerMessages}
                     queuedMessages={queuedMessages}
                     setInput={setInput}
                     setUi={setUi}

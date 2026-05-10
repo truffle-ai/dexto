@@ -12,6 +12,13 @@ import React from 'react';
 import { Box, Text } from 'ink';
 import type { QueuedMessage, ContentPart } from '@dexto/core';
 
+const isMac = process.platform === 'darwin';
+
+export const QUEUE_EDIT_SHORTCUTS = {
+    currentTurn: isMac ? '⌥ + ↑ edit' : 'Alt + ↑ edit',
+    followUp: '↑ edit',
+};
+
 interface QueuedMessagesDisplayProps {
     messages: QueuedMessage[];
     label?: string;
