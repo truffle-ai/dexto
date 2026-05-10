@@ -169,32 +169,40 @@ describe('MessageQueueService', () => {
             expect(result?.combinedContent).toEqual(content);
         });
 
-        it('should prefix two messages with First and Also', async () => {
+        it('should combine two user messages with a neutral bullet list', async () => {
             await queue.enqueue({ content: [{ type: 'text', text: 'stop' }] });
             await queue.enqueue({ content: [{ type: 'text', text: 'try another way' }] });
 
             const result = await queue.dequeueAll();
 
-            expect(result?.combinedContent).toHaveLength(3); // First + separator + Also
-            expect(result?.combinedContent[0]).toEqual({ type: 'text', text: 'First: stop' });
-            expect(result?.combinedContent[1]).toEqual({ type: 'text', text: '\n\n' });
-            expect(result?.combinedContent[2]).toEqual({
+            expect(result?.combinedContent).toHaveLength(4);
+            expect(result?.combinedContent[0]).toEqual({
                 type: 'text',
-                text: 'Also: try another way',
+                text: 'Additional user input received:',
+            });
+            expect(result?.combinedContent[1]).toEqual({ type: 'text', text: '\n\n' });
+            expect(result?.combinedContent[2]).toEqual({ type: 'text', text: '- stop' });
+            expect(result?.combinedContent[3]).toEqual({
+                type: 'text',
+                text: '\n\n- try another way',
             });
         });
 
-        it('should number three or more messages', async () => {
+        it('should combine three or more user messages with neutral bullets', async () => {
             await queue.enqueue({ content: [{ type: 'text', text: 'one' }] });
             await queue.enqueue({ content: [{ type: 'text', text: 'two' }] });
             await queue.enqueue({ content: [{ type: 'text', text: 'three' }] });
 
             const result = await queue.dequeueAll();
 
-            expect(result?.combinedContent).toHaveLength(5); // 3 messages + 2 separators
-            expect(result?.combinedContent[0]).toEqual({ type: 'text', text: '[1]: one' });
-            expect(result?.combinedContent[2]).toEqual({ type: 'text', text: '[2]: two' });
-            expect(result?.combinedContent[4]).toEqual({ type: 'text', text: '[3]: three' });
+            expect(result?.combinedContent).toHaveLength(5);
+            expect(result?.combinedContent[0]).toEqual({
+                type: 'text',
+                text: 'Additional user input received:',
+            });
+            expect(result?.combinedContent[2]).toEqual({ type: 'text', text: '- one' });
+            expect(result?.combinedContent[3]).toEqual({ type: 'text', text: '\n\n- two' });
+            expect(result?.combinedContent[4]).toEqual({ type: 'text', text: '\n\n- three' });
         });
 
         it('should preserve multimodal content (text + images)', async () => {
@@ -210,26 +218,29 @@ describe('MessageQueueService', () => {
 
             const result = await queue.dequeueAll();
 
-            // Should have: "First: look at this", image1, separator, "Also: ", image2
-            expect(result?.combinedContent).toHaveLength(5);
+            expect(result?.combinedContent).toHaveLength(6);
             expect(result?.combinedContent[0]).toEqual({
                 type: 'text',
-                text: 'First: look at this',
+                text: 'Additional user input received:',
             });
-            expect(result?.combinedContent[1]).toEqual({
+            expect(result?.combinedContent[2]).toEqual({
+                type: 'text',
+                text: '- look at this',
+            });
+            expect(result?.combinedContent[3]).toEqual({
                 type: 'image',
                 image: 'base64img1',
                 mimeType: 'image/png',
             });
-            expect(result?.combinedContent[3]).toEqual({ type: 'text', text: 'Also: ' });
-            expect(result?.combinedContent[4]).toEqual({
+            expect(result?.combinedContent[4]).toEqual({ type: 'text', text: '\n\n- ' });
+            expect(result?.combinedContent[5]).toEqual({
                 type: 'image',
                 image: 'base64img2',
                 mimeType: 'image/jpeg',
             });
         });
 
-        it('should tag user messages in mixed batches', async () => {
+        it('should combine user messages neutrally and preserve background payloads in mixed batches', async () => {
             await queue.enqueue({ content: [{ type: 'text', text: 'user note' }] });
             await queue.enqueue({
                 content: [{ type: 'text', text: 'bg payload' }],
@@ -238,11 +249,54 @@ describe('MessageQueueService', () => {
 
             const result = await queue.dequeueAll();
 
-            expect(result?.combinedContent[0]).toEqual({
-                type: 'text',
-                text: 'User message 1: user note',
+            expect(result?.combinedContent).toEqual([
+                { type: 'text', text: 'Additional user input received:' },
+                { type: 'text', text: '\n\n' },
+                { type: 'text', text: '- user note' },
+                { type: 'text', text: '\n\n' },
+                { type: 'text', text: 'bg payload' },
+            ]);
+        });
+
+        it('should preserve mixed batch order when background payload comes first', async () => {
+            await queue.enqueue({
+                content: [{ type: 'text', text: 'bg payload' }],
+                kind: 'background',
             });
-            expect(result?.combinedContent[2]).toEqual({ type: 'text', text: 'bg payload' });
+            await queue.enqueue({ content: [{ type: 'text', text: 'user note' }] });
+
+            const result = await queue.dequeueAll();
+
+            expect(result?.combinedContent).toEqual([
+                { type: 'text', text: 'bg payload' },
+                { type: 'text', text: '\n\n' },
+                { type: 'text', text: 'Additional user input received:' },
+                { type: 'text', text: '\n\n' },
+                { type: 'text', text: '- user note' },
+            ]);
+        });
+
+        it('should reopen the user section after background payloads', async () => {
+            await queue.enqueue({ content: [{ type: 'text', text: 'first user note' }] });
+            await queue.enqueue({
+                content: [{ type: 'text', text: 'bg payload' }],
+                kind: 'background',
+            });
+            await queue.enqueue({ content: [{ type: 'text', text: 'second user note' }] });
+
+            const result = await queue.dequeueAll();
+
+            expect(result?.combinedContent).toEqual([
+                { type: 'text', text: 'Additional user input received:' },
+                { type: 'text', text: '\n\n' },
+                { type: 'text', text: '- first user note' },
+                { type: 'text', text: '\n\n' },
+                { type: 'text', text: 'bg payload' },
+                { type: 'text', text: '\n\n' },
+                { type: 'text', text: 'Additional user input received:' },
+                { type: 'text', text: '\n\n' },
+                { type: 'text', text: '- second user note' },
+            ]);
         });
 
         it('should handle empty message content with placeholder', async () => {
@@ -253,7 +307,7 @@ describe('MessageQueueService', () => {
 
             expect(result?.combinedContent).toContainEqual({
                 type: 'text',
-                text: 'Also: [empty message]',
+                text: '\n\n- [empty message]',
             });
         });
 

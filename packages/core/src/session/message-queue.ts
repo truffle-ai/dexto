@@ -188,11 +188,13 @@ export class MessageQueueService {
      * If 3 messages are queued: "stop", "try X instead", "also check Y"
      * They become:
      * ```
-     * [1]: stop
+     * Additional user input received:
      *
-     * [2]: try X instead
+     * - stop
      *
-     * [3]: also check Y
+     * - try X instead
+     *
+     * - also check Y
      * ```
      *
      * @returns Coalesced message or null if queue is empty
@@ -249,49 +251,35 @@ export class MessageQueueService {
             };
         }
 
-        const getMessageKind = (message: QueuedMessage): 'default' | 'background' =>
-            message.kind ?? 'default';
-
-        const totalUserMessages = messages.filter(
-            (message) => getMessageKind(message) !== 'background'
-        ).length;
-        const hasBackgroundMessages = messages.some(
-            (message) => getMessageKind(message) === 'background'
-        );
-
-        const getUserPrefix = (index: number, total: number, mixed: boolean): string | null => {
-            if (mixed) {
-                return `User message ${index + 1}`;
-            }
-            if (total <= 1) return null;
-            if (total === 2) {
-                return index === 0 ? 'First' : 'Also';
-            }
-            return `[${index + 1}]`;
-        };
-
-        // Multiple messages - combine with structured per-kind prefixes
         const combinedContent: ContentPart[] = [];
-        let userIndex = 0;
+        let hasEntries = false;
+        let inUserSection = false;
 
-        for (const [i, msg] of messages.entries()) {
-            const kind = getMessageKind(msg);
-            const prefix =
-                kind === 'background'
-                    ? null
-                    : getUserPrefix(userIndex, totalUserMessages, hasBackgroundMessages);
+        for (const msg of messages) {
+            const isUserMessage = msg.kind !== 'background';
 
-            if (kind !== 'background') {
-                userIndex += 1;
+            if (isUserMessage && !inUserSection) {
+                if (hasEntries) {
+                    combinedContent.push({ type: 'text', text: '\n\n' });
+                }
+                combinedContent.push({ type: 'text', text: 'Additional user input received:' });
+                combinedContent.push({ type: 'text', text: '\n\n' });
+                inUserSection = true;
+                hasEntries = false;
             }
 
-            // Start with prefix text
-            let prefixText = prefix ? `${prefix}: ` : '';
+            let prefixText = isUserMessage ? '- ' : '';
 
-            // Process content parts
+            if (hasEntries && !isUserMessage) {
+                combinedContent.push({ type: 'text', text: '\n\n' });
+                inUserSection = false;
+            } else if (hasEntries && isUserMessage) {
+                prefixText = `\n\n${prefixText}`;
+            }
+
+            const entryStartIndex = combinedContent.length;
             for (const part of msg.content) {
                 if (part.type === 'text') {
-                    // Combine prefix with first text part for cleaner output
                     if (prefixText) {
                         combinedContent.push({ type: 'text', text: prefixText + part.text });
                         prefixText = '';
@@ -299,25 +287,20 @@ export class MessageQueueService {
                         combinedContent.push(part);
                     }
                 } else {
-                    // If we haven't added prefix yet (message started with media), add it first
                     if (prefixText) {
                         combinedContent.push({ type: 'text', text: prefixText });
                         prefixText = '';
                     }
-                    // Images, files, and other media are added as-is
                     combinedContent.push(part);
                 }
             }
 
-            // If the message only had media (no text), prefix was already added
-            // If message was empty, add just the prefix
             if (prefixText && msg.content.length === 0) {
                 combinedContent.push({ type: 'text', text: prefixText + '[empty message]' });
             }
 
-            // Add separator between messages (not after last one)
-            if (i < messages.length - 1) {
-                combinedContent.push({ type: 'text', text: '\n\n' });
+            if (combinedContent.length > entryStartIndex) {
+                hasEntries = true;
             }
         }
 
