@@ -1,4 +1,5 @@
 import type { Logger } from '../logger/v2/types.js';
+import { cloneQueuedMessages } from '../session/queue-clone.js';
 import type { QueuedMessage } from '../session/types.js';
 import type { ApprovalStore } from '../storage/approvals/types.js';
 import type { SessionMessageQueueStore } from '../storage/message-queue/types.js';
@@ -24,7 +25,7 @@ export function createInMemoryMessageQueueStore(): SessionMessageQueueStore {
 
     return {
         async load(input: { sessionId: string }): Promise<QueuedMessage[]> {
-            return structuredClone(queues.get(input.sessionId) ?? []);
+            return cloneQueuedMessages(queues.get(input.sessionId) ?? []);
         },
         async save(input: { sessionId: string; queue: QueuedMessage[] }): Promise<void> {
             if (input.queue.length === 0) {
@@ -32,7 +33,7 @@ export function createInMemoryMessageQueueStore(): SessionMessageQueueStore {
                 return;
             }
 
-            queues.set(input.sessionId, structuredClone(input.queue));
+            queues.set(input.sessionId, cloneQueuedMessages(input.queue));
         },
         async delete(input: { sessionId: string }): Promise<void> {
             queues.delete(input.sessionId);

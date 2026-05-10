@@ -296,6 +296,69 @@ describe('ChatSession', () => {
             expect(chatSession.getLLMService()).toBe(mockLLMService);
         });
 
+        test('exposes split steer and follow-up queues with structured content intact', async () => {
+            mockCreateLLMService.mockImplementation(
+                (
+                    _llmConfig,
+                    _toolManager,
+                    _systemPromptManager,
+                    _contextManager,
+                    _eventBus,
+                    _sessionId,
+                    _resourceManager,
+                    _hookManager,
+                    queueOptions
+                ) => {
+                    mockLLMService.getMessageQueue = vi
+                        .fn()
+                        .mockReturnValue(queueOptions.messageQueue);
+                    mockLLMService.getFollowUpQueue = vi
+                        .fn()
+                        .mockReturnValue(queueOptions.followUpQueue);
+                    return mockLLMService;
+                }
+            );
+            const steerContent = [
+                { type: 'text' as const, text: 'revise the plan' },
+                {
+                    type: 'resource' as const,
+                    uri: 'file:///tmp/plan.md',
+                    name: 'plan.md',
+                    mimeType: 'text/markdown',
+                    kind: 'text' as const,
+                },
+            ];
+            const followUpContent = [
+                { type: 'text' as const, text: 'then summarize the result' },
+                {
+                    type: 'file' as const,
+                    data: 'base64-log',
+                    mimeType: 'text/plain',
+                    filename: 'run.log',
+                },
+            ];
+
+            await chatSession.init();
+            const steer = await chatSession.steer({ content: steerContent });
+            const followUp = await chatSession.followUp({ content: followUpContent });
+
+            expect(chatSession.getQueuedMessages()).toEqual([
+                expect.objectContaining({ id: steer.id, content: steerContent }),
+            ]);
+            expect(chatSession.getSteerMessages()).toEqual([
+                expect.objectContaining({ id: steer.id, content: steerContent }),
+            ]);
+            expect(chatSession.getFollowUpMessages()).toEqual([
+                expect.objectContaining({ id: followUp.id, content: followUpContent }),
+            ]);
+
+            await expect(chatSession.removeSteerMessage(steer.id)).resolves.toBe(true);
+            expect(chatSession.getSteerMessages()).toEqual([]);
+            expect(chatSession.getFollowUpMessages()).toHaveLength(1);
+            await expect(chatSession.clearFollowUpQueue()).resolves.toBe(1);
+            expect(chatSession.getFollowUpMessages()).toEqual([]);
+        });
+
         test('should properly dispose resources to prevent memory leaks', () => {
             const eventSpy = vi.spyOn(chatSession.eventBus, 'off');
 

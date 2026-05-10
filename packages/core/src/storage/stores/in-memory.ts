@@ -1,8 +1,10 @@
 import { createHash, randomUUID } from 'crypto';
 import type { ApprovalRequest, ApprovalResponse } from '../../approval/types.js';
+import { cloneInternalMessage, cloneInternalMessages } from '../../context/content-clone.js';
 import type { InternalMessage } from '../../context/types.js';
 import type { Memory } from '../../memory/types.js';
 import type { StoredCustomPrompt } from '../../prompts/providers/custom-prompt-provider.js';
+import { cloneQueuedMessages } from '../../session/queue-clone.js';
 import type { SessionData } from '../../session/session-manager.js';
 import type { QueuedMessage } from '../../session/types.js';
 import type { WorkspaceContext } from '../../workspace/types.js';
@@ -45,7 +47,7 @@ class InMemoryConversationStore implements ConversationStore {
     private readonly messages = new Map<string, InternalMessage[]>();
 
     async listMessages(input: { sessionId: string }): Promise<InternalMessage[]> {
-        return structuredClone(this.messages.get(input.sessionId) ?? []);
+        return cloneInternalMessages(this.messages.get(input.sessionId) ?? []);
     }
 
     async saveMessage(input: { sessionId: string; message: InternalMessage }): Promise<void> {
@@ -54,7 +56,7 @@ class InMemoryConversationStore implements ConversationStore {
             return;
         }
 
-        messages.push(structuredClone(input.message));
+        messages.push(cloneInternalMessage(input.message));
         this.messages.set(input.sessionId, messages);
     }
 
@@ -69,7 +71,7 @@ class InMemoryConversationStore implements ConversationStore {
             return;
         }
 
-        messages[index] = structuredClone(input.message);
+        messages[index] = cloneInternalMessage(input.message);
         this.messages.set(input.sessionId, messages);
     }
 
@@ -288,7 +290,7 @@ class InMemorySessionMessageQueueStore implements SessionMessageQueueStore {
     }
 
     async load(input: { sessionId: string }): Promise<QueuedMessage[]> {
-        return structuredClone(this.queues.get(input.sessionId) ?? []);
+        return cloneQueuedMessages(this.queues.get(input.sessionId) ?? []);
     }
 
     async save(input: { sessionId: string; queue: QueuedMessage[] }): Promise<void> {
@@ -297,7 +299,7 @@ class InMemorySessionMessageQueueStore implements SessionMessageQueueStore {
             return;
         }
 
-        this.queues.set(input.sessionId, structuredClone(input.queue));
+        this.queues.set(input.sessionId, cloneQueuedMessages(input.queue));
     }
 
     async delete(input: { sessionId: string }): Promise<void> {

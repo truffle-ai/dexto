@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { MessageQueueService } from './message-queue.js';
-import type { SessionEventBus } from '../events/index.js';
+import { SessionEventBus } from '../events/index.js';
 import type { ContentPart } from '../context/types.js';
 import { createMockLogger } from '../logger/v2/test-utils.js';
 import type { Logger } from '../logger/v2/types.js';
@@ -89,6 +89,63 @@ describe('MessageQueueService', () => {
             expect(firstMessage?.metadata).toEqual(metadata);
         });
 
+        it('should snapshot structured content and metadata on enqueue', async () => {
+            const imageBytes = new Uint8Array([1, 2, 3]);
+            const imageUrl = new URL('https://example.com/image.png');
+            const fileBytes = Buffer.from([4, 5, 6]);
+            const fileUrl = new URL('https://example.com/file.pdf');
+            const content: ContentPart[] = [
+                { type: 'text', text: 'look' },
+                { type: 'image', image: imageBytes, mimeType: 'image/png' },
+                { type: 'image', image: imageUrl, mimeType: 'image/png' },
+                { type: 'file', data: fileBytes, mimeType: 'application/pdf' },
+                { type: 'file', data: fileUrl, mimeType: 'application/pdf' },
+            ];
+            const metadata = { source: 'webui', nested: { editable: true } };
+
+            await queue.enqueue({ content, metadata });
+            content[0] = { type: 'text', text: 'mutated' };
+            imageBytes[0] = 9;
+            imageUrl.pathname = '/mutated.png';
+            fileBytes[0] = 9;
+            fileUrl.pathname = '/mutated.pdf';
+            metadata.nested.editable = false;
+
+            const queued = queue.getAll()[0];
+            const queuedUrlPart = queued?.content[2];
+            if (queuedUrlPart?.type !== 'image') throw new Error('Expected image URL part');
+            if (!(queuedUrlPart.image instanceof URL)) throw new Error('Expected URL clone');
+            const queuedFileUrlPart = queued?.content[4];
+            if (queuedFileUrlPart?.type !== 'file') throw new Error('Expected file URL part');
+            if (!(queuedFileUrlPart.data instanceof URL))
+                throw new Error('Expected file URL clone');
+
+            expect(queue.getAll()).toEqual([
+                expect.objectContaining({
+                    content: [
+                        { type: 'text', text: 'look' },
+                        { type: 'image', image: new Uint8Array([1, 2, 3]), mimeType: 'image/png' },
+                        {
+                            type: 'image',
+                            image: new URL('https://example.com/image.png'),
+                            mimeType: 'image/png',
+                        },
+                        {
+                            type: 'file',
+                            data: Buffer.from([4, 5, 6]),
+                            mimeType: 'application/pdf',
+                        },
+                        {
+                            type: 'file',
+                            data: new URL('https://example.com/file.pdf'),
+                            mimeType: 'application/pdf',
+                        },
+                    ],
+                    metadata: { source: 'webui', nested: { editable: true } },
+                }),
+            ]);
+        });
+
         it('should not include metadata field when not provided', async () => {
             const content: ContentPart[] = [{ type: 'text', text: 'hello' }];
 
@@ -154,6 +211,30 @@ describe('MessageQueueService', () => {
                 messages: expect.any(Array),
             });
         });
+
+        it('should not let dequeued event listeners mutate the returned message', async () => {
+            const realEventBus = new SessionEventBus();
+            const eventedQueue = new MessageQueueService(
+                realEventBus,
+                logger,
+                'session-with-events',
+                createInMemoryMessageQueueStore()
+            );
+            realEventBus.on('message:dequeued', (payload) => {
+                payload.content.push({ type: 'text', text: 'event mutation' });
+                if (!payload.messages) throw new Error('Expected dequeued messages');
+                const firstMessagePart = payload.messages[0]?.content[0];
+                if (firstMessagePart?.type === 'text') {
+                    firstMessagePart.text = 'event-mutated message';
+                }
+            });
+
+            await eventedQueue.enqueue({ content: [{ type: 'text', text: 'original' }] });
+            const result = await eventedQueue.dequeueAll();
+
+            expect(result?.combinedContent).toEqual([{ type: 'text', text: 'original' }]);
+            expect(result?.messages[0]?.content).toEqual([{ type: 'text', text: 'original' }]);
+        });
     });
 
     describe('coalescing', () => {
@@ -207,6 +288,7 @@ describe('MessageQueueService', () => {
 
         it('should preserve multimodal content (text + images)', async () => {
             await queue.enqueue({
+                metadata: { source: 'preview', nested: { editable: true } },
                 content: [
                     { type: 'text', text: 'look at this' },
                     { type: 'image', image: 'base64img1', mimeType: 'image/png' },
@@ -238,6 +320,52 @@ describe('MessageQueueService', () => {
                 image: 'base64img2',
                 mimeType: 'image/jpeg',
             });
+        });
+
+        it('should preserve structured content parts while coalescing split queued input', async () => {
+            const filePart = {
+                type: 'file' as const,
+                data: 'base64-pdf',
+                mimeType: 'application/pdf',
+                filename: 'brief.pdf',
+            };
+            const resourcePart = {
+                type: 'resource' as const,
+                uri: 'file:///tmp/chart.png',
+                name: 'chart.png',
+                mimeType: 'image/png',
+                kind: 'image' as const,
+                size: 128,
+                metadata: { source: 'filesystem' as const, mtimeMs: 123 },
+            };
+            const uiResourcePart = {
+                type: 'ui-resource' as const,
+                uri: 'ui://dashboard',
+                mimeType: 'text/html',
+                content: '<section>Dashboard</section>',
+                metadata: { title: 'Dashboard', preferredSize: { width: 640, height: 480 } },
+            };
+
+            await queue.enqueue({
+                content: [{ type: 'text', text: 'use this brief' }, filePart],
+                metadata: { source: 'steer' },
+            });
+            await queue.enqueue({
+                content: [resourcePart, uiResourcePart],
+            });
+
+            const result = await queue.dequeueAll();
+
+            expect(result?.combinedContent).toEqual([
+                { type: 'text', text: 'Additional user input received:' },
+                { type: 'text', text: '\n\n' },
+                { type: 'text', text: '- use this brief' },
+                filePart,
+                { type: 'text', text: '\n\n- ' },
+                resourcePart,
+                uiResourcePart,
+            ]);
+            expect(result?.messages[0]?.metadata).toEqual({ source: 'steer' });
         });
 
         it('should combine user messages neutrally and preserve background payloads in mixed batches', async () => {
@@ -417,7 +545,7 @@ describe('MessageQueueService', () => {
             expect(queue.getAll()).toEqual([]);
         });
 
-        it('should return shallow copy of queued messages', async () => {
+        it('should return copies of queued messages', async () => {
             const result1 = await queue.enqueue({ content: [{ type: 'text', text: 'msg1' }] });
             const result2 = await queue.enqueue({ content: [{ type: 'text', text: 'msg2' }] });
 
@@ -428,8 +556,27 @@ describe('MessageQueueService', () => {
             expect(all[1]?.id).toBe(result2.id);
         });
 
-        it('should not allow external mutation of queue', async () => {
-            await queue.enqueue({ content: [{ type: 'text', text: 'msg1' }] });
+        it('should not allow external mutation of queued message arrays or parts', async () => {
+            await queue.enqueue({
+                metadata: { source: 'preview', nested: { editable: true } },
+                content: [
+                    { type: 'text', text: 'msg1' },
+                    {
+                        type: 'resource',
+                        uri: 'file:///tmp/chart.png',
+                        name: 'chart.png',
+                        mimeType: 'image/png',
+                        kind: 'image',
+                        metadata: { source: 'filesystem' },
+                    },
+                    {
+                        type: 'ui-resource',
+                        uri: 'ui://dashboard',
+                        mimeType: 'text/html',
+                        metadata: { preferredSize: { width: 640, height: 480 } },
+                    },
+                ],
+            });
 
             const all = queue.getAll();
             all.push({
@@ -437,8 +584,54 @@ describe('MessageQueueService', () => {
                 content: [{ type: 'text', text: 'fake' }],
                 queuedAt: Date.now(),
             });
+            all[0]?.content.push({ type: 'text', text: 'extra' });
+            const firstPart = all[0]?.content[0];
+            if (firstPart?.type !== 'text') throw new Error('Expected text part');
+            firstPart.text = 'mutated';
+            const resourcePart = all[0]?.content[1];
+            if (resourcePart?.type !== 'resource') throw new Error('Expected resource part');
+            if (resourcePart.metadata) resourcePart.metadata.source = 'upload';
+            const uiResourcePart = all[0]?.content[2];
+            if (uiResourcePart?.type !== 'ui-resource')
+                throw new Error('Expected UI resource part');
+            if (uiResourcePart.metadata?.preferredSize) {
+                uiResourcePart.metadata.preferredSize.width = 1;
+            }
+            const queueMetadata = all[0]?.metadata;
+            if (!queueMetadata) throw new Error('Expected queue metadata');
+            queueMetadata.source = 'mutated';
+            const nestedMetadata = queueMetadata.nested;
+            if (
+                typeof nestedMetadata !== 'object' ||
+                nestedMetadata === null ||
+                !('editable' in nestedMetadata)
+            ) {
+                throw new Error('Expected nested metadata');
+            }
+            nestedMetadata.editable = false;
 
             expect(queue.getAll()).toHaveLength(1);
+            expect(queue.getAll()[0]?.content).toEqual([
+                { type: 'text', text: 'msg1' },
+                {
+                    type: 'resource',
+                    uri: 'file:///tmp/chart.png',
+                    name: 'chart.png',
+                    mimeType: 'image/png',
+                    kind: 'image',
+                    metadata: { source: 'filesystem' },
+                },
+                {
+                    type: 'ui-resource',
+                    uri: 'ui://dashboard',
+                    mimeType: 'text/html',
+                    metadata: { preferredSize: { width: 640, height: 480 } },
+                },
+            ]);
+            expect(queue.getAll()[0]?.metadata).toEqual({
+                source: 'preview',
+                nested: { editable: true },
+            });
         });
     });
 
@@ -456,6 +649,24 @@ describe('MessageQueueService', () => {
             expect(msg).toBeDefined();
             expect(msg?.id).toBe(result.id);
             expect(msg?.content).toEqual(content);
+        });
+
+        it('should not allow mutation through get()', async () => {
+            const imageBytes = new Uint8Array([1, 2, 3]);
+            const result = await queue.enqueue({
+                content: [{ type: 'image', image: imageBytes, mimeType: 'image/png' }],
+            });
+
+            const msg = queue.get(result.id);
+            msg?.content.push({ type: 'text', text: 'extra' });
+            const imagePart = msg?.content[0];
+            if (imagePart?.type !== 'image') throw new Error('Expected image part');
+            if (!(imagePart.image instanceof Uint8Array)) throw new Error('Expected image bytes');
+            imagePart.image[0] = 9;
+
+            expect(queue.get(result.id)?.content).toEqual([
+                { type: 'image', image: new Uint8Array([1, 2, 3]), mimeType: 'image/png' },
+            ]);
         });
     });
 

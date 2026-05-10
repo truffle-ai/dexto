@@ -501,6 +501,165 @@ describe('TurnExecutor Integration Tests', () => {
             await expect(messageQueue.dequeueAll()).resolves.toBeNull();
         });
 
+        it('should process structured steer content before structured follow-up content', async () => {
+            let callCount = 0;
+            const steerImageBytes = new Uint8Array([1, 2, 3]);
+            const steerImageUrl = new URL('https://example.com/screenshot.png');
+            const followUpFileBytes = Buffer.from([4, 5, 6]);
+            const followUpFileUrl = new URL('https://example.com/result.log');
+            const steerContent = [
+                { type: 'text' as const, text: 'Use the attached screenshot' },
+                { type: 'image' as const, image: steerImageBytes, mimeType: 'image/png' },
+                { type: 'image' as const, image: steerImageUrl, mimeType: 'image/png' },
+            ];
+            const followUpContent = [
+                { type: 'text' as const, text: 'Then inspect this result panel' },
+                {
+                    type: 'file' as const,
+                    data: followUpFileBytes,
+                    mimeType: 'text/plain',
+                    filename: 'result.log',
+                },
+                {
+                    type: 'file' as const,
+                    data: followUpFileUrl,
+                    mimeType: 'text/plain',
+                    filename: 'remote-result.log',
+                },
+                {
+                    type: 'ui-resource' as const,
+                    uri: 'ui://result-panel',
+                    mimeType: 'text/html',
+                    content: '<section>Result</section>',
+                    metadata: { title: 'Result panel' },
+                },
+            ];
+
+            vi.mocked(streamText).mockImplementation(() => {
+                callCount++;
+                if (callCount === 1) {
+                    const queuedSteer = messageQueue.enqueue({ content: steerContent });
+                    const queuedFollowUp = followUpQueue.enqueue({ content: followUpContent });
+                    const firstStream = createMockStream({
+                        text: 'Initial response',
+                        finishReason: 'stop',
+                    });
+                    return {
+                        fullStream: (async function* () {
+                            await queuedSteer;
+                            await queuedFollowUp;
+                            steerImageBytes[0] = 9;
+                            steerImageUrl.pathname = '/mutated.png';
+                            followUpFileBytes[0] = 9;
+                            followUpFileUrl.pathname = '/mutated.log';
+                            const uiResourcePart = followUpContent[3];
+                            if (uiResourcePart?.type !== 'ui-resource' || !uiResourcePart.metadata)
+                                throw new Error('Expected UI resource metadata');
+                            uiResourcePart.metadata.title = 'Mutated panel';
+                            for await (const event of firstStream.fullStream) {
+                                yield event;
+                            }
+                        })(),
+                    } as unknown as ReturnType<typeof streamText>;
+                }
+                return createMockStream({
+                    text: `Response ${callCount}`,
+                    finishReason: 'stop',
+                }) as unknown as ReturnType<typeof streamText>;
+            });
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Initial' }]);
+            const result = await executor.execute({ mcpManager }, true);
+
+            expect(callCount).toBe(3);
+            expect(result.text).toBe('Response 3');
+            const secondCall = vi.mocked(streamText).mock.calls[1]?.[0];
+            const thirdCall = vi.mocked(streamText).mock.calls[2]?.[0];
+            expect(secondCall?.messages).toBeDefined();
+            expect(thirdCall?.messages).toBeDefined();
+            const secondCallUserMessages = (secondCall?.messages as ModelMessage[]).filter(
+                (message) => message.role === 'user'
+            );
+            const thirdCallUserMessages = (thirdCall?.messages as ModelMessage[]).filter(
+                (message) => message.role === 'user'
+            );
+            const secondCallLatestUserContent = secondCallUserMessages.at(-1)?.content;
+            const thirdCallLatestUserContent = thirdCallUserMessages.at(-1)?.content;
+            if (!Array.isArray(secondCallLatestUserContent))
+                throw new Error('Expected second call user content parts');
+            if (!Array.isArray(thirdCallLatestUserContent))
+                throw new Error('Expected third call user content parts');
+            expect(secondCallLatestUserContent).toEqual([
+                { type: 'text', text: 'Use the attached screenshot' },
+                {
+                    type: 'text',
+                    text: 'ERROR: Cannot read image (this model does not support image input). Inform the user.',
+                },
+                {
+                    type: 'text',
+                    text: 'ERROR: Cannot read image (this model does not support image input). Inform the user.',
+                },
+            ]);
+            expect(thirdCallLatestUserContent).toEqual([
+                { type: 'text', text: 'Then inspect this result panel' },
+                {
+                    type: 'text',
+                    text: expect.stringContaining('result.log'),
+                },
+                {
+                    type: 'text',
+                    text: expect.stringContaining('remote-result.log'),
+                },
+            ]);
+
+            const history = await contextManager.getHistory();
+            const userMessages = history.filter((message) => message.role === 'user');
+            expect(userMessages.map((message) => message.content)).toEqual([
+                [{ type: 'text', text: 'Initial' }],
+                [
+                    { type: 'text', text: 'Use the attached screenshot' },
+                    { type: 'image', image: new Uint8Array([1, 2, 3]), mimeType: 'image/png' },
+                    {
+                        type: 'image',
+                        image: new URL('https://example.com/screenshot.png'),
+                        mimeType: 'image/png',
+                    },
+                ],
+                [
+                    { type: 'text', text: 'Then inspect this result panel' },
+                    {
+                        type: 'file',
+                        data: Buffer.from([4, 5, 6]),
+                        mimeType: 'text/plain',
+                        filename: 'result.log',
+                    },
+                    {
+                        type: 'file',
+                        data: new URL('https://example.com/result.log'),
+                        mimeType: 'text/plain',
+                        filename: 'remote-result.log',
+                    },
+                    {
+                        type: 'ui-resource',
+                        uri: 'ui://result-panel',
+                        mimeType: 'text/html',
+                        content: '<section>Result</section>',
+                        metadata: { title: 'Result panel' },
+                    },
+                ],
+            ]);
+            const queuedSteerUrlPart = userMessages[1]?.content[2];
+            if (queuedSteerUrlPart?.type !== 'image')
+                throw new Error('Expected queued steer URL image');
+            expect(queuedSteerUrlPart.image).toBeInstanceOf(URL);
+            const queuedFollowUpUrlPart = userMessages[2]?.content[2];
+            if (queuedFollowUpUrlPart?.type !== 'file')
+                throw new Error('Expected queued follow-up URL file');
+            expect(queuedFollowUpUrlPart.data).toBeInstanceOf(URL);
+            await expect(messageQueue.dequeueAll()).resolves.toBeNull();
+            await expect(followUpQueue.dequeueAll()).resolves.toBeNull();
+        });
+
         it('should not process late steer messages after cancellation', async () => {
             const abortController = new AbortController();
             let callCount = 0;

@@ -1,3 +1,4 @@
+import { cloneInternalMessage, cloneInternalMessages } from '../../context/content-clone.js';
 import type { InternalMessage } from '../../context/types.js';
 import type { Logger } from '../../logger/v2/types.js';
 import { DextoLogComponent } from '../../logger/v2/types.js';
@@ -28,7 +29,7 @@ export class DatabaseConversationStore implements ConversationStore {
 
     async listMessages(input: { sessionId: string }): Promise<InternalMessage[]> {
         const state = await this.loadState(input.sessionId);
-        return structuredClone(state.cache ?? []);
+        return cloneInternalMessages(state.cache ?? []);
     }
 
     async saveMessage(input: { sessionId: string; message: InternalMessage }): Promise<void> {
@@ -43,7 +44,7 @@ export class DatabaseConversationStore implements ConversationStore {
             return;
         }
 
-        const message = structuredClone(input.message);
+        const message = cloneInternalMessage(input.message);
         cache.push(message);
         state.cache = cache;
 
@@ -76,7 +77,7 @@ export class DatabaseConversationStore implements ConversationStore {
             return;
         }
 
-        cache[index] = structuredClone(input.message);
+        cache[index] = cloneInternalMessage(input.message);
         state.cache = cache;
         state.dirty = true;
         this.scheduleFlush(input.sessionId, state);
@@ -178,7 +179,7 @@ export class DatabaseConversationStore implements ConversationStore {
             if (message.id) {
                 seen.add(message.id);
             }
-            deduped.push(structuredClone(message));
+            deduped.push(cloneInternalMessage(message));
         }
 
         if (duplicateCount > 0) {
@@ -200,7 +201,7 @@ export class DatabaseConversationStore implements ConversationStore {
         }
 
         const key = this.getMessagesKey(sessionId);
-        const snapshot = structuredClone(state.cache);
+        const snapshot = cloneInternalMessages(state.cache);
 
         try {
             await this.database.delete(key);

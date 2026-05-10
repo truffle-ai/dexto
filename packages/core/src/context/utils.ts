@@ -9,6 +9,7 @@ import {
     SanitizedToolResult,
     isToolMessage,
 } from './types.js';
+import { clonePromptContentPart } from './content-clone.js';
 import { isValidDisplayData, type ToolDisplayData } from '../tools/display-types.js';
 import type { Logger } from '../logger/v2/types.js';
 import { validateModelFileSupport } from '../llm/registry/index.js';
@@ -83,30 +84,7 @@ function generateUniqueSuffix(): string {
 }
 
 function clonePart(part: TextPart | ImagePart | FilePart): TextPart | ImagePart | FilePart {
-    if (part.type === 'text') {
-        return { type: 'text', text: part.text };
-    }
-
-    if (part.type === 'image') {
-        const cloned: ImagePart = {
-            type: 'image',
-            image: part.image,
-        };
-        if (part.mimeType) {
-            cloned.mimeType = part.mimeType;
-        }
-        return cloned;
-    }
-
-    const cloned: FilePart = {
-        type: 'file',
-        data: part.data,
-        mimeType: part.mimeType,
-    };
-    if (part.filename) {
-        cloned.filename = part.filename;
-    }
-    return cloned;
+    return clonePromptContentPart(part);
 }
 
 function coerceContentToParts(

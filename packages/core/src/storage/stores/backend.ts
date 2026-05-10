@@ -2,7 +2,9 @@ import type { ApprovalRequest, ApprovalResponse } from '../../approval/types.js'
 import { ApprovalRequestSchema, ApprovalResponseSchema } from '../../approval/schemas.js';
 import type { Memory } from '../../memory/types.js';
 import type { StoredCustomPrompt } from '../../prompts/providers/custom-prompt-provider.js';
+import { cloneQueuedMessages } from '../../session/queue-clone.js';
 import type { SessionData } from '../../session/session-manager.js';
+import { QueuedMessagesSchema } from '../../session/types.js';
 import type { QueuedMessage } from '../../session/types.js';
 import type { WorkspaceContext } from '../../workspace/types.js';
 import {
@@ -519,12 +521,14 @@ export class DatabaseBackedSessionMessageQueueStore implements SessionMessageQue
     async load(input: { sessionId: string }): Promise<QueuedMessage[]> {
         const key = this.key(input.sessionId);
         const cached = await this.cache.get<unknown>(key);
-        if (Array.isArray(cached)) {
-            return structuredClone(cached);
+        const cachedQueue = QueuedMessagesSchema.safeParse(cached);
+        if (cachedQueue.success) {
+            return cloneQueuedMessages(cachedQueue.data);
         }
 
         const stored = await this.database.get<unknown>(key);
-        if (!Array.isArray(stored)) {
+        const storedQueue = QueuedMessagesSchema.safeParse(stored);
+        if (!storedQueue.success) {
             if (stored !== undefined) {
                 this.logger.warn('Invalid persisted message queue encountered; ignoring state', {
                     key,
@@ -533,9 +537,9 @@ export class DatabaseBackedSessionMessageQueueStore implements SessionMessageQue
             return [];
         }
 
-        const queue = structuredClone(stored);
+        const queue = cloneQueuedMessages(storedQueue.data);
         await this.cache.set(key, queue, 3600);
-        return queue;
+        return cloneQueuedMessages(queue);
     }
 
     async save(input: { sessionId: string; queue: QueuedMessage[] }): Promise<void> {
@@ -545,7 +549,7 @@ export class DatabaseBackedSessionMessageQueueStore implements SessionMessageQue
             return;
         }
 
-        const queue = structuredClone(input.queue);
+        const queue = cloneQueuedMessages(input.queue);
         await this.database.set(key, queue);
         await this.cache.set(key, queue, 3600);
     }

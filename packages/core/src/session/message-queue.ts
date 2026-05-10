@@ -1,4 +1,5 @@
 import type { SessionEventBus } from '../events/index.js';
+import { cloneCoalescedMessage, cloneQueuedMessage, cloneQueuedMessages } from './queue-clone.js';
 import type { QueuedMessage, CoalescedMessage } from './types.js';
 import type { ContentPart } from '../context/types.js';
 import type { Logger } from '../logger/v2/types.js';
@@ -150,11 +151,14 @@ export class MessageQueueService {
                 id: generateId(),
                 content: message.content,
                 queuedAt: Date.now(),
-                ...(message.metadata !== undefined && { metadata: message.metadata }),
+                ...(message.metadata !== undefined && {
+                    metadata: message.metadata,
+                }),
                 ...(message.kind !== undefined && { kind: message.kind }),
             };
+            const copiedQueuedMsg = cloneQueuedMessage(queuedMsg);
 
-            this.queue.push(queuedMsg);
+            this.queue.push(copiedQueuedMsg);
 
             try {
                 await this.persistQueue();
@@ -203,7 +207,7 @@ export class MessageQueueService {
         return await this.runWithMutationLock(async () => {
             if (this.queue.length === 0) return null;
 
-            const messages = [...this.queue];
+            const messages = cloneQueuedMessages(this.queue);
             this.queue = [];
 
             try {
@@ -223,8 +227,8 @@ export class MessageQueueService {
                 count: messages.length,
                 ids: messages.map((m) => m.id),
                 coalesced: messages.length > 1,
-                content: combined.combinedContent,
-                messages,
+                content: cloneCoalescedMessage(combined).combinedContent,
+                messages: cloneQueuedMessages(messages),
             });
 
             return combined;
@@ -357,17 +361,18 @@ export class MessageQueueService {
 
     /**
      * Get all queued messages (for UI display).
-     * Returns a shallow copy to prevent external mutation.
+     * Returns defensive copies to prevent external mutation.
      */
     getAll(): QueuedMessage[] {
-        return [...this.queue];
+        return cloneQueuedMessages(this.queue);
     }
 
     /**
      * Get a single queued message by ID.
      */
     get(id: string): QueuedMessage | undefined {
-        return this.queue.find((m) => m.id === id);
+        const message = this.queue.find((m) => m.id === id);
+        return message ? cloneQueuedMessage(message) : undefined;
     }
 
     /**
