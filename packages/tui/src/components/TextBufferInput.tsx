@@ -33,7 +33,7 @@ interface TextBufferInputProps {
     buffer: TextBuffer;
     /** Called when user presses Enter to submit */
     onSubmit: (value: string) => void;
-    /** Called when user presses Ctrl+Enter to queue a follow-up */
+    /** Called when user presses Alt+Enter to queue a follow-up */
     onQueueSubmit?: ((value: string) => void) | undefined;
     /** Placeholder text when empty */
     placeholder?: string | undefined;
@@ -323,8 +323,8 @@ export function TextBufferInput({
                 return;
             }
 
-            // === FOLLOW-UP QUEUE SUBMIT (Ctrl+Enter) ===
-            if (key.name === 'return' && key.ctrl && !key.paste && onQueueSubmit) {
+            // === FOLLOW-UP QUEUE SUBMIT (Alt+Enter) ===
+            if (key.name === 'return' && key.meta && !key.paste && onQueueSubmit) {
                 if (currentText.trim()) {
                     onQueueSubmit(currentText);
                 }
@@ -339,8 +339,7 @@ export function TextBufferInput({
                 key.sequence === '\x1b[13;2u' ||
                 key.sequence === '\x1bOM';
             const isPasteReturn = key.name === 'return' && key.paste;
-            const wantsNewline =
-                isCtrlJ || isShiftEnter || (key.name === 'return' && key.meta) || isPasteReturn;
+            const wantsNewline = isCtrlJ || isShiftEnter || isPasteReturn;
 
             if (wantsNewline) {
                 buffer.newline();
