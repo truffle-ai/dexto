@@ -32,6 +32,34 @@ export type QueuedMessage = NonNullable<
 >['messages'][number];
 
 /**
+ * Hook to queue a current-turn steer message
+ */
+export function useQueueSteerMessage() {
+    return useMutation({
+        mutationFn: async ({
+            sessionId,
+            message,
+            attachments,
+        }: {
+            sessionId: string;
+            message?: string;
+            attachments?: Attachment[];
+        }) => {
+            const response = await client.api.steer[':sessionId'].$post({
+                param: { sessionId },
+                json: {
+                    content: resolveMessageContent(message, attachments),
+                },
+            });
+            if (!response.ok) {
+                throw new Error('Failed to send current-turn input');
+            }
+            return await response.json();
+        },
+    });
+}
+
+/**
  * Hook to queue a new follow-up message
  */
 export function useQueueFollowUpMessage() {

@@ -32,6 +32,7 @@ import {
     useFollowUpMessages,
     useRemoveFollowUpMessage,
     useQueueFollowUpMessage,
+    useQueueSteerMessage,
 } from './hooks/useQueue';
 import { QueuedMessagesDisplay } from './QueuedMessagesDisplay';
 import { Attachment, ATTACHMENT_LIMITS, DEFAULT_SAFE_FILE_TYPES } from '../lib/attachment-types.js';
@@ -41,6 +42,10 @@ import {
     formatFileSize,
     getFileTypeCategory,
 } from '../lib/attachment-utils.js';
+import {
+    resolveComposerSubmitIntent,
+    type ComposerSubmitIntent,
+} from '../lib/composer-submit-intent.js';
 
 interface InputAreaProps {
     onSend: (content: string, attachments?: Attachment[]) => void;
@@ -99,7 +104,8 @@ export default function InputArea({
     // Queue management
     const { data: queueData } = useFollowUpMessages(currentSessionId);
     const { mutate: removeQueuedMessage } = useRemoveFollowUpMessage();
-    const { mutate: queueMessage } = useQueueFollowUpMessage();
+    const { mutateAsync: queueMessage } = useQueueFollowUpMessage();
+    const { mutateAsync: steerMessage } = useQueueSteerMessage();
     const queuedMessages = useMemo(() => queueData?.messages ?? [], [queueData?.messages]);
 
     // Analytics tracking
@@ -235,7 +241,7 @@ export default function InputArea({
         return attachments.reduce((sum, att) => sum + att.size, 0);
     }, [attachments]);
 
-    const handleSend = async () => {
+    const handleSend = async (intent: ComposerSubmitIntent = 'send') => {
         let trimmed = text.trim();
         // Allow sending if we have text OR any attachment
         if (!trimmed && attachments.length === 0) return;
@@ -278,19 +284,30 @@ export default function InputArea({
             }
         }
 
-        // Auto-queue: if session is busy processing, queue the message instead of sending
-        if (processing && currentSessionId) {
-            queueMessage({
+        if (intent === 'follow-up' && currentSessionId) {
+            await queueMessage({
                 sessionId: currentSessionId,
                 message: trimmed || undefined,
                 attachments: attachments.length > 0 ? attachments : undefined,
             });
-            // Invalidate history cache so it refetches with new message
             invalidateHistory();
             setText('');
             setAttachments([]);
             setShowSlashCommands(false);
-            // Keep focus in input for quick follow-up messages
+            textareaRef.current?.focus();
+            return;
+        }
+
+        if (intent === 'steer' && currentSessionId) {
+            await steerMessage({
+                sessionId: currentSessionId,
+                message: trimmed || undefined,
+                attachments: attachments.length > 0 ? attachments : undefined,
+            });
+            invalidateHistory();
+            setText('');
+            setAttachments([]);
+            setShowSlashCommands(false);
             textareaRef.current?.focus();
             return;
         }
@@ -492,7 +509,12 @@ export default function InputArea({
                 setShowCreateMemoryModal(true);
                 return;
             }
-            handleSend();
+            handleSend(
+                resolveComposerSubmitIntent({
+                    processing,
+                    queueFollowUpShortcut: e.altKey,
+                })
+            );
         }
     };
 
