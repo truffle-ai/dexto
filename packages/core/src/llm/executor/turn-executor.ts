@@ -435,9 +435,71 @@ export class TurnExecutor {
 
                 // 8. Check termination conditions
                 if (result.finishReason !== 'tool-calls') {
+                    // Steer messages submitted while the final LLM request was already in flight
+                    // missed the pre-request injection point. Treat them as end-of-turn input
+                    // before draining explicit follow-ups.
+                    if (this.messageQueue.hasPending()) {
+                        if (this.externalSignal?.aborted || result.finishReason === 'cancelled') {
+                            this.logger.debug('Terminating: cancel received before late steer');
+                            lastFinishReason = 'cancelled';
+                            break;
+                        }
+
+                        stepCount++;
+                        if (
+                            this.config.maxSteps !== undefined &&
+                            stepCount >= this.config.maxSteps
+                        ) {
+                            this.logger.debug(
+                                `Terminating: reached maxSteps (${this.config.maxSteps})`
+                            );
+                            lastFinishReason = 'max-steps';
+                            break;
+                        }
+
+                        const steerOnTerminate = await this.messageQueue.dequeueAll();
+                        if (!steerOnTerminate) {
+                            this.logger.debug(
+                                `Terminating: finishReason is "${result.finishReason}"`
+                            );
+                            break;
+                        }
+
+                        this.logger.debug(
+                            `Continuing: ${steerOnTerminate.messages.length} steer message(s) to process at end of turn`
+                        );
+                        await this.injectQueuedMessages(steerOnTerminate);
+                        continue;
+                    }
+
                     // Follow-ups run only after the active turn naturally reaches a stop point.
-                    const followUpOnTerminate = await this.followUpQueue.dequeueAll();
-                    if (followUpOnTerminate) {
+                    if (this.followUpQueue.hasPending()) {
+                        if (this.externalSignal?.aborted || result.finishReason === 'cancelled') {
+                            this.logger.debug('Terminating: cancel received before follow-up');
+                            lastFinishReason = 'cancelled';
+                            break;
+                        }
+
+                        stepCount++;
+                        if (
+                            this.config.maxSteps !== undefined &&
+                            stepCount >= this.config.maxSteps
+                        ) {
+                            this.logger.debug(
+                                `Terminating: reached maxSteps (${this.config.maxSteps})`
+                            );
+                            lastFinishReason = 'max-steps';
+                            break;
+                        }
+
+                        const followUpOnTerminate = await this.followUpQueue.dequeueAll();
+                        if (!followUpOnTerminate) {
+                            this.logger.debug(
+                                `Terminating: finishReason is "${result.finishReason}"`
+                            );
+                            break;
+                        }
+
                         this.logger.debug(
                             `Continuing: ${followUpOnTerminate.messages.length} follow-up message(s) to process`
                         );

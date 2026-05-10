@@ -465,6 +465,187 @@ describe('TurnExecutor Integration Tests', () => {
             expect(callCount).toBe(2);
             expect(result.text).toBe('Second response');
         });
+
+        it('should process steer messages submitted before a stop finish as end-of-turn input', async () => {
+            let callCount = 0;
+            vi.mocked(streamText).mockImplementation(() => {
+                callCount++;
+                if (callCount === 1) {
+                    const queuedSteer = messageQueue.enqueue({
+                        content: [{ type: 'text', text: 'Actually, summarize it instead' }],
+                    });
+                    const firstStream = createMockStream({
+                        text: 'Initial response',
+                        finishReason: 'stop',
+                    });
+                    return {
+                        fullStream: (async function* () {
+                            await queuedSteer;
+                            for await (const event of firstStream.fullStream) {
+                                yield event;
+                            }
+                        })(),
+                    } as unknown as ReturnType<typeof streamText>;
+                }
+                return createMockStream({
+                    text: 'Second response',
+                    finishReason: 'stop',
+                }) as unknown as ReturnType<typeof streamText>;
+            });
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Initial' }]);
+            const result = await executor.execute({ mcpManager }, true);
+
+            expect(callCount).toBe(2);
+            expect(result.text).toBe('Second response');
+            await expect(messageQueue.dequeueAll()).resolves.toBeNull();
+        });
+
+        it('should not process late steer messages after cancellation', async () => {
+            const abortController = new AbortController();
+            let callCount = 0;
+            vi.mocked(streamText).mockImplementation(() => {
+                callCount++;
+                if (callCount === 1) {
+                    const queuedSteer = messageQueue.enqueue({
+                        content: [{ type: 'text', text: 'Do this next' }],
+                    });
+                    const firstStream = createMockStream({
+                        text: 'Partial response',
+                        finishReason: 'cancelled',
+                    });
+                    return {
+                        fullStream: (async function* () {
+                            abortController.abort();
+                            await queuedSteer;
+                            for await (const event of firstStream.fullStream) {
+                                yield event;
+                            }
+                        })(),
+                    } as unknown as ReturnType<typeof streamText>;
+                }
+                return createMockStream({
+                    text: 'Should not run',
+                    finishReason: 'stop',
+                }) as unknown as ReturnType<typeof streamText>;
+            });
+
+            const executorWithSignal = new TurnExecutor(
+                createMockModel(),
+                toolManager,
+                contextManager,
+                sessionEventBus,
+                resourceManager,
+                sessionId,
+                { maxSteps: 10 },
+                llmContext,
+                logger,
+                messageQueue,
+                followUpQueue,
+                undefined,
+                abortController.signal
+            );
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Initial' }]);
+            const result = await executorWithSignal.execute({ mcpManager }, true);
+
+            expect(callCount).toBe(1);
+            expect(result.finishReason).toBe('cancelled');
+        });
+
+        it('should not process follow-up messages after cancellation', async () => {
+            const abortController = new AbortController();
+            let callCount = 0;
+            vi.mocked(streamText).mockImplementation(() => {
+                callCount++;
+                if (callCount === 1) {
+                    const queuedFollowUp = followUpQueue.enqueue({
+                        content: [{ type: 'text', text: 'Run after cancel' }],
+                    });
+                    const firstStream = createMockStream({
+                        text: 'Partial response',
+                        finishReason: 'cancelled',
+                    });
+                    return {
+                        fullStream: (async function* () {
+                            abortController.abort();
+                            await queuedFollowUp;
+                            for await (const event of firstStream.fullStream) {
+                                yield event;
+                            }
+                        })(),
+                    } as unknown as ReturnType<typeof streamText>;
+                }
+                return createMockStream({
+                    text: 'Should not run',
+                    finishReason: 'stop',
+                }) as unknown as ReturnType<typeof streamText>;
+            });
+
+            const executorWithSignal = new TurnExecutor(
+                createMockModel(),
+                toolManager,
+                contextManager,
+                sessionEventBus,
+                resourceManager,
+                sessionId,
+                { maxSteps: 10 },
+                llmContext,
+                logger,
+                messageQueue,
+                followUpQueue,
+                undefined,
+                abortController.signal
+            );
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Initial' }]);
+            const result = await executorWithSignal.execute({ mcpManager }, true);
+
+            expect(callCount).toBe(1);
+            expect(result.finishReason).toBe('cancelled');
+        });
+
+        it('should apply maxSteps to end-of-turn steer messages', async () => {
+            let callCount = 0;
+            vi.mocked(streamText).mockImplementation(() => {
+                callCount++;
+                const queuedSteer = messageQueue.enqueue({
+                    content: [{ type: 'text', text: `Steer ${callCount}` }],
+                });
+                const stream = createMockStream({
+                    text: `Response ${callCount}`,
+                    finishReason: 'stop',
+                });
+                return {
+                    fullStream: (async function* () {
+                        await queuedSteer;
+                        for await (const event of stream.fullStream) {
+                            yield event;
+                        }
+                    })(),
+                } as unknown as ReturnType<typeof streamText>;
+            });
+
+            const limitedExecutor = new TurnExecutor(
+                createMockModel(),
+                toolManager,
+                contextManager,
+                sessionEventBus,
+                resourceManager,
+                sessionId,
+                { maxSteps: 1 },
+                llmContext,
+                logger,
+                messageQueue,
+                followUpQueue
+            );
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Initial' }]);
+            const result = await limitedExecutor.execute({ mcpManager }, true);
+
+            expect(callCount).toBe(1);
+            expect(result.finishReason).toBe('max-steps');
+        });
     });
 
     describe('Tool Support Validation', () => {
