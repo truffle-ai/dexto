@@ -1536,12 +1536,270 @@ describe('Hono API Integration Tests', () => {
         });
     });
 
+    describe('Steer and Follow-up Routes', () => {
+        it('POST /api/steer/:sessionId queues active-turn steer input', async () => {
+            if (!testServer) throw new Error('Test server not initialized');
+            const sessionId = `steer-post-${Date.now()}`;
+            const createRes = await httpRequest(testServer.baseUrl, 'POST', '/api/sessions', {
+                sessionId,
+            });
+            expect(createRes.status).toBe(201);
+
+            const res = await httpRequest(testServer.baseUrl, 'POST', `/api/steer/${sessionId}`, {
+                content: 'Use a smaller implementation',
+            });
+            expect(res.status).toBe(201);
+            expect((res.body as { queued: boolean }).queued).toBe(true);
+            expect((res.body as { position: number }).position).toBe(1);
+
+            const getRes = await httpRequest(testServer.baseUrl, 'GET', `/api/steer/${sessionId}`);
+            expect(getRes.status).toBe(200);
+            expect((getRes.body as { count: number }).count).toBe(1);
+            expect(
+                (getRes.body as { messages: Array<{ content: Array<{ text?: string }> }> })
+                    .messages[0]?.content[0]?.text
+            ).toBe('Use a smaller implementation');
+        });
+
+        it('DELETE /api/steer/:sessionId/:messageId removes a steer message', async () => {
+            if (!testServer) throw new Error('Test server not initialized');
+            const sessionId = `steer-delete-${Date.now()}`;
+            const createRes = await httpRequest(testServer.baseUrl, 'POST', '/api/sessions', {
+                sessionId,
+            });
+            expect(createRes.status).toBe(201);
+
+            const queueRes = await httpRequest(
+                testServer.baseUrl,
+                'POST',
+                `/api/steer/${sessionId}`,
+                { content: 'remove me' }
+            );
+            expect(queueRes.status).toBe(201);
+            const messageId = (queueRes.body as { id: string }).id;
+
+            const res = await httpRequest(
+                testServer.baseUrl,
+                'DELETE',
+                `/api/steer/${sessionId}/${messageId}`
+            );
+            expect(res.status).toBe(200);
+            expect((res.body as { removed: boolean }).removed).toBe(true);
+
+            const getRes = await httpRequest(testServer.baseUrl, 'GET', `/api/steer/${sessionId}`);
+            expect((getRes.body as { count: number }).count).toBe(0);
+        });
+
+        it('DELETE /api/steer/:sessionId clears steer messages', async () => {
+            if (!testServer) throw new Error('Test server not initialized');
+            const sessionId = `steer-clear-${Date.now()}`;
+            const createRes = await httpRequest(testServer.baseUrl, 'POST', '/api/sessions', {
+                sessionId,
+            });
+            expect(createRes.status).toBe(201);
+
+            await httpRequest(testServer.baseUrl, 'POST', `/api/steer/${sessionId}`, {
+                content: 'first',
+            });
+            await httpRequest(testServer.baseUrl, 'POST', `/api/steer/${sessionId}`, {
+                content: 'second',
+            });
+
+            const res = await httpRequest(testServer.baseUrl, 'DELETE', `/api/steer/${sessionId}`);
+            expect(res.status).toBe(200);
+            expect((res.body as { count: number }).count).toBe(2);
+        });
+
+        it('POST /api/follow-up/:sessionId queues follow-up input separately from steer input', async () => {
+            if (!testServer) throw new Error('Test server not initialized');
+            const sessionId = `follow-up-post-${Date.now()}`;
+            const createRes = await httpRequest(testServer.baseUrl, 'POST', '/api/sessions', {
+                sessionId,
+            });
+            expect(createRes.status).toBe(201);
+
+            const steerRes = await httpRequest(
+                testServer.baseUrl,
+                'POST',
+                `/api/steer/${sessionId}`,
+                { content: 'active turn guidance' }
+            );
+            expect(steerRes.status).toBe(201);
+
+            const followUpRes = await httpRequest(
+                testServer.baseUrl,
+                'POST',
+                `/api/follow-up/${sessionId}`,
+                { content: 'next turn work' }
+            );
+            expect(followUpRes.status).toBe(201);
+            expect((followUpRes.body as { queued: boolean }).queued).toBe(true);
+
+            const steerGet = await httpRequest(
+                testServer.baseUrl,
+                'GET',
+                `/api/steer/${sessionId}`
+            );
+            const followUpGet = await httpRequest(
+                testServer.baseUrl,
+                'GET',
+                `/api/follow-up/${sessionId}`
+            );
+
+            expect((steerGet.body as { count: number }).count).toBe(1);
+            expect((followUpGet.body as { count: number }).count).toBe(1);
+            expect(
+                (followUpGet.body as { messages: Array<{ content: Array<{ text?: string }> }> })
+                    .messages[0]?.content[0]?.text
+            ).toBe('next turn work');
+        });
+
+        it('DELETE /api/follow-up/:sessionId/:messageId removes a follow-up message', async () => {
+            if (!testServer) throw new Error('Test server not initialized');
+            const sessionId = `follow-up-delete-${Date.now()}`;
+            const createRes = await httpRequest(testServer.baseUrl, 'POST', '/api/sessions', {
+                sessionId,
+            });
+            expect(createRes.status).toBe(201);
+
+            const queueRes = await httpRequest(
+                testServer.baseUrl,
+                'POST',
+                `/api/follow-up/${sessionId}`,
+                { content: 'remove me later' }
+            );
+            expect(queueRes.status).toBe(201);
+            const messageId = (queueRes.body as { id: string }).id;
+
+            const res = await httpRequest(
+                testServer.baseUrl,
+                'DELETE',
+                `/api/follow-up/${sessionId}/${messageId}`
+            );
+            expect(res.status).toBe(200);
+            expect((res.body as { removed: boolean }).removed).toBe(true);
+        });
+
+        it('DELETE /api/follow-up/:sessionId clears follow-up messages', async () => {
+            if (!testServer) throw new Error('Test server not initialized');
+            const sessionId = `follow-up-clear-${Date.now()}`;
+            const createRes = await httpRequest(testServer.baseUrl, 'POST', '/api/sessions', {
+                sessionId,
+            });
+            expect(createRes.status).toBe(201);
+
+            await httpRequest(testServer.baseUrl, 'POST', `/api/follow-up/${sessionId}`, {
+                content: 'first',
+            });
+            await httpRequest(testServer.baseUrl, 'POST', `/api/follow-up/${sessionId}`, {
+                content: 'second',
+            });
+
+            const res = await httpRequest(
+                testServer.baseUrl,
+                'DELETE',
+                `/api/follow-up/${sessionId}`
+            );
+            expect(res.status).toBe(200);
+            expect((res.body as { count: number }).count).toBe(2);
+        });
+
+        it('returns 404 when removing a missing steer or follow-up message', async () => {
+            if (!testServer) throw new Error('Test server not initialized');
+            const sessionId = `queue-missing-remove-${Date.now()}`;
+            const createRes = await httpRequest(testServer.baseUrl, 'POST', '/api/sessions', {
+                sessionId,
+            });
+            expect(createRes.status).toBe(201);
+
+            const steerRes = await httpRequest(
+                testServer.baseUrl,
+                'DELETE',
+                `/api/steer/${sessionId}/missing`
+            );
+            const followUpRes = await httpRequest(
+                testServer.baseUrl,
+                'DELETE',
+                `/api/follow-up/${sessionId}/missing`
+            );
+
+            expect(steerRes.status).toBe(404);
+            expect(followUpRes.status).toBe(404);
+        });
+
+        it('returns 404 for steer operations on a missing session', async () => {
+            if (!testServer) throw new Error('Test server not initialized');
+            const sessionId = `missing-steer-${Date.now()}`;
+
+            const getRes = await httpRequest(testServer.baseUrl, 'GET', `/api/steer/${sessionId}`);
+            const postRes = await httpRequest(
+                testServer.baseUrl,
+                'POST',
+                `/api/steer/${sessionId}`,
+                {
+                    content: 'use the simpler path',
+                }
+            );
+            const clearRes = await httpRequest(
+                testServer.baseUrl,
+                'DELETE',
+                `/api/steer/${sessionId}`
+            );
+
+            expect(getRes.status).toBe(404);
+            expect(postRes.status).toBe(404);
+            expect(clearRes.status).toBe(404);
+        });
+
+        it('returns 404 for follow-up operations on a missing session', async () => {
+            if (!testServer) throw new Error('Test server not initialized');
+            const sessionId = `missing-follow-up-${Date.now()}`;
+
+            const getRes = await httpRequest(
+                testServer.baseUrl,
+                'GET',
+                `/api/follow-up/${sessionId}`
+            );
+            const postRes = await httpRequest(
+                testServer.baseUrl,
+                'POST',
+                `/api/follow-up/${sessionId}`,
+                { content: 'run this after the current turn' }
+            );
+            const clearRes = await httpRequest(
+                testServer.baseUrl,
+                'DELETE',
+                `/api/follow-up/${sessionId}`
+            );
+
+            expect(getRes.status).toBe(404);
+            expect(postRes.status).toBe(404);
+            expect(clearRes.status).toBe(404);
+        });
+    });
+
     describe('OpenAPI Schema', () => {
         it('GET /openapi.json returns OpenAPI schema', async () => {
             if (!testServer) throw new Error('Test server not initialized');
             const res = await httpRequest(testServer.baseUrl, 'GET', '/openapi.json');
             expect(res.status).toBe(200);
             expect((res.body as { openapi: string }).openapi).toBe('3.0.0');
+        });
+
+        it('documents steer and follow-up route names without legacy spelling variants', async () => {
+            if (!testServer) throw new Error('Test server not initialized');
+            const res = await httpRequest(testServer.baseUrl, 'GET', '/openapi.json');
+            expect(res.status).toBe(200);
+
+            const paths = Object.keys((res.body as { paths: Record<string, unknown> }).paths);
+            expect(paths).toContain('/api/steer/{sessionId}');
+            expect(paths).toContain('/api/steer/{sessionId}/{messageId}');
+            expect(paths).toContain('/api/follow-up/{sessionId}');
+            expect(paths).toContain('/api/follow-up/{sessionId}/{messageId}');
+            expect(paths).not.toContain('/api/steering/{sessionId}');
+            expect(paths).not.toContain('/api/steering/{sessionId}/{messageId}');
+            expect(paths).not.toContain('/api/follow-ups/{sessionId}');
+            expect(paths).not.toContain('/api/follow-ups/{sessionId}/{messageId}');
         });
     });
 });
