@@ -74,6 +74,7 @@ describe('MessageQueueService', () => {
             expect(eventBus.emit).toHaveBeenCalledWith('message:queued', {
                 position: 1,
                 id: result.id,
+                queue: 'steer',
             });
         });
 
@@ -192,6 +193,7 @@ describe('MessageQueueService', () => {
             expect(eventBus.emit).toHaveBeenCalledWith('message:dequeued', {
                 count: 2,
                 ids: expect.arrayContaining([expect.stringMatching(/^msg_/)]),
+                queue: 'steer',
                 coalesced: true,
                 content: expect.any(Array),
                 messages: expect.any(Array),
@@ -206,6 +208,7 @@ describe('MessageQueueService', () => {
             expect(eventBus.emit).toHaveBeenCalledWith('message:dequeued', {
                 count: 1,
                 ids: expect.any(Array),
+                queue: 'steer',
                 coalesced: false,
                 content: [{ type: 'text', text: 'solo' }],
                 messages: expect.any(Array),
@@ -697,6 +700,7 @@ describe('MessageQueueService', () => {
 
             expect(eventBus.emit).toHaveBeenCalledWith('message:removed', {
                 id: result.id,
+                queue: 'steer',
             });
         });
 

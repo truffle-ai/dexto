@@ -14,6 +14,8 @@ import type { QueuedMessage, ContentPart } from '@dexto/core';
 
 interface QueuedMessagesDisplayProps {
     messages: QueuedMessage[];
+    label?: string;
+    hint?: string;
 }
 
 /**
@@ -38,7 +40,11 @@ function truncateText(text: string, maxLength: number = 60): string {
     return singleLine.slice(0, maxLength - 3) + '...';
 }
 
-export function QueuedMessagesDisplay({ messages }: QueuedMessagesDisplayProps) {
+export function QueuedMessagesDisplay({
+    messages,
+    label = 'queued',
+    hint = '↑ to edit',
+}: QueuedMessagesDisplayProps) {
     if (messages.length === 0) return null;
 
     return (
@@ -46,10 +52,10 @@ export function QueuedMessagesDisplay({ messages }: QueuedMessagesDisplayProps) 
             {/* Header with count and keyboard hint */}
             <Box>
                 <Text color="gray">
-                    {messages.length} message{messages.length !== 1 ? 's' : ''} queued
+                    {messages.length} message{messages.length !== 1 ? 's' : ''} {label}
                 </Text>
                 <Text color="gray"> • </Text>
-                <Text color="gray">↑ to edit</Text>
+                <Text color="gray">{hint}</Text>
             </Box>
 
             {/* Messages list */}

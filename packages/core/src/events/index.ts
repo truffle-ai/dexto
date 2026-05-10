@@ -608,12 +608,14 @@ interface SessionEventMapBase {
     'message:queued': {
         position: number;
         id: string;
+        queue: 'steer' | 'follow-up';
     };
 
     /** Queued messages were dequeued and injected into context */
     'message:dequeued': {
         count: number;
         ids: string[];
+        queue: 'steer' | 'follow-up';
         coalesced: boolean;
         /** Combined content of all dequeued messages (for UI display) */
         content: import('../context/types.js').ContentPart[];
@@ -624,6 +626,7 @@ interface SessionEventMapBase {
     /** Queued message was removed from queue */
     'message:removed': {
         id: string;
+        queue: 'steer' | 'follow-up';
     };
 
     /** Agent run completed (all steps done, no queued messages remaining) */

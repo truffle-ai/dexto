@@ -247,7 +247,8 @@ describe('TurnExecutor Integration Tests', () => {
             sessionEventBus,
             logger,
             sessionId,
-            createInMemoryMessageQueueStore()
+            createInMemoryMessageQueueStore(),
+            'follow-up'
         );
 
         // Default streamText mock - simple text response

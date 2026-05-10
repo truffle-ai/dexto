@@ -288,6 +288,7 @@ describe('activityMiddleware', () => {
                 name: 'message:queued',
                 position: 2,
                 id: 'msg-123',
+                queue: 'steer',
                 sessionId: 'session-1',
             };
 
@@ -304,6 +305,7 @@ describe('activityMiddleware', () => {
                 name: 'message:dequeued',
                 count: 2,
                 ids: ['msg-1', 'msg-2'],
+                queue: 'steer',
                 coalesced: true,
                 content: [{ type: 'text', text: 'Hello' }],
                 sessionId: 'session-1',

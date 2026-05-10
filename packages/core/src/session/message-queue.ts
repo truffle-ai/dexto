@@ -84,13 +84,15 @@ export class MessageQueueService {
     static createEphemeral(
         eventBus: SessionEventBus,
         logger: Logger,
-        sessionId: string
+        sessionId: string,
+        queueKind: 'steer' | 'follow-up' = 'steer'
     ): MessageQueueService {
         return new MessageQueueService(
             eventBus,
             logger,
             sessionId,
-            new EphemeralMessageQueueStore()
+            new EphemeralMessageQueueStore(),
+            queueKind
         );
     }
 
@@ -98,7 +100,8 @@ export class MessageQueueService {
         private eventBus: SessionEventBus,
         private logger: Logger,
         private sessionId: string,
-        private store: MessageQueueBackingStore
+        private store: MessageQueueBackingStore,
+        private queueKind: 'steer' | 'follow-up' = 'steer'
     ) {}
 
     async initialize(): Promise<void> {
@@ -172,6 +175,7 @@ export class MessageQueueService {
             this.eventBus.emit('message:queued', {
                 position: this.queue.length,
                 id: queuedMsg.id,
+                queue: this.queueKind,
             });
 
             return {
@@ -226,6 +230,7 @@ export class MessageQueueService {
             this.eventBus.emit('message:dequeued', {
                 count: messages.length,
                 ids: messages.map((m) => m.id),
+                queue: this.queueKind,
                 coalesced: messages.length > 1,
                 content: cloneCoalescedMessage(combined).combinedContent,
                 messages: cloneQueuedMessages(messages),
@@ -399,7 +404,7 @@ export class MessageQueueService {
             }
 
             this.logger.debug(`Message removed: ${id}, remaining: ${this.queue.length}`);
-            this.eventBus.emit('message:removed', { id });
+            this.eventBus.emit('message:removed', { id, queue: this.queueKind });
             return true;
         });
     }

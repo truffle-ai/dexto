@@ -33,6 +33,8 @@ interface TextBufferInputProps {
     buffer: TextBuffer;
     /** Called when user presses Enter to submit */
     onSubmit: (value: string) => void;
+    /** Called when user presses Ctrl+Enter to queue a follow-up */
+    onQueueSubmit?: ((value: string) => void) | undefined;
     /** Placeholder text when empty */
     placeholder?: string | undefined;
     /** Whether input handling is disabled (e.g., during processing) */
@@ -109,6 +111,7 @@ function HighlightedText({ text, query }: { text: string; query: string | undefi
 export function TextBufferInput({
     buffer,
     onSubmit,
+    onQueueSubmit,
     placeholder,
     isDisabled = false,
     onHistoryNavigate,
@@ -317,6 +320,14 @@ export function TextBufferInput({
                         // Clipboard read failed, ignore
                     }
                 })();
+                return;
+            }
+
+            // === FOLLOW-UP QUEUE SUBMIT (Ctrl+Enter) ===
+            if (key.name === 'return' && key.ctrl && !key.paste && onQueueSubmit) {
+                if (currentText.trim()) {
+                    onQueueSubmit(currentText);
+                }
                 return;
             }
 
@@ -540,6 +551,7 @@ export function TextBufferInput({
             buffer,
             isDisabled,
             onSubmit,
+            onQueueSubmit,
             onHistoryNavigate,
             onTriggerOverlay,
             onKeyboardScroll,

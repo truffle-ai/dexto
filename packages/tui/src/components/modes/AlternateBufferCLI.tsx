@@ -93,6 +93,8 @@ export function AlternateBufferCLI({
         setPendingMessages,
         dequeuedBuffer,
         setDequeuedBuffer,
+        steerMessages,
+        setSteerMessages,
         queuedMessages,
         setQueuedMessages,
         todos,
@@ -353,7 +355,16 @@ export function AlternateBufferCLI({
                             </Box>
                         )}
 
-                        <QueuedMessagesDisplay messages={queuedMessages} />
+                        <QueuedMessagesDisplay
+                            messages={steerMessages}
+                            label="steering current turn"
+                            hint="accepted"
+                        />
+                        <QueuedMessagesDisplay
+                            messages={queuedMessages}
+                            label="queued follow-up"
+                            hint="↑ to edit"
+                        />
                     </>
                 )}
 
@@ -372,6 +383,7 @@ export function AlternateBufferCLI({
                     setMessages={setMessages}
                     setPendingMessages={setPendingMessages}
                     setDequeuedBuffer={setDequeuedBuffer}
+                    setSteerMessages={setSteerMessages}
                     setQueuedMessages={setQueuedMessages}
                     setApproval={setApproval}
                     setApprovalQueue={setApprovalQueue}

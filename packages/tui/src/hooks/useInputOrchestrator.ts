@@ -114,15 +114,15 @@ export interface UseInputOrchestratorProps {
     approval: ApprovalRequest | null;
     input: InputState;
     session: SessionState;
-    /** Queued messages (for cancel handling) */
-    queuedMessages: QueuedMessage[];
+    /** Active-turn steer messages (for cancel handling) */
+    steerMessages: QueuedMessage[];
     /** Text buffer for clearing input on first Ctrl+C */
     buffer: TextBuffer;
     setUi: React.Dispatch<React.SetStateAction<UIState>>;
     setInput: React.Dispatch<React.SetStateAction<InputState>>;
     setMessages: React.Dispatch<React.SetStateAction<Message[]>>;
     setPendingMessages: React.Dispatch<React.SetStateAction<Message[]>>;
-    setQueuedMessages: React.Dispatch<React.SetStateAction<QueuedMessage[]>>;
+    setSteerMessages: React.Dispatch<React.SetStateAction<QueuedMessage[]>>;
     agent: TuiAgentBackend;
     handlers: InputHandlers;
 }
@@ -159,13 +159,13 @@ export function useInputOrchestrator({
     approval,
     input,
     session,
-    queuedMessages,
+    steerMessages,
     buffer,
     setUi,
     setInput,
     setMessages,
     setPendingMessages,
-    setQueuedMessages,
+    setSteerMessages,
     agent,
     handlers,
 }: UseInputOrchestratorProps): void {
@@ -176,7 +176,7 @@ export function useInputOrchestrator({
     const approvalRef = useRef(approval);
     const inputRef = useRef(input);
     const sessionRef = useRef(session);
-    const queuedMessagesRef = useRef(queuedMessages);
+    const steerMessagesRef = useRef(steerMessages);
     const bufferRef = useRef(buffer);
     const handlersRef = useRef(handlers);
 
@@ -186,10 +186,10 @@ export function useInputOrchestrator({
         approvalRef.current = approval;
         inputRef.current = input;
         sessionRef.current = session;
-        queuedMessagesRef.current = queuedMessages;
+        steerMessagesRef.current = steerMessages;
         bufferRef.current = buffer;
         handlersRef.current = handlers;
-    }, [ui, approval, input, session, queuedMessages, buffer, handlers]);
+    }, [ui, approval, input, session, steerMessages, buffer, handlers]);
 
     // Auto-clear exit warning after timeout
     useEffect(() => {
@@ -247,7 +247,7 @@ export function useInputOrchestrator({
         const currentUi = uiRef.current;
         const currentApproval = approvalRef.current;
         const currentSession = sessionRef.current;
-        const currentQueuedMessages = queuedMessagesRef.current;
+        const currentSteerMessages = steerMessagesRef.current;
         const currentBuffer = bufferRef.current;
 
         // If approval prompt is showing, let it handle escape (don't intercept)
@@ -284,8 +284,9 @@ export function useInputOrchestrator({
             if (currentSession.id) {
                 // Cancel current run
                 void agent.cancel(currentSession.id).catch(() => {});
-                // Clear steer messages on server (we'll bring messages to input for editing)
+                // Clear only active-turn steer. Follow-ups survive cancellation and remain editable.
                 void agent.clearSteerQueue(currentSession.id).catch(() => {});
+                setSteerMessages([]);
             }
 
             // Finalize any pending messages first (move to messages)
@@ -327,10 +328,10 @@ export function useInputOrchestrator({
                 },
             ]);
 
-            // If there were queued messages, bring them back to input for editing
-            if (currentQueuedMessages.length > 0) {
-                // Extract and coalesce text content from all queued messages
-                const coalescedText = currentQueuedMessages
+            // If there were active-turn steer messages, bring them back to input for editing.
+            // Follow-up messages intentionally remain queued across cancellation.
+            if (currentSteerMessages.length > 0) {
+                const coalescedText = currentSteerMessages
                     .map((msg) =>
                         msg.content
                             .filter(
@@ -348,8 +349,8 @@ export function useInputOrchestrator({
                     setInput((prev) => ({ ...prev, value: coalescedText }));
                 }
 
-                // Clear the queue state immediately (don't wait for server events)
-                setQueuedMessages([]);
+                // Clear steer state immediately (don't wait for server events)
+                setSteerMessages([]);
             }
 
             return true;
@@ -362,7 +363,7 @@ export function useInputOrchestrator({
         }
 
         return false;
-    }, [agent, setUi, setMessages, setPendingMessages, setInput, setQueuedMessages]);
+    }, [agent, setUi, setMessages, setPendingMessages, setSteerMessages, setInput]);
 
     // The keypress handler for the entire application
     const handleKeypress = useCallback(

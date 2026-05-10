@@ -72,6 +72,8 @@ export function StaticCLI({
         setPendingMessages,
         dequeuedBuffer,
         setDequeuedBuffer,
+        steerMessages,
+        setSteerMessages,
         queuedMessages,
         setQueuedMessages,
         todos,
@@ -260,7 +262,16 @@ export function StaticCLI({
                                 isProcessing={ui.isProcessing}
                             />
 
-                            <QueuedMessagesDisplay messages={queuedMessages} />
+                            <QueuedMessagesDisplay
+                                messages={steerMessages}
+                                label="steering current turn"
+                                hint="accepted"
+                            />
+                            <QueuedMessagesDisplay
+                                messages={queuedMessages}
+                                label="queued follow-up"
+                                hint="↑ to edit"
+                            />
                         </>
                     );
                 })()}
@@ -280,6 +291,7 @@ export function StaticCLI({
                     setMessages={setMessages}
                     setPendingMessages={setPendingMessages}
                     setDequeuedBuffer={setDequeuedBuffer}
+                    setSteerMessages={setSteerMessages}
                     setQueuedMessages={setQueuedMessages}
                     setApproval={setApproval}
                     setApprovalQueue={setApprovalQueue}

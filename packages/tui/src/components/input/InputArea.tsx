@@ -16,6 +16,8 @@ interface InputAreaProps {
     buffer: TextBuffer;
     /** Called when user submits */
     onSubmit: (value: string) => void;
+    /** Called when user queues a follow-up while processing */
+    onQueueSubmit?: ((value: string) => void) | undefined;
     /** Whether input is currently disabled */
     isDisabled: boolean;
     /** Whether input should handle keypresses */
@@ -53,6 +55,7 @@ interface InputAreaProps {
 export function InputArea({
     buffer,
     onSubmit,
+    onQueueSubmit,
     isDisabled,
     isActive,
     placeholder,
@@ -75,6 +78,7 @@ export function InputArea({
             <TextBufferInput
                 buffer={buffer}
                 onSubmit={onSubmit}
+                onQueueSubmit={onQueueSubmit}
                 placeholder={placeholder}
                 isDisabled={isDisabled}
                 isActive={isActive}

@@ -170,13 +170,15 @@ export class ChatSession {
             this.eventBus,
             this.logger,
             this.id,
-            this.services.messageQueueStore
+            this.services.messageQueueStore,
+            'steer'
         );
         this.followUpQueue = new MessageQueueService(
             this.eventBus,
             this.logger,
             this.id,
-            this.services.followUpQueueStore
+            this.services.followUpQueueStore,
+            'follow-up'
         );
 
         this.setupTokenAccumulation();
