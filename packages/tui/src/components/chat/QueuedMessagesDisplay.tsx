@@ -10,7 +10,8 @@
 
 import React from 'react';
 import { Box, Text } from 'ink';
-import type { QueuedMessage, ContentPart } from '@dexto/core';
+import type { QueuedMessage } from '@dexto/core';
+import { previewQueuedContent } from '../../utils/queuedComposerContent.js';
 
 const isMac = process.platform === 'darwin';
 
@@ -23,16 +24,6 @@ interface QueuedMessagesDisplayProps {
     messages: QueuedMessage[];
     label?: string;
     hint?: string;
-}
-
-/**
- * Extract text content from ContentPart[]
- */
-function getMessageText(content: ContentPart[]): string {
-    const textParts = content
-        .filter((part): part is { type: 'text'; text: string } => part.type === 'text')
-        .map((part) => part.text);
-    return textParts.join(' ') || '[attachment]';
 }
 
 /**
@@ -72,7 +63,7 @@ export function QueuedMessagesDisplay({
                     <Text color="gray">{index === messages.length - 1 ? '↳ ' : '│ '}</Text>
                     {/* Message preview */}
                     <Text color="gray" italic>
-                        {truncateText(getMessageText(message.content))}
+                        {truncateText(previewQueuedContent(message.content))}
                     </Text>
                 </Box>
             ))}

@@ -23,6 +23,7 @@ import type {
 } from '../state/types.js';
 import { createUserMessage } from '../utils/messageFormatting.js';
 import { generateMessageId } from '../utils/idGenerator.js';
+import { restoreQueuedContentForComposer } from '../utils/queuedComposerContent.js';
 import type { ApprovalRequest } from '../components/ApprovalPrompt.js';
 import type { TextBuffer } from '../components/shared/text-buffer.js';
 import { captureAnalytics } from '../host/index.js';
@@ -121,6 +122,8 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
     ) {
         // Track pending session creation to prevent race conditions
         const sessionCreationPromiseRef = useRef<Promise<SessionCreationResult> | null>(null);
+        const queuedEditPendingRef = useRef(false);
+        const [isQueuedEditPending, setIsQueuedEditPending] = React.useState(false);
 
         const didAutoSubmitInitialPromptRef = useRef(false);
 
@@ -146,13 +149,77 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
             }
         }, [session.id]);
 
-        // Extract text content from ContentPart[]
-        const extractTextFromContent = useCallback((content: ContentPart[]): string => {
-            return content
-                .filter((part): part is TextPart => part.type === 'text')
-                .map((part) => part.text)
-                .join('\n');
-        }, []);
+        const popQueuedMessageForEdit = useCallback(
+            async (
+                message: QueuedMessage,
+                editingQueuedFollowUp: boolean,
+                removeMessage: () => Promise<boolean>
+            ): Promise<void> => {
+                if (queuedEditPendingRef.current) {
+                    return;
+                }
+
+                const result = restoreQueuedContentForComposer(message);
+                if (!result.ok) {
+                    setMessages((prev) => [
+                        ...prev,
+                        {
+                            id: generateMessageId('system'),
+                            role: 'system',
+                            content: result.reason,
+                            timestamp: new Date(),
+                        },
+                    ]);
+                    return;
+                }
+
+                queuedEditPendingRef.current = true;
+                setIsQueuedEditPending(true);
+                let removed = false;
+                try {
+                    removed = await removeMessage();
+
+                    if (!removed) {
+                        setMessages((prev) => [
+                            ...prev,
+                            {
+                                id: generateMessageId('system'),
+                                role: 'system',
+                                content:
+                                    'Queued input could not be edited because it is no longer pending.',
+                                timestamp: new Date(),
+                            },
+                        ]);
+                        return;
+                    }
+
+                    buffer.setText(result.composer.text);
+                    setInput((prev) => ({
+                        ...prev,
+                        value: result.composer.text,
+                        images: result.composer.images,
+                        pastedBlocks: [],
+                        historyIndex: -1,
+                        draftBeforeHistory: '',
+                        editingQueuedFollowUp,
+                    }));
+                } catch {
+                    setMessages((prev) => [
+                        ...prev,
+                        {
+                            id: generateMessageId('system'),
+                            role: 'system',
+                            content: 'Queued input could not be edited. Try again.',
+                            timestamp: new Date(),
+                        },
+                    ]);
+                } finally {
+                    queuedEditPendingRef.current = false;
+                    setIsQueuedEditPending(false);
+                }
+            },
+            [buffer, setInput, setMessages]
+        );
 
         // Handle history navigation - set text directly on buffer
         // Up arrow first edits queued follow-ups (removes from follow-up queue), then navigates history
@@ -163,21 +230,13 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                 if (direction === 'up') {
                     // First check if there are queued follow-ups to edit
                     if (queuedMessages.length > 0 && session.id) {
+                        const sessionId = session.id;
                         // Get the last queued message
                         const lastQueued = queuedMessages[queuedMessages.length - 1];
                         if (lastQueued) {
-                            // Extract text content and put it in the input
-                            const text = extractTextFromContent(lastQueued.content);
-                            buffer.setText(text);
-                            setInput((prev) => ({
-                                ...prev,
-                                value: text,
-                                editingQueuedFollowUp: true,
-                            }));
-                            // Remove from follow-up queue (events will sync queuedMessages state)
-                            agent.removeFollowUpMessage(session.id, lastQueued.id).catch(() => {
-                                // Silently ignore errors - queue might have been cleared
-                            });
+                            void popQueuedMessageForEdit(lastQueued, true, () =>
+                                agent.removeFollowUpMessage(sessionId, lastQueued.id)
+                            );
                             return;
                         }
                     }
@@ -250,7 +309,7 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                 queuedMessages,
                 session.id,
                 agent,
-                extractTextFromContent,
+                popQueuedMessageForEdit,
                 ui.isProcessing,
             ]
         );
@@ -265,18 +324,12 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                 return false;
             }
 
-            const text = extractTextFromContent(lastSteer.content);
-            buffer.setText(text);
-            setInput((prev) => ({
-                ...prev,
-                value: text,
-                editingQueuedFollowUp: false,
-            }));
-            agent.removeSteerMessage(session.id, lastSteer.id).catch(() => {
-                // Silently ignore errors - queue might have been cleared
-            });
+            const sessionId = session.id;
+            void popQueuedMessageForEdit(lastSteer, false, () =>
+                agent.removeSteerMessage(sessionId, lastSteer.id)
+            );
             return true;
-        }, [agent, buffer, session.id, setInput, steerMessages]);
+        }, [agent, popQueuedMessageForEdit, session.id, steerMessages]);
 
         // Handle overlay triggers
         // Allow triggers while processing (for queuing), but not during approval
@@ -923,7 +976,8 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
         const mainInputAllowed = mainInputAllowedOverlays.includes(ui.activeOverlay);
         const isHistorySearchActive = ui.historySearch.isActive;
         const isInputActive = !approval && mainInputAllowed && !isHistorySearchActive;
-        const isInputDisabled = approval !== null || !mainInputAllowed || isHistorySearchActive;
+        const isInputDisabled =
+            approval !== null || !mainInputAllowed || isHistorySearchActive || isQueuedEditPending;
         // Allow submit when:
         // - no overlay active
         // - approval active
