@@ -83,9 +83,9 @@ export const queryKeys = {
         all: ['tools'] as const,
     },
 
-    // Message queue queries
-    queue: {
-        list: (sessionId: string) => ['queue', sessionId] as const,
+    // Queued follow-up message queries
+    followUp: {
+        list: (sessionId: string) => ['follow-up', sessionId] as const,
     },
 
     // Approval queries

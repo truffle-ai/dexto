@@ -28,7 +28,11 @@ import { queryKeys } from '@/lib/queryKeys';
 import { useModelCapabilities } from './hooks/useLLM';
 import { useResolvePrompt } from './hooks/usePrompts';
 import { useInputHistory } from './hooks/useInputHistory';
-import { useQueuedMessages, useRemoveQueuedMessage, useQueueMessage } from './hooks/useQueue';
+import {
+    useFollowUpMessages,
+    useRemoveFollowUpMessage,
+    useQueueFollowUpMessage,
+} from './hooks/useQueue';
 import { QueuedMessagesDisplay } from './QueuedMessagesDisplay';
 import { Attachment, ATTACHMENT_LIMITS, DEFAULT_SAFE_FILE_TYPES } from '../lib/attachment-types.js';
 import {
@@ -93,9 +97,9 @@ export default function InputArea({
         useInputHistory(currentSessionId);
 
     // Queue management
-    const { data: queueData } = useQueuedMessages(currentSessionId);
-    const { mutate: removeQueuedMessage } = useRemoveQueuedMessage();
-    const { mutate: queueMessage } = useQueueMessage();
+    const { data: queueData } = useFollowUpMessages(currentSessionId);
+    const { mutate: removeQueuedMessage } = useRemoveFollowUpMessage();
+    const { mutate: queueMessage } = useQueueFollowUpMessage();
     const queuedMessages = useMemo(() => queueData?.messages ?? [], [queueData?.messages]);
 
     // Analytics tracking

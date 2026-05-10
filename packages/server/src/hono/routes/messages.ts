@@ -84,7 +84,7 @@ const MessageStreamBusyResponseSchema = z
     .object({
         busy: z.literal(true).describe('Indicates session is busy'),
         sessionId: z.string().describe('The session ID'),
-        queueLength: z.number().describe('Current number of messages in queue'),
+        queueLength: z.number().describe('Current number of queued follow-up messages'),
         hint: z.string().describe('Instructions for the client'),
     })
     .strict()
@@ -215,7 +215,7 @@ const messageStreamRoute = createRoute({
         },
         202: {
             description:
-                'Session is busy processing another message. Use the queue endpoints to manage pending messages.',
+                'Session is busy processing another message. Use the follow-up endpoint to queue input for the next turn.',
             content: {
                 'application/json': {
                     schema: MessageStreamBusyResponseSchema,
@@ -294,13 +294,13 @@ export function createMessagesRouter(getAgent: GetAgentFn, _approvalCoordinator?
             // Check if session is busy before starting stream
             const isBusy = await agent.isSessionBusy(sessionId);
             if (isBusy) {
-                const queuedMessages = await agent.getQueuedMessages(sessionId);
+                const followUpMessages = await agent.getFollowUpMessages(sessionId);
                 return ctx.json(
                     {
                         busy: true as const,
                         sessionId,
-                        queueLength: queuedMessages.length,
-                        hint: 'Use POST /api/queue/{sessionId} to queue this message, or wait for the current request to complete.',
+                        queueLength: followUpMessages.length,
+                        hint: 'Use POST /api/follow-up/{sessionId} to queue a follow-up message, or wait for the current request to complete.',
                     },
                     202
                 );

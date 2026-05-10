@@ -384,8 +384,12 @@ export function createDextoApp(options: CreateDextoAppOptions): DextoApp {
                 description: 'Install, switch, and manage agent configurations',
             },
             {
-                name: 'queue',
-                description: 'Manage message queue for busy sessions',
+                name: 'steer',
+                description: 'Manage active-turn steer messages for busy sessions',
+            },
+            {
+                name: 'follow-up',
+                description: 'Manage follow-up messages that run after the active turn',
             },
             {
                 name: 'openrouter',
@@ -416,7 +420,7 @@ export function createDextoApp(options: CreateDextoAppOptions): DextoApp {
         // SPA fallback: serve index.html for unmatched routes without file extensions
         // Must be registered as notFound handler so it runs AFTER all routes (including /openapi.json)
         // webUIConfig is injected into index.html for runtime configuration (analytics, etc.)
-        fullApp.notFound(createSpaFallbackHandler(webRoot, webUIConfig));
+        fullApp.notFound(createSpaFallbackHandler(webRoot, webUIConfig, normalizedPrefix));
     }
 
     // NOTE: Subscribers and approval handler are wired in CLI layer before agent.start()

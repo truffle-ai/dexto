@@ -35,10 +35,10 @@ const QueueMessageBodySchema = z
 const GetQueueResponseSchema = z
     .object({
         messages: z.array(QueuedMessageSchema).describe('Queued messages'),
-        count: z.number().describe('Number of messages in queue'),
+        count: z.number().describe('Number of queued messages'),
     })
     .strict()
-    .describe('Get queue response');
+    .describe('Get queued messages response');
 
 const QueueMessageResponseSchema = z
     .object({
@@ -47,7 +47,7 @@ const QueueMessageResponseSchema = z
         position: z.number().describe('Position in the queue (1-based)'),
     })
     .strict()
-    .describe('Queue message response');
+    .describe('Queued message response');
 
 const RemoveQueuedMessageResponseSchema = z
     .object({
@@ -63,7 +63,7 @@ const ClearQueueResponseSchema = z
         count: z.number().describe('Number of messages that were removed'),
     })
     .strict()
-    .describe('Clear queue response');
+    .describe('Clear queued messages response');
 
 const QueueSessionParamSchema = z
     .object({
@@ -77,117 +77,6 @@ const QueueMessageParamSchema = z
         messageId: z.string().min(1).describe('ID of the queued message to remove'),
     })
     .describe('Queue message identifier params');
-
-const getQueueRoute = createRoute({
-    method: 'get',
-    path: '/queue/{sessionId}',
-    summary: 'Get queued messages',
-    description: 'Returns all messages waiting in the queue for a session',
-    tags: ['queue'],
-    request: {
-        params: QueueSessionParamSchema,
-    },
-    responses: {
-        200: {
-            description: 'List of queued messages',
-            content: {
-                'application/json': {
-                    schema: GetQueueResponseSchema,
-                },
-            },
-        },
-        404: {
-            description: 'Session not found',
-            content: { 'application/json': { schema: ApiErrorResponseSchema } },
-        },
-        400: BadRequestErrorResponse,
-        500: InternalErrorResponse,
-    },
-});
-
-const queueMessageRoute = createRoute({
-    method: 'post',
-    path: '/queue/{sessionId}',
-    summary: 'Queue a message',
-    description: 'Adds a message to the queue for processing when the session is no longer busy',
-    tags: ['queue'],
-    request: {
-        params: QueueSessionParamSchema,
-        body: {
-            content: { 'application/json': { schema: QueueMessageBodySchema } },
-        },
-    },
-    responses: {
-        201: {
-            description: 'Message queued successfully',
-            content: {
-                'application/json': {
-                    schema: QueueMessageResponseSchema,
-                },
-            },
-        },
-        404: {
-            description: 'Session not found',
-            content: { 'application/json': { schema: ApiErrorResponseSchema } },
-        },
-        400: BadRequestErrorResponse,
-        500: InternalErrorResponse,
-    },
-});
-
-const removeQueuedMessageRoute = createRoute({
-    method: 'delete',
-    path: '/queue/{sessionId}/{messageId}',
-    summary: 'Remove queued message',
-    description: 'Removes a specific message from the queue',
-    tags: ['queue'],
-    request: {
-        params: QueueMessageParamSchema,
-    },
-    responses: {
-        200: {
-            description: 'Message removed successfully',
-            content: {
-                'application/json': {
-                    schema: RemoveQueuedMessageResponseSchema,
-                },
-            },
-        },
-        404: {
-            description: 'Session or message not found',
-            content: { 'application/json': { schema: ApiErrorResponseSchema } },
-        },
-        400: BadRequestErrorResponse,
-        500: InternalErrorResponse,
-    },
-});
-
-const clearQueueRoute = createRoute({
-    method: 'delete',
-    path: '/queue/{sessionId}',
-    summary: 'Clear message queue',
-    description: 'Removes all messages from the queue for a session',
-    tags: ['queue'],
-    request: {
-        params: QueueSessionParamSchema,
-    },
-    responses: {
-        200: {
-            description: 'Queue cleared successfully',
-            content: {
-                'application/json': {
-                    schema: ClearQueueResponseSchema,
-                },
-            },
-        },
-        404: {
-            description: 'Session not found',
-            content: { 'application/json': { schema: ApiErrorResponseSchema } },
-        },
-        400: BadRequestErrorResponse,
-        500: InternalErrorResponse,
-    },
-});
 
 const getSteerRoute = createRoute({
     method: 'get',
@@ -391,20 +280,6 @@ export function createQueueRouter(getAgent: GetAgentFn) {
     const app = new OpenAPIHono();
 
     return app
-        .openapi(getQueueRoute, async (ctx) => {
-            const agent = await getAgent(ctx);
-            const { sessionId } = ctx.req.valid('param');
-
-            const messages = await agent.getQueuedMessages(sessionId);
-            const responseMessages = messages.map(toQueueResponseMessage);
-            return ctx.json(
-                GetQueueResponseSchema.parse({
-                    messages: responseMessages,
-                    count: responseMessages.length,
-                }),
-                200
-            );
-        })
         .openapi(getSteerRoute, async (ctx) => {
             const agent = await getAgent(ctx);
             const { sessionId } = ctx.req.valid('param');
@@ -512,68 +387,12 @@ export function createQueueRouter(getAgent: GetAgentFn) {
 
             const count = await agent.clearFollowUpQueue(sessionId);
             return ctx.json(ClearQueueResponseSchema.parse({ cleared: true as const, count }), 200);
-        })
-        .openapi(queueMessageRoute, async (ctx) => {
-            const agent = await getAgent(ctx);
-            const { sessionId } = ctx.req.valid('param');
-            const { content: rawContent } = ctx.req.valid('json');
-            const content = toContentInput(rawContent);
-
-            const { kind } = ctx.req.valid('json');
-            const result = await agent.queueMessage(sessionId, {
-                content,
-                ...(kind !== undefined && { kind }),
-            });
-            return ctx.json(
-                QueueMessageResponseSchema.parse({
-                    queued: true as const,
-                    id: result.id,
-                    position: result.position,
-                }),
-                201
-            );
-        })
-        .openapi(removeQueuedMessageRoute, async (ctx) => {
-            const agent = await getAgent(ctx);
-            const { sessionId, messageId } = ctx.req.valid('param');
-
-            const removed = await agent.removeQueuedMessage(sessionId, messageId);
-            if (!removed) {
-                throw new DextoRuntimeError(
-                    'queued_message_not_found',
-                    'queue',
-                    ErrorType.NOT_FOUND,
-                    'Message not found in queue',
-                    { sessionId, messageId }
-                );
-            }
-            return ctx.json(
-                RemoveQueuedMessageResponseSchema.parse({ removed: true as const, id: messageId }),
-                200
-            );
-        })
-        .openapi(clearQueueRoute, async (ctx) => {
-            const agent = await getAgent(ctx);
-            const { sessionId } = ctx.req.valid('param');
-
-            const count = await agent.clearMessageQueue(sessionId);
-            return ctx.json(ClearQueueResponseSchema.parse({ cleared: true as const, count }), 200);
         });
 }
 
 type QueueSessionParamInput = { param: z.input<typeof QueueSessionParamSchema> };
 type QueueMessageParamInput = { param: z.input<typeof QueueMessageParamSchema> };
 
-type GetQueueRouteSchema = OpenAPIRouteSchema<typeof getQueueRoute, QueueSessionParamInput>;
-type QueueMessageRouteSchema = OpenAPIRouteSchema<
-    typeof queueMessageRoute,
-    QueueSessionParamInput & { json: z.input<typeof QueueMessageBodySchema> }
->;
-type RemoveQueuedMessageRouteSchema = OpenAPIRouteSchema<
-    typeof removeQueuedMessageRoute,
-    QueueMessageParamInput
->;
-type ClearQueueRouteSchema = OpenAPIRouteSchema<typeof clearQueueRoute, QueueSessionParamInput>;
 type GetSteerRouteSchema = OpenAPIRouteSchema<typeof getSteerRoute, QueueSessionParamInput>;
 type SteerRouteSchema = OpenAPIRouteSchema<
     typeof steerRoute,
@@ -596,10 +415,6 @@ type ClearFollowUpRouteSchema = OpenAPIRouteSchema<
 >;
 
 export type QueueRouterSchema =
-    | GetQueueRouteSchema
-    | QueueMessageRouteSchema
-    | RemoveQueuedMessageRouteSchema
-    | ClearQueueRouteSchema
     | GetSteerRouteSchema
     | SteerRouteSchema
     | RemoveSteerRouteSchema
