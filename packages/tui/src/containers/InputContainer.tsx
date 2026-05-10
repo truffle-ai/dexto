@@ -165,7 +165,7 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                             buffer.setText(text);
                             setInput((prev) => ({ ...prev, value: text }));
                             // Remove from queue (this will trigger the event and update queuedMessages state)
-                            agent.removeQueuedMessage(session.id, lastQueued.id).catch(() => {
+                            agent.removeSteerMessage(session.id, lastQueued.id).catch(() => {
                                 // Silently ignore errors - queue might have been cleared
                             });
                             return;
@@ -436,7 +436,7 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
 
                 // Auto-queue when agent is processing
                 if (ui.isProcessing && session.id) {
-                    // Build content parts for queueing
+                    // Build content parts for steering the active turn
                     const content: ContentPart[] = [{ type: 'text', text: trimmed } as TextPart];
                     // Add images if any
                     for (const img of input.images) {
@@ -448,8 +448,8 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                     }
 
                     try {
-                        await agent.queueMessage(session.id, { content });
-                        // Queued messages are displayed via QueuedMessagesDisplay component
+                        await agent.steer(session.id, { content });
+                        // Steer messages are displayed via QueuedMessagesDisplay component
                         // (state updated by message:queued event handler in useAgentEvents)
 
                         // Clear input, update history, and clear images
@@ -476,7 +476,7 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                             {
                                 id: generateMessageId('error'),
                                 role: 'system',
-                                content: `Failed to queue message: ${error instanceof Error ? error.message : String(error)}`,
+                                content: `Failed to submit steer message: ${error instanceof Error ? error.message : String(error)}`,
                                 timestamp: new Date(),
                             },
                         ]);

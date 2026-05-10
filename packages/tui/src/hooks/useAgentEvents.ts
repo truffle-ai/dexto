@@ -380,14 +380,14 @@ export function useAgentEvents({
             { signal }
         );
 
-        // Handle message queued - fetch full queue state from agent
+        // Handle message queued - fetch full steer queue state from agent
         agent.on(
             'message:queued',
             (payload) => {
                 if (!payload.sessionId) return;
-                // Fetch fresh queue state from agent to ensure consistency
+                // Fetch fresh steer state from agent to ensure consistency
                 agent
-                    .getQueuedMessages(payload.sessionId)
+                    .getSteerMessages(payload.sessionId)
                     .then((messages) => {
                         setQueuedMessages(messages);
                     })

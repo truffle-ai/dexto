@@ -66,4 +66,73 @@ describe('createCloudAgentBackend', () => {
         expect(onReset).not.toHaveBeenCalled();
         expect(onCleared).toHaveBeenCalledWith({ sessionId: 'session-1' });
     });
+
+    it('stores in-flight steer messages for TUI preview and editing', async () => {
+        const backend = createCloudAgentBackend({} as unknown as DeployClient, 'cloud-agent-1');
+        const onQueued = vi.fn();
+        const onRemoved = vi.fn();
+        backend.on('message:queued', onQueued);
+        backend.on('message:removed', onRemoved);
+
+        const result = await backend.steer('session-1', {
+            content: [{ type: 'text', text: 'adjust this turn' }],
+        });
+
+        expect(result).toMatchObject({
+            queued: true,
+            position: 1,
+        });
+        expect(await backend.getSteerMessages('session-1')).toEqual([
+            expect.objectContaining({
+                id: result.id,
+                content: [{ type: 'text', text: 'adjust this turn' }],
+            }),
+        ]);
+        expect(onQueued).toHaveBeenCalledWith({
+            id: result.id,
+            position: 1,
+            sessionId: 'session-1',
+        });
+
+        await expect(backend.removeSteerMessage('session-1', result.id)).resolves.toBe(true);
+        expect(await backend.getSteerMessages('session-1')).toEqual([]);
+        expect(onRemoved).toHaveBeenCalledWith({
+            id: result.id,
+            sessionId: 'session-1',
+        });
+    });
+
+    it('clears stored steer messages for a cloud session', async () => {
+        const backend = createCloudAgentBackend({} as unknown as DeployClient, 'cloud-agent-1');
+
+        await backend.steer('session-1', {
+            content: [{ type: 'text', text: 'first' }],
+        });
+        await backend.steer('session-1', {
+            content: [{ type: 'text', text: 'second' }],
+        });
+
+        await expect(backend.clearSteerQueue('session-1')).resolves.toBe(2);
+        expect(await backend.getSteerMessages('session-1')).toEqual([]);
+    });
+
+    it('rejects unsupported steer attachments before storing the message', async () => {
+        const backend = createCloudAgentBackend({} as unknown as DeployClient, 'cloud-agent-1');
+
+        await expect(
+            backend.steer('session-1', {
+                content: [{ type: 'image', image: 'data', mimeType: 'image/png' }],
+            })
+        ).rejects.toThrow('Image and file attachments');
+        expect(await backend.getSteerMessages('session-1')).toEqual([]);
+    });
+
+    it('does not emit removal events for missing steer messages', async () => {
+        const backend = createCloudAgentBackend({} as unknown as DeployClient, 'cloud-agent-1');
+        const onRemoved = vi.fn();
+        backend.on('message:removed', onRemoved);
+
+        await expect(backend.removeSteerMessage('session-1', 'missing')).resolves.toBe(false);
+        expect(onRemoved).not.toHaveBeenCalled();
+    });
 });

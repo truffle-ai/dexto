@@ -676,7 +676,8 @@ export function createCloudAgentBackend(
             throw unsupportedCloudFeature('Context compaction');
         }) as CloudChatBackend['compactContext'],
 
-        queueMessage: (async (sessionId, input) => {
+        steer: (async (sessionId, input) => {
+            contentPartsToCloudText(input.content);
             const messageId = `queued-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
             const message = buildQueuedMessage(messageId, [...input.content]);
             const position = appendQueuedMessage(sessionId, message);
@@ -690,35 +691,40 @@ export function createCloudAgentBackend(
                 position,
                 id: message.id,
             };
-        }) as CloudChatBackend['queueMessage'],
+        }) as CloudChatBackend['steer'],
 
-        getQueuedMessages: (async (sessionId) =>
-            queueBySession.get(sessionId) ?? []) as CloudChatBackend['getQueuedMessages'],
+        followUp: (async () => {
+            throw unsupportedCloudFeature('Follow-up queueing');
+        }) as CloudChatBackend['followUp'],
 
-        removeQueuedMessage: (async (sessionId, messageId) => {
+        getSteerMessages: (async (sessionId) =>
+            queueBySession.get(sessionId) ?? []) as CloudChatBackend['getSteerMessages'],
+
+        getFollowUpMessages: (async () => []) as CloudChatBackend['getFollowUpMessages'],
+
+        removeSteerMessage: (async (sessionId, messageId) => {
             const current = queueBySession.get(sessionId) ?? [];
             const next = current.filter((message) => message.id !== messageId);
+            if (next.length === current.length) {
+                return false;
+            }
             queueBySession.set(sessionId, next);
             eventBus.emit('message:removed', {
                 id: messageId,
                 sessionId,
             });
             return true;
-        }) as CloudChatBackend['removeQueuedMessage'],
+        }) as CloudChatBackend['removeSteerMessage'],
 
-        clearMessageQueue: (async (sessionId) => {
-            if (typeof sessionId === 'string') {
-                const clearedCount = (queueBySession.get(sessionId) ?? []).length;
-                queueBySession.delete(sessionId);
-                return clearedCount;
-            }
-            const clearedCount = Array.from(queueBySession.values()).reduce(
-                (total, queuedMessages) => total + queuedMessages.length,
-                0
-            );
-            queueBySession.clear();
+        removeFollowUpMessage: (async () => false) as CloudChatBackend['removeFollowUpMessage'],
+
+        clearSteerQueue: (async (sessionId) => {
+            const clearedCount = (queueBySession.get(sessionId) ?? []).length;
+            queueBySession.delete(sessionId);
             return clearedCount;
-        }) as CloudChatBackend['clearMessageQueue'],
+        }) as CloudChatBackend['clearSteerQueue'],
+
+        clearFollowUpQueue: (async () => 0) as CloudChatBackend['clearFollowUpQueue'],
 
         cancel: (async (sessionId) => {
             await client.cancelCloudAgentSessionRun(cloudAgentId, sessionId);

@@ -284,8 +284,8 @@ export function useInputOrchestrator({
             if (currentSession.id) {
                 // Cancel current run
                 void agent.cancel(currentSession.id).catch(() => {});
-                // Clear the queue on server (we'll bring messages to input for editing)
-                void agent.clearMessageQueue(currentSession.id).catch(() => {});
+                // Clear steer messages on server (we'll bring messages to input for editing)
+                void agent.clearSteerQueue(currentSession.id).catch(() => {});
             }
 
             // Finalize any pending messages first (move to messages)
