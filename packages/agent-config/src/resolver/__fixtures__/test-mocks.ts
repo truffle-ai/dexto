@@ -62,7 +62,10 @@ export function createMockDatabase(storeType: string): Database {
     return {
         get: vi.fn(async () => undefined),
         set: vi.fn(async () => {}),
-        setIfAbsent: vi.fn(async <T>(_key: string, value: T) => value),
+        setIfAbsent: vi.fn(async <T>(_key: string, value: T) => ({
+            value,
+            inserted: true,
+        })),
         delete: vi.fn(async () => {}),
         list: vi.fn(async () => []),
         append: vi.fn(async () => {}),

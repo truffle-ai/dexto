@@ -1,7 +1,12 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { z } from 'zod';
-import { ToolManager } from './tool-manager.js';
+import {
+    ToolManager,
+    type RecordedToolApproval,
+    type ToolApprovalRequiredClassification,
+} from './tool-manager.js';
 import { defineTool } from './define-tool.js';
+import { createApprovalRequest } from '../approval/factory.js';
 import { MCPManager } from '../mcp/manager.js';
 import { DextoRuntimeError } from '../errors/DextoRuntimeError.js';
 import { ToolErrorCode } from './error-codes.js';
@@ -55,6 +60,16 @@ function createToolManager(...args: ToolManagerFactoryArgs): ToolManager {
     return new ToolManager(...args, createInMemorySessionToolPreferencesStore(logger));
 }
 
+function createRecordedToolApproval(
+    classification: ToolApprovalRequiredClassification,
+    approvalId: string
+): RecordedToolApproval {
+    return {
+        classification,
+        request: createApprovalRequest(classification.requestDetails, approvalId),
+    };
+}
+
 // Mock logger
 vi.mock('../logger/index.js', () => ({
     logger: {
@@ -90,6 +105,24 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 approvalId: 'test-approval-id',
                 status: ApprovalStatus.APPROVED,
                 data: { rememberChoice: false },
+            }),
+            recordApprovalRequest: vi.fn().mockImplementation(async (details) => ({
+                approvalId: 'recorded-approval-id',
+                timestamp: new Date('2026-05-11T00:00:00.000Z'),
+                ...details,
+            })),
+            recordApprovalResponse: vi.fn().mockResolvedValue({
+                approvalId: 'recorded-approval-id',
+                status: ApprovalStatus.APPROVED,
+                data: { rememberChoice: false },
+            }),
+            recordApprovalResponseRecord: vi.fn().mockResolvedValue({
+                status: 'created',
+                response: {
+                    approvalId: 'recorded-approval-id',
+                    status: ApprovalStatus.APPROVED,
+                    data: { rememberChoice: false },
+                },
             }),
             addApprovedDirectory: vi.fn(),
             isDirectorySessionApproved: vi.fn().mockReturnValue(false),
@@ -689,6 +722,577 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             );
             expect(mockMcpManager.executeTool).not.toHaveBeenCalled();
             expect(mockApprovalManager.requestToolApproval).not.toHaveBeenCalled();
+        });
+
+        it('records a classified approval request with stable turn identity', async () => {
+            const toolManager = createToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'manual',
+                mockAgentEventBus,
+                { alwaysAllow: [], alwaysDeny: [] },
+                [
+                    defineTool({
+                        id: 'write_file',
+                        description: 'Write file',
+                        inputSchema: z.object({ path: z.string() }).strict(),
+                        execute: vi.fn(),
+                    }),
+                ],
+                mockLogger
+            );
+            const classification = await toolManager.classifyToolExecution({
+                toolName: 'write_file',
+                input: { path: 'src/app.ts' },
+                toolCallId: 'call-record',
+                sessionId: 'session-1',
+            });
+
+            expect(classification.kind).toBe('approval-required');
+            if (classification.kind !== 'approval-required') {
+                throw new Error('Expected approval-required classification');
+            }
+
+            await expect(
+                toolManager.recordApprovalRequest(classification, {
+                    runId: 'run-1',
+                    turnId: 'turn-1',
+                    modelStepId: 'step-1',
+                })
+            ).resolves.toEqual(
+                expect.objectContaining({
+                    classification,
+                    request: expect.objectContaining({
+                        approvalId: 'recorded-approval-id',
+                        type: ApprovalType.TOOL_APPROVAL,
+                        sessionId: 'session-1',
+                    }),
+                })
+            );
+            expect(mockApprovalManager.recordApprovalRequest).toHaveBeenCalledWith(
+                classification.requestDetails,
+                {
+                    runId: 'run-1',
+                    turnId: 'turn-1',
+                    modelStepId: 'step-1',
+                    toolCallId: 'call-record',
+                }
+            );
+            expect(mockApprovalManager.requestToolApproval).not.toHaveBeenCalled();
+        });
+
+        it('applies an approved recorded decision and returns a ready tool call', async () => {
+            const execute = vi.fn();
+            const toolManager = createToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'manual',
+                mockAgentEventBus,
+                { alwaysAllow: [], alwaysDeny: [] },
+                [
+                    defineTool({
+                        id: 'write_file',
+                        description: 'Write file',
+                        inputSchema: z.object({ path: z.string() }).strict(),
+                        execute,
+                    }),
+                ],
+                mockLogger
+            );
+            const classification = await toolManager.classifyToolExecution({
+                toolName: 'write_file',
+                input: { path: 'src/app.ts' },
+                toolCallId: 'call-apply',
+                sessionId: 'session-1',
+            });
+            if (classification.kind !== 'approval-required') {
+                throw new Error('Expected approval-required classification');
+            }
+            mockApprovalManager.recordApprovalResponseRecord = vi.fn().mockResolvedValue({
+                status: 'created',
+                response: {
+                    approvalId: '00000000-0000-4000-8000-000000000001',
+                    sessionId: 'session-1',
+                    status: ApprovalStatus.APPROVED,
+                    data: { rememberChoice: true },
+                },
+            });
+            const recorded = createRecordedToolApproval(
+                classification,
+                '00000000-0000-4000-8000-000000000001'
+            );
+
+            await expect(
+                toolManager.applyApprovalDecision(recorded, {
+                    approvalId: '00000000-0000-4000-8000-000000000001',
+                    status: ApprovalStatus.APPROVED,
+                    data: { rememberChoice: true },
+                })
+            ).resolves.toEqual({
+                kind: 'ready',
+                call: classification.call,
+                response: expect.objectContaining({
+                    approvalId: '00000000-0000-4000-8000-000000000001',
+                    status: ApprovalStatus.APPROVED,
+                }),
+            });
+            expect(mockAllowedToolsProvider.allowTool).toHaveBeenCalledWith(
+                'write_file',
+                'session-1'
+            );
+            expect(mockApprovalManager.recordApprovalResponseRecord).toHaveBeenCalledWith(
+                {
+                    approvalId: '00000000-0000-4000-8000-000000000001',
+                    status: ApprovalStatus.APPROVED,
+                    data: { rememberChoice: true },
+                },
+                recorded.request
+            );
+            expect(execute).not.toHaveBeenCalled();
+        });
+
+        it('applies a denied recorded decision as one model-visible terminal result', async () => {
+            const execute = vi.fn();
+            const toolManager = createToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'manual',
+                mockAgentEventBus,
+                { alwaysAllow: [], alwaysDeny: [] },
+                [
+                    defineTool({
+                        id: 'write_file',
+                        description: 'Write file',
+                        inputSchema: z.object({ path: z.string() }).strict(),
+                        execute,
+                    }),
+                ],
+                mockLogger
+            );
+            const classification = await toolManager.classifyToolExecution({
+                toolName: 'write_file',
+                input: { path: 'src/app.ts' },
+                toolCallId: 'call-denied-decision',
+                sessionId: 'session-1',
+            });
+            if (classification.kind !== 'approval-required') {
+                throw new Error('Expected approval-required classification');
+            }
+            mockApprovalManager.recordApprovalResponseRecord = vi.fn().mockResolvedValue({
+                status: 'created',
+                response: {
+                    approvalId: '00000000-0000-4000-8000-000000000002',
+                    sessionId: 'session-1',
+                    status: ApprovalStatus.DENIED,
+                    reason: 'user_denied',
+                    message: 'No writes right now',
+                },
+            });
+            const recorded = createRecordedToolApproval(
+                classification,
+                '00000000-0000-4000-8000-000000000002'
+            );
+
+            await expect(
+                toolManager.applyApprovalDecision(recorded, {
+                    approvalId: '00000000-0000-4000-8000-000000000002',
+                    status: ApprovalStatus.DENIED,
+                    reason: 'user_denied',
+                    message: 'No writes right now',
+                })
+            ).resolves.toEqual({
+                kind: 'terminal',
+                modelVisibleResult: expect.objectContaining({
+                    requireApproval: true,
+                    approvalStatus: 'rejected',
+                    result: expect.objectContaining({
+                        error: expect.stringContaining('No writes right now'),
+                    }),
+                }),
+                response: expect.objectContaining({
+                    approvalId: '00000000-0000-4000-8000-000000000002',
+                    status: ApprovalStatus.DENIED,
+                }),
+            });
+            expect(execute).not.toHaveBeenCalled();
+            expect(mockAllowedToolsProvider.allowTool).not.toHaveBeenCalled();
+        });
+
+        it('applies a timed-out recorded decision as one model-visible terminal result', async () => {
+            const execute = vi.fn();
+            const toolManager = createToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'manual',
+                mockAgentEventBus,
+                { alwaysAllow: [], alwaysDeny: [] },
+                [
+                    defineTool({
+                        id: 'write_file',
+                        description: 'Write file',
+                        inputSchema: z.object({ path: z.string() }).strict(),
+                        execute,
+                    }),
+                ],
+                mockLogger
+            );
+            const classification = await toolManager.classifyToolExecution({
+                toolName: 'write_file',
+                input: { path: 'src/app.ts' },
+                toolCallId: 'call-timeout-decision',
+                sessionId: 'session-1',
+            });
+            if (classification.kind !== 'approval-required') {
+                throw new Error('Expected approval-required classification');
+            }
+            mockApprovalManager.recordApprovalResponseRecord = vi.fn().mockResolvedValue({
+                status: 'created',
+                response: {
+                    approvalId: '00000000-0000-4000-8000-000000000003',
+                    sessionId: 'session-1',
+                    status: ApprovalStatus.CANCELLED,
+                    reason: 'timeout',
+                    timeoutMs: 120000,
+                },
+            });
+            const recorded = createRecordedToolApproval(
+                classification,
+                '00000000-0000-4000-8000-000000000003'
+            );
+
+            await expect(
+                toolManager.applyApprovalDecision(recorded, {
+                    approvalId: '00000000-0000-4000-8000-000000000003',
+                    status: ApprovalStatus.CANCELLED,
+                    reason: 'timeout',
+                    timeoutMs: 120000,
+                })
+            ).resolves.toEqual({
+                kind: 'terminal',
+                modelVisibleResult: expect.objectContaining({
+                    requireApproval: true,
+                    approvalStatus: 'rejected',
+                    result: {
+                        error: "Tool 'write_file' was not executed because approval timed out after 120000ms.",
+                    },
+                }),
+                response: expect.objectContaining({
+                    approvalId: '00000000-0000-4000-8000-000000000003',
+                    status: ApprovalStatus.CANCELLED,
+                }),
+            });
+            expect(execute).not.toHaveBeenCalled();
+            expect(mockAllowedToolsProvider.allowTool).not.toHaveBeenCalled();
+        });
+
+        it('rejects applying an approval response to a different classified tool call', async () => {
+            const toolManager = createToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'manual',
+                mockAgentEventBus,
+                { alwaysAllow: [], alwaysDeny: [] },
+                [
+                    defineTool({
+                        id: 'write_file',
+                        description: 'Write file',
+                        inputSchema: z.object({ path: z.string() }).strict(),
+                        execute: vi.fn(),
+                    }),
+                ],
+                mockLogger
+            );
+            const classification = await toolManager.classifyToolExecution({
+                toolName: 'write_file',
+                input: { path: 'src/app.ts' },
+                toolCallId: 'call-mismatch',
+                sessionId: 'session-1',
+            });
+            if (classification.kind !== 'approval-required') {
+                throw new Error('Expected approval-required classification');
+            }
+            mockApprovalManager.recordApprovalResponseRecord = vi.fn().mockResolvedValue({
+                status: 'created',
+                response: {
+                    approvalId: '00000000-0000-4000-8000-000000000004',
+                    sessionId: 'session-1',
+                    status: ApprovalStatus.APPROVED,
+                },
+            });
+
+            await expect(
+                toolManager.applyApprovalDecision(
+                    {
+                        classification,
+                        request: createApprovalRequest(
+                            {
+                                type: ApprovalType.TOOL_APPROVAL,
+                                sessionId: 'session-1',
+                                metadata: {
+                                    toolName: 'write_file',
+                                    toolCallId: 'other-call',
+                                    args: { path: 'other.ts' },
+                                },
+                            },
+                            '00000000-0000-4000-8000-000000000004'
+                        ),
+                    },
+                    {
+                        approvalId: '00000000-0000-4000-8000-000000000004',
+                        status: ApprovalStatus.APPROVED,
+                    }
+                )
+            ).rejects.toThrow(/Recorded approval request does not match/);
+            expect(mockApprovalManager.recordApprovalResponseRecord).not.toHaveBeenCalled();
+        });
+
+        it('rejects applying a decision for a different approval before recording it', async () => {
+            const toolManager = createToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'manual',
+                mockAgentEventBus,
+                { alwaysAllow: [], alwaysDeny: [] },
+                [
+                    defineTool({
+                        id: 'write_file',
+                        description: 'Write file',
+                        inputSchema: z.object({ path: z.string() }).strict(),
+                        execute: vi.fn(),
+                    }),
+                ],
+                mockLogger
+            );
+            const classification = await toolManager.classifyToolExecution({
+                toolName: 'write_file',
+                input: { path: 'src/app.ts' },
+                toolCallId: 'call-decision-mismatch',
+                sessionId: 'session-1',
+            });
+            if (classification.kind !== 'approval-required') {
+                throw new Error('Expected approval-required classification');
+            }
+            const recorded = createRecordedToolApproval(
+                classification,
+                '00000000-0000-4000-8000-000000000005'
+            );
+
+            await expect(
+                toolManager.applyApprovalDecision(recorded, {
+                    approvalId: '00000000-0000-4000-8000-000000000006',
+                    status: ApprovalStatus.APPROVED,
+                })
+            ).rejects.toThrow(/Approval decision does not match/);
+            expect(mockApprovalManager.recordApprovalResponseRecord).not.toHaveBeenCalled();
+        });
+
+        it('rejects mismatched approval granted-effects requests before recording a decision', async () => {
+            const toolManager = createToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'manual',
+                mockAgentEventBus,
+                { alwaysAllow: [], alwaysDeny: [] },
+                [
+                    defineTool({
+                        id: 'write_file',
+                        description: 'Write file',
+                        inputSchema: z.object({ path: z.string() }).strict(),
+                        execute: vi.fn(),
+                    }),
+                ],
+                mockLogger
+            );
+            const classification = await toolManager.classifyToolExecution({
+                toolName: 'write_file',
+                input: { path: 'src/app.ts' },
+                toolCallId: 'call-granted-mismatch',
+                sessionId: 'session-1',
+            });
+            if (classification.kind !== 'approval-required') {
+                throw new Error('Expected approval-required classification');
+            }
+            const mismatchedClassification = {
+                ...classification,
+                onGrantedRequestDetails: {
+                    type: ApprovalType.DIRECTORY_ACCESS,
+                    sessionId: 'session-1',
+                    metadata: {
+                        path: '/tmp/other.ts',
+                        parentDir: '/tmp',
+                        operation: 'write',
+                        toolName: 'write_file',
+                    },
+                },
+            };
+
+            await expect(
+                toolManager.applyApprovalDecision(
+                    {
+                        classification: mismatchedClassification,
+                        request: createApprovalRequest(
+                            mismatchedClassification.requestDetails,
+                            '00000000-0000-4000-8000-000000000007'
+                        ),
+                    },
+                    {
+                        approvalId: '00000000-0000-4000-8000-000000000007',
+                        status: ApprovalStatus.APPROVED,
+                    }
+                )
+            ).rejects.toThrow(/granted-effects request does not match/);
+            expect(mockApprovalManager.recordApprovalResponseRecord).not.toHaveBeenCalled();
+        });
+
+        it('applies approved replayed decisions because execution idempotency owns dedupe', async () => {
+            const execute = vi.fn();
+            const toolManager = createToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'manual',
+                mockAgentEventBus,
+                { alwaysAllow: [], alwaysDeny: [] },
+                [
+                    defineTool({
+                        id: 'write_file',
+                        description: 'Write file',
+                        inputSchema: z.object({ path: z.string() }).strict(),
+                        execute,
+                    }),
+                ],
+                mockLogger
+            );
+            const classification = await toolManager.classifyToolExecution({
+                toolName: 'write_file',
+                input: { path: 'src/app.ts' },
+                toolCallId: 'call-replayed-decision',
+                sessionId: 'session-1',
+            });
+            if (classification.kind !== 'approval-required') {
+                throw new Error('Expected approval-required classification');
+            }
+            mockApprovalManager.recordApprovalResponseRecord = vi.fn().mockResolvedValue({
+                status: 'replayed',
+                response: {
+                    approvalId: '00000000-0000-4000-8000-000000000007',
+                    sessionId: 'session-1',
+                    status: ApprovalStatus.APPROVED,
+                    data: { rememberChoice: true },
+                },
+            });
+            const recorded = createRecordedToolApproval(
+                classification,
+                '00000000-0000-4000-8000-000000000007'
+            );
+
+            await expect(
+                toolManager.applyApprovalDecision(recorded, {
+                    approvalId: '00000000-0000-4000-8000-000000000007',
+                    status: ApprovalStatus.APPROVED,
+                    data: { rememberChoice: true },
+                })
+            ).resolves.toEqual({
+                kind: 'ready',
+                call: classification.call,
+                response: expect.objectContaining({
+                    approvalId: '00000000-0000-4000-8000-000000000007',
+                    status: ApprovalStatus.APPROVED,
+                }),
+            });
+            expect(mockAllowedToolsProvider.allowTool).toHaveBeenCalledWith(
+                'write_file',
+                'session-1'
+            );
+            expect(execute).not.toHaveBeenCalled();
+        });
+
+        it('applies directory approval onGranted effects with the original directory request', async () => {
+            const onGranted = vi.fn();
+            const toolManager = createToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'manual',
+                mockAgentEventBus,
+                { alwaysAllow: [], alwaysDeny: [] },
+                [
+                    defineTool({
+                        id: 'fs_like_tool',
+                        description: 'Filesystem-like tool',
+                        inputSchema: z.object({ file_path: z.string() }).strict(),
+                        approval: {
+                            override: vi.fn().mockReturnValue({
+                                type: ApprovalType.DIRECTORY_ACCESS,
+                                metadata: {
+                                    path: '/tmp/example.txt',
+                                    parentDir: '/tmp',
+                                    operation: 'write',
+                                    toolName: 'fs_like_tool',
+                                },
+                            }),
+                            onGranted,
+                        },
+                        execute: vi.fn(),
+                    }),
+                ],
+                mockLogger
+            );
+            toolManager.setToolExecutionContextFactory((baseContext) => baseContext);
+            const classification = await toolManager.classifyToolExecution({
+                toolName: 'fs_like_tool',
+                input: { file_path: '/tmp/example.txt' },
+                toolCallId: 'call-dir-apply',
+                sessionId: 'session-1',
+            });
+            if (classification.kind !== 'approval-required') {
+                throw new Error('Expected approval-required classification');
+            }
+            mockApprovalManager.recordApprovalResponseRecord = vi.fn().mockResolvedValue({
+                status: 'created',
+                response: {
+                    approvalId: '00000000-0000-4000-8000-000000000005',
+                    sessionId: 'session-1',
+                    status: ApprovalStatus.APPROVED,
+                    data: { rememberDirectory: true },
+                },
+            });
+            const recorded = createRecordedToolApproval(
+                classification,
+                '00000000-0000-4000-8000-000000000005'
+            );
+
+            await toolManager.applyApprovalDecision(recorded, {
+                approvalId: '00000000-0000-4000-8000-000000000005',
+                status: ApprovalStatus.APPROVED,
+                data: { rememberDirectory: true },
+            });
+
+            expect(onGranted).toHaveBeenCalledWith(
+                expect.objectContaining({ status: ApprovalStatus.APPROVED }),
+                expect.objectContaining({
+                    sessionId: 'session-1',
+                    toolCallId: 'call-dir-apply',
+                }),
+                expect.objectContaining({
+                    type: ApprovalType.DIRECTORY_ACCESS,
+                    metadata: expect.objectContaining({
+                        parentDir: '/tmp',
+                        operation: 'write',
+                    }),
+                })
+            );
+            expect(mockApprovalManager.autoApprovePendingRequests).toHaveBeenCalledWith(
+                expect.any(Function),
+                { rememberDirectory: false }
+            );
         });
     });
 

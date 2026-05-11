@@ -92,12 +92,12 @@ class InMemoryDatabase implements Database {
         this.data.set(key, value);
     }
 
-    async setIfAbsent<T>(key: string, value: T): Promise<T> {
+    async setIfAbsent<T>(key: string, value: T): Promise<{ value: T; inserted: boolean }> {
         if (this.data.has(key)) {
-            return this.data.get(key) as T;
+            return { value: this.data.get(key) as T, inserted: false };
         }
         this.data.set(key, value);
-        return value;
+        return { value, inserted: true };
     }
 
     async delete(key: string): Promise<void> {

@@ -240,8 +240,14 @@ describe('DatabaseBackedApprovalStore', () => {
             store.saveResponse({ response: denied }),
         ]);
 
-        expect(firstRecorded).toEqual(approved);
-        expect(secondRecorded).toEqual(approved);
+        expect([firstRecorded, secondRecorded]).toContainEqual({
+            response: approved,
+            status: 'created',
+        });
+        expect([firstRecorded, secondRecorded]).toContainEqual({
+            response: approved,
+            status: 'replayed',
+        });
         await expect(store.getResponse({ approvalId: request.approvalId })).resolves.toEqual(
             approved
         );

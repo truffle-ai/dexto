@@ -74,7 +74,10 @@ describe('DatabaseConversationStore', () => {
             {
                 get: async () => undefined,
                 set: async () => {},
-                setIfAbsent: async <T>(_key: string, value: T) => value,
+                setIfAbsent: async <T>(_key: string, value: T) => ({
+                    value,
+                    inserted: true,
+                }),
                 delete: async () => {},
                 list: async () => [],
                 append: async () => {},

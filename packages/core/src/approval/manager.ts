@@ -38,14 +38,14 @@ type ApprovalScopeState = {
     approvedDirectories: Map<string, 'session' | 'once'>;
 };
 
-type ApprovalRecordIdentity = {
+export type ApprovalRecordIdentity = {
     runId: string;
     turnId: string;
     modelStepId: string;
     toolCallId: string;
 };
 
-type ApprovalDecisionInput =
+export type ApprovalDecisionInput =
     | {
           approvalId: ApprovalRequest['approvalId'];
           status: typeof ApprovalStatus.APPROVED;
@@ -59,6 +59,11 @@ type ApprovalDecisionInput =
           timeoutMs?: number;
           data?: ApprovalResponse['data'];
       };
+
+export type ApprovalResponseRecord = {
+    response: ApprovalResponse;
+    status: 'created' | 'replayed';
+};
 
 function tryRealpathSync(targetPath: string): string | null {
     try {
@@ -843,6 +848,14 @@ export class ApprovalManager {
     }
 
     async recordApprovalResponse(decision: ApprovalDecisionInput): Promise<ApprovalResponse> {
+        const record = await this.recordApprovalResponseRecord(decision);
+        return record.response;
+    }
+
+    async recordApprovalResponseRecord(
+        decision: ApprovalDecisionInput,
+        expectedRequest?: ApprovalRequest
+    ): Promise<ApprovalResponseRecord> {
         return this.runWithApprovalRecordLock(decision.approvalId, async () => {
             const request = await this.approvalStore.getRequest({
                 approvalId: decision.approvalId,
@@ -851,6 +864,9 @@ export class ApprovalManager {
                 throw ApprovalError.invalidResponse('Approval response has no recorded request', {
                     approvalId: decision.approvalId,
                 });
+            }
+            if (expectedRequest !== undefined) {
+                this.assertMatchingRecordedRequest(request, expectedRequest);
             }
 
             const response = this.parseResponseForRequest(
@@ -869,11 +885,11 @@ export class ApprovalManager {
                         }
                     );
                 }
-                return existing;
+                return { response: existing, status: 'replayed' };
             }
 
-            const recorded = await this.approvalStore.saveResponse({ response });
-            if (!isDeepStrictEqual(recorded, response)) {
+            const record = await this.approvalStore.saveResponse({ response });
+            if (!isDeepStrictEqual(record.response, response)) {
                 throw ApprovalError.invalidResponse(
                     'Approval response conflicts with existing approval response',
                     {
@@ -881,7 +897,7 @@ export class ApprovalManager {
                     }
                 );
             }
-            return recorded;
+            return record;
         });
     }
 

@@ -115,13 +115,15 @@ class InMemoryApprovalStore implements ApprovalStore {
         return pending;
     }
 
-    async saveResponse(input: { response: ApprovalResponse }): Promise<ApprovalResponse> {
+    async saveResponse(input: {
+        response: ApprovalResponse;
+    }): Promise<{ response: ApprovalResponse; status: 'created' | 'replayed' }> {
         const existing = this.responses.get(input.response.approvalId);
         if (existing) {
-            return structuredClone(existing);
+            return { response: structuredClone(existing), status: 'replayed' };
         }
         this.responses.set(input.response.approvalId, structuredClone(input.response));
-        return structuredClone(input.response);
+        return { response: structuredClone(input.response), status: 'created' };
     }
 
     async getResponse(input: { approvalId: string }): Promise<ApprovalResponse | undefined> {

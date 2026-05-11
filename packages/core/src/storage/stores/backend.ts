@@ -180,7 +180,7 @@ export class DatabaseBackedApprovalStore implements ApprovalStore {
         const request = ApprovalRequestSchema.parse(input.request);
         const key = this.requestKey(request.approvalId);
         const stored = await this.database.setIfAbsent<ApprovalRequest>(key, request);
-        return ApprovalRequestSchema.parse(stored);
+        return ApprovalRequestSchema.parse(stored.value);
     }
 
     async getRequest(input: { approvalId: string }): Promise<ApprovalRequest | undefined> {
@@ -208,11 +208,16 @@ export class DatabaseBackedApprovalStore implements ApprovalStore {
         return pending;
     }
 
-    async saveResponse(input: { response: ApprovalResponse }): Promise<ApprovalResponse> {
+    async saveResponse(input: {
+        response: ApprovalResponse;
+    }): Promise<{ response: ApprovalResponse; status: 'created' | 'replayed' }> {
         const response = ApprovalResponseSchema.parse(input.response);
         const key = this.responseKey(response.approvalId);
         const stored = await this.database.setIfAbsent<ApprovalResponse>(key, response);
-        return ApprovalResponseSchema.parse(stored);
+        return {
+            response: ApprovalResponseSchema.parse(stored.value),
+            status: stored.inserted ? 'created' : 'replayed',
+        };
     }
 
     async getResponse(input: { approvalId: string }): Promise<ApprovalResponse | undefined> {

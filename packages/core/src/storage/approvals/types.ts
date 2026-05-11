@@ -24,7 +24,9 @@ export interface ApprovalStore {
     getRequest(input: { approvalId: string }): Promise<ApprovalRequest | undefined>;
     listPending(input: { sessionId?: string }): Promise<ApprovalRequest[]>;
     /** Persist the response if the approval id is not already resolved. Must not overwrite. */
-    saveResponse(input: { response: ApprovalResponse }): Promise<ApprovalResponse>;
+    saveResponse(input: {
+        response: ApprovalResponse;
+    }): Promise<{ response: ApprovalResponse; status: 'created' | 'replayed' }>;
     getResponse(input: { approvalId: string }): Promise<ApprovalResponse | undefined>;
     loadSessionState(input: { sessionId?: string }): Promise<SessionApprovalState>;
     saveSessionState(input: { sessionId?: string; state: SessionApprovalState }): Promise<void>;

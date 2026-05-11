@@ -189,7 +189,7 @@ export class PostgresStore implements Database {
         }
     }
 
-    async setIfAbsent<T>(key: string, value: T): Promise<T> {
+    async setIfAbsent<T>(key: string, value: T): Promise<{ value: T; inserted: boolean }> {
         try {
             return await this.withRetry('setIfAbsent', async (client) => {
                 const jsonValue = JSON.stringify(value);
@@ -198,11 +198,14 @@ export class PostgresStore implements Database {
                     [key, jsonValue, new Date()]
                 );
                 if (inserted.rows[0]) {
-                    return inserted.rows[0].value;
+                    return { value: inserted.rows[0].value, inserted: true };
                 }
 
                 const existing = await client.query('SELECT value FROM kv WHERE key = $1', [key]);
-                return existing.rows[0] ? existing.rows[0].value : value;
+                return {
+                    value: existing.rows[0] ? existing.rows[0].value : value,
+                    inserted: false,
+                };
             });
         } catch (error) {
             throw StorageError.writeFailed(

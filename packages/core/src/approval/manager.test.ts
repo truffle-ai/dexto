@@ -3,6 +3,7 @@ import * as path from 'node:path';
 import * as os from 'node:os';
 import { mkdtempSync, mkdirSync, rmSync, symlinkSync } from 'node:fs';
 import { ApprovalManager } from './manager.js';
+import { createApprovalRequest } from './factory.js';
 import { ApprovalStatus, ApprovalType, DenialReason } from './types.js';
 import { AgentEventBus } from '../events/index.js';
 import { DextoRuntimeError } from '../errors/index.js';
@@ -314,11 +315,13 @@ describe('ApprovalManager', () => {
                 },
             };
 
-            const firstResponse = await manager.recordApprovalResponse(firstDecision);
+            const firstRecord = await manager.recordApprovalResponseRecord(firstDecision);
+            expect(firstRecord.status).toBe('created');
 
-            await expect(manager.recordApprovalResponse(replayedDecision)).resolves.toEqual(
-                firstResponse
-            );
+            await expect(manager.recordApprovalResponseRecord(replayedDecision)).resolves.toEqual({
+                response: firstRecord.response,
+                status: 'replayed',
+            });
         });
 
         it('rejects request replays that reuse an approval identity with different details', async () => {
@@ -364,6 +367,58 @@ describe('ApprovalManager', () => {
                         },
                     },
                     identity
+                )
+            ).rejects.toThrow(/conflicts with existing approval request/);
+        });
+
+        it('rejects response recording when the expected request does not match persisted state', async () => {
+            const manager = createApprovalManager({
+                permissions: {
+                    mode: 'manual',
+                    timeout: 120000,
+                },
+                elicitation: {
+                    enabled: true,
+                    timeout: 120000,
+                },
+            });
+            const request = await manager.recordApprovalRequest(
+                {
+                    type: ApprovalType.TOOL_APPROVAL,
+                    sessionId: 'session-1',
+                    metadata: {
+                        toolName: 'write_file',
+                        toolCallId: 'call-1',
+                        args: { path: 'src/app.ts' },
+                    },
+                },
+                {
+                    runId: 'run-1',
+                    turnId: 'turn-1',
+                    modelStepId: 'step-1',
+                    toolCallId: 'call-1',
+                }
+            );
+            const mismatchedExpectedRequest = createApprovalRequest(
+                {
+                    type: ApprovalType.TOOL_APPROVAL,
+                    sessionId: 'session-1',
+                    metadata: {
+                        toolName: 'write_file',
+                        toolCallId: 'call-1',
+                        args: { path: 'other.ts' },
+                    },
+                },
+                request.approvalId
+            );
+
+            await expect(
+                manager.recordApprovalResponseRecord(
+                    {
+                        approvalId: request.approvalId,
+                        status: ApprovalStatus.APPROVED,
+                    },
+                    mismatchedExpectedRequest
                 )
             ).rejects.toThrow(/conflicts with existing approval request/);
         });

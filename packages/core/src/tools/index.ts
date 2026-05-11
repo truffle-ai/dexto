@@ -29,3 +29,12 @@ export { ToolErrorCode } from './error-codes.js';
 
 // Unified tool manager (main interface for LLM)
 export { ToolManager, type ToolExecutionContextFactory } from './tool-manager.js';
+export type {
+    ExecutableToolCall,
+    RecordedToolApproval,
+    ToolApprovalDecisionApplication,
+    ToolApprovalRecordIdentity,
+    ToolApprovalRequiredClassification,
+    ToolExecutionClassification,
+    ToolExecutionClassificationInput,
+} from './tool-manager.js';

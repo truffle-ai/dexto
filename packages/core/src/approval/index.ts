@@ -76,4 +76,9 @@ export type {
 
 // Manager
 export { ApprovalManager } from './manager.js';
-export type { ApprovalManagerConfig } from './manager.js';
+export type {
+    ApprovalDecisionInput,
+    ApprovalManagerConfig,
+    ApprovalRecordIdentity,
+    ApprovalResponseRecord,
+} from './manager.js';

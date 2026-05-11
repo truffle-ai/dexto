@@ -1,3 +1,4 @@
+import { isDeepStrictEqual } from 'node:util';
 import { MCPManager } from '../mcp/manager.js';
 import type { ToolPolicies } from './schemas.js';
 import {
@@ -16,7 +17,11 @@ import type { Logger } from '../logger/v2/types.js';
 import { DextoLogComponent } from '../logger/v2/types.js';
 import { convertZodSchemaToJsonSchema } from '../utils/schema.js';
 import type { AgentEventBus } from '../events/index.js';
-import type { ApprovalManager } from '../approval/manager.js';
+import type {
+    ApprovalDecisionInput,
+    ApprovalManager,
+    ApprovalRecordIdentity,
+} from '../approval/manager.js';
 import { ApprovalStatus, ApprovalType, DenialReason } from '../approval/types.js';
 import type {
     ApprovalRequest,
@@ -77,6 +82,7 @@ export type ToolExecutionClassification =
     | {
           kind: 'approval-required';
           call: ExecutableToolCall;
+          onGrantedRequestDetails: ApprovalRequestDetails;
           requestDetails: ApprovalRequestDetails;
       }
     | {
@@ -89,7 +95,31 @@ export type ToolExecutionClassification =
           modelVisibleResult: ToolExecutionResult;
       };
 
-type ToolExecutionClassificationInput = {
+export type ToolApprovalRequiredClassification = Extract<
+    ToolExecutionClassification,
+    { kind: 'approval-required' }
+>;
+
+export type ToolApprovalRecordIdentity = Omit<ApprovalRecordIdentity, 'toolCallId'>;
+
+export type RecordedToolApproval = {
+    classification: ToolApprovalRequiredClassification;
+    request: ApprovalRequest;
+};
+
+export type ToolApprovalDecisionApplication =
+    | {
+          kind: 'ready';
+          call: ExecutableToolCall;
+          response: ApprovalResponse;
+      }
+    | {
+          kind: 'terminal';
+          modelVisibleResult: ToolExecutionResult;
+          response: ApprovalResponse;
+      };
+
+export type ToolExecutionClassificationInput = {
     toolName: string;
     input: unknown;
     toolCallId: string;
@@ -1639,6 +1669,7 @@ export class ToolManager {
                 return {
                     kind: 'approval-required',
                     call,
+                    onGrantedRequestDetails: overrideRequest.onGrantedRequestDetails,
                     requestDetails: overrideRequest.requestDetails,
                 };
             }
@@ -1666,6 +1697,7 @@ export class ToolManager {
             return {
                 kind: 'approval-required',
                 call,
+                onGrantedRequestDetails: overrideRequest.onGrantedRequestDetails,
                 requestDetails: {
                     ...overrideRequest.requestDetails,
                     metadata: {
@@ -1715,7 +1747,195 @@ export class ToolManager {
             },
         };
 
-        return { kind: 'approval-required', call, requestDetails };
+        return {
+            kind: 'approval-required',
+            call,
+            onGrantedRequestDetails: requestDetails,
+            requestDetails,
+        };
+    }
+
+    async recordApprovalRequest(
+        classification: ToolApprovalRequiredClassification,
+        identity: ToolApprovalRecordIdentity
+    ): Promise<RecordedToolApproval> {
+        this.assertOnGrantedRequestMatchesClassification(classification);
+        const request = await this.approvalManager.recordApprovalRequest(
+            classification.requestDetails,
+            {
+                ...identity,
+                toolCallId: classification.call.toolCallId,
+            }
+        );
+        this.assertRecordedApprovalMatchesClassification(classification, request);
+        return { classification, request };
+    }
+
+    async applyApprovalDecision(
+        recorded: RecordedToolApproval,
+        decision: ApprovalDecisionInput,
+        runContext?: AgentRunContext
+    ): Promise<ToolApprovalDecisionApplication> {
+        if (decision.approvalId !== recorded.request.approvalId) {
+            throw ToolError.executionFailed(
+                recorded.classification.call.toolName,
+                'Approval decision does not match the recorded approval request'
+            );
+        }
+        this.assertOnGrantedRequestMatchesClassification(recorded.classification);
+        this.assertRecordedApprovalMatchesClassification(recorded.classification, recorded.request);
+
+        const record = await this.approvalManager.recordApprovalResponseRecord(
+            decision,
+            recorded.request
+        );
+
+        if (record.response.status !== ApprovalStatus.APPROVED) {
+            return {
+                kind: 'terminal',
+                modelVisibleResult: this.createApprovalTerminalResult(
+                    recorded.classification.call,
+                    record.response
+                ),
+                response: record.response,
+            };
+        }
+
+        await this.applyApprovalGrantedEffects(
+            recorded.classification,
+            record.response,
+            runContext
+        );
+        return {
+            kind: 'ready',
+            call: recorded.classification.call,
+            response: record.response,
+        };
+    }
+
+    private assertRecordedApprovalMatchesClassification(
+        classification: ToolApprovalRequiredClassification,
+        request: ApprovalRequest
+    ): void {
+        const expected = {
+            type: classification.requestDetails.type,
+            sessionId: classification.requestDetails.sessionId,
+            hostRuntime: classification.requestDetails.hostRuntime,
+            metadata: classification.requestDetails.metadata,
+        };
+        const actual = {
+            type: request.type,
+            sessionId: request.sessionId,
+            hostRuntime: request.hostRuntime,
+            metadata: request.metadata,
+        };
+
+        if (!isDeepStrictEqual(actual, expected)) {
+            throw ToolError.executionFailed(
+                classification.call.toolName,
+                'Recorded approval request does not match the classified tool call'
+            );
+        }
+    }
+
+    private assertOnGrantedRequestMatchesClassification(
+        classification: ToolApprovalRequiredClassification
+    ): void {
+        const approvalDetails = classification.requestDetails;
+        const grantedDetails = classification.onGrantedRequestDetails;
+        const directoryAccess =
+            approvalDetails.type === ApprovalType.TOOL_APPROVAL &&
+            'directoryAccess' in approvalDetails.metadata
+                ? DirectoryAccessMetadataSchema.parse(approvalDetails.metadata.directoryAccess)
+                : undefined;
+
+        if (directoryAccess !== undefined) {
+            const expected = {
+                type: ApprovalType.DIRECTORY_ACCESS,
+                sessionId: approvalDetails.sessionId,
+                hostRuntime: approvalDetails.hostRuntime,
+                metadata: directoryAccess,
+            };
+            const actual = {
+                type: grantedDetails.type,
+                sessionId: grantedDetails.sessionId,
+                hostRuntime: grantedDetails.hostRuntime,
+                metadata: grantedDetails.metadata,
+            };
+
+            if (!isDeepStrictEqual(actual, expected)) {
+                throw ToolError.executionFailed(
+                    classification.call.toolName,
+                    'Approval granted-effects request does not match the classified tool call'
+                );
+            }
+            return;
+        }
+
+        if (!isDeepStrictEqual(grantedDetails, approvalDetails)) {
+            throw ToolError.executionFailed(
+                classification.call.toolName,
+                'Approval granted-effects request does not match the classified tool call'
+            );
+        }
+    }
+
+    private async applyApprovalGrantedEffects(
+        classification: ToolApprovalRequiredClassification,
+        response: ApprovalResponse,
+        runContext?: AgentRunContext
+    ): Promise<void> {
+        const requestDetails = classification.onGrantedRequestDetails;
+        const approvalRequestDetails = classification.requestDetails;
+        const sessionId = approvalRequestDetails.sessionId;
+        const onGranted = this.getToolApprovalOnGrantedFn(classification.call.toolName);
+
+        if (onGranted) {
+            const context = this.buildToolExecutionContext({
+                sessionId,
+                toolCallId: classification.call.toolCallId,
+                runContext,
+            });
+            await Promise.resolve(onGranted(response, context, requestDetails));
+        }
+
+        if (approvalRequestDetails.type === ApprovalType.TOOL_APPROVAL && response.data) {
+            await this.handleRememberChoice(classification.call.toolName, response, sessionId);
+        }
+    }
+
+    private createApprovalTerminalResult(
+        call: ExecutableToolCall,
+        response: ApprovalResponse
+    ): ToolExecutionResult {
+        return {
+            result: {
+                error: this.formatApprovalTerminalMessage(call.toolName, response),
+            },
+            presentationSnapshot: call.presentationSnapshot,
+            ...(call.meta !== undefined ? { meta: call.meta } : {}),
+            requireApproval: true,
+            approvalStatus: 'rejected',
+        };
+    }
+
+    private formatApprovalTerminalMessage(toolName: string, response: ApprovalResponse): string {
+        if (
+            response.status === ApprovalStatus.CANCELLED &&
+            response.reason === DenialReason.TIMEOUT
+        ) {
+            return `Tool '${toolName}' was not executed because approval timed out${
+                response.timeoutMs !== undefined ? ` after ${response.timeoutMs}ms` : ''
+            }.`;
+        }
+
+        const outcome =
+            response.status === ApprovalStatus.DENIED
+                ? 'approval was denied'
+                : 'approval was cancelled';
+        return `Tool '${toolName}' was not executed because ${outcome}${
+            response.message ? `: ${response.message}` : ''
+        }.`;
     }
 
     private async resolveExecutableToolSource(
@@ -1758,6 +1978,7 @@ export class ToolManager {
         runContext?: AgentRunContext
     ): Promise<{
         requestDetails: ApprovalRequestDetails;
+        onGrantedRequestDetails: ApprovalRequestDetails;
         directoryAccess?: DirectoryAccessMetadata;
     } | null> {
         if (toolName.startsWith(ToolManager.MCP_TOOL_PREFIX)) {
@@ -1784,7 +2005,7 @@ export class ToolManager {
         };
 
         if (requestDetails.type !== ApprovalType.DIRECTORY_ACCESS) {
-            return { requestDetails };
+            return { requestDetails, onGrantedRequestDetails: requestDetails };
         }
 
         const parseResult = DirectoryAccessMetadataSchema.safeParse(requestDetails.metadata);
@@ -1797,6 +2018,7 @@ export class ToolManager {
         const directoryAccess = parseResult.data;
         return {
             directoryAccess,
+            onGrantedRequestDetails: requestDetails,
             requestDetails: {
                 type: ApprovalType.TOOL_APPROVAL,
                 ...(requestDetails.sessionId !== undefined
