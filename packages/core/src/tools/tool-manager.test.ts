@@ -14,6 +14,7 @@ import { createMockLogger } from '../logger/v2/test-utils.js';
 import { SessionError } from '../session/errors.js';
 import { createInMemorySessionToolPreferencesStore } from '../test-utils/session-state-stores.js';
 import type { SessionToolPreferences } from './session-tool-preferences-store.js';
+import { createAgentRunContext } from '../runtime/run-context.js';
 
 function createDeferred<T>() {
     let resolve!: (value: T | PromiseLike<T>) => void;
@@ -192,6 +193,502 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             );
 
             expect(toolManager.getToolSource('mcp--')).toBe('unknown'); // Prefix but no name
+        });
+    });
+
+    describe('Tool Execution Classification', () => {
+        it('classifies a local tool as ready without executing it in auto-approve mode', async () => {
+            const execute = vi.fn().mockResolvedValue('should not run');
+            const toolManager = createToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'auto-approve',
+                mockAgentEventBus,
+                { alwaysAllow: [], alwaysDeny: [] },
+                [
+                    defineTool({
+                        id: 'typed',
+                        description: 'Typed tool',
+                        inputSchema: z.object({ count: z.number() }).strict(),
+                        execute,
+                    }),
+                ],
+                mockLogger
+            );
+
+            const classification = await toolManager.classifyToolExecution({
+                toolName: 'typed',
+                input: { count: 5 },
+                toolCallId: 'call-1',
+                sessionId: 'session-1',
+            });
+
+            expect(classification).toEqual(
+                expect.objectContaining({
+                    kind: 'ready',
+                    call: expect.objectContaining({
+                        toolName: 'typed',
+                        toolCallId: 'call-1',
+                        input: { count: 5 },
+                        source: 'local',
+                    }),
+                })
+            );
+            expect(execute).not.toHaveBeenCalled();
+            expect(mockApprovalManager.requestToolApproval).not.toHaveBeenCalled();
+        });
+
+        it('classifies a local tool as approval-required in manual mode without requesting approval', async () => {
+            const toolManager = createToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'manual',
+                mockAgentEventBus,
+                { alwaysAllow: [], alwaysDeny: [] },
+                [
+                    defineTool({
+                        id: 'write_file',
+                        description: 'Write file',
+                        inputSchema: z.object({ path: z.string() }).strict(),
+                        execute: vi.fn(),
+                    }),
+                ],
+                mockLogger
+            );
+
+            const classification = await toolManager.classifyToolExecution({
+                toolName: 'write_file',
+                input: { path: 'src/app.ts' },
+                toolCallId: 'call-2',
+                sessionId: 'session-1',
+            });
+
+            expect(classification).toEqual(
+                expect.objectContaining({
+                    kind: 'approval-required',
+                    call: expect.objectContaining({
+                        toolName: 'write_file',
+                        input: { path: 'src/app.ts' },
+                    }),
+                    requestDetails: expect.objectContaining({
+                        type: ApprovalType.TOOL_APPROVAL,
+                        sessionId: 'session-1',
+                        metadata: expect.objectContaining({
+                            toolName: 'write_file',
+                            toolCallId: 'call-2',
+                            args: { path: 'src/app.ts' },
+                        }),
+                    }),
+                })
+            );
+            expect(mockApprovalManager.requestToolApproval).not.toHaveBeenCalled();
+        });
+
+        it('uses the run context session for approval classification', async () => {
+            const toolManager = createToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'manual',
+                mockAgentEventBus,
+                { alwaysAllow: [], alwaysDeny: [] },
+                [
+                    defineTool({
+                        id: 'write_file',
+                        description: 'Write file',
+                        inputSchema: z.object({ path: z.string() }).strict(),
+                        execute: vi.fn(),
+                    }),
+                ],
+                mockLogger
+            );
+
+            const classification = await toolManager.classifyToolExecution({
+                toolName: 'write_file',
+                input: { path: 'src/app.ts' },
+                toolCallId: 'call-run-context',
+                runContext: createAgentRunContext({ sessionId: 'run-session' }),
+            });
+
+            expect(classification.kind).toBe('approval-required');
+            if (classification.kind !== 'approval-required') {
+                throw new Error('Expected approval-required classification');
+            }
+            expect(classification.requestDetails.sessionId).toBe('run-session');
+            expect(mockAllowedToolsProvider.isToolAllowed).toHaveBeenCalledWith(
+                'write_file',
+                'run-session'
+            );
+        });
+
+        it('classifies directory access approvals with preview data without granting access', async () => {
+            const execute = vi.fn();
+            const preview = vi.fn().mockResolvedValue({
+                type: 'diff',
+                unified: 'diff --git a/x b/x',
+                filename: '/tmp/example.txt',
+                additions: 1,
+                deletions: 0,
+            });
+            const toolManager = createToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'manual',
+                mockAgentEventBus,
+                { alwaysAllow: [], alwaysDeny: [] },
+                [
+                    defineTool({
+                        id: 'fs_like_tool',
+                        description: 'Filesystem-like tool',
+                        inputSchema: z.object({ file_path: z.string() }).strict(),
+                        approval: {
+                            override: vi.fn().mockReturnValue({
+                                type: ApprovalType.DIRECTORY_ACCESS,
+                                metadata: {
+                                    path: '/tmp/example.txt',
+                                    parentDir: '/tmp',
+                                    operation: 'write',
+                                    toolName: 'fs_like_tool',
+                                },
+                            }),
+                        },
+                        presentation: { preview },
+                        execute,
+                    }),
+                ],
+                mockLogger
+            );
+            toolManager.setToolExecutionContextFactory((baseContext) => baseContext);
+
+            const classification = await toolManager.classifyToolExecution({
+                toolName: 'fs_like_tool',
+                input: { file_path: '/tmp/example.txt' },
+                toolCallId: 'call-dir',
+                sessionId: 'session-1',
+            });
+
+            expect(classification.kind).toBe('approval-required');
+            if (classification.kind !== 'approval-required') {
+                throw new Error('Expected approval-required classification');
+            }
+            expect(classification.requestDetails).toEqual(
+                expect.objectContaining({
+                    type: ApprovalType.TOOL_APPROVAL,
+                    sessionId: 'session-1',
+                    metadata: expect.objectContaining({
+                        toolName: 'fs_like_tool',
+                        toolCallId: 'call-dir',
+                        args: { file_path: '/tmp/example.txt' },
+                        directoryAccess: expect.objectContaining({
+                            parentDir: '/tmp',
+                            operation: 'write',
+                        }),
+                        displayPreview: expect.objectContaining({
+                            type: 'diff',
+                            filename: '/tmp/example.txt',
+                        }),
+                        presentationSnapshot: expect.any(Object),
+                    }),
+                })
+            );
+            expect(preview).toHaveBeenCalledWith(
+                { file_path: '/tmp/example.txt' },
+                expect.objectContaining({
+                    sessionId: 'session-1',
+                    toolCallId: 'call-dir',
+                })
+            );
+            expect(execute).not.toHaveBeenCalled();
+            expect(mockApprovalManager.requestToolApproval).not.toHaveBeenCalled();
+            expect(mockApprovalManager.addApprovedDirectory).not.toHaveBeenCalled();
+        });
+
+        it('classifies denied tools before validation, presentation, execution, or approval', async () => {
+            const execute = vi.fn();
+            const preview = vi.fn();
+            const toolManager = createToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'auto-approve',
+                mockAgentEventBus,
+                { alwaysAllow: [], alwaysDeny: ['blocked'] },
+                [
+                    defineTool({
+                        id: 'blocked',
+                        description: 'Blocked tool',
+                        inputSchema: z.object({ path: z.string() }).strict(),
+                        presentation: { preview },
+                        execute,
+                    }),
+                ],
+                mockLogger
+            );
+
+            const classification = await toolManager.classifyToolExecution({
+                toolName: 'blocked',
+                input: { path: 123 },
+                toolCallId: 'call-deny',
+                sessionId: 'session-1',
+            });
+
+            expect(classification).toEqual(
+                expect.objectContaining({
+                    kind: 'denied',
+                    reason: 'always-deny',
+                    call: expect.objectContaining({
+                        toolName: 'blocked',
+                        input: { path: 123 },
+                    }),
+                })
+            );
+            expect(preview).not.toHaveBeenCalled();
+            expect(execute).not.toHaveBeenCalled();
+            expect(mockApprovalManager.requestToolApproval).not.toHaveBeenCalled();
+        });
+
+        it('classifies denied tools before non-object input validation', async () => {
+            const execute = vi.fn();
+            const toolManager = createToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'auto-approve',
+                mockAgentEventBus,
+                { alwaysAllow: [], alwaysDeny: ['blocked'] },
+                [
+                    defineTool({
+                        id: 'blocked',
+                        description: 'Blocked tool',
+                        inputSchema: z.object({ path: z.string() }).strict(),
+                        execute,
+                    }),
+                ],
+                mockLogger
+            );
+
+            const classification = await toolManager.classifyToolExecution({
+                toolName: 'blocked',
+                input: null,
+                toolCallId: 'call-deny-null',
+                sessionId: 'session-1',
+            });
+
+            expect(classification).toEqual(
+                expect.objectContaining({
+                    kind: 'denied',
+                    reason: 'always-deny',
+                    call: expect.objectContaining({
+                        toolName: 'blocked',
+                        input: {},
+                    }),
+                })
+            );
+            expect(execute).not.toHaveBeenCalled();
+            expect(mockApprovalManager.requestToolApproval).not.toHaveBeenCalled();
+        });
+
+        it('classifies denied MCP tools before discovery', async () => {
+            mockMcpManager.getAllTools = vi.fn().mockRejectedValue(new Error('discovery failed'));
+            const toolManager = createToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'auto-approve',
+                mockAgentEventBus,
+                { alwaysAllow: [], alwaysDeny: ['mcp--read_file'] },
+                [],
+                mockLogger
+            );
+
+            const classification = await toolManager.classifyToolExecution({
+                toolName: 'mcp--read_file',
+                input: { path: '/tmp/file.txt' },
+                toolCallId: 'call-deny-mcp',
+                sessionId: 'session-1',
+            });
+
+            expect(classification).toEqual(
+                expect.objectContaining({
+                    kind: 'denied',
+                    reason: 'always-deny',
+                    call: expect.objectContaining({
+                        source: 'mcp',
+                        toolName: 'mcp--read_file',
+                        input: { path: '/tmp/file.txt' },
+                    }),
+                })
+            );
+            expect(mockMcpManager.getAllTools).not.toHaveBeenCalled();
+            expect(mockMcpManager.executeTool).not.toHaveBeenCalled();
+            expect(mockApprovalManager.requestToolApproval).not.toHaveBeenCalled();
+        });
+
+        it('classifies custom approval overrides as mandatory even when policy would allow the tool', async () => {
+            const execute = vi.fn();
+            const toolManager = createToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'auto-approve',
+                mockAgentEventBus,
+                { alwaysAllow: ['custom_gate'], alwaysDeny: [] },
+                [
+                    defineTool({
+                        id: 'custom_gate',
+                        description: 'Custom gated tool',
+                        inputSchema: z.object({ value: z.string() }).strict(),
+                        approval: {
+                            override: vi.fn().mockReturnValue({
+                                type: ApprovalType.CUSTOM,
+                                metadata: { reason: 'external-policy' },
+                            }),
+                        },
+                        execute,
+                    }),
+                ],
+                mockLogger
+            );
+            toolManager.setToolExecutionContextFactory((baseContext) => baseContext);
+
+            const classification = await toolManager.classifyToolExecution({
+                toolName: 'custom_gate',
+                input: { value: 'x' },
+                toolCallId: 'call-custom',
+                sessionId: 'session-1',
+            });
+
+            expect(classification).toEqual(
+                expect.objectContaining({
+                    kind: 'approval-required',
+                    requestDetails: expect.objectContaining({
+                        type: ApprovalType.CUSTOM,
+                        sessionId: 'session-1',
+                        metadata: { reason: 'external-policy' },
+                    }),
+                })
+            );
+            expect(execute).not.toHaveBeenCalled();
+            expect(mockApprovalManager.requestApproval).not.toHaveBeenCalled();
+            expect(mockApprovalManager.requestToolApproval).not.toHaveBeenCalled();
+        });
+
+        it('classifies invalid local input as a model-visible invalid-input result', async () => {
+            const toolManager = createToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'auto-approve',
+                mockAgentEventBus,
+                { alwaysAllow: [], alwaysDeny: [] },
+                [
+                    defineTool({
+                        id: 'typed',
+                        description: 'Typed tool',
+                        inputSchema: z.object({ count: z.number() }).strict(),
+                        execute: vi.fn(),
+                    }),
+                ],
+                mockLogger
+            );
+
+            const classification = await toolManager.classifyToolExecution({
+                toolName: 'typed',
+                input: { count: 'wrong' },
+                toolCallId: 'call-3',
+                sessionId: 'session-1',
+            });
+
+            expect(classification.kind).toBe('invalid-input');
+            if (classification.kind !== 'invalid-input') {
+                throw new Error('Expected invalid-input classification');
+            }
+            expect(classification.modelVisibleResult.result).toEqual(
+                expect.objectContaining({
+                    error: expect.stringContaining('Invalid arguments'),
+                })
+            );
+            expect(mockApprovalManager.requestToolApproval).not.toHaveBeenCalled();
+        });
+
+        it('classifies unknown tools as model-visible unknown-tool results', async () => {
+            mockMcpManager.getAllTools = vi.fn().mockResolvedValue({});
+            const toolManager = createToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'auto-approve',
+                mockAgentEventBus,
+                { alwaysAllow: [], alwaysDeny: [] },
+                [],
+                mockLogger
+            );
+
+            const classification = await toolManager.classifyToolExecution({
+                toolName: 'missing',
+                input: {},
+                toolCallId: 'call-4',
+            });
+
+            expect(classification.kind).toBe('unknown-tool');
+            if (classification.kind !== 'unknown-tool') {
+                throw new Error('Expected unknown-tool classification');
+            }
+            expect(classification.modelVisibleResult.result).toEqual(
+                expect.objectContaining({
+                    error: expect.stringContaining("Tool 'missing' not found"),
+                })
+            );
+            expect(mockMcpManager.executeTool).not.toHaveBeenCalled();
+            expect(mockApprovalManager.requestToolApproval).not.toHaveBeenCalled();
+        });
+
+        it('classifies discovered MCP tools without executing them', async () => {
+            mockMcpManager.getAllTools = vi.fn().mockResolvedValue({
+                read_file: {
+                    name: 'read_file',
+                    description: 'Read file',
+                    parameters: {
+                        type: 'object',
+                        properties: { path: { type: 'string' } },
+                        required: ['path'],
+                        additionalProperties: false,
+                    },
+                },
+            });
+            const toolManager = createToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'auto-approve',
+                mockAgentEventBus,
+                { alwaysAllow: [], alwaysDeny: [] },
+                [],
+                mockLogger
+            );
+
+            const classification = await toolManager.classifyToolExecution({
+                toolName: 'mcp--read_file',
+                input: { path: '/tmp/file.txt' },
+                toolCallId: 'call-5',
+                sessionId: 'session-1',
+            });
+
+            expect(classification).toEqual(
+                expect.objectContaining({
+                    kind: 'ready',
+                    call: expect.objectContaining({
+                        toolName: 'mcp--read_file',
+                        source: 'mcp',
+                        input: { path: '/tmp/file.txt' },
+                    }),
+                })
+            );
+            expect(mockMcpManager.executeTool).not.toHaveBeenCalled();
+            expect(mockApprovalManager.requestToolApproval).not.toHaveBeenCalled();
         });
     });
 
