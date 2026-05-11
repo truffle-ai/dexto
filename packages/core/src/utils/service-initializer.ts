@@ -16,6 +16,7 @@ import { AgentStateManager } from '../agent/state-manager.js';
 import { SessionManager } from '../session/index.js';
 import { SearchService } from '../search/index.js';
 import type { DextoStores } from '../storage/index.js';
+import type { ToolExecutionStore } from '../storage/tool-executions/types.js';
 import { AgentError } from '../agent/errors.js';
 import { WorkspaceManager } from '../workspace/index.js';
 import { createAllowedToolsProvider } from '../tools/confirmation/allowed-tools-provider/factory.js';
@@ -60,6 +61,7 @@ export type ToolManagerFactoryOptions = {
     toolPolicies: ToolPolicies;
     tools: Tool[];
     logger: Logger;
+    toolExecutionStore: ToolExecutionStore;
 };
 
 export type ToolManagerFactory = (options: ToolManagerFactoryOptions) => ToolManager;
@@ -259,6 +261,7 @@ export async function createAgentServices(
             toolPolicies: config.permissions.toolPolicies,
             tools: [],
             logger,
+            toolExecutionStore: stores.getStore('toolExecutions'),
         }) ??
         new ToolManager(
             mcpManager,
@@ -269,7 +272,8 @@ export async function createAgentServices(
             config.permissions.toolPolicies,
             [],
             logger,
-            sessionToolPreferencesStore
+            sessionToolPreferencesStore,
+            stores.getStore('toolExecutions')
         );
     await toolManager.setWorkspaceManager(workspaceManager);
     // NOTE: local tools + ToolExecutionContext are wired in DextoAgent.start()

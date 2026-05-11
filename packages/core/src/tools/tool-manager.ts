@@ -42,6 +42,15 @@ import type {
     SessionToolPreferences,
     SessionToolPreferencesStore,
 } from './session-tool-preferences-store.js';
+import type {
+    ToolExecutionIdentity,
+    ToolExecutionRecord,
+    ToolExecutionStore,
+} from '../storage/tool-executions/types.js';
+import {
+    completedToolExecutionToResult,
+    createToolExecutionId,
+} from '../storage/tool-executions/types.js';
 import {
     extractToolCallMeta,
     wrapToolParametersSchema,
@@ -62,6 +71,7 @@ type ToolExecutionInvocation = {
     sessionId?: string | undefined;
     abortSignal?: AbortSignal | undefined;
     runContext?: AgentRunContext | undefined;
+    executionIdentity?: ToolExecutionIdentity | undefined;
 };
 
 export type ExecutableToolCall = {
@@ -236,7 +246,8 @@ export class ToolManager {
         toolPolicies: ToolPolicies,
         tools: Tool[],
         logger: Logger,
-        private readonly sessionToolPreferencesStore: SessionToolPreferencesStore
+        private readonly sessionToolPreferencesStore: SessionToolPreferencesStore,
+        private readonly toolExecutionStore: ToolExecutionStore
     ) {
         this.mcpManager = mcpManager;
         this.approvalManager = approvalManager;
@@ -1404,6 +1415,59 @@ export class ToolManager {
         return { ...options, sessionId, hostRuntime: options.runContext?.hostRuntime };
     }
 
+    private resolveToolExecutionIdentity(
+        invocation: ToolExecutionInvocation,
+        toolCallId: string
+    ): ToolExecutionIdentity | undefined {
+        if (invocation.executionIdentity !== undefined) {
+            return invocation.executionIdentity;
+        }
+
+        const ids = invocation.runContext?.hostRuntime?.ids;
+        if (!ids) {
+            return undefined;
+        }
+
+        const runId = ids.runId;
+        const turnId = ids.turnId;
+        const modelStepId = ids.modelStepId;
+        if (runId === undefined || turnId === undefined || modelStepId === undefined) {
+            return undefined;
+        }
+
+        return {
+            runId,
+            turnId,
+            modelStepId,
+            toolCallId,
+        };
+    }
+
+    private assertToolExecutionRecordMatches(input: {
+        record: ToolExecutionRecord;
+        identity: ToolExecutionIdentity;
+        toolName: string;
+        toolInput: Record<string, unknown>;
+    }): void {
+        const expected = {
+            identity: input.identity,
+            toolName: input.toolName,
+            input: input.toolInput,
+        };
+        const actual = {
+            identity: input.record.identity,
+            toolName: input.record.toolName,
+            input: input.record.input,
+        };
+
+        if (!isDeepStrictEqual(actual, expected)) {
+            throw ToolError.executionFailed(
+                input.toolName,
+                'Tool execution record does not match the current tool call'
+            );
+        }
+    }
+
     private validateLocalToolArgs(
         toolName: string,
         args: Record<string, unknown>
@@ -2093,17 +2157,24 @@ export class ToolManager {
     ): Promise<import('./types.js').ToolExecutionResult> {
         const { sessionId, abortSignal, runContext, hostRuntime } =
             this.resolveToolExecutionInvocation(invocation);
+        const durableIdentity = this.resolveToolExecutionIdentity(invocation ?? {}, toolCallId);
         const { toolArgs: rawToolArgs, meta } = extractToolCallMeta(args);
         const eventMeta: ToolCallMetadata | undefined =
             Object.keys(meta).length > 0 ? meta : undefined;
         let toolArgs = rawToolArgs;
+        const backgroundTasksEnabled = isBackgroundTasksEnabled();
+        const willRunInBackground =
+            backgroundTasksEnabled && meta.runInBackground === true && sessionId !== undefined;
+        const executionIdentity = willRunInBackground ? undefined : durableIdentity;
+        const executionId =
+            executionIdentity === undefined ? undefined : createToolExecutionId(executionIdentity);
+        let durableToolInput: Record<string, unknown> | undefined;
         const callDescription =
             typeof meta.callDescription === 'string'
                 ? meta.callDescription
                 : typeof rawToolArgs.description === 'string'
                   ? rawToolArgs.description
                   : undefined;
-        const backgroundTasksEnabled = isBackgroundTasksEnabled();
 
         this.logger.debug(`🔧 Tool execution requested: '${toolName}' (toolCallId: ${toolCallId})`);
         this.logger.debug(`Tool args: ${JSON.stringify(toolArgs, null, 2)}`);
@@ -2137,84 +2208,117 @@ export class ToolManager {
             });
         }
 
-        // Handle approval/confirmation flow - returns whether approval was required
-        const {
-            requireApproval,
-            approvalStatus,
-            args: validatedToolArgs,
-            presentationSnapshot: callSnapshot,
-        } = await this.handleToolApproval(
-            toolName,
-            toolArgs,
-            toolCallId,
-            sessionId,
-            runContext,
-            callDescription
-        );
-        toolArgs = validatedToolArgs;
-
-        this.logger.debug(`✅ Tool execution approved: ${toolName}`);
-        this.logger.info(
-            `🔧 Tool execution started for ${toolName}, sessionId: ${sessionId ?? 'global'}`
-        );
-
-        // Emit tool:running event - tool is now actually executing (after approval if needed)
-        // Only emit when sessionId is provided (LLM flow) - direct API calls don't need UI updates
-        if (sessionId) {
-            this.agentEventBus.emit('tool:running', {
-                toolName,
-                toolCallId,
-                sessionId,
-                ...(hostRuntime !== undefined && { hostRuntime }),
+        if (executionIdentity !== undefined && executionId !== undefined) {
+            durableToolInput = this.validateLocalToolArgs(toolName, toolArgs);
+            const started = await this.toolExecutionStore.start({
+                record: {
+                    executionId,
+                    identity: executionIdentity,
+                    input: durableToolInput,
+                    toolName,
+                    status: 'running',
+                    startedAt: new Date(),
+                    updatedAt: new Date(),
+                },
             });
+            if (started.status === 'existing') {
+                this.assertToolExecutionRecordMatches({
+                    record: started.record,
+                    identity: executionIdentity,
+                    toolName,
+                    toolInput: durableToolInput,
+                });
+                if (started.record.status === 'completed') {
+                    this.logger.info('Replaying completed tool execution result', {
+                        executionId,
+                        toolName,
+                    });
+                    return completedToolExecutionToResult(started.record);
+                }
+                throw ToolError.executionFailed(
+                    toolName,
+                    `Tool execution already ${started.record.status}: ${executionId}`
+                );
+            }
         }
 
         const startTime = Date.now();
 
-        // Execute beforeToolCall hooks if available
-        if (this.hookManager && this.sessionManager && this.stateManager) {
-            const beforePayload: BeforeToolCallPayload = {
+        try {
+            // Handle approval/confirmation flow - returns whether approval was required
+            const {
+                requireApproval,
+                approvalStatus,
+                args: validatedToolArgs,
+                presentationSnapshot: callSnapshot,
+            } = await this.handleToolApproval(
                 toolName,
-                args: toolArgs,
-                ...(sessionId !== undefined && { sessionId }),
-            };
+                toolArgs,
+                toolCallId,
+                sessionId,
+                runContext,
+                callDescription
+            );
+            toolArgs = validatedToolArgs;
 
-            const modifiedPayload = await this.hookManager.executeHooks(
-                'beforeToolCall',
-                beforePayload,
-                {
-                    sessionManager: this.sessionManager,
-                    mcpManager: this.mcpManager,
-                    toolManager: this,
-                    stateManager: this.stateManager,
-                    ...(runContext !== undefined && { runContext }),
-                    ...(sessionId !== undefined && { sessionId }),
-                }
+            this.logger.debug(`✅ Tool execution approved: ${toolName}`);
+            this.logger.info(
+                `🔧 Tool execution started for ${toolName}, sessionId: ${sessionId ?? 'global'}`
             );
 
-            // Use modified payload for execution
-            toolArgs = modifiedPayload.args;
-
-            // Hooks may modify tool args (including in-place). Re-validate before execution so tools
-            // always receive schema-validated args and defaults/coercions are re-applied after hook mutation.
-            try {
-                toolArgs = this.validateLocalToolArgs(toolName, toolArgs);
-            } catch (error) {
-                this.logger.error(
-                    `Post-hook validation failed for tool '${toolName}': a beforeToolCall hook may have set invalid args`
-                );
-                throw error;
+            // Emit tool:running event - tool is now actually executing (after approval if needed)
+            // Only emit when sessionId is provided (LLM flow) - direct API calls don't need UI updates
+            if (sessionId) {
+                this.agentEventBus.emit('tool:running', {
+                    toolName,
+                    toolCallId,
+                    sessionId,
+                    ...(hostRuntime !== undefined && { hostRuntime }),
+                });
             }
-        }
 
-        try {
+            // Execute beforeToolCall hooks if available
+            if (this.hookManager && this.sessionManager && this.stateManager) {
+                const beforePayload: BeforeToolCallPayload = {
+                    toolName,
+                    args: toolArgs,
+                    ...(sessionId !== undefined && { sessionId }),
+                };
+
+                const modifiedPayload = await this.hookManager.executeHooks(
+                    'beforeToolCall',
+                    beforePayload,
+                    {
+                        sessionManager: this.sessionManager,
+                        mcpManager: this.mcpManager,
+                        toolManager: this,
+                        stateManager: this.stateManager,
+                        ...(runContext !== undefined && { runContext }),
+                        ...(sessionId !== undefined && { sessionId }),
+                    }
+                );
+
+                // Use modified payload for execution
+                toolArgs = modifiedPayload.args;
+
+                // Hooks may modify tool args (including in-place). Re-validate before execution so tools
+                // always receive schema-validated args and defaults/coercions are re-applied after hook mutation.
+                try {
+                    toolArgs = this.validateLocalToolArgs(toolName, toolArgs);
+                } catch (error) {
+                    this.logger.error(
+                        `Post-hook validation failed for tool '${toolName}': a beforeToolCall hook may have set invalid args`
+                    );
+                    throw error;
+                }
+            }
+
             let result: unknown;
 
             const registerBackgroundTask = (promise: Promise<unknown>, description: string) => {
-                const fallbackId = `task-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
                 return {
                     result: {
-                        taskId: toolCallId ?? fallbackId,
+                        taskId: toolCallId,
                         status: 'running' as const,
                         description,
                     },
@@ -2231,10 +2335,6 @@ export class ToolManager {
                 }
                 this.logger.debug(`🎯 MCP routing: '${toolName}' -> '${actualToolName}'`);
 
-                const runInBackground =
-                    backgroundTasksEnabled &&
-                    meta.runInBackground === true &&
-                    sessionId !== undefined;
                 const executeMcpTool = () =>
                     runContext === undefined
                         ? this.mcpManager.executeTool(actualToolName, toolArgs, sessionId)
@@ -2250,7 +2350,7 @@ export class ToolManager {
                         { toolName }
                     );
                 }
-                if (runInBackground) {
+                if (willRunInBackground) {
                     const backgroundSessionId = sessionId;
                     const { result: backgroundResult, promise } = registerBackgroundTask(
                         executeMcpTool(),
@@ -2274,10 +2374,6 @@ export class ToolManager {
                 }
             } else {
                 // Route to local tools
-                const runInBackground =
-                    backgroundTasksEnabled &&
-                    meta.runInBackground === true &&
-                    sessionId !== undefined;
                 if (meta.runInBackground === true && !backgroundTasksEnabled) {
                     this.logger.debug(
                         'Background tool execution disabled; running synchronously instead.',
@@ -2285,7 +2381,7 @@ export class ToolManager {
                     );
                 }
 
-                if (runInBackground) {
+                if (willRunInBackground) {
                     const backgroundSessionId = sessionId;
                     const { result: backgroundResult, promise } = registerBackgroundTask(
                         this.executeLocalTool(toolName, toolArgs, {
@@ -2361,17 +2457,35 @@ export class ToolManager {
                 runContext
             );
 
-            return {
+            const executionResult = {
                 result,
                 ...(presentationSnapshot !== undefined && { presentationSnapshot }),
                 ...(eventMeta !== undefined ? { meta: eventMeta } : {}),
                 ...(requireApproval && { requireApproval, approvalStatus }),
             };
+
+            if (executionId !== undefined) {
+                await this.toolExecutionStore.complete({
+                    executionId,
+                    completedAt: new Date(),
+                    result: executionResult,
+                });
+            }
+
+            return executionResult;
         } catch (error) {
             const duration = Date.now() - startTime;
             this.logger.error(
                 `❌ Tool execution failed for ${toolName} after ${duration}ms, sessionId: ${sessionId ?? 'global'}: ${error instanceof Error ? error.message : String(error)}`
             );
+
+            if (executionId !== undefined) {
+                await this.toolExecutionStore.fail({
+                    executionId,
+                    completedAt: new Date(),
+                    error: error instanceof Error ? error.message : String(error),
+                });
+            }
 
             // Execute afterToolResult hooks for error case if available
             if (this.hookManager && this.sessionManager && this.stateManager) {

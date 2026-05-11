@@ -6,6 +6,7 @@ import type { SessionMessageQueueStore } from '../message-queue/types.js';
 import type { CustomPromptStore } from '../prompts/types.js';
 import type { RuntimeEventStore } from '../runtime-events/types.js';
 import type { SessionStore } from '../sessions/types.js';
+import type { ToolExecutionStore } from '../tool-executions/types.js';
 import type { ToolStateStore } from '../tool-state/types.js';
 import type { ToolPreferenceStore } from '../tool-preferences/types.js';
 import type { WorkspaceStore } from '../workspaces/types.js';
@@ -23,6 +24,7 @@ export interface DextoStoreMap {
     customPrompts: CustomPromptStore;
     artifacts: ArtifactStore;
     runtimeEvents: RuntimeEventStore;
+    toolExecutions: ToolExecutionStore;
 }
 
 export type DextoStoreName = keyof DextoStoreMap;

@@ -232,7 +232,8 @@ describe('TurnExecutor Integration Tests', () => {
             { alwaysAllow: [], alwaysDeny: [] },
             [],
             logger,
-            createInMemorySessionToolPreferencesStore(logger)
+            createInMemorySessionToolPreferencesStore(logger),
+            new InMemoryDextoStores().getStore('toolExecutions')
         );
         await toolManager.initialize();
 

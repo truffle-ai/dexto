@@ -17,12 +17,14 @@ import {
     DatabaseBackedRuntimeEventStore,
     DatabaseBackedSessionMessageQueueStore,
     DatabaseBackedSessionStore,
+    DatabaseBackedToolExecutionStore,
     DatabaseBackedToolPreferenceStore,
     DatabaseBackedToolStateStore,
     DatabaseBackedWorkspaceStore,
     SESSION_FOLLOW_UP_QUEUE_KEY_PREFIX,
     SESSION_STEER_QUEUE_KEY_PREFIX,
 } from './backend.js';
+import { createToolExecutionId } from '../tool-executions/types.js';
 
 describe('BackendDextoStores', () => {
     it('adapts existing database, cache, and blob backends into typed stores', async () => {
@@ -54,6 +56,7 @@ describe('BackendDextoStores', () => {
                 customPrompts: new DatabaseBackedCustomPromptStore(database),
                 artifacts: new DatabaseBackedArtifactStore(blobStore),
                 runtimeEvents: new DatabaseBackedRuntimeEventStore(database),
+                toolExecutions: new DatabaseBackedToolExecutionStore(database),
             },
             {
                 async connect(): Promise<void> {
@@ -250,6 +253,136 @@ describe('DatabaseBackedApprovalStore', () => {
         });
         await expect(store.getResponse({ approvalId: request.approvalId })).resolves.toEqual(
             approved
+        );
+    });
+});
+
+describe('DatabaseBackedToolExecutionStore', () => {
+    it('records one running execution when concurrent writers race on one id', async () => {
+        const database = createInMemoryDatabase();
+        const firstStore = new DatabaseBackedToolExecutionStore(database);
+        const secondStore = new DatabaseBackedToolExecutionStore(database);
+        const startedAt = new Date('2026-05-11T00:00:00.000Z');
+        const identity = {
+            runId: 'run-1',
+            turnId: 'turn-1',
+            modelStepId: 'step-1',
+            toolCallId: 'call-1',
+        };
+        const record = {
+            executionId: createToolExecutionId(identity),
+            identity,
+            input: { path: 'src/app.ts' },
+            toolName: 'write_file',
+            status: 'running' as const,
+            startedAt,
+            updatedAt: startedAt,
+        };
+
+        const [first, second] = await Promise.all([
+            firstStore.start({ record }),
+            secondStore.start({ record }),
+        ]);
+
+        expect([first.status, second.status].sort()).toEqual(['existing', 'started']);
+        await expect(firstStore.get({ executionId: record.executionId })).resolves.toEqual(record);
+    });
+
+    it('persists completed model output separately from UI metadata', async () => {
+        const database = createInMemoryDatabase();
+        const store = new DatabaseBackedToolExecutionStore(database);
+        const startedAt = new Date('2026-05-11T00:00:00.000Z');
+        const completedAt = new Date('2026-05-11T00:00:01.000Z');
+        const identity = {
+            runId: 'run-1',
+            turnId: 'turn-1',
+            modelStepId: 'step-1',
+            toolCallId: 'call-1',
+        };
+        const record = {
+            executionId: createToolExecutionId(identity),
+            identity,
+            input: { path: 'src/app.ts' },
+            toolName: 'write_file',
+            status: 'running' as const,
+            startedAt,
+            updatedAt: startedAt,
+        };
+
+        await store.start({ record });
+        await store.complete({
+            executionId: record.executionId,
+            completedAt,
+            result: {
+                result: { ok: true },
+                presentationSnapshot: {
+                    version: 1,
+                    source: { type: 'local' },
+                    header: { title: 'Write File' },
+                },
+                requireApproval: true,
+                approvalStatus: 'approved',
+            },
+        });
+
+        await expect(store.get({ executionId: record.executionId })).resolves.toEqual({
+            ...record,
+            status: 'completed',
+            updatedAt: completedAt,
+            completedAt,
+            modelOutput: { ok: true },
+            resultMetadata: {
+                presentationSnapshot: {
+                    version: 1,
+                    source: { type: 'local' },
+                    header: { title: 'Write File' },
+                },
+                requireApproval: true,
+                approvalStatus: 'approved',
+            },
+        });
+    });
+
+    it('does not overwrite a completed execution with a later failure', async () => {
+        const database = createInMemoryDatabase();
+        const store = new DatabaseBackedToolExecutionStore(database);
+        const startedAt = new Date('2026-05-11T00:00:00.000Z');
+        const completedAt = new Date('2026-05-11T00:00:01.000Z');
+        const identity = {
+            runId: 'run-1',
+            turnId: 'turn-1',
+            modelStepId: 'step-1',
+            toolCallId: 'call-1',
+        };
+        const record = {
+            executionId: createToolExecutionId(identity),
+            identity,
+            input: { path: 'src/app.ts' },
+            toolName: 'write_file',
+            status: 'running' as const,
+            startedAt,
+            updatedAt: startedAt,
+        };
+
+        await store.start({ record });
+        await store.complete({
+            executionId: record.executionId,
+            completedAt,
+            result: { result: 'created file' },
+        });
+
+        await expect(
+            store.fail({
+                executionId: record.executionId,
+                completedAt: new Date('2026-05-11T00:00:02.000Z'),
+                error: 'late failure',
+            })
+        ).rejects.toThrow('Tool execution is already completed');
+        await expect(store.get({ executionId: record.executionId })).resolves.toEqual(
+            expect.objectContaining({
+                status: 'completed',
+                modelOutput: 'created file',
+            })
         );
     });
 });

@@ -14,6 +14,7 @@ import {
     createInMemorySessionApprovalStore,
     createInMemorySessionToolPreferencesStore,
 } from '../test-utils/session-state-stores.js';
+import { InMemoryDextoStores } from '../storage/index.js';
 
 type ToolManagerFactoryArgs =
     ConstructorParameters<typeof ToolManager> extends [
@@ -26,6 +27,7 @@ type ToolManagerFactoryArgs =
         infer Tools,
         infer Logger,
         infer _SessionToolPreferencesStore,
+        infer _ToolExecutionStore,
     ]
         ? [
               McpManager,
@@ -41,7 +43,11 @@ type ToolManagerFactoryArgs =
 
 function createToolManager(...args: ToolManagerFactoryArgs): ToolManager {
     const logger = args[7];
-    return new ToolManager(...args, createInMemorySessionToolPreferencesStore(logger));
+    return new ToolManager(
+        ...args,
+        createInMemorySessionToolPreferencesStore(logger),
+        new InMemoryDextoStores().getStore('toolExecutions')
+    );
 }
 
 function createApprovalManager(

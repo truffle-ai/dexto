@@ -20,6 +20,8 @@ import { SessionError } from '../session/errors.js';
 import { createInMemorySessionToolPreferencesStore } from '../test-utils/session-state-stores.js';
 import type { SessionToolPreferences } from './session-tool-preferences-store.js';
 import { createAgentRunContext } from '../runtime/run-context.js';
+import { InMemoryDextoStores } from '../storage/index.js';
+import { createToolExecutionId } from '../storage/tool-executions/types.js';
 
 function createDeferred<T>() {
     let resolve!: (value: T | PromiseLike<T>) => void;
@@ -42,6 +44,7 @@ type ToolManagerFactoryArgs =
         infer Tools,
         infer Logger,
         infer _SessionToolPreferencesStore,
+        infer _ToolExecutionStore,
     ]
         ? [
               McpManager,
@@ -57,7 +60,11 @@ type ToolManagerFactoryArgs =
 
 function createToolManager(...args: ToolManagerFactoryArgs): ToolManager {
     const logger = args[7];
-    return new ToolManager(...args, createInMemorySessionToolPreferencesStore(logger));
+    return new ToolManager(
+        ...args,
+        createInMemorySessionToolPreferencesStore(logger),
+        new InMemoryDextoStores().getStore('toolExecutions')
+    );
 }
 
 function createRecordedToolApproval(
@@ -1542,6 +1549,410 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             const result = await toolManager.executeTool('hello', { name: 'World' }, 'call-1');
             expect(result).toEqual(expect.objectContaining({ result: 'Hello, World' }));
         });
+
+        it('replays a completed durable execution without invoking the tool body again', async () => {
+            mockMcpManager.getAllTools = vi.fn().mockResolvedValue({});
+            const execute = vi.fn().mockResolvedValue('created file');
+            const toolExecutionStore = new InMemoryDextoStores().getStore('toolExecutions');
+            const toolManager = new ToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'auto-approve',
+                mockAgentEventBus,
+                { alwaysAllow: [], alwaysDeny: [] },
+                [
+                    defineTool({
+                        id: 'write_file',
+                        description: 'Write file',
+                        inputSchema: z.object({ path: z.string() }).strict(),
+                        execute,
+                    }),
+                ],
+                mockLogger,
+                createInMemorySessionToolPreferencesStore(mockLogger),
+                toolExecutionStore
+            );
+            toolManager.setToolExecutionContextFactory((baseContext) => baseContext);
+            const executionIdentity = {
+                runId: 'run-1',
+                turnId: 'turn-1',
+                modelStepId: 'step-1',
+                toolCallId: 'call-1',
+            };
+
+            const first = await toolManager.executeTool(
+                'write_file',
+                { path: 'snake/index.html' },
+                'call-1',
+                { sessionId: 'session-1', executionIdentity }
+            );
+            const replayed = await toolManager.executeTool(
+                'write_file',
+                { path: 'snake/index.html' },
+                'call-1',
+                { sessionId: 'session-1', executionIdentity }
+            );
+
+            expect(execute).toHaveBeenCalledTimes(1);
+            expect(first).toEqual(expect.objectContaining({ result: 'created file' }));
+            expect(replayed).toEqual(first);
+            const toolCallEvents = (mockAgentEventBus.emit as any).mock.calls.filter(
+                ([eventName]: [string]) => eventName === 'llm:tool-call'
+            );
+            expect(toolCallEvents).toHaveLength(2);
+            await expect(
+                toolExecutionStore.get({ executionId: createToolExecutionId(executionIdentity) })
+            ).resolves.toEqual(
+                expect.objectContaining({
+                    status: 'completed',
+                    modelOutput: 'created file',
+                })
+            );
+        });
+
+        it('replays a completed durable execution before manual approval can prompt again', async () => {
+            mockMcpManager.getAllTools = vi.fn().mockResolvedValue({});
+            const execute = vi.fn().mockResolvedValue('should not run');
+            const toolExecutionStore = new InMemoryDextoStores().getStore('toolExecutions');
+            const executionIdentity = {
+                runId: 'run-1',
+                turnId: 'turn-1',
+                modelStepId: 'step-1',
+                toolCallId: 'call-1',
+            };
+            const startedAt = new Date('2026-05-11T00:00:00.000Z');
+            await toolExecutionStore.start({
+                record: {
+                    executionId: createToolExecutionId(executionIdentity),
+                    identity: executionIdentity,
+                    input: { path: 'snake/index.html' },
+                    toolName: 'write_file',
+                    status: 'running',
+                    startedAt,
+                    updatedAt: startedAt,
+                },
+            });
+            await toolExecutionStore.complete({
+                executionId: createToolExecutionId(executionIdentity),
+                completedAt: new Date('2026-05-11T00:00:01.000Z'),
+                result: {
+                    result: 'created file',
+                    requireApproval: true,
+                    approvalStatus: 'approved',
+                },
+            });
+            const toolManager = new ToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'manual',
+                mockAgentEventBus,
+                { alwaysAllow: [], alwaysDeny: [] },
+                [
+                    defineTool({
+                        id: 'write_file',
+                        description: 'Write file',
+                        inputSchema: z.object({ path: z.string() }).strict(),
+                        execute,
+                    }),
+                ],
+                mockLogger,
+                createInMemorySessionToolPreferencesStore(mockLogger),
+                toolExecutionStore
+            );
+            toolManager.setToolExecutionContextFactory((baseContext) => baseContext);
+
+            await expect(
+                toolManager.executeTool('write_file', { path: 'snake/index.html' }, 'call-1', {
+                    sessionId: 'session-1',
+                    executionIdentity,
+                })
+            ).resolves.toEqual({
+                result: 'created file',
+                requireApproval: true,
+                approvalStatus: 'approved',
+            });
+            expect(mockApprovalManager.requestToolApproval).not.toHaveBeenCalled();
+            expect(execute).not.toHaveBeenCalled();
+        });
+
+        it('rejects a durable replay when the current tool call does not match the record', async () => {
+            mockMcpManager.getAllTools = vi.fn().mockResolvedValue({});
+            const execute = vi.fn().mockResolvedValue('should not run');
+            const toolExecutionStore = new InMemoryDextoStores().getStore('toolExecutions');
+            const executionIdentity = {
+                runId: 'run-1',
+                turnId: 'turn-1',
+                modelStepId: 'step-1',
+                toolCallId: 'call-1',
+            };
+            const startedAt = new Date('2026-05-11T00:00:00.000Z');
+            await toolExecutionStore.start({
+                record: {
+                    executionId: createToolExecutionId(executionIdentity),
+                    identity: executionIdentity,
+                    input: { path: 'snake/index.html' },
+                    toolName: 'write_file',
+                    status: 'running',
+                    startedAt,
+                    updatedAt: startedAt,
+                },
+            });
+            await toolExecutionStore.complete({
+                executionId: createToolExecutionId(executionIdentity),
+                completedAt: new Date('2026-05-11T00:00:01.000Z'),
+                result: { result: 'created file' },
+            });
+            const toolManager = new ToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'auto-approve',
+                mockAgentEventBus,
+                { alwaysAllow: [], alwaysDeny: [] },
+                [
+                    defineTool({
+                        id: 'write_file',
+                        description: 'Write file',
+                        inputSchema: z.object({ path: z.string() }).strict(),
+                        execute,
+                    }),
+                ],
+                mockLogger,
+                createInMemorySessionToolPreferencesStore(mockLogger),
+                toolExecutionStore
+            );
+            toolManager.setToolExecutionContextFactory((baseContext) => baseContext);
+
+            await expect(
+                toolManager.executeTool('write_file', { path: 'other/index.html' }, 'call-1', {
+                    sessionId: 'session-1',
+                    executionIdentity,
+                })
+            ).rejects.toThrow('Tool execution record does not match');
+            expect(execute).not.toHaveBeenCalled();
+        });
+
+        it('derives durable execution identity from host runtime ids', async () => {
+            mockMcpManager.getAllTools = vi.fn().mockResolvedValue({});
+            const execute = vi.fn().mockResolvedValue('listed files');
+            const toolExecutionStore = new InMemoryDextoStores().getStore('toolExecutions');
+            const toolManager = new ToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'auto-approve',
+                mockAgentEventBus,
+                { alwaysAllow: [], alwaysDeny: [] },
+                [
+                    defineTool({
+                        id: 'list_files',
+                        description: 'List files',
+                        inputSchema: z.object({ path: z.string() }).strict(),
+                        execute,
+                    }),
+                ],
+                mockLogger,
+                createInMemorySessionToolPreferencesStore(mockLogger),
+                toolExecutionStore
+            );
+            toolManager.setToolExecutionContextFactory((baseContext) => baseContext);
+            const runContext = createAgentRunContext({
+                sessionId: 'session-1',
+                hostRuntime: {
+                    ids: {
+                        runId: 'run-1',
+                        turnId: 'turn-1',
+                        modelStepId: 'step-1',
+                        attemptId: 'attempt-a',
+                    },
+                },
+            });
+
+            await toolManager.executeTool('list_files', { path: '.' }, 'call-1', {
+                runContext,
+            });
+
+            await expect(
+                toolExecutionStore.get({
+                    executionId: createToolExecutionId({
+                        runId: 'run-1',
+                        turnId: 'turn-1',
+                        modelStepId: 'step-1',
+                        toolCallId: 'call-1',
+                    }),
+                })
+            ).resolves.toEqual(expect.objectContaining({ status: 'completed' }));
+        });
+
+        it('does not execute when a durable execution record is already running', async () => {
+            mockMcpManager.getAllTools = vi.fn().mockResolvedValue({});
+            const execute = vi.fn().mockResolvedValue('should not run');
+            const toolExecutionStore = new InMemoryDextoStores().getStore('toolExecutions');
+            const startedAt = new Date('2026-05-11T00:00:00.000Z');
+            await toolExecutionStore.start({
+                record: {
+                    executionId: createToolExecutionId({
+                        runId: 'run-1',
+                        turnId: 'turn-1',
+                        modelStepId: 'step-1',
+                        toolCallId: 'call-1',
+                    }),
+                    identity: {
+                        runId: 'run-1',
+                        turnId: 'turn-1',
+                        modelStepId: 'step-1',
+                        toolCallId: 'call-1',
+                    },
+                    input: { path: 'snake/index.html' },
+                    toolName: 'write_file',
+                    status: 'running',
+                    startedAt,
+                    updatedAt: startedAt,
+                },
+            });
+            const toolManager = new ToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'auto-approve',
+                mockAgentEventBus,
+                { alwaysAllow: [], alwaysDeny: [] },
+                [
+                    defineTool({
+                        id: 'write_file',
+                        description: 'Write file',
+                        inputSchema: z.object({ path: z.string() }).strict(),
+                        execute,
+                    }),
+                ],
+                mockLogger,
+                createInMemorySessionToolPreferencesStore(mockLogger),
+                toolExecutionStore
+            );
+            toolManager.setToolExecutionContextFactory((baseContext) => baseContext);
+
+            await expect(
+                toolManager.executeTool('write_file', { path: 'snake/index.html' }, 'call-1', {
+                    sessionId: 'session-1',
+                    executionIdentity: {
+                        runId: 'run-1',
+                        turnId: 'turn-1',
+                        modelStepId: 'step-1',
+                        toolCallId: 'call-1',
+                    },
+                })
+            ).rejects.toThrow('Tool execution already running');
+            expect(execute).not.toHaveBeenCalled();
+        });
+
+        it('marks a durable execution failed when a pre-execution hook throws', async () => {
+            mockMcpManager.getAllTools = vi.fn().mockResolvedValue({});
+            const execute = vi.fn().mockResolvedValue('should not run');
+            const toolExecutionStore = new InMemoryDextoStores().getStore('toolExecutions');
+            const toolManager = new ToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'auto-approve',
+                mockAgentEventBus,
+                { alwaysAllow: [], alwaysDeny: [] },
+                [
+                    defineTool({
+                        id: 'write_file',
+                        description: 'Write file',
+                        inputSchema: z.object({ path: z.string() }).strict(),
+                        execute,
+                    }),
+                ],
+                mockLogger,
+                createInMemorySessionToolPreferencesStore(mockLogger),
+                toolExecutionStore
+            );
+            toolManager.setToolExecutionContextFactory((baseContext) => baseContext);
+            toolManager.setHookSupport(
+                {
+                    executeHooks: vi.fn().mockRejectedValue(new Error('hook blocked')),
+                } as any,
+                {} as any,
+                {} as any
+            );
+            const executionIdentity = {
+                runId: 'run-1',
+                turnId: 'turn-1',
+                modelStepId: 'step-1',
+                toolCallId: 'call-1',
+            };
+
+            await expect(
+                toolManager.executeTool('write_file', { path: 'snake/index.html' }, 'call-1', {
+                    sessionId: 'session-1',
+                    executionIdentity,
+                })
+            ).rejects.toThrow('hook blocked');
+            expect(execute).not.toHaveBeenCalled();
+            await expect(
+                toolExecutionStore.get({ executionId: createToolExecutionId(executionIdentity) })
+            ).resolves.toEqual(
+                expect.objectContaining({
+                    status: 'failed',
+                    error: 'hook blocked',
+                })
+            );
+        });
+
+        it('marks a durable execution failed when manual approval is denied', async () => {
+            mockMcpManager.getAllTools = vi.fn().mockResolvedValue({});
+            mockApprovalManager.requestToolApproval = vi.fn().mockResolvedValue({
+                approvalId: 'test-approval-id',
+                status: ApprovalStatus.DENIED,
+            });
+            const execute = vi.fn().mockResolvedValue('should not run');
+            const toolExecutionStore = new InMemoryDextoStores().getStore('toolExecutions');
+            const toolManager = new ToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'manual',
+                mockAgentEventBus,
+                { alwaysAllow: [], alwaysDeny: [] },
+                [
+                    defineTool({
+                        id: 'write_file',
+                        description: 'Write file',
+                        inputSchema: z.object({ path: z.string() }).strict(),
+                        execute,
+                    }),
+                ],
+                mockLogger,
+                createInMemorySessionToolPreferencesStore(mockLogger),
+                toolExecutionStore
+            );
+            toolManager.setToolExecutionContextFactory((baseContext) => baseContext);
+            const executionIdentity = {
+                runId: 'run-1',
+                turnId: 'turn-1',
+                modelStepId: 'step-1',
+                toolCallId: 'call-1',
+            };
+
+            await expect(
+                toolManager.executeTool('write_file', { path: 'snake/index.html' }, 'call-1', {
+                    sessionId: 'session-1',
+                    executionIdentity,
+                })
+            ).rejects.toThrow("Tool 'write_file' execution was denied by the user");
+            expect(execute).not.toHaveBeenCalled();
+            await expect(
+                toolExecutionStore.get({ executionId: createToolExecutionId(executionIdentity) })
+            ).resolves.toEqual(
+                expect.objectContaining({
+                    status: 'failed',
+                    error: "Tool 'write_file' execution was denied by the user",
+                })
+            );
+        });
     });
 
     describe('Confirmation Flow Logic', () => {
@@ -2369,8 +2780,9 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockMcpManager.executeTool = vi.fn().mockResolvedValue('sync-result');
                 const emitSpy = vi.fn();
                 mockAgentEventBus.emit = emitSpy as typeof mockAgentEventBus.emit;
+                const toolExecutionStore = new InMemoryDextoStores().getStore('toolExecutions');
 
-                const toolManager = createToolManager(
+                const toolManager = new ToolManager(
                     mockMcpManager,
                     mockApprovalManager,
                     mockAllowedToolsProvider,
@@ -2378,8 +2790,16 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     mockAgentEventBus,
                     { alwaysAllow: [], alwaysDeny: [] },
                     [],
-                    mockLogger
+                    mockLogger,
+                    createInMemorySessionToolPreferencesStore(mockLogger),
+                    toolExecutionStore
                 );
+                const executionIdentity = {
+                    runId: 'run-1',
+                    turnId: 'turn-1',
+                    modelStepId: 'step-1',
+                    toolCallId: 'call-123',
+                };
 
                 const response = await toolManager.executeTool(
                     'mcp--file_read',
@@ -2390,11 +2810,21 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                         },
                     },
                     'call-123',
-                    { sessionId: 'session-1' }
+                    { sessionId: 'session-1', executionIdentity }
                 );
 
                 expect(response.result).toBe('sync-result');
                 expect(emitSpy).not.toHaveBeenCalledWith('tool:background', expect.anything());
+                await expect(
+                    toolExecutionStore.get({
+                        executionId: createToolExecutionId(executionIdentity),
+                    })
+                ).resolves.toEqual(
+                    expect.objectContaining({
+                        status: 'completed',
+                        modelOutput: 'sync-result',
+                    })
+                );
             } finally {
                 if (originalEnv === undefined) {
                     delete process.env.DEXTO_BACKGROUND_TASKS_ENABLED;
@@ -3849,7 +4279,10 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     { alwaysAllow: [], alwaysDeny: [] },
                     [],
                     mockLogger,
-                    emptyPreferencesStore as unknown as ConstructorParameters<typeof ToolManager>[8]
+                    emptyPreferencesStore as unknown as ConstructorParameters<
+                        typeof ToolManager
+                    >[8],
+                    new InMemoryDextoStores().getStore('toolExecutions')
                 );
 
                 await toolManager.restoreSessionState('restored-session');
@@ -3903,7 +4336,8 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     { alwaysAllow: [], alwaysDeny: [] },
                     [],
                     mockLogger,
-                    controlledStore as unknown as ConstructorParameters<typeof ToolManager>[8]
+                    controlledStore as unknown as ConstructorParameters<typeof ToolManager>[8],
+                    new InMemoryDextoStores().getStore('toolExecutions')
                 );
 
                 const setDisabledPromise = toolManager.setSessionDisabledTools(sessionId, [

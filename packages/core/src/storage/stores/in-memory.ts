@@ -25,9 +25,20 @@ import type { SessionMessageQueueStore } from '../message-queue/types.js';
 import type { CustomPromptStore } from '../prompts/types.js';
 import type { RuntimeEventRecord, RuntimeEventStore } from '../runtime-events/types.js';
 import type { SessionStore } from '../sessions/types.js';
+import type {
+    ToolExecutionCancelledRecord,
+    ToolExecutionCompletedRecord,
+    ToolExecutionFailedRecord,
+    ToolExecutionRecord,
+    ToolExecutionRunningRecord,
+    ToolExecutionStartResult,
+    ToolExecutionStore,
+} from '../tool-executions/types.js';
+import { splitToolExecutionResult } from '../tool-executions/types.js';
 import type { ToolStateStore } from '../tool-state/types.js';
 import type { ToolPreferenceStore } from '../tool-preferences/types.js';
 import type { WorkspaceStore } from '../workspaces/types.js';
+import type { ToolExecutionResult } from '../../tools/types.js';
 import { StorageError } from '../errors.js';
 import type { DextoStoreMap, DextoStoreName, DextoStores } from './types.js';
 
@@ -517,6 +528,103 @@ class InMemoryToolStateStore implements ToolStateStore {
     }
 }
 
+class InMemoryToolExecutionStore implements ToolExecutionStore {
+    private readonly records = new Map<string, ToolExecutionRecord>();
+
+    async get(input: { executionId: string }): Promise<ToolExecutionRecord | undefined> {
+        const record = this.records.get(input.executionId);
+        return record ? structuredClone(record) : undefined;
+    }
+
+    async start(input: { record: ToolExecutionRunningRecord }): Promise<ToolExecutionStartResult> {
+        const existing = this.records.get(input.record.executionId);
+        if (existing) {
+            return { status: 'existing', record: structuredClone(existing) };
+        }
+
+        this.records.set(input.record.executionId, structuredClone(input.record));
+        return { status: 'started', record: structuredClone(input.record) };
+    }
+
+    async complete(input: {
+        executionId: string;
+        completedAt: Date;
+        result: ToolExecutionResult;
+    }): Promise<ToolExecutionCompletedRecord> {
+        const existing = this.requireRecord(input.executionId);
+        if (existing.status === 'completed') {
+            return structuredClone(existing);
+        }
+        if (existing.status !== 'running') {
+            throw new Error(`Tool execution is already ${existing.status}: ${input.executionId}`);
+        }
+        const resultParts = splitToolExecutionResult(input.result);
+        const record: ToolExecutionCompletedRecord = {
+            ...existing,
+            status: 'completed',
+            completedAt: input.completedAt,
+            updatedAt: input.completedAt,
+            ...resultParts,
+        };
+        this.records.set(input.executionId, structuredClone(record));
+        return structuredClone(record);
+    }
+
+    async fail(input: {
+        executionId: string;
+        completedAt: Date;
+        error: string;
+    }): Promise<ToolExecutionFailedRecord> {
+        const existing = this.requireRecord(input.executionId);
+        if (existing.status === 'failed') {
+            return structuredClone(existing);
+        }
+        if (existing.status !== 'running') {
+            throw new Error(`Tool execution is already ${existing.status}: ${input.executionId}`);
+        }
+        const record: ToolExecutionFailedRecord = {
+            ...existing,
+            status: 'failed',
+            completedAt: input.completedAt,
+            updatedAt: input.completedAt,
+            error: input.error,
+        };
+        this.records.set(input.executionId, structuredClone(record));
+        return structuredClone(record);
+    }
+
+    async cancel(input: {
+        executionId: string;
+        completedAt: Date;
+        reason?: string;
+    }): Promise<ToolExecutionCancelledRecord> {
+        const existing = this.requireRecord(input.executionId);
+        if (existing.status === 'cancelled') {
+            return structuredClone(existing);
+        }
+        if (existing.status !== 'running') {
+            throw new Error(`Tool execution is already ${existing.status}: ${input.executionId}`);
+        }
+        const record: ToolExecutionCancelledRecord = {
+            ...existing,
+            status: 'cancelled',
+            completedAt: input.completedAt,
+            updatedAt: input.completedAt,
+            ...(input.reason !== undefined ? { reason: input.reason } : {}),
+        };
+        this.records.set(input.executionId, structuredClone(record));
+        return structuredClone(record);
+    }
+
+    private requireRecord(executionId: string): ToolExecutionRecord {
+        const existing = this.records.get(executionId);
+        if (!existing) {
+            throw new Error(`Tool execution record not found: ${executionId}`);
+        }
+        return existing;
+    }
+}
+
 export class InMemoryDextoStores implements DextoStores {
     private connected = false;
     private readonly stores: DextoStoreMap = {
@@ -532,6 +640,7 @@ export class InMemoryDextoStores implements DextoStores {
         customPrompts: new InMemoryCustomPromptStore(),
         artifacts: new InMemoryArtifactStore(),
         runtimeEvents: new InMemoryRuntimeEventStore(),
+        toolExecutions: new InMemoryToolExecutionStore(),
     };
 
     getStore<K extends DextoStoreName>(name: K): DextoStoreMap[K] {

@@ -25,6 +25,7 @@ import {
     DatabaseBackedRuntimeEventStore,
     DatabaseBackedSessionMessageQueueStore,
     DatabaseBackedSessionStore,
+    DatabaseBackedToolExecutionStore,
     DatabaseBackedToolPreferenceStore,
     DatabaseBackedToolStateStore,
     DatabaseBackedWorkspaceStore,
@@ -450,6 +451,7 @@ describe('Session Integration: Core-owned Interaction State Persistence', () => 
                     customPrompts: new DatabaseBackedCustomPromptStore(storage.database),
                     artifacts: new DatabaseBackedArtifactStore(storage.blob),
                     runtimeEvents: new DatabaseBackedRuntimeEventStore(storage.database),
+                    toolExecutions: new DatabaseBackedToolExecutionStore(storage.database),
                 },
                 {
                     async connect(): Promise<void> {

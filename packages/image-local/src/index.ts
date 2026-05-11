@@ -21,6 +21,7 @@ import {
     DatabaseBackedRuntimeEventStore,
     DatabaseBackedSessionMessageQueueStore,
     DatabaseBackedSessionStore,
+    DatabaseBackedToolExecutionStore,
     DatabaseBackedToolPreferenceStore,
     DatabaseBackedToolStateStore,
     DatabaseBackedWorkspaceStore,
@@ -236,6 +237,7 @@ async function createLocalStores(config: ValidatedStorageConfig, logger: Logger)
             customPrompts: new DatabaseBackedCustomPromptStore(database),
             artifacts: new DatabaseBackedArtifactStore(blobStore),
             runtimeEvents: new DatabaseBackedRuntimeEventStore(database),
+            toolExecutions: new DatabaseBackedToolExecutionStore(database),
         },
         {
             async connect(): Promise<void> {

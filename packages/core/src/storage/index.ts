@@ -29,6 +29,7 @@ export {
     DatabaseBackedRuntimeEventStore,
     DatabaseBackedSessionMessageQueueStore,
     DatabaseBackedSessionStore,
+    DatabaseBackedToolExecutionStore,
     DatabaseBackedToolPreferenceStore,
     DatabaseBackedToolStateStore,
     DatabaseBackedWorkspaceStore,
@@ -63,3 +64,13 @@ export type {
     StoredArtifactMetadata,
 } from './artifacts/types.js';
 export type { RuntimeEventRecord, RuntimeEventStore } from './runtime-events/types.js';
+export type {
+    ToolExecutionCancelledRecord,
+    ToolExecutionCompletedRecord,
+    ToolExecutionFailedRecord,
+    ToolExecutionIdentity,
+    ToolExecutionRecord,
+    ToolExecutionRunningRecord,
+    ToolExecutionStartResult,
+    ToolExecutionStore,
+} from './tool-executions/types.js';

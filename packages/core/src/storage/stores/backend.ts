@@ -32,17 +32,34 @@ import type { SessionMessageQueueStore } from '../message-queue/types.js';
 import type { CustomPromptStore } from '../prompts/types.js';
 import type { RuntimeEventRecord, RuntimeEventStore } from '../runtime-events/types.js';
 import type { SessionStore } from '../sessions/types.js';
+import {
+    ToolExecutionRecordSchema,
+    ToolExecutionCompletedRecordSchema,
+    ToolExecutionFailedRecordSchema,
+    ToolExecutionCancelledRecordSchema,
+    ToolExecutionRunningRecordSchema,
+    splitToolExecutionResult,
+    type ToolExecutionCancelledRecord,
+    type ToolExecutionCompletedRecord,
+    type ToolExecutionFailedRecord,
+    type ToolExecutionRecord,
+    type ToolExecutionRunningRecord,
+    type ToolExecutionStartResult,
+    type ToolExecutionStore,
+} from '../tool-executions/types.js';
 import type { ToolStateStore } from '../tool-state/types.js';
 import type { ToolPreferenceStore } from '../tool-preferences/types.js';
 import type { WorkspaceStore } from '../workspaces/types.js';
 import type { DextoStoreMap, DextoStoreName, DextoStores } from './types.js';
 import type { Logger } from '../../logger/v2/types.js';
+import type { ToolExecutionResult } from '../../tools/types.js';
 
 const GLOBAL_SCOPE = 'global';
 const MEMORY_KEY_PREFIX = 'memory:item:';
 const CUSTOM_PROMPT_KEY_PREFIX = 'prompt:custom:';
 const RUNTIME_EVENTS_KEY = 'runtime-events';
 const RUNTIME_EVENTS_LIMIT = 10000;
+const TOOL_EXECUTION_KEY_PREFIX = 'tool-execution:';
 const TOOL_STATE_KEY_PREFIX = 'tool-state:';
 const WORKSPACE_KEY_PREFIX = 'workspace:item:';
 const WORKSPACE_CURRENT_KEY = 'workspace:current';
@@ -663,6 +680,109 @@ export class DatabaseBackedToolStateStore implements ToolStateStore {
 
     private scopePrefix(toolName: string): string {
         return `${TOOL_STATE_KEY_PREFIX}${toolName}:`;
+    }
+}
+
+export class DatabaseBackedToolExecutionStore implements ToolExecutionStore {
+    constructor(private readonly database: Database) {}
+
+    async get(input: { executionId: string }): Promise<ToolExecutionRecord | undefined> {
+        const stored = await this.database.get<unknown>(this.toKey(input.executionId));
+        return stored === undefined ? undefined : ToolExecutionRecordSchema.parse(stored);
+    }
+
+    async start(input: { record: ToolExecutionRunningRecord }): Promise<ToolExecutionStartResult> {
+        const parsed = ToolExecutionRunningRecordSchema.parse(input.record);
+        const stored = await this.database.setIfAbsent<ToolExecutionRecord>(
+            this.toKey(parsed.executionId),
+            parsed
+        );
+        const record = ToolExecutionRecordSchema.parse(stored.value);
+        return stored.inserted
+            ? { status: 'started', record: parsed }
+            : { status: 'existing', record };
+    }
+
+    async complete(input: {
+        executionId: string;
+        completedAt: Date;
+        result: ToolExecutionResult;
+    }): Promise<ToolExecutionCompletedRecord> {
+        const existing = await this.requireRecord(input.executionId);
+        if (existing.status === 'completed') {
+            return existing;
+        }
+        if (existing.status !== 'running') {
+            throw new Error(`Tool execution is already ${existing.status}: ${input.executionId}`);
+        }
+        const resultParts = splitToolExecutionResult(input.result);
+        const record = ToolExecutionCompletedRecordSchema.parse({
+            ...existing,
+            status: 'completed',
+            completedAt: input.completedAt,
+            updatedAt: input.completedAt,
+            ...resultParts,
+        });
+        await this.database.set(this.toKey(input.executionId), record);
+        return record;
+    }
+
+    async fail(input: {
+        executionId: string;
+        completedAt: Date;
+        error: string;
+    }): Promise<ToolExecutionFailedRecord> {
+        const existing = await this.requireRecord(input.executionId);
+        if (existing.status === 'failed') {
+            return existing;
+        }
+        if (existing.status !== 'running') {
+            throw new Error(`Tool execution is already ${existing.status}: ${input.executionId}`);
+        }
+        const record = ToolExecutionFailedRecordSchema.parse({
+            ...existing,
+            status: 'failed',
+            completedAt: input.completedAt,
+            updatedAt: input.completedAt,
+            error: input.error,
+        });
+        await this.database.set(this.toKey(input.executionId), record);
+        return record;
+    }
+
+    async cancel(input: {
+        executionId: string;
+        completedAt: Date;
+        reason?: string;
+    }): Promise<ToolExecutionCancelledRecord> {
+        const existing = await this.requireRecord(input.executionId);
+        if (existing.status === 'cancelled') {
+            return existing;
+        }
+        if (existing.status !== 'running') {
+            throw new Error(`Tool execution is already ${existing.status}: ${input.executionId}`);
+        }
+        const record = ToolExecutionCancelledRecordSchema.parse({
+            ...existing,
+            status: 'cancelled',
+            completedAt: input.completedAt,
+            updatedAt: input.completedAt,
+            ...(input.reason !== undefined ? { reason: input.reason } : {}),
+        });
+        await this.database.set(this.toKey(input.executionId), record);
+        return record;
+    }
+
+    private async requireRecord(executionId: string): Promise<ToolExecutionRecord> {
+        const existing = await this.get({ executionId });
+        if (existing === undefined) {
+            throw new Error(`Tool execution record not found: ${executionId}`);
+        }
+        return existing;
+    }
+
+    private toKey(executionId: string): string {
+        return `${TOOL_EXECUTION_KEY_PREFIX}${executionId}`;
     }
 }
 
