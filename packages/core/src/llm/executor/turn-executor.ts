@@ -49,6 +49,7 @@ import type { CompactionStrategy } from '../../context/compaction/types.js';
 import type { ModelLimits } from '../../context/compaction/overflow.js';
 import { isCodexBaseURL } from '../providers/codex-base-url.js';
 import type { AgentRunContext } from '../../runtime/run-context.js';
+import { createVercelToolDefinitions } from './tool-definitions.js';
 
 /**
  * Static cache for tool support validation.
@@ -705,136 +706,121 @@ export class TurnExecutor {
             this.sessionId
         );
 
-        return Object.fromEntries(
-            Object.entries(tools).map(([name, tool]) => [
-                name,
-                {
-                    inputSchema: jsonSchema(tool.parameters),
-                    ...(tool.description && { description: tool.description }),
+        return createVercelToolDefinitions(tools, {
+            execute: ({ toolName, args, options }) =>
+                this.executeToolFromModelStep(toolName, args, options),
+            toModelOutput: ({ toolName, result }) => this.formatToolResultForLLM(result, toolName),
+        });
+    }
 
-                    /**
-                     * Execute callback - runs the tool and returns raw result.
-                     * Does NOT persist - StreamProcessor handles that on tool-result event.
-                     *
-                     * Uses Promise.race to ensure we return quickly on abort, even if the
-                     * underlying tool (especially MCP tools we don't control) keeps running.
-                     */
-                    execute: async (
-                        args: unknown,
-                        options: { toolCallId: string }
-                    ): Promise<unknown> => {
-                        this.logger.debug(
-                            `Executing tool: ${name} (toolCallId: ${options.toolCallId})`
-                        );
+    /**
+     * Execute callback - runs the tool and returns raw result.
+     * Does NOT persist - StreamProcessor handles that on tool-result event.
+     *
+     * Uses Promise.race to ensure we return quickly on abort, even if the
+     * underlying tool (especially MCP tools we don't control) keeps running.
+     */
+    private async executeToolFromModelStep(
+        toolName: string,
+        args: unknown,
+        options: { toolCallId: string }
+    ): Promise<unknown> {
+        this.logger.debug(`Executing tool: ${toolName} (toolCallId: ${options.toolCallId})`);
 
-                        const abortSignal = this.stepAbortController.signal;
+        const abortSignal = this.stepAbortController.signal;
 
-                        // Check if already aborted before starting
-                        if (abortSignal.aborted) {
-                            this.logger.debug(`Tool ${name} cancelled before execution`);
-                            return { error: 'Cancelled by user', cancelled: true };
-                        }
+        // Check if already aborted before starting
+        if (abortSignal.aborted) {
+            this.logger.debug(`Tool ${toolName} cancelled before execution`);
+            return { error: 'Cancelled by user', cancelled: true };
+        }
 
-                        // Create abort handler for cleanup
-                        let abortHandler: (() => void) | null = null;
+        // Create abort handler for cleanup
+        let abortHandler: (() => void) | null = null;
 
-                        // Create abort promise for Promise.race
-                        // This ensures we return quickly even if tool doesn't respect abort signal
-                        const abortPromise = new Promise<{ error: string; cancelled: true }>(
-                            (resolve) => {
-                                abortHandler = () => {
-                                    this.logger.debug(`Tool ${name} cancelled during execution`);
-                                    resolve({ error: 'Cancelled by user', cancelled: true });
-                                };
-                                abortSignal.addEventListener('abort', abortHandler, { once: true });
-                            }
-                        );
+        // Create abort promise for Promise.race
+        // This ensures we return quickly even if tool doesn't respect abort signal
+        const abortPromise = new Promise<{ error: string; cancelled: true }>((resolve) => {
+            abortHandler = () => {
+                this.logger.debug(`Tool ${toolName} cancelled during execution`);
+                resolve({ error: 'Cancelled by user', cancelled: true });
+            };
+            abortSignal.addEventListener('abort', abortHandler, { once: true });
+        });
 
-                        // Race: tool execution vs abort signal
-                        try {
-                            const result = await Promise.race([
-                                (async () => {
-                                    // Run tool via toolManager - returns result with approval metadata
-                                    // toolCallId is passed for tracking parallel tool calls in the UI
-                                    // Pass abortSignal so tools can do proper cleanup (e.g., kill processes)
-                                    const executionResult = await this.toolManager.executeTool(
-                                        name,
-                                        args as Record<string, unknown>,
-                                        options.toolCallId,
-                                        {
-                                            sessionId: this.sessionId,
-                                            abortSignal,
-                                            ...(this.runContext !== undefined
-                                                ? { runContext: this.runContext }
-                                                : {}),
-                                        }
-                                    );
+        // Race: tool execution vs abort signal
+        try {
+            return await Promise.race([
+                this.executeToolAndCaptureMetadata(toolName, args, options.toolCallId, abortSignal),
+                abortPromise,
+            ]);
+        } finally {
+            // Clean up abort listener to prevent memory leak
+            if (abortHandler) {
+                abortSignal.removeEventListener('abort', abortHandler);
+            }
+        }
+    }
 
-                                    const metadata:
-                                        | {
-                                              presentationSnapshot?: ToolPresentationSnapshotV1;
-                                              meta?: ToolCallMetadata;
-                                              requireApproval?: boolean;
-                                              approvalStatus?: 'approved' | 'rejected';
-                                          }
-                                        | undefined = (() => {
-                                        const meta: {
-                                            presentationSnapshot?: ToolPresentationSnapshotV1;
-                                            meta?: ToolCallMetadata;
-                                            requireApproval?: boolean;
-                                            approvalStatus?: 'approved' | 'rejected';
-                                        } = {};
-
-                                        if (executionResult.presentationSnapshot !== undefined) {
-                                            meta.presentationSnapshot =
-                                                executionResult.presentationSnapshot;
-                                        }
-                                        if (executionResult.meta !== undefined) {
-                                            meta.meta = executionResult.meta;
-                                        }
-
-                                        // Store approval metadata for later retrieval by StreamProcessor
-                                        if (executionResult.requireApproval !== undefined) {
-                                            meta.requireApproval = executionResult.requireApproval;
-                                            if (executionResult.approvalStatus !== undefined) {
-                                                meta.approvalStatus =
-                                                    executionResult.approvalStatus;
-                                            }
-                                        }
-
-                                        return Object.keys(meta).length > 0 ? meta : undefined;
-                                    })();
-
-                                    if (metadata) {
-                                        this.toolCallMetadata.set(options.toolCallId, metadata);
-                                    }
-
-                                    // Return just the raw result for Vercel SDK
-                                    return executionResult.result;
-                                })(),
-                                abortPromise,
-                            ]);
-
-                            return result;
-                        } finally {
-                            // Clean up abort listener to prevent memory leak
-                            if (abortHandler) {
-                                abortSignal.removeEventListener('abort', abortHandler);
-                            }
-                        }
-                    },
-
-                    /**
-                     * toModelOutput - formats raw result for LLM consumption.
-                     * Called by Vercel SDK when preparing messages for next LLM call.
-                     * SYNC - images are already inline in the raw result.
-                     */
-                    toModelOutput: (result: unknown) => {
-                        return this.formatToolResultForLLM(result, name);
-                    },
-                },
-            ])
+    private async executeToolAndCaptureMetadata(
+        toolName: string,
+        args: unknown,
+        toolCallId: string,
+        abortSignal: AbortSignal
+    ): Promise<unknown> {
+        // Run tool via toolManager - returns result with approval metadata
+        // toolCallId is passed for tracking parallel tool calls in the UI
+        // Pass abortSignal so tools can do proper cleanup (e.g., kill processes)
+        const executionResult = await this.toolManager.executeTool(
+            toolName,
+            args as Record<string, unknown>,
+            toolCallId,
+            {
+                sessionId: this.sessionId,
+                abortSignal,
+                ...(this.runContext !== undefined ? { runContext: this.runContext } : {}),
+            }
         );
+
+        const metadata:
+            | {
+                  presentationSnapshot?: ToolPresentationSnapshotV1;
+                  meta?: ToolCallMetadata;
+                  requireApproval?: boolean;
+                  approvalStatus?: 'approved' | 'rejected';
+              }
+            | undefined = (() => {
+            const meta: {
+                presentationSnapshot?: ToolPresentationSnapshotV1;
+                meta?: ToolCallMetadata;
+                requireApproval?: boolean;
+                approvalStatus?: 'approved' | 'rejected';
+            } = {};
+
+            if (executionResult.presentationSnapshot !== undefined) {
+                meta.presentationSnapshot = executionResult.presentationSnapshot;
+            }
+            if (executionResult.meta !== undefined) {
+                meta.meta = executionResult.meta;
+            }
+
+            // Store approval metadata for later retrieval by StreamProcessor
+            if (executionResult.requireApproval !== undefined) {
+                meta.requireApproval = executionResult.requireApproval;
+                if (executionResult.approvalStatus !== undefined) {
+                    meta.approvalStatus = executionResult.approvalStatus;
+                }
+            }
+
+            return Object.keys(meta).length > 0 ? meta : undefined;
+        })();
+
+        if (metadata) {
+            this.toolCallMetadata.set(toolCallId, metadata);
+        }
+
+        // Return just the raw result for Vercel SDK
+        return executionResult.result;
     }
 
     /**
