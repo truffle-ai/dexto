@@ -2,7 +2,7 @@ import { jsonSchema, type ToolCallOptions, type ToolSet as VercelToolSet } from 
 import type { LanguageModelV2ToolResultOutput } from '@ai-sdk/provider';
 import type { ToolSet } from '../../tools/types.js';
 
-type ToolDefinitionsOptions = {
+type ExecutableToolDefinitionsOptions = {
     execute: (input: {
         toolName: string;
         args: unknown;
@@ -14,19 +14,31 @@ type ToolDefinitionsOptions = {
     }) => LanguageModelV2ToolResultOutput;
 };
 
-export function createVercelToolDefinitions(
+type IntentToolDefinitionsOptions = {
+    onInputAvailable: (input: {
+        toolName: string;
+        args: unknown;
+        options: ToolCallOptions;
+    }) => void | Promise<void>;
+};
+
+const unknownToolResultSchema = jsonSchema({});
+
+function createToolDefinitionBase(tool: ToolSet[string]) {
+    return {
+        inputSchema: jsonSchema(tool.parameters),
+        ...(tool.description ? { description: tool.description } : {}),
+    };
+}
+
+export function createExecutableVercelToolDefinitions(
     tools: ToolSet,
-    options: ToolDefinitionsOptions
+    options: ExecutableToolDefinitionsOptions
 ): VercelToolSet {
     const definitions: VercelToolSet = {};
     for (const [toolName, tool] of Object.entries(tools)) {
-        const base = {
-            inputSchema: jsonSchema(tool.parameters),
-            ...(tool.description ? { description: tool.description } : {}),
-        };
-
         definitions[toolName] = {
-            ...base,
+            ...createToolDefinitionBase(tool),
             execute: (args: unknown, toolOptions: ToolCallOptions) =>
                 options.execute({
                     toolName,
@@ -37,6 +49,26 @@ export function createVercelToolDefinitions(
                 options.toModelOutput({
                     toolName,
                     result,
+                }),
+        };
+    }
+    return definitions;
+}
+
+export function createIntentVercelToolDefinitions(
+    tools: ToolSet,
+    options: IntentToolDefinitionsOptions
+): VercelToolSet {
+    const definitions: VercelToolSet = {};
+    for (const [toolName, tool] of Object.entries(tools)) {
+        definitions[toolName] = {
+            ...createToolDefinitionBase(tool),
+            outputSchema: unknownToolResultSchema,
+            onInputAvailable: ({ input, ...toolOptions }: { input: unknown } & ToolCallOptions) =>
+                options.onInputAvailable({
+                    toolName,
+                    args: input,
+                    options: toolOptions,
                 }),
         };
     }
