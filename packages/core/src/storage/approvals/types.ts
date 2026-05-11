@@ -19,10 +19,12 @@ export type PersistedApprovedDirectory = z.output<typeof PersistedApprovedDirect
 export type SessionApprovalState = z.output<typeof SessionApprovalStateSchema>;
 
 export interface ApprovalStore {
-    createRequest(input: { request: ApprovalRequest }): Promise<void>;
+    /** Persist the request if the approval id is not already present. Must not overwrite. */
+    createRequest(input: { request: ApprovalRequest }): Promise<ApprovalRequest>;
     getRequest(input: { approvalId: string }): Promise<ApprovalRequest | undefined>;
     listPending(input: { sessionId?: string }): Promise<ApprovalRequest[]>;
-    saveResponse(input: { response: ApprovalResponse }): Promise<void>;
+    /** Persist the response if the approval id is not already resolved. Must not overwrite. */
+    saveResponse(input: { response: ApprovalResponse }): Promise<ApprovalResponse>;
     getResponse(input: { approvalId: string }): Promise<ApprovalResponse | undefined>;
     loadSessionState(input: { sessionId?: string }): Promise<SessionApprovalState>;
     saveSessionState(input: { sessionId?: string; state: SessionApprovalState }): Promise<void>;

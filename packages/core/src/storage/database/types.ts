@@ -6,6 +6,7 @@ export interface Database {
     // Basic operations
     get<T>(key: string): Promise<T | undefined>;
     set<T>(key: string, value: T): Promise<void>;
+    setIfAbsent<T>(key: string, value: T): Promise<T>;
     delete(key: string): Promise<void>;
 
     // Enumeration for settings/user data

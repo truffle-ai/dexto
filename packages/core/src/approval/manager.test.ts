@@ -3,13 +3,13 @@ import * as path from 'node:path';
 import * as os from 'node:os';
 import { mkdtempSync, mkdirSync, rmSync, symlinkSync } from 'node:fs';
 import { ApprovalManager } from './manager.js';
-import { ApprovalStatus, DenialReason } from './types.js';
+import { ApprovalStatus, ApprovalType, DenialReason } from './types.js';
 import { AgentEventBus } from '../events/index.js';
 import { DextoRuntimeError } from '../errors/index.js';
 import { ApprovalErrorCode } from './error-codes.js';
 import { createMockLogger } from '../logger/v2/test-utils.js';
 import type { Logger } from '../logger/v2/types.js';
-import type { SessionApprovalState } from '../storage/approvals/types.js';
+import type { ApprovalStore, SessionApprovalState } from '../storage/approvals/types.js';
 import { createInMemorySessionApprovalStore } from '../test-utils/session-state-stores.js';
 
 function createDeferred<T>() {
@@ -28,9 +28,10 @@ describe('ApprovalManager', () => {
 
     function createApprovalManager(
         config: ConstructorParameters<typeof ApprovalManager>[0],
-        logger: Logger = mockLogger
+        logger: Logger = mockLogger,
+        approvalStore: ApprovalStore = createInMemorySessionApprovalStore(logger)
     ) {
-        return new ApprovalManager(config, logger, createInMemorySessionApprovalStore(logger));
+        return new ApprovalManager(config, logger, approvalStore);
     }
 
     beforeEach(() => {
@@ -149,6 +150,404 @@ describe('ApprovalManager', () => {
             const config = manager.getConfig();
             expect(config.permissions.timeout).toBe(60000);
             expect(config.elicitation.timeout).toBe(180000);
+        });
+    });
+
+    describe('Durable approval records', () => {
+        it('records a deterministic approval request without invoking the manual handler', async () => {
+            const approvalStore = createInMemorySessionApprovalStore(mockLogger);
+            const manager = createApprovalManager(
+                {
+                    permissions: {
+                        mode: 'manual',
+                        timeout: 120000,
+                    },
+                    elicitation: {
+                        enabled: true,
+                        timeout: 120000,
+                    },
+                },
+                mockLogger,
+                approvalStore
+            );
+            const handler = vi.fn();
+            manager.setHandler(handler);
+
+            const request = await manager.recordApprovalRequest(
+                {
+                    type: ApprovalType.TOOL_APPROVAL,
+                    sessionId: 'session-1',
+                    metadata: {
+                        toolName: 'write_file',
+                        toolCallId: 'call-1',
+                        args: { path: 'src/app.ts' },
+                    },
+                },
+                {
+                    runId: 'run-1',
+                    turnId: 'turn-1',
+                    modelStepId: 'step-1',
+                    toolCallId: 'call-1',
+                }
+            );
+            const replayed = await manager.recordApprovalRequest(
+                {
+                    type: ApprovalType.TOOL_APPROVAL,
+                    sessionId: 'session-1',
+                    metadata: {
+                        toolName: 'write_file',
+                        toolCallId: 'call-1',
+                        args: { path: 'src/app.ts' },
+                    },
+                },
+                {
+                    runId: 'run-1',
+                    turnId: 'turn-1',
+                    modelStepId: 'step-1',
+                    toolCallId: 'call-1',
+                }
+            );
+
+            expect(request.approvalId).toBe(replayed.approvalId);
+            expect(request.timeout).toBe(120000);
+            expect(handler).not.toHaveBeenCalled();
+            await expect(
+                approvalStore.getRequest({ approvalId: request.approvalId })
+            ).resolves.toEqual(request);
+        });
+
+        it('records approval responses idempotently and rejects conflicting decisions', async () => {
+            const approvalStore = createInMemorySessionApprovalStore(mockLogger);
+            const manager = createApprovalManager(
+                {
+                    permissions: {
+                        mode: 'manual',
+                        timeout: 120000,
+                    },
+                    elicitation: {
+                        enabled: true,
+                        timeout: 120000,
+                    },
+                },
+                mockLogger,
+                approvalStore
+            );
+            const request = await manager.recordApprovalRequest(
+                {
+                    type: ApprovalType.TOOL_APPROVAL,
+                    sessionId: 'session-1',
+                    metadata: {
+                        toolName: 'write_file',
+                        toolCallId: 'call-1',
+                        args: { path: 'src/app.ts' },
+                    },
+                },
+                {
+                    runId: 'run-1',
+                    turnId: 'turn-1',
+                    modelStepId: 'step-1',
+                    toolCallId: 'call-1',
+                }
+            );
+            const response = {
+                approvalId: request.approvalId,
+                status: ApprovalStatus.APPROVED,
+            };
+
+            await expect(manager.recordApprovalResponse(response)).resolves.toEqual(
+                expect.objectContaining(response)
+            );
+            await expect(manager.recordApprovalResponse(response)).resolves.toEqual(
+                expect.objectContaining(response)
+            );
+            await expect(
+                manager.recordApprovalResponse({
+                    approvalId: request.approvalId,
+                    status: ApprovalStatus.DENIED,
+                    reason: DenialReason.USER_DENIED,
+                })
+            ).rejects.toThrow(/conflicts with existing approval response/);
+        });
+
+        it('treats equivalent approval response data as an idempotent replay', async () => {
+            const manager = createApprovalManager({
+                permissions: {
+                    mode: 'manual',
+                    timeout: 120000,
+                },
+                elicitation: {
+                    enabled: true,
+                    timeout: 120000,
+                },
+            });
+            const request = await manager.recordApprovalRequest(
+                {
+                    type: ApprovalType.TOOL_APPROVAL,
+                    sessionId: 'session-1',
+                    metadata: {
+                        toolName: 'write_file',
+                        toolCallId: 'call-1',
+                        args: { path: 'src/app.ts' },
+                    },
+                },
+                {
+                    runId: 'run-1',
+                    turnId: 'turn-1',
+                    modelStepId: 'step-1',
+                    toolCallId: 'call-1',
+                }
+            );
+            const firstDecision = {
+                approvalId: request.approvalId,
+                status: ApprovalStatus.APPROVED,
+                data: {
+                    rememberChoice: true,
+                    rememberPattern: 'write_file *',
+                },
+            };
+            const replayedDecision = {
+                approvalId: request.approvalId,
+                status: ApprovalStatus.APPROVED,
+                data: {
+                    rememberPattern: 'write_file *',
+                    rememberChoice: true,
+                },
+            };
+
+            const firstResponse = await manager.recordApprovalResponse(firstDecision);
+
+            await expect(manager.recordApprovalResponse(replayedDecision)).resolves.toEqual(
+                firstResponse
+            );
+        });
+
+        it('rejects request replays that reuse an approval identity with different details', async () => {
+            const manager = createApprovalManager({
+                permissions: {
+                    mode: 'manual',
+                    timeout: 120000,
+                },
+                elicitation: {
+                    enabled: true,
+                    timeout: 120000,
+                },
+            });
+            const identity = {
+                runId: 'run-1',
+                turnId: 'turn-1',
+                modelStepId: 'step-1',
+                toolCallId: 'call-1',
+            };
+
+            await manager.recordApprovalRequest(
+                {
+                    type: ApprovalType.TOOL_APPROVAL,
+                    sessionId: 'session-1',
+                    metadata: {
+                        toolName: 'write_file',
+                        toolCallId: 'call-1',
+                        args: { path: 'src/app.ts' },
+                    },
+                },
+                identity
+            );
+
+            await expect(
+                manager.recordApprovalRequest(
+                    {
+                        type: ApprovalType.TOOL_APPROVAL,
+                        sessionId: 'session-2',
+                        metadata: {
+                            toolName: 'write_file',
+                            toolCallId: 'call-1',
+                            args: { path: 'src/app.ts' },
+                        },
+                    },
+                    identity
+                )
+            ).rejects.toThrow(/conflicts with existing approval request/);
+        });
+
+        it('stamps recorded responses with request-owned session and host runtime', async () => {
+            const manager = createApprovalManager({
+                permissions: {
+                    mode: 'manual',
+                    timeout: 120000,
+                },
+                elicitation: {
+                    enabled: true,
+                    timeout: 120000,
+                },
+            });
+            const request = await manager.recordApprovalRequest(
+                {
+                    type: ApprovalType.TOOL_APPROVAL,
+                    sessionId: 'session-1',
+                    hostRuntime: {
+                        ids: {
+                            runId: 'run-1',
+                            workflowInstanceId: 'workflow-1',
+                        },
+                    },
+                    metadata: {
+                        toolName: 'write_file',
+                        toolCallId: 'call-1',
+                        args: { path: 'src/app.ts' },
+                    },
+                },
+                {
+                    runId: 'run-1',
+                    turnId: 'turn-1',
+                    modelStepId: 'step-1',
+                    toolCallId: 'call-1',
+                }
+            );
+
+            await expect(
+                manager.recordApprovalResponse({
+                    approvalId: request.approvalId,
+                    status: ApprovalStatus.DENIED,
+                    reason: DenialReason.USER_DENIED,
+                })
+            ).resolves.toEqual(
+                expect.objectContaining({
+                    approvalId: request.approvalId,
+                    sessionId: 'session-1',
+                    hostRuntime: {
+                        ids: {
+                            runId: 'run-1',
+                            workflowInstanceId: 'workflow-1',
+                        },
+                    },
+                    status: ApprovalStatus.DENIED,
+                    reason: DenialReason.USER_DENIED,
+                })
+            );
+        });
+
+        it('does not let runtime caller fields override request-owned response scope', async () => {
+            const manager = createApprovalManager({
+                permissions: {
+                    mode: 'manual',
+                    timeout: 120000,
+                },
+                elicitation: {
+                    enabled: true,
+                    timeout: 120000,
+                },
+            });
+            const request = await manager.recordApprovalRequest(
+                {
+                    type: ApprovalType.TOOL_APPROVAL,
+                    sessionId: 'session-1',
+                    metadata: {
+                        toolName: 'write_file',
+                        toolCallId: 'call-1',
+                        args: { path: 'src/app.ts' },
+                    },
+                },
+                {
+                    runId: 'run-1',
+                    turnId: 'turn-1',
+                    modelStepId: 'step-1',
+                    toolCallId: 'call-1',
+                }
+            );
+            const runtimeDecision = {
+                approvalId: request.approvalId,
+                sessionId: 'wrong-session',
+                status: ApprovalStatus.APPROVED,
+            };
+
+            await expect(manager.recordApprovalResponse(runtimeDecision)).resolves.toEqual(
+                expect.objectContaining({
+                    approvalId: request.approvalId,
+                    sessionId: 'session-1',
+                    status: ApprovalStatus.APPROVED,
+                })
+            );
+        });
+
+        it('strips caller scope fields when the recorded request has no scope', async () => {
+            const manager = createApprovalManager({
+                permissions: {
+                    mode: 'manual',
+                    timeout: 120000,
+                },
+                elicitation: {
+                    enabled: true,
+                    timeout: 120000,
+                },
+            });
+            const request = await manager.recordApprovalRequest(
+                {
+                    type: ApprovalType.TOOL_APPROVAL,
+                    metadata: {
+                        toolName: 'write_file',
+                        toolCallId: 'call-1',
+                        args: { path: 'src/app.ts' },
+                    },
+                },
+                {
+                    runId: 'run-1',
+                    turnId: 'turn-1',
+                    modelStepId: 'step-1',
+                    toolCallId: 'call-1',
+                }
+            );
+            const runtimeDecision = {
+                approvalId: request.approvalId,
+                sessionId: 'wrong-session',
+                status: ApprovalStatus.APPROVED,
+            };
+
+            await expect(manager.recordApprovalResponse(runtimeDecision)).resolves.toEqual({
+                approvalId: request.approvalId,
+                status: ApprovalStatus.APPROVED,
+            });
+        });
+
+        it('validates response data against the recorded request type', async () => {
+            const manager = createApprovalManager({
+                permissions: {
+                    mode: 'manual',
+                    timeout: 120000,
+                },
+                elicitation: {
+                    enabled: true,
+                    timeout: 120000,
+                },
+            });
+            const request = await manager.recordApprovalRequest(
+                {
+                    type: ApprovalType.ELICITATION,
+                    sessionId: 'session-1',
+                    metadata: {
+                        schema: {
+                            type: 'object',
+                            properties: {
+                                name: { type: 'string' },
+                            },
+                        },
+                        prompt: 'Name?',
+                        serverName: 'test-server',
+                    },
+                },
+                {
+                    runId: 'run-1',
+                    turnId: 'turn-1',
+                    modelStepId: 'step-1',
+                    toolCallId: 'call-1',
+                }
+            );
+
+            await expect(
+                manager.recordApprovalResponse({
+                    approvalId: request.approvalId,
+                    status: ApprovalStatus.APPROVED,
+                    data: { rememberChoice: true },
+                })
+            ).rejects.toThrow();
         });
     });
 

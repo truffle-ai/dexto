@@ -87,8 +87,13 @@ class InMemoryApprovalStore implements ApprovalStore {
     private readonly responses = new Map<string, ApprovalResponse>();
     private readonly sessionStates = new Map<string, SessionApprovalState>();
 
-    async createRequest(input: { request: ApprovalRequest }): Promise<void> {
+    async createRequest(input: { request: ApprovalRequest }): Promise<ApprovalRequest> {
+        const existing = this.requests.get(input.request.approvalId);
+        if (existing) {
+            return structuredClone(existing);
+        }
         this.requests.set(input.request.approvalId, structuredClone(input.request));
+        return structuredClone(input.request);
     }
 
     async getRequest(input: { approvalId: string }): Promise<ApprovalRequest | undefined> {
@@ -110,8 +115,13 @@ class InMemoryApprovalStore implements ApprovalStore {
         return pending;
     }
 
-    async saveResponse(input: { response: ApprovalResponse }): Promise<void> {
+    async saveResponse(input: { response: ApprovalResponse }): Promise<ApprovalResponse> {
+        const existing = this.responses.get(input.response.approvalId);
+        if (existing) {
+            return structuredClone(existing);
+        }
         this.responses.set(input.response.approvalId, structuredClone(input.response));
+        return structuredClone(input.response);
     }
 
     async getResponse(input: { approvalId: string }): Promise<ApprovalResponse | undefined> {

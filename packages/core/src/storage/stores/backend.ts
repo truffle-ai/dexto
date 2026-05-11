@@ -176,9 +176,11 @@ export class DatabaseBackedApprovalStore implements ApprovalStore {
         private readonly logger: Logger
     ) {}
 
-    async createRequest(input: { request: ApprovalRequest }): Promise<void> {
+    async createRequest(input: { request: ApprovalRequest }): Promise<ApprovalRequest> {
         const request = ApprovalRequestSchema.parse(input.request);
-        await this.database.set(this.requestKey(request.approvalId), request);
+        const key = this.requestKey(request.approvalId);
+        const stored = await this.database.setIfAbsent<ApprovalRequest>(key, request);
+        return ApprovalRequestSchema.parse(stored);
     }
 
     async getRequest(input: { approvalId: string }): Promise<ApprovalRequest | undefined> {
@@ -206,9 +208,11 @@ export class DatabaseBackedApprovalStore implements ApprovalStore {
         return pending;
     }
 
-    async saveResponse(input: { response: ApprovalResponse }): Promise<void> {
+    async saveResponse(input: { response: ApprovalResponse }): Promise<ApprovalResponse> {
         const response = ApprovalResponseSchema.parse(input.response);
-        await this.database.set(this.responseKey(response.approvalId), response);
+        const key = this.responseKey(response.approvalId);
+        const stored = await this.database.setIfAbsent<ApprovalResponse>(key, response);
+        return ApprovalResponseSchema.parse(stored);
     }
 
     async getResponse(input: { approvalId: string }): Promise<ApprovalResponse | undefined> {

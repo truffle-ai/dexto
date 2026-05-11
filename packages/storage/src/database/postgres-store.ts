@@ -189,6 +189,30 @@ export class PostgresStore implements Database {
         }
     }
 
+    async setIfAbsent<T>(key: string, value: T): Promise<T> {
+        try {
+            return await this.withRetry('setIfAbsent', async (client) => {
+                const jsonValue = JSON.stringify(value);
+                const inserted = await client.query(
+                    'INSERT INTO kv (key, value, updated_at) VALUES ($1, $2::jsonb, $3) ON CONFLICT (key) DO NOTHING RETURNING value',
+                    [key, jsonValue, new Date()]
+                );
+                if (inserted.rows[0]) {
+                    return inserted.rows[0].value;
+                }
+
+                const existing = await client.query('SELECT value FROM kv WHERE key = $1', [key]);
+                return existing.rows[0] ? existing.rows[0].value : value;
+            });
+        } catch (error) {
+            throw StorageError.writeFailed(
+                'setIfAbsent',
+                error instanceof Error ? error.message : String(error),
+                { key }
+            );
+        }
+    }
+
     async delete(key: string): Promise<void> {
         await this.withRetry('delete', async (client) => {
             await client.query('BEGIN');

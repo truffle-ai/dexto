@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { realpathSync } from 'node:fs';
+import { isDeepStrictEqual } from 'node:util';
 import type {
     ApprovalHandler,
     ApprovalRequest,
@@ -11,7 +12,14 @@ import type {
     DirectoryAccessMetadata,
 } from './types.js';
 import { ApprovalType, ApprovalStatus, DenialReason } from './types.js';
-import { createApprovalRequest } from './factory.js';
+import {
+    CommandConfirmationResponseSchema,
+    CustomApprovalResponseSchema,
+    DirectoryAccessResponseSchema,
+    ElicitationResponseSchema,
+    ToolApprovalResponseSchema,
+} from './schemas.js';
+import { createApprovalRequest, createDeterministicApprovalId } from './factory.js';
 import type { Logger } from '../logger/v2/types.js';
 import { DextoLogComponent } from '../logger/v2/types.js';
 import { ApprovalError } from './errors.js';
@@ -29,6 +37,28 @@ type ApprovalScopeState = {
     toolPatterns: Map<string, Set<string>>;
     approvedDirectories: Map<string, 'session' | 'once'>;
 };
+
+type ApprovalRecordIdentity = {
+    runId: string;
+    turnId: string;
+    modelStepId: string;
+    toolCallId: string;
+};
+
+type ApprovalDecisionInput =
+    | {
+          approvalId: ApprovalRequest['approvalId'];
+          status: typeof ApprovalStatus.APPROVED;
+          data?: ApprovalResponse['data'];
+      }
+    | {
+          approvalId: ApprovalRequest['approvalId'];
+          status: typeof ApprovalStatus.DENIED | typeof ApprovalStatus.CANCELLED;
+          reason?: ApprovalResponse['reason'];
+          message?: string;
+          timeoutMs?: number;
+          data?: ApprovalResponse['data'];
+      };
 
 function tryRealpathSync(targetPath: string): string | null {
     try {
@@ -111,6 +141,7 @@ export class ApprovalManager {
     private logger: Logger;
     private readonly loadedScopes = new Set<string>();
     private readonly scopeLocks = new Map<string, Promise<void>>();
+    private readonly approvalRecordLocks = new Map<string, Promise<void>>();
     private readonly scopes = new Map<string, ApprovalScopeState>();
 
     constructor(
@@ -182,6 +213,28 @@ export class ApprovalManager {
         } finally {
             if (this.scopeLocks.get(scopeKey) === currentLock) {
                 this.scopeLocks.delete(scopeKey);
+            }
+        }
+    }
+
+    private async runWithApprovalRecordLock<T>(
+        approvalId: string,
+        fn: () => Promise<T>
+    ): Promise<T> {
+        const previousLock = this.approvalRecordLocks.get(approvalId) ?? Promise.resolve();
+        const currentResult = previousLock.catch(() => {}).then(() => fn());
+        const currentLock = currentResult.then(
+            () => undefined,
+            () => undefined
+        );
+
+        this.approvalRecordLocks.set(approvalId, currentLock);
+
+        try {
+            return await currentResult;
+        } finally {
+            if (this.approvalRecordLocks.get(approvalId) === currentLock) {
+                this.approvalRecordLocks.delete(approvalId);
             }
         }
     }
@@ -606,16 +659,84 @@ export class ApprovalManager {
         return details;
     }
 
+    private withDefaultTimeout(details: ApprovalRequestDetails): ApprovalRequestDetails {
+        return {
+            ...details,
+            timeout: this.getApprovalTimeout(details.type, details.timeout),
+        };
+    }
+
+    private approvalIdentityKey(identity: ApprovalRecordIdentity): string {
+        return JSON.stringify([
+            identity.runId,
+            identity.turnId,
+            identity.modelStepId,
+            identity.toolCallId,
+        ]);
+    }
+
+    private assertMatchingRecordedRequest(
+        existing: ApprovalRequest,
+        candidate: ApprovalRequest
+    ): void {
+        const existingComparable = {
+            type: existing.type,
+            sessionId: existing.sessionId,
+            hostRuntime: existing.hostRuntime,
+            timeout: existing.timeout,
+            metadata: existing.metadata,
+        };
+        const candidateComparable = {
+            type: candidate.type,
+            sessionId: candidate.sessionId,
+            hostRuntime: candidate.hostRuntime,
+            timeout: candidate.timeout,
+            metadata: candidate.metadata,
+        };
+
+        if (!isDeepStrictEqual(existingComparable, candidateComparable)) {
+            throw ApprovalError.invalidRequest(
+                'Approval request conflicts with existing approval request',
+                {
+                    approvalId: existing.approvalId,
+                    type: existing.type,
+                }
+            );
+        }
+    }
+
     private createResponse(
         request: ApprovalRequest,
         response: Omit<ApprovalResponse, 'approvalId' | 'sessionId'>
     ): ApprovalResponse {
         return {
+            status: response.status,
             approvalId: request.approvalId,
             ...(request.sessionId !== undefined ? { sessionId: request.sessionId } : {}),
             ...(request.hostRuntime !== undefined ? { hostRuntime: request.hostRuntime } : {}),
-            ...response,
+            ...(response.reason !== undefined ? { reason: response.reason } : {}),
+            ...(response.message !== undefined ? { message: response.message } : {}),
+            ...(response.timeoutMs !== undefined ? { timeoutMs: response.timeoutMs } : {}),
+            ...(response.data !== undefined ? { data: response.data } : {}),
         };
+    }
+
+    private parseResponseForRequest(
+        request: ApprovalRequest,
+        response: ApprovalResponse
+    ): ApprovalResponse {
+        switch (request.type) {
+            case ApprovalType.TOOL_APPROVAL:
+                return ToolApprovalResponseSchema.parse(response);
+            case ApprovalType.COMMAND_CONFIRMATION:
+                return CommandConfirmationResponseSchema.parse(response);
+            case ApprovalType.ELICITATION:
+                return ElicitationResponseSchema.parse(response);
+            case ApprovalType.CUSTOM:
+                return CustomApprovalResponseSchema.parse(response);
+            case ApprovalType.DIRECTORY_ACCESS:
+                return DirectoryAccessResponseSchema.parse(response);
+        }
     }
 
     private getElicitationFormData(response: ApprovalResponse): Record<string, unknown> {
@@ -683,7 +804,7 @@ export class ApprovalManager {
      * Request a generic approval
      */
     async requestApproval(details: ApprovalRequestDetails): Promise<ApprovalResponse> {
-        const request = createApprovalRequest(details);
+        const request = createApprovalRequest(this.withDefaultTimeout(details));
 
         // Check elicitation config if this is an elicitation request
         if (request.type === ApprovalType.ELICITATION && !this.config.elicitation.enabled) {
@@ -694,6 +815,74 @@ export class ApprovalManager {
 
         // Handle all approval types uniformly
         return this.handleApproval(request);
+    }
+
+    async recordApprovalRequest(
+        details: ApprovalRequestDetails,
+        identity: ApprovalRecordIdentity
+    ): Promise<ApprovalRequest> {
+        if (details.type === ApprovalType.ELICITATION && !this.config.elicitation.enabled) {
+            throw ApprovalError.invalidConfig(
+                'Elicitation is disabled. Enable elicitation in your agent configuration to use the ask_user tool or MCP server elicitations.'
+            );
+        }
+
+        const approvalId = createDeterministicApprovalId(this.approvalIdentityKey(identity));
+        const request = createApprovalRequest(this.withDefaultTimeout(details), approvalId);
+        return this.runWithApprovalRecordLock(approvalId, async () => {
+            const existing = await this.approvalStore.getRequest({ approvalId });
+            if (existing) {
+                this.assertMatchingRecordedRequest(existing, request);
+                return existing;
+            }
+
+            const recorded = await this.approvalStore.createRequest({ request });
+            this.assertMatchingRecordedRequest(recorded, request);
+            return recorded;
+        });
+    }
+
+    async recordApprovalResponse(decision: ApprovalDecisionInput): Promise<ApprovalResponse> {
+        return this.runWithApprovalRecordLock(decision.approvalId, async () => {
+            const request = await this.approvalStore.getRequest({
+                approvalId: decision.approvalId,
+            });
+            if (!request) {
+                throw ApprovalError.invalidResponse('Approval response has no recorded request', {
+                    approvalId: decision.approvalId,
+                });
+            }
+
+            const response = this.parseResponseForRequest(
+                request,
+                this.createResponse(request, decision)
+            );
+            const existing = await this.approvalStore.getResponse({
+                approvalId: decision.approvalId,
+            });
+            if (existing) {
+                if (!isDeepStrictEqual(existing, response)) {
+                    throw ApprovalError.invalidResponse(
+                        'Approval response conflicts with existing approval response',
+                        {
+                            approvalId: decision.approvalId,
+                        }
+                    );
+                }
+                return existing;
+            }
+
+            const recorded = await this.approvalStore.saveResponse({ response });
+            if (!isDeepStrictEqual(recorded, response)) {
+                throw ApprovalError.invalidResponse(
+                    'Approval response conflicts with existing approval response',
+                    {
+                        approvalId: decision.approvalId,
+                    }
+                );
+            }
+            return recorded;
+        });
     }
 
     /**

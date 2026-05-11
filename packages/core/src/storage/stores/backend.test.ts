@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createMockLogger } from '../../logger/v2/test-utils.js';
+import { createApprovalRequest } from '../../approval/factory.js';
+import { ApprovalType } from '../../approval/types.js';
 import {
     createInMemoryBlobStore,
     createInMemoryCache,
@@ -138,5 +140,110 @@ describe('BackendDextoStores', () => {
 
         await stores.disconnect();
         expect(stores.isConnected()).toBe(false);
+    });
+});
+
+describe('DatabaseBackedApprovalStore', () => {
+    it('reads approval requests after JSON-backed timestamp round trips', async () => {
+        const database = createInMemoryDatabase();
+        const cache = createInMemoryCache();
+        const store = new DatabaseBackedApprovalStore(database, cache, createMockLogger());
+        const request = createApprovalRequest({
+            type: ApprovalType.TOOL_APPROVAL,
+            sessionId: 'session-1',
+            metadata: {
+                toolName: 'write_file',
+                toolCallId: 'call-1',
+                args: { path: 'src/app.ts' },
+            },
+        });
+
+        await database.set(
+            `approval-request:${request.approvalId}`,
+            JSON.parse(JSON.stringify(request))
+        );
+
+        await expect(store.getRequest({ approvalId: request.approvalId })).resolves.toEqual(
+            request
+        );
+    });
+
+    it('returns the stored approval request when concurrent writers race on one id', async () => {
+        const database = createInMemoryDatabase();
+        const cache = createInMemoryCache();
+        const logger = createMockLogger();
+        const firstStore = new DatabaseBackedApprovalStore(database, cache, logger);
+        const secondStore = new DatabaseBackedApprovalStore(database, cache, logger);
+        const firstRequest = createApprovalRequest({
+            type: ApprovalType.TOOL_APPROVAL,
+            sessionId: 'session-1',
+            metadata: {
+                toolName: 'write_file',
+                toolCallId: 'call-1',
+                args: { path: 'src/app.ts' },
+            },
+        });
+        const secondRequest = createApprovalRequest(
+            {
+                type: ApprovalType.TOOL_APPROVAL,
+                sessionId: 'session-2',
+                metadata: {
+                    toolName: 'write_file',
+                    toolCallId: 'call-1',
+                    args: { path: 'src/app.ts' },
+                },
+            },
+            firstRequest.approvalId
+        );
+
+        const [firstRecorded, secondRecorded] = await Promise.all([
+            firstStore.createRequest({ request: firstRequest }),
+            secondStore.createRequest({ request: secondRequest }),
+        ]);
+
+        expect(firstRecorded).toEqual(firstRequest);
+        expect(secondRecorded).toEqual(firstRequest);
+        await expect(
+            firstStore.getRequest({ approvalId: firstRequest.approvalId })
+        ).resolves.toEqual(firstRequest);
+    });
+
+    it('returns the stored approval response when concurrent writers race on one id', async () => {
+        const database = createInMemoryDatabase();
+        const cache = createInMemoryCache();
+        const store = new DatabaseBackedApprovalStore(database, cache, createMockLogger());
+        const request = createApprovalRequest({
+            type: ApprovalType.TOOL_APPROVAL,
+            sessionId: 'session-1',
+            metadata: {
+                toolName: 'write_file',
+                toolCallId: 'call-1',
+                args: { path: 'src/app.ts' },
+            },
+        });
+        await store.createRequest({ request });
+
+        const approved = {
+            approvalId: request.approvalId,
+            sessionId: 'session-1',
+            status: 'approved' as const,
+        };
+        const denied = {
+            approvalId: request.approvalId,
+            sessionId: 'session-1',
+            status: 'denied' as const,
+            reason: 'user_denied' as const,
+        };
+
+        const [firstRecorded, secondRecorded] = await Promise.all([
+            store.saveResponse({ response: approved }),
+            store.saveResponse({ response: denied }),
+        ]);
+
+        expect(firstRecorded).toEqual(approved);
+        expect(secondRecorded).toEqual(approved);
+        await expect(store.getResponse({ approvalId: request.approvalId })).resolves.toEqual(
+            approved
+        );
     });
 });

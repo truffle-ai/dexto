@@ -92,6 +92,14 @@ class InMemoryDatabase implements Database {
         this.data.set(key, value);
     }
 
+    async setIfAbsent<T>(key: string, value: T): Promise<T> {
+        if (this.data.has(key)) {
+            return this.data.get(key) as T;
+        }
+        this.data.set(key, value);
+        return value;
+    }
+
     async delete(key: string): Promise<void> {
         this.data.delete(key);
     }

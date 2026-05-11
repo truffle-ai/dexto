@@ -137,7 +137,7 @@ export const BaseApprovalRequestSchema = z
             .positive()
             .optional()
             .describe('Timeout in milliseconds (optional - no timeout if not specified)'),
-        timestamp: z.date().describe('When the request was created'),
+        timestamp: z.coerce.date().describe('When the request was created'),
     })
     .describe('Base approval request');
 
