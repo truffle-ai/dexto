@@ -237,6 +237,100 @@ describe('Hono API Integration Tests', () => {
             expect(session.parentSessionId).toBeNull();
         });
 
+        it('POST /api/sessions/:id/cancel soft cancel preserves queued input', async () => {
+            if (!testServer) throw new Error('Test server not initialized');
+            const sessionId = `cancel-soft-${Date.now()}`;
+            await httpRequest(testServer.baseUrl, 'POST', '/api/sessions', { sessionId });
+            await httpRequest(testServer.baseUrl, 'POST', `/api/steer/${sessionId}`, {
+                content: 'active turn guidance',
+            });
+            await httpRequest(testServer.baseUrl, 'POST', `/api/follow-up/${sessionId}`, {
+                content: 'next turn work',
+            });
+
+            const agent = testServer.agent;
+            const cancelSpy = vi.spyOn(agent, 'cancel').mockResolvedValue(true);
+            try {
+                const res = await httpRequest(
+                    testServer.baseUrl,
+                    'POST',
+                    `/api/sessions/${sessionId}/cancel`,
+                    { clearQueue: false }
+                );
+
+                expect(res.status).toBe(200);
+                expect(res.body).toMatchObject({
+                    cancelled: true,
+                    sessionId,
+                    queueCleared: false,
+                    clearedCount: 0,
+                });
+
+                const steerGet = await httpRequest(
+                    testServer.baseUrl,
+                    'GET',
+                    `/api/steer/${sessionId}`
+                );
+                const followUpGet = await httpRequest(
+                    testServer.baseUrl,
+                    'GET',
+                    `/api/follow-up/${sessionId}`
+                );
+
+                expect((steerGet.body as { count: number }).count).toBe(1);
+                expect((followUpGet.body as { count: number }).count).toBe(1);
+            } finally {
+                cancelSpy.mockRestore();
+            }
+        });
+
+        it('POST /api/sessions/:id/cancel hard cancel clears steer and follow-up input', async () => {
+            if (!testServer) throw new Error('Test server not initialized');
+            const sessionId = `cancel-hard-${Date.now()}`;
+            await httpRequest(testServer.baseUrl, 'POST', '/api/sessions', { sessionId });
+            await httpRequest(testServer.baseUrl, 'POST', `/api/steer/${sessionId}`, {
+                content: 'active turn guidance',
+            });
+            await httpRequest(testServer.baseUrl, 'POST', `/api/follow-up/${sessionId}`, {
+                content: 'next turn work',
+            });
+
+            const agent = testServer.agent;
+            const cancelSpy = vi.spyOn(agent, 'cancel').mockResolvedValue(true);
+            try {
+                const res = await httpRequest(
+                    testServer.baseUrl,
+                    'POST',
+                    `/api/sessions/${sessionId}/cancel`,
+                    { clearQueue: true }
+                );
+
+                expect(res.status).toBe(200);
+                expect(res.body).toMatchObject({
+                    cancelled: true,
+                    sessionId,
+                    queueCleared: true,
+                    clearedCount: 2,
+                });
+
+                const steerGet = await httpRequest(
+                    testServer.baseUrl,
+                    'GET',
+                    `/api/steer/${sessionId}`
+                );
+                const followUpGet = await httpRequest(
+                    testServer.baseUrl,
+                    'GET',
+                    `/api/follow-up/${sessionId}`
+                );
+
+                expect((steerGet.body as { count: number }).count).toBe(0);
+                expect((followUpGet.body as { count: number }).count).toBe(0);
+            } finally {
+                cancelSpy.mockRestore();
+            }
+        });
+
         it('GET /api/sessions/:id returns session details', async () => {
             if (!testServer) throw new Error('Test server not initialized');
             // Create session first

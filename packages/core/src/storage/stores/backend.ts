@@ -46,11 +46,11 @@ const RUNTIME_EVENTS_LIMIT = 10000;
 const TOOL_STATE_KEY_PREFIX = 'tool-state:';
 const WORKSPACE_KEY_PREFIX = 'workspace:item:';
 const WORKSPACE_CURRENT_KEY = 'workspace:current';
-export const SESSION_MESSAGE_QUEUE_KEY_PREFIX = 'session-message-queue';
+export const SESSION_STEER_QUEUE_KEY_PREFIX = 'session-steer-queue';
 export const SESSION_FOLLOW_UP_QUEUE_KEY_PREFIX = 'session-follow-up-queue';
 
 type SessionMessageQueueKeyPrefix =
-    | typeof SESSION_MESSAGE_QUEUE_KEY_PREFIX
+    | typeof SESSION_STEER_QUEUE_KEY_PREFIX
     | typeof SESSION_FOLLOW_UP_QUEUE_KEY_PREFIX;
 
 const DEFAULT_APPROVAL_STATE: SessionApprovalState = {

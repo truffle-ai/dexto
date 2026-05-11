@@ -25,7 +25,7 @@ import {
     DatabaseBackedToolStateStore,
     DatabaseBackedWorkspaceStore,
     SESSION_FOLLOW_UP_QUEUE_KEY_PREFIX,
-    SESSION_MESSAGE_QUEUE_KEY_PREFIX,
+    SESSION_STEER_QUEUE_KEY_PREFIX,
     DatabaseConversationStore,
     ResponseSanitizerHook,
     defaultLoggerFactory,
@@ -221,11 +221,11 @@ async function createLocalStores(config: ValidatedStorageConfig, logger: Logger)
             approvals: new DatabaseBackedApprovalStore(database, cache, logger),
             toolPreferences: new DatabaseBackedToolPreferenceStore(database, cache, logger),
             toolState: new DatabaseBackedToolStateStore(database),
-            messageQueue: new DatabaseBackedSessionMessageQueueStore(
+            steerQueue: new DatabaseBackedSessionMessageQueueStore(
                 database,
                 cache,
                 logger,
-                SESSION_MESSAGE_QUEUE_KEY_PREFIX
+                SESSION_STEER_QUEUE_KEY_PREFIX
             ),
             followUpQueue: new DatabaseBackedSessionMessageQueueStore(
                 database,

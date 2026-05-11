@@ -9,12 +9,14 @@ Complete event system documentation for monitoring and integrating with Dexto ag
 ## Overview
 
 The Dexto SDK provides a comprehensive event system through two main event buses:
+
 - **AgentEventBus**: Agent-level events that occur across the entire agent instance
 - **SessionEventBus**: Session-specific events that occur within individual conversation sessions
 
 ### Event Naming Convention
 
 All events follow the `namespace:kebab-case` format:
+
 - **LLM events**: `llm:thinking`, `llm:chunk`, `llm:response`, `llm:tool-call`
 - **Session events**: `session:created`, `session:reset`, `session:title-updated`
 - **MCP events**: `mcp:server-connected`, `mcp:resource-updated`
@@ -27,6 +29,7 @@ All events follow the `namespace:kebab-case` format:
 Events are organized into three tiers based on their intended audience:
 
 #### **Tier 1: Streaming Events** (`STREAMING_EVENTS`)
+
 Exposed via `DextoAgent.stream()` for real-time chat UIs. These are the most commonly used events for building interactive applications.
 
 **LLM Events:** `llm:thinking`, `llm:chunk`, `llm:response`, `llm:tool-call`, `llm:tool-result`, `llm:error`, `llm:unsupported-input`
@@ -35,7 +38,7 @@ Exposed via `DextoAgent.stream()` for real-time chat UIs. These are the most com
 
 **Context Events:** `context:compressed`, `context:pruned`
 
-**Message Queue Events:** `message:queued`, `message:dequeued`
+**Queued Input Events:** `message:queued`, `message:dequeued`
 
 **Run Lifecycle Events:** `run:complete`
 
@@ -44,6 +47,7 @@ Exposed via `DextoAgent.stream()` for real-time chat UIs. These are the most com
 **Approval Events:** `approval:request`, `approval:response`
 
 **Use cases:**
+
 - Real-time chat interfaces
 - Progress indicators
 - Streaming responses
@@ -51,17 +55,20 @@ Exposed via `DextoAgent.stream()` for real-time chat UIs. These are the most com
 - User approval flows
 
 #### **Tier 2: Integration Events** (`INTEGRATION_EVENTS`)
+
 Exposed via webhooks, A2A subscriptions, and monitoring systems. Includes all streaming events plus lifecycle and state management events.
 
 **Additional events:** `session:created`, `session:reset`, `mcp:server-connected`, `mcp:server-restarted`, `mcp:tools-list-changed`, `mcp:prompts-list-changed`, `tools:available-updated`, `llm:switched`, `state:changed`
 
 **Use cases:**
+
 - External system integrations
 - Monitoring and observability
 - Analytics and logging
 - Multi-agent coordination (A2A)
 
 #### **Tier 3: Internal Events**
+
 Only available via direct `AgentEventBus` access for advanced use cases. These are implementation details that may change between versions.
 
 **Examples:** `resource:cache-invalidated`, `state:exported`, `state:reset`, `mcp:server-added`, `mcp:server-removed`, `session:override-set`
@@ -80,7 +87,7 @@ Fired when a conversation history is reset for a session.
 
 ```typescript
 {
-  sessionId: string;
+    sessionId: string;
 }
 ```
 
@@ -90,8 +97,8 @@ Fired when a new session is created and should become active.
 
 ```typescript
 {
-  sessionId: string;
-  switchTo: boolean; // Whether UI should switch to this session
+    sessionId: string;
+    switchTo: boolean; // Whether UI should switch to this session
 }
 ```
 
@@ -101,8 +108,8 @@ Fired when a session's human-friendly title is updated.
 
 ```typescript
 {
-  sessionId: string;
-  title: string;
+    sessionId: string;
+    title: string;
 }
 ```
 
@@ -112,8 +119,8 @@ Fired when session-specific configuration is set.
 
 ```typescript
 {
-  sessionId: string;
-  override: SessionOverride;
+    sessionId: string;
+    override: SessionOverride;
 }
 ```
 
@@ -123,7 +130,7 @@ Fired when session-specific configuration is cleared.
 
 ```typescript
 {
-  sessionId: string;
+    sessionId: string;
 }
 ```
 
@@ -147,8 +154,8 @@ Fired when an MCP server is added to the runtime state.
 
 ```typescript
 {
-  serverName: string;
-  config: McpServerConfig;
+    serverName: string;
+    config: McpServerConfig;
 }
 ```
 
@@ -158,7 +165,7 @@ Fired when an MCP server is removed from the runtime state.
 
 ```typescript
 {
-  serverName: string;
+    serverName: string;
 }
 ```
 
@@ -168,8 +175,8 @@ Fired when an MCP server configuration is updated.
 
 ```typescript
 {
-  serverName: string;
-  config: McpServerConfig;
+    serverName: string;
+    config: McpServerConfig;
 }
 ```
 
@@ -179,7 +186,7 @@ Fired when an MCP server is restarted.
 
 ```typescript
 {
-  serverName: string;
+    serverName: string;
 }
 ```
 
@@ -189,8 +196,8 @@ Fired when an MCP server resource is updated.
 
 ```typescript
 {
-  serverName: string;
-  resourceUri: string;
+    serverName: string;
+    resourceUri: string;
 }
 ```
 
@@ -272,7 +279,7 @@ Fired when agent state is exported as configuration.
 
 ```typescript
 {
-  config: AgentConfig;
+    config: AgentConfig;
 }
 ```
 
@@ -282,7 +289,7 @@ Fired when agent state is reset to baseline.
 
 ```typescript
 {
-  toConfig: AgentConfig;
+    toConfig: AgentConfig;
 }
 ```
 
@@ -312,19 +319,19 @@ Fired when user approval or input is requested. This event supports multiple app
 **Approval Types:**
 
 - **`tool_confirmation`**: Binary approval for tool execution
-  - `metadata.toolName`: Name of the tool requiring confirmation
-  - `metadata.args`: Tool arguments
-  - `metadata.description`: Optional tool description
+    - `metadata.toolName`: Name of the tool requiring confirmation
+    - `metadata.args`: Tool arguments
+    - `metadata.description`: Optional tool description
 
 - **`command_confirmation`**: Binary approval for command execution (e.g., bash commands)
-  - `metadata.command`: Command requiring confirmation
-  - `metadata.args`: Command arguments
+    - `metadata.command`: Command requiring confirmation
+    - `metadata.args`: Command arguments
 
 - **`elicitation`**: Schema-based form input (typically from MCP servers or ask_user tool)
-  - `metadata.schema`: JSON Schema defining expected input structure
-  - `metadata.prompt`: Prompt text to display to user
-  - `metadata.serverName`: Name of requesting entity (MCP server or 'Dexto Agent')
-  - `metadata.context`: Optional additional context
+    - `metadata.schema`: JSON Schema defining expected input structure
+    - `metadata.prompt`: Prompt text to display to user
+    - `metadata.serverName`: Name of requesting entity (MCP server or 'Dexto Agent')
+    - `metadata.context`: Optional additional context
 
 #### `approval:response`
 
@@ -369,7 +376,7 @@ Fired when the LLM service starts processing a request.
 
 ```typescript
 {
-  sessionId: string;
+    sessionId: string;
 }
 ```
 
@@ -471,9 +478,9 @@ Fired when a tool actually starts executing (after approval if required). This a
 
 ```typescript
 {
-  toolName: string;
-  toolCallId: string;
-  sessionId: string;
+    toolName: string;
+    toolCallId: string;
+    sessionId: string;
 }
 ```
 
@@ -500,13 +507,13 @@ Fired when conversation context is compressed to stay within token limits.
 
 ```typescript
 {
-  originalTokens: number;      // Actual input tokens that triggered compression
-  compressedTokens: number;    // Estimated tokens after compression
-  originalMessages: number;
-  compressedMessages: number;
-  strategy: string;
-  reason: 'overflow' | 'token_limit' | 'message_limit';
-  sessionId: string;
+    originalTokens: number; // Actual input tokens that triggered compression
+    compressedTokens: number; // Estimated tokens after compression
+    originalMessages: number;
+    compressedMessages: number;
+    strategy: string;
+    reason: 'overflow' | 'token_limit' | 'message_limit';
+    sessionId: string;
 }
 ```
 
@@ -516,34 +523,38 @@ Fired when old messages are pruned from context.
 
 ```typescript
 {
-  prunedCount: number;
-  savedTokens: number;
-  sessionId: string;
+    prunedCount: number;
+    savedTokens: number;
+    sessionId: string;
 }
 ```
 
-### Message Queue Events
+### Queued Input Events
 
-These events track the message queue system, which allows users to queue additional messages while the agent is processing.
+These events track queued user input while the agent is processing. The `queue` field tells
+consumers whether the input is active-turn steer input or next-turn follow-up input.
 
 #### `message:queued`
 
-Fired when a user message is queued during agent execution.
+Fired when user input is queued during agent execution.
 
 ```typescript
 {
-  position: number;  // Position in the queue
-  id: string;        // Unique message ID
-  sessionId: string;
+    queue: 'steer' | 'follow-up'; // Queue that received the input
+    position: number; // Position in the queue
+    id: string; // Unique message ID
+    sessionId: string;
 }
 ```
 
 #### `message:dequeued`
 
-Fired when queued messages are dequeued and injected into context.
+Fired when queued input is dequeued. Steer input is injected into the current active turn at
+the next executor boundary; follow-up input starts a separate turn after the active turn stops.
 
 ```typescript
 {
+  queue: 'steer' | 'follow-up';  // Queue that was drained
   count: number;                 // Number of messages dequeued
   ids: string[];                 // IDs of dequeued messages
   coalesced: boolean;            // Whether messages were combined
@@ -569,6 +580,7 @@ Fired when an agent run completes, providing summary information about the execu
 ```
 
 **Finish Reasons:**
+
 - `stop` - Normal completion
 - `tool-calls` - Stopped to execute tool calls (more steps coming)
 - `length` - Hit token/length limit
@@ -591,31 +603,33 @@ await agent.start();
 
 // Use the stream() API to get streaming events
 for await (const event of await agent.stream('Hello!', 'session-1')) {
-  switch (event.name) {
-    case 'llm:thinking':
-      console.log('Agent is thinking...');
-      break;
-    case 'llm:chunk':
-      process.stdout.write(event.content);
-      break;
-    case 'llm:response':
-      console.log('\nFull response:', event.content);
-      console.log('Tokens used:', event.tokenUsage);
-      break;
-    case 'llm:tool-call':
-      console.log(`Calling tool: ${event.toolName}`);
-      break;
-    case 'tool:running':
-      console.log(`Tool ${event.toolName} is now running`);
-      break;
-    case 'run:complete':
-      console.log(`Run completed: ${event.finishReason} (${event.stepCount} steps, ${event.durationMs}ms)`);
-      break;
-    case 'approval:request':
-      console.log(`Approval needed: ${event.type}`);
-      // Handle approval UI...
-      break;
-  }
+    switch (event.name) {
+        case 'llm:thinking':
+            console.log('Agent is thinking...');
+            break;
+        case 'llm:chunk':
+            process.stdout.write(event.content);
+            break;
+        case 'llm:response':
+            console.log('\nFull response:', event.content);
+            console.log('Tokens used:', event.tokenUsage);
+            break;
+        case 'llm:tool-call':
+            console.log(`Calling tool: ${event.toolName}`);
+            break;
+        case 'tool:running':
+            console.log(`Tool ${event.toolName} is now running`);
+            break;
+        case 'run:complete':
+            console.log(
+                `Run completed: ${event.finishReason} (${event.stepCount} steps, ${event.durationMs}ms)`
+            );
+            break;
+        case 'approval:request':
+            console.log(`Approval needed: ${event.type}`);
+            // Handle approval UI...
+            break;
+    }
 }
 ```
 
@@ -629,12 +643,12 @@ await agent.start();
 
 // Listen to all integration events
 INTEGRATION_EVENTS.forEach((eventName) => {
-  agent.on(eventName, (payload) => {
-    console.log(`[${eventName}]`, payload);
-    
-    // Send to your monitoring/analytics system
-    sendToMonitoring(eventName, payload);
-  });
+    agent.on(eventName, (payload) => {
+        console.log(`[${eventName}]`, payload);
+
+        // Send to your monitoring/analytics system
+        sendToMonitoring(eventName, payload);
+    });
 });
 ```
 
@@ -648,10 +662,10 @@ await agent.start();
 
 // Listen to internal events for advanced debugging
 agent.on('resource:cache-invalidated', (payload) => {
-  console.log('Cache invalidated:', payload);
+    console.log('Cache invalidated:', payload);
 });
 
 agent.on('state:exported', (payload) => {
-  console.log('State exported:', payload.config);
+    console.log('State exported:', payload.config);
 });
 ```

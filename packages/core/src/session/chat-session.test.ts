@@ -178,7 +178,7 @@ describe('ChatSession', () => {
             toolManager: {
                 getAllTools: vi.fn().mockReturnValue([]),
             },
-            messageQueueStore: {
+            steerQueueStore: {
                 load: vi.fn().mockResolvedValue([]),
                 save: vi.fn().mockResolvedValue(undefined),
                 delete: vi.fn().mockResolvedValue(undefined),
@@ -262,7 +262,7 @@ describe('ChatSession', () => {
                     usageScopeId: undefined,
                     compactionStrategy: null,
                     cwd: '/tmp/dexto-cloud',
-                    messageQueue: expect.any(Object),
+                    steerQueue: expect.any(Object),
                 }),
                 undefined
             );
@@ -289,7 +289,7 @@ describe('ChatSession', () => {
                 expect.objectContaining({
                     usageScopeId: undefined,
                     compactionStrategy: null,
-                    messageQueue: expect.any(Object),
+                    steerQueue: expect.any(Object),
                 }),
                 languageModelFactory
             );
@@ -309,9 +309,7 @@ describe('ChatSession', () => {
                     _hookManager,
                     queueOptions
                 ) => {
-                    mockLLMService.getMessageQueue = vi
-                        .fn()
-                        .mockReturnValue(queueOptions.messageQueue);
+                    mockLLMService.getSteerQueue = vi.fn().mockReturnValue(queueOptions.steerQueue);
                     mockLLMService.getFollowUpQueue = vi
                         .fn()
                         .mockReturnValue(queueOptions.followUpQueue);
@@ -342,9 +340,6 @@ describe('ChatSession', () => {
             const steer = await chatSession.steer({ content: steerContent });
             const followUp = await chatSession.followUp({ content: followUpContent });
 
-            expect(chatSession.getQueuedMessages()).toEqual([
-                expect.objectContaining({ id: steer.id, content: steerContent }),
-            ]);
             expect(chatSession.getSteerMessages()).toEqual([
                 expect.objectContaining({ id: steer.id, content: steerContent }),
             ]);
@@ -482,7 +477,7 @@ describe('ChatSession', () => {
                 expect.objectContaining({
                     usageScopeId: undefined,
                     compactionStrategy: null,
-                    messageQueue: expect.any(Object),
+                    steerQueue: expect.any(Object),
                 }),
                 undefined
             );
@@ -513,7 +508,7 @@ describe('ChatSession', () => {
                 expect.objectContaining({
                     usageScopeId: undefined,
                     compactionStrategy: null,
-                    messageQueue: expect.any(Object),
+                    steerQueue: expect.any(Object),
                 }),
                 undefined
             );
@@ -542,7 +537,7 @@ describe('ChatSession', () => {
 
     describe('Error Handling and Resilience', () => {
         test('should handle storage initialization failures gracefully', async () => {
-            mockServices.messageQueueStore.load.mockRejectedValue(
+            mockServices.steerQueueStore.load.mockRejectedValue(
                 new Error('Storage initialization failed')
             );
 
@@ -654,7 +649,7 @@ describe('ChatSession', () => {
                 expect.objectContaining({
                     usageScopeId: undefined,
                     compactionStrategy: null,
-                    messageQueue: expect.any(Object),
+                    steerQueue: expect.any(Object),
                 }),
                 undefined
             );

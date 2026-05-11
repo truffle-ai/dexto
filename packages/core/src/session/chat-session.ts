@@ -109,10 +109,10 @@ export class ChatSession {
     private llmService!: VercelLLMService;
 
     /**
-     * Durable queued follow-up messages for this session.
-     * Reused across LLM switches so mid-task follow-ups survive service recreation.
+     * Durable queued user input for this session.
+     * Reused across LLM switches so mid-task steer/follow-up input survives service recreation.
      */
-    private messageQueue!: MessageQueueService;
+    private steerQueue!: MessageQueueService;
     private followUpQueue!: MessageQueueService;
 
     private activeForwarderCleanup: (() => void) | null = null;
@@ -154,7 +154,7 @@ export class ChatSession {
             hookManager: HookManager;
             mcpManager: MCPManager;
             sessionManager: import('./session-manager.js').SessionManager;
-            messageQueueStore: SessionMessageQueueStore;
+            steerQueueStore: SessionMessageQueueStore;
             followUpQueueStore: SessionMessageQueueStore;
             languageModelFactory?: LanguageModelFactory;
             workspaceManager?: import('../workspace/manager.js').WorkspaceManager;
@@ -166,11 +166,11 @@ export class ChatSession {
         this.logger = logger.createChild(DextoLogComponent.SESSION);
         // Create session-specific event bus
         this.eventBus = new SessionEventBus();
-        this.messageQueue = new MessageQueueService(
+        this.steerQueue = new MessageQueueService(
             this.eventBus,
             this.logger,
             this.id,
-            this.services.messageQueueStore,
+            this.services.steerQueueStore,
             'steer'
         );
         this.followUpQueue = new MessageQueueService(
@@ -278,7 +278,7 @@ export class ChatSession {
         const runtimeConfig = this.services.stateManager.getRuntimeConfig(this.id);
         const llmConfig = runtimeConfig.llm;
 
-        await this.messageQueue.initialize();
+        await this.steerQueue.initialize();
         await this.followUpQueue.initialize();
 
         this.conversationStore = this.services.conversationStore;
@@ -297,7 +297,7 @@ export class ChatSession {
             usageScopeId,
             compactionStrategy: this.services.compactionStrategy,
             ...(workspace?.path !== undefined && { cwd: workspace.path }),
-            messageQueue: this.messageQueue,
+            steerQueue: this.steerQueue,
             followUpQueue: this.followUpQueue,
         };
 
@@ -781,26 +781,13 @@ export class ChatSession {
      * Queue a message as active-turn steer input.
      * The message is injected at the next executor boundary while the current turn is active.
      *
-     * @param message The user message to queue
-     * @returns Queue position and message ID
-     */
-    public async queueMessage(
-        message: UserMessageInput
-    ): Promise<{ queued: true; position: number; id: string }> {
-        return await this.llmService.getMessageQueue().enqueue(message);
-    }
-
-    /**
-     * Queue a message as active-turn steer input.
-     * The message is injected at the next executor boundary while the current turn is active.
-     *
      * @param message The user message to use as steer input
      * @returns Queue position and message ID
      */
     public async steer(
         message: UserMessageInput
     ): Promise<{ queued: true; position: number; id: string }> {
-        return await this.llmService.getMessageQueue().enqueue(message);
+        return await this.llmService.getSteerQueue().enqueue(message);
     }
 
     /**
@@ -816,19 +803,11 @@ export class ChatSession {
     }
 
     /**
-     * Get all messages currently in the queue.
-     * @returns Array of queued messages
-     */
-    public getQueuedMessages(): QueuedMessage[] {
-        return this.llmService.getMessageQueue().getAll();
-    }
-
-    /**
      * Get all steer messages currently queued.
      * @returns Array of steer messages
      */
     public getSteerMessages(): QueuedMessage[] {
-        return this.llmService.getMessageQueue().getAll();
+        return this.llmService.getSteerQueue().getAll();
     }
 
     /**
@@ -840,21 +819,12 @@ export class ChatSession {
     }
 
     /**
-     * Remove a queued message.
-     * @param id Message ID to remove
-     * @returns true if message was found and removed; false otherwise
-     */
-    public async removeQueuedMessage(id: string): Promise<boolean> {
-        return await this.llmService.getMessageQueue().remove(id);
-    }
-
-    /**
      * Remove a steer message.
      * @param id Message ID to remove
      * @returns true if message was found and removed; false otherwise
      */
     public async removeSteerMessage(id: string): Promise<boolean> {
-        return await this.llmService.getMessageQueue().remove(id);
+        return await this.llmService.getSteerQueue().remove(id);
     }
 
     /**
@@ -867,22 +837,11 @@ export class ChatSession {
     }
 
     /**
-     * Clear all queued messages.
-     * @returns Number of messages that were cleared
-     */
-    public async clearMessageQueue(): Promise<number> {
-        const queue = this.llmService.getMessageQueue();
-        const count = queue.pendingCount();
-        await queue.clear();
-        return count;
-    }
-
-    /**
      * Clear all steer messages.
      * @returns Number of messages that were cleared
      */
     public async clearSteerQueue(): Promise<number> {
-        const queue = this.llmService.getMessageQueue();
+        const queue = this.llmService.getSteerQueue();
         const count = queue.pendingCount();
         await queue.clear();
         return count;
@@ -897,6 +856,18 @@ export class ChatSession {
         const count = queue.pendingCount();
         await queue.clear();
         return count;
+    }
+
+    /**
+     * Clear all pending steer and follow-up input for this session.
+     * @returns Number of messages that were cleared
+     */
+    public async clearPendingInput(): Promise<number> {
+        const [steerCount, followUpCount] = await Promise.all([
+            this.clearSteerQueue(),
+            this.clearFollowUpQueue(),
+        ]);
+        return steerCount + followUpCount;
     }
 
     /**

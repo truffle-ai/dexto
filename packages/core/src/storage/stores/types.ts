@@ -18,7 +18,7 @@ export interface DextoStoreMap {
     approvals: ApprovalStore;
     toolPreferences: ToolPreferenceStore;
     toolState: ToolStateStore;
-    messageQueue: SessionMessageQueueStore;
+    steerQueue: SessionMessageQueueStore;
     followUpQueue: SessionMessageQueueStore;
     customPrompts: CustomPromptStore;
     artifacts: ArtifactStore;

@@ -209,7 +209,7 @@ export const agentSpawnerToolsFactory: ToolFactory<AgentSpawnerConfig> = {
                     .then((isBusy) => {
                         if (isBusy) {
                             agent
-                                .queueMessage(sessionId, {
+                                .steer(sessionId, {
                                     content,
                                     kind: 'background',
                                 })

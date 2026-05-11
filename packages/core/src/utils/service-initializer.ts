@@ -157,7 +157,7 @@ export async function createAgentServices(
             cacheTtlMs: sessionCacheTtlMs,
         }
     );
-    const messageQueueStore = stores.getStore('messageQueue');
+    const steerQueueStore = stores.getStore('steerQueue');
     const followUpQueueStore = stores.getStore('followUpQueue');
 
     // 2.5 Initialize workspace manager (uses persistent database)
@@ -306,7 +306,7 @@ export async function createAgentServices(
             resourceManager, // Add resource manager for blob storage
             hookManager, // Add hook manager for hook execution
             mcpManager, // Add MCP manager for ChatSession
-            messageQueueStore,
+            steerQueueStore,
             followUpQueueStore,
             compactionStrategy: compactionStrategy ?? null,
             workspaceManager, // Workspace context propagation

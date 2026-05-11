@@ -53,7 +53,7 @@ export function ensureRunContextMatchesServiceSession(
  * - Message persistence via StreamProcessor
  * - Reactive compaction on overflow
  * - Tool output pruning
- * - Message queue injection
+ * - Steer queue injection
  *
  * @see TurnExecutor for the main execution loop
  * @see StreamProcessor for stream event handling
@@ -71,7 +71,7 @@ export class VercelLLMService {
     private readonly sessionId: string;
     private logger: Logger;
     private resourceManager: ResourceManager;
-    private messageQueue: MessageQueueService;
+    private steerQueue: MessageQueueService;
     private followUpQueue: MessageQueueService;
     private compactionStrategy:
         | import('../../context/compaction/types.js').CompactionStrategy
@@ -96,7 +96,7 @@ export class VercelLLMService {
         sessionId: string,
         resourceManager: ResourceManager,
         logger: Logger,
-        messageQueue: MessageQueueService,
+        steerQueue: MessageQueueService,
         followUpQueue: MessageQueueService,
         usageScopeId?: string,
         compactionStrategy?: import('../../context/compaction/types.js').CompactionStrategy | null
@@ -111,7 +111,7 @@ export class VercelLLMService {
         this.usageScopeId = usageScopeId;
         this.compactionStrategy = compactionStrategy ?? null;
 
-        this.messageQueue = messageQueue;
+        this.steerQueue = steerQueue;
         this.followUpQueue = followUpQueue;
 
         // Create properly-typed ContextManager for Vercel
@@ -174,7 +174,7 @@ export class VercelLLMService {
             },
             { provider: this.config.provider, model: this.getModelId() },
             this.logger,
-            this.messageQueue,
+            this.steerQueue,
             this.followUpQueue,
             this.modelLimits,
             externalSignal,
@@ -250,7 +250,7 @@ export class VercelLLMService {
             // Add user message with all content parts
             await this.contextManager.addUserMessage(parts);
 
-            // Create executor (uses session-level messageQueue, pass external abort signal)
+            // Create executor (uses session-level steerQueue, pass external abort signal)
             const executor = this.createTurnExecutor(options?.signal, options?.runContext);
 
             // Execute with streaming enabled
@@ -308,10 +308,10 @@ export class VercelLLMService {
     }
 
     /**
-     * Get the message queue for external access (e.g., queueing messages while busy)
+     * Get the steer queue for external access (e.g., queueing messages while busy)
      */
-    getMessageQueue(): MessageQueueService {
-        return this.messageQueue;
+    getSteerQueue(): MessageQueueService {
+        return this.steerQueue;
     }
 
     getFollowUpQueue(): MessageQueueService {

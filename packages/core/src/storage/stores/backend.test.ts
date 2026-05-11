@@ -19,7 +19,7 @@ import {
     DatabaseBackedToolStateStore,
     DatabaseBackedWorkspaceStore,
     SESSION_FOLLOW_UP_QUEUE_KEY_PREFIX,
-    SESSION_MESSAGE_QUEUE_KEY_PREFIX,
+    SESSION_STEER_QUEUE_KEY_PREFIX,
 } from './backend.js';
 
 describe('BackendDextoStores', () => {
@@ -37,11 +37,11 @@ describe('BackendDextoStores', () => {
                 approvals: new DatabaseBackedApprovalStore(database, cache, logger),
                 toolPreferences: new DatabaseBackedToolPreferenceStore(database, cache, logger),
                 toolState: new DatabaseBackedToolStateStore(database),
-                messageQueue: new DatabaseBackedSessionMessageQueueStore(
+                steerQueue: new DatabaseBackedSessionMessageQueueStore(
                     database,
                     cache,
                     logger,
-                    SESSION_MESSAGE_QUEUE_KEY_PREFIX
+                    SESSION_STEER_QUEUE_KEY_PREFIX
                 ),
                 followUpQueue: new DatabaseBackedSessionMessageQueueStore(
                     database,
@@ -84,7 +84,7 @@ describe('BackendDextoStores', () => {
                 timestamp: 1,
             },
         });
-        await stores.getStore('messageQueue').save({
+        await stores.getStore('steerQueue').save({
             sessionId: 'session-1',
             queue: [
                 {
@@ -114,7 +114,7 @@ describe('BackendDextoStores', () => {
         });
 
         expect(await database.getRange('messages:session-1', 0, 10)).toHaveLength(1);
-        expect(await stores.getStore('messageQueue').load({ sessionId: 'session-1' })).toEqual([
+        expect(await stores.getStore('steerQueue').load({ sessionId: 'session-1' })).toEqual([
             {
                 id: 'queued-1',
                 content: [{ type: 'text', text: 'next' }],

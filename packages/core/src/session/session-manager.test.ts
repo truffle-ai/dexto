@@ -47,7 +47,7 @@ describe('SessionManager', () => {
                 return sessionKeys;
             }
 
-            if (prefix === 'session-message-queue:') {
+            if (prefix === 'session-steer-queue:') {
                 return queueKeys;
             }
 
@@ -188,10 +188,10 @@ describe('SessionManager', () => {
                 executeHooks: vi.fn().mockImplementation(async (_point, payload) => payload),
                 cleanup: vi.fn(),
             },
-            messageQueueStore: {
+            steerQueueStore: {
                 listSessionIds: vi.fn(async () => {
-                    const keys = await mockDatabase.list('session-message-queue:');
-                    return keys.map((key: string) => key.slice('session-message-queue:'.length));
+                    const keys = await mockDatabase.list('session-steer-queue:');
+                    return keys.map((key: string) => key.slice('session-steer-queue:'.length));
                 }),
                 load: vi.fn().mockResolvedValue([]),
                 save: vi.fn().mockResolvedValue(undefined),
@@ -232,7 +232,9 @@ describe('SessionManager', () => {
                 run: vi.fn().mockResolvedValue('Mock response'),
                 reset: vi.fn().mockResolvedValue(undefined),
                 dispose: vi.fn(),
-                clearMessageQueue: vi.fn().mockResolvedValue(0),
+                clearSteerQueue: vi.fn().mockResolvedValue(0),
+                clearFollowUpQueue: vi.fn().mockResolvedValue(0),
+                clearPendingInput: vi.fn().mockResolvedValue(0),
                 cleanup: vi.fn().mockImplementation(async () => {
                     // Simulate the new cleanup behavior - only call dispose, not reset
                     mockSession.dispose();
@@ -304,7 +306,7 @@ describe('SessionManager', () => {
 
             expect(mockStorageManager.database.list).toHaveBeenNthCalledWith(
                 1,
-                'session-message-queue:'
+                'session-steer-queue:'
             );
             expect(mockStorageManager.database.list).toHaveBeenNthCalledWith(2, 'session:');
         });
@@ -318,15 +320,15 @@ describe('SessionManager', () => {
 
         test('clears persisted queued messages on startup', async () => {
             mockDatabaseLists({
-                queueKeys: ['session-message-queue:session-1', 'session-message-queue:session-2'],
+                queueKeys: ['session-steer-queue:session-1', 'session-steer-queue:session-2'],
             });
 
             await sessionManager.init();
 
-            expect(mockServices.messageQueueStore.delete).toHaveBeenCalledWith({
+            expect(mockServices.steerQueueStore.delete).toHaveBeenCalledWith({
                 sessionId: 'session-1',
             });
-            expect(mockServices.messageQueueStore.delete).toHaveBeenCalledWith({
+            expect(mockServices.steerQueueStore.delete).toHaveBeenCalledWith({
                 sessionId: 'session-2',
             });
         });
@@ -372,7 +374,7 @@ describe('SessionManager', () => {
             expect(mockServices.approvalManager.evictSessionState).toHaveBeenCalledWith(
                 'expired-session'
             );
-            expect(mockServices.messageQueueStore.delete).not.toHaveBeenCalledWith({
+            expect(mockServices.steerQueueStore.delete).not.toHaveBeenCalledWith({
                 sessionId: 'expired-session',
             });
             expect(mockServices.stateManager.clearSessionOverride).not.toHaveBeenCalledWith(
@@ -1237,15 +1239,15 @@ describe('SessionManager', () => {
 
         test('clears persisted queued messages during shutdown', async () => {
             mockDatabaseLists({
-                queueKeys: ['session-message-queue:session-1'],
+                queueKeys: ['session-steer-queue:session-1'],
             });
 
             await sessionManager.init();
-            mockServices.messageQueueStore.delete.mockClear();
+            mockServices.steerQueueStore.delete.mockClear();
 
             await sessionManager.cleanup();
 
-            expect(mockServices.messageQueueStore.delete).toHaveBeenCalledWith({
+            expect(mockServices.steerQueueStore.delete).toHaveBeenCalledWith({
                 sessionId: 'session-1',
             });
         });
@@ -1631,7 +1633,7 @@ describe('SessionManager', () => {
             await sessionManager.resetSession(sessionId);
 
             expect(session.reset).toHaveBeenCalled();
-            expect(session.clearMessageQueue).toHaveBeenCalled();
+            expect(session.clearPendingInput).toHaveBeenCalled();
             expect(mockServices.toolManager.deleteSessionState).toHaveBeenCalledWith(sessionId);
             expect(mockServices.approvalManager.deleteSessionState).toHaveBeenCalledWith(sessionId);
             expect(mockServices.stateManager.clearSessionOverride).toHaveBeenCalledWith(sessionId);

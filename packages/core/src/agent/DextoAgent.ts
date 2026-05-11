@@ -1122,7 +1122,7 @@ export class DextoAgent {
         };
         addStreamingListener('context:compacted', contextCompactedListener);
 
-        // Message queue events (for mid-task user guidance)
+        // Queued input events (for mid-task user guidance)
         const messageQueuedListener = (data: AgentEventMap['message:queued']) => {
             if (data.sessionId !== sessionId) return;
             eventQueue.push({ name: 'message:queued', ...data });
@@ -1461,27 +1461,6 @@ export class DextoAgent {
     }
 
     /**
-     * Queue a message for processing when a session is busy.
-     * The message will be injected into the conversation when the current turn completes.
-     *
-     * @param sessionId Session id
-     * @param message The user message to queue
-     * @returns Queue position and message ID
-     * @throws Error if session doesn't support message queueing
-     */
-    public async queueMessage(
-        sessionId: string,
-        message: UserMessageInput
-    ): Promise<{ queued: true; position: number; id: string }> {
-        this.ensureStarted();
-        const session = await this.sessionManager.getSession(sessionId, false);
-        if (!session) {
-            throw SessionError.notFound(sessionId);
-        }
-        return session.queueMessage(message);
-    }
-
-    /**
      * Queue a message as active-turn steer input for a session.
      * The message is injected at the next executor boundary while the current turn is active.
      *
@@ -1522,20 +1501,6 @@ export class DextoAgent {
     }
 
     /**
-     * Get all queued messages for a session.
-     * @param sessionId Session id
-     * @returns Array of queued messages
-     */
-    public async getQueuedMessages(sessionId: string): Promise<QueuedMessage[]> {
-        this.ensureStarted();
-        const session = await this.sessionManager.getSession(sessionId, false);
-        if (!session) {
-            throw SessionError.notFound(sessionId);
-        }
-        return session.getQueuedMessages();
-    }
-
-    /**
      * Get all steer messages for a session.
      * @param sessionId Session id
      * @returns Array of steer messages
@@ -1561,21 +1526,6 @@ export class DextoAgent {
             throw SessionError.notFound(sessionId);
         }
         return session.getFollowUpMessages();
-    }
-
-    /**
-     * Remove a queued message.
-     * @param sessionId Session id
-     * @param messageId The ID of the queued message to remove
-     * @returns true if message was found and removed, false otherwise
-     */
-    public async removeQueuedMessage(sessionId: string, messageId: string): Promise<boolean> {
-        this.ensureStarted();
-        const session = await this.sessionManager.getSession(sessionId, false);
-        if (!session) {
-            throw SessionError.notFound(sessionId);
-        }
-        return session.removeQueuedMessage(messageId);
     }
 
     /**
@@ -1609,20 +1559,6 @@ export class DextoAgent {
     }
 
     /**
-     * Clear all queued messages for a session.
-     * @param sessionId Session id
-     * @returns Number of messages that were cleared
-     */
-    public async clearMessageQueue(sessionId: string): Promise<number> {
-        this.ensureStarted();
-        const session = await this.sessionManager.getSession(sessionId, false);
-        if (!session) {
-            throw SessionError.notFound(sessionId);
-        }
-        return session.clearMessageQueue();
-    }
-
-    /**
      * Clear all steer messages for a session.
      * @param sessionId Session id
      * @returns Number of messages that were cleared
@@ -1648,6 +1584,20 @@ export class DextoAgent {
             throw SessionError.notFound(sessionId);
         }
         return session.clearFollowUpQueue();
+    }
+
+    /**
+     * Clear all pending steer and follow-up input for a session.
+     * @param sessionId Session id
+     * @returns Number of messages that were cleared
+     */
+    public async clearPendingInput(sessionId: string): Promise<number> {
+        this.ensureStarted();
+        const session = await this.sessionManager.getSession(sessionId, false);
+        if (!session) {
+            throw SessionError.notFound(sessionId);
+        }
+        return session.clearPendingInput();
     }
 
     /**

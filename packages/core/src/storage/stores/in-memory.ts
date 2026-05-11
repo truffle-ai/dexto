@@ -515,7 +515,7 @@ export class InMemoryDextoStores implements DextoStores {
         approvals: new InMemoryApprovalStore(),
         toolPreferences: new InMemoryToolPreferenceStore(),
         toolState: new InMemoryToolStateStore(),
-        messageQueue: new InMemorySessionMessageQueueStore(),
+        steerQueue: new InMemorySessionMessageQueueStore(),
         followUpQueue: new InMemorySessionMessageQueueStore(),
         customPrompts: new InMemoryCustomPromptStore(),
         artifacts: new InMemoryArtifactStore(),

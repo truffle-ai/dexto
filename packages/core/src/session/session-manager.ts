@@ -149,7 +149,7 @@ export class SessionManager {
             resourceManager: import('../resources/index.js').ResourceManager;
             hookManager: HookManager;
             mcpManager: import('../mcp/manager.js').MCPManager;
-            messageQueueStore: SessionMessageQueueStore;
+            steerQueueStore: SessionMessageQueueStore;
             followUpQueueStore: SessionMessageQueueStore;
             compactionStrategy: CompactionStrategy | null;
             workspaceManager?: import('../workspace/manager.js').WorkspaceManager;
@@ -244,7 +244,7 @@ export class SessionManager {
 
     private async clearPersistedQueuedMessages(reason: 'startup' | 'shutdown'): Promise<void> {
         try {
-            const steerSessionIds = await this.services.messageQueueStore.listSessionIds();
+            const steerSessionIds = await this.services.steerQueueStore.listSessionIds();
             const followUpSessionIds = await this.services.followUpQueueStore.listSessionIds();
             const sessionIds = Array.from(new Set([...steerSessionIds, ...followUpSessionIds]));
             if (sessionIds.length === 0) {
@@ -253,7 +253,7 @@ export class SessionManager {
 
             await Promise.all(
                 sessionIds.flatMap((sessionId) => [
-                    this.services.messageQueueStore.delete({ sessionId }),
+                    this.services.steerQueueStore.delete({ sessionId }),
                     this.services.followUpQueueStore.delete({ sessionId }),
                 ])
             );
@@ -715,7 +715,7 @@ export class SessionManager {
         }
 
         await session.reset();
-        await session.clearMessageQueue();
+        await session.clearPendingInput();
         await Promise.all([
             this.services.toolManager.deleteSessionState(sessionId),
             this.services.approvalManager.deleteSessionState(sessionId),
@@ -1294,7 +1294,7 @@ export class SessionManager {
         await Promise.all([
             this.services.toolManager.deleteSessionState(sessionId),
             this.services.approvalManager.deleteSessionState(sessionId),
-            this.services.messageQueueStore.delete({ sessionId }),
+            this.services.steerQueueStore.delete({ sessionId }),
             this.services.followUpQueueStore.delete({ sessionId }),
         ]);
     }

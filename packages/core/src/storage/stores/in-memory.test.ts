@@ -20,7 +20,7 @@ describe('InMemoryDextoStores', () => {
             },
         });
 
-        await storage.getStore('messageQueue').save({
+        await storage.getStore('steerQueue').save({
             sessionId: 'session-1',
             queue: [
                 {
@@ -44,7 +44,7 @@ describe('InMemoryDextoStores', () => {
                 timestamp: 1,
             },
         ]);
-        expect(await storage.getStore('messageQueue').load({ sessionId: 'session-1' })).toEqual([
+        expect(await storage.getStore('steerQueue').load({ sessionId: 'session-1' })).toEqual([
             {
                 id: 'queued-1',
                 content: [{ type: 'text', text: 'next' }],

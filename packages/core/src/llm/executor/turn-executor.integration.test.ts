@@ -124,7 +124,7 @@ describe('TurnExecutor Integration Tests', () => {
     let sessionEventBus: SessionEventBus;
     let agentEventBus: AgentEventBus;
     let resourceManager: ResourceManager;
-    let messageQueue: MessageQueueService;
+    let steerQueue: MessageQueueService;
     let followUpQueue: MessageQueueService;
     let logger: Logger;
     let conversationStore: ConversationStore;
@@ -236,8 +236,8 @@ describe('TurnExecutor Integration Tests', () => {
         );
         await toolManager.initialize();
 
-        // Create real message queue
-        messageQueue = new MessageQueueService(
+        // Create real steer queue
+        steerQueue = new MessageQueueService(
             sessionEventBus,
             logger,
             sessionId,
@@ -270,7 +270,7 @@ describe('TurnExecutor Integration Tests', () => {
             { maxSteps: 10, maxOutputTokens: 4096, temperature: 0.7 },
             llmContext,
             logger,
-            messageQueue,
+            steerQueue,
             followUpQueue
         );
     });
@@ -401,7 +401,7 @@ describe('TurnExecutor Integration Tests', () => {
                 { maxSteps: 3, maxOutputTokens: 4096, temperature: 0.7 },
                 llmContext,
                 logger,
-                messageQueue,
+                steerQueue,
                 followUpQueue
             );
 
@@ -415,7 +415,7 @@ describe('TurnExecutor Integration Tests', () => {
 
     describe('Message Queue Injection', () => {
         it('should inject queued messages into context', async () => {
-            await messageQueue.enqueue({
+            await steerQueue.enqueue({
                 content: [{ type: 'text', text: 'User guidance: focus on performance' }],
             });
 
@@ -472,7 +472,7 @@ describe('TurnExecutor Integration Tests', () => {
             vi.mocked(streamText).mockImplementation(() => {
                 callCount++;
                 if (callCount === 1) {
-                    const queuedSteer = messageQueue.enqueue({
+                    const queuedSteer = steerQueue.enqueue({
                         content: [{ type: 'text', text: 'Actually, summarize it instead' }],
                     });
                     const firstStream = createMockStream({
@@ -499,7 +499,7 @@ describe('TurnExecutor Integration Tests', () => {
 
             expect(callCount).toBe(2);
             expect(result.text).toBe('Second response');
-            await expect(messageQueue.dequeueAll()).resolves.toBeNull();
+            await expect(steerQueue.dequeueAll()).resolves.toBeNull();
         });
 
         it('should process structured steer content before structured follow-up content', async () => {
@@ -539,7 +539,7 @@ describe('TurnExecutor Integration Tests', () => {
             vi.mocked(streamText).mockImplementation(() => {
                 callCount++;
                 if (callCount === 1) {
-                    const queuedSteer = messageQueue.enqueue({ content: steerContent });
+                    const queuedSteer = steerQueue.enqueue({ content: steerContent });
                     const queuedFollowUp = followUpQueue.enqueue({ content: followUpContent });
                     const firstStream = createMockStream({
                         text: 'Initial response',
@@ -657,7 +657,7 @@ describe('TurnExecutor Integration Tests', () => {
             if (queuedFollowUpUrlPart?.type !== 'file')
                 throw new Error('Expected queued follow-up URL file');
             expect(queuedFollowUpUrlPart.data).toBeInstanceOf(URL);
-            await expect(messageQueue.dequeueAll()).resolves.toBeNull();
+            await expect(steerQueue.dequeueAll()).resolves.toBeNull();
             await expect(followUpQueue.dequeueAll()).resolves.toBeNull();
         });
 
@@ -667,7 +667,7 @@ describe('TurnExecutor Integration Tests', () => {
             vi.mocked(streamText).mockImplementation(() => {
                 callCount++;
                 if (callCount === 1) {
-                    const queuedSteer = messageQueue.enqueue({
+                    const queuedSteer = steerQueue.enqueue({
                         content: [{ type: 'text', text: 'Do this next' }],
                     });
                     const firstStream = createMockStream({
@@ -700,7 +700,7 @@ describe('TurnExecutor Integration Tests', () => {
                 { maxSteps: 10 },
                 llmContext,
                 logger,
-                messageQueue,
+                steerQueue,
                 followUpQueue,
                 undefined,
                 abortController.signal
@@ -752,7 +752,7 @@ describe('TurnExecutor Integration Tests', () => {
                 { maxSteps: 10 },
                 llmContext,
                 logger,
-                messageQueue,
+                steerQueue,
                 followUpQueue,
                 undefined,
                 abortController.signal
@@ -769,7 +769,7 @@ describe('TurnExecutor Integration Tests', () => {
             let callCount = 0;
             vi.mocked(streamText).mockImplementation(() => {
                 callCount++;
-                const queuedSteer = messageQueue.enqueue({
+                const queuedSteer = steerQueue.enqueue({
                     content: [{ type: 'text', text: `Steer ${callCount}` }],
                 });
                 const stream = createMockStream({
@@ -796,7 +796,7 @@ describe('TurnExecutor Integration Tests', () => {
                 { maxSteps: 1 },
                 llmContext,
                 logger,
-                messageQueue,
+                steerQueue,
                 followUpQueue
             );
 
@@ -831,7 +831,7 @@ describe('TurnExecutor Integration Tests', () => {
                 { maxSteps: 10, baseURL: 'https://custom.api.com' },
                 llmContext,
                 logger,
-                messageQueue,
+                steerQueue,
                 followUpQueue
             );
 
@@ -878,7 +878,7 @@ describe('TurnExecutor Integration Tests', () => {
                 { maxSteps: 10, baseURL: 'https://no-tools.api.com' },
                 llmContext,
                 logger,
-                messageQueue,
+                steerQueue,
                 followUpQueue
             );
 
@@ -910,7 +910,7 @@ describe('TurnExecutor Integration Tests', () => {
                 { maxSteps: 10 }, // No baseURL
                 ollamaLlmContext,
                 logger,
-                messageQueue,
+                steerQueue,
                 followUpQueue
             );
 
@@ -944,7 +944,7 @@ describe('TurnExecutor Integration Tests', () => {
                 { maxSteps: 10, baseURL: 'https://no-tools.api.com' },
                 llmContext,
                 logger,
-                messageQueue,
+                steerQueue,
                 followUpQueue
             );
 
@@ -981,7 +981,7 @@ describe('TurnExecutor Integration Tests', () => {
                 { maxSteps: 10, baseURL: 'codex://chatgpt' },
                 { provider: 'openai-compatible', model: 'gpt-5.4' },
                 logger,
-                messageQueue,
+                steerQueue,
                 followUpQueue
             );
 
@@ -1049,17 +1049,17 @@ describe('TurnExecutor Integration Tests', () => {
     });
 
     describe('Cleanup and Resource Management', () => {
-        it('should clear message queue on normal completion', async () => {
-            await messageQueue.enqueue({ content: [{ type: 'text', text: 'Pending' }] });
+        it('should clear steer queue on normal completion', async () => {
+            await steerQueue.enqueue({ content: [{ type: 'text', text: 'Pending' }] });
 
             await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
             await executor.execute({ mcpManager }, true);
 
-            await expect(messageQueue.dequeueAll()).resolves.toBeNull();
+            await expect(steerQueue.dequeueAll()).resolves.toBeNull();
         });
 
-        it('should clear message queue on error', async () => {
-            await messageQueue.enqueue({ content: [{ type: 'text', text: 'Pending' }] });
+        it('should clear steer queue on error', async () => {
+            await steerQueue.enqueue({ content: [{ type: 'text', text: 'Pending' }] });
 
             vi.mocked(streamText).mockImplementation(() => {
                 throw new Error('Failed');
@@ -1068,7 +1068,7 @@ describe('TurnExecutor Integration Tests', () => {
             await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
             await expect(executor.execute({ mcpManager }, true)).rejects.toThrow();
 
-            await expect(messageQueue.dequeueAll()).resolves.toBeNull();
+            await expect(steerQueue.dequeueAll()).resolves.toBeNull();
         });
 
         it('should preserve follow-up queue on error', async () => {
@@ -1118,7 +1118,7 @@ describe('TurnExecutor Integration Tests', () => {
                 { maxSteps: 10 },
                 llmContext,
                 logger,
-                messageQueue,
+                steerQueue,
                 followUpQueue,
                 undefined,
                 abortController.signal

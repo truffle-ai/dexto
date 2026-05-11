@@ -67,7 +67,7 @@ const LOCAL_PROVIDERS: readonly LLMProvider[] = ['ollama', 'local'] as const;
  *
  * This is the main entry point that replaces Vercel's internal loop with our
  * controlled execution, giving us control between steps for:
- * - Message queue injection (Phase 6)
+ * - Steer queue injection (Phase 6)
  * - Compression decisions (Phase 4)
  * - Pruning old tool outputs (Phase 5)
  *
@@ -114,7 +114,7 @@ export class TurnExecutor {
         },
         private llmContext: LLMContext,
         logger: Logger,
-        private messageQueue: MessageQueueService,
+        private steerQueue: MessageQueueService,
         private followUpQueue: MessageQueueService,
         private modelLimits?: ModelLimits,
         private externalSignal?: AbortSignal,
@@ -227,7 +227,7 @@ export class TurnExecutor {
                 }
 
                 // 1. Check for queued messages (mid-loop injection)
-                const coalesced = await this.messageQueue.dequeueAll();
+                const coalesced = await this.steerQueue.dequeueAll();
                 if (coalesced) {
                     await this.injectQueuedMessages(coalesced);
                 }
@@ -438,7 +438,7 @@ export class TurnExecutor {
                     // Steer messages submitted while the final LLM request was already in flight
                     // missed the pre-request injection point. Treat them as end-of-turn input
                     // before draining explicit follow-ups.
-                    if (this.messageQueue.hasPending()) {
+                    if (this.steerQueue.hasPending()) {
                         if (this.externalSignal?.aborted || result.finishReason === 'cancelled') {
                             this.logger.debug('Terminating: cancel received before late steer');
                             lastFinishReason = 'cancelled';
@@ -457,7 +457,7 @@ export class TurnExecutor {
                             break;
                         }
 
-                        const steerOnTerminate = await this.messageQueue.dequeueAll();
+                        const steerOnTerminate = await this.steerQueue.dequeueAll();
                         if (!steerOnTerminate) {
                             this.logger.debug(
                                 `Terminating: finishReason is "${result.finishReason}"`
@@ -511,7 +511,7 @@ export class TurnExecutor {
                     break;
                 }
                 // Hard cancel check during tool-calls - if queue is empty and signal aborted, exit
-                if (this.externalSignal?.aborted && !this.messageQueue.hasPending()) {
+                if (this.externalSignal?.aborted && !this.steerQueue.hasPending()) {
                     this.logger.debug('Terminating: hard cancel - external abort signal received');
                     lastFinishReason = 'cancelled';
                     break;
@@ -1090,7 +1090,7 @@ export class TurnExecutor {
         }
 
         // Clear any pending queued messages
-        void this.messageQueue.clear().catch((error) => {
+        void this.steerQueue.clear().catch((error) => {
             this.logger.warn(
                 `Failed to clear queued steer messages during cleanup: ${
                     error instanceof Error ? error.message : String(error)

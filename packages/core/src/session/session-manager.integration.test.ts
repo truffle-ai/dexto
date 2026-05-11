@@ -30,7 +30,7 @@ import {
     DatabaseBackedWorkspaceStore,
     InMemoryDextoStores,
     SESSION_FOLLOW_UP_QUEUE_KEY_PREFIX,
-    SESSION_MESSAGE_QUEUE_KEY_PREFIX,
+    SESSION_STEER_QUEUE_KEY_PREFIX,
 } from '../storage/index.js';
 import {
     createInMemoryBlobStore,
@@ -435,11 +435,11 @@ describe('Session Integration: Core-owned Interaction State Persistence', () => 
                         logger
                     ),
                     toolState: new DatabaseBackedToolStateStore(storage.database),
-                    messageQueue: new DatabaseBackedSessionMessageQueueStore(
+                    steerQueue: new DatabaseBackedSessionMessageQueueStore(
                         storage.database,
                         storage.cache,
                         logger,
-                        SESSION_MESSAGE_QUEUE_KEY_PREFIX
+                        SESSION_STEER_QUEUE_KEY_PREFIX
                     ),
                     followUpQueue: new DatabaseBackedSessionMessageQueueStore(
                         storage.database,
@@ -515,7 +515,7 @@ describe('Session Integration: Core-owned Interaction State Persistence', () => 
             };
             const sessionId = 'persisted-interaction-session';
             const approvedDirectory = path.join(os.tmpdir(), 'dexto-persisted-approval');
-            const queueKey = `session-message-queue:${sessionId}`;
+            const queueKey = `session-steer-queue:${sessionId}`;
 
             const agent1 = await createAgentWithSharedStorage(
                 'interaction-state-agent-1',
@@ -523,7 +523,7 @@ describe('Session Integration: Core-owned Interaction State Persistence', () => 
             );
             await agent1.createSession(sessionId);
             await agent1.switchLLM({ model: 'gpt-5' }, sessionId);
-            await agent1.queueMessage(sessionId, {
+            await agent1.steer(sessionId, {
                 content: [{ type: 'text', text: 'resume with plan B' }],
                 metadata: { source: 'integration-test' },
             });
@@ -594,7 +594,7 @@ describe('Session Integration: Core-owned Interaction State Persistence', () => 
             expect(restoredSession).toBeDefined();
             expect(agent2.services.stateManager.getLLMConfig(sessionId).model).toBe('gpt-5');
 
-            const queuedMessages = await agent2.getQueuedMessages(sessionId);
+            const queuedMessages = await agent2.getSteerMessages(sessionId);
             expect(queuedMessages).toEqual([]);
 
             expect(await agent2.getSessionAutoApproveTools(sessionId)).toEqual(['allowed_tool']);
@@ -632,7 +632,7 @@ describe('Session Integration: Core-owned Interaction State Persistence', () => 
             database: createInMemoryDatabase(),
         };
         const sessionId = 'stale-queued-session';
-        const queueKey = `session-message-queue:${sessionId}`;
+        const queueKey = `session-steer-queue:${sessionId}`;
         const queuedMessages = [
             {
                 content: [{ type: 'text' as const, text: 'stale queued follow-up' }],
@@ -663,7 +663,7 @@ describe('Session Integration: Core-owned Interaction State Persistence', () => 
 
         const restoredSession = await restoredAgent.getSession(sessionId);
         expect(restoredSession).toBeDefined();
-        expect(await restoredAgent.getQueuedMessages(sessionId)).toEqual([]);
+        expect(await restoredAgent.getSteerMessages(sessionId)).toEqual([]);
     });
 
     test('preserves durable expired sessions when startup cleanup evicts runtime state', async () => {
@@ -678,7 +678,7 @@ describe('Session Integration: Core-owned Interaction State Persistence', () => 
         const agent1 = await createAgentWithSharedStorage('expired-state-agent-1', sharedStorage);
         await agent1.createSession(sessionId);
         await agent1.switchLLM({ model: 'gpt-5' }, sessionId);
-        await agent1.queueMessage(sessionId, {
+        await agent1.steer(sessionId, {
             content: [{ type: 'text', text: 'stale queued follow-up' }],
         });
         await agent1.setSessionAutoApproveTools(sessionId, ['allowed_tool']);
@@ -703,7 +703,7 @@ describe('Session Integration: Core-owned Interaction State Persistence', () => 
         const agent2 = await createAgentWithSharedStorage('expired-state-agent-2', sharedStorage);
 
         expect(await database.get(`session:${sessionId}`)).toBeDefined();
-        expect(await database.get(`session-message-queue:${sessionId}`)).toBeUndefined();
+        expect(await database.get(`session-steer-queue:${sessionId}`)).toBeUndefined();
         expect(await database.get(`session-tool-preferences:${sessionId}`)).toBeDefined();
         expect(await database.get(`session-approvals:${sessionId}`)).toBeDefined();
 
@@ -711,7 +711,7 @@ describe('Session Integration: Core-owned Interaction State Persistence', () => 
 
         expect(agent2.hasSessionLLMOverride(sessionId)).toBe(true);
         expect(agent2.getCurrentLLMConfig(sessionId).model).toBe('gpt-5');
-        expect(await agent2.getQueuedMessages(sessionId)).toEqual([]);
+        expect(await agent2.getSteerMessages(sessionId)).toEqual([]);
         expect(await agent2.getSessionAutoApproveTools(sessionId)).toEqual(['allowed_tool']);
 
         const enabledTools = await agent2.getEnabledTools(sessionId);
@@ -741,7 +741,7 @@ describe('Session Integration: Core-owned Interaction State Persistence', () => 
         const agent1 = await createAgentWithSharedStorage('orphaned-state-agent-1', sharedStorage);
         await agent1.createSession(sessionId);
         await agent1.switchLLM({ model: 'gpt-5' }, sessionId);
-        await agent1.queueMessage(sessionId, {
+        await agent1.steer(sessionId, {
             content: [{ type: 'text', text: 'stale orphaned follow-up' }],
         });
         await agent1.setSessionAutoApproveTools(sessionId, ['allowed_tool']);
@@ -761,7 +761,7 @@ describe('Session Integration: Core-owned Interaction State Persistence', () => 
 
         expect(agent2.hasSessionLLMOverride(sessionId)).toBe(false);
         expect(agent2.getCurrentLLMConfig(sessionId).model).toBe('gpt-5-mini');
-        expect(await agent2.getQueuedMessages(sessionId)).toEqual([]);
+        expect(await agent2.getSteerMessages(sessionId)).toEqual([]);
         expect(await agent2.getSessionAutoApproveTools(sessionId)).toEqual([]);
 
         const enabledTools = await agent2.getEnabledTools(sessionId);
@@ -779,7 +779,7 @@ describe('Session Integration: Core-owned Interaction State Persistence', () => 
         ).toBe(false);
 
         expect(
-            await sharedStorage.database.get(`session-message-queue:${sessionId}`)
+            await sharedStorage.database.get(`session-steer-queue:${sessionId}`)
         ).toBeUndefined();
         expect(
             await sharedStorage.database.get(`session-tool-preferences:${sessionId}`)
