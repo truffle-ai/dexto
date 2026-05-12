@@ -125,9 +125,10 @@ const LOCAL_PROVIDERS: readonly LLMProvider[] = ['ollama', 'local'] as const;
  *
  * This is the main entry point that replaces Vercel's internal loop with our
  * controlled execution, giving us control between steps for:
- * - Steer queue injection (Phase 6)
- * - Compression decisions (Phase 4)
- * - Pruning old tool outputs (Phase 5)
+ * - queued steer and follow-up input
+ * - context compaction decisions
+ * - old tool output pruning
+ * - explicit tool preparation, approval, and execution
  *
  * Key design: Uses stopWhen: stepCountIs(1) to regain control after each step.
  * A "step" = ONE LLM call. Tool calls from that model step are executed by TurnExecutor

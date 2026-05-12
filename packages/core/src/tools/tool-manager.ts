@@ -480,7 +480,7 @@ export class ToolManager {
 
     /**
      * Set session-level auto-approve tools.
-     * When set, these tools will skip confirmation prompts for this session.
+     * When set, these tools will skip approval prompts for this session.
      * This is ADDITIVE - other tools are NOT blocked, they just go through normal approval flow.
      *
      * @param sessionId The session ID
@@ -2989,26 +2989,5 @@ export class ToolManager {
         this.invalidateCache();
 
         this.logger.debug('ToolManager refreshed (including MCP server capabilities)');
-    }
-
-    /**
-     * Get list of pending confirmation requests
-     */
-    getPendingConfirmations(): string[] {
-        return this.approvalManager.getPendingApprovals();
-    }
-
-    /**
-     * Cancel a pending confirmation request
-     */
-    cancelConfirmation(approvalId: string): void {
-        this.approvalManager.cancelApproval(approvalId);
-    }
-
-    /**
-     * Cancel all pending confirmation requests
-     */
-    cancelAllConfirmations(): void {
-        this.approvalManager.cancelAllApprovals();
     }
 }
