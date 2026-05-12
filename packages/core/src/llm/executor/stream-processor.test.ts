@@ -1427,6 +1427,86 @@ describe('StreamProcessor', () => {
                 error: 'Test error',
             });
         });
+
+        test('persists failed tool results for every pending sibling before fatal stream errors', async () => {
+            const mocks = createMocks();
+            const processor = new StreamProcessor(
+                mocks.contextManager,
+                mocks.eventBus,
+                mocks.resourceManager,
+                mocks.abortController.signal,
+                mocks.config,
+                mocks.logger,
+                true
+            );
+
+            const testError = new Error('Model stream failed');
+            const events = [
+                {
+                    type: 'tool-call',
+                    toolCallId: 'call-1',
+                    toolName: 'read_file',
+                    input: { path: 'a.txt' },
+                },
+                {
+                    type: 'tool-call',
+                    toolCallId: 'call-2',
+                    toolName: 'write_file',
+                    input: { path: 'b.txt', content: 'hello' },
+                },
+                { type: 'error', error: testError },
+            ];
+
+            await expect(processor.process(() => createMockStream(events) as never)).rejects.toBe(
+                testError
+            );
+
+            expect(mocks.contextManager.addToolResult).toHaveBeenCalledTimes(2);
+            expect(mocks.contextManager.addToolResult).toHaveBeenNthCalledWith(
+                1,
+                'call-1',
+                'read_file',
+                expect.objectContaining({
+                    content: [{ type: 'text', text: 'Error: Model stream failed' }],
+                    meta: expect.objectContaining({
+                        toolCallId: 'call-1',
+                        success: false,
+                    }),
+                }),
+                undefined
+            );
+            expect(mocks.contextManager.addToolResult).toHaveBeenNthCalledWith(
+                2,
+                'call-2',
+                'write_file',
+                expect.objectContaining({
+                    content: [{ type: 'text', text: 'Error: Model stream failed' }],
+                    meta: expect.objectContaining({
+                        toolCallId: 'call-2',
+                        success: false,
+                    }),
+                }),
+                undefined
+            );
+
+            const toolResultEvents = mocks.emittedEvents.filter(
+                (event) => event.name === 'llm:tool-result'
+            );
+            expect(toolResultEvents.map((event) => event.payload)).toMatchObject([
+                {
+                    toolName: 'read_file',
+                    callId: 'call-1',
+                    success: false,
+                    error: 'Model stream failed',
+                },
+                {
+                    toolName: 'write_file',
+                    callId: 'call-2',
+                    success: false,
+                    error: 'Model stream failed',
+                },
+            ]);
+        });
     });
 
     describe('Abort Signal', () => {
@@ -1622,6 +1702,89 @@ describe('StreamProcessor', () => {
                 presentationSnapshot,
             });
             expect(toolCallMetadata.size).toBe(0);
+        });
+
+        test('persists cancelled tool results only for sibling tool calls still pending', async () => {
+            const mocks = createMocks();
+            const abortingStream = {
+                fullStream: (async function* () {
+                    yield {
+                        type: 'tool-call',
+                        toolCallId: 'call-done',
+                        toolName: 'read_file',
+                        input: { path: 'a.txt' },
+                    };
+                    yield {
+                        type: 'tool-call',
+                        toolCallId: 'call-pending',
+                        toolName: 'write_file',
+                        input: { path: 'b.txt', content: 'hello' },
+                    };
+                    yield {
+                        type: 'tool-result',
+                        toolCallId: 'call-done',
+                        toolName: 'read_file',
+                        output: 'contents',
+                    };
+                    yield { type: 'abort' };
+                })(),
+            };
+
+            const processor = new StreamProcessor(
+                mocks.contextManager,
+                mocks.eventBus,
+                mocks.resourceManager,
+                mocks.abortController.signal,
+                mocks.config,
+                mocks.logger,
+                true
+            );
+
+            await processor.process(() => abortingStream as never);
+
+            expect(mocks.contextManager.addToolResult).toHaveBeenCalledTimes(2);
+            expect(mocks.contextManager.addToolResult).toHaveBeenNthCalledWith(
+                1,
+                'call-done',
+                'read_file',
+                expect.objectContaining({
+                    meta: expect.objectContaining({
+                        toolCallId: 'call-done',
+                        success: true,
+                    }),
+                }),
+                undefined
+            );
+            expect(mocks.contextManager.addToolResult).toHaveBeenNthCalledWith(
+                2,
+                'call-pending',
+                'write_file',
+                expect.objectContaining({
+                    content: [{ type: 'text', text: 'Cancelled by user' }],
+                    meta: expect.objectContaining({
+                        toolCallId: 'call-pending',
+                        success: false,
+                    }),
+                }),
+                undefined
+            );
+
+            const toolResultEvents = mocks.emittedEvents.filter(
+                (event) => event.name === 'llm:tool-result'
+            );
+            expect(toolResultEvents.map((event) => event.payload)).toMatchObject([
+                {
+                    toolName: 'read_file',
+                    callId: 'call-done',
+                    success: true,
+                },
+                {
+                    toolName: 'write_file',
+                    callId: 'call-pending',
+                    success: false,
+                    error: 'Cancelled by user',
+                },
+            ]);
         });
     });
 
