@@ -10,6 +10,7 @@ import type { Logger } from '../../logger/v2/types.js';
 import { DextoLogComponent } from '../../logger/v2/types.js';
 import type { ToolPresentationSnapshotV1 } from '../../tools/types.js';
 import type { ToolCallMetadata } from '../../tools/tool-call-metadata.js';
+import type { ModelToolCall } from './model-step.js';
 import { getUsagePricingMetadata } from '../usage-metadata.js';
 import type { TokenUsageCostBreakdown } from '../registry/index.js';
 import type { LLMProvider, LLMPricingStatus, ReasoningVariant, TokenUsage } from '../types.js';
@@ -82,6 +83,7 @@ export class StreamProcessor {
     private logger: Logger;
     private hasStepUsage = false;
     private readonly usageScopeId: string | undefined;
+    private modelToolCalls: ModelToolCall[] = [];
     /**
      * Track pending tool calls (added to context but no result yet).
      * On cancel/abort, we add synthetic "cancelled" results to maintain tool_use/tool_result pairing.
@@ -268,6 +270,11 @@ export class StreamProcessor {
                         }
 
                         await this.contextManager.addToolCall(this.assistantMessageId!, toolCall);
+                        this.modelToolCalls.push({
+                            toolCallId: event.toolCallId,
+                            toolName: event.toolName,
+                            input: event.input,
+                        });
 
                         // Track pending tool call for abort handling
                         this.pendingToolCalls.set(event.toolCallId, {
@@ -275,9 +282,8 @@ export class StreamProcessor {
                         });
                         this.partialToolCalls.delete(event.toolCallId);
 
-                        // NOTE: llm:tool-call is now emitted from ToolManager.executeTool() instead.
-                        // This ensures correct event ordering - llm:tool-call arrives before approval:request.
-                        // See tool-manager.ts for detailed explanation of the timing issue.
+                        // TurnExecutor emits llm:tool-call after preparation so the UI receives
+                        // normalized presentation metadata before approval handling starts.
                         break;
                     }
 
@@ -580,6 +586,7 @@ export class StreamProcessor {
                             text: this.accumulatedText,
                             finishReason: 'cancelled',
                             usage: this.actualTokens,
+                            toolCalls: this.modelToolCalls,
                         };
                     }
                 }
@@ -619,6 +626,7 @@ export class StreamProcessor {
                     text: this.accumulatedText,
                     finishReason: 'cancelled',
                     usage: this.actualTokens,
+                    toolCalls: this.modelToolCalls,
                 };
             }
 
@@ -631,6 +639,7 @@ export class StreamProcessor {
             text: this.accumulatedText,
             finishReason: this.finishReason,
             usage: this.actualTokens,
+            toolCalls: this.modelToolCalls,
         };
     }
 

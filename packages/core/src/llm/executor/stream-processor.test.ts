@@ -547,7 +547,7 @@ describe('StreamProcessor', () => {
                 },
             ];
 
-            await processor.process(() => createMockStream(events) as never);
+            const result = await processor.process(() => createMockStream(events) as never);
 
             expect(mocks.contextManager.addToolCall).toHaveBeenCalledWith('msg-1', {
                 id: 'call-1',
@@ -558,11 +558,18 @@ describe('StreamProcessor', () => {
                 },
                 providerOptions: { google: { thoughtSignature: 'sig-1' } },
             });
+            expect(result.toolCalls).toEqual([
+                {
+                    toolCallId: 'call-1',
+                    toolName: 'test_tool',
+                    input: { arg: 'value' },
+                },
+            ]);
         });
 
-        test('persists tool call to context (llm:tool-call emitted by ToolManager)', async () => {
-            // NOTE: llm:tool-call is now emitted from ToolManager.executeTool() instead of StreamProcessor.
-            // This ensures correct event ordering - llm:tool-call arrives before approval:request.
+        test('persists tool call to context without emitting UI tool-call event', async () => {
+            // TurnExecutor emits llm:tool-call after preparation so the UI receives
+            // normalized presentation metadata before approval handling starts.
             // This test verifies StreamProcessor still persists tool calls to context.
             const mocks = createMocks();
             const processor = new StreamProcessor(
@@ -1859,10 +1866,10 @@ describe('StreamProcessor', () => {
                 },
             ];
 
-            await processor.process(() => createMockStream(events) as never);
+            const result = await processor.process(() => createMockStream(events) as never);
 
-            // NOTE: llm:tool-call is now emitted from ToolManager.executeTool() instead of StreamProcessor.
-            // StreamProcessor still emits llm:tool-result events.
+            // StreamProcessor persists provider tool-result events, but TurnExecutor emits the
+            // UI-facing llm:tool-call event after tool-call preparation.
             const toolResultEvents = mocks.emittedEvents.filter(
                 (e) => e.name === 'llm:tool-result'
             );
@@ -1871,6 +1878,18 @@ describe('StreamProcessor', () => {
 
             // Verify both tool calls were persisted to context
             expect(mocks.contextManager.addToolCall).toHaveBeenCalledTimes(2);
+            expect(result.toolCalls).toEqual([
+                {
+                    toolCallId: 'call-1',
+                    toolName: 'tool_a',
+                    input: { a: 1 },
+                },
+                {
+                    toolCallId: 'call-2',
+                    toolName: 'tool_b',
+                    input: { b: 2 },
+                },
+            ]);
         });
 
         test('handles interleaved text and tool calls', async () => {

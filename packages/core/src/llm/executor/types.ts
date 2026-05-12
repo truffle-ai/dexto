@@ -1,5 +1,6 @@
 import { TokenUsage } from '../types.js';
 import { LLMFinishReason } from '../../events/index.js';
+import type { ModelToolCall } from './model-step.js';
 
 export interface ExecutorResult {
     /**
@@ -25,4 +26,5 @@ export interface StreamProcessorResult {
     text: string;
     finishReason: LLMFinishReason;
     usage: TokenUsage;
+    toolCalls: ModelToolCall[];
 }

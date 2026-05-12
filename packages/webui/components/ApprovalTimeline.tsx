@@ -328,7 +328,7 @@ export function ApprovalTimeline({ approval, onApprove, onDeny }: ApprovalTimeli
                             </>
                         )}
 
-                        {/* Tool confirmation */}
+                        {/* Tool approval */}
                         {approval.type === ApprovalType.TOOL_APPROVAL && (
                             <>
                                 <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">

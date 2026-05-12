@@ -141,7 +141,7 @@ export const STREAMING_EVENTS = [
     // Session metadata
     'session:title-updated',
 
-    // Approval events (needed for tool confirmation in streaming UIs)
+    // Approval events (needed for tool approval in streaming UIs)
     'approval:request',
     'approval:response',
 

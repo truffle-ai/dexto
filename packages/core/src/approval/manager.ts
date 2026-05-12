@@ -901,6 +901,10 @@ export class ApprovalManager {
         });
     }
 
+    async requestApprovalDecision(request: ApprovalRequest): Promise<ApprovalResponse> {
+        return this.handleApproval(request);
+    }
+
     /**
      * Handle approval requests (tool approval, elicitation, command confirmation, directory access, custom)
      * @private
@@ -953,7 +957,7 @@ export class ApprovalManager {
      * Convenience method for tool execution approval
      *
      * TODO: Make sessionId required once all callers are updated to pass it
-     * Tool confirmations always happen in session context during LLM execution
+     * Tool approvals always happen in session context during LLM execution
      */
     async requestToolApproval(
         metadata: ToolApprovalMetadata & {
@@ -1161,7 +1165,7 @@ export class ApprovalManager {
      * Set the approval handler for manual approval mode.
      *
      * The handler will be called for:
-     * - Tool confirmation requests when permissions.mode is 'manual'
+     * - Tool approval requests when permissions.mode is 'manual'
      * - All elicitation requests (when elicitation is enabled, regardless of permissions.mode)
      *
      * A handler must be set before processing requests if:

@@ -17,11 +17,19 @@ import type {
     ResourcePart,
     UIResourcePart,
 } from '../../context/types.js';
-import { ToolManager } from '../../tools/tool-manager.js';
+import { sanitizeToolResult } from '../../context/utils.js';
+import {
+    ToolManager,
+    type ExecutableToolCall,
+    type PreparedToolCall,
+    type RecordedToolApproval,
+} from '../../tools/tool-manager.js';
 import { ToolSet } from '../../tools/types.js';
-import type { ToolPresentationSnapshotV1 } from '../../tools/types.js';
+import type { ToolExecutionResult, ToolPresentationSnapshotV1 } from '../../tools/types.js';
 import type { ToolCallMetadata } from '../../tools/tool-call-metadata.js';
+import type { ModelToolCall } from './model-step.js';
 import { StreamProcessor } from './stream-processor.js';
+import { truncateToolResult } from './tool-output-truncator.js';
 import { ExecutorResult } from './types.js';
 import { buildProviderOptions, getEffectiveReasoningBudgetTokens } from './provider-options.js';
 import type {
@@ -49,7 +57,33 @@ import type { CompactionStrategy } from '../../context/compaction/types.js';
 import type { ModelLimits } from '../../context/compaction/overflow.js';
 import { isCodexBaseURL } from '../providers/codex-base-url.js';
 import type { AgentRunContext } from '../../runtime/run-context.js';
-import { createExecutableToolDefinitions } from './tool-definitions.js';
+import { createModelToolDefinitions } from './tool-definitions.js';
+import { ApprovalStatus, type ApprovalResponse } from '../../approval/types.js';
+import type { ApprovalDecisionInput } from '../../approval/manager.js';
+
+const MCP_TOOL_PREFIX = 'mcp--';
+
+type PreparedModelToolCall =
+    | {
+          kind: 'prepared';
+          toolCall: ModelToolCall;
+          prepared: PreparedToolCall;
+      }
+    | {
+          kind: 'terminal';
+          toolCall: ModelToolCall;
+          modelVisibleResult: ToolExecutionResult;
+      };
+
+type ApprovalWaitResult =
+    | {
+          kind: 'response';
+          response: ApprovalResponse;
+      }
+    | {
+          kind: 'terminal';
+          modelVisibleResult: ToolExecutionResult;
+      };
 
 /**
  * Static cache for tool support validation.
@@ -73,7 +107,8 @@ const LOCAL_PROVIDERS: readonly LLMProvider[] = ['ollama', 'local'] as const;
  * - Pruning old tool outputs (Phase 5)
  *
  * Key design: Uses stopWhen: stepCountIs(1) to regain control after each step.
- * A "step" = ONE LLM call + ALL tool executions from that call.
+ * A "step" = ONE LLM call. Tool calls from that model step are executed by TurnExecutor
+ * before the next model call.
  */
 export class TurnExecutor {
     private logger: Logger;
@@ -83,20 +118,7 @@ export class TurnExecutor {
      */
     private stepAbortController: AbortController;
     private compactionStrategy: CompactionStrategy | null = null;
-    /**
-     * Map to track tool-call metadata by toolCallId.
-     * Used to pass execution-time info (approval + presentation snapshot) to result persistence.
-     */
-    private toolCallMetadata = new Map<
-        string,
-        {
-            presentationSnapshot?: ToolPresentationSnapshotV1;
-            meta?: ToolCallMetadata;
-            requireApproval?: boolean;
-            approvalStatus?: 'approved' | 'rejected';
-        }
-    >();
-
+    private currentModelStepId = 'in-memory-model-step-0';
     constructor(
         private model: LanguageModel,
         private toolManager: ToolManager,
@@ -286,8 +308,9 @@ export class TurnExecutor {
                 }
 
                 this.logger.debug(`Step ${stepCount}: Starting`);
+                this.currentModelStepId = `in-memory-model-step-${stepCount}`;
 
-                // 5. Create tools with execute callbacks and toModelOutput
+                // 5. Create model tool definitions. TurnExecutor executes returned tool calls.
                 // Use empty object if model doesn't support tools
                 const tools = supportsTools ? await this.createTools() : {};
 
@@ -329,8 +352,7 @@ export class TurnExecutor {
                     this.stepAbortController.signal,
                     this.getStreamProcessorConfig(estimatedTokens, reasoningForStream),
                     this.logger,
-                    streaming,
-                    this.toolCallMetadata
+                    streaming
                 );
 
                 const result = await streamProcessor.process(() =>
@@ -418,12 +440,20 @@ export class TurnExecutor {
                     await this.contextManager.recordLastCallMessageCount();
                 }
 
+                if (result.finishReason === 'tool-calls') {
+                    await this.executeModelToolCalls(result.toolCalls);
+                }
+
                 // 7b. POST-RESPONSE CHECK: Use actual inputTokens from API to detect overflow
                 // This catches cases where the LLM's response pushed us over the threshold
                 const contextInputTokens = result.usage
                     ? this.getContextInputTokens(result.usage)
                     : null;
-                if (contextInputTokens && this.shouldCompactFromActual(contextInputTokens)) {
+                if (
+                    result.finishReason !== 'tool-calls' &&
+                    contextInputTokens &&
+                    this.shouldCompactFromActual(contextInputTokens)
+                ) {
                     this.logger.debug(
                         `Post-response: actual ${contextInputTokens} tokens exceeds threshold, compacting`
                     );
@@ -693,12 +723,8 @@ export class TurnExecutor {
     }
 
     /**
-     * Creates tools with execute callbacks and toModelOutput.
-     *
-     * Key design decisions:
-     * - execute() returns raw result with inline images (async)
-     * - toModelOutput() formats for LLM consumption (sync)
-     * - StreamProcessor handles persistence via tool-result events
+     * Creates model-only tool definitions. Tool side effects are executed after the model step
+     * returns its sibling tool calls.
      */
     private async createTools(): Promise<VercelToolSet> {
         const tools: ToolSet = this.toolManager.filterToolsForSession(
@@ -706,272 +732,415 @@ export class TurnExecutor {
             this.sessionId
         );
 
-        // TODO(#15): Delete this executable AI SDK path once TurnExecutor drives
-        // model-step -> prepareToolCall -> approval -> execution -> tool-result application directly.
-        return createExecutableToolDefinitions(tools, {
-            execute: ({ toolName, args, options }) =>
-                this.executeToolFromModelStep(toolName, args, options),
-            toModelOutput: ({ toolName, result }) => this.formatToolResultForLLM(result, toolName),
+        return createModelToolDefinitions(tools);
+    }
+
+    private async executeModelToolCalls(toolCalls: ModelToolCall[]): Promise<void> {
+        const preparedCalls: PreparedModelToolCall[] = [];
+
+        for (const toolCall of toolCalls) {
+            preparedCalls.push(await this.prepareModelToolCall(toolCall));
+        }
+
+        const executionResults = await Promise.all(
+            preparedCalls.map((prepared) => this.executePreparedModelToolCall(prepared))
+        );
+        for (let index = 0; index < toolCalls.length; index += 1) {
+            const toolCall = toolCalls[index];
+            const executionResult = executionResults[index];
+            if (toolCall === undefined || executionResult === undefined) {
+                throw new Error('Tool call result count must match emitted tool call count');
+            }
+            await this.persistModelToolResult(toolCall, executionResult);
+        }
+    }
+
+    private async prepareModelToolCall(toolCall: ModelToolCall): Promise<PreparedModelToolCall> {
+        if (this.stepAbortController.signal.aborted) {
+            return {
+                kind: 'terminal',
+                toolCall,
+                modelVisibleResult: this.cancelledToolResult(
+                    this.buildToolCallFallbackSnapshot(toolCall.toolName)
+                ),
+            };
+        }
+
+        let prepared: PreparedToolCall;
+        try {
+            prepared = await this.toolManager.prepareToolCall({
+                toolName: toolCall.toolName,
+                input: toolCall.input,
+                toolCallId: toolCall.toolCallId,
+                sessionId: this.sessionId,
+                ...(this.runContext !== undefined ? { runContext: this.runContext } : {}),
+            });
+        } catch (error) {
+            const modelVisibleResult = this.failedToolResult(
+                toolCall.toolName,
+                error,
+                this.buildToolCallFallbackSnapshot(toolCall.toolName)
+            );
+            this.emitFallbackToolCall(toolCall, modelVisibleResult);
+            return {
+                kind: 'terminal',
+                toolCall,
+                modelVisibleResult,
+            };
+        }
+
+        if (prepared.kind === 'terminal') {
+            if ('call' in prepared) {
+                this.emitToolCall(toolCall, prepared.call);
+            } else {
+                this.emitFallbackToolCall(toolCall, prepared.modelVisibleResult);
+            }
+        } else {
+            this.emitToolCall(toolCall, prepared.call);
+        }
+
+        return { kind: 'prepared', toolCall, prepared };
+    }
+
+    private async executePreparedModelToolCall(
+        preparedCall: PreparedModelToolCall
+    ): Promise<ToolExecutionResult> {
+        try {
+            if (preparedCall.kind === 'terminal') {
+                return preparedCall.modelVisibleResult;
+            }
+
+            const { prepared } = preparedCall;
+            if (prepared.kind === 'terminal') {
+                return prepared.modelVisibleResult;
+            }
+
+            if (prepared.kind === 'ready') {
+                return this.executePreparedToolCallWithAbort(prepared.call);
+            }
+
+            const identity = this.resolveToolApprovalIdentity();
+            const recorded = await this.toolManager.recordApprovalRequest(prepared, identity);
+            const approval = await this.requestApprovalDecisionWithAbort(recorded);
+            if (approval.kind === 'terminal') {
+                return approval.modelVisibleResult;
+            }
+            const decision = this.toApprovalDecisionInput(approval.response);
+            const applied = await this.toolManager.applyApprovalDecision(
+                recorded,
+                decision,
+                this.runContext
+            );
+            if (applied.kind === 'terminal') {
+                return applied.modelVisibleResult;
+            }
+
+            return this.executePreparedToolCallWithAbort(applied.call);
+        } catch (error) {
+            return this.failedToolResult(
+                preparedCall.toolCall.toolName,
+                error,
+                this.getPreparedToolCallSnapshot(preparedCall)
+            );
+        }
+    }
+
+    private emitFallbackToolCall(
+        toolCall: ModelToolCall,
+        executionResult: ToolExecutionResult
+    ): void {
+        this.emitToolCall(toolCall, {
+            input: this.getToolCallInputForEvent(toolCall.input),
+            presentationSnapshot:
+                executionResult.presentationSnapshot ??
+                this.buildToolCallFallbackSnapshot(toolCall.toolName),
+            toolName: toolCall.toolName,
         });
     }
 
-    /**
-     * Execute callback - runs the tool and returns raw result.
-     * Does NOT persist - StreamProcessor handles that on tool-result event.
-     *
-     * Uses Promise.race to ensure we return quickly on abort, even if the
-     * underlying tool (especially MCP tools we don't control) keeps running.
-     */
-    private async executeToolFromModelStep(
-        toolName: string,
-        args: unknown,
-        options: { toolCallId: string }
-    ): Promise<unknown> {
-        this.logger.debug(`Executing tool: ${toolName} (toolCallId: ${options.toolCallId})`);
-
+    private async executePreparedToolCallWithAbort(
+        call: Parameters<ToolManager['executePreparedToolCall']>[0]
+    ): Promise<ToolExecutionResult> {
         const abortSignal = this.stepAbortController.signal;
-
-        // Check if already aborted before starting
-        if (abortSignal.aborted) {
-            this.logger.debug(`Tool ${toolName} cancelled before execution`);
-            return { error: 'Cancelled by user', cancelled: true };
-        }
-
-        // Create abort handler for cleanup
         let abortHandler: (() => void) | null = null;
-
-        // Create abort promise for Promise.race
-        // This ensures we return quickly even if tool doesn't respect abort signal
-        const abortPromise = new Promise<{ error: string; cancelled: true }>((resolve) => {
+        const abortPromise = new Promise<ToolExecutionResult>((resolve) => {
             abortHandler = () => {
-                this.logger.debug(`Tool ${toolName} cancelled during execution`);
-                resolve({ error: 'Cancelled by user', cancelled: true });
+                this.logger.debug(`Tool ${call.toolName} cancelled during execution`);
+                resolve(this.cancelledToolResult(call.presentationSnapshot, call));
             };
             abortSignal.addEventListener('abort', abortHandler, { once: true });
         });
 
-        // Race: tool execution vs abort signal
         try {
             return await Promise.race([
-                this.executeToolAndCaptureMetadata(toolName, args, options.toolCallId, abortSignal),
+                this.toolManager.executePreparedToolCall(call, {
+                    sessionId: this.sessionId,
+                    abortSignal,
+                    ...(this.runContext !== undefined ? { runContext: this.runContext } : {}),
+                }),
                 abortPromise,
             ]);
         } finally {
-            // Clean up abort listener to prevent memory leak
             if (abortHandler) {
                 abortSignal.removeEventListener('abort', abortHandler);
             }
         }
     }
 
-    private async executeToolAndCaptureMetadata(
-        toolName: string,
-        args: unknown,
-        toolCallId: string,
-        abortSignal: AbortSignal
-    ): Promise<unknown> {
-        // Run tool via toolManager - returns result with approval metadata
-        // toolCallId is passed for tracking parallel tool calls in the UI
-        // Pass abortSignal so tools can do proper cleanup (e.g., kill processes)
-        const executionResult = await this.toolManager.executeTool(
-            toolName,
-            args as Record<string, unknown>,
-            toolCallId,
-            {
-                sessionId: this.sessionId,
-                abortSignal,
-                ...(this.runContext !== undefined ? { runContext: this.runContext } : {}),
-            }
-        );
-
-        const metadata:
-            | {
-                  presentationSnapshot?: ToolPresentationSnapshotV1;
-                  meta?: ToolCallMetadata;
-                  requireApproval?: boolean;
-                  approvalStatus?: 'approved' | 'rejected';
-              }
-            | undefined = (() => {
-            const meta: {
-                presentationSnapshot?: ToolPresentationSnapshotV1;
-                meta?: ToolCallMetadata;
-                requireApproval?: boolean;
-                approvalStatus?: 'approved' | 'rejected';
-            } = {};
-
-            if (executionResult.presentationSnapshot !== undefined) {
-                meta.presentationSnapshot = executionResult.presentationSnapshot;
-            }
-            if (executionResult.meta !== undefined) {
-                meta.meta = executionResult.meta;
-            }
-
-            // Store approval metadata for later retrieval by StreamProcessor
-            if (executionResult.requireApproval !== undefined) {
-                meta.requireApproval = executionResult.requireApproval;
-                if (executionResult.approvalStatus !== undefined) {
-                    meta.approvalStatus = executionResult.approvalStatus;
-                }
-            }
-
-            return Object.keys(meta).length > 0 ? meta : undefined;
-        })();
-
-        if (metadata) {
-            this.toolCallMetadata.set(toolCallId, metadata);
+    private async requestApprovalDecisionWithAbort(
+        recorded: RecordedToolApproval
+    ): Promise<ApprovalWaitResult> {
+        const abortSignal = this.stepAbortController.signal;
+        if (abortSignal.aborted) {
+            return {
+                kind: 'terminal',
+                modelVisibleResult: this.cancelledToolResult(
+                    recorded.prepared.call.presentationSnapshot,
+                    recorded.prepared.call
+                ),
+            };
         }
 
-        // Return just the raw result for Vercel SDK
-        return executionResult.result;
+        let abortHandler: (() => void) | null = null;
+        const abortPromise = new Promise<ApprovalWaitResult>((resolve) => {
+            abortHandler = () => {
+                this.logger.debug(
+                    `Tool ${recorded.prepared.call.toolName} approval cancelled before execution`
+                );
+                resolve({
+                    kind: 'terminal',
+                    modelVisibleResult: this.cancelledToolResult(
+                        recorded.prepared.call.presentationSnapshot,
+                        recorded.prepared.call
+                    ),
+                });
+            };
+            abortSignal.addEventListener('abort', abortHandler, { once: true });
+        });
+
+        try {
+            return await Promise.race([
+                this.toolManager
+                    .requestApprovalDecision(recorded)
+                    .then((response): ApprovalWaitResult => ({ kind: 'response', response })),
+                abortPromise,
+            ]);
+        } finally {
+            if (abortHandler) {
+                abortSignal.removeEventListener('abort', abortHandler);
+            }
+        }
     }
 
-    /**
-     * Format tool result for LLM consumption.
-     * Handles multimodal content (text + images).
-     *
-     * This handles RAW tool results - the structure may vary.
-     */
-    private formatToolResultForLLM(
-        result: unknown,
-        toolName: string
-    ):
-        | { type: 'text'; value: string }
-        | {
-              type: 'content';
-              value: Array<
-                  | { type: 'text'; text: string }
-                  | { type: 'media'; data: string; mediaType: string }
-              >;
-          } {
-        // Handle error results
-        if (result && typeof result === 'object' && 'error' in result) {
-            const errorResult = result as { error: string; denied?: boolean; timeout?: boolean };
-            let errorFlags = '';
-            if (errorResult.denied) errorFlags += ' (denied)';
-            if (errorResult.timeout) errorFlags += ' (timeout)';
-            return {
-                type: 'text',
-                value: `Tool ${toolName} failed${errorFlags}: ${errorResult.error}`,
-            };
-        }
-
-        // Handle multimodal results with content array
-        if (this.hasMultimodalContent(result)) {
-            const contentArray = (
-                result as { content: Array<{ type: string; [key: string]: unknown }> }
-            ).content;
-            const contentValue: Array<
-                { type: 'text'; text: string } | { type: 'media'; data: string; mediaType: string }
-            > = [];
-
-            for (const part of contentArray) {
-                if (part.type === 'text' && typeof part.text === 'string') {
-                    contentValue.push({ type: 'text', text: part.text });
-                } else if (part.type === 'image') {
-                    // Handle various image formats - check both 'image' and 'data' fields
-                    const imageData = this.extractImageData(part);
-                    if (imageData) {
-                        contentValue.push({
-                            type: 'media',
-                            data: imageData,
-                            mediaType: (part.mimeType as string) || 'image/jpeg',
-                        });
-                    }
-                } else if (part.type === 'file') {
-                    const fileData = this.extractFileData(part);
-                    if (fileData) {
-                        contentValue.push({
-                            type: 'media',
-                            data: fileData,
-                            mediaType: (part.mimeType as string) || 'application/octet-stream',
-                        });
-                    }
-                }
-            }
-
-            // If we have multimodal content (media), return it
-            if (contentValue.length > 0 && contentValue.some((v) => v.type === 'media')) {
-                return { type: 'content', value: contentValue };
-            }
-
-            // Text-only content array - concatenate text parts
-            const textParts = contentArray
-                .filter((p) => p.type === 'text' && typeof p.text === 'string')
-                .map((p) => p.text as string);
-            return {
-                type: 'text',
-                value: textParts.join('\n') || '[empty result]',
-            };
-        }
-
-        // Fallback: convert to string
-        if (typeof result === 'string') {
-            return { type: 'text', value: result };
-        }
-
+    private cancelledToolResult(
+        presentationSnapshot: ToolPresentationSnapshotV1,
+        call?: Pick<ExecutableToolCall, 'approval' | 'meta'>
+    ): ToolExecutionResult {
         return {
-            type: 'text',
-            value:
-                typeof result === 'object' && result !== null
-                    ? JSON.stringify(result)
-                    : String(result),
+            result: { error: 'Cancelled by user', cancelled: true },
+            presentationSnapshot,
+            ...(call?.meta !== undefined ? { meta: call.meta } : {}),
+            ...(call?.approval !== undefined ? call.approval : {}),
         };
     }
 
-    /**
-     * Extract image data from a part, handling various formats.
-     */
-    private extractImageData(part: { [key: string]: unknown }): string | null {
-        // Try 'image' field first (our standard ImagePart format)
-        if (typeof part.image === 'string') {
-            return part.image;
-        }
-        // Try 'data' field (alternative format)
-        if (typeof part.data === 'string') {
-            return part.data;
-        }
-        // Handle Buffer/ArrayBuffer
-        if (part.image instanceof Buffer) {
-            return part.image.toString('base64');
-        }
-        if (part.data instanceof Buffer) {
-            return (part.data as Buffer).toString('base64');
-        }
-        if (part.image instanceof ArrayBuffer) {
-            return Buffer.from(new Uint8Array(part.image)).toString('base64');
-        }
-        if (part.data instanceof ArrayBuffer) {
-            return Buffer.from(new Uint8Array(part.data as ArrayBuffer)).toString('base64');
-        }
-        return null;
+    private failedToolResult(
+        toolName: string,
+        error: unknown,
+        presentationSnapshot: ToolPresentationSnapshotV1
+    ): ToolExecutionResult {
+        const message = toError(error, this.logger).message;
+        this.logger.error(`Tool ${toolName} failed before execution result was produced`, {
+            error: message,
+        });
+        return {
+            result: { error: message },
+            presentationSnapshot,
+        };
     }
 
-    /**
-     * Extract file data from a part.
-     */
-    private extractFileData(part: { [key: string]: unknown }): string | null {
-        if (typeof part.data === 'string') {
-            return part.data;
+    private getPreparedToolCallSnapshot(
+        preparedCall: PreparedModelToolCall
+    ): ToolPresentationSnapshotV1 {
+        if (preparedCall.kind === 'terminal') {
+            return (
+                preparedCall.modelVisibleResult.presentationSnapshot ??
+                this.buildToolCallFallbackSnapshot(preparedCall.toolCall.toolName)
+            );
         }
-        if (part.data instanceof Buffer) {
-            return (part.data as Buffer).toString('base64');
+        if ('call' in preparedCall.prepared) {
+            return preparedCall.prepared.call.presentationSnapshot;
         }
-        if (part.data instanceof ArrayBuffer) {
-            return Buffer.from(new Uint8Array(part.data as ArrayBuffer)).toString('base64');
-        }
-        return null;
-    }
-
-    /**
-     * Check if result has multimodal content array
-     */
-    private hasMultimodalContent(result: unknown): boolean {
         return (
-            result !== null &&
-            typeof result === 'object' &&
-            'content' in result &&
-            Array.isArray((result as { content: unknown }).content)
+            preparedCall.prepared.modelVisibleResult.presentationSnapshot ??
+            this.buildToolCallFallbackSnapshot(preparedCall.toolCall.toolName)
         );
+    }
+
+    private async persistModelToolResult(
+        toolCall: ModelToolCall,
+        executionResult: ToolExecutionResult
+    ): Promise<void> {
+        const success = this.isToolExecutionSuccessful(executionResult);
+        const sanitized = await sanitizeToolResult(
+            executionResult.result,
+            {
+                artifactStore: this.resourceManager.getArtifactStore(),
+                toolName: toolCall.toolName,
+                toolCallId: toolCall.toolCallId,
+                success,
+            },
+            this.logger
+        );
+        const truncated = truncateToolResult(sanitized);
+        const metadata = this.getToolExecutionMetadata(executionResult);
+        const errorMessage = this.getToolExecutionErrorMessage(executionResult.result);
+
+        await this.contextManager.addToolResult(
+            toolCall.toolCallId,
+            toolCall.toolName,
+            truncated,
+            metadata
+        );
+
+        this.eventBus.emit('llm:tool-result', {
+            toolName: toolCall.toolName,
+            ...(metadata?.presentationSnapshot !== undefined && {
+                presentationSnapshot: metadata.presentationSnapshot,
+            }),
+            ...(metadata?.meta !== undefined && {
+                meta: metadata.meta,
+            }),
+            callId: toolCall.toolCallId,
+            success,
+            sanitized: truncated,
+            rawResult: executionResult.result,
+            ...(!success && errorMessage !== null ? { error: errorMessage } : {}),
+            ...(metadata?.requireApproval !== undefined && {
+                requireApproval: metadata.requireApproval,
+            }),
+            ...(metadata?.approvalStatus !== undefined && {
+                approvalStatus: metadata.approvalStatus,
+            }),
+        });
+    }
+
+    private emitToolCall(
+        toolCall: ModelToolCall,
+        call: Pick<
+            ExecutableToolCall,
+            'callDescription' | 'input' | 'meta' | 'presentationSnapshot' | 'toolName'
+        >
+    ): void {
+        this.eventBus.emit('llm:tool-call', {
+            toolName: toolCall.toolName,
+            ...(call.presentationSnapshot !== undefined && {
+                presentationSnapshot: call.presentationSnapshot,
+            }),
+            args: call.input,
+            ...(call.meta !== undefined ? { meta: call.meta } : {}),
+            ...(call.callDescription !== undefined && { callDescription: call.callDescription }),
+            callId: toolCall.toolCallId,
+            ...(this.runContext?.hostRuntime !== undefined && {
+                hostRuntime: this.runContext.hostRuntime,
+            }),
+        });
+    }
+
+    private resolveToolApprovalIdentity(): {
+        runId: string;
+        turnId: string;
+        modelStepId: string;
+    } {
+        const ids = this.runContext?.hostRuntime?.ids;
+        return {
+            runId: ids?.runId ?? this.sessionId,
+            turnId: ids?.turnId ?? 'in-memory-turn',
+            modelStepId: ids?.modelStepId ?? this.currentModelStepId,
+        };
+    }
+
+    private toApprovalDecisionInput(response: ApprovalResponse): ApprovalDecisionInput {
+        if (response.status === ApprovalStatus.APPROVED) {
+            return {
+                approvalId: response.approvalId,
+                status: ApprovalStatus.APPROVED,
+                ...(response.data !== undefined ? { data: response.data } : {}),
+            };
+        }
+
+        const status =
+            response.status === ApprovalStatus.DENIED
+                ? ApprovalStatus.DENIED
+                : ApprovalStatus.CANCELLED;
+
+        return {
+            approvalId: response.approvalId,
+            status,
+            ...(response.reason !== undefined ? { reason: response.reason } : {}),
+            ...(response.message !== undefined ? { message: response.message } : {}),
+            ...(response.timeoutMs !== undefined ? { timeoutMs: response.timeoutMs } : {}),
+            ...(response.data !== undefined ? { data: response.data } : {}),
+        };
+    }
+
+    private getToolExecutionMetadata(executionResult: ToolExecutionResult):
+        | {
+              presentationSnapshot?: ToolPresentationSnapshotV1;
+              meta?: ToolCallMetadata;
+              requireApproval?: boolean;
+              approvalStatus?: 'approved' | 'rejected';
+          }
+        | undefined {
+        const metadata: {
+            presentationSnapshot?: ToolPresentationSnapshotV1;
+            meta?: ToolCallMetadata;
+            requireApproval?: boolean;
+            approvalStatus?: 'approved' | 'rejected';
+        } = {};
+        if (executionResult.presentationSnapshot !== undefined) {
+            metadata.presentationSnapshot = executionResult.presentationSnapshot;
+        }
+        if (executionResult.meta !== undefined) {
+            metadata.meta = executionResult.meta;
+        }
+        if (executionResult.requireApproval !== undefined) {
+            metadata.requireApproval = executionResult.requireApproval;
+        }
+        if (executionResult.approvalStatus !== undefined) {
+            metadata.approvalStatus = executionResult.approvalStatus;
+        }
+        return Object.keys(metadata).length > 0 ? metadata : undefined;
+    }
+
+    private isToolExecutionSuccessful(executionResult: ToolExecutionResult): boolean {
+        return !this.getToolExecutionErrorMessage(executionResult.result);
+    }
+
+    private getToolExecutionErrorMessage(result: unknown): string | null {
+        if (result && typeof result === 'object' && 'error' in result) {
+            const error = (result as { error?: unknown }).error;
+            return typeof error === 'string' ? error : String(error);
+        }
+        return null;
+    }
+
+    private getToolCallInputForEvent(input: unknown): Record<string, unknown> {
+        return input !== null && typeof input === 'object' && !Array.isArray(input)
+            ? (input as Record<string, unknown>)
+            : {};
+    }
+
+    private buildToolCallFallbackSnapshot(toolName: string): ToolPresentationSnapshotV1 {
+        return {
+            version: 1,
+            source: {
+                type: toolName.startsWith(MCP_TOOL_PREFIX) ? 'mcp' : 'local',
+            },
+            header: {
+                title: toolName.replace(/[_-]+/g, ' '),
+            },
+        };
     }
 
     /**

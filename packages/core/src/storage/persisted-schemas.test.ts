@@ -82,6 +82,6 @@ describe('persisted storage schemas', () => {
     });
 
     it('keeps existing approval request schemas available for store adapters', () => {
-        expect(ApprovalType.TOOL_APPROVAL).toBe('tool_confirmation');
+        expect(ApprovalType.TOOL_APPROVAL).toBe('tool_approval');
     });
 });

@@ -1,7 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { z } from 'zod';
 import { TurnExecutor } from './turn-executor.js';
 import { ContextManager } from '../../context/manager.js';
 import { ToolManager } from '../../tools/tool-manager.js';
+import { defineTool } from '../../tools/define-tool.js';
 import { SessionEventBus, AgentEventBus } from '../../events/index.js';
 import { ResourceManager } from '../../resources/index.js';
 import { MessageQueueService } from '../../session/message-queue.js';
@@ -26,6 +28,8 @@ import {
     createInMemorySessionApprovalStore,
     createInMemorySessionToolPreferencesStore,
 } from '../../test-utils/session-state-stores.js';
+import { ApprovalStatus } from '../../approval/types.js';
+import type { ApprovalHandler, ApprovalRequest, ApprovalResponse } from '../../approval/types.js';
 
 // Only mock the AI SDK's streamText/generateText - everything else is real
 vi.mock('ai', async (importOriginal) => {
@@ -36,6 +40,85 @@ vi.mock('ai', async (importOriginal) => {
         generateText: vi.fn(),
     };
 });
+
+function createDeferred<T>() {
+    let resolve: ((value: T | PromiseLike<T>) => void) | undefined;
+    let reject: ((reason?: unknown) => void) | undefined;
+    const promise = new Promise<T>((res, rej) => {
+        resolve = res;
+        reject = rej;
+    });
+    if (resolve === undefined || reject === undefined) {
+        throw new Error('Deferred promise callbacks were not initialized');
+    }
+    return {
+        promise,
+        resolve,
+        reject,
+    };
+}
+
+function createPendingApprovalHandler(): ApprovalHandler & {
+    pending: Map<
+        string,
+        {
+            request: ApprovalRequest;
+            resolve: (response: ApprovalResponse) => void;
+        }
+    >;
+    resolveApproval: (approvalId: string, response: Omit<ApprovalResponse, 'approvalId'>) => void;
+} {
+    const pending = new Map<
+        string,
+        {
+            request: ApprovalRequest;
+            resolve: (response: ApprovalResponse) => void;
+        }
+    >();
+    const handler = Object.assign(
+        (request: ApprovalRequest) =>
+            new Promise<ApprovalResponse>((resolve) => {
+                pending.set(request.approvalId, { request, resolve });
+            }),
+        {
+            pending,
+            resolveApproval: (
+                approvalId: string,
+                response: Omit<ApprovalResponse, 'approvalId'>
+            ) => {
+                const entry = pending.get(approvalId);
+                if (entry === undefined) {
+                    throw new Error(`No pending approval for ${approvalId}`);
+                }
+                pending.delete(approvalId);
+                entry.resolve({ ...response, approvalId });
+            },
+            getPending: () => Array.from(pending.keys()),
+            getPendingRequests: () => Array.from(pending.values()).map((entry) => entry.request),
+            autoApprovePending: (
+                predicate: (request: ApprovalRequest) => boolean,
+                responseData?: Record<string, unknown>
+            ) => {
+                let count = 0;
+                for (const [approvalId, entry] of Array.from(pending.entries())) {
+                    if (!predicate(entry.request)) {
+                        continue;
+                    }
+                    pending.delete(approvalId);
+                    count += 1;
+                    entry.resolve({
+                        approvalId,
+                        status: ApprovalStatus.APPROVED,
+                        sessionId: entry.request.sessionId,
+                        ...(responseData !== undefined ? { data: responseData } : {}),
+                    });
+                }
+                return count;
+            },
+        }
+    );
+    return handler;
+}
 
 vi.mock('@opentelemetry/api', async (importOriginal) => {
     const actual = await importOriginal<typeof import('@opentelemetry/api')>();
@@ -84,7 +167,7 @@ function createMockStream(options: {
                 type: 'tool-call',
                 toolCallId: tc.toolCallId,
                 toolName: tc.toolName,
-                args: tc.args,
+                input: tc.args,
             });
         }
     }
@@ -268,6 +351,7 @@ describe('TurnExecutor Integration Tests', () => {
             new InMemoryDextoStores().getStore('toolExecutions')
         );
         await toolManager.initialize();
+        toolManager.setToolExecutionContextFactory((baseContext) => baseContext);
 
         // Create real steer queue
         steerQueue = new MessageQueueService(
@@ -387,6 +471,906 @@ describe('TurnExecutor Integration Tests', () => {
     });
 
     describe('Multi-Step Tool Execution', () => {
+        it('executes every sibling tool result before the next model step', async () => {
+            toolManager.addTools([
+                defineTool({
+                    id: 'first_tool',
+                    description: 'First tool',
+                    inputSchema: z.object({ value: z.string() }).strict(),
+                    execute: vi.fn().mockResolvedValue('first result'),
+                }),
+                defineTool({
+                    id: 'second_tool',
+                    description: 'Second tool',
+                    inputSchema: z.object({ value: z.string() }).strict(),
+                    execute: vi.fn().mockResolvedValue('second result'),
+                }),
+            ]);
+
+            vi.mocked(streamText)
+                .mockImplementationOnce(
+                    () =>
+                        createMockStream({
+                            finishReason: 'tool-calls',
+                            toolCalls: [
+                                {
+                                    toolCallId: 'call-first',
+                                    toolName: 'first_tool',
+                                    args: { value: 'one' },
+                                },
+                                {
+                                    toolCallId: 'call-second',
+                                    toolName: 'second_tool',
+                                    args: { value: 'two' },
+                                },
+                            ],
+                        }) as unknown as ReturnType<typeof streamText>
+                )
+                .mockImplementationOnce(
+                    () =>
+                        createMockStream({
+                            text: 'done',
+                            finishReason: 'stop',
+                        }) as unknown as ReturnType<typeof streamText>
+                );
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Use tools' }]);
+            const result = await executor.execute({ mcpManager }, true);
+
+            expect(result.finishReason).toBe('stop');
+            expect(streamText).toHaveBeenCalledTimes(2);
+            const history = await contextManager.getHistory();
+            const toolMessages = history.filter((message) => message.role === 'tool');
+            expect(toolMessages).toEqual(
+                expect.arrayContaining([
+                    expect.objectContaining({
+                        toolCallId: 'call-first',
+                        name: 'first_tool',
+                        success: true,
+                    }),
+                    expect.objectContaining({
+                        toolCallId: 'call-second',
+                        name: 'second_tool',
+                        success: true,
+                    }),
+                ])
+            );
+            expect(toolMessages).toHaveLength(2);
+        });
+
+        it('passes model-only tool definitions to streamText', async () => {
+            toolManager.addTools([
+                defineTool({
+                    id: 'sdk_only',
+                    description: 'SDK only tool',
+                    inputSchema: z.object({ value: z.string() }).strict(),
+                    execute: vi.fn().mockResolvedValue('tool result'),
+                }),
+            ]);
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Use tools' }]);
+            await executor.execute({ mcpManager }, true);
+
+            const firstCallOptions = vi.mocked(streamText).mock.calls[0]?.[0];
+            expect(firstCallOptions).toEqual(
+                expect.objectContaining({
+                    tools: expect.objectContaining({
+                        sdk_only: expect.objectContaining({
+                            description: 'SDK only tool',
+                        }),
+                    }),
+                })
+            );
+            expect(firstCallOptions).toEqual(
+                expect.objectContaining({
+                    tools: expect.objectContaining({
+                        sdk_only: expect.not.objectContaining({
+                            execute: expect.any(Function),
+                        }),
+                    }),
+                })
+            );
+            expect(firstCallOptions).toEqual(
+                expect.objectContaining({
+                    tools: expect.objectContaining({
+                        sdk_only: expect.not.objectContaining({
+                            onInputAvailable: expect.any(Function),
+                        }),
+                    }),
+                })
+            );
+        });
+
+        it('preserves auto-approved write diff metadata through executor events and history', async () => {
+            toolManager.addTools([
+                defineTool({
+                    id: 'write_file',
+                    description: 'Write file',
+                    inputSchema: z.object({ path: z.string(), content: z.string() }).strict(),
+                    execute: vi.fn().mockResolvedValue({
+                        ok: true,
+                        _display: {
+                            type: 'diff',
+                            filename: 'src/app.ts',
+                            unified: '--- a/src/app.ts\n+++ b/src/app.ts\n@@\n-old\n+new',
+                            additions: 1,
+                            deletions: 1,
+                        },
+                    }),
+                    presentation: {
+                        describeHeader: (input) => ({
+                            title: 'Write',
+                            argsText: input.path,
+                        }),
+                        describeResult: (_result, input) => ({
+                            summaryText: `Updated ${input.path}`,
+                        }),
+                    },
+                }),
+            ]);
+            const toolResultHandler = vi.fn();
+            sessionEventBus.on('llm:tool-result', toolResultHandler);
+
+            vi.mocked(streamText)
+                .mockImplementationOnce(
+                    () =>
+                        createMockStream({
+                            finishReason: 'tool-calls',
+                            toolCalls: [
+                                {
+                                    toolCallId: 'call-write',
+                                    toolName: 'write_file',
+                                    args: { path: 'src/app.ts', content: 'new' },
+                                },
+                            ],
+                        }) as unknown as ReturnType<typeof streamText>
+                )
+                .mockImplementationOnce(
+                    () =>
+                        createMockStream({
+                            text: 'done',
+                            finishReason: 'stop',
+                        }) as unknown as ReturnType<typeof streamText>
+                );
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Write the file' }]);
+            await executor.execute({ mcpManager }, true);
+
+            expect(toolResultHandler).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    toolName: 'write_file',
+                    callId: 'call-write',
+                    success: true,
+                    presentationSnapshot: expect.objectContaining({
+                        header: expect.objectContaining({
+                            title: 'Write',
+                            argsText: 'src/app.ts',
+                        }),
+                        result: {
+                            summaryText: 'Updated src/app.ts',
+                        },
+                    }),
+                    sanitized: expect.objectContaining({
+                        meta: expect.objectContaining({
+                            display: expect.objectContaining({
+                                type: 'diff',
+                                filename: 'src/app.ts',
+                                additions: 1,
+                                deletions: 1,
+                            }),
+                        }),
+                    }),
+                })
+            );
+
+            const history = await contextManager.getHistory();
+            expect(history).toContainEqual(
+                expect.objectContaining({
+                    role: 'tool',
+                    toolCallId: 'call-write',
+                    name: 'write_file',
+                    success: true,
+                    presentationSnapshot: expect.objectContaining({
+                        result: {
+                            summaryText: 'Updated src/app.ts',
+                        },
+                    }),
+                    displayData: expect.objectContaining({
+                        type: 'diff',
+                        filename: 'src/app.ts',
+                    }),
+                })
+            );
+        });
+
+        it('records manual approval before executing a model tool call', async () => {
+            const manualApprovalStore = createInMemorySessionApprovalStore(logger);
+            const manualApprovalManager = new ApprovalManager(
+                {
+                    permissions: { mode: 'manual', timeout: 120000 },
+                    elicitation: { enabled: false, timeout: 120000 },
+                },
+                logger,
+                manualApprovalStore
+            );
+            const approvalStarted = createDeferred<void>();
+            const approvalDecision = createDeferred<ApprovalResponse>();
+            const approvalHandler = vi.fn(async (request) => {
+                approvalStarted.resolve();
+                return approvalDecision.promise.then((response) => ({
+                    ...response,
+                    approvalId: request.approvalId,
+                }));
+            });
+            manualApprovalManager.setHandler(approvalHandler);
+
+            const allowedToolsProvider = {
+                isToolAllowed: vi.fn().mockResolvedValue(false),
+                allowTool: vi.fn(),
+                disallowTool: vi.fn(),
+            };
+            const manualToolManager = new ToolManager(
+                mcpManager,
+                manualApprovalManager,
+                allowedToolsProvider,
+                'manual',
+                agentEventBus,
+                { alwaysAllow: [], alwaysDeny: [] },
+                [],
+                logger,
+                createInMemorySessionToolPreferencesStore(logger),
+                new InMemoryDextoStores().getStore('toolExecutions')
+            );
+            await manualToolManager.initialize();
+            manualToolManager.setToolExecutionContextFactory((baseContext) => baseContext);
+
+            const executeTool = vi.fn().mockResolvedValue('approved result');
+            manualToolManager.addTools([
+                defineTool({
+                    id: 'needs_approval',
+                    description: 'Needs approval',
+                    inputSchema: z.object({ value: z.string() }).strict(),
+                    execute: executeTool,
+                }),
+            ]);
+            const manualExecutor = new TurnExecutor(
+                createMockModel(),
+                manualToolManager,
+                contextManager,
+                sessionEventBus,
+                resourceManager,
+                sessionId,
+                { maxSteps: 10, maxOutputTokens: 4096, temperature: 0.7 },
+                llmContext,
+                logger,
+                steerQueue,
+                followUpQueue
+            );
+
+            vi.mocked(streamText)
+                .mockImplementationOnce(
+                    () =>
+                        createMockStream({
+                            finishReason: 'tool-calls',
+                            toolCalls: [
+                                {
+                                    toolCallId: 'call-approval',
+                                    toolName: 'needs_approval',
+                                    args: { value: 'one' },
+                                },
+                            ],
+                        }) as unknown as ReturnType<typeof streamText>
+                )
+                .mockImplementationOnce(
+                    () =>
+                        createMockStream({
+                            text: 'done',
+                            finishReason: 'stop',
+                        }) as unknown as ReturnType<typeof streamText>
+                );
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Use the manual tool' }]);
+            const execution = manualExecutor.execute({ mcpManager }, true);
+            await approvalStarted.promise;
+            expect(executeTool).not.toHaveBeenCalled();
+            approvalDecision.resolve({
+                approvalId: 'filled-by-handler',
+                status: ApprovalStatus.APPROVED,
+            });
+            await execution;
+
+            expect(approvalHandler).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    type: 'tool_approval',
+                    metadata: expect.objectContaining({
+                        toolName: 'needs_approval',
+                    }),
+                })
+            );
+            expect(executeTool).toHaveBeenCalledWith(
+                { value: 'one' },
+                expect.objectContaining({
+                    sessionId,
+                })
+            );
+            const approvalId = approvalHandler.mock.calls[0]?.[0].approvalId;
+            expect(approvalId).toEqual(expect.any(String));
+            await expect(manualApprovalStore.getResponse({ approvalId })).resolves.toEqual(
+                expect.objectContaining({
+                    status: ApprovalStatus.APPROVED,
+                })
+            );
+            const history = await contextManager.getHistory();
+            expect(history).toContainEqual(
+                expect.objectContaining({
+                    role: 'tool',
+                    toolCallId: 'call-approval',
+                    name: 'needs_approval',
+                    success: true,
+                })
+            );
+        });
+
+        it('appends an error tool result when approval handling throws', async () => {
+            const manualApprovalManager = new ApprovalManager(
+                {
+                    permissions: { mode: 'manual', timeout: 120000 },
+                    elicitation: { enabled: false, timeout: 120000 },
+                },
+                logger,
+                createInMemorySessionApprovalStore(logger)
+            );
+            const executeTool = vi.fn().mockResolvedValue('should not run');
+            const manualToolManager = new ToolManager(
+                mcpManager,
+                manualApprovalManager,
+                {
+                    isToolAllowed: vi.fn().mockResolvedValue(false),
+                    allowTool: vi.fn(),
+                    disallowTool: vi.fn(),
+                },
+                'manual',
+                agentEventBus,
+                { alwaysAllow: [], alwaysDeny: [] },
+                [
+                    defineTool({
+                        id: 'approval_error',
+                        description: 'Approval error',
+                        inputSchema: z.object({ value: z.string() }).strict(),
+                        execute: executeTool,
+                    }),
+                ],
+                logger,
+                createInMemorySessionToolPreferencesStore(logger),
+                new InMemoryDextoStores().getStore('toolExecutions')
+            );
+            await manualToolManager.initialize();
+            manualToolManager.setToolExecutionContextFactory((baseContext) => baseContext);
+
+            const manualExecutor = new TurnExecutor(
+                createMockModel(),
+                manualToolManager,
+                contextManager,
+                sessionEventBus,
+                resourceManager,
+                sessionId,
+                { maxSteps: 10, maxOutputTokens: 4096, temperature: 0.7 },
+                llmContext,
+                logger,
+                steerQueue,
+                followUpQueue
+            );
+
+            vi.mocked(streamText)
+                .mockImplementationOnce(
+                    () =>
+                        createMockStream({
+                            finishReason: 'tool-calls',
+                            toolCalls: [
+                                {
+                                    toolCallId: 'call-approval-error',
+                                    toolName: 'approval_error',
+                                    args: { value: 'one' },
+                                },
+                            ],
+                        }) as unknown as ReturnType<typeof streamText>
+                )
+                .mockImplementationOnce(
+                    () =>
+                        createMockStream({
+                            text: 'handled error',
+                            finishReason: 'stop',
+                        }) as unknown as ReturnType<typeof streamText>
+                );
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Use the manual tool' }]);
+            await manualExecutor.execute({ mcpManager }, true);
+
+            expect(executeTool).not.toHaveBeenCalled();
+            expect(streamText).toHaveBeenCalledTimes(2);
+            const history = await contextManager.getHistory();
+            expect(history).toContainEqual(
+                expect.objectContaining({
+                    role: 'tool',
+                    toolCallId: 'call-approval-error',
+                    name: 'approval_error',
+                    success: false,
+                })
+            );
+        });
+
+        it('executes ready siblings while an earlier sibling waits for approval and persists model order', async () => {
+            const approvalDecision = createDeferred<{
+                approvalId: string;
+                status: typeof ApprovalStatus.APPROVED;
+            }>();
+            const approvalStarted = createDeferred<void>();
+            const readyExecuted = createDeferred<void>();
+            const order: string[] = [];
+            sessionEventBus.on('llm:tool-call', (event) => {
+                order.push(`tool-call:${event.callId}`);
+            });
+            const manualApprovalManager = new ApprovalManager(
+                {
+                    permissions: { mode: 'manual', timeout: 120000 },
+                    elicitation: { enabled: false, timeout: 120000 },
+                },
+                logger,
+                createInMemorySessionApprovalStore(logger)
+            );
+            const approvalHandler = vi.fn(async (request) => {
+                approvalStarted.resolve();
+                const decision = await approvalDecision.promise;
+                return {
+                    ...decision,
+                    approvalId: request.approvalId,
+                };
+            });
+            manualApprovalManager.setHandler(approvalHandler);
+
+            const allowedToolsProvider = {
+                isToolAllowed: vi.fn(async (toolName) => toolName === 'ready_sibling'),
+                allowTool: vi.fn(),
+                disallowTool: vi.fn(),
+            };
+            const siblingToolManager = new ToolManager(
+                mcpManager,
+                manualApprovalManager,
+                allowedToolsProvider,
+                'manual',
+                agentEventBus,
+                { alwaysAllow: [], alwaysDeny: [] },
+                [
+                    defineTool({
+                        id: 'approval_sibling',
+                        description: 'Approval sibling',
+                        inputSchema: z.object({ value: z.string() }).strict(),
+                        execute: vi.fn(async () => {
+                            order.push('execute:call-approval-first');
+                            return 'approved sibling result';
+                        }),
+                    }),
+                    defineTool({
+                        id: 'ready_sibling',
+                        description: 'Ready sibling',
+                        inputSchema: z.object({ value: z.string() }).strict(),
+                        execute: vi.fn(async () => {
+                            order.push('execute:call-ready-second');
+                            readyExecuted.resolve();
+                            return 'ready sibling result';
+                        }),
+                    }),
+                ],
+                logger,
+                createInMemorySessionToolPreferencesStore(logger),
+                new InMemoryDextoStores().getStore('toolExecutions')
+            );
+            await siblingToolManager.initialize();
+            siblingToolManager.setToolExecutionContextFactory((baseContext) => baseContext);
+
+            const siblingExecutor = new TurnExecutor(
+                createMockModel(),
+                siblingToolManager,
+                contextManager,
+                sessionEventBus,
+                resourceManager,
+                sessionId,
+                { maxSteps: 10, maxOutputTokens: 4096, temperature: 0.7 },
+                llmContext,
+                logger,
+                steerQueue,
+                followUpQueue
+            );
+
+            vi.mocked(streamText)
+                .mockImplementationOnce(
+                    () =>
+                        createMockStream({
+                            finishReason: 'tool-calls',
+                            toolCalls: [
+                                {
+                                    toolCallId: 'call-approval-first',
+                                    toolName: 'approval_sibling',
+                                    args: { value: 'wait' },
+                                },
+                                {
+                                    toolCallId: 'call-ready-second',
+                                    toolName: 'ready_sibling',
+                                    args: { value: 'run' },
+                                },
+                            ],
+                        }) as unknown as ReturnType<typeof streamText>
+                )
+                .mockImplementationOnce(
+                    () =>
+                        createMockStream({
+                            text: 'done',
+                            finishReason: 'stop',
+                        }) as unknown as ReturnType<typeof streamText>
+                );
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Use sibling tools' }]);
+            const execution = siblingExecutor.execute({ mcpManager }, true);
+
+            await approvalStarted.promise;
+            await readyExecuted.promise;
+            expect(order).toEqual([
+                'tool-call:call-approval-first',
+                'tool-call:call-ready-second',
+                'execute:call-ready-second',
+            ]);
+            expect(streamText).toHaveBeenCalledTimes(1);
+
+            approvalDecision.resolve({
+                approvalId: 'filled-by-handler',
+                status: ApprovalStatus.APPROVED,
+            });
+            await execution;
+
+            expect(streamText).toHaveBeenCalledTimes(2);
+            const history = await contextManager.getHistory();
+            const toolMessages = history.filter((message) => message.role === 'tool');
+            expect(toolMessages.map((message) => message.toolCallId)).toEqual([
+                'call-approval-first',
+                'call-ready-second',
+            ]);
+            expect(toolMessages.map((message) => message.content)).toEqual([
+                [{ type: 'text', text: 'approved sibling result' }],
+                [{ type: 'text', text: 'ready sibling result' }],
+            ]);
+        });
+
+        it('auto-approves pending same-tool siblings when the first approval remembers the tool', async () => {
+            const approvalHandler = createPendingApprovalHandler();
+            const manualApprovalManager = new ApprovalManager(
+                {
+                    permissions: { mode: 'manual', timeout: 120000 },
+                    elicitation: { enabled: false, timeout: 120000 },
+                },
+                logger,
+                createInMemorySessionApprovalStore(logger)
+            );
+            manualApprovalManager.setHandler(approvalHandler);
+
+            const allowedTools = new Set<string>();
+            const allowedToolsProvider = {
+                isToolAllowed: vi.fn(async (toolName) => allowedTools.has(toolName)),
+                allowTool: vi.fn(async (toolName) => {
+                    allowedTools.add(toolName);
+                }),
+                disallowTool: vi.fn(),
+            };
+            const executeTool = vi
+                .fn()
+                .mockResolvedValueOnce('first approved result')
+                .mockResolvedValueOnce('second auto-approved result');
+            const siblingToolManager = new ToolManager(
+                mcpManager,
+                manualApprovalManager,
+                allowedToolsProvider,
+                'manual',
+                agentEventBus,
+                { alwaysAllow: [], alwaysDeny: [] },
+                [
+                    defineTool({
+                        id: 'write_file',
+                        description: 'Write file',
+                        inputSchema: z.object({ path: z.string() }).strict(),
+                        execute: executeTool,
+                    }),
+                ],
+                logger,
+                createInMemorySessionToolPreferencesStore(logger),
+                new InMemoryDextoStores().getStore('toolExecutions')
+            );
+            await siblingToolManager.initialize();
+            siblingToolManager.setToolExecutionContextFactory((baseContext) => baseContext);
+            const siblingExecutor = new TurnExecutor(
+                createMockModel(),
+                siblingToolManager,
+                contextManager,
+                sessionEventBus,
+                resourceManager,
+                sessionId,
+                { maxSteps: 10, maxOutputTokens: 4096, temperature: 0.7 },
+                llmContext,
+                logger,
+                steerQueue,
+                followUpQueue
+            );
+
+            vi.mocked(streamText)
+                .mockImplementationOnce(
+                    () =>
+                        createMockStream({
+                            finishReason: 'tool-calls',
+                            toolCalls: [
+                                {
+                                    toolCallId: 'call-write-first',
+                                    toolName: 'write_file',
+                                    args: { path: 'src/one.ts' },
+                                },
+                                {
+                                    toolCallId: 'call-write-second',
+                                    toolName: 'write_file',
+                                    args: { path: 'src/two.ts' },
+                                },
+                            ],
+                        }) as unknown as ReturnType<typeof streamText>
+                )
+                .mockImplementationOnce(
+                    () =>
+                        createMockStream({
+                            text: 'done',
+                            finishReason: 'stop',
+                        }) as unknown as ReturnType<typeof streamText>
+                );
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Write two files' }]);
+            const execution = siblingExecutor.execute({ mcpManager }, true);
+
+            await vi.waitFor(() => expect(approvalHandler.pending.size).toBe(2));
+            const firstApprovalId = Array.from(approvalHandler.pending.keys())[0]!;
+            approvalHandler.resolveApproval(firstApprovalId, {
+                status: ApprovalStatus.APPROVED,
+                sessionId,
+                data: { rememberChoice: true },
+            });
+            await execution;
+
+            expect(allowedToolsProvider.allowTool).toHaveBeenCalledWith('write_file', sessionId);
+            expect(executeTool).toHaveBeenCalledTimes(2);
+            expect(approvalHandler.pending.size).toBe(0);
+            const history = await contextManager.getHistory();
+            const toolMessages = history.filter((message) => message.role === 'tool');
+            expect(toolMessages.map((message) => message.toolCallId)).toEqual([
+                'call-write-first',
+                'call-write-second',
+            ]);
+        });
+
+        it('uses a remembered tool approval on a later model step without prompting again', async () => {
+            const approvalHandler = createPendingApprovalHandler();
+            const manualApprovalManager = new ApprovalManager(
+                {
+                    permissions: { mode: 'manual', timeout: 120000 },
+                    elicitation: { enabled: false, timeout: 120000 },
+                },
+                logger,
+                createInMemorySessionApprovalStore(logger)
+            );
+            manualApprovalManager.setHandler(approvalHandler);
+
+            const allowedTools = new Set<string>();
+            const allowedToolsProvider = {
+                isToolAllowed: vi.fn(async (toolName) => allowedTools.has(toolName)),
+                allowTool: vi.fn(async (toolName) => {
+                    allowedTools.add(toolName);
+                }),
+                disallowTool: vi.fn(),
+            };
+            const executeTool = vi
+                .fn()
+                .mockResolvedValueOnce('first result')
+                .mockResolvedValueOnce('later result');
+            const rememberingToolManager = new ToolManager(
+                mcpManager,
+                manualApprovalManager,
+                allowedToolsProvider,
+                'manual',
+                agentEventBus,
+                { alwaysAllow: [], alwaysDeny: [] },
+                [
+                    defineTool({
+                        id: 'write_file',
+                        description: 'Write file',
+                        inputSchema: z.object({ path: z.string() }).strict(),
+                        execute: executeTool,
+                    }),
+                ],
+                logger,
+                createInMemorySessionToolPreferencesStore(logger),
+                new InMemoryDextoStores().getStore('toolExecutions')
+            );
+            await rememberingToolManager.initialize();
+            rememberingToolManager.setToolExecutionContextFactory((baseContext) => baseContext);
+            const rememberingExecutor = new TurnExecutor(
+                createMockModel(),
+                rememberingToolManager,
+                contextManager,
+                sessionEventBus,
+                resourceManager,
+                sessionId,
+                { maxSteps: 10, maxOutputTokens: 4096, temperature: 0.7 },
+                llmContext,
+                logger,
+                steerQueue,
+                followUpQueue
+            );
+
+            vi.mocked(streamText)
+                .mockImplementationOnce(
+                    () =>
+                        createMockStream({
+                            finishReason: 'tool-calls',
+                            toolCalls: [
+                                {
+                                    toolCallId: 'call-write-first',
+                                    toolName: 'write_file',
+                                    args: { path: 'src/one.ts' },
+                                },
+                            ],
+                        }) as unknown as ReturnType<typeof streamText>
+                )
+                .mockImplementationOnce(
+                    () =>
+                        createMockStream({
+                            finishReason: 'tool-calls',
+                            toolCalls: [
+                                {
+                                    toolCallId: 'call-write-later',
+                                    toolName: 'write_file',
+                                    args: { path: 'src/two.ts' },
+                                },
+                            ],
+                        }) as unknown as ReturnType<typeof streamText>
+                )
+                .mockImplementationOnce(
+                    () =>
+                        createMockStream({
+                            text: 'done',
+                            finishReason: 'stop',
+                        }) as unknown as ReturnType<typeof streamText>
+                );
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Write files' }]);
+            const execution = rememberingExecutor.execute({ mcpManager }, true);
+
+            await vi.waitFor(() => expect(approvalHandler.pending.size).toBe(1));
+            const firstApprovalId = Array.from(approvalHandler.pending.keys())[0]!;
+            approvalHandler.resolveApproval(firstApprovalId, {
+                status: ApprovalStatus.APPROVED,
+                sessionId,
+                data: { rememberChoice: true },
+            });
+            await execution;
+
+            expect(allowedToolsProvider.allowTool).toHaveBeenCalledWith('write_file', sessionId);
+            expect(approvalHandler.pending.size).toBe(0);
+            expect(executeTool).toHaveBeenCalledTimes(2);
+            expect(streamText).toHaveBeenCalledTimes(3);
+        });
+
+        it('uses remembered bash-style approval patterns on later model steps', async () => {
+            const approvalHandler = createPendingApprovalHandler();
+            const manualApprovalManager = new ApprovalManager(
+                {
+                    permissions: { mode: 'manual', timeout: 120000 },
+                    elicitation: { enabled: false, timeout: 120000 },
+                },
+                logger,
+                createInMemorySessionApprovalStore(logger)
+            );
+            manualApprovalManager.setHandler(approvalHandler);
+            const executeTool = vi
+                .fn()
+                .mockResolvedValueOnce('git status result')
+                .mockResolvedValueOnce('git diff result');
+            const bashToolManager = new ToolManager(
+                mcpManager,
+                manualApprovalManager,
+                {
+                    isToolAllowed: vi.fn().mockResolvedValue(false),
+                    allowTool: vi.fn(),
+                    disallowTool: vi.fn(),
+                },
+                'manual',
+                agentEventBus,
+                { alwaysAllow: [], alwaysDeny: [] },
+                [
+                    defineTool({
+                        id: 'bash_exec',
+                        description: 'Bash',
+                        inputSchema: z.object({ command: z.string() }).strict(),
+                        approval: {
+                            patternKey: (input) => `${input.command} *`,
+                            suggestPatterns: () => ['git *'],
+                        },
+                        execute: executeTool,
+                    }),
+                ],
+                logger,
+                createInMemorySessionToolPreferencesStore(logger),
+                new InMemoryDextoStores().getStore('toolExecutions')
+            );
+            await bashToolManager.initialize();
+            bashToolManager.setToolExecutionContextFactory((baseContext) => baseContext);
+            const bashExecutor = new TurnExecutor(
+                createMockModel(),
+                bashToolManager,
+                contextManager,
+                sessionEventBus,
+                resourceManager,
+                sessionId,
+                { maxSteps: 10, maxOutputTokens: 4096, temperature: 0.7 },
+                llmContext,
+                logger,
+                steerQueue,
+                followUpQueue
+            );
+
+            vi.mocked(streamText)
+                .mockImplementationOnce(
+                    () =>
+                        createMockStream({
+                            finishReason: 'tool-calls',
+                            toolCalls: [
+                                {
+                                    toolCallId: 'call-git-status',
+                                    toolName: 'bash_exec',
+                                    args: { command: 'git status' },
+                                },
+                            ],
+                        }) as unknown as ReturnType<typeof streamText>
+                )
+                .mockImplementationOnce(
+                    () =>
+                        createMockStream({
+                            finishReason: 'tool-calls',
+                            toolCalls: [
+                                {
+                                    toolCallId: 'call-git-diff',
+                                    toolName: 'bash_exec',
+                                    args: { command: 'git diff' },
+                                },
+                            ],
+                        }) as unknown as ReturnType<typeof streamText>
+                )
+                .mockImplementationOnce(
+                    () =>
+                        createMockStream({
+                            text: 'done',
+                            finishReason: 'stop',
+                        }) as unknown as ReturnType<typeof streamText>
+                );
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Run git commands' }]);
+            const execution = bashExecutor.execute({ mcpManager }, true);
+
+            await vi.waitFor(() => expect(approvalHandler.pending.size).toBe(1));
+            const firstApprovalId = Array.from(approvalHandler.pending.keys())[0]!;
+            approvalHandler.resolveApproval(firstApprovalId, {
+                status: ApprovalStatus.APPROVED,
+                sessionId,
+                data: { rememberPattern: 'git *' },
+            });
+            await execution;
+
+            expect(approvalHandler.pending.size).toBe(0);
+            expect(executeTool).toHaveBeenCalledTimes(2);
+            expect(streamText).toHaveBeenCalledTimes(3);
+        });
+
         it('should continue looping on tool-calls finish reason', async () => {
             let callCount = 0;
             vi.mocked(streamText).mockImplementation(() => {
@@ -1161,6 +2145,102 @@ describe('TurnExecutor Integration Tests', () => {
             const result = await executorWithSignal.execute({ mcpManager }, true);
 
             expect(result.finishReason).toBe('cancelled');
+        });
+
+        it('appends a cancelled tool result when aborted while approval is pending', async () => {
+            const abortController = new AbortController();
+            const approvalStarted = createDeferred<void>();
+            const manualApprovalManager = new ApprovalManager(
+                {
+                    permissions: { mode: 'manual', timeout: 120000 },
+                    elicitation: { enabled: false, timeout: 120000 },
+                },
+                logger,
+                createInMemorySessionApprovalStore(logger)
+            );
+            manualApprovalManager.setHandler(
+                vi.fn(async () => {
+                    approvalStarted.resolve();
+                    return new Promise<ApprovalResponse>(() => undefined);
+                })
+            );
+            const executeTool = vi.fn().mockResolvedValue('should not run');
+            const manualToolManager = new ToolManager(
+                mcpManager,
+                manualApprovalManager,
+                {
+                    isToolAllowed: vi.fn().mockResolvedValue(false),
+                    allowTool: vi.fn(),
+                    disallowTool: vi.fn(),
+                },
+                'manual',
+                agentEventBus,
+                { alwaysAllow: [], alwaysDeny: [] },
+                [
+                    defineTool({
+                        id: 'pending_approval',
+                        description: 'Pending approval',
+                        inputSchema: z.object({ value: z.string() }).strict(),
+                        execute: executeTool,
+                    }),
+                ],
+                logger,
+                createInMemorySessionToolPreferencesStore(logger),
+                new InMemoryDextoStores().getStore('toolExecutions')
+            );
+            await manualToolManager.initialize();
+            manualToolManager.setToolExecutionContextFactory((baseContext) => baseContext);
+
+            const executorWithSignal = new TurnExecutor(
+                createMockModel(),
+                manualToolManager,
+                contextManager,
+                sessionEventBus,
+                resourceManager,
+                sessionId,
+                { maxSteps: 10 },
+                llmContext,
+                logger,
+                steerQueue,
+                followUpQueue,
+                undefined,
+                abortController.signal
+            );
+
+            vi.mocked(streamText).mockImplementationOnce(
+                () =>
+                    createMockStream({
+                        finishReason: 'tool-calls',
+                        toolCalls: [
+                            {
+                                toolCallId: 'call-pending-approval',
+                                toolName: 'pending_approval',
+                                args: { value: 'one' },
+                            },
+                        ],
+                    }) as unknown as ReturnType<typeof streamText>
+            );
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
+            const execution = executorWithSignal.execute({ mcpManager }, true);
+            await approvalStarted.promise;
+            abortController.abort();
+            const result = await execution;
+
+            expect(result.finishReason).toBe('cancelled');
+            expect(executeTool).not.toHaveBeenCalled();
+            const history = await contextManager.getHistory();
+            expect(history).toContainEqual(
+                expect.objectContaining({
+                    role: 'tool',
+                    toolCallId: 'call-pending-approval',
+                    name: 'pending_approval',
+                    success: false,
+                    content: [
+                        { type: 'text', text: '{"error":"Cancelled by user","cancelled":true}' },
+                    ],
+                })
+            );
         });
     });
 

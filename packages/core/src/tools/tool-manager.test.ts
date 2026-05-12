@@ -60,11 +60,13 @@ type ToolManagerFactoryArgs =
 
 function createToolManager(...args: ToolManagerFactoryArgs): ToolManager {
     const logger = args[7];
-    return new ToolManager(
+    const toolManager = new ToolManager(
         ...args,
         createInMemorySessionToolPreferencesStore(logger),
         new InMemoryDextoStores().getStore('toolExecutions')
     );
+    toolManager.setToolExecutionContextFactory((baseContext) => baseContext);
+    return toolManager;
 }
 
 function createRecordedToolApproval(
@@ -1424,7 +1426,9 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 expect.objectContaining({
                     result: { ok: true },
                     presentationSnapshot: expect.objectContaining({
-                        title: 'Typed tool',
+                        header: expect.objectContaining({
+                            title: 'Typed',
+                        }),
                     }),
                 })
             );
@@ -1441,9 +1445,13 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
 
         it('executes a prepared MCP tool call through the normalized MCP name', async () => {
             mockMcpManager.getAllTools = vi.fn().mockResolvedValue({
-                'mcp--filesystem--read_file': {
+                'filesystem--read_file': {
                     description: 'Read file',
-                    inputSchema: z.object({ path: z.string() }).strict(),
+                    parameters: {
+                        type: 'object',
+                        properties: { path: { type: 'string' } },
+                        required: ['path'],
+                    },
                 },
             });
             mockMcpManager.executeTool = vi.fn().mockResolvedValue({ content: 'hello' });
@@ -1561,6 +1569,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 createInMemorySessionToolPreferencesStore(mockLogger),
                 toolExecutionStore
             );
+            toolManager.setToolExecutionContextFactory((baseContext) => baseContext);
             const executionIdentity = {
                 runId: 'run-1',
                 turnId: 'turn-1',
@@ -1669,6 +1678,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 createInMemorySessionToolPreferencesStore(mockLogger),
                 toolExecutionStore
             );
+            toolManager.setToolExecutionContextFactory((baseContext) => baseContext);
             const executionIdentity = {
                 runId: 'run-1',
                 turnId: 'turn-1',
@@ -1785,9 +1795,13 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             process.env.DEXTO_BACKGROUND_TASKS_ENABLED = 'true';
             try {
                 mockMcpManager.getAllTools = vi.fn().mockResolvedValue({
-                    'mcp--read_file': {
+                    read_file: {
                         description: 'Read file',
-                        inputSchema: z.object({ path: z.string() }).strict(),
+                        parameters: {
+                            type: 'object',
+                            properties: { path: { type: 'string' } },
+                            required: ['path'],
+                        },
                     },
                 });
                 const background = createDeferred<string>();

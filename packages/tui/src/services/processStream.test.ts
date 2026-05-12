@@ -328,6 +328,7 @@ describe('processStream (reasoning)', () => {
                 name: 'llm:tool-call',
                 sessionId: 'test-session',
                 toolName: 'test-tool',
+                callId: 'call-1',
                 args: {},
             },
             {

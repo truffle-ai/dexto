@@ -45,7 +45,7 @@ export const PermissionsConfigSchema = z
             .positive()
             .optional()
             .describe(
-                'Timeout for tool confirmation requests in milliseconds. If not set, waits indefinitely.'
+                'Timeout for tool approval requests in milliseconds. If not set, waits indefinitely.'
             ),
         allowedToolsStorage: z
             .enum(ALLOWED_TOOLS_STORAGE_TYPES)

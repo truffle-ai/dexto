@@ -298,7 +298,7 @@ export function InlineApprovalCard({ approval, onApprove, onDeny }: InlineApprov
                         </pre>
                     </div>
 
-                    {/* Only show "Remember choice" for tool confirmations, not command confirmations */}
+                    {/* Only show "Remember choice" for tool approvals, not command confirmations */}
                     <div className="flex items-center space-x-2 pt-2">
                         <Checkbox
                             id="remember"

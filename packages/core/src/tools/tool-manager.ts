@@ -1875,6 +1875,10 @@ export class ToolManager {
         };
     }
 
+    async requestApprovalDecision(recorded: RecordedToolApproval): Promise<ApprovalResponse> {
+        return this.approvalManager.requestApprovalDecision(recorded.request);
+    }
+
     private assertRecordedApprovalMatchesPreparedCall(
         prepared: ApprovalRequiredPreparedToolCall,
         request: ApprovalRequest
@@ -3352,13 +3356,13 @@ export class ToolManager {
             response.reason === DenialReason.TIMEOUT
         ) {
             this.logger.info(
-                `Tool confirmation timed out for ${toolName}, sessionId: ${sessionId ?? 'global'}`
+                `Tool approval timed out for ${toolName}, sessionId: ${sessionId ?? 'global'}`
             );
             throw ToolError.executionTimeout(toolName, response.timeoutMs ?? 0, sessionId);
         }
 
         this.logger.info(
-            `Tool confirmation denied for ${toolName}, sessionId: ${sessionId ?? 'global'}, reason: ${response.reason ?? 'unknown'}`
+            `Tool approval denied for ${toolName}, sessionId: ${sessionId ?? 'global'}, reason: ${response.reason ?? 'unknown'}`
         );
         throw ToolError.executionDenied(toolName, sessionId, response.message);
     }

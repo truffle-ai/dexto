@@ -228,7 +228,7 @@ export class DextoAgent {
     // Telemetry instance for distributed tracing
     private telemetry?: Telemetry;
 
-    // Approval handler for manual tool confirmation and elicitation
+    // Approval handler for manual tool approval and elicitation
     // Set via setApprovalHandler() before start() if needed
     private approvalHandler?: ApprovalHandler | undefined;
     private mcpAuthProviderFactory: import('../mcp/types.js').McpAuthProviderFactory | null = null;
@@ -378,7 +378,7 @@ export class DextoAgent {
             }
 
             // Validate approval configuration
-            // Handler is required for manual tool confirmation OR when elicitation is enabled
+            // Handler is required for manual tool approval OR when elicitation is enabled
             const needsHandler =
                 this.config.permissions.mode === 'manual' || this.config.elicitation.enabled;
 
@@ -3586,7 +3586,7 @@ export class DextoAgent {
      * Set a custom approval handler for manual approval mode.
      *
      * When `permissions.mode` is set to 'manual', an approval handler must be
-     * provided to process tool confirmation requests. The handler will be called
+     * provided to process tool approval requests. The handler will be called
      * whenever a tool execution requires user approval.
      *
      * The handler receives an approval request and must return a promise that resolves

@@ -147,7 +147,7 @@ export function ChatInterface({ sessionId }: { sessionId: string }) {
 ### Example 3: Approval Request
 
 ```
-1. SSE: approval:request (type: TOOL_CONFIRMATION, toolName: "write_file")
+1. SSE: approval:request (type: TOOL_APPROVAL, toolName: "write_file")
    → Handler: handleApprovalRequest
    → Store: agentStore.setAwaitingApproval(sessionId)
    → Middleware (notification): Show toast "Tool write_file needs approval"

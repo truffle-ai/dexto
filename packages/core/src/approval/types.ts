@@ -35,7 +35,7 @@ import type {
  * Types of approval requests supported by the system
  */
 export const APPROVAL_TYPES = [
-    'tool_confirmation',
+    'tool_approval',
     'command_confirmation',
     'elicitation',
     'directory_access',
@@ -49,7 +49,7 @@ const ApprovalTypeValues = {
      * Binary approval for tool execution
      * Metadata contains: toolName, args, description
      */
-    TOOL_APPROVAL: 'tool_confirmation',
+    TOOL_APPROVAL: 'tool_approval',
 
     /**
      * Binary approval for dangerous commands within an already-approved tool
@@ -304,7 +304,7 @@ export type ApprovalRequestDetails = z.output<typeof ApprovalRequestDetailsSchem
 /**
  * Handler interface for processing approval requests.
  *
- * This is the core abstraction for approval handling in Dexto. When tool confirmation
+ * This is the core abstraction for approval handling in Dexto. When tool approval
  * mode is 'manual', a handler must be provided to process approval requests.
  *
  * The handler is a callable interface that:

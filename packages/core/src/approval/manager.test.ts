@@ -631,7 +631,7 @@ describe('ApprovalManager', () => {
             expect(response.status).toBe(ApprovalStatus.APPROVED);
         });
 
-        it('should route command confirmations to tool confirmation handler', async () => {
+        it('should route command confirmations to the approval handler', async () => {
             const manager = createApprovalManager(
                 {
                     permissions: {
@@ -880,7 +880,7 @@ describe('ApprovalManager', () => {
     });
 
     describe('Timeout Configuration', () => {
-        it('should allow undefined timeout (infinite wait) for tool confirmation', () => {
+        it('should allow undefined timeout (infinite wait) for tool approval', () => {
             const manager = createApprovalManager(
                 {
                     permissions: {

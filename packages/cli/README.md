@@ -607,7 +607,7 @@ Session Management:
 Options:
   -a, --agent <path>       Agent config file or ID
   -m, --model <model>      LLM model to use
-  --auto-approve           Skip tool confirmations
+  --auto-approve           Skip tool approvals
   --no-elicitation         Disable elicitation prompts
   --mode <mode>            web | cli | server | mcp
   --port <port>            Server port

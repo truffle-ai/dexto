@@ -1065,7 +1065,7 @@ program
                 let agent: DextoAgent;
                 let derivedAgentId: string;
                 try {
-                    // Set run mode for tool confirmation provider
+                    // Set run mode for tool approval provider
                     process.env.DEXTO_RUN_MODE = opts.mode;
 
                     // Apply --strict flag to all server configs

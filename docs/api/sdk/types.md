@@ -310,7 +310,7 @@ interface AgentEventMap {
   // Approval events
   'approval:request': {
     approvalId: string;
-    approvalType: 'tool_confirmation' | 'elicitation' | 'custom';
+    approvalType: 'tool_approval' | 'command_confirmation' | 'elicitation' | 'custom';
     sessionId?: string;
     timeout?: number;
     timestamp: Date;

@@ -295,7 +295,7 @@ Fired when agent state is reset to baseline.
 
 ### User Approval Events
 
-Dexto's generalized approval system handles various types of user input requests, including tool confirmations and form-based input (elicitation). These events are included in `STREAMING_EVENTS` and are available via `DextoAgent.stream()`.
+Dexto's generalized approval system handles various types of user input requests, including tool approvals, command confirmations, and form-based input (elicitation). These events are included in `STREAMING_EVENTS` and are available via `DextoAgent.stream()`.
 
 :::tip Custom Approval Handlers
 For direct `DextoAgent` usage without SSE streaming, you can implement a custom approval handler via `agent.setApprovalHandler()` to intercept approval requests programmatically.
@@ -308,7 +308,7 @@ Fired when user approval or input is requested. This event supports multiple app
 ```typescript
 {
   approvalId: string;           // Unique identifier for this approval request
-  type: string;                 // 'tool_confirmation' | 'command_confirmation' | 'elicitation'
+  type: string;                 // 'tool_approval' | 'command_confirmation' | 'elicitation'
   sessionId?: string;           // Optional session scope
   timeout?: number;             // Request timeout in milliseconds
   timestamp: Date;              // When the request was created
@@ -318,8 +318,8 @@ Fired when user approval or input is requested. This event supports multiple app
 
 **Approval Types:**
 
-- **`tool_confirmation`**: Binary approval for tool execution
-    - `metadata.toolName`: Name of the tool requiring confirmation
+- **`tool_approval`**: Binary approval for tool execution
+    - `metadata.toolName`: Name of the tool requiring approval
     - `metadata.args`: Tool arguments
     - `metadata.description`: Optional tool description
 
@@ -350,7 +350,7 @@ Fired when a user approval response is received from the UI layer.
 
 **Response Data by Type:**
 
-- **Tool confirmation**: `{ rememberChoice?: boolean }`
+- **Tool approval**: `{ rememberChoice?: boolean }`
 - **Command confirmation**: `{ rememberChoice?: boolean }`
 - **Elicitation**: `{ formData: Record<string, unknown> }`
 
@@ -358,7 +358,7 @@ Fired when a user approval response is received from the UI layer.
 
 - Agent-initiated forms use `ask_user` tool → triggers elicitation request
 - MCP server input requests trigger elicitation automatically
-- Tool confirmations can be remembered per session via `rememberChoice`
+- Tool approvals can be remembered per session via `rememberChoice`
 - Approval requests timeout based on configuration (default: 2 minutes)
 - Cancelled status indicates timeout or explicit cancellation
 

@@ -60,7 +60,7 @@ function getEventSummary(event: ClientEvent): string {
         case 'llm:error':
             return event.error?.message ?? 'Unknown error';
         case 'approval:request': {
-            // toolName is in metadata for tool_confirmation type
+            // toolName is in metadata for tool_approval type
             const toolName =
                 'metadata' in event && event.metadata && 'toolName' in event.metadata
                     ? event.metadata.toolName

@@ -13,6 +13,7 @@ import type {
     ElicitationMetadata,
     ToolPresentationSnapshotV1,
 } from '@dexto/core';
+import { ApprovalType } from '@dexto/core';
 import type { Key } from '../hooks/useInputOrchestrator.js';
 import { ElicitationForm, type ElicitationFormHandle } from './ElicitationForm.js';
 import { DiffPreview, CreateFilePreview } from './renderers/index.js';
@@ -74,13 +75,13 @@ type SelectionOption =
 /**
  * Compact approval prompt component that displays above the input area
  * Shows options based on approval type:
- * - Tool confirmation: Yes, Yes (Session), No
+ * - Tool approval: Yes, Yes (Session), No
  * - Tool with patterns: Yes (once), pattern options, Yes (session), No
  * - Elicitation: Form with input fields
  */
 export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptProps>(
     ({ approval, onApprove, onDeny, onCancel }, ref) => {
-        const isCommandConfirmation = approval.type === 'command_confirmation';
+        const isCommandConfirmation = approval.type === ApprovalType.COMMAND_CONFIRMATION;
         const isElicitation = approval.type === 'elicitation';
         const isDirectoryAccess = approval.type === 'directory_access';
         const directoryAccess = approval.metadata.directoryAccess as
@@ -89,7 +90,7 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
               }
             | undefined;
         const hasToolDirectoryAccess =
-            approval.type === 'tool_confirmation' &&
+            approval.type === ApprovalType.TOOL_APPROVAL &&
             directoryAccess !== undefined &&
             typeof directoryAccess === 'object' &&
             directoryAccess !== null;
@@ -203,7 +204,7 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
             options.push({ id: 'yes-accept-edits', label: 'Yes, and accept all edits' });
             options.push({ id: 'no', label: 'No' });
         } else {
-            // Standard tool confirmation
+            // Standard tool approval
             options.push({ id: 'yes', label: 'Yes' });
             options.push({ id: 'yes-session', label: 'Yes (Session)' });
             options.push({ id: 'no', label: 'No' });

@@ -37174,7 +37174,7 @@
                           },
                           "type": {
                             "type": "string",
-                            "description": "The type of approval (tool_confirmation, elicitation, etc.)"
+                            "description": "The type of approval (tool_approval, command_confirmation, elicitation, etc.)"
                           },
                           "sessionId": {
                             "type": "string",

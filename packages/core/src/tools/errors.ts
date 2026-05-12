@@ -192,7 +192,7 @@ export class ToolError {
             ToolErrorCode.CONFIRMATION_CANCELLED,
             ErrorScope.TOOLS,
             ErrorType.USER,
-            `Tool confirmation for '${toolName}' was cancelled: ${reason}`,
+            `Tool approval for '${toolName}' was cancelled: ${reason}`,
             { toolName, reason }
         );
     }
