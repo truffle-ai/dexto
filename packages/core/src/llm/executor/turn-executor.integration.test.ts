@@ -1823,6 +1823,48 @@ describe('TurnExecutor Integration Tests', () => {
             expect(callCount).toBe(1);
             expect(result.finishReason).toBe('max-steps');
         });
+
+        it('should apply maxSteps to follow-up messages', async () => {
+            let callCount = 0;
+            vi.mocked(streamText).mockImplementation(() => {
+                callCount++;
+                const queuedFollowUp = followUpQueue.enqueue({
+                    content: [{ type: 'text', text: `Follow-up ${callCount}` }],
+                });
+                const stream = createMockStream({
+                    text: `Response ${callCount}`,
+                    finishReason: 'stop',
+                });
+                return {
+                    fullStream: (async function* () {
+                        await queuedFollowUp;
+                        for await (const event of stream.fullStream) {
+                            yield event;
+                        }
+                    })(),
+                } as unknown as ReturnType<typeof streamText>;
+            });
+
+            const limitedExecutor = new TurnExecutor(
+                createMockModel(),
+                toolManager,
+                contextManager,
+                sessionEventBus,
+                resourceManager,
+                sessionId,
+                { maxSteps: 1 },
+                llmContext,
+                logger,
+                steerQueue,
+                followUpQueue
+            );
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Initial' }]);
+            const result = await limitedExecutor.execute({ mcpManager }, true);
+
+            expect(callCount).toBe(1);
+            expect(result.finishReason).toBe('max-steps');
+        });
     });
 
     describe('Tool Support Validation', () => {

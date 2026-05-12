@@ -84,6 +84,30 @@ type ApprovalWaitResult =
           modelVisibleResult: ToolExecutionResult;
       };
 
+type QueuedInputKind = 'late-steer' | 'follow-up';
+
+type StepAdvance =
+    | {
+          kind: 'continue';
+          stepCount: number;
+      }
+    | {
+          kind: 'stop';
+          stepCount: number;
+          finishReason: 'max-steps';
+      };
+
+type QueuedInputAction =
+    | {
+          kind: 'continue';
+          stepCount: number;
+      }
+    | {
+          kind: 'stop';
+          stepCount: number;
+          finishReason: LLMFinishReason;
+      };
+
 /**
  * Static cache for tool support validation.
  * Persists across TurnExecutor instances to avoid repeated validation calls.
@@ -468,71 +492,33 @@ export class TurnExecutor {
                     // missed the pre-request injection point. Treat them as end-of-turn input
                     // before draining explicit follow-ups.
                     if (this.steerQueue.hasPending()) {
-                        if (this.externalSignal?.aborted || result.finishReason === 'cancelled') {
-                            this.logger.debug('Terminating: cancel received before late steer');
-                            lastFinishReason = 'cancelled';
-                            break;
-                        }
-
-                        stepCount++;
-                        if (
-                            this.config.maxSteps !== undefined &&
-                            stepCount >= this.config.maxSteps
-                        ) {
-                            this.logger.debug(
-                                `Terminating: reached maxSteps (${this.config.maxSteps})`
-                            );
-                            lastFinishReason = 'max-steps';
-                            break;
-                        }
-
-                        const steerOnTerminate = await this.steerQueue.dequeueAll();
-                        if (!steerOnTerminate) {
-                            this.logger.debug(
-                                `Terminating: finishReason is "${result.finishReason}"`
-                            );
-                            break;
-                        }
-
-                        this.logger.debug(
-                            `Continuing: ${steerOnTerminate.messages.length} steer message(s) to process at end of turn`
+                        const action = await this.continueWithQueuedInput(
+                            'late-steer',
+                            this.steerQueue,
+                            stepCount,
+                            result.finishReason
                         );
-                        await this.injectQueuedMessages(steerOnTerminate);
+                        stepCount = action.stepCount;
+                        if (action.kind === 'stop') {
+                            lastFinishReason = action.finishReason;
+                            break;
+                        }
                         continue;
                     }
 
                     // Follow-ups run only after the active turn naturally reaches a stop point.
                     if (this.followUpQueue.hasPending()) {
-                        if (this.externalSignal?.aborted || result.finishReason === 'cancelled') {
-                            this.logger.debug('Terminating: cancel received before follow-up');
-                            lastFinishReason = 'cancelled';
-                            break;
-                        }
-
-                        stepCount++;
-                        if (
-                            this.config.maxSteps !== undefined &&
-                            stepCount >= this.config.maxSteps
-                        ) {
-                            this.logger.debug(
-                                `Terminating: reached maxSteps (${this.config.maxSteps})`
-                            );
-                            lastFinishReason = 'max-steps';
-                            break;
-                        }
-
-                        const followUpOnTerminate = await this.followUpQueue.dequeueAll();
-                        if (!followUpOnTerminate) {
-                            this.logger.debug(
-                                `Terminating: finishReason is "${result.finishReason}"`
-                            );
-                            break;
-                        }
-
-                        this.logger.debug(
-                            `Continuing: ${followUpOnTerminate.messages.length} follow-up message(s) to process`
+                        const action = await this.continueWithQueuedInput(
+                            'follow-up',
+                            this.followUpQueue,
+                            stepCount,
+                            result.finishReason
                         );
-                        await this.injectQueuedMessages(followUpOnTerminate);
+                        stepCount = action.stepCount;
+                        if (action.kind === 'stop') {
+                            lastFinishReason = action.finishReason;
+                            break;
+                        }
                         continue;
                     }
 
@@ -545,10 +531,11 @@ export class TurnExecutor {
                     lastFinishReason = 'cancelled';
                     break;
                 }
-                stepCount++;
-                if (this.config.maxSteps !== undefined && stepCount >= this.config.maxSteps) {
+                const stepAdvance = this.advanceStep(stepCount);
+                stepCount = stepAdvance.stepCount;
+                if (stepAdvance.kind === 'stop') {
                     this.logger.debug(`Terminating: reached maxSteps (${this.config.maxSteps})`);
-                    lastFinishReason = 'max-steps';
+                    lastFinishReason = stepAdvance.finishReason;
                     break;
                 }
             }
@@ -604,6 +591,66 @@ export class TurnExecutor {
      */
     abort(): void {
         this.stepAbortController.abort();
+    }
+
+    private advanceStep(stepCount: number): StepAdvance {
+        const nextStepCount = stepCount + 1;
+        if (this.config.maxSteps !== undefined && nextStepCount >= this.config.maxSteps) {
+            return {
+                kind: 'stop',
+                stepCount: nextStepCount,
+                finishReason: 'max-steps',
+            };
+        }
+        return {
+            kind: 'continue',
+            stepCount: nextStepCount,
+        };
+    }
+
+    private async continueWithQueuedInput(
+        kind: QueuedInputKind,
+        queue: MessageQueueService,
+        stepCount: number,
+        finishReason: LLMFinishReason
+    ): Promise<QueuedInputAction> {
+        const label = kind === 'late-steer' ? 'late steer' : 'follow-up';
+
+        if (this.externalSignal?.aborted || finishReason === 'cancelled') {
+            this.logger.debug(`Terminating: cancel received before ${label}`);
+            return {
+                kind: 'stop',
+                stepCount,
+                finishReason: 'cancelled',
+            };
+        }
+
+        const stepAdvance = this.advanceStep(stepCount);
+        if (stepAdvance.kind === 'stop') {
+            this.logger.debug(`Terminating: reached maxSteps (${this.config.maxSteps})`);
+            return stepAdvance;
+        }
+
+        const queued = await queue.dequeueAll();
+        if (!queued) {
+            this.logger.debug(`Terminating: finishReason is "${finishReason}"`);
+            return {
+                kind: 'stop',
+                stepCount: stepAdvance.stepCount,
+                finishReason,
+            };
+        }
+
+        const messageName = kind === 'late-steer' ? 'steer' : 'follow-up';
+        const suffix = kind === 'late-steer' ? ' at end of turn' : '';
+        this.logger.debug(
+            `Continuing: ${queued.messages.length} ${messageName} message(s) to process${suffix}`
+        );
+        await this.injectQueuedMessages(queued);
+        return {
+            kind: 'continue',
+            stepCount: stepAdvance.stepCount,
+        };
     }
 
     /**
