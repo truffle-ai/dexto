@@ -207,7 +207,7 @@ export function InlineApprovalCard({ approval, onApprove, onDeny }: InlineApprov
             </div>
 
             {/* Content */}
-            {approval.type === ApprovalType.COMMAND_CONFIRMATION ? (
+            {approval.type === ApprovalType.COMMAND_APPROVAL ? (
                 <div className="space-y-3 min-w-0">
                     <div className="flex items-center gap-2 min-w-0">
                         <Wrench className="h-4 w-4 flex-shrink-0" />
@@ -298,7 +298,7 @@ export function InlineApprovalCard({ approval, onApprove, onDeny }: InlineApprov
                         </pre>
                     </div>
 
-                    {/* Only show "Remember choice" for tool approvals, not command confirmations */}
+                    {/* Only show "Remember choice" for tool approvals, not command approvals */}
                     <div className="flex items-center space-x-2 pt-2">
                         <Checkbox
                             id="remember"

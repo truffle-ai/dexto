@@ -5,26 +5,26 @@
 import type { z } from 'zod';
 import type {
     ToolApprovalMetadataSchema,
-    CommandConfirmationMetadataSchema,
+    CommandApprovalMetadataSchema,
     ElicitationMetadataSchema,
     CustomApprovalMetadataSchema,
     DirectoryAccessMetadataSchema,
     BaseApprovalRequestSchema,
     ToolApprovalRequestSchema,
-    CommandConfirmationRequestSchema,
+    CommandApprovalRequestSchema,
     ElicitationRequestSchema,
     CustomApprovalRequestSchema,
     DirectoryAccessRequestSchema,
     ApprovalRequestSchema,
     ApprovalRequestDetailsSchema,
     ToolApprovalResponseDataSchema,
-    CommandConfirmationResponseDataSchema,
+    CommandApprovalResponseDataSchema,
     ElicitationResponseDataSchema,
     CustomApprovalResponseDataSchema,
     DirectoryAccessResponseDataSchema,
     BaseApprovalResponseSchema,
     ToolApprovalResponseSchema,
-    CommandConfirmationResponseSchema,
+    CommandApprovalResponseSchema,
     ElicitationResponseSchema,
     CustomApprovalResponseSchema,
     DirectoryAccessResponseSchema,
@@ -36,7 +36,7 @@ import type {
  */
 export const APPROVAL_TYPES = [
     'tool_approval',
-    'command_confirmation',
+    'command_approval',
     'elicitation',
     'directory_access',
     'custom',
@@ -56,7 +56,7 @@ const ApprovalTypeValues = {
      * Metadata contains: toolName, command, originalCommand
      * (sessionId is provided at the request level, not in metadata)
      */
-    COMMAND_CONFIRMATION: 'command_confirmation',
+    COMMAND_APPROVAL: 'command_approval',
 
     /**
      * Schema-based form input from MCP servers
@@ -140,10 +140,10 @@ export { DenialReasonValues as DenialReason };
 export type ToolApprovalMetadata = z.output<typeof ToolApprovalMetadataSchema>;
 
 /**
- * Command confirmation specific metadata
- * Derived from CommandConfirmationMetadataSchema
+ * Command approval specific metadata
+ * Derived from CommandApprovalMetadataSchema
  */
-export type CommandConfirmationMetadata = z.output<typeof CommandConfirmationMetadataSchema>;
+export type CommandApprovalMetadata = z.output<typeof CommandApprovalMetadataSchema>;
 
 /**
  * Elicitation specific metadata (MCP)
@@ -180,10 +180,10 @@ export type BaseApprovalRequest<_TMetadata = unknown> = z.output<typeof BaseAppr
 export type ToolApprovalRequest = z.output<typeof ToolApprovalRequestSchema>;
 
 /**
- * Command confirmation request
- * Derived from CommandConfirmationRequestSchema
+ * Command approval request
+ * Derived from CommandApprovalRequestSchema
  */
-export type CommandConfirmationRequest = z.output<typeof CommandConfirmationRequestSchema>;
+export type CommandApprovalRequest = z.output<typeof CommandApprovalRequestSchema>;
 
 /**
  * Elicitation request from MCP server
@@ -220,12 +220,10 @@ export type ApprovalRequest = z.output<typeof ApprovalRequestSchema>;
 export type ToolApprovalResponseData = z.output<typeof ToolApprovalResponseDataSchema>;
 
 /**
- * Command confirmation response data
- * Derived from CommandConfirmationResponseDataSchema
+ * Command approval response data
+ * Derived from CommandApprovalResponseDataSchema
  */
-export type CommandConfirmationResponseData = z.output<
-    typeof CommandConfirmationResponseDataSchema
->;
+export type CommandApprovalResponseData = z.output<typeof CommandApprovalResponseDataSchema>;
 
 /**
  * Elicitation response data - validated form inputs
@@ -262,10 +260,10 @@ export type BaseApprovalResponse<_TData = unknown> = z.output<typeof BaseApprova
 export type ToolApprovalResponse = z.output<typeof ToolApprovalResponseSchema>;
 
 /**
- * Command confirmation response
- * Derived from CommandConfirmationResponseSchema
+ * Command approval response
+ * Derived from CommandApprovalResponseSchema
  */
-export type CommandConfirmationResponse = z.output<typeof CommandConfirmationResponseSchema>;
+export type CommandApprovalResponse = z.output<typeof CommandApprovalResponseSchema>;
 
 /**
  * Elicitation response

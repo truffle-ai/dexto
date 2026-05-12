@@ -631,7 +631,7 @@ describe('ApprovalManager', () => {
             expect(response.status).toBe(ApprovalStatus.APPROVED);
         });
 
-        it('should route command confirmations to the approval handler', async () => {
+        it('should route command approvals to the approval handler', async () => {
             const manager = createApprovalManager(
                 {
                     permissions: {
@@ -646,7 +646,7 @@ describe('ApprovalManager', () => {
                 mockLogger
             );
 
-            const response = await manager.requestCommandConfirmation({
+            const response = await manager.requestCommandApproval({
                 toolName: 'bash_exec',
                 command: 'rm -rf /',
                 originalCommand: 'rm -rf /',

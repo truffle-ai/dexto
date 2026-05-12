@@ -287,10 +287,7 @@ export class ApprovalError {
                 break;
             default:
                 message = customMessage ?? `Tool execution denied: ${toolName}`;
-                suggestions = [
-                    'Approve the tool in the confirmation dialog',
-                    'Check tool permissions',
-                ];
+                suggestions = ['Approve the tool in the approval dialog', 'Check tool permissions'];
         }
 
         const context: { toolName: string; reason?: DenialReason; sessionId?: string } = {

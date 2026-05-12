@@ -7,13 +7,13 @@ import type {
     ApprovalResponse,
     ApprovalRequestDetails,
     ToolApprovalMetadata,
-    CommandConfirmationMetadata,
+    CommandApprovalMetadata,
     ElicitationMetadata,
     DirectoryAccessMetadata,
 } from './types.js';
 import { ApprovalType, ApprovalStatus, DenialReason } from './types.js';
 import {
-    CommandConfirmationResponseSchema,
+    CommandApprovalResponseSchema,
     CustomApprovalResponseSchema,
     DirectoryAccessResponseSchema,
     ElicitationResponseSchema,
@@ -733,8 +733,8 @@ export class ApprovalManager {
         switch (request.type) {
             case ApprovalType.TOOL_APPROVAL:
                 return ToolApprovalResponseSchema.parse(response);
-            case ApprovalType.COMMAND_CONFIRMATION:
-                return CommandConfirmationResponseSchema.parse(response);
+            case ApprovalType.COMMAND_APPROVAL:
+                return CommandApprovalResponseSchema.parse(response);
             case ApprovalType.ELICITATION:
                 return ElicitationResponseSchema.parse(response);
             case ApprovalType.CUSTOM:
@@ -906,7 +906,7 @@ export class ApprovalManager {
     }
 
     /**
-     * Handle approval requests (tool approval, elicitation, command confirmation, directory access, custom)
+     * Handle approval requests (tool approval, elicitation, command approval, directory access, custom)
      * @private
      */
     private async handleApproval(request: ApprovalRequest): Promise<ApprovalResponse> {
@@ -919,7 +919,7 @@ export class ApprovalManager {
             return handler(request);
         }
 
-        // Tool/command/directory-access/custom confirmations respect the configured mode
+        // Tool/command/directory-access/custom approvals respect the configured mode
         const mode = this.config.permissions.mode;
 
         // Auto-approve mode
@@ -979,19 +979,19 @@ export class ApprovalManager {
     }
 
     /**
-     * Request command confirmation approval
+     * Request command approval
      * Convenience method for dangerous command execution within an already-approved tool
      *
      * This is different from tool approval - it's for per-command approval
      * of dangerous operations (like rm, git push) within tools that are already approved.
      *
      * TODO: Make sessionId required once all callers are updated to pass it
-     * Command confirmations always happen during tool execution which has session context
+     * Command approvals always happen during tool execution which has session context
      *
      * @example
      * ```typescript
      * // bash_exec tool is approved, but dangerous commands still require approval
-     * const response = await manager.requestCommandConfirmation({
+     * const response = await manager.requestCommandApproval({
      *   toolName: 'bash_exec',
      *   command: 'rm -rf /important',
      *   originalCommand: 'rm -rf /important',
@@ -999,8 +999,8 @@ export class ApprovalManager {
      * });
      * ```
      */
-    async requestCommandConfirmation(
-        metadata: CommandConfirmationMetadata & {
+    async requestCommandApproval(
+        metadata: CommandApprovalMetadata & {
             sessionId?: string;
             hostRuntime?: ApprovalRequestDetails['hostRuntime'];
             timeout?: number;
@@ -1009,7 +1009,7 @@ export class ApprovalManager {
         const { sessionId, hostRuntime, timeout, ...commandMetadata } = metadata;
         return this.requestApproval(
             this.createApprovalDetails(
-                ApprovalType.COMMAND_CONFIRMATION,
+                ApprovalType.COMMAND_APPROVAL,
                 commandMetadata,
                 sessionId,
                 hostRuntime,

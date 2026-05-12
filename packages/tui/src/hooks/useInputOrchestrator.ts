@@ -666,7 +666,7 @@ export interface ApprovalHandlerProps {
     onCancel: () => void;
     selectedOption: 'yes' | 'yes-session' | 'no';
     setSelectedOption: (option: 'yes' | 'yes-session' | 'no') => void;
-    isCommandConfirmation: boolean;
+    isCommandApproval: boolean;
 }
 
 export function createApprovalInputHandler({
@@ -675,26 +675,26 @@ export function createApprovalInputHandler({
     onCancel,
     selectedOption,
     setSelectedOption,
-    isCommandConfirmation,
+    isCommandApproval,
 }: ApprovalHandlerProps): InputHandler {
     return (_input: string, key: Key) => {
         if (key.upArrow) {
-            // Move up (skip yes-session for command confirmations)
+            // Move up (skip yes-session for command approvals)
             if (selectedOption === 'yes') {
                 setSelectedOption('no');
             } else if (selectedOption === 'yes-session') {
                 setSelectedOption('yes');
             } else {
-                // no -> yes-session (or yes for command confirmations)
-                setSelectedOption(isCommandConfirmation ? 'yes' : 'yes-session');
+                // no -> yes-session (or yes for command approvals)
+                setSelectedOption(isCommandApproval ? 'yes' : 'yes-session');
             }
             return true;
         }
 
         if (key.downArrow) {
-            // Move down (skip yes-session for command confirmations)
+            // Move down (skip yes-session for command approvals)
             if (selectedOption === 'yes') {
-                setSelectedOption(isCommandConfirmation ? 'no' : 'yes-session');
+                setSelectedOption(isCommandApproval ? 'no' : 'yes-session');
             } else if (selectedOption === 'yes-session') {
                 setSelectedOption('no');
             } else {

@@ -295,7 +295,7 @@ Fired when agent state is reset to baseline.
 
 ### User Approval Events
 
-Dexto's generalized approval system handles various types of user input requests, including tool approvals, command confirmations, and form-based input (elicitation). These events are included in `STREAMING_EVENTS` and are available via `DextoAgent.stream()`.
+Dexto's generalized approval system handles various types of user input requests, including tool approvals, command approvals, and form-based input (elicitation). These events are included in `STREAMING_EVENTS` and are available via `DextoAgent.stream()`.
 
 :::tip Custom Approval Handlers
 For direct `DextoAgent` usage without SSE streaming, you can implement a custom approval handler via `agent.setApprovalHandler()` to intercept approval requests programmatically.
@@ -308,7 +308,7 @@ Fired when user approval or input is requested. This event supports multiple app
 ```typescript
 {
   approvalId: string;           // Unique identifier for this approval request
-  type: string;                 // 'tool_approval' | 'command_confirmation' | 'elicitation'
+  type: string;                 // 'tool_approval' | 'command_approval' | 'elicitation'
   sessionId?: string;           // Optional session scope
   timeout?: number;             // Request timeout in milliseconds
   timestamp: Date;              // When the request was created
@@ -323,8 +323,8 @@ Fired when user approval or input is requested. This event supports multiple app
     - `metadata.args`: Tool arguments
     - `metadata.description`: Optional tool description
 
-- **`command_confirmation`**: Binary approval for command execution (e.g., bash commands)
-    - `metadata.command`: Command requiring confirmation
+- **`command_approval`**: Binary approval for command execution (e.g., bash commands)
+    - `metadata.command`: Command requiring approval
     - `metadata.args`: Command arguments
 
 - **`elicitation`**: Schema-based form input (typically from MCP servers or ask_user tool)
@@ -351,7 +351,7 @@ Fired when a user approval response is received from the UI layer.
 **Response Data by Type:**
 
 - **Tool approval**: `{ rememberChoice?: boolean }`
-- **Command confirmation**: `{ rememberChoice?: boolean }`
+- **Command approval**: `{}`
 - **Elicitation**: `{ formData: Record<string, unknown> }`
 
 **Usage Notes:**

@@ -5,7 +5,7 @@
  * llm:error, run:complete, message:dequeued) are handled via agent.stream() iterator in processStream.
  *
  * This hook handles:
- * - approval:request - Tool/command confirmation requests
+ * - approval:request - Tool/command approval requests
  * - llm:switched - Model change notifications
  * - session:reset - Conversation reset
  * - session:created - New session creation (e.g., from /clear)

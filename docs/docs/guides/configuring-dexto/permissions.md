@@ -5,7 +5,7 @@ sidebar_label: "Permissions"
 
 # Permissions Configuration
 
-Control how and when users are prompted to approve tool execution through Dexto's flexible confirmation system.
+Control how and when users are prompted to approve tool execution through Dexto's flexible approval system.
 
 :::tip Complete Reference
 For complete field documentation, event specifications, and UI integration details, see **[agent.yml → Permissions](./agent-yml.md#permissions)**.
@@ -16,7 +16,7 @@ For complete field documentation, event specifications, and UI integration detai
 The permissions system provides security and oversight by controlling which tools your agent can execute and when. It supports multiple modes and fine-grained policies for different environments and use cases.
 
 **Configuration controls:**
-- **Confirmation mode** - How tools are approved (interactive, auto-approve, auto-deny)
+- **Approval mode** - How tools are approved (interactive, auto-approve, auto-deny)
 - **Timeout duration** - How long to wait for user response
 - **Storage type** - Where to remember approvals (persistent vs session-only)
 - **Tool policies** - Fine-grained allow/deny lists
@@ -25,7 +25,7 @@ The permissions system provides security and oversight by controlling which tool
 **Permissions** control whether tools require approval before execution. **Elicitation** is a separate feature that controls whether MCP servers can request user input during interactions. These are independent settings - see [Elicitation Configuration](./agent-yml.md#elicitation-configuration) for details.
 :::
 
-## Confirmation Modes
+## Approval Modes
 
 | Mode | Behavior | Use Case |
 |------|----------|----------|
@@ -35,7 +35,7 @@ The permissions system provides security and oversight by controlling which tool
 
 ### manual (Default)
 
-Interactive confirmation via CLI prompts or WebUI dialogs:
+Interactive approval via CLI prompts or WebUI dialogs:
 
 ```yaml
 permissions:

@@ -81,7 +81,7 @@ type SelectionOption =
  */
 export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptProps>(
     ({ approval, onApprove, onDeny, onCancel }, ref) => {
-        const isCommandConfirmation = approval.type === ApprovalType.COMMAND_CONFIRMATION;
+        const isCommandApproval = approval.type === ApprovalType.COMMAND_APPROVAL;
         const isElicitation = approval.type === 'elicitation';
         const isDirectoryAccess = approval.type === 'directory_access';
         const directoryAccess = approval.metadata.directoryAccess as
@@ -187,8 +187,8 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
             });
             options.push({ id: 'yes-session', label: 'Yes, allow this tool (session)' });
             options.push({ id: 'no', label: 'No' });
-        } else if (isCommandConfirmation) {
-            // Command confirmation (no session option)
+        } else if (isCommandApproval) {
+            // Command approval (no session option)
             options.push({ id: 'yes', label: 'Yes' });
             options.push({ id: 'no', label: 'No' });
         } else if (isDirectoryAccess) {
@@ -437,7 +437,7 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
                       ...(presentationSnapshot !== undefined && { presentationSnapshot }),
                   }).header;
 
-        const showHeaderBlock = isDirectoryAccess || isCommandConfirmation || !displayPreview;
+        const showHeaderBlock = isDirectoryAccess || isCommandApproval || !displayPreview;
 
         return (
             <Box paddingX={0} paddingY={0} flexDirection="column">
@@ -457,7 +457,7 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
                                     </Box>
                                 )}
                             </>
-                        ) : isCommandConfirmation ? (
+                        ) : isCommandApproval ? (
                             <>
                                 <Box flexDirection="row">
                                     <Text color="yellowBright" bold>

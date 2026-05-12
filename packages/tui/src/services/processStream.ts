@@ -1151,7 +1151,7 @@ export async function processStream(
                     if (
                         bypassPermissions &&
                         (event.type === ApprovalTypeEnum.TOOL_APPROVAL ||
-                            event.type === ApprovalTypeEnum.COMMAND_CONFIRMATION ||
+                            event.type === ApprovalTypeEnum.COMMAND_APPROVAL ||
                             event.type === ApprovalTypeEnum.DIRECTORY_ACCESS)
                     ) {
                         if (event.type === ApprovalTypeEnum.TOOL_APPROVAL) {
@@ -1209,7 +1209,7 @@ export async function processStream(
                     // Show approval UI (moved from useAgentEvents for ordering)
                     if (
                         event.type === ApprovalTypeEnum.TOOL_APPROVAL ||
-                        event.type === ApprovalTypeEnum.COMMAND_CONFIRMATION ||
+                        event.type === ApprovalTypeEnum.COMMAND_APPROVAL ||
                         event.type === ApprovalTypeEnum.ELICITATION ||
                         event.type === ApprovalTypeEnum.DIRECTORY_ACCESS
                     ) {

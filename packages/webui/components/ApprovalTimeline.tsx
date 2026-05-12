@@ -61,7 +61,7 @@ export function ApprovalTimeline({ approval, onApprove, onDeny }: ApprovalTimeli
         let displayName = '';
         let source = '';
 
-        if (approval.type === ApprovalType.COMMAND_CONFIRMATION) {
+        if (approval.type === ApprovalType.COMMAND_APPROVAL) {
             displayName = 'bash';
             summary = 'Command requires approval';
             source = 'system';
@@ -312,8 +312,8 @@ export function ApprovalTimeline({ approval, onApprove, onDeny }: ApprovalTimeli
                 {/* Expanded details */}
                 {expanded && (
                     <div className="mt-2 space-y-3 animate-fade-in">
-                        {/* Command confirmation */}
-                        {approval.type === ApprovalType.COMMAND_CONFIRMATION && (
+                        {/* Command approval */}
+                        {approval.type === ApprovalType.COMMAND_APPROVAL && (
                             <>
                                 <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
                                     <Terminal className="h-3 w-3" />

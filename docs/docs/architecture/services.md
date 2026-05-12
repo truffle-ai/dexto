@@ -118,17 +118,17 @@ const tools = await agent.mcpManager.getAllTools();
 
 ## ToolManager
 
-**Tool execution** service that handles tool calls and confirmations.
+**Tool execution** service that handles tool calls and approvals.
 
 ### Key Methods
 - `getToolStats()` - Get tool counts (MCP + internal)
 - `getAllTools()` - Get all available tools
-- `executeTool(call)` - Execute tool with confirmation
+- `executeTool(call)` - Execute tool with approval
 
-### Tool Confirmation
+### Tool Approval
 Controls when users are prompted to approve tool execution:
 - **auto** - Smart approval based on tool risk
-- **always** - Always ask for confirmation  
+- **always** - Always ask for approval
 - **never** - Never ask (auto-approve)
 
 ### Usage Example

@@ -60,7 +60,7 @@ export const DirectoryAccessMetadataSchema = z
  */
 export const ToolApprovalMetadataSchema = z
     .object({
-        toolName: z.string().describe('Name of the tool to confirm'),
+        toolName: z.string().describe('Name of the tool to approve'),
         presentationSnapshot: ToolPresentationSnapshotV1Schema.optional().describe(
             'Optional UI-agnostic presentation snapshot for the tool call. Clients MUST ignore unknown fields.'
         ),
@@ -85,10 +85,10 @@ export const ToolApprovalMetadataSchema = z
     .describe('Tool approval metadata');
 
 /**
- * Command confirmation metadata schema
+ * Command approval metadata schema
  * TODO: Consider combining this with regular tools schemas for consistency
  */
-export const CommandConfirmationMetadataSchema = z
+export const CommandApprovalMetadataSchema = z
     .object({
         toolName: z.string().describe('Name of the tool executing the command'),
         command: z.string().describe('The normalized command to execute'),
@@ -98,7 +98,7 @@ export const CommandConfirmationMetadataSchema = z
             .describe('The original command before normalization'),
     })
     .strict()
-    .describe('Command confirmation metadata');
+    .describe('Command approval metadata');
 
 /**
  * Elicitation metadata schema
@@ -150,11 +150,11 @@ export const ToolApprovalRequestSchema = BaseApprovalRequestSchema.extend({
 }).strict();
 
 /**
- * Command confirmation request schema
+ * Command approval request schema
  */
-export const CommandConfirmationRequestSchema = BaseApprovalRequestSchema.extend({
-    type: z.literal(ApprovalType.COMMAND_CONFIRMATION),
-    metadata: CommandConfirmationMetadataSchema,
+export const CommandApprovalRequestSchema = BaseApprovalRequestSchema.extend({
+    type: z.literal(ApprovalType.COMMAND_APPROVAL),
+    metadata: CommandApprovalMetadataSchema,
 }).strict();
 
 /**
@@ -186,7 +186,7 @@ export const DirectoryAccessRequestSchema = BaseApprovalRequestSchema.extend({
  */
 export const ApprovalRequestSchema = z.discriminatedUnion('type', [
     ToolApprovalRequestSchema,
-    CommandConfirmationRequestSchema,
+    CommandApprovalRequestSchema,
     ElicitationRequestSchema,
     CustomApprovalRequestSchema,
     DirectoryAccessRequestSchema,
@@ -219,15 +219,15 @@ export const ToolApprovalResponseDataSchema = z
     .describe('Tool approval response data');
 
 /**
- * Command confirmation response data schema
+ * Command approval response data schema
  */
-export const CommandConfirmationResponseDataSchema = z
+export const CommandApprovalResponseDataSchema = z
     .object({
-        // Command confirmations don't have remember choice - they're per-command
+        // Command approvals don't have remember choice - they're per-command
         // Could add command pattern remembering in future (e.g., "remember git push *")
     })
     .strict()
-    .describe('Command confirmation response data');
+    .describe('Command approval response data');
 
 /**
  * Elicitation response data schema
@@ -294,10 +294,10 @@ export const ToolApprovalResponseSchema = BaseApprovalResponseSchema.extend({
 }).strict();
 
 /**
- * Command confirmation response schema
+ * Command approval response schema
  */
-export const CommandConfirmationResponseSchema = BaseApprovalResponseSchema.extend({
-    data: CommandConfirmationResponseDataSchema.optional(),
+export const CommandApprovalResponseSchema = BaseApprovalResponseSchema.extend({
+    data: CommandApprovalResponseDataSchema.optional(),
 }).strict();
 
 /**
@@ -326,7 +326,7 @@ export const DirectoryAccessResponseSchema = BaseApprovalResponseSchema.extend({
  */
 export const ApprovalResponseSchema = z.union([
     ToolApprovalResponseSchema,
-    CommandConfirmationResponseSchema,
+    CommandApprovalResponseSchema,
     ElicitationResponseSchema,
     CustomApprovalResponseSchema,
     DirectoryAccessResponseSchema,
@@ -350,7 +350,7 @@ export const ApprovalRequestDetailsSchema = z
             .describe('Timeout in milliseconds (optional - no timeout if not specified)'),
         metadata: z.union([
             ToolApprovalMetadataSchema,
-            CommandConfirmationMetadataSchema,
+            CommandApprovalMetadataSchema,
             ElicitationMetadataSchema,
             CustomApprovalMetadataSchema,
             DirectoryAccessMetadataSchema,
@@ -368,13 +368,13 @@ export const ApprovalRequestDetailsSchema = z
                     path: ['metadata'],
                 });
             }
-        } else if (data.type === ApprovalType.COMMAND_CONFIRMATION) {
-            const result = CommandConfirmationMetadataSchema.safeParse(data.metadata);
+        } else if (data.type === ApprovalType.COMMAND_APPROVAL) {
+            const result = CommandApprovalMetadataSchema.safeParse(data.metadata);
             if (!result.success) {
                 ctx.addIssue({
                     code: z.ZodIssueCode.custom,
                     message:
-                        'Metadata must match CommandConfirmationMetadataSchema for COMMAND_CONFIRMATION type',
+                        'Metadata must match CommandApprovalMetadataSchema for COMMAND_APPROVAL type',
                     path: ['metadata'],
                 });
             }
