@@ -3,7 +3,7 @@ import { z } from 'zod';
 import {
     ToolManager,
     type RecordedToolApproval,
-    type ToolApprovalRequiredClassification,
+    type ApprovalRequiredPreparedToolCall,
 } from './tool-manager.js';
 import { defineTool } from './define-tool.js';
 import { createApprovalRequest } from '../approval/factory.js';
@@ -68,12 +68,12 @@ function createToolManager(...args: ToolManagerFactoryArgs): ToolManager {
 }
 
 function createRecordedToolApproval(
-    classification: ToolApprovalRequiredClassification,
+    prepared: ApprovalRequiredPreparedToolCall,
     approvalId: string
 ): RecordedToolApproval {
     return {
-        classification,
-        request: createApprovalRequest(classification.requestDetails, approvalId),
+        prepared,
+        request: createApprovalRequest(prepared.requestDetails, approvalId),
     };
 }
 
@@ -236,8 +236,8 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
         });
     });
 
-    describe('Tool Execution Classification', () => {
-        it('classifies a local tool as ready without executing it in auto-approve mode', async () => {
+    describe('Tool Execution Preparation', () => {
+        it('prepares a local tool as ready without executing it in auto-approve mode', async () => {
             const execute = vi.fn().mockResolvedValue('should not run');
             const toolManager = createToolManager(
                 mockMcpManager,
@@ -257,14 +257,14 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockLogger
             );
 
-            const classification = await toolManager.classifyToolExecution({
+            const prepared = await toolManager.prepareToolCall({
                 toolName: 'typed',
                 input: { count: 5 },
                 toolCallId: 'call-1',
                 sessionId: 'session-1',
             });
 
-            expect(classification).toEqual(
+            expect(prepared).toEqual(
                 expect.objectContaining({
                     kind: 'ready',
                     call: expect.objectContaining({
@@ -279,7 +279,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             expect(mockApprovalManager.requestToolApproval).not.toHaveBeenCalled();
         });
 
-        it('classifies a local tool as approval-required in manual mode without requesting approval', async () => {
+        it('prepares a local tool as approval-required in manual mode without requesting approval', async () => {
             const toolManager = createToolManager(
                 mockMcpManager,
                 mockApprovalManager,
@@ -298,14 +298,14 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockLogger
             );
 
-            const classification = await toolManager.classifyToolExecution({
+            const prepared = await toolManager.prepareToolCall({
                 toolName: 'write_file',
                 input: { path: 'src/app.ts' },
                 toolCallId: 'call-2',
                 sessionId: 'session-1',
             });
 
-            expect(classification).toEqual(
+            expect(prepared).toEqual(
                 expect.objectContaining({
                     kind: 'approval-required',
                     call: expect.objectContaining({
@@ -326,7 +326,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             expect(mockApprovalManager.requestToolApproval).not.toHaveBeenCalled();
         });
 
-        it('uses the run context session for approval classification', async () => {
+        it('uses the run context session for approval preparation', async () => {
             const toolManager = createToolManager(
                 mockMcpManager,
                 mockApprovalManager,
@@ -345,25 +345,25 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockLogger
             );
 
-            const classification = await toolManager.classifyToolExecution({
+            const prepared = await toolManager.prepareToolCall({
                 toolName: 'write_file',
                 input: { path: 'src/app.ts' },
                 toolCallId: 'call-run-context',
                 runContext: createAgentRunContext({ sessionId: 'run-session' }),
             });
 
-            expect(classification.kind).toBe('approval-required');
-            if (classification.kind !== 'approval-required') {
-                throw new Error('Expected approval-required classification');
+            expect(prepared.kind).toBe('approval-required');
+            if (prepared.kind !== 'approval-required') {
+                throw new Error('Expected approval-required prepared call');
             }
-            expect(classification.requestDetails.sessionId).toBe('run-session');
+            expect(prepared.requestDetails.sessionId).toBe('run-session');
             expect(mockAllowedToolsProvider.isToolAllowed).toHaveBeenCalledWith(
                 'write_file',
                 'run-session'
             );
         });
 
-        it('classifies directory access approvals with preview data without granting access', async () => {
+        it('prepares directory access approvals with preview data without granting access', async () => {
             const execute = vi.fn();
             const preview = vi.fn().mockResolvedValue({
                 type: 'diff',
@@ -403,18 +403,18 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             );
             toolManager.setToolExecutionContextFactory((baseContext) => baseContext);
 
-            const classification = await toolManager.classifyToolExecution({
+            const prepared = await toolManager.prepareToolCall({
                 toolName: 'fs_like_tool',
                 input: { file_path: '/tmp/example.txt' },
                 toolCallId: 'call-dir',
                 sessionId: 'session-1',
             });
 
-            expect(classification.kind).toBe('approval-required');
-            if (classification.kind !== 'approval-required') {
-                throw new Error('Expected approval-required classification');
+            expect(prepared.kind).toBe('approval-required');
+            if (prepared.kind !== 'approval-required') {
+                throw new Error('Expected approval-required prepared call');
             }
-            expect(classification.requestDetails).toEqual(
+            expect(prepared.requestDetails).toEqual(
                 expect.objectContaining({
                     type: ApprovalType.TOOL_APPROVAL,
                     sessionId: 'session-1',
@@ -446,7 +446,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             expect(mockApprovalManager.addApprovedDirectory).not.toHaveBeenCalled();
         });
 
-        it('classifies denied tools before validation, presentation, execution, or approval', async () => {
+        it('prepares denied tools before validation, presentation, execution, or approval', async () => {
             const execute = vi.fn();
             const preview = vi.fn();
             const toolManager = createToolManager(
@@ -468,20 +468,25 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockLogger
             );
 
-            const classification = await toolManager.classifyToolExecution({
+            const prepared = await toolManager.prepareToolCall({
                 toolName: 'blocked',
                 input: { path: 123 },
                 toolCallId: 'call-deny',
                 sessionId: 'session-1',
             });
 
-            expect(classification).toEqual(
+            expect(prepared).toEqual(
                 expect.objectContaining({
-                    kind: 'denied',
-                    reason: 'always-deny',
+                    kind: 'terminal',
+                    reason: 'denied',
                     call: expect.objectContaining({
                         toolName: 'blocked',
                         input: { path: 123 },
+                    }),
+                    modelVisibleResult: expect.objectContaining({
+                        result: expect.objectContaining({
+                            error: expect.stringContaining('policy denied'),
+                        }),
                     }),
                 })
             );
@@ -490,7 +495,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             expect(mockApprovalManager.requestToolApproval).not.toHaveBeenCalled();
         });
 
-        it('classifies denied tools before non-object input validation', async () => {
+        it('prepares denied tools before non-object input validation', async () => {
             const execute = vi.fn();
             const toolManager = createToolManager(
                 mockMcpManager,
@@ -510,17 +515,17 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockLogger
             );
 
-            const classification = await toolManager.classifyToolExecution({
+            const prepared = await toolManager.prepareToolCall({
                 toolName: 'blocked',
                 input: null,
                 toolCallId: 'call-deny-null',
                 sessionId: 'session-1',
             });
 
-            expect(classification).toEqual(
+            expect(prepared).toEqual(
                 expect.objectContaining({
-                    kind: 'denied',
-                    reason: 'always-deny',
+                    kind: 'terminal',
+                    reason: 'denied',
                     call: expect.objectContaining({
                         toolName: 'blocked',
                         input: {},
@@ -531,7 +536,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             expect(mockApprovalManager.requestToolApproval).not.toHaveBeenCalled();
         });
 
-        it('classifies denied MCP tools before discovery', async () => {
+        it('prepares denied MCP tools before discovery', async () => {
             mockMcpManager.getAllTools = vi.fn().mockRejectedValue(new Error('discovery failed'));
             const toolManager = createToolManager(
                 mockMcpManager,
@@ -544,17 +549,17 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockLogger
             );
 
-            const classification = await toolManager.classifyToolExecution({
+            const prepared = await toolManager.prepareToolCall({
                 toolName: 'mcp--read_file',
                 input: { path: '/tmp/file.txt' },
                 toolCallId: 'call-deny-mcp',
                 sessionId: 'session-1',
             });
 
-            expect(classification).toEqual(
+            expect(prepared).toEqual(
                 expect.objectContaining({
-                    kind: 'denied',
-                    reason: 'always-deny',
+                    kind: 'terminal',
+                    reason: 'denied',
                     call: expect.objectContaining({
                         source: 'mcp',
                         toolName: 'mcp--read_file',
@@ -567,7 +572,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             expect(mockApprovalManager.requestToolApproval).not.toHaveBeenCalled();
         });
 
-        it('classifies custom approval overrides as mandatory even when policy would allow the tool', async () => {
+        it('prepares custom approval overrides as mandatory even when policy would allow the tool', async () => {
             const execute = vi.fn();
             const toolManager = createToolManager(
                 mockMcpManager,
@@ -594,14 +599,14 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             );
             toolManager.setToolExecutionContextFactory((baseContext) => baseContext);
 
-            const classification = await toolManager.classifyToolExecution({
+            const prepared = await toolManager.prepareToolCall({
                 toolName: 'custom_gate',
                 input: { value: 'x' },
                 toolCallId: 'call-custom',
                 sessionId: 'session-1',
             });
 
-            expect(classification).toEqual(
+            expect(prepared).toEqual(
                 expect.objectContaining({
                     kind: 'approval-required',
                     requestDetails: expect.objectContaining({
@@ -616,7 +621,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             expect(mockApprovalManager.requestToolApproval).not.toHaveBeenCalled();
         });
 
-        it('classifies invalid local input as a model-visible invalid-input result', async () => {
+        it('prepares invalid local input as a model-visible invalid-input result', async () => {
             const toolManager = createToolManager(
                 mockMcpManager,
                 mockApprovalManager,
@@ -635,18 +640,19 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockLogger
             );
 
-            const classification = await toolManager.classifyToolExecution({
+            const prepared = await toolManager.prepareToolCall({
                 toolName: 'typed',
                 input: { count: 'wrong' },
                 toolCallId: 'call-3',
                 sessionId: 'session-1',
             });
 
-            expect(classification.kind).toBe('invalid-input');
-            if (classification.kind !== 'invalid-input') {
-                throw new Error('Expected invalid-input classification');
+            expect(prepared.kind).toBe('terminal');
+            if (prepared.kind !== 'terminal') {
+                throw new Error('Expected invalid-input prepared');
             }
-            expect(classification.modelVisibleResult.result).toEqual(
+            expect(prepared.reason).toBe('invalid-input');
+            expect(prepared.modelVisibleResult.result).toEqual(
                 expect.objectContaining({
                     error: expect.stringContaining('Invalid arguments'),
                 })
@@ -654,7 +660,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             expect(mockApprovalManager.requestToolApproval).not.toHaveBeenCalled();
         });
 
-        it('classifies unknown tools as model-visible unknown-tool results', async () => {
+        it('prepares unknown tools as model-visible unknown-tool results', async () => {
             mockMcpManager.getAllTools = vi.fn().mockResolvedValue({});
             const toolManager = createToolManager(
                 mockMcpManager,
@@ -667,17 +673,18 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockLogger
             );
 
-            const classification = await toolManager.classifyToolExecution({
+            const prepared = await toolManager.prepareToolCall({
                 toolName: 'missing',
                 input: {},
                 toolCallId: 'call-4',
             });
 
-            expect(classification.kind).toBe('unknown-tool');
-            if (classification.kind !== 'unknown-tool') {
-                throw new Error('Expected unknown-tool classification');
+            expect(prepared.kind).toBe('terminal');
+            if (prepared.kind !== 'terminal') {
+                throw new Error('Expected unknown-tool prepared');
             }
-            expect(classification.modelVisibleResult.result).toEqual(
+            expect(prepared.reason).toBe('unknown-tool');
+            expect(prepared.modelVisibleResult.result).toEqual(
                 expect.objectContaining({
                     error: expect.stringContaining("Tool 'missing' not found"),
                 })
@@ -686,7 +693,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             expect(mockApprovalManager.requestToolApproval).not.toHaveBeenCalled();
         });
 
-        it('classifies discovered MCP tools without executing them', async () => {
+        it('prepares discovered MCP tools without executing them', async () => {
             mockMcpManager.getAllTools = vi.fn().mockResolvedValue({
                 read_file: {
                     name: 'read_file',
@@ -710,14 +717,14 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockLogger
             );
 
-            const classification = await toolManager.classifyToolExecution({
+            const prepared = await toolManager.prepareToolCall({
                 toolName: 'mcp--read_file',
                 input: { path: '/tmp/file.txt' },
                 toolCallId: 'call-5',
                 sessionId: 'session-1',
             });
 
-            expect(classification).toEqual(
+            expect(prepared).toEqual(
                 expect.objectContaining({
                     kind: 'ready',
                     call: expect.objectContaining({
@@ -731,7 +738,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             expect(mockApprovalManager.requestToolApproval).not.toHaveBeenCalled();
         });
 
-        it('records a classified approval request with stable turn identity', async () => {
+        it('records a prepared approval request with stable turn identity', async () => {
             const toolManager = createToolManager(
                 mockMcpManager,
                 mockApprovalManager,
@@ -749,27 +756,27 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 ],
                 mockLogger
             );
-            const classification = await toolManager.classifyToolExecution({
+            const prepared = await toolManager.prepareToolCall({
                 toolName: 'write_file',
                 input: { path: 'src/app.ts' },
                 toolCallId: 'call-record',
                 sessionId: 'session-1',
             });
 
-            expect(classification.kind).toBe('approval-required');
-            if (classification.kind !== 'approval-required') {
-                throw new Error('Expected approval-required classification');
+            expect(prepared.kind).toBe('approval-required');
+            if (prepared.kind !== 'approval-required') {
+                throw new Error('Expected approval-required prepared call');
             }
 
             await expect(
-                toolManager.recordApprovalRequest(classification, {
+                toolManager.recordApprovalRequest(prepared, {
                     runId: 'run-1',
                     turnId: 'turn-1',
                     modelStepId: 'step-1',
                 })
             ).resolves.toEqual(
                 expect.objectContaining({
-                    classification,
+                    prepared,
                     request: expect.objectContaining({
                         approvalId: 'recorded-approval-id',
                         type: ApprovalType.TOOL_APPROVAL,
@@ -778,7 +785,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 })
             );
             expect(mockApprovalManager.recordApprovalRequest).toHaveBeenCalledWith(
-                classification.requestDetails,
+                prepared.requestDetails,
                 {
                     runId: 'run-1',
                     turnId: 'turn-1',
@@ -808,14 +815,14 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 ],
                 mockLogger
             );
-            const classification = await toolManager.classifyToolExecution({
+            const prepared = await toolManager.prepareToolCall({
                 toolName: 'write_file',
                 input: { path: 'src/app.ts' },
                 toolCallId: 'call-apply',
                 sessionId: 'session-1',
             });
-            if (classification.kind !== 'approval-required') {
-                throw new Error('Expected approval-required classification');
+            if (prepared.kind !== 'approval-required') {
+                throw new Error('Expected approval-required prepared call');
             }
             mockApprovalManager.recordApprovalResponseRecord = vi.fn().mockResolvedValue({
                 status: 'created',
@@ -827,7 +834,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 },
             });
             const recorded = createRecordedToolApproval(
-                classification,
+                prepared,
                 '00000000-0000-4000-8000-000000000001'
             );
 
@@ -839,7 +846,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 })
             ).resolves.toEqual({
                 kind: 'ready',
-                call: classification.call,
+                call: prepared.call,
                 response: expect.objectContaining({
                     approvalId: '00000000-0000-4000-8000-000000000001',
                     status: ApprovalStatus.APPROVED,
@@ -879,14 +886,14 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 ],
                 mockLogger
             );
-            const classification = await toolManager.classifyToolExecution({
+            const prepared = await toolManager.prepareToolCall({
                 toolName: 'write_file',
                 input: { path: 'src/app.ts' },
                 toolCallId: 'call-denied-decision',
                 sessionId: 'session-1',
             });
-            if (classification.kind !== 'approval-required') {
-                throw new Error('Expected approval-required classification');
+            if (prepared.kind !== 'approval-required') {
+                throw new Error('Expected approval-required prepared call');
             }
             mockApprovalManager.recordApprovalResponseRecord = vi.fn().mockResolvedValue({
                 status: 'created',
@@ -899,7 +906,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 },
             });
             const recorded = createRecordedToolApproval(
-                classification,
+                prepared,
                 '00000000-0000-4000-8000-000000000002'
             );
 
@@ -947,14 +954,14 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 ],
                 mockLogger
             );
-            const classification = await toolManager.classifyToolExecution({
+            const prepared = await toolManager.prepareToolCall({
                 toolName: 'write_file',
                 input: { path: 'src/app.ts' },
                 toolCallId: 'call-timeout-decision',
                 sessionId: 'session-1',
             });
-            if (classification.kind !== 'approval-required') {
-                throw new Error('Expected approval-required classification');
+            if (prepared.kind !== 'approval-required') {
+                throw new Error('Expected approval-required prepared call');
             }
             mockApprovalManager.recordApprovalResponseRecord = vi.fn().mockResolvedValue({
                 status: 'created',
@@ -967,7 +974,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 },
             });
             const recorded = createRecordedToolApproval(
-                classification,
+                prepared,
                 '00000000-0000-4000-8000-000000000003'
             );
 
@@ -996,7 +1003,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             expect(mockAllowedToolsProvider.allowTool).not.toHaveBeenCalled();
         });
 
-        it('rejects applying an approval response to a different classified tool call', async () => {
+        it('rejects applying an approval response to a different prepared tool call', async () => {
             const toolManager = createToolManager(
                 mockMcpManager,
                 mockApprovalManager,
@@ -1014,14 +1021,14 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 ],
                 mockLogger
             );
-            const classification = await toolManager.classifyToolExecution({
+            const prepared = await toolManager.prepareToolCall({
                 toolName: 'write_file',
                 input: { path: 'src/app.ts' },
                 toolCallId: 'call-mismatch',
                 sessionId: 'session-1',
             });
-            if (classification.kind !== 'approval-required') {
-                throw new Error('Expected approval-required classification');
+            if (prepared.kind !== 'approval-required') {
+                throw new Error('Expected approval-required prepared call');
             }
             mockApprovalManager.recordApprovalResponseRecord = vi.fn().mockResolvedValue({
                 status: 'created',
@@ -1035,7 +1042,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             await expect(
                 toolManager.applyApprovalDecision(
                     {
-                        classification,
+                        prepared,
                         request: createApprovalRequest(
                             {
                                 type: ApprovalType.TOOL_APPROVAL,
@@ -1076,17 +1083,17 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 ],
                 mockLogger
             );
-            const classification = await toolManager.classifyToolExecution({
+            const prepared = await toolManager.prepareToolCall({
                 toolName: 'write_file',
                 input: { path: 'src/app.ts' },
                 toolCallId: 'call-decision-mismatch',
                 sessionId: 'session-1',
             });
-            if (classification.kind !== 'approval-required') {
-                throw new Error('Expected approval-required classification');
+            if (prepared.kind !== 'approval-required') {
+                throw new Error('Expected approval-required prepared call');
             }
             const recorded = createRecordedToolApproval(
-                classification,
+                prepared,
                 '00000000-0000-4000-8000-000000000005'
             );
 
@@ -1117,17 +1124,17 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 ],
                 mockLogger
             );
-            const classification = await toolManager.classifyToolExecution({
+            const prepared = await toolManager.prepareToolCall({
                 toolName: 'write_file',
                 input: { path: 'src/app.ts' },
                 toolCallId: 'call-granted-mismatch',
                 sessionId: 'session-1',
             });
-            if (classification.kind !== 'approval-required') {
-                throw new Error('Expected approval-required classification');
+            if (prepared.kind !== 'approval-required') {
+                throw new Error('Expected approval-required prepared call');
             }
-            const mismatchedClassification = {
-                ...classification,
+            const mismatchedPreparation = {
+                ...prepared,
                 onGrantedRequestDetails: {
                     type: ApprovalType.DIRECTORY_ACCESS,
                     sessionId: 'session-1',
@@ -1143,9 +1150,9 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             await expect(
                 toolManager.applyApprovalDecision(
                     {
-                        classification: mismatchedClassification,
+                        prepared: mismatchedPreparation,
                         request: createApprovalRequest(
-                            mismatchedClassification.requestDetails,
+                            mismatchedPreparation.requestDetails,
                             '00000000-0000-4000-8000-000000000007'
                         ),
                     },
@@ -1177,14 +1184,14 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 ],
                 mockLogger
             );
-            const classification = await toolManager.classifyToolExecution({
+            const prepared = await toolManager.prepareToolCall({
                 toolName: 'write_file',
                 input: { path: 'src/app.ts' },
                 toolCallId: 'call-replayed-decision',
                 sessionId: 'session-1',
             });
-            if (classification.kind !== 'approval-required') {
-                throw new Error('Expected approval-required classification');
+            if (prepared.kind !== 'approval-required') {
+                throw new Error('Expected approval-required prepared call');
             }
             mockApprovalManager.recordApprovalResponseRecord = vi.fn().mockResolvedValue({
                 status: 'replayed',
@@ -1196,7 +1203,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 },
             });
             const recorded = createRecordedToolApproval(
-                classification,
+                prepared,
                 '00000000-0000-4000-8000-000000000007'
             );
 
@@ -1208,7 +1215,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 })
             ).resolves.toEqual({
                 kind: 'ready',
-                call: classification.call,
+                call: prepared.call,
                 response: expect.objectContaining({
                     approvalId: '00000000-0000-4000-8000-000000000007',
                     status: ApprovalStatus.APPROVED,
@@ -1253,14 +1260,14 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockLogger
             );
             toolManager.setToolExecutionContextFactory((baseContext) => baseContext);
-            const classification = await toolManager.classifyToolExecution({
+            const prepared = await toolManager.prepareToolCall({
                 toolName: 'fs_like_tool',
                 input: { file_path: '/tmp/example.txt' },
                 toolCallId: 'call-dir-apply',
                 sessionId: 'session-1',
             });
-            if (classification.kind !== 'approval-required') {
-                throw new Error('Expected approval-required classification');
+            if (prepared.kind !== 'approval-required') {
+                throw new Error('Expected approval-required prepared call');
             }
             mockApprovalManager.recordApprovalResponseRecord = vi.fn().mockResolvedValue({
                 status: 'created',
@@ -1272,7 +1279,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 },
             });
             const recorded = createRecordedToolApproval(
-                classification,
+                prepared,
                 '00000000-0000-4000-8000-000000000005'
             );
 

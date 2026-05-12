@@ -706,6 +706,8 @@ export class TurnExecutor {
             this.sessionId
         );
 
+        // TODO(#15): Delete this executable AI SDK path once TurnExecutor drives
+        // model-step -> prepareToolCall -> approval -> execution -> tool-result application directly.
         return createExecutableToolDefinitions(tools, {
             execute: ({ toolName, args, options }) =>
                 this.executeToolFromModelStep(toolName, args, options),

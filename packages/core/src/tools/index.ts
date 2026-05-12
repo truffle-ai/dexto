@@ -34,7 +34,7 @@ export type {
     RecordedToolApproval,
     ToolApprovalDecisionApplication,
     ToolApprovalRecordIdentity,
-    ToolApprovalRequiredClassification,
-    ToolExecutionClassification,
-    ToolExecutionClassificationInput,
+    ApprovalRequiredPreparedToolCall,
+    PreparedToolCall,
+    PrepareToolCallInput,
 } from './tool-manager.js';

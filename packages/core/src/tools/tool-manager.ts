@@ -84,7 +84,7 @@ export type ExecutableToolCall = {
     toolName: string;
 };
 
-export type ToolExecutionClassification =
+export type PreparedToolCall =
     | {
           kind: 'ready';
           call: ExecutableToolCall;
@@ -96,24 +96,26 @@ export type ToolExecutionClassification =
           requestDetails: ApprovalRequestDetails;
       }
     | {
-          kind: 'denied';
+          kind: 'terminal';
+          reason: 'denied';
           call: ExecutableToolCall;
-          reason?: string;
+          modelVisibleResult: ToolExecutionResult;
       }
     | {
-          kind: 'invalid-input' | 'unknown-tool';
+          kind: 'terminal';
+          reason: 'invalid-input' | 'unknown-tool';
           modelVisibleResult: ToolExecutionResult;
       };
 
-export type ToolApprovalRequiredClassification = Extract<
-    ToolExecutionClassification,
+export type ApprovalRequiredPreparedToolCall = Extract<
+    PreparedToolCall,
     { kind: 'approval-required' }
 >;
 
 export type ToolApprovalRecordIdentity = Omit<ApprovalRecordIdentity, 'toolCallId'>;
 
 export type RecordedToolApproval = {
-    classification: ToolApprovalRequiredClassification;
+    prepared: ApprovalRequiredPreparedToolCall;
     request: ApprovalRequest;
 };
 
@@ -129,7 +131,7 @@ export type ToolApprovalDecisionApplication =
           response: ApprovalResponse;
       };
 
-export type ToolExecutionClassificationInput = {
+export type PrepareToolCallInput = {
     toolName: string;
     input: unknown;
     toolCallId: string;
@@ -1633,9 +1635,7 @@ export class ToolManager {
         return this.toolsCache;
     }
 
-    async classifyToolExecution(
-        input: ToolExecutionClassificationInput
-    ): Promise<ToolExecutionClassification> {
+    async prepareToolCall(input: PrepareToolCallInput): Promise<PreparedToolCall> {
         const sessionId = input.runContext?.sessionId ?? input.sessionId;
         if (this.isInAlwaysDenyList(input.toolName)) {
             const deniedInput = isRecord(input.input) ? extractToolCallMeta(input.input) : null;
@@ -1649,26 +1649,21 @@ export class ToolManager {
                     : typeof rawToolArgs.description === 'string'
                       ? rawToolArgs.description
                       : undefined;
-            return {
-                kind: 'denied',
-                reason: 'always-deny',
-                call: {
-                    input: rawToolArgs,
-                    presentationSnapshot: this.buildGenericToolPresentationSnapshot(input.toolName),
-                    source: input.toolName.startsWith(ToolManager.MCP_TOOL_PREFIX)
-                        ? 'mcp'
-                        : 'local',
-                    toolCallId: input.toolCallId,
-                    toolName: input.toolName,
-                    ...(callDescription !== undefined ? { callDescription } : {}),
-                    ...(eventMeta !== undefined ? { meta: eventMeta } : {}),
-                },
+            const call: ExecutableToolCall = {
+                input: rawToolArgs,
+                presentationSnapshot: this.buildGenericToolPresentationSnapshot(input.toolName),
+                source: input.toolName.startsWith(ToolManager.MCP_TOOL_PREFIX) ? 'mcp' : 'local',
+                toolCallId: input.toolCallId,
+                toolName: input.toolName,
+                ...(callDescription !== undefined ? { callDescription } : {}),
+                ...(eventMeta !== undefined ? { meta: eventMeta } : {}),
             };
+            return this.createPreparedToolTerminal('denied', input.toolName, call);
         }
 
         const source = await this.resolveExecutableToolSource(input.toolName);
         if (source === 'unknown') {
-            return this.createToolClassificationError(
+            return this.createPreparedToolError(
                 'unknown-tool',
                 input.toolName,
                 `Tool '${input.toolName}' not found`
@@ -1676,7 +1671,7 @@ export class ToolManager {
         }
 
         if (!isRecord(input.input)) {
-            return this.createToolClassificationError(
+            return this.createPreparedToolError(
                 'invalid-input',
                 input.toolName,
                 'Invalid arguments: expected an object'
@@ -1697,7 +1692,7 @@ export class ToolManager {
         try {
             validatedArgs = this.validateLocalToolArgs(input.toolName, rawToolArgs);
         } catch (error) {
-            return this.createToolClassificationError(
+            return this.createPreparedToolError(
                 'invalid-input',
                 input.toolName,
                 error instanceof Error ? error.message : String(error)
@@ -1748,7 +1743,7 @@ export class ToolManager {
                 return { kind: 'ready', call };
             }
             if (quickResult === 'denied') {
-                return { kind: 'denied', call, reason: 'auto-deny' };
+                return this.createPreparedToolTerminal('denied', input.toolName, call);
             }
             const displayPreview = await this.generateToolPreview(
                 input.toolName,
@@ -1784,7 +1779,7 @@ export class ToolManager {
             return { kind: 'ready', call };
         }
         if (quickResult === 'denied') {
-            return { kind: 'denied', call, reason: 'auto-deny' };
+            return this.createPreparedToolTerminal('denied', input.toolName, call);
         }
 
         const displayPreview = await this.generateToolPreview(
@@ -1820,19 +1815,16 @@ export class ToolManager {
     }
 
     async recordApprovalRequest(
-        classification: ToolApprovalRequiredClassification,
+        prepared: ApprovalRequiredPreparedToolCall,
         identity: ToolApprovalRecordIdentity
     ): Promise<RecordedToolApproval> {
-        this.assertOnGrantedRequestMatchesClassification(classification);
-        const request = await this.approvalManager.recordApprovalRequest(
-            classification.requestDetails,
-            {
-                ...identity,
-                toolCallId: classification.call.toolCallId,
-            }
-        );
-        this.assertRecordedApprovalMatchesClassification(classification, request);
-        return { classification, request };
+        this.assertOnGrantedRequestMatchesPreparedCall(prepared);
+        const request = await this.approvalManager.recordApprovalRequest(prepared.requestDetails, {
+            ...identity,
+            toolCallId: prepared.call.toolCallId,
+        });
+        this.assertRecordedApprovalMatchesPreparedCall(prepared, request);
+        return { prepared, request };
     }
 
     async applyApprovalDecision(
@@ -1842,12 +1834,12 @@ export class ToolManager {
     ): Promise<ToolApprovalDecisionApplication> {
         if (decision.approvalId !== recorded.request.approvalId) {
             throw ToolError.executionFailed(
-                recorded.classification.call.toolName,
+                recorded.prepared.call.toolName,
                 'Approval decision does not match the recorded approval request'
             );
         }
-        this.assertOnGrantedRequestMatchesClassification(recorded.classification);
-        this.assertRecordedApprovalMatchesClassification(recorded.classification, recorded.request);
+        this.assertOnGrantedRequestMatchesPreparedCall(recorded.prepared);
+        this.assertRecordedApprovalMatchesPreparedCall(recorded.prepared, recorded.request);
 
         const record = await this.approvalManager.recordApprovalResponseRecord(
             decision,
@@ -1858,34 +1850,30 @@ export class ToolManager {
             return {
                 kind: 'terminal',
                 modelVisibleResult: this.createApprovalTerminalResult(
-                    recorded.classification.call,
+                    recorded.prepared.call,
                     record.response
                 ),
                 response: record.response,
             };
         }
 
-        await this.applyApprovalGrantedEffects(
-            recorded.classification,
-            record.response,
-            runContext
-        );
+        await this.applyApprovalGrantedEffects(recorded.prepared, record.response, runContext);
         return {
             kind: 'ready',
-            call: recorded.classification.call,
+            call: recorded.prepared.call,
             response: record.response,
         };
     }
 
-    private assertRecordedApprovalMatchesClassification(
-        classification: ToolApprovalRequiredClassification,
+    private assertRecordedApprovalMatchesPreparedCall(
+        prepared: ApprovalRequiredPreparedToolCall,
         request: ApprovalRequest
     ): void {
         const expected = {
-            type: classification.requestDetails.type,
-            sessionId: classification.requestDetails.sessionId,
-            hostRuntime: classification.requestDetails.hostRuntime,
-            metadata: classification.requestDetails.metadata,
+            type: prepared.requestDetails.type,
+            sessionId: prepared.requestDetails.sessionId,
+            hostRuntime: prepared.requestDetails.hostRuntime,
+            metadata: prepared.requestDetails.metadata,
         };
         const actual = {
             type: request.type,
@@ -1896,17 +1884,17 @@ export class ToolManager {
 
         if (!isDeepStrictEqual(actual, expected)) {
             throw ToolError.executionFailed(
-                classification.call.toolName,
-                'Recorded approval request does not match the classified tool call'
+                prepared.call.toolName,
+                'Recorded approval request does not match the prepared tool call'
             );
         }
     }
 
-    private assertOnGrantedRequestMatchesClassification(
-        classification: ToolApprovalRequiredClassification
+    private assertOnGrantedRequestMatchesPreparedCall(
+        prepared: ApprovalRequiredPreparedToolCall
     ): void {
-        const approvalDetails = classification.requestDetails;
-        const grantedDetails = classification.onGrantedRequestDetails;
+        const approvalDetails = prepared.requestDetails;
+        const grantedDetails = prepared.onGrantedRequestDetails;
         const directoryAccess =
             approvalDetails.type === ApprovalType.TOOL_APPROVAL &&
             'directoryAccess' in approvalDetails.metadata
@@ -1929,8 +1917,8 @@ export class ToolManager {
 
             if (!isDeepStrictEqual(actual, expected)) {
                 throw ToolError.executionFailed(
-                    classification.call.toolName,
-                    'Approval granted-effects request does not match the classified tool call'
+                    prepared.call.toolName,
+                    'Approval granted-effects request does not match the prepared tool call'
                 );
             }
             return;
@@ -1938,33 +1926,33 @@ export class ToolManager {
 
         if (!isDeepStrictEqual(grantedDetails, approvalDetails)) {
             throw ToolError.executionFailed(
-                classification.call.toolName,
-                'Approval granted-effects request does not match the classified tool call'
+                prepared.call.toolName,
+                'Approval granted-effects request does not match the prepared tool call'
             );
         }
     }
 
     private async applyApprovalGrantedEffects(
-        classification: ToolApprovalRequiredClassification,
+        prepared: ApprovalRequiredPreparedToolCall,
         response: ApprovalResponse,
         runContext?: AgentRunContext
     ): Promise<void> {
-        const requestDetails = classification.onGrantedRequestDetails;
-        const approvalRequestDetails = classification.requestDetails;
+        const requestDetails = prepared.onGrantedRequestDetails;
+        const approvalRequestDetails = prepared.requestDetails;
         const sessionId = approvalRequestDetails.sessionId;
-        const onGranted = this.getToolApprovalOnGrantedFn(classification.call.toolName);
+        const onGranted = this.getToolApprovalOnGrantedFn(prepared.call.toolName);
 
         if (onGranted) {
             const context = this.buildToolExecutionContext({
                 sessionId,
-                toolCallId: classification.call.toolCallId,
+                toolCallId: prepared.call.toolCallId,
                 runContext,
             });
             await Promise.resolve(onGranted(response, context, requestDetails));
         }
 
         if (approvalRequestDetails.type === ApprovalType.TOOL_APPROVAL && response.data) {
-            await this.handleRememberChoice(classification.call.toolName, response, sessionId);
+            await this.handleRememberChoice(prepared.call.toolName, response, sessionId);
         }
     }
 
@@ -2020,16 +2008,36 @@ export class ToolManager {
         return 'unknown';
     }
 
-    private createToolClassificationError(
+    private createPreparedToolError(
         kind: 'invalid-input' | 'unknown-tool',
         toolName: string,
         error: string
-    ): ToolExecutionClassification {
+    ): PreparedToolCall {
         return {
-            kind,
+            kind: 'terminal',
+            reason: kind,
             modelVisibleResult: {
                 result: { error },
                 presentationSnapshot: this.buildGenericToolPresentationSnapshot(toolName),
+            },
+        };
+    }
+
+    private createPreparedToolTerminal(
+        reason: 'denied',
+        toolName: string,
+        call: ExecutableToolCall
+    ): PreparedToolCall {
+        return {
+            kind: 'terminal',
+            reason,
+            call,
+            modelVisibleResult: {
+                result: {
+                    error: `Tool '${toolName}' was not executed because policy denied it.`,
+                },
+                presentationSnapshot: call.presentationSnapshot,
+                ...(call.meta !== undefined ? { meta: call.meta } : {}),
             },
         };
     }
