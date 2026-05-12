@@ -16,6 +16,8 @@ import type { LanguageModel, ModelMessage } from 'ai';
 import type { LLMContext } from '../types.js';
 import type { ValidatedLLMConfig } from '../schemas.js';
 import type { Logger } from '../../logger/v2/types.js';
+import type { CompactionStrategy } from '../../context/compaction/types.js';
+import type { InternalMessage } from '../../context/types.js';
 import { InMemoryDextoStores } from '../../storage/stores/in-memory.js';
 import type { DextoStores } from '../../storage/index.js';
 import type { ConversationStore } from '../../storage/conversation/types.js';
@@ -115,6 +117,36 @@ function createMockModel(): LanguageModel {
         doStream: vi.fn(),
         doGenerate: vi.fn(),
     } as unknown as LanguageModel;
+}
+
+function createTestCompactionStrategy(
+    shouldCompact: CompactionStrategy['shouldCompact']
+): CompactionStrategy {
+    const compact = vi.fn(
+        async (history: readonly InternalMessage[]): Promise<InternalMessage[]> => [
+            {
+                role: 'assistant',
+                content: [
+                    {
+                        type: 'text',
+                        text: '<session_compaction>Compacted test summary</session_compaction>',
+                    },
+                ],
+                metadata: {
+                    isSummary: true,
+                    originalMessageCount: history.length,
+                },
+            },
+        ]
+    );
+
+    return {
+        name: 'test-compaction',
+        getSettings: () => ({ enabled: true, thresholdPercent: 0.9 }),
+        getModelLimits: (contextWindow) => ({ contextWindow }),
+        shouldCompact: vi.fn(shouldCompact),
+        compact,
+    };
 }
 
 describe('TurnExecutor Integration Tests', () => {
@@ -1312,6 +1344,157 @@ describe('TurnExecutor Integration Tests', () => {
             await executor.execute({ mcpManager }, true);
 
             expect(contextManager.getLastActualInputTokens()).toBe(noCacheTokens + cacheReadTokens);
+        });
+    });
+
+    describe('Context Pruning and Compaction Boundaries', () => {
+        function createExecutorWithCompaction(compactionStrategy: CompactionStrategy) {
+            return new TurnExecutor(
+                createMockModel(),
+                toolManager,
+                contextManager,
+                sessionEventBus,
+                resourceManager,
+                sessionId,
+                { maxSteps: 10, maxOutputTokens: 4096, temperature: 0.7 },
+                llmContext,
+                logger,
+                steerQueue,
+                followUpQueue,
+                { contextWindow: 100_000 },
+                undefined,
+                compactionStrategy
+            );
+        }
+
+        async function seedCompactionEligibleHistory() {
+            await contextManager.addUserMessage([
+                { type: 'text', text: 'Message 1 before summary' },
+            ]);
+            await contextManager.addAssistantMessage('Response 1 before summary', []);
+            await contextManager.addUserMessage([
+                { type: 'text', text: 'Message 2 before summary' },
+            ]);
+            await contextManager.addAssistantMessage('Response 2 before summary', []);
+        }
+
+        it('prunes old tool outputs before formatting the next model request', async () => {
+            const events: string[] = [];
+            const oldLargeToolOutput = 'old-tool-output'.repeat(20_000);
+            const recentToolOutput = 'recent tool output must remain visible';
+            sessionEventBus.on('context:pruned', () => events.push('context:pruned'));
+            vi.mocked(streamText).mockImplementation((options) => {
+                events.push('streamText');
+                const requestJson = JSON.stringify(options.messages);
+                expect(requestJson).not.toContain(oldLargeToolOutput);
+                expect(requestJson).toContain(recentToolOutput);
+                return createMockStream({
+                    text: 'Response',
+                    finishReason: 'stop',
+                    usage: { inputTokens: 100, outputTokens: 20, totalTokens: 120 },
+                }) as unknown as ReturnType<typeof streamText>;
+            });
+
+            await contextManager.addUserMessage([
+                { type: 'text', text: 'Summarize the tool output' },
+            ]);
+            await contextManager.addAssistantMessage('', []);
+            const oldAssistantMessage = (await contextManager.getHistory()).at(-1);
+            if (!oldAssistantMessage?.id) throw new Error('Expected old assistant message id');
+            await contextManager.addToolCall(oldAssistantMessage.id, {
+                id: 'call-old',
+                type: 'function',
+                function: {
+                    name: 'read_file',
+                    arguments: JSON.stringify({ path: 'old-large.txt' }),
+                },
+            });
+            await contextManager.addToolResult('call-old', 'read_file', {
+                content: [{ type: 'text', text: oldLargeToolOutput }],
+                meta: { toolName: 'read_file', toolCallId: 'call-old', success: true },
+            });
+            await contextManager.addAssistantMessage('', []);
+            const recentAssistantMessage = (await contextManager.getHistory()).at(-1);
+            if (!recentAssistantMessage?.id)
+                throw new Error('Expected recent assistant message id');
+            await contextManager.addToolCall(recentAssistantMessage.id, {
+                id: 'call-recent',
+                type: 'function',
+                function: {
+                    name: 'read_file',
+                    arguments: JSON.stringify({ path: 'recent.txt' }),
+                },
+            });
+            await contextManager.addToolResult('call-recent', 'read_file', {
+                content: [{ type: 'text', text: recentToolOutput }],
+                meta: { toolName: 'read_file', toolCallId: 'call-recent', success: true },
+            });
+
+            await executor.execute({ mcpManager }, true);
+
+            expect(events).toEqual(['context:pruned', 'streamText']);
+        });
+
+        it('compacts estimated overflow before sending the next model request', async () => {
+            const events: string[] = [];
+            const compactionStrategy = createTestCompactionStrategy((tokens) => tokens > 10);
+            sessionEventBus.on('context:compacting', () => events.push('context:compacting'));
+            sessionEventBus.on('context:compacted', () => events.push('context:compacted'));
+            vi.mocked(streamText).mockImplementation((options) => {
+                events.push('streamText');
+                const requestJson = JSON.stringify(options.messages);
+                expect(requestJson).toContain('Compacted test summary');
+                expect(requestJson).not.toContain('Message 1 before summary');
+                return createMockStream({
+                    text: 'Response',
+                    finishReason: 'stop',
+                    usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+                }) as unknown as ReturnType<typeof streamText>;
+            });
+
+            const compactingExecutor = createExecutorWithCompaction(compactionStrategy);
+
+            await seedCompactionEligibleHistory();
+
+            await compactingExecutor.execute({ mcpManager }, true);
+
+            expect(events).toEqual(['context:compacting', 'context:compacted', 'streamText']);
+            expect(compactionStrategy.compact).toHaveBeenCalledTimes(1);
+        });
+
+        it('compacts after a response when actual input usage crosses the threshold', async () => {
+            const events: string[] = [];
+            const compactionStrategy = createTestCompactionStrategy((tokens) => tokens === 10_000);
+            sessionEventBus.on('context:compacting', () => events.push('context:compacting'));
+            sessionEventBus.on('context:compacted', () => events.push('context:compacted'));
+            vi.mocked(streamText).mockImplementation(() => {
+                events.push('streamText');
+                return createMockStream({
+                    text: 'Response',
+                    finishReason: 'stop',
+                    usage: { inputTokens: 10_000, outputTokens: 20, totalTokens: 10_020 },
+                }) as unknown as ReturnType<typeof streamText>;
+            });
+
+            const compactingExecutor = createExecutorWithCompaction(compactionStrategy);
+
+            await seedCompactionEligibleHistory();
+
+            await compactingExecutor.execute({ mcpManager }, true);
+
+            expect(events).toEqual(['streamText', 'context:compacting', 'context:compacted']);
+            expect(compactionStrategy.compact).toHaveBeenCalledTimes(1);
+            expect(compactionStrategy.shouldCompact).toHaveBeenCalledWith(10_000, {
+                contextWindow: 100_000,
+            });
+
+            const formattedAfterCompaction = await contextManager.getFormattedMessagesForLLM(
+                { mcpManager },
+                llmContext
+            );
+            const formattedJson = JSON.stringify(formattedAfterCompaction.formattedMessages);
+            expect(formattedJson).toContain('Compacted test summary');
+            expect(formattedJson).not.toContain('Message 1 before summary');
         });
     });
 });
