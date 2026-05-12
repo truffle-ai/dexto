@@ -700,6 +700,78 @@ describe('DextoAgent Lifecycle Management', () => {
             expect(mockServices.sessionManager).not.toHaveProperty('withExecutionContext');
         });
 
+        test('generate correlates tool calls and results by required call id', async () => {
+            const agent = createTestAgent(mockValidatedConfig);
+            const sessionStream = vi.fn().mockImplementation(async () => {
+                agent.emit('llm:tool-call', {
+                    sessionId: 'test-session',
+                    toolName: 'read_file',
+                    args: { path: 'README.md' },
+                    callId: 'call-readme',
+                });
+                agent.emit('llm:tool-result', {
+                    sessionId: 'test-session',
+                    toolName: 'read_file',
+                    callId: 'call-readme',
+                    success: true,
+                    sanitized: {
+                        content: [{ type: 'text', text: 'README contents' }],
+                        meta: {
+                            toolName: 'read_file',
+                            toolCallId: 'call-readme',
+                            success: true,
+                        },
+                    },
+                });
+                agent.emit('llm:response', {
+                    sessionId: 'test-session',
+                    content: 'Done',
+                    tokenUsage: {
+                        inputTokens: 1,
+                        outputTokens: 1,
+                        totalTokens: 2,
+                        cacheReadTokens: 0,
+                        cacheWriteTokens: 0,
+                    },
+                });
+                agent.emit('run:complete', {
+                    sessionId: 'test-session',
+                    finishReason: 'stop',
+                    stepCount: 1,
+                    durationMs: 1,
+                });
+                return { text: 'Done' };
+            });
+            mockServices.sessionManager.getSession = vi.fn().mockResolvedValue({
+                id: 'test-session',
+                stream: sessionStream,
+            });
+
+            await agent.start();
+
+            await expect(agent.generate('read the readme', 'test-session')).resolves.toMatchObject({
+                content: 'Done',
+                toolCalls: [
+                    {
+                        toolName: 'read_file',
+                        args: { path: 'README.md' },
+                        callId: 'call-readme',
+                        result: {
+                            success: true,
+                            data: {
+                                content: [{ type: 'text', text: 'README contents' }],
+                                meta: {
+                                    toolName: 'read_file',
+                                    toolCallId: 'call-readme',
+                                    success: true,
+                                },
+                            },
+                        },
+                    },
+                ],
+            });
+        });
+
         test('should reject invalid execution context as a typed API validation error', async () => {
             const agent = createTestAgent(mockValidatedConfig);
 
