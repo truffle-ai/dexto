@@ -1003,6 +1003,74 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             expect(mockAllowedToolsProvider.allowTool).not.toHaveBeenCalled();
         });
 
+        it('applies a cancelled recorded decision as one model-visible terminal result', async () => {
+            const execute = vi.fn();
+            const toolManager = createToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'manual',
+                mockAgentEventBus,
+                { alwaysAllow: [], alwaysDeny: [] },
+                [
+                    defineTool({
+                        id: 'write_file',
+                        description: 'Write file',
+                        inputSchema: z.object({ path: z.string() }).strict(),
+                        execute,
+                    }),
+                ],
+                mockLogger
+            );
+            const prepared = await toolManager.prepareToolCall({
+                toolName: 'write_file',
+                input: { path: 'src/app.ts' },
+                toolCallId: 'call-cancelled-decision',
+                sessionId: 'session-1',
+            });
+            if (prepared.kind !== 'approval-required') {
+                throw new Error('Expected approval-required prepared call');
+            }
+            mockApprovalManager.recordApprovalResponseRecord = vi.fn().mockResolvedValue({
+                status: 'created',
+                response: {
+                    approvalId: '00000000-0000-4000-8000-000000000008',
+                    sessionId: 'session-1',
+                    status: ApprovalStatus.CANCELLED,
+                    reason: 'user_cancelled',
+                    message: 'Stopped by user',
+                },
+            });
+            const recorded = createRecordedToolApproval(
+                prepared,
+                '00000000-0000-4000-8000-000000000008'
+            );
+
+            await expect(
+                toolManager.applyApprovalDecision(recorded, {
+                    approvalId: '00000000-0000-4000-8000-000000000008',
+                    status: ApprovalStatus.CANCELLED,
+                    reason: 'user_cancelled',
+                    message: 'Stopped by user',
+                })
+            ).resolves.toEqual({
+                kind: 'terminal',
+                modelVisibleResult: expect.objectContaining({
+                    requireApproval: true,
+                    approvalStatus: 'rejected',
+                    result: {
+                        error: "Tool 'write_file' was not executed because approval was cancelled: Stopped by user.",
+                    },
+                }),
+                response: expect.objectContaining({
+                    approvalId: '00000000-0000-4000-8000-000000000008',
+                    status: ApprovalStatus.CANCELLED,
+                }),
+            });
+            expect(execute).not.toHaveBeenCalled();
+            expect(mockAllowedToolsProvider.allowTool).not.toHaveBeenCalled();
+        });
+
         it('rejects applying an approval response to a different prepared tool call', async () => {
             const toolManager = createToolManager(
                 mockMcpManager,

@@ -2669,6 +2669,8 @@ export class ToolManager {
         args: Record<string, unknown>;
         presentationSnapshot: ToolPresentationSnapshotV1;
     }> {
+        // TODO(#15): Remove this request-and-wait approval path when TurnExecutor records
+        // approvals from prepared calls and executes only ready prepared calls.
         // 1. Check static alwaysDeny list (highest priority - security-first)
         if (this.isInAlwaysDenyList(toolName)) {
             this.logger.info(
