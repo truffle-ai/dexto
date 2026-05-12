@@ -125,13 +125,28 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 status: ApprovalStatus.APPROVED,
                 data: { rememberChoice: false },
             }),
-            recordApprovalResponseRecord: vi.fn().mockResolvedValue({
+            recordApprovalResponseRecord: vi.fn().mockImplementation(async (decision) => ({
                 status: 'created',
                 response: {
-                    approvalId: 'recorded-approval-id',
-                    status: ApprovalStatus.APPROVED,
-                    data: { rememberChoice: false },
+                    approvalId: decision.approvalId,
+                    status: decision.status,
+                    ...(decision.reason !== undefined ? { reason: decision.reason } : {}),
+                    ...(decision.message !== undefined ? { message: decision.message } : {}),
+                    ...(decision.data !== undefined ? { data: decision.data } : {}),
                 },
+            })),
+            requestApprovalDecision: vi.fn().mockImplementation(async (request) => {
+                const response = await mockApprovalManager.requestToolApproval({
+                    ...request.metadata,
+                    ...(request.sessionId !== undefined ? { sessionId: request.sessionId } : {}),
+                    ...(request.hostRuntime !== undefined
+                        ? { hostRuntime: request.hostRuntime }
+                        : {}),
+                });
+                return {
+                    ...response,
+                    approvalId: request.approvalId,
+                };
             }),
             addApprovedDirectory: vi.fn(),
             isDirectorySessionApproved: vi.fn().mockReturnValue(false),
@@ -2078,6 +2093,36 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             expect(error.scope).toBe(ErrorScope.TOOLS);
             expect(error.type).toBe(ErrorType.NOT_FOUND);
         });
+
+        it('should reject invalid local tool args as validation failures', async () => {
+            const toolManager = createToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'auto-approve',
+                mockAgentEventBus,
+                { alwaysAllow: [], alwaysDeny: [] },
+                [
+                    defineTool({
+                        id: 'typed',
+                        description: 'Typed tool',
+                        inputSchema: z.object({ count: z.number() }).strict(),
+                        execute: vi.fn(),
+                    }),
+                ],
+                mockLogger
+            );
+
+            const error = (await toolManager
+                .executeTool('typed', { count: 'wrong' }, 'test-call-id')
+                .catch((e) => e)) as DextoRuntimeError;
+
+            expect(error).toBeInstanceOf(DextoRuntimeError);
+            expect(error.code).toBe(ToolErrorCode.VALIDATION_FAILED);
+            expect(error.scope).toBe(ErrorScope.TOOLS);
+            expect(error.type).toBe(ErrorType.USER);
+            expect(mockApprovalManager.recordApprovalRequest).not.toHaveBeenCalled();
+        });
     });
 
     describe('Local Tool Execution', () => {
@@ -2239,6 +2284,9 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 approvalStatus: 'approved',
             });
             expect(mockApprovalManager.requestToolApproval).not.toHaveBeenCalled();
+            expect(mockApprovalManager.recordApprovalRequest).not.toHaveBeenCalled();
+            expect(mockApprovalManager.requestApprovalDecision).not.toHaveBeenCalled();
+            expect(mockApprovalManager.recordApprovalResponseRecord).not.toHaveBeenCalled();
             expect(execute).not.toHaveBeenCalled();
         });
 
@@ -2515,6 +2563,20 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 expect.objectContaining({
                     status: 'failed',
                     error: "Tool 'write_file' execution was denied by the user",
+                })
+            );
+            expect(mockApprovalManager.recordApprovalResponseRecord).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    approvalId: 'recorded-approval-id',
+                    status: ApprovalStatus.DENIED,
+                }),
+                expect.objectContaining({
+                    approvalId: 'recorded-approval-id',
+                    metadata: expect.objectContaining({
+                        toolName: 'write_file',
+                        toolCallId: 'call-1',
+                        args: { path: 'snake/index.html' },
+                    }),
                 })
             );
         });
@@ -3188,6 +3250,45 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 { sessionId: 'session123' }
             );
 
+            expect(mockApprovalManager.recordApprovalRequest).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    type: ApprovalType.TOOL_APPROVAL,
+                    sessionId: 'session123',
+                    metadata: expect.objectContaining({
+                        toolName: 'mcp--file_read',
+                        toolCallId: 'call-123',
+                        args: { path: '/test' },
+                        description: 'Read test file',
+                        presentationSnapshot: expect.objectContaining({ version: 1 }),
+                    }),
+                }),
+                {
+                    runId: 'session123',
+                    turnId: 'direct',
+                    modelStepId: 'direct',
+                    toolCallId: 'call-123',
+                }
+            );
+            expect(mockApprovalManager.requestApprovalDecision).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    approvalId: 'recorded-approval-id',
+                    sessionId: 'session123',
+                    metadata: expect.objectContaining({
+                        toolName: 'mcp--file_read',
+                        toolCallId: 'call-123',
+                    }),
+                })
+            );
+            expect(mockApprovalManager.recordApprovalResponseRecord).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    approvalId: 'recorded-approval-id',
+                    status: ApprovalStatus.APPROVED,
+                }),
+                expect.objectContaining({
+                    approvalId: 'recorded-approval-id',
+                    sessionId: 'session123',
+                })
+            );
             expect(mockApprovalManager.requestToolApproval).toHaveBeenCalledWith(
                 expect.objectContaining({
                     toolName: 'mcp--file_read',
@@ -3968,28 +4069,49 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
         it('should propagate MCP tool execution errors', async () => {
             const executionError = new Error('Tool execution failed');
             mockMcpManager.executeTool = vi.fn().mockRejectedValue(executionError);
+            const toolExecutionStore = new InMemoryDextoStores().getStore('toolExecutions');
 
-            const toolManager = createToolManager(
+            const toolManager = new ToolManager(
                 mockMcpManager,
                 mockApprovalManager,
                 mockAllowedToolsProvider,
-                'manual',
+                'auto-approve',
                 mockAgentEventBus,
                 { alwaysAllow: [], alwaysDeny: [] },
                 [],
-                mockLogger
+                mockLogger,
+                createInMemorySessionToolPreferencesStore(mockLogger),
+                toolExecutionStore
             );
+            const executionIdentity = {
+                runId: 'run-1',
+                turnId: 'turn-1',
+                modelStepId: 'step-1',
+                toolCallId: 'test-call-id',
+            };
 
             await expect(
-                toolManager.executeTool('mcp--file_read', { path: '/test' }, 'test-call-id')
+                toolManager.executeTool('mcp--file_read', { path: '/test' }, 'test-call-id', {
+                    sessionId: 'session-1',
+                    executionIdentity,
+                })
             ).rejects.toThrow('Tool execution failed');
+            await expect(
+                toolExecutionStore.get({ executionId: createToolExecutionId(executionIdentity) })
+            ).resolves.toEqual(
+                expect.objectContaining({
+                    status: 'failed',
+                    error: 'Tool execution failed',
+                })
+            );
         });
 
         it('should propagate approval manager errors', async () => {
             const approvalError = new Error('Approval request failed');
             mockApprovalManager.requestToolApproval = vi.fn().mockRejectedValue(approvalError);
+            const toolExecutionStore = new InMemoryDextoStores().getStore('toolExecutions');
 
-            const toolManager = createToolManager(
+            const toolManager = new ToolManager(
                 mockMcpManager,
                 mockApprovalManager,
                 mockAllowedToolsProvider,
@@ -3997,12 +4119,31 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAgentEventBus,
                 { alwaysAllow: [], alwaysDeny: [] },
                 [],
-                mockLogger
+                mockLogger,
+                createInMemorySessionToolPreferencesStore(mockLogger),
+                toolExecutionStore
             );
+            const executionIdentity = {
+                runId: 'run-1',
+                turnId: 'turn-1',
+                modelStepId: 'step-1',
+                toolCallId: 'test-call-id',
+            };
 
             await expect(
-                toolManager.executeTool('mcp--file_read', { path: '/test' }, 'test-call-id')
+                toolManager.executeTool('mcp--file_read', { path: '/test' }, 'test-call-id', {
+                    sessionId: 'session-1',
+                    executionIdentity,
+                })
             ).rejects.toThrow('Approval request failed');
+            await expect(
+                toolExecutionStore.get({ executionId: createToolExecutionId(executionIdentity) })
+            ).resolves.toEqual(
+                expect.objectContaining({
+                    status: 'failed',
+                    error: 'Approval request failed',
+                })
+            );
         });
     });
 
