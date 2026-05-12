@@ -75,6 +75,10 @@ type ToolExecutionInvocation = {
 };
 
 export type ExecutableToolCall = {
+    approval?: {
+        approvalStatus: 'approved';
+        requireApproval: true;
+    };
     callDescription?: string;
     input: Record<string, unknown>;
     meta?: ToolCallMetadata;
@@ -1860,7 +1864,13 @@ export class ToolManager {
         await this.applyApprovalGrantedEffects(recorded.prepared, record.response, runContext);
         return {
             kind: 'ready',
-            call: recorded.prepared.call,
+            call: {
+                ...recorded.prepared.call,
+                approval: {
+                    requireApproval: true,
+                    approvalStatus: 'approved',
+                },
+            },
             response: record.response,
         };
     }
@@ -2148,6 +2158,9 @@ export class ToolManager {
     }
 
     /**
+     * TODO(#15): Remove this executable AI SDK bridge once TurnExecutor prepares tool calls,
+     * applies approval decisions, and executes ready prepared calls directly.
+     *
      * Execute a tool by routing based on prefix:
      * - MCP tools: `mcp--...`
      * - Local tools: `Tool.id`
@@ -2518,6 +2531,326 @@ export class ToolManager {
 
             throw error;
         }
+    }
+
+    async executePreparedToolCall(
+        call: ExecutableToolCall,
+        invocation?: ToolExecutionInvocation
+    ): Promise<ToolExecutionResult> {
+        const { sessionId, abortSignal, runContext, hostRuntime } =
+            this.resolveToolExecutionInvocation(invocation);
+        const durableIdentity = this.resolveToolExecutionIdentity(
+            invocation ?? {},
+            call.toolCallId
+        );
+        const backgroundTasksEnabled = isBackgroundTasksEnabled();
+        const willRunInBackground =
+            backgroundTasksEnabled &&
+            call.meta?.runInBackground === true &&
+            sessionId !== undefined;
+        const executionIdentity = willRunInBackground ? undefined : durableIdentity;
+        const executionId =
+            executionIdentity === undefined ? undefined : createToolExecutionId(executionIdentity);
+        let toolArgs = call.input;
+
+        this.logger.debug(
+            `🔧 Prepared tool execution requested: '${call.toolName}' (toolCallId: ${call.toolCallId})`
+        );
+
+        if (executionIdentity !== undefined && executionId !== undefined) {
+            const started = await this.toolExecutionStore.start({
+                record: {
+                    executionId,
+                    identity: executionIdentity,
+                    input: call.input,
+                    toolName: call.toolName,
+                    status: 'running',
+                    startedAt: new Date(),
+                    updatedAt: new Date(),
+                },
+            });
+            if (started.status === 'existing') {
+                this.assertToolExecutionRecordMatches({
+                    record: started.record,
+                    identity: executionIdentity,
+                    toolName: call.toolName,
+                    toolInput: call.input,
+                });
+                if (started.record.status === 'completed') {
+                    this.logger.info('Replaying completed prepared tool execution result', {
+                        executionId,
+                        toolName: call.toolName,
+                    });
+                    return completedToolExecutionToResult(started.record);
+                }
+                if (started.record.status === 'failed') {
+                    this.logger.info('Replaying failed prepared tool execution result', {
+                        executionId,
+                        toolName: call.toolName,
+                    });
+                    return this.createFailedPreparedToolResult(call, started.record.error);
+                }
+                throw ToolError.executionFailed(
+                    call.toolName,
+                    `Tool execution already ${started.record.status}: ${executionId}`
+                );
+            }
+        }
+
+        const startTime = Date.now();
+
+        try {
+            this.logger.info(
+                `🔧 Prepared tool execution started for ${call.toolName}, sessionId: ${sessionId ?? 'global'}`
+            );
+
+            if (sessionId) {
+                this.agentEventBus.emit('tool:running', {
+                    toolName: call.toolName,
+                    toolCallId: call.toolCallId,
+                    sessionId,
+                    ...(hostRuntime !== undefined && { hostRuntime }),
+                });
+            }
+
+            if (this.hookManager && this.sessionManager && this.stateManager) {
+                const beforePayload: BeforeToolCallPayload = {
+                    toolName: call.toolName,
+                    args: toolArgs,
+                    ...(sessionId !== undefined && { sessionId }),
+                };
+
+                const modifiedPayload = await this.hookManager.executeHooks(
+                    'beforeToolCall',
+                    beforePayload,
+                    {
+                        sessionManager: this.sessionManager,
+                        mcpManager: this.mcpManager,
+                        toolManager: this,
+                        stateManager: this.stateManager,
+                        ...(runContext !== undefined && { runContext }),
+                        ...(sessionId !== undefined && { sessionId }),
+                    }
+                );
+
+                toolArgs = modifiedPayload.args;
+                try {
+                    toolArgs = this.validateLocalToolArgs(call.toolName, toolArgs);
+                } catch (error) {
+                    this.logger.error(
+                        `Post-hook validation failed for tool '${call.toolName}': a beforeToolCall hook may have set invalid args`
+                    );
+                    throw error;
+                }
+            }
+
+            let result: unknown;
+
+            const registerBackgroundTask = (promise: Promise<unknown>, description: string) => {
+                return {
+                    result: {
+                        taskId: call.toolCallId,
+                        status: 'running' as const,
+                        description,
+                    },
+                    promise,
+                };
+            };
+
+            if (call.source === 'mcp') {
+                const actualToolName = call.toolName.substring(ToolManager.MCP_TOOL_PREFIX.length);
+                if (actualToolName.length === 0) {
+                    throw ToolError.invalidName(
+                        call.toolName,
+                        'tool name cannot be empty after prefix'
+                    );
+                }
+
+                const executeMcpTool = () =>
+                    runContext === undefined
+                        ? this.mcpManager.executeTool(actualToolName, toolArgs, sessionId)
+                        : this.mcpManager.executeTool(
+                              actualToolName,
+                              toolArgs,
+                              sessionId,
+                              runContext
+                          );
+                if (call.meta?.runInBackground === true && !backgroundTasksEnabled) {
+                    this.logger.debug(
+                        'Background tool execution disabled; running synchronously instead.',
+                        { toolName: call.toolName }
+                    );
+                }
+                if (willRunInBackground) {
+                    const backgroundSessionId = sessionId;
+                    const { result: backgroundResult, promise } = registerBackgroundTask(
+                        executeMcpTool(),
+                        `MCP tool ${actualToolName}`
+                    );
+                    this.agentEventBus.emit('tool:background', {
+                        toolName: call.toolName,
+                        toolCallId: backgroundResult.taskId,
+                        sessionId: backgroundSessionId,
+                        description: backgroundResult.description,
+                        promise,
+                        ...(hostRuntime !== undefined && { hostRuntime }),
+                        ...(call.meta?.timeoutMs !== undefined && {
+                            timeoutMs: call.meta.timeoutMs,
+                        }),
+                        ...(call.meta?.notifyOnComplete !== undefined && {
+                            notifyOnComplete: call.meta.notifyOnComplete,
+                        }),
+                    });
+                    result = backgroundResult;
+                } else {
+                    result = await executeMcpTool();
+                }
+            } else {
+                if (call.meta?.runInBackground === true && !backgroundTasksEnabled) {
+                    this.logger.debug(
+                        'Background tool execution disabled; running synchronously instead.',
+                        { toolName: call.toolName }
+                    );
+                }
+
+                if (willRunInBackground) {
+                    const backgroundSessionId = sessionId;
+                    const { result: backgroundResult, promise } = registerBackgroundTask(
+                        this.executeLocalTool(call.toolName, toolArgs, {
+                            sessionId: backgroundSessionId,
+                            abortSignal,
+                            toolCallId: call.toolCallId,
+                            runContext,
+                        }),
+                        `Tool ${call.toolName}`
+                    );
+                    this.agentEventBus.emit('tool:background', {
+                        toolName: call.toolName,
+                        toolCallId: backgroundResult.taskId,
+                        sessionId: backgroundSessionId,
+                        description: backgroundResult.description,
+                        promise,
+                        ...(hostRuntime !== undefined && { hostRuntime }),
+                        ...(call.meta?.timeoutMs !== undefined && {
+                            timeoutMs: call.meta.timeoutMs,
+                        }),
+                        ...(call.meta?.notifyOnComplete !== undefined && {
+                            notifyOnComplete: call.meta.notifyOnComplete,
+                        }),
+                    });
+                    result = backgroundResult;
+                } else {
+                    result = await this.executeLocalTool(call.toolName, toolArgs, {
+                        sessionId,
+                        abortSignal,
+                        toolCallId: call.toolCallId,
+                        runContext,
+                    });
+                }
+            }
+
+            const duration = Date.now() - startTime;
+            this.logger.debug(
+                `🎯 Prepared tool execution completed in ${duration}ms: '${call.toolName}'`
+            );
+
+            if (this.hookManager && this.sessionManager && this.stateManager) {
+                const afterPayload: AfterToolResultPayload = {
+                    toolName: call.toolName,
+                    result,
+                    success: true,
+                    ...(sessionId !== undefined && { sessionId }),
+                };
+
+                const modifiedPayload = await this.hookManager.executeHooks(
+                    'afterToolResult',
+                    afterPayload,
+                    {
+                        sessionManager: this.sessionManager,
+                        mcpManager: this.mcpManager,
+                        toolManager: this,
+                        stateManager: this.stateManager,
+                        ...(runContext !== undefined && { runContext }),
+                        ...(sessionId !== undefined && { sessionId }),
+                    }
+                );
+
+                result = modifiedPayload.result;
+            }
+
+            const presentationSnapshot = await this.augmentSnapshotWithResult(
+                call.toolName,
+                call.presentationSnapshot,
+                result,
+                toolArgs,
+                call.toolCallId,
+                sessionId,
+                runContext
+            );
+
+            const executionResult = {
+                result,
+                ...(presentationSnapshot !== undefined && { presentationSnapshot }),
+                ...(call.meta !== undefined ? { meta: call.meta } : {}),
+                ...(call.approval !== undefined ? call.approval : {}),
+            };
+
+            if (executionId !== undefined) {
+                await this.toolExecutionStore.complete({
+                    executionId,
+                    completedAt: new Date(),
+                    result: executionResult,
+                });
+            }
+
+            return executionResult;
+        } catch (error) {
+            const duration = Date.now() - startTime;
+            this.logger.error(
+                `❌ Prepared tool execution failed for ${call.toolName} after ${duration}ms, sessionId: ${sessionId ?? 'global'}: ${error instanceof Error ? error.message : String(error)}`
+            );
+            const message = error instanceof Error ? error.message : String(error);
+
+            if (executionId !== undefined) {
+                await this.toolExecutionStore.fail({
+                    executionId,
+                    completedAt: new Date(),
+                    error: message,
+                });
+            }
+
+            if (this.hookManager && this.sessionManager && this.stateManager) {
+                const afterPayload: AfterToolResultPayload = {
+                    toolName: call.toolName,
+                    result: error instanceof Error ? error.message : String(error),
+                    success: false,
+                    ...(sessionId !== undefined && { sessionId }),
+                };
+
+                await this.hookManager.executeHooks('afterToolResult', afterPayload, {
+                    sessionManager: this.sessionManager,
+                    mcpManager: this.mcpManager,
+                    toolManager: this,
+                    stateManager: this.stateManager,
+                    ...(runContext !== undefined && { runContext }),
+                    ...(sessionId !== undefined && { sessionId }),
+                });
+            }
+
+            return this.createFailedPreparedToolResult(call, message);
+        }
+    }
+
+    private createFailedPreparedToolResult(
+        call: ExecutableToolCall,
+        error: string
+    ): ToolExecutionResult {
+        return {
+            result: { error },
+            presentationSnapshot: call.presentationSnapshot,
+            ...(call.meta !== undefined ? { meta: call.meta } : {}),
+            ...(call.approval !== undefined ? call.approval : {}),
+        };
     }
 
     /**

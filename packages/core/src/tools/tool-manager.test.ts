@@ -846,7 +846,13 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 })
             ).resolves.toEqual({
                 kind: 'ready',
-                call: prepared.call,
+                call: {
+                    ...prepared.call,
+                    approval: {
+                        requireApproval: true,
+                        approvalStatus: 'approved',
+                    },
+                },
                 response: expect.objectContaining({
                     approvalId: '00000000-0000-4000-8000-000000000001',
                     status: ApprovalStatus.APPROVED,
@@ -1283,7 +1289,13 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 })
             ).resolves.toEqual({
                 kind: 'ready',
-                call: prepared.call,
+                call: {
+                    ...prepared.call,
+                    approval: {
+                        requireApproval: true,
+                        approvalStatus: 'approved',
+                    },
+                },
                 response: expect.objectContaining({
                     approvalId: '00000000-0000-4000-8000-000000000007',
                     status: ApprovalStatus.APPROVED,
@@ -1375,6 +1387,470 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 expect.any(Function),
                 { rememberDirectory: false }
             );
+        });
+
+        it('executes a prepared local tool call without re-validating or requesting approval', async () => {
+            const inputSchema = z.object({ count: z.coerce.number() }).strict();
+            const safeParse = vi.spyOn(inputSchema, 'safeParse');
+            const execute = vi.fn().mockResolvedValue({ ok: true });
+            const toolManager = createToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'auto-approve',
+                mockAgentEventBus,
+                { alwaysAllow: [], alwaysDeny: [] },
+                [
+                    defineTool({
+                        id: 'typed',
+                        description: 'Typed tool',
+                        inputSchema,
+                        execute,
+                    }),
+                ],
+                mockLogger
+            );
+            const prepared = await toolManager.prepareToolCall({
+                toolName: 'typed',
+                input: { count: '5' },
+                toolCallId: 'call-prepared-local',
+                sessionId: 'session-1',
+            });
+            if (prepared.kind !== 'ready') {
+                throw new Error('Expected ready prepared call');
+            }
+
+            await expect(toolManager.executePreparedToolCall(prepared.call)).resolves.toEqual(
+                expect.objectContaining({
+                    result: { ok: true },
+                    presentationSnapshot: expect.objectContaining({
+                        title: 'Typed tool',
+                    }),
+                })
+            );
+            expect(safeParse).toHaveBeenCalledTimes(1);
+            expect(mockApprovalManager.requestToolApproval).not.toHaveBeenCalled();
+            expect(mockApprovalManager.requestApproval).not.toHaveBeenCalled();
+            expect(mockApprovalManager.recordApprovalRequest).not.toHaveBeenCalled();
+            expect(mockApprovalManager.recordApprovalResponseRecord).not.toHaveBeenCalled();
+            expect(execute).toHaveBeenCalledWith(
+                { count: 5 },
+                expect.objectContaining({ toolCallId: 'call-prepared-local' })
+            );
+        });
+
+        it('executes a prepared MCP tool call through the normalized MCP name', async () => {
+            mockMcpManager.getAllTools = vi.fn().mockResolvedValue({
+                'mcp--filesystem--read_file': {
+                    description: 'Read file',
+                    inputSchema: z.object({ path: z.string() }).strict(),
+                },
+            });
+            mockMcpManager.executeTool = vi.fn().mockResolvedValue({ content: 'hello' });
+            const toolManager = createToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'auto-approve',
+                mockAgentEventBus,
+                { alwaysAllow: [], alwaysDeny: [] },
+                [],
+                mockLogger
+            );
+            const prepared = await toolManager.prepareToolCall({
+                toolName: 'mcp--filesystem--read_file',
+                input: { path: '/tmp/file.txt' },
+                toolCallId: 'call-prepared-mcp',
+                sessionId: 'session-1',
+            });
+            if (prepared.kind !== 'ready') {
+                throw new Error('Expected ready prepared call');
+            }
+
+            await expect(
+                toolManager.executePreparedToolCall(prepared.call, { sessionId: 'session-1' })
+            ).resolves.toEqual(
+                expect.objectContaining({
+                    result: { content: 'hello' },
+                })
+            );
+            expect(mockApprovalManager.requestToolApproval).not.toHaveBeenCalled();
+            expect(mockMcpManager.executeTool).toHaveBeenCalledWith(
+                'filesystem--read_file',
+                { path: '/tmp/file.txt' },
+                'session-1'
+            );
+        });
+
+        it('preserves approved approval metadata in prepared execution results', async () => {
+            const execute = vi.fn().mockResolvedValue('written');
+            const toolManager = createToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'manual',
+                mockAgentEventBus,
+                { alwaysAllow: [], alwaysDeny: [] },
+                [
+                    defineTool({
+                        id: 'write_file',
+                        description: 'Write file',
+                        inputSchema: z.object({ path: z.string() }).strict(),
+                        execute,
+                    }),
+                ],
+                mockLogger
+            );
+            const prepared = await toolManager.prepareToolCall({
+                toolName: 'write_file',
+                input: { path: 'src/app.ts' },
+                toolCallId: 'call-prepared-approved',
+                sessionId: 'session-1',
+            });
+            if (prepared.kind !== 'approval-required') {
+                throw new Error('Expected approval-required prepared call');
+            }
+            mockApprovalManager.recordApprovalResponseRecord = vi.fn().mockResolvedValue({
+                status: 'created',
+                response: {
+                    approvalId: '00000000-0000-4000-8000-000000000009',
+                    sessionId: 'session-1',
+                    status: ApprovalStatus.APPROVED,
+                },
+            });
+            const recorded = createRecordedToolApproval(
+                prepared,
+                '00000000-0000-4000-8000-000000000009'
+            );
+            const application = await toolManager.applyApprovalDecision(recorded, {
+                approvalId: '00000000-0000-4000-8000-000000000009',
+                status: ApprovalStatus.APPROVED,
+            });
+            if (application.kind !== 'ready') {
+                throw new Error('Expected ready approval application');
+            }
+
+            await expect(toolManager.executePreparedToolCall(application.call)).resolves.toEqual(
+                expect.objectContaining({
+                    result: 'written',
+                    requireApproval: true,
+                    approvalStatus: 'approved',
+                })
+            );
+        });
+
+        it('replays a completed prepared tool execution without running the tool again', async () => {
+            const execute = vi.fn().mockResolvedValueOnce('created');
+            const toolExecutionStore = new InMemoryDextoStores().getStore('toolExecutions');
+            const toolManager = new ToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'auto-approve',
+                mockAgentEventBus,
+                { alwaysAllow: [], alwaysDeny: [] },
+                [
+                    defineTool({
+                        id: 'write_file',
+                        description: 'Write file',
+                        inputSchema: z.object({ path: z.string() }).strict(),
+                        execute,
+                    }),
+                ],
+                mockLogger,
+                createInMemorySessionToolPreferencesStore(mockLogger),
+                toolExecutionStore
+            );
+            const executionIdentity = {
+                runId: 'run-1',
+                turnId: 'turn-1',
+                modelStepId: 'step-1',
+                toolCallId: 'call-prepared-replay',
+            };
+            const prepared = await toolManager.prepareToolCall({
+                toolName: 'write_file',
+                input: { path: 'src/app.ts' },
+                toolCallId: 'call-prepared-replay',
+                sessionId: 'session-1',
+            });
+            if (prepared.kind !== 'ready') {
+                throw new Error('Expected ready prepared call');
+            }
+
+            const first = await toolManager.executePreparedToolCall(prepared.call, {
+                executionIdentity,
+            });
+            const replayed = await toolManager.executePreparedToolCall(prepared.call, {
+                executionIdentity,
+            });
+
+            expect(first).toEqual(replayed);
+            expect(execute).toHaveBeenCalledTimes(1);
+            await expect(
+                toolExecutionStore.get({
+                    executionId: createToolExecutionId(executionIdentity),
+                })
+            ).resolves.toEqual(
+                expect.objectContaining({
+                    status: 'completed',
+                    input: { path: 'src/app.ts' },
+                    modelOutput: 'created',
+                })
+            );
+        });
+
+        it('rejects prepared execution replay when the stored input differs', async () => {
+            const execute = vi.fn().mockResolvedValue('created');
+            const toolManager = createToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'auto-approve',
+                mockAgentEventBus,
+                { alwaysAllow: [], alwaysDeny: [] },
+                [
+                    defineTool({
+                        id: 'write_file',
+                        description: 'Write file',
+                        inputSchema: z.object({ path: z.string() }).strict(),
+                        execute,
+                    }),
+                ],
+                mockLogger
+            );
+            const executionIdentity = {
+                runId: 'run-1',
+                turnId: 'turn-1',
+                modelStepId: 'step-1',
+                toolCallId: 'call-prepared-mismatch',
+            };
+            const first = await toolManager.prepareToolCall({
+                toolName: 'write_file',
+                input: { path: 'src/app.ts' },
+                toolCallId: 'call-prepared-mismatch',
+                sessionId: 'session-1',
+            });
+            const second = await toolManager.prepareToolCall({
+                toolName: 'write_file',
+                input: { path: 'src/other.ts' },
+                toolCallId: 'call-prepared-mismatch',
+                sessionId: 'session-1',
+            });
+            if (first.kind !== 'ready' || second.kind !== 'ready') {
+                throw new Error('Expected ready prepared calls');
+            }
+
+            await toolManager.executePreparedToolCall(first.call, { executionIdentity });
+
+            await expect(
+                toolManager.executePreparedToolCall(second.call, { executionIdentity })
+            ).rejects.toThrow(/does not match the current tool call/);
+        });
+
+        it('returns and replays a model-visible failed result for prepared execution failures', async () => {
+            const execute = vi.fn().mockRejectedValueOnce(new Error('disk full'));
+            const toolExecutionStore = new InMemoryDextoStores().getStore('toolExecutions');
+            const toolManager = new ToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'auto-approve',
+                mockAgentEventBus,
+                { alwaysAllow: [], alwaysDeny: [] },
+                [
+                    defineTool({
+                        id: 'write_file',
+                        description: 'Write file',
+                        inputSchema: z.object({ path: z.string() }).strict(),
+                        execute,
+                    }),
+                ],
+                mockLogger,
+                createInMemorySessionToolPreferencesStore(mockLogger),
+                toolExecutionStore
+            );
+            const executionIdentity = {
+                runId: 'run-1',
+                turnId: 'turn-1',
+                modelStepId: 'step-1',
+                toolCallId: 'call-prepared-failed',
+            };
+            const prepared = await toolManager.prepareToolCall({
+                toolName: 'write_file',
+                input: { path: 'src/app.ts' },
+                toolCallId: 'call-prepared-failed',
+                sessionId: 'session-1',
+            });
+            if (prepared.kind !== 'ready') {
+                throw new Error('Expected ready prepared call');
+            }
+
+            const first = await toolManager.executePreparedToolCall(prepared.call, {
+                executionIdentity,
+            });
+            const replayed = await toolManager.executePreparedToolCall(prepared.call, {
+                executionIdentity,
+            });
+
+            expect(first).toEqual({
+                result: { error: 'disk full' },
+                presentationSnapshot: prepared.call.presentationSnapshot,
+            });
+            expect(replayed).toEqual(first);
+            expect(execute).toHaveBeenCalledTimes(1);
+            await expect(
+                toolExecutionStore.get({
+                    executionId: createToolExecutionId(executionIdentity),
+                })
+            ).resolves.toEqual(
+                expect.objectContaining({
+                    status: 'failed',
+                    input: { path: 'src/app.ts' },
+                    error: 'disk full',
+                })
+            );
+        });
+
+        it('runs before and after hooks around prepared local execution', async () => {
+            const execute = vi.fn().mockResolvedValue('raw-result');
+            const hookManager = {
+                executeHooks: vi.fn().mockImplementation(async (hookName, payload) => {
+                    if (hookName === 'beforeToolCall') {
+                        return { ...payload, args: { name: 'hooked' } };
+                    }
+                    if (hookName === 'afterToolResult') {
+                        return { ...payload, result: 'hooked-result' };
+                    }
+                    return payload;
+                }),
+            };
+            const toolManager = createToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'auto-approve',
+                mockAgentEventBus,
+                { alwaysAllow: [], alwaysDeny: [] },
+                [
+                    defineTool({
+                        id: 'hello',
+                        description: 'Say hello',
+                        inputSchema: z.object({ name: z.string() }).strict(),
+                        execute,
+                    }),
+                ],
+                mockLogger
+            );
+            toolManager.setHookSupport(hookManager as any, {} as any, {} as any);
+            const prepared = await toolManager.prepareToolCall({
+                toolName: 'hello',
+                input: { name: 'original' },
+                toolCallId: 'call-prepared-hooks',
+                sessionId: 'session-1',
+            });
+            if (prepared.kind !== 'ready') {
+                throw new Error('Expected ready prepared call');
+            }
+
+            await expect(toolManager.executePreparedToolCall(prepared.call)).resolves.toEqual(
+                expect.objectContaining({
+                    result: 'hooked-result',
+                })
+            );
+            expect(execute).toHaveBeenCalledWith(
+                { name: 'hooked' },
+                expect.objectContaining({ toolCallId: 'call-prepared-hooks' })
+            );
+            expect(hookManager.executeHooks).toHaveBeenCalledWith(
+                'beforeToolCall',
+                expect.objectContaining({
+                    toolName: 'hello',
+                    args: { name: 'original' },
+                }),
+                expect.objectContaining({ toolManager })
+            );
+            expect(hookManager.executeHooks).toHaveBeenCalledWith(
+                'afterToolResult',
+                expect.objectContaining({
+                    toolName: 'hello',
+                    result: 'raw-result',
+                    success: true,
+                }),
+                expect.objectContaining({ toolManager })
+            );
+        });
+
+        it('emits a background event for prepared calls when background execution is enabled', async () => {
+            const originalEnv = process.env.DEXTO_BACKGROUND_TASKS_ENABLED;
+            process.env.DEXTO_BACKGROUND_TASKS_ENABLED = 'true';
+            try {
+                mockMcpManager.getAllTools = vi.fn().mockResolvedValue({
+                    'mcp--read_file': {
+                        description: 'Read file',
+                        inputSchema: z.object({ path: z.string() }).strict(),
+                    },
+                });
+                const background = createDeferred<string>();
+                mockMcpManager.executeTool = vi.fn().mockReturnValue(background.promise);
+                const emitSpy = vi.fn();
+                mockAgentEventBus.emit = emitSpy as typeof mockAgentEventBus.emit;
+                const toolManager = createToolManager(
+                    mockMcpManager,
+                    mockApprovalManager,
+                    mockAllowedToolsProvider,
+                    'auto-approve',
+                    mockAgentEventBus,
+                    { alwaysAllow: [], alwaysDeny: [] },
+                    [],
+                    mockLogger
+                );
+                const prepared = await toolManager.prepareToolCall({
+                    toolName: 'mcp--read_file',
+                    input: {
+                        path: '/tmp/file.txt',
+                        __meta: {
+                            runInBackground: true,
+                            timeoutMs: 5000,
+                        },
+                    },
+                    toolCallId: 'call-prepared-background',
+                    sessionId: 'session-1',
+                });
+                if (prepared.kind !== 'ready') {
+                    throw new Error('Expected ready prepared call');
+                }
+
+                const response = await toolManager.executePreparedToolCall(prepared.call, {
+                    sessionId: 'session-1',
+                });
+
+                expect(response.result).toEqual({
+                    taskId: 'call-prepared-background',
+                    status: 'running',
+                    description: 'MCP tool read_file',
+                });
+                const backgroundEvent = emitSpy.mock.calls.find(
+                    ([eventName]) => eventName === 'tool:background'
+                );
+                expect(backgroundEvent).toEqual([
+                    'tool:background',
+                    expect.objectContaining({
+                        toolName: 'mcp--read_file',
+                        toolCallId: 'call-prepared-background',
+                        sessionId: 'session-1',
+                        timeoutMs: 5000,
+                        promise: background.promise,
+                    }),
+                ]);
+                background.resolve('background-result');
+                await expect(background.promise).resolves.toBe('background-result');
+            } finally {
+                if (originalEnv === undefined) {
+                    delete process.env.DEXTO_BACKGROUND_TASKS_ENABLED;
+                } else {
+                    process.env.DEXTO_BACKGROUND_TASKS_ENABLED = originalEnv;
+                }
+            }
         });
     });
 
