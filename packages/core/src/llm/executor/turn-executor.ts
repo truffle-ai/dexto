@@ -347,7 +347,6 @@ export class TurnExecutor {
                 const streamProcessor = new StreamProcessor(
                     this.contextManager,
                     this.eventBus,
-                    this.resourceManager,
                     this.stepAbortController.signal,
                     this.getStreamProcessorConfig(estimatedTokens, reasoningForStream),
                     this.logger,

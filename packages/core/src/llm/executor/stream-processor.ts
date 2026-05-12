@@ -1,15 +1,10 @@
 import { StreamTextResult, ToolSet as VercelToolSet } from 'ai';
 import { ContextManager } from '../../context/manager.js';
 import { SessionEventBus, LLMFinishReason } from '../../events/index.js';
-import { ResourceManager } from '../../resources/index.js';
-import { truncateToolResult } from './tool-output-truncator.js';
 import { StreamProcessorResult } from './types.js';
-import { sanitizeToolResult } from '../../context/utils.js';
 import type { SanitizedToolResult } from '../../context/types.js';
 import type { Logger } from '../../logger/v2/types.js';
 import { DextoLogComponent } from '../../logger/v2/types.js';
-import type { ToolPresentationSnapshotV1 } from '../../tools/types.js';
-import type { ToolCallMetadata } from '../../tools/tool-call-metadata.js';
 import type { ModelToolCall } from './types.js';
 import { getUsagePricingMetadata } from '../usage-metadata.js';
 import type { TokenUsageCostBreakdown } from '../registry/index.js';
@@ -94,30 +89,18 @@ export class StreamProcessor {
     /**
      * @param contextManager Context manager for message persistence
      * @param eventBus Event bus for emitting events
-     * @param resourceManager Resource manager for blob storage
      * @param abortSignal Abort signal for cancellation
      * @param config Provider/model configuration
      * @param logger Logger instance
      * @param streaming If true, emits llm:chunk events. Default true.
-     * @param toolCallMetadata Map of tool call IDs to tool-call metadata (approval + presentation)
      */
     constructor(
         private contextManager: ContextManager,
         private eventBus: SessionEventBus,
-        private resourceManager: ResourceManager,
         private abortSignal: AbortSignal,
         private config: StreamProcessorConfig,
         logger: Logger,
-        private streaming: boolean = true,
-        private toolCallMetadata?: Map<
-            string,
-            {
-                presentationSnapshot?: ToolPresentationSnapshotV1;
-                meta?: ToolCallMetadata;
-                requireApproval?: boolean;
-                approvalStatus?: 'approved' | 'rejected';
-            }
-        >
+        private streaming: boolean = true
     ) {
         this.logger = logger.createChild(DextoLogComponent.EXECUTOR);
         this.usageScopeId = config.usageScopeId;
@@ -287,71 +270,6 @@ export class StreamProcessor {
                         break;
                     }
 
-                    case 'tool-result': {
-                        // PERSISTENCE HAPPENS HERE
-                        const rawResult = event.output;
-
-                        // Log raw tool output for debugging
-                        this.logger.debug('Tool result received', {
-                            toolName: event.toolName,
-                            toolCallId: event.toolCallId,
-                            rawResult,
-                        });
-
-                        // Sanitize
-                        const sanitized = await sanitizeToolResult(
-                            rawResult,
-                            {
-                                artifactStore: this.resourceManager.getArtifactStore(),
-                                toolName: event.toolName,
-                                toolCallId: event.toolCallId,
-                                success: true,
-                            },
-                            this.logger
-                        );
-
-                        // Truncate
-                        const truncated = truncateToolResult(sanitized);
-
-                        // Get tool-call metadata for this tool call
-                        const metadata = this.toolCallMetadata?.get(event.toolCallId);
-
-                        // Persist to history (success status comes from truncated.meta.success)
-                        await this.contextManager.addToolResult(
-                            event.toolCallId,
-                            event.toolName,
-                            truncated, // Includes meta.success from sanitization
-                            metadata // Only tool-call metadata if present
-                        );
-
-                        this.eventBus.emit('llm:tool-result', {
-                            toolName: event.toolName,
-                            ...(metadata?.presentationSnapshot !== undefined && {
-                                presentationSnapshot: metadata.presentationSnapshot,
-                            }),
-                            ...(metadata?.meta !== undefined && {
-                                meta: metadata.meta,
-                            }),
-                            callId: event.toolCallId,
-                            success: true,
-                            sanitized: truncated,
-                            rawResult: rawResult,
-                            ...(metadata?.requireApproval !== undefined && {
-                                requireApproval: metadata.requireApproval,
-                            }),
-                            ...(metadata?.approvalStatus !== undefined && {
-                                approvalStatus: metadata.approvalStatus,
-                            }),
-                        });
-
-                        // Clean up approval metadata after use
-                        this.toolCallMetadata?.delete(event.toolCallId);
-                        // Remove from pending (tool completed successfully)
-                        this.pendingToolCalls.delete(event.toolCallId);
-                        this.partialToolCalls.delete(event.toolCallId);
-                        break;
-                    }
-
                     case 'finish-step':
                         // Track token usage from completed steps for partial runs
                         // TODO: Token usage for cancelled mid-step responses is unavailable.
@@ -477,74 +395,6 @@ export class StreamProcessor {
                                 ...pricingMetadata,
                             });
                         }
-                        break;
-                    }
-
-                    case 'tool-error': {
-                        // Tool execution failed - emit error event with tool context
-                        this.logger.error('Tool execution failed', {
-                            toolName: event.toolName,
-                            toolCallId: event.toolCallId,
-                            error: event.error,
-                        });
-
-                        const errorMessage =
-                            event.error instanceof Error
-                                ? event.error.message
-                                : String(event.error);
-                        const metadata = this.toolCallMetadata?.get(event.toolCallId);
-
-                        // CRITICAL: Must persist error result to history to maintain tool_use/tool_result pairing
-                        // Without this, the conversation history has tool_use without tool_result,
-                        // causing "tool_use ids were found without tool_result blocks" API errors
-                        const errorResult: SanitizedToolResult = {
-                            content: [{ type: 'text', text: `Error: ${errorMessage}` }],
-                            meta: {
-                                toolName: event.toolName,
-                                toolCallId: event.toolCallId,
-                                success: false,
-                            },
-                        };
-
-                        await this.contextManager.addToolResult(
-                            event.toolCallId,
-                            event.toolName,
-                            errorResult,
-                            metadata
-                        );
-
-                        this.eventBus.emit('llm:tool-result', {
-                            toolName: event.toolName,
-                            ...(metadata?.presentationSnapshot !== undefined && {
-                                presentationSnapshot: metadata.presentationSnapshot,
-                            }),
-                            ...(metadata?.meta !== undefined && {
-                                meta: metadata.meta,
-                            }),
-                            callId: event.toolCallId,
-                            success: false,
-                            error: errorMessage,
-                            ...(metadata?.requireApproval !== undefined && {
-                                requireApproval: metadata.requireApproval,
-                            }),
-                            ...(metadata?.approvalStatus !== undefined && {
-                                approvalStatus: metadata.approvalStatus,
-                            }),
-                        });
-
-                        this.eventBus.emit('llm:error', {
-                            error:
-                                event.error instanceof Error
-                                    ? event.error
-                                    : new Error(String(event.error)),
-                            context: `Tool execution failed: ${event.toolName}`,
-                            toolCallId: event.toolCallId,
-                            recoverable: true, // Tool errors are typically recoverable
-                        });
-                        this.toolCallMetadata?.delete(event.toolCallId);
-                        // Remove from pending (tool failed but result was persisted)
-                        this.pendingToolCalls.delete(event.toolCallId);
-                        this.partialToolCalls.delete(event.toolCallId);
                         break;
                     }
 
@@ -878,7 +728,6 @@ export class StreamProcessor {
         );
 
         for (const [toolCallId, { toolName }] of this.pendingToolCalls) {
-            const metadata = this.toolCallMetadata?.get(toolCallId);
             const syntheticResult: SanitizedToolResult = {
                 content: [{ type: 'text', text: options.resultText }],
                 meta: {
@@ -892,29 +741,16 @@ export class StreamProcessor {
                 toolCallId,
                 toolName,
                 syntheticResult,
-                metadata
+                undefined
             );
 
             // Emit tool-result event so CLI/WebUI can update UI
             this.eventBus.emit('llm:tool-result', {
                 toolName,
-                ...(metadata?.presentationSnapshot !== undefined && {
-                    presentationSnapshot: metadata.presentationSnapshot,
-                }),
-                ...(metadata?.meta !== undefined && {
-                    meta: metadata.meta,
-                }),
                 callId: toolCallId,
                 success: false,
                 error: options.errorMessage,
-                ...(metadata?.requireApproval !== undefined && {
-                    requireApproval: metadata.requireApproval,
-                }),
-                ...(metadata?.approvalStatus !== undefined && {
-                    approvalStatus: metadata.approvalStatus,
-                }),
             });
-            this.toolCallMetadata?.delete(toolCallId);
         }
 
         this.pendingToolCalls.clear();
