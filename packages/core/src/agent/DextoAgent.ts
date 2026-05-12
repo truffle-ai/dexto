@@ -850,7 +850,7 @@ export class DextoAgent {
             return {
                 toolName: tc.toolName,
                 args: tc.args,
-                callId: tc.callId || `tool_${Date.now()}`,
+                callId: tc.callId,
                 result: toolResult
                     ? {
                           success: toolResult.success,

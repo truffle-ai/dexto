@@ -517,7 +517,7 @@ interface SessionEventMapBase {
         meta?: ToolCallMetadata;
         /** Optional user-facing description from tool call metadata (e.g., __meta.callDescription) */
         callDescription?: string;
-        callId?: string;
+        callId: string;
     };
 
     /** LLM service streamed partial tool input */
@@ -526,7 +526,7 @@ interface SessionEventMapBase {
         args: Record<string, any>;
         /** Optional user-facing description from tool call metadata (e.g., __meta.callDescription) */
         callDescription?: string;
-        callId?: string;
+        callId: string;
         isComplete?: boolean;
     };
 
@@ -537,7 +537,7 @@ interface SessionEventMapBase {
         presentationSnapshot?: ToolPresentationSnapshotV1;
         /** Optional non-execution metadata from the reserved __meta wrapper */
         meta?: ToolCallMetadata;
-        callId?: string;
+        callId: string;
         success: boolean;
         /** Sanitized result - present when success=true */
         sanitized?: SanitizedToolResult;
