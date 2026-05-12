@@ -13,7 +13,7 @@ import { ToolErrorCode } from './error-codes.js';
 import { ErrorScope, ErrorType } from '../errors/types.js';
 import { AgentEventBus } from '../events/index.js';
 import type { ApprovalManager } from '../approval/manager.js';
-import type { AllowedToolsProvider } from './confirmation/allowed-tools-provider/types.js';
+import type { AllowedToolsProvider } from './approval/allowed-tools-provider/types.js';
 import { ApprovalStatus, ApprovalType } from '../approval/types.js';
 import { createMockLogger } from '../logger/v2/test-utils.js';
 import { SessionError } from '../session/errors.js';
@@ -2582,7 +2582,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
         });
     });
 
-    describe('Confirmation Flow Logic', () => {
+    describe('Approval Flow Logic', () => {
         it('should emit callDescription on llm:tool-call events when __meta.callDescription is provided', async () => {
             mockMcpManager.getAllTools = vi.fn().mockResolvedValue({});
 
@@ -4213,7 +4213,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 expect(mockMcpManager.executeTool).not.toHaveBeenCalled();
             });
 
-            it('should allow tools in alwaysAllow list without confirmation', async () => {
+            it('should allow tools in alwaysAllow list without approval', async () => {
                 const toolPolicies = {
                     alwaysAllow: ['mcp--filesystem--read_file'],
                     alwaysDeny: [],

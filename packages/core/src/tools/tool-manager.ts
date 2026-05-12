@@ -30,7 +30,7 @@ import type {
     DirectoryAccessMetadata,
 } from '../approval/types.js';
 import { DirectoryAccessMetadataSchema } from '../approval/schemas.js';
-import type { AllowedToolsProvider } from './confirmation/allowed-tools-provider/types.js';
+import type { AllowedToolsProvider } from './approval/allowed-tools-provider/types.js';
 import type { HookManager } from '../hooks/manager.js';
 import type { SessionManager } from '../session/index.js';
 import type { AgentStateManager } from '../agent/state-manager.js';

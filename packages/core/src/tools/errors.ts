@@ -133,27 +133,27 @@ export class ToolError {
     }
 
     /**
-     * Confirmation handler missing
+     * Approval handler missing
      */
-    static confirmationHandlerMissing(toolName: string) {
+    static approvalHandlerMissing(toolName: string) {
         return new DextoRuntimeError(
-            ToolErrorCode.CONFIRMATION_HANDLER_MISSING,
+            ToolErrorCode.APPROVAL_HANDLER_MISSING,
             ErrorScope.TOOLS,
             ErrorType.SYSTEM,
-            `Confirmation handler missing for tool '${toolName}'`,
+            `Approval handler missing for tool '${toolName}'`,
             { toolName }
         );
     }
 
     /**
-     * Confirmation timeout
+     * Approval timeout
      */
-    static confirmationTimeout(toolName: string, timeoutMs: number, sessionId?: string) {
+    static approvalTimeout(toolName: string, timeoutMs: number, sessionId?: string) {
         return new DextoRuntimeError(
-            ToolErrorCode.CONFIRMATION_TIMEOUT,
+            ToolErrorCode.APPROVAL_TIMEOUT,
             ErrorScope.TOOLS,
             ErrorType.TIMEOUT,
-            `Tool '${toolName}' confirmation timed out after ${timeoutMs}ms`,
+            `Tool '${toolName}' approval timed out after ${timeoutMs}ms`,
             { toolName, timeoutMs, sessionId }
         );
     }
@@ -185,11 +185,11 @@ export class ToolError {
     }
 
     /**
-     * Confirmation cancelled
+     * Approval cancelled
      */
-    static confirmationCancelled(toolName: string, reason: string) {
+    static approvalCancelled(toolName: string, reason: string) {
         return new DextoRuntimeError(
-            ToolErrorCode.CONFIRMATION_CANCELLED,
+            ToolErrorCode.APPROVAL_CANCELLED,
             ErrorScope.TOOLS,
             ErrorType.USER,
             `Tool approval for '${toolName}' was cancelled: ${reason}`,

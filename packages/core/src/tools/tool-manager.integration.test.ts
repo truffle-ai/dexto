@@ -8,7 +8,7 @@ import { z } from 'zod';
 import type { McpClient } from '../mcp/types.js';
 import { AgentEventBus } from '../events/index.js';
 import { ApprovalManager } from '../approval/manager.js';
-import type { AllowedToolsProvider } from './confirmation/allowed-tools-provider/types.js';
+import type { AllowedToolsProvider } from './approval/allowed-tools-provider/types.js';
 import { createMockLogger } from '../logger/v2/test-utils.js';
 import {
     createInMemorySessionApprovalStore,
@@ -352,7 +352,7 @@ describe('ToolManager Integration Tests', () => {
         });
     });
 
-    describe('Confirmation Flow Integration', () => {
+    describe('Approval Flow Integration', () => {
         it('should work with auto-approve mode', async () => {
             const autoApproveManager = createApprovalManager(
                 {

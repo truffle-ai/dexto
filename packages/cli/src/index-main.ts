@@ -162,7 +162,7 @@ program
     .option('--no-interactive', 'Disable interactive prompts and API key setup')
     .option('--skip-setup', 'Skip global setup validation (useful for MCP mode, automation)')
     .option('-m, --model <model>', 'Specify the LLM model to use')
-    .option('--auto-approve', 'Always approve tool executions without confirmation prompts')
+    .option('--auto-approve', 'Always approve tool executions without approval prompts')
     .option(
         '--bypass-permissions',
         'Start the interactive CLI in bypass permissions mode (auto-approve approval prompts)'
