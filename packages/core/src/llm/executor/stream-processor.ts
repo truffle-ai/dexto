@@ -10,7 +10,7 @@ import type { Logger } from '../../logger/v2/types.js';
 import { DextoLogComponent } from '../../logger/v2/types.js';
 import type { ToolPresentationSnapshotV1 } from '../../tools/types.js';
 import type { ToolCallMetadata } from '../../tools/tool-call-metadata.js';
-import type { ModelToolCall } from './model-step.js';
+import type { ModelToolCall } from './types.js';
 import { getUsagePricingMetadata } from '../usage-metadata.js';
 import type { TokenUsageCostBreakdown } from '../registry/index.js';
 import type { LLMProvider, LLMPricingStatus, ReasoningVariant, TokenUsage } from '../types.js';

@@ -1,6 +1,11 @@
 import { TokenUsage } from '../types.js';
 import { LLMFinishReason } from '../../events/index.js';
-import type { ModelToolCall } from './model-step.js';
+
+export type ModelToolCall = {
+    toolCallId: string;
+    toolName: string;
+    input: unknown;
+};
 
 export interface ExecutorResult {
     /**

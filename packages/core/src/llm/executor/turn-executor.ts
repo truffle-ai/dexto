@@ -27,10 +27,9 @@ import {
 import { ToolSet } from '../../tools/types.js';
 import type { ToolExecutionResult, ToolPresentationSnapshotV1 } from '../../tools/types.js';
 import type { ToolCallMetadata } from '../../tools/tool-call-metadata.js';
-import type { ModelToolCall } from './model-step.js';
 import { StreamProcessor } from './stream-processor.js';
 import { truncateToolResult } from './tool-output-truncator.js';
-import { ExecutorResult } from './types.js';
+import type { ExecutorResult, ModelToolCall } from './types.js';
 import { buildProviderOptions, getEffectiveReasoningBudgetTokens } from './provider-options.js';
 import type {
     TokenUsage,
