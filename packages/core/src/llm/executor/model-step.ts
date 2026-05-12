@@ -6,31 +6,29 @@ import {
     type ModelMessage,
 } from 'ai';
 import type { ToolSet } from '../../tools/types.js';
-import { createIntentVercelToolDefinitions } from './tool-definitions.js';
+import { createModelToolDefinitions } from './tool-definitions.js';
 
-export type ModelToolIntent = {
+export type ModelToolCall = {
     toolCallId: string;
     toolName: string;
     input: unknown;
 };
 
-export type ModelIntentStepResult = {
+export type ModelStepResult = {
     finishReason: FinishReason;
-    toolCalls: ModelToolIntent[];
+    toolCalls: ModelToolCall[];
 };
 
-export async function runModelIntentStep(input: {
+export async function runModelStep(input: {
     model: LanguageModel;
     messages: ModelMessage[];
     tools: ToolSet;
     abortSignal?: AbortSignal;
-}): Promise<ModelIntentStepResult> {
+}): Promise<ModelStepResult> {
     const result = streamText({
         model: input.model,
         messages: input.messages,
-        tools: createIntentVercelToolDefinitions(input.tools, {
-            onInputAvailable: () => undefined,
-        }),
+        tools: createModelToolDefinitions(input.tools),
         stopWhen: stepCountIs(1),
         ...(input.abortSignal !== undefined && { abortSignal: input.abortSignal }),
     });

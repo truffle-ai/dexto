@@ -1,9 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { ToolSet as VercelToolSet } from 'ai';
-import {
-    createExecutableVercelToolDefinitions,
-    createIntentVercelToolDefinitions,
-} from './tool-definitions.js';
+import { createExecutableToolDefinitions, createModelToolDefinitions } from './tool-definitions.js';
 import type { ToolSet } from '../../tools/types.js';
 
 const tools: ToolSet = {
@@ -20,12 +17,12 @@ const tools: ToolSet = {
     },
 };
 
-describe('createVercelToolDefinitions', () => {
+describe('tool definitions', () => {
     it('creates executable AI SDK tools for the current in-memory driver', async () => {
         const execute = vi.fn(async () => ({ ok: true }));
         const toModelOutput = vi.fn(() => ({ type: 'text' as const, value: 'ok' }));
 
-        const definitions = createExecutableVercelToolDefinitions(tools, {
+        const definitions = createExecutableToolDefinitions(tools, {
             execute,
             toModelOutput,
         });
@@ -50,29 +47,13 @@ describe('createVercelToolDefinitions', () => {
         });
     });
 
-    it('creates intent-only AI SDK tools for durable model-step callers', async () => {
-        const onInputAvailable = vi.fn();
-
-        const definitions = createIntentVercelToolDefinitions(tools, {
-            onInputAvailable,
-        });
+    it('creates model tool definitions without execution hooks', async () => {
+        const definitions = createModelToolDefinitions(tools);
 
         const tool = definitions.read_file as NonNullable<VercelToolSet['read_file']>;
         expect(tool.description).toBe('Read a file');
         expect('execute' in tool).toBe(false);
+        expect('onInputAvailable' in tool).toBe(false);
         expect('outputSchema' in tool).toBe(true);
-        expect(typeof tool.onInputAvailable).toBe('function');
-
-        await tool.onInputAvailable?.({
-            input: { path: 'a.ts' },
-            toolCallId: 'call-1',
-            messages: [],
-        });
-
-        expect(onInputAvailable).toHaveBeenCalledWith({
-            toolName: 'read_file',
-            args: { path: 'a.ts' },
-            options: { toolCallId: 'call-1', messages: [] },
-        });
     });
 });

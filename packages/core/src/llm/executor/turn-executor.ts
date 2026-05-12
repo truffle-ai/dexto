@@ -49,7 +49,7 @@ import type { CompactionStrategy } from '../../context/compaction/types.js';
 import type { ModelLimits } from '../../context/compaction/overflow.js';
 import { isCodexBaseURL } from '../providers/codex-base-url.js';
 import type { AgentRunContext } from '../../runtime/run-context.js';
-import { createExecutableVercelToolDefinitions } from './tool-definitions.js';
+import { createExecutableToolDefinitions } from './tool-definitions.js';
 
 /**
  * Static cache for tool support validation.
@@ -706,7 +706,7 @@ export class TurnExecutor {
             this.sessionId
         );
 
-        return createExecutableVercelToolDefinitions(tools, {
+        return createExecutableToolDefinitions(tools, {
             execute: ({ toolName, args, options }) =>
                 this.executeToolFromModelStep(toolName, args, options),
             toModelOutput: ({ toolName, result }) => this.formatToolResultForLLM(result, toolName),

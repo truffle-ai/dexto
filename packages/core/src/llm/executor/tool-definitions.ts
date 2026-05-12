@@ -14,15 +14,7 @@ type ExecutableToolDefinitionsOptions = {
     }) => LanguageModelV2ToolResultOutput;
 };
 
-type IntentToolDefinitionsOptions = {
-    onInputAvailable: (input: {
-        toolName: string;
-        args: unknown;
-        options: ToolCallOptions;
-    }) => void | Promise<void>;
-};
-
-const unknownToolResultSchema = jsonSchema({});
+const modelToolResultSchema = jsonSchema({});
 
 function createToolDefinitionBase(tool: ToolSet[string]) {
     return {
@@ -31,7 +23,7 @@ function createToolDefinitionBase(tool: ToolSet[string]) {
     };
 }
 
-export function createExecutableVercelToolDefinitions(
+export function createExecutableToolDefinitions(
     tools: ToolSet,
     options: ExecutableToolDefinitionsOptions
 ): VercelToolSet {
@@ -55,21 +47,12 @@ export function createExecutableVercelToolDefinitions(
     return definitions;
 }
 
-export function createIntentVercelToolDefinitions(
-    tools: ToolSet,
-    options: IntentToolDefinitionsOptions
-): VercelToolSet {
+export function createModelToolDefinitions(tools: ToolSet): VercelToolSet {
     const definitions: VercelToolSet = {};
     for (const [toolName, tool] of Object.entries(tools)) {
         definitions[toolName] = {
             ...createToolDefinitionBase(tool),
-            outputSchema: unknownToolResultSchema,
-            onInputAvailable: ({ input, ...toolOptions }: { input: unknown } & ToolCallOptions) =>
-                options.onInputAvailable({
-                    toolName,
-                    args: input,
-                    options: toolOptions,
-                }),
+            outputSchema: modelToolResultSchema,
         };
     }
     return definitions;

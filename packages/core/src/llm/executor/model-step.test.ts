@@ -2,7 +2,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { LanguageModel, ModelMessage } from 'ai';
 import type { LanguageModelV2CallOptions, LanguageModelV2StreamPart } from '@ai-sdk/provider';
-import { runModelIntentStep } from './model-step.js';
+import { runModelStep } from './model-step.js';
 import type { ToolSet } from '../../tools/types.js';
 
 const messages: ModelMessage[] = [{ role: 'user', content: 'read package json' }];
@@ -32,8 +32,8 @@ function streamFrom(parts: LanguageModelV2StreamPart[]): ReadableStream<Language
     });
 }
 
-describe('runModelIntentStep', () => {
-    it('collects tool-call intent without providing executable tool callbacks', async () => {
+describe('runModelStep', () => {
+    it('collects model tool calls without providing executable tool callbacks', async () => {
         const doStream = vi.fn((options: LanguageModelV2CallOptions) => {
             return Promise.resolve({
                 stream: streamFrom([
@@ -64,7 +64,7 @@ describe('runModelIntentStep', () => {
             doStream,
         } satisfies LanguageModel;
 
-        const result = await runModelIntentStep({
+        const result = await runModelStep({
             model,
             messages,
             tools,
