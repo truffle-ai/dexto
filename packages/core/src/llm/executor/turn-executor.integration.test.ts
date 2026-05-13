@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { z } from 'zod';
-import { TurnExecutor } from './turn-executor.js';
+import { parseTurnDriverState, TurnExecutor, type TurnDriverState } from './turn-executor.js';
 import { ContextManager } from '../../context/manager.js';
 import { ToolManager } from '../../tools/tool-manager.js';
 import { defineTool } from '../../tools/define-tool.js';
@@ -56,6 +56,10 @@ function createDeferred<T>() {
         resolve,
         reject,
     };
+}
+
+function serializeTurnDriverState(state: TurnDriverState): TurnDriverState {
+    return parseTurnDriverState(JSON.parse(JSON.stringify(state)));
 }
 
 function createPendingApprovalHandler(): ApprovalHandler & {
@@ -250,6 +254,67 @@ describe('TurnExecutor Integration Tests', () => {
     const sessionId = 'test-session';
     const llmContext: LLMContext = { provider: 'openai', model: 'gpt-4' };
 
+    function createContextManagerFromPersistedStore(): ContextManager<ModelMessage> {
+        const memoryManager = new MemoryManager(stores.getStore('memories'), logger);
+        const systemPromptConfig = SystemPromptConfigSchema.parse('You are a helpful assistant.');
+        const systemPromptManager = new SystemPromptManager(
+            systemPromptConfig,
+            memoryManager,
+            undefined,
+            logger
+        );
+        const formatter = new VercelMessageFormatter(logger);
+        const llmConfig = {
+            provider: 'openai',
+            model: 'gpt-4',
+            apiKey: 'test-api-key',
+            maxInputTokens: 100000,
+            maxOutputTokens: 4096,
+            temperature: 0.7,
+            maxIterations: 10,
+        } as unknown as ValidatedLLMConfig;
+
+        return new ContextManager<ModelMessage>(
+            llmConfig,
+            formatter,
+            systemPromptManager,
+            100000,
+            conversationStore,
+            sessionId,
+            resourceManager,
+            logger
+        );
+    }
+
+    function createExecutorWithContext(
+        persistedContextManager: ContextManager<ModelMessage>,
+        externalSignal?: AbortSignal
+    ): TurnExecutor {
+        return new TurnExecutor(
+            createMockModel(),
+            toolManager,
+            persistedContextManager,
+            sessionEventBus,
+            resourceManager,
+            sessionId,
+            { maxSteps: 10, maxOutputTokens: 4096, temperature: 0.7 },
+            llmContext,
+            logger,
+            steerQueue,
+            followUpQueue,
+            undefined,
+            externalSignal
+        );
+    }
+
+    function restartExecutor(externalSignal?: AbortSignal) {
+        const restartedContextManager = createContextManagerFromPersistedStore();
+        return {
+            contextManager: restartedContextManager,
+            executor: createExecutorWithContext(restartedContextManager, externalSignal),
+        };
+    }
+
     beforeEach(async () => {
         vi.clearAllMocks();
 
@@ -287,39 +352,7 @@ describe('TurnExecutor Integration Tests', () => {
         // Create real conversation store
         conversationStore = stores.getStore('conversation');
 
-        // Create real memory manager and system prompt manager
-        const memoryManager = new MemoryManager(stores.getStore('memories'), logger);
-        const systemPromptConfig = SystemPromptConfigSchema.parse('You are a helpful assistant.');
-        const systemPromptManager = new SystemPromptManager(
-            systemPromptConfig,
-            memoryManager,
-            undefined, // memoriesConfig
-            logger
-        );
-
-        // Create real context manager with Vercel formatter
-        const formatter = new VercelMessageFormatter(logger);
-        // Cast to ValidatedLLMConfig since we know test data is valid
-        const llmConfig = {
-            provider: 'openai',
-            model: 'gpt-4',
-            apiKey: 'test-api-key',
-            maxInputTokens: 100000,
-            maxOutputTokens: 4096,
-            temperature: 0.7,
-            maxIterations: 10,
-        } as unknown as ValidatedLLMConfig;
-
-        contextManager = new ContextManager<ModelMessage>(
-            llmConfig,
-            formatter,
-            systemPromptManager,
-            100000,
-            conversationStore,
-            sessionId,
-            resourceManager,
-            logger
-        );
+        contextManager = createContextManagerFromPersistedStore();
 
         // Create real approval manager
         approvalManager = new ApprovalManager(
@@ -348,7 +381,7 @@ describe('TurnExecutor Integration Tests', () => {
             [],
             logger,
             createInMemorySessionToolPreferencesStore(logger),
-            new InMemoryDextoStores().getStore('toolExecutions')
+            stores.getStore('toolExecutions')
         );
         await toolManager.initialize();
         toolManager.setToolExecutionContextFactory((baseContext) => baseContext);
@@ -377,19 +410,7 @@ describe('TurnExecutor Integration Tests', () => {
         );
 
         // Create executor with real components
-        executor = new TurnExecutor(
-            createMockModel(),
-            toolManager,
-            contextManager,
-            sessionEventBus,
-            resourceManager,
-            sessionId,
-            { maxSteps: 10, maxOutputTokens: 4096, temperature: 0.7 },
-            llmContext,
-            logger,
-            steerQueue,
-            followUpQueue
-        );
+        executor = createExecutorWithContext(contextManager);
     });
 
     afterEach(async () => {
@@ -420,7 +441,7 @@ describe('TurnExecutor Integration Tests', () => {
             sessionEventBus.on('run:complete', runCompleteHandler);
 
             await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
-            const driver = await executor.createDriver({ mcpManager }, true);
+            const driver = await executor.createDriver({ mcpManager }, { streaming: true });
 
             try {
                 const modelStep = await driver.runNextModelStep();
@@ -457,6 +478,95 @@ describe('TurnExecutor Integration Tests', () => {
             } finally {
                 driver.dispose();
             }
+        });
+
+        it('rehydrates a completed terminal model step before deciding and finishing', async () => {
+            const thinkingHandler = vi.fn();
+            const runCompleteHandler = vi.fn();
+            sessionEventBus.on('llm:thinking', thinkingHandler);
+            sessionEventBus.on('run:complete', runCompleteHandler);
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
+            const firstDriver = await executor.createDriver({ mcpManager }, { streaming: true });
+            const modelStep = await firstDriver.runNextModelStep();
+            const savedState = serializeTurnDriverState(firstDriver.checkpoint());
+            const restarted = restartExecutor();
+
+            const rehydratedDriver = await restarted.executor.createDriver(
+                { mcpManager },
+                { streaming: true, state: savedState }
+            );
+
+            try {
+                const next = await rehydratedDriver.decideNextStep();
+                const result = await rehydratedDriver.finish();
+
+                expect(savedState).toEqual(
+                    expect.objectContaining({
+                        phase: 'model-step-complete',
+                        stepCount: 0,
+                        startedAtMs: expect.any(Number),
+                        toolCallsExecuted: true,
+                    })
+                );
+                expect(modelStep.result.text).toBe('Hello!');
+                expect(thinkingHandler).toHaveBeenCalledTimes(1);
+                expect(next).toEqual(
+                    expect.objectContaining({
+                        kind: 'stop',
+                        finishReason: 'stop',
+                    })
+                );
+                expect(result).toEqual(
+                    expect.objectContaining({
+                        finishReason: 'stop',
+                        stepCount: 0,
+                        text: 'Hello!',
+                        usage: {
+                            inputTokens: 100,
+                            outputTokens: 50,
+                            totalTokens: 150,
+                            cacheReadTokens: 0,
+                            cacheWriteTokens: 0,
+                        },
+                    })
+                );
+                expect(runCompleteHandler).toHaveBeenCalledTimes(1);
+            } finally {
+                rehydratedDriver.dispose();
+            }
+        });
+
+        it('does not checkpoint while a model step is in flight', async () => {
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
+            const driver = await executor.createDriver({ mcpManager }, { streaming: true });
+
+            try {
+                const modelStep = driver.runNextModelStep();
+
+                expect(() => driver.getState()).toThrow(
+                    'Turn driver cannot checkpoint during a model step'
+                );
+                await modelStep;
+            } finally {
+                driver.dispose();
+            }
+        });
+
+        it('does not clear queued steer messages when checkpointing', async () => {
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
+            const driver = await executor.createDriver({ mcpManager }, { streaming: true });
+
+            await driver.runNextModelStep();
+            await steerQueue.enqueue({ content: [{ type: 'text', text: 'continue this turn' }] });
+            const savedState = serializeTurnDriverState(driver.checkpoint());
+
+            expect(savedState.phase).toBe('model-step-complete');
+            expect(steerQueue.getAll()).toEqual([
+                expect.objectContaining({
+                    content: [{ type: 'text', text: 'continue this turn' }],
+                }),
+            ]);
         });
 
         it('should persist assistant response to history', async () => {
@@ -617,7 +727,7 @@ describe('TurnExecutor Integration Tests', () => {
                 );
 
             await contextManager.addUserMessage([{ type: 'text', text: 'Use tools' }]);
-            const driver = await executor.createDriver({ mcpManager }, true);
+            const driver = await executor.createDriver({ mcpManager }, { streaming: true });
 
             try {
                 const toolStep = await driver.runNextModelStep();
@@ -663,6 +773,242 @@ describe('TurnExecutor Integration Tests', () => {
                 ]);
             } finally {
                 driver.dispose();
+            }
+        });
+
+        it('rehydrates a tool-call model step before executing tools', async () => {
+            const toolExecutionResult = createDeferred<string>();
+            const executeTool = vi.fn(() => toolExecutionResult.promise);
+            toolManager.addTools([
+                defineTool({
+                    id: 'driver_tool',
+                    description: 'Driver tool',
+                    inputSchema: z.object({ value: z.string() }).strict(),
+                    execute: executeTool,
+                }),
+            ]);
+
+            vi.mocked(streamText)
+                .mockImplementationOnce(
+                    () =>
+                        createMockStream({
+                            finishReason: 'tool-calls',
+                            toolCalls: [
+                                {
+                                    toolCallId: 'call-rehydrate-driver',
+                                    toolName: 'driver_tool',
+                                    args: { value: 'one' },
+                                },
+                            ],
+                        }) as unknown as ReturnType<typeof streamText>
+                )
+                .mockImplementationOnce(
+                    () =>
+                        createMockStream({
+                            text: 'done',
+                            finishReason: 'stop',
+                        }) as unknown as ReturnType<typeof streamText>
+                );
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Use tools' }]);
+            const firstDriver = await executor.createDriver({ mcpManager }, { streaming: true });
+            const toolStep = await firstDriver.runNextModelStep();
+            const savedState = serializeTurnDriverState(firstDriver.checkpoint());
+            const restarted = restartExecutor();
+
+            const rehydratedDriver = await restarted.executor.createDriver(
+                { mcpManager },
+                { streaming: true, state: savedState }
+            );
+
+            try {
+                await expect(rehydratedDriver.decideNextStep()).rejects.toThrow(
+                    'Tool calls must finish before deciding the next model step'
+                );
+                const toolExecution = rehydratedDriver.executeToolCalls();
+                expect(() => rehydratedDriver.getState()).toThrow(
+                    'Turn driver cannot checkpoint during tool execution'
+                );
+                toolExecutionResult.resolve('driver result');
+                await toolExecution;
+                expect(await rehydratedDriver.decideNextStep()).toEqual({
+                    kind: 'continue',
+                    stepCount: 1,
+                });
+                const readyState = serializeTurnDriverState(rehydratedDriver.checkpoint());
+                const secondRestart = restartExecutor();
+
+                const readyDriver = await secondRestart.executor.createDriver(
+                    { mcpManager },
+                    { streaming: true, state: readyState }
+                );
+                const finalStep = await readyDriver.runNextModelStep();
+                const stop = await readyDriver.decideNextStep();
+                const result = await readyDriver.finish();
+                readyDriver.dispose();
+
+                expect(savedState).toEqual(
+                    expect.objectContaining({
+                        phase: 'model-step-complete',
+                        stepCount: 0,
+                        startedAtMs: expect.any(Number),
+                        toolCallsExecuted: false,
+                    })
+                );
+                expect(readyState).toEqual(
+                    expect.objectContaining({
+                        phase: 'ready-for-model',
+                        stepCount: 1,
+                        startedAtMs: savedState.startedAtMs,
+                    })
+                );
+                expect(toolStep.result.finishReason).toBe('tool-calls');
+                expect(finalStep.result.text).toBe('done');
+                expect(stop).toEqual(
+                    expect.objectContaining({
+                        kind: 'stop',
+                        finishReason: 'stop',
+                    })
+                );
+                expect(result.text).toBe('done');
+                expect(executeTool).toHaveBeenCalledTimes(1);
+                expect(streamText).toHaveBeenCalledTimes(2);
+                const secondMessages = vi.mocked(streamText).mock.calls[1]?.[0].messages;
+                expect(JSON.stringify(secondMessages)).toContain('call-rehydrate-driver');
+                expect(JSON.stringify(secondMessages)).toContain('driver result');
+                const history = await contextManager.getHistory();
+                const driverToolMessages = history.filter(
+                    (message) =>
+                        message.role === 'tool' && message.toolCallId === 'call-rehydrate-driver'
+                );
+                expect(driverToolMessages).toEqual([
+                    expect.objectContaining({
+                        name: 'driver_tool',
+                        success: true,
+                    }),
+                ]);
+            } finally {
+                rehydratedDriver.dispose();
+            }
+        });
+
+        it('preserves external cancellation when rehydrating before tool execution', async () => {
+            const executeTool = vi.fn().mockResolvedValue('should not run');
+            toolManager.addTools([
+                defineTool({
+                    id: 'cancelled_driver_tool',
+                    description: 'Cancelled driver tool',
+                    inputSchema: z.object({ value: z.string() }).strict(),
+                    execute: executeTool,
+                }),
+            ]);
+
+            vi.mocked(streamText).mockImplementationOnce(
+                () =>
+                    createMockStream({
+                        finishReason: 'tool-calls',
+                        toolCalls: [
+                            {
+                                toolCallId: 'call-cancelled-rehydrate',
+                                toolName: 'cancelled_driver_tool',
+                                args: { value: 'one' },
+                            },
+                        ],
+                    }) as unknown as ReturnType<typeof streamText>
+            );
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Use tools' }]);
+            const firstDriver = await executor.createDriver({ mcpManager }, { streaming: true });
+            await firstDriver.runNextModelStep();
+            const savedState = serializeTurnDriverState(firstDriver.checkpoint());
+
+            const abortController = new AbortController();
+            abortController.abort();
+            const restarted = restartExecutor(abortController.signal);
+            const rehydratedDriver = await restarted.executor.createDriver(
+                { mcpManager },
+                { streaming: true, state: savedState }
+            );
+
+            try {
+                await rehydratedDriver.executeToolCalls();
+                const stop = await rehydratedDriver.decideNextStep();
+
+                expect(stop).toEqual({
+                    kind: 'stop',
+                    stepCount: 0,
+                    finishReason: 'cancelled',
+                });
+                expect(executeTool).not.toHaveBeenCalled();
+                const history = await restarted.contextManager.getHistory();
+                expect(history).toContainEqual(
+                    expect.objectContaining({
+                        role: 'tool',
+                        toolCallId: 'call-cancelled-rehydrate',
+                        name: 'cancelled_driver_tool',
+                        success: false,
+                        content: [
+                            {
+                                type: 'text',
+                                text: '{"error":"Cancelled by user","cancelled":true}',
+                            },
+                        ],
+                    })
+                );
+            } finally {
+                rehydratedDriver.dispose();
+            }
+        });
+
+        it('rehydrates a stopped turn before finishing', async () => {
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
+            const firstDriver = await executor.createDriver({ mcpManager }, { streaming: true });
+            await firstDriver.runNextModelStep();
+            const stop = await firstDriver.decideNextStep();
+            const savedState = serializeTurnDriverState(firstDriver.checkpoint());
+            const restarted = restartExecutor();
+
+            const rehydratedDriver = await restarted.executor.createDriver(
+                { mcpManager },
+                { streaming: true, state: savedState }
+            );
+
+            try {
+                const result = await rehydratedDriver.finish();
+
+                expect(stop).toEqual(
+                    expect.objectContaining({
+                        kind: 'stop',
+                        finishReason: 'stop',
+                    })
+                );
+                expect(savedState).toEqual(
+                    expect.objectContaining({
+                        phase: 'stopped',
+                        stepCount: 0,
+                        startedAtMs: expect.any(Number),
+                        lastFinishReason: 'stop',
+                    })
+                );
+                expect(result).toEqual(
+                    expect.objectContaining({
+                        finishReason: 'stop',
+                        stepCount: 0,
+                        text: 'Hello!',
+                        usage: {
+                            inputTokens: 100,
+                            outputTokens: 50,
+                            totalTokens: 150,
+                            cacheReadTokens: 0,
+                            cacheWriteTokens: 0,
+                        },
+                    })
+                );
+                await expect(rehydratedDriver.runNextModelStep()).rejects.toThrow(
+                    'Turn driver has already finished'
+                );
+            } finally {
+                rehydratedDriver.dispose();
             }
         });
 

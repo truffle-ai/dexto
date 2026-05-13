@@ -8,6 +8,7 @@ import {
     type ModelMessage,
     APICallError,
 } from 'ai';
+import { z } from 'zod';
 import type { SharedV2ProviderOptions } from '@ai-sdk/provider';
 import { trace } from '@opentelemetry/api';
 import { ContextManager } from '../../context/manager.js';
@@ -62,6 +63,96 @@ import type { ApprovalDecisionInput } from '../../approval/manager.js';
 
 const MCP_TOOL_PREFIX = 'mcp--';
 const MODEL_REQUEST_MAX_RETRIES = 2;
+const LLMFinishReasonStateSchema = z.enum([
+    'stop',
+    'tool-calls',
+    'length',
+    'content-filter',
+    'error',
+    'other',
+    'unknown',
+    'cancelled',
+    'max-steps',
+]);
+
+const TokenUsageStateSchema = z
+    .object({
+        inputTokens: z.number().optional(),
+        outputTokens: z.number().optional(),
+        reasoningTokens: z.number().optional(),
+        totalTokens: z.number().optional(),
+        cacheReadTokens: z.number().optional(),
+        cacheWriteTokens: z.number().optional(),
+    })
+    .strict()
+    .transform((parsed): TokenUsage => {
+        const usage: TokenUsage = {};
+        if (parsed.inputTokens !== undefined) usage.inputTokens = parsed.inputTokens;
+        if (parsed.outputTokens !== undefined) usage.outputTokens = parsed.outputTokens;
+        if (parsed.reasoningTokens !== undefined) usage.reasoningTokens = parsed.reasoningTokens;
+        if (parsed.totalTokens !== undefined) usage.totalTokens = parsed.totalTokens;
+        if (parsed.cacheReadTokens !== undefined) usage.cacheReadTokens = parsed.cacheReadTokens;
+        if (parsed.cacheWriteTokens !== undefined) usage.cacheWriteTokens = parsed.cacheWriteTokens;
+        return usage;
+    });
+
+const ModelToolCallStateSchema = z
+    .object({
+        toolCallId: z.string(),
+        toolName: z.string(),
+        input: z.unknown(),
+    })
+    .strict();
+
+export const ModelStepResultStateSchema = z
+    .object({
+        text: z.string(),
+        finishReason: LLMFinishReasonStateSchema,
+        usage: TokenUsageStateSchema,
+        toolCalls: z.array(ModelToolCallStateSchema),
+    })
+    .strict();
+
+export const TurnDriverStateSchema = z.discriminatedUnion('phase', [
+    z
+        .object({
+            phase: z.literal('ready-for-model'),
+            stepCount: z.number().int().nonnegative(),
+            startedAtMs: z.number().int().nonnegative(),
+            supportsTools: z.boolean(),
+            lastText: z.string(),
+            lastUsage: TokenUsageStateSchema.nullable(),
+            lastFinishReason: LLMFinishReasonStateSchema,
+        })
+        .strict(),
+    z
+        .object({
+            phase: z.literal('model-step-complete'),
+            stepCount: z.number().int().nonnegative(),
+            startedAtMs: z.number().int().nonnegative(),
+            supportsTools: z.boolean(),
+            modelStepId: z.string(),
+            result: ModelStepResultStateSchema,
+            toolCallsExecuted: z.boolean(),
+        })
+        .strict(),
+    z
+        .object({
+            phase: z.literal('stopped'),
+            stepCount: z.number().int().nonnegative(),
+            startedAtMs: z.number().int().nonnegative(),
+            supportsTools: z.boolean(),
+            lastText: z.string(),
+            lastUsage: TokenUsageStateSchema.nullable(),
+            lastFinishReason: LLMFinishReasonStateSchema,
+            finished: z.boolean(),
+        })
+        .strict(),
+]);
+
+export function parseTurnDriverState(input: unknown): TurnDriverState {
+    return TurnDriverStateSchema.parse(input);
+}
 
 type PreparedModelToolCall =
     | {
@@ -152,6 +243,14 @@ type ModelStepScope = {
     [Symbol.dispose](): void;
 };
 
+export type ModelStepResultState = z.output<typeof ModelStepResultStateSchema>;
+export type TurnDriverState = z.output<typeof TurnDriverStateSchema>;
+
+export type TurnDriverOptions = {
+    streaming: boolean;
+    state?: TurnDriverState;
+};
+
 export type TurnDriverModelStep = {
     result: StreamProcessorResult;
     stepCount: number;
@@ -174,6 +273,8 @@ export type TurnDriver = {
     decideNextStep(): Promise<TurnDriverNextAction>;
     finish(): Promise<ExecutorResult>;
     fail(error: unknown): Promise<never>;
+    getState(): TurnDriverState;
+    checkpoint(): TurnDriverState;
     dispose(): void;
 };
 
@@ -284,7 +385,7 @@ export class TurnExecutor {
         contributorContext: DynamicContributorContext,
         streaming: boolean = true
     ): Promise<ExecutorResult> {
-        const driver = await this.createDriver(contributorContext, streaming);
+        const driver = await this.createDriver(contributorContext, { streaming });
 
         try {
             let stopped = false;
@@ -311,32 +412,100 @@ export class TurnExecutor {
 
     async createDriver(
         contributorContext: DynamicContributorContext,
-        streaming: boolean = true
+        options: TurnDriverOptions = { streaming: true }
     ): Promise<TurnDriver> {
-        const startTime = Date.now();
+        const now = Date.now();
+        const state: TurnDriverState = options.state ?? {
+            phase: 'ready-for-model',
+            stepCount: 0,
+            startedAtMs: now,
+            supportsTools: await this.validateInitialToolSupport(),
+            lastText: '',
+            lastUsage: null,
+            lastFinishReason: 'unknown',
+        };
+        const startTime = state.startedAtMs;
 
-        let stepCount = 0;
-        let lastStepTokens: TokenUsage | null = null;
-        let lastFinishReason: LLMFinishReason = 'unknown';
-        let lastText = '';
+        let stepCount = state.stepCount;
+        let lastStepTokens: TokenUsage | null =
+            state.phase === 'model-step-complete'
+                ? structuredClone(state.result.usage)
+                : structuredClone(state.lastUsage);
+        let lastFinishReason: LLMFinishReason =
+            state.phase === 'model-step-complete'
+                ? state.result.finishReason
+                : state.lastFinishReason;
+        let lastText = state.phase === 'model-step-complete' ? state.result.text : state.lastText;
         let currentStepScope: ModelStepScope | null = null;
-        let currentResult: StreamProcessorResult | null = null;
-        let currentToolCallsExecuted = false;
-        let stopped = false;
-        let finished = false;
+        let currentResult: StreamProcessorResult | null =
+            state.phase === 'model-step-complete' ? structuredClone(state.result) : null;
+        let currentToolCallsExecuted =
+            state.phase === 'model-step-complete' ? state.toolCallsExecuted : false;
+        let modelStepRunning = false;
+        let toolCallsRunning = false;
+        let stopped = state.phase === 'stopped';
+        let finished = state.phase === 'stopped' ? state.finished : false;
         let disposed = false;
 
-        let turn: TurnStart;
-        try {
-            turn = await this.startTurn();
-        } catch (error) {
-            this.cleanup();
-            throw error;
+        const turn: TurnStart = { supportsTools: state.supportsTools };
+
+        if (state.phase === 'model-step-complete') {
+            this.currentModelStepId = state.modelStepId;
+            currentStepScope = this.startModelStepScope();
         }
 
         const closeCurrentStepScope = () => {
             currentStepScope?.[Symbol.dispose]();
             currentStepScope = null;
+        };
+
+        const getState = (): TurnDriverState => {
+            if (modelStepRunning) {
+                throw new Error('Turn driver cannot checkpoint during a model step');
+            }
+            if (toolCallsRunning) {
+                throw new Error('Turn driver cannot checkpoint during tool execution');
+            }
+
+            if (stopped) {
+                return {
+                    phase: 'stopped',
+                    stepCount,
+                    startedAtMs: startTime,
+                    supportsTools: turn.supportsTools,
+                    lastText,
+                    lastUsage: structuredClone(lastStepTokens),
+                    lastFinishReason,
+                    finished,
+                };
+            }
+
+            if (currentResult !== null) {
+                return {
+                    phase: 'model-step-complete',
+                    stepCount,
+                    startedAtMs: startTime,
+                    supportsTools: turn.supportsTools,
+                    modelStepId: this.currentModelStepId,
+                    result: {
+                        text: currentResult.text,
+                        finishReason: currentResult.finishReason,
+                        usage: structuredClone(currentResult.usage),
+                        toolCalls: structuredClone(currentResult.toolCalls),
+                    },
+                    toolCallsExecuted: currentToolCallsExecuted,
+                };
+            }
+
+            return {
+                phase: 'ready-for-model',
+                stepCount,
+                startedAtMs: startTime,
+                supportsTools: turn.supportsTools,
+                lastText,
+                lastUsage: structuredClone(lastStepTokens),
+                lastFinishReason,
+            };
         };
 
         const assertCanUseDriver = () => {
@@ -358,38 +527,43 @@ export class TurnExecutor {
                     throw new Error('Previous model step has not been decided yet');
                 }
                 currentStepScope = this.startModelStepScope();
-                const modelStepRequest = await this.prepareNextModelRequest({
-                    contributorContext,
-                    supportsTools: turn.supportsTools,
-                    streaming,
-                });
+                modelStepRunning = true;
+                try {
+                    const modelStepRequest = await this.prepareNextModelRequest({
+                        contributorContext,
+                        supportsTools: turn.supportsTools,
+                        streaming: options.streaming,
+                    });
 
-                this.logger.debug(`Step ${stepCount}: Starting`);
-                this.currentModelStepId = `in-memory-model-step-${stepCount}`;
+                    this.logger.debug(`Step ${stepCount}: Starting`);
+                    this.currentModelStepId = `in-memory-model-step-${stepCount}`;
 
-                const result = await this.runModelStepWithRetry(modelStepRequest);
-                currentResult = result;
-                currentToolCallsExecuted = result.finishReason !== 'tool-calls';
+                    const result = await this.runModelStepWithRetry(modelStepRequest);
+                    currentResult = result;
+                    currentToolCallsExecuted = result.finishReason !== 'tool-calls';
 
-                lastStepTokens = result.usage;
-                lastFinishReason = result.finishReason;
-                lastText = result.text;
+                    lastStepTokens = result.usage;
+                    lastFinishReason = result.finishReason;
+                    lastText = result.text;
 
-                this.logger.debug(
-                    `Step ${stepCount}: Finished with reason="${result.finishReason}", ` +
-                        `tokens=${JSON.stringify(result.usage)}`
-                );
+                    this.logger.debug(
+                        `Step ${stepCount}: Finished with reason="${result.finishReason}", ` +
+                            `tokens=${JSON.stringify(result.usage)}`
+                    );
 
-                await this.applyModelStepResult({
-                    result,
-                    request: modelStepRequest,
-                    contributorContext,
-                });
+                    await this.applyModelStepResult({
+                        result,
+                        request: modelStepRequest,
+                        contributorContext,
+                    });
 
-                return {
-                    result,
-                    stepCount,
-                };
+                    return {
+                        result,
+                        stepCount,
+                    };
+                } finally {
+                    modelStepRunning = false;
+                }
             },
             executeToolCalls: async () => {
                 assertCanUseDriver();
@@ -404,8 +578,16 @@ export class TurnExecutor {
                     throw new Error('Tool calls for the current model step have already run');
                 }
                 if (result.finishReason === 'tool-calls') {
+                    toolCallsRunning = true;
                     currentToolCallsExecuted = true;
-                    await this.executeModelToolCalls(result.toolCalls);
+                    try {
+                        await this.executeModelToolCalls(result.toolCalls);
+                    } catch (error) {
+                        currentToolCallsExecuted = false;
+                        throw error;
+                    } finally {
+                        toolCallsRunning = false;
+                    }
                 }
             },
             decideNextStep: async () => {
@@ -444,18 +626,26 @@ export class TurnExecutor {
                 if (!stopped) {
                     throw new Error('Turn driver cannot finish before a stop decision');
                 }
-                finished = true;
-                return this.finishTurn({
+                const result = await this.finishTurn({
                     startTime,
                     stepCount,
                     text: lastText,
                     usage: lastStepTokens,
                     finishReason: lastFinishReason,
                 });
+                finished = true;
+                return result;
             },
             fail: async (error) => {
                 closeCurrentStepScope();
                 return this.failTurn(error, stepCount, startTime);
+            },
+            getState,
+            checkpoint: () => {
+                const state = getState();
+                disposed = true;
+                closeCurrentStepScope();
+                return state;
             },
             dispose: () => {
                 disposed = true;
@@ -471,6 +661,15 @@ export class TurnExecutor {
      */
     abort(): void {
         this.stepAbortController.abort();
+    }
+
+    private async validateInitialToolSupport(): Promise<boolean> {
+        try {
+            return (await this.startTurn()).supportsTools;
+        } catch (error) {
+            this.cleanup();
+            throw error;
+        }
     }
 
     private async startTurn(): Promise<TurnStart> {
@@ -505,7 +704,9 @@ export class TurnExecutor {
         this.stepAbortController = new AbortController();
 
         const abortHandler = () => this.stepAbortController.abort();
-        if (this.externalSignal && !this.externalSignal.aborted) {
+        if (this.externalSignal?.aborted) {
+            this.stepAbortController.abort();
+        } else if (this.externalSignal) {
             this.externalSignal.addEventListener('abort', abortHandler, { once: true });
         }
 
