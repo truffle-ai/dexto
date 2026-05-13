@@ -25,7 +25,7 @@ import {
     type PreparedToolCall,
     type RecordedToolApproval,
 } from '../../tools/tool-manager.js';
-import { ToolSet } from '../../tools/types.js';
+import type { ToolSet } from '../../tools/types.js';
 import type { ToolExecutionResult, ToolPresentationSnapshotV1 } from '../../tools/types.js';
 import type { ToolCallMetadata } from '../../tools/tool-call-metadata.js';
 import { StreamProcessor } from './stream-processor.js';
@@ -112,6 +112,7 @@ type QueuedInputAction =
 type ModelStepRequest = {
     messages: ModelMessage[];
     tools: VercelToolSet;
+    toolDefinitions: ToolSet;
     estimatedInputTokens: number;
     reasoning:
         | {
@@ -120,6 +121,12 @@ type ModelStepRequest = {
           }
         | undefined;
     providerOptions: SharedV2ProviderOptions | undefined;
+    streaming: boolean;
+};
+
+type ModelStepPreparationInput = {
+    contributorContext: DynamicContributorContext;
+    supportsTools: boolean;
     streaming: boolean;
 };
 
@@ -288,110 +295,16 @@ export class TurnExecutor {
                     });
                 }
 
-                // 1. Check for queued messages (mid-loop injection)
-                const coalesced = await this.steerQueue.dequeueAll();
-                if (coalesced) {
-                    await this.injectQueuedMessages(coalesced);
-                }
-
-                // 2. Prune old tool outputs BEFORE checking compaction
-                // This gives pruning a chance to free up space and potentially avoid compaction
-                await this.pruneOldToolOutputs();
-
-                // 3. Get formatted messages for this step
-                let prepared = await this.contextManager.getFormattedMessagesForLLM(
+                const modelStepRequest = await this.prepareNextModelRequest({
                     contributorContext,
-                    this.llmContext
-                );
-
-                // 4. PRE-CHECK: Estimate tokens and compact if over threshold BEFORE LLM call
-                // This ensures we never make an oversized call and avoids unnecessary compaction on stop steps
-                // Uses the same formula as /context overlay: lastInput + lastOutput + newMessagesEstimate
-                const toolDefinitions = supportsTools
-                    ? this.toolManager.filterToolsForSession(
-                          await this.toolManager.getAllTools(),
-                          this.sessionId
-                      )
-                    : {};
-                let estimatedTokens = await this.contextManager.getEstimatedNextInputTokens(
-                    prepared.systemPrompt,
-                    prepared.preparedHistory,
-                    toolDefinitions
-                );
-                if (this.shouldCompact(estimatedTokens)) {
-                    this.logger.debug(
-                        `Pre-check: estimated ${estimatedTokens} tokens exceeds threshold, compacting`
-                    );
-                    const didCompact = await this.compactContext(
-                        estimatedTokens,
-                        contributorContext,
-                        toolDefinitions
-                    );
-
-                    // If compaction occurred, rebuild messages (filterCompacted will handle it)
-                    if (didCompact) {
-                        prepared = await this.contextManager.getFormattedMessagesForLLM(
-                            contributorContext,
-                            this.llmContext
-                        );
-                        // Recompute token estimate after compaction for accurate analytics/metrics
-                        estimatedTokens = await this.contextManager.getEstimatedNextInputTokens(
-                            prepared.systemPrompt,
-                            prepared.preparedHistory,
-                            toolDefinitions
-                        );
-                        this.logger.debug(
-                            `Post-compaction: recomputed estimate is ${estimatedTokens} tokens`
-                        );
-                    }
-                }
+                    supportsTools,
+                    streaming,
+                });
 
                 this.logger.debug(`Step ${stepCount}: Starting`);
                 this.currentModelStepId = `in-memory-model-step-${stepCount}`;
 
-                // 5. Create model tool definitions. TurnExecutor executes returned tool calls.
-                // Use empty object if model doesn't support tools
-                const tools = supportsTools ? await this.createTools() : {};
-
-                // 6. Execute single step with stream processing
-                // Build provider-specific options (caching, reasoning, etc.)
-                const providerOptions = buildProviderOptions({
-                    provider: this.llmContext.provider,
-                    model: this.llmContext.model,
-                    reasoning: this.config.reasoning,
-                });
-
-                // Debug log for verifying reasoning + provider options are actually being sent.
-                // (Avoids logging headers/body; providerOptions captures the effective request knobs.)
-                this.logger.debug('LLM request options', {
-                    provider: this.llmContext.provider,
-                    model: this.llmContext.model,
-                    requestedReasoning: {
-                        variant: this.config.reasoning?.variant,
-                        budgetTokens: this.config.reasoning?.budgetTokens,
-                    },
-                    providerOptions,
-                });
-
-                const reasoningVariant = this.config.reasoning?.variant;
-                const reasoningBudgetTokens = getEffectiveReasoningBudgetTokens(providerOptions);
-
-                const reasoningForStream =
-                    reasoningVariant !== undefined || reasoningBudgetTokens !== undefined
-                        ? {
-                              ...(reasoningVariant !== undefined && { reasoningVariant }),
-                              ...(reasoningBudgetTokens !== undefined && { reasoningBudgetTokens }),
-                          }
-                        : undefined;
-
-                const result = await this.runModelStep({
-                    messages: prepared.formattedMessages,
-                    tools,
-                    estimatedInputTokens: estimatedTokens,
-                    reasoning: reasoningForStream,
-                    providerOptions: providerOptions as SharedV2ProviderOptions | undefined,
-                    streaming,
-                });
+                const result = await this.runModelStep(modelStepRequest);
 
                 // 7. Capture results for tracking and overflow check
                 lastStepTokens = result.usage;
@@ -432,13 +345,13 @@ export class TurnExecutor {
                     const actualInputTokens = contextInputTokens ?? result.usage.inputTokens;
 
                     // Log verification metric: compare our estimate vs actual from API
-                    const diff = estimatedTokens - actualInputTokens;
+                    const diff = modelStepRequest.estimatedInputTokens - actualInputTokens;
                     const diffPercent =
                         actualInputTokens > 0
                             ? ((diff / actualInputTokens) * 100).toFixed(1)
                             : '0.0';
                     this.logger.info(
-                        `Context estimation accuracy: estimated=${estimatedTokens}, actual=${actualInputTokens}, ` +
+                        `Context estimation accuracy: estimated=${modelStepRequest.estimatedInputTokens}, actual=${actualInputTokens}, ` +
                             `error=${diff} (${diffPercent}%)`
                     );
                     this.contextManager.setLastActualInputTokens(actualInputTokens);
@@ -473,7 +386,7 @@ export class TurnExecutor {
                     await this.compactContext(
                         contextInputTokens,
                         contributorContext,
-                        toolDefinitions
+                        modelStepRequest.toolDefinitions
                     );
                 }
 
@@ -758,17 +671,99 @@ export class TurnExecutor {
         }
     }
 
-    /**
-     * Creates model-only tool definitions. Tool side effects are executed after the model step
-     * returns its sibling tool calls.
-     */
-    private async createTools(): Promise<VercelToolSet> {
-        const tools: ToolSet = this.toolManager.filterToolsForSession(
-            await this.toolManager.getAllTools(),
-            this.sessionId
+    private async prepareNextModelRequest(
+        input: ModelStepPreparationInput
+    ): Promise<ModelStepRequest> {
+        // Check for queued messages before preparing context for the next model request.
+        const coalesced = await this.steerQueue.dequeueAll();
+        if (coalesced) {
+            await this.injectQueuedMessages(coalesced);
+        }
+
+        // Prune old tool outputs before compaction, so pruning can avoid unnecessary compaction.
+        await this.pruneOldToolOutputs();
+
+        let prepared = await this.contextManager.getFormattedMessagesForLLM(
+            input.contributorContext,
+            this.llmContext
         );
 
-        return createModelToolDefinitions(tools);
+        const toolDefinitions = input.supportsTools
+            ? this.toolManager.filterToolsForSession(
+                  await this.toolManager.getAllTools(),
+                  this.sessionId
+              )
+            : {};
+
+        let estimatedInputTokens = await this.contextManager.getEstimatedNextInputTokens(
+            prepared.systemPrompt,
+            prepared.preparedHistory,
+            toolDefinitions
+        );
+
+        if (this.shouldCompact(estimatedInputTokens)) {
+            this.logger.debug(
+                `Pre-check: estimated ${estimatedInputTokens} tokens exceeds threshold, compacting`
+            );
+            const didCompact = await this.compactContext(
+                estimatedInputTokens,
+                input.contributorContext,
+                toolDefinitions
+            );
+
+            if (didCompact) {
+                prepared = await this.contextManager.getFormattedMessagesForLLM(
+                    input.contributorContext,
+                    this.llmContext
+                );
+                estimatedInputTokens = await this.contextManager.getEstimatedNextInputTokens(
+                    prepared.systemPrompt,
+                    prepared.preparedHistory,
+                    toolDefinitions
+                );
+                this.logger.debug(
+                    `Post-compaction: recomputed estimate is ${estimatedInputTokens} tokens`
+                );
+            }
+        }
+
+        const providerOptions = buildProviderOptions({
+            provider: this.llmContext.provider,
+            model: this.llmContext.model,
+            reasoning: this.config.reasoning,
+        });
+
+        // Debug log for verifying reasoning + provider options are actually being sent.
+        // (Avoids logging headers/body; providerOptions captures the effective request knobs.)
+        this.logger.debug('LLM request options', {
+            provider: this.llmContext.provider,
+            model: this.llmContext.model,
+            requestedReasoning: {
+                variant: this.config.reasoning?.variant,
+                budgetTokens: this.config.reasoning?.budgetTokens,
+            },
+            providerOptions,
+        });
+
+        const reasoningVariant = this.config.reasoning?.variant;
+        const reasoningBudgetTokens = getEffectiveReasoningBudgetTokens(providerOptions);
+        const reasoning =
+            reasoningVariant !== undefined || reasoningBudgetTokens !== undefined
+                ? {
+                      ...(reasoningVariant !== undefined && { reasoningVariant }),
+                      ...(reasoningBudgetTokens !== undefined && { reasoningBudgetTokens }),
+                  }
+                : undefined;
+
+        return {
+            messages: prepared.formattedMessages,
+            tools: input.supportsTools ? createModelToolDefinitions(toolDefinitions) : {},
+            toolDefinitions,
+            estimatedInputTokens,
+            reasoning,
+            providerOptions: providerOptions as SharedV2ProviderOptions | undefined,
+            streaming: input.streaming,
+        };
     }
 
     private async runModelStep(request: ModelStepRequest): Promise<StreamProcessorResult> {
