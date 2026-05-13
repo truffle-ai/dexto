@@ -1746,6 +1746,157 @@ describe('TurnExecutor Integration Tests', () => {
             await expect(followUpQueue.dequeueAll()).resolves.toBeNull();
         });
 
+        it('applies steer queued during sibling tools only after all sibling tool results', async () => {
+            toolManager.addTools([
+                defineTool({
+                    id: 'first_tool',
+                    description: 'First tool',
+                    inputSchema: z.object({ value: z.string() }).strict(),
+                    execute: vi.fn().mockImplementation(async () => {
+                        await steerQueue.enqueue({
+                            content: [{ type: 'text', text: 'Steer after tools finish' }],
+                        });
+                        return 'first result';
+                    }),
+                }),
+                defineTool({
+                    id: 'second_tool',
+                    description: 'Second tool',
+                    inputSchema: z.object({ value: z.string() }).strict(),
+                    execute: vi.fn().mockResolvedValue('second result'),
+                }),
+            ]);
+
+            vi.mocked(streamText)
+                .mockImplementationOnce(
+                    () =>
+                        createMockStream({
+                            finishReason: 'tool-calls',
+                            toolCalls: [
+                                {
+                                    toolCallId: 'call-first',
+                                    toolName: 'first_tool',
+                                    args: { value: 'one' },
+                                },
+                                {
+                                    toolCallId: 'call-second',
+                                    toolName: 'second_tool',
+                                    args: { value: 'two' },
+                                },
+                            ],
+                        }) as unknown as ReturnType<typeof streamText>
+                )
+                .mockImplementationOnce(
+                    () =>
+                        createMockStream({
+                            text: 'done',
+                            finishReason: 'stop',
+                        }) as unknown as ReturnType<typeof streamText>
+                );
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Use both tools' }]);
+            await executor.execute({ mcpManager }, true);
+
+            expect(streamText).toHaveBeenCalledTimes(2);
+            const history = await contextManager.getHistory();
+            const ordered = history.map((message) => {
+                if (message.role === 'user') {
+                    const text = Array.isArray(message.content)
+                        ? message.content
+                              .filter((part) => part.type === 'text')
+                              .map((part) => part.text)
+                              .join(' ')
+                        : '';
+                    return `user:${text}`;
+                }
+                if (message.role === 'tool') return `tool:${message.toolCallId}`;
+                return message.role;
+            });
+
+            expect(ordered).toEqual(
+                expect.arrayContaining([
+                    'user:Use both tools',
+                    'tool:call-first',
+                    'tool:call-second',
+                    'user:Steer after tools finish',
+                ])
+            );
+            expect(ordered.indexOf('tool:call-first')).toBeLessThan(
+                ordered.indexOf('user:Steer after tools finish')
+            );
+            expect(ordered.indexOf('tool:call-second')).toBeLessThan(
+                ordered.indexOf('user:Steer after tools finish')
+            );
+            const secondCall = vi.mocked(streamText).mock.calls[1]?.[0];
+            const secondCallText = JSON.stringify(secondCall?.messages);
+            expect(secondCallText).toContain('first result');
+            expect(secondCallText).toContain('second result');
+            expect(secondCallText).toContain('Steer after tools finish');
+        });
+
+        it('keeps follow-up queued during sibling tools out of the immediate tool-result continuation', async () => {
+            toolManager.addTools([
+                defineTool({
+                    id: 'queue_follow_up',
+                    description: 'Queue follow-up',
+                    inputSchema: z.object({}).strict(),
+                    execute: vi.fn().mockImplementation(async () => {
+                        await followUpQueue.enqueue({
+                            content: [
+                                { type: 'text', text: 'Run as follow-up after tool response' },
+                            ],
+                        });
+                        return 'tool result';
+                    }),
+                }),
+            ]);
+
+            vi.mocked(streamText)
+                .mockImplementationOnce(
+                    () =>
+                        createMockStream({
+                            finishReason: 'tool-calls',
+                            toolCalls: [
+                                {
+                                    toolCallId: 'call-follow-up',
+                                    toolName: 'queue_follow_up',
+                                    args: {},
+                                },
+                            ],
+                        }) as unknown as ReturnType<typeof streamText>
+                )
+                .mockImplementationOnce(
+                    () =>
+                        createMockStream({
+                            text: 'Tool response complete',
+                            finishReason: 'stop',
+                        }) as unknown as ReturnType<typeof streamText>
+                )
+                .mockImplementationOnce(
+                    () =>
+                        createMockStream({
+                            text: 'Follow-up complete',
+                            finishReason: 'stop',
+                        }) as unknown as ReturnType<typeof streamText>
+                );
+
+            await contextManager.addUserMessage([
+                { type: 'text', text: 'Use tool then follow up' },
+            ]);
+            const result = await executor.execute({ mcpManager }, true);
+
+            expect(result.text).toBe('Follow-up complete');
+            expect(streamText).toHaveBeenCalledTimes(3);
+            const secondCallText = JSON.stringify(
+                vi.mocked(streamText).mock.calls[1]?.[0].messages
+            );
+            const thirdCallText = JSON.stringify(vi.mocked(streamText).mock.calls[2]?.[0].messages);
+            expect(secondCallText).toContain('tool result');
+            expect(secondCallText).not.toContain('Run as follow-up after tool response');
+            expect(thirdCallText).toContain('Run as follow-up after tool response');
+            await expect(followUpQueue.dequeueAll()).resolves.toBeNull();
+        });
+
         it('should not process late steer messages after cancellation', async () => {
             const abortController = new AbortController();
             let callCount = 0;
@@ -2856,6 +3007,75 @@ describe('TurnExecutor Integration Tests', () => {
 
             expect(events).toEqual(['context:compacting', 'context:compacted', 'streamText']);
             expect(compactionStrategy.compact).toHaveBeenCalledTimes(1);
+        });
+
+        it('queues steer submitted during compaction for the next model step', async () => {
+            const events: string[] = [];
+            const compactionStrategy = createTestCompactionStrategy((tokens) => tokens > 10);
+            vi.mocked(compactionStrategy.compact).mockImplementation(async (history) => {
+                await steerQueue.enqueue({
+                    content: [{ type: 'text', text: 'Steer queued while compacting' }],
+                });
+                return [
+                    {
+                        role: 'user',
+                        content: [
+                            {
+                                type: 'text',
+                                text: '<session_compaction>Compacted during steer</session_compaction>',
+                            },
+                        ],
+                        isSummary: true,
+                        metadata: {
+                            compaction: {
+                                algorithm: 'test-compaction',
+                                sourceMessageCount: history.length,
+                                compactedAt: new Date().toISOString(),
+                            },
+                        },
+                    },
+                ];
+            });
+            sessionEventBus.on('context:compacting', () => events.push('context:compacting'));
+            sessionEventBus.on('context:compacted', () => events.push('context:compacted'));
+            vi.mocked(streamText)
+                .mockImplementationOnce((options) => {
+                    events.push('streamText:first');
+                    const requestJson = JSON.stringify(options.messages);
+                    expect(requestJson).toContain('Compacted during steer');
+                    expect(requestJson).not.toContain('Steer queued while compacting');
+                    return createMockStream({
+                        text: 'Compacted response',
+                        finishReason: 'stop',
+                        usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+                    }) as unknown as ReturnType<typeof streamText>;
+                })
+                .mockImplementationOnce((options) => {
+                    events.push('streamText:second');
+                    const requestJson = JSON.stringify(options.messages);
+                    expect(requestJson).toContain('Steer queued while compacting');
+                    return createMockStream({
+                        text: 'Steered response',
+                        finishReason: 'stop',
+                        usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+                    }) as unknown as ReturnType<typeof streamText>;
+                });
+
+            const compactingExecutor = createExecutorWithCompaction(compactionStrategy);
+
+            await seedCompactionEligibleHistory();
+
+            const result = await compactingExecutor.execute({ mcpManager }, true);
+
+            expect(result.text).toBe('Steered response');
+            expect(events).toEqual([
+                'context:compacting',
+                'context:compacted',
+                'streamText:first',
+                'streamText:second',
+            ]);
+            expect(compactionStrategy.compact).toHaveBeenCalledTimes(1);
+            await expect(steerQueue.dequeueAll()).resolves.toBeNull();
         });
 
         it('compacts after a response when actual input usage crosses the threshold', async () => {
