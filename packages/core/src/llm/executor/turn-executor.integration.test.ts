@@ -30,6 +30,8 @@ import {
 } from '../../test-utils/session-state-stores.js';
 import { ApprovalStatus } from '../../approval/types.js';
 import type { ApprovalHandler, ApprovalRequest, ApprovalResponse } from '../../approval/types.js';
+import { createAgentRunContext, type AgentRunContext } from '../../runtime/run-context.js';
+import { createToolExecutionId } from '../../storage/tool-executions/types.js';
 
 // Only mock the AI SDK's streamText/generateText - everything else is real
 vi.mock('ai', async (importOriginal) => {
@@ -288,7 +290,8 @@ describe('TurnExecutor Integration Tests', () => {
 
     function createExecutorWithContext(
         persistedContextManager: ContextManager<ModelMessage>,
-        externalSignal?: AbortSignal
+        externalSignal?: AbortSignal,
+        runContext?: AgentRunContext
     ): TurnExecutor {
         return new TurnExecutor(
             createMockModel(),
@@ -303,7 +306,9 @@ describe('TurnExecutor Integration Tests', () => {
             steerQueue,
             followUpQueue,
             undefined,
-            externalSignal
+            externalSignal,
+            null,
+            runContext
         );
     }
 
@@ -890,6 +895,75 @@ describe('TurnExecutor Integration Tests', () => {
             } finally {
                 rehydratedDriver.dispose();
             }
+        });
+
+        it('records model tool execution with the current model step when host context omits modelStepId', async () => {
+            const executeTool = vi.fn(() => 'driver result');
+            toolManager.addTools([
+                defineTool({
+                    id: 'driver_tool',
+                    description: 'Driver tool',
+                    inputSchema: z.object({ value: z.string() }).strict(),
+                    execute: executeTool,
+                }),
+            ]);
+
+            vi.mocked(streamText)
+                .mockImplementationOnce(
+                    () =>
+                        createMockStream({
+                            finishReason: 'tool-calls',
+                            toolCalls: [
+                                {
+                                    toolCallId: 'call-host-context',
+                                    toolName: 'driver_tool',
+                                    args: { value: 'one' },
+                                },
+                            ],
+                        }) as unknown as ReturnType<typeof streamText>
+                )
+                .mockImplementationOnce(
+                    () =>
+                        createMockStream({
+                            text: 'done',
+                            finishReason: 'stop',
+                        }) as unknown as ReturnType<typeof streamText>
+                );
+
+            const runContext = createAgentRunContext({
+                sessionId,
+                hostRuntime: {
+                    ids: {
+                        runId: 'run-cloud',
+                        turnId: 'turn-cloud',
+                    },
+                },
+            });
+            const hostedExecutor = createExecutorWithContext(contextManager, undefined, runContext);
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Use tools' }]);
+            const result = await hostedExecutor.execute({ mcpManager }, true);
+
+            const executionId = createToolExecutionId({
+                runId: 'run-cloud',
+                turnId: 'turn-cloud',
+                modelStepId: 'in-memory-model-step-0',
+                toolCallId: 'call-host-context',
+            });
+            await expect(stores.getStore('toolExecutions').get({ executionId })).resolves.toEqual(
+                expect.objectContaining({
+                    identity: {
+                        runId: 'run-cloud',
+                        turnId: 'turn-cloud',
+                        modelStepId: 'in-memory-model-step-0',
+                        toolCallId: 'call-host-context',
+                    },
+                    status: 'completed',
+                    toolName: 'driver_tool',
+                })
+            );
+            expect(result.text).toBe('done');
+            expect(executeTool).toHaveBeenCalledTimes(1);
         });
 
         it('preserves external cancellation when rehydrating before tool execution', async () => {

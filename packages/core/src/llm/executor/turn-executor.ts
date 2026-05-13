@@ -29,6 +29,7 @@ import {
 import type { ToolSet } from '../../tools/types.js';
 import type { ToolExecutionResult, ToolPresentationSnapshotV1 } from '../../tools/types.js';
 import type { ToolCallMetadata } from '../../tools/tool-call-metadata.js';
+import type { ToolExecutionIdentity } from '../../storage/tool-executions/types.js';
 import { StreamProcessor } from './stream-processor.js';
 import { truncateToolResult } from './tool-output-truncator.js';
 import type { ExecutorResult, ModelToolCall, StreamProcessorResult } from './types.js';
@@ -1287,7 +1288,10 @@ export class TurnExecutor {
             }
 
             if (prepared.kind === 'ready') {
-                return this.executePreparedToolCallWithAbort(prepared.call);
+                return this.executePreparedToolCallWithAbort(
+                    prepared.call,
+                    this.resolveModelToolExecutionIdentity(preparedCall.toolCall.toolCallId)
+                );
             }
 
             const identity = this.resolveToolApprovalIdentity();
@@ -1306,7 +1310,10 @@ export class TurnExecutor {
                 return applied.modelVisibleResult;
             }
 
-            return this.executePreparedToolCallWithAbort(applied.call);
+            return this.executePreparedToolCallWithAbort(
+                applied.call,
+                this.resolveModelToolExecutionIdentity(preparedCall.toolCall.toolCallId)
+            );
         } catch (error) {
             return this.failedToolResult(
                 preparedCall.toolCall.toolName,
@@ -1330,7 +1337,8 @@ export class TurnExecutor {
     }
 
     private async executePreparedToolCallWithAbort(
-        call: Parameters<ToolManager['executePreparedToolCall']>[0]
+        call: Parameters<ToolManager['executePreparedToolCall']>[0],
+        executionIdentity: ToolExecutionIdentity
     ): Promise<ToolExecutionResult> {
         const abortSignal = this.stepAbortController.signal;
         let abortHandler: (() => void) | null = null;
@@ -1347,6 +1355,7 @@ export class TurnExecutor {
                 this.toolManager.executePreparedToolCall(call, {
                     sessionId: this.sessionId,
                     abortSignal,
+                    executionIdentity,
                     ...(this.runContext !== undefined ? { runContext: this.runContext } : {}),
                 }),
                 abortPromise,
@@ -1528,6 +1537,16 @@ export class TurnExecutor {
             runId: ids?.runId ?? this.sessionId,
             turnId: ids?.turnId ?? 'in-memory-turn',
             modelStepId: ids?.modelStepId ?? this.currentModelStepId,
+        };
+    }
+
+    private resolveModelToolExecutionIdentity(toolCallId: string): ToolExecutionIdentity {
+        const ids = this.runContext?.hostRuntime?.ids;
+        return {
+            runId: ids?.runId ?? this.sessionId,
+            turnId: ids?.turnId ?? 'in-memory-turn',
+            modelStepId: ids?.modelStepId ?? this.currentModelStepId,
+            toolCallId,
         };
     }
 
