@@ -581,6 +581,73 @@ describe('TurnExecutor Integration Tests', () => {
             );
         });
 
+        it('preserves single-step model request options at the streamText boundary', async () => {
+            toolManager.addTools([
+                defineTool({
+                    id: 'sdk_only',
+                    description: 'SDK only tool',
+                    inputSchema: z.object({ value: z.string() }).strict(),
+                    execute: vi.fn().mockResolvedValue('tool result'),
+                }),
+            ]);
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Use tools' }]);
+            await executor.execute({ mcpManager }, true);
+
+            const firstCallOptions = vi.mocked(streamText).mock.calls[0]?.[0];
+            expect(firstCallOptions).toEqual(
+                expect.objectContaining({
+                    model: expect.objectContaining({ modelId: 'test-model' }),
+                    messages: expect.arrayContaining([
+                        expect.objectContaining({
+                            role: 'user',
+                            content: [{ type: 'text', text: 'Use tools' }],
+                        }),
+                    ]),
+                    tools: expect.objectContaining({
+                        sdk_only: expect.objectContaining({
+                            description: 'SDK only tool',
+                        }),
+                    }),
+                    maxOutputTokens: 4096,
+                    temperature: 0.7,
+                })
+            );
+            expect(firstCallOptions?.stopWhen).toBeDefined();
+            expect(firstCallOptions?.abortSignal).toBeInstanceOf(AbortSignal);
+        });
+
+        it('passes provider reasoning options through the model step request', async () => {
+            const reasoningExecutor = new TurnExecutor(
+                createMockModel(),
+                toolManager,
+                contextManager,
+                sessionEventBus,
+                resourceManager,
+                sessionId,
+                { maxSteps: 10, reasoning: { variant: 'high' } },
+                { provider: 'openai', model: 'gpt-5.2' },
+                logger,
+                steerQueue,
+                followUpQueue
+            );
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Think harder' }]);
+            await reasoningExecutor.execute({ mcpManager }, true);
+
+            const firstCallOptions = vi.mocked(streamText).mock.calls[0]?.[0];
+            expect(firstCallOptions).toEqual(
+                expect.objectContaining({
+                    providerOptions: {
+                        openai: {
+                            reasoningEffort: 'high',
+                            reasoningSummary: 'auto',
+                        },
+                    },
+                })
+            );
+        });
+
         it('preserves auto-approved write diff metadata through executor events and history', async () => {
             toolManager.addTools([
                 defineTool({

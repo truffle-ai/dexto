@@ -8,6 +8,7 @@ import {
     type ModelMessage,
     APICallError,
 } from 'ai';
+import type { SharedV2ProviderOptions } from '@ai-sdk/provider';
 import { trace } from '@opentelemetry/api';
 import { ContextManager } from '../../context/manager.js';
 import type {
@@ -29,7 +30,7 @@ import type { ToolExecutionResult, ToolPresentationSnapshotV1 } from '../../tool
 import type { ToolCallMetadata } from '../../tools/tool-call-metadata.js';
 import { StreamProcessor } from './stream-processor.js';
 import { truncateToolResult } from './tool-output-truncator.js';
-import type { ExecutorResult, ModelToolCall } from './types.js';
+import type { ExecutorResult, ModelToolCall, StreamProcessorResult } from './types.js';
 import { buildProviderOptions, getEffectiveReasoningBudgetTokens } from './provider-options.js';
 import type {
     TokenUsage,
@@ -107,6 +108,20 @@ type QueuedInputAction =
           stepCount: number;
           finishReason: LLMFinishReason;
       };
+
+type ModelStepRequest = {
+    messages: ModelMessage[];
+    tools: VercelToolSet;
+    estimatedInputTokens: number;
+    reasoning:
+        | {
+              reasoningVariant?: ReasoningVariant;
+              reasoningBudgetTokens?: number;
+          }
+        | undefined;
+    providerOptions: SharedV2ProviderOptions | undefined;
+    streaming: boolean;
+};
 
 /**
  * Static cache for tool support validation.
@@ -369,39 +384,14 @@ export class TurnExecutor {
                           }
                         : undefined;
 
-                const streamProcessor = new StreamProcessor(
-                    this.contextManager,
-                    this.eventBus,
-                    this.stepAbortController.signal,
-                    this.getStreamProcessorConfig(estimatedTokens, reasoningForStream),
-                    this.logger,
-                    streaming
-                );
-
-                const result = await streamProcessor.process(() =>
-                    streamText({
-                        model: this.model,
-                        stopWhen: stepCountIs(1),
-                        tools,
-                        abortSignal: this.stepAbortController.signal,
-                        messages: prepared.formattedMessages,
-                        ...(this.config.maxOutputTokens !== undefined && {
-                            maxOutputTokens: this.config.maxOutputTokens,
-                        }),
-                        ...(this.config.temperature !== undefined && {
-                            temperature: this.config.temperature,
-                        }),
-                        // Provider-specific options (caching, reasoning, etc.)
-                        ...(providerOptions !== undefined && {
-                            providerOptions:
-                                providerOptions as import('@ai-sdk/provider').SharedV2ProviderOptions,
-                        }),
-                        // Log stream-level errors (tool errors, API errors during streaming)
-                        onError: (error) => {
-                            this.logger.error('Stream error', { error });
-                        },
-                    })
-                );
+                const result = await this.runModelStep({
+                    messages: prepared.formattedMessages,
+                    tools,
+                    estimatedInputTokens: estimatedTokens,
+                    reasoning: reasoningForStream,
+                    providerOptions: providerOptions as SharedV2ProviderOptions | undefined,
+                    streaming,
+                });
 
                 // 7. Capture results for tracking and overflow check
                 lastStepTokens = result.usage;
@@ -779,6 +769,41 @@ export class TurnExecutor {
         );
 
         return createModelToolDefinitions(tools);
+    }
+
+    private async runModelStep(request: ModelStepRequest): Promise<StreamProcessorResult> {
+        const streamProcessor = new StreamProcessor(
+            this.contextManager,
+            this.eventBus,
+            this.stepAbortController.signal,
+            this.getStreamProcessorConfig(request.estimatedInputTokens, request.reasoning),
+            this.logger,
+            request.streaming
+        );
+
+        return streamProcessor.process(() =>
+            streamText({
+                model: this.model,
+                stopWhen: stepCountIs(1),
+                tools: request.tools,
+                abortSignal: this.stepAbortController.signal,
+                messages: request.messages,
+                ...(this.config.maxOutputTokens !== undefined && {
+                    maxOutputTokens: this.config.maxOutputTokens,
+                }),
+                ...(this.config.temperature !== undefined && {
+                    temperature: this.config.temperature,
+                }),
+                // Provider-specific options (caching, reasoning, etc.)
+                ...(request.providerOptions !== undefined && {
+                    providerOptions: request.providerOptions,
+                }),
+                // Log stream-level errors (tool errors, API errors during streaming)
+                onError: (error) => {
+                    this.logger.error('Stream error', { error });
+                },
+            })
+        );
     }
 
     private async executeModelToolCalls(toolCalls: ModelToolCall[]): Promise<void> {
