@@ -136,6 +136,22 @@ type ModelStepApplicationInput = {
     contributorContext: DynamicContributorContext;
 };
 
+type TurnStart = {
+    supportsTools: boolean;
+};
+
+type FinishTurnInput = {
+    startTime: number;
+    stepCount: number;
+    text: string;
+    usage: TokenUsage | null;
+    finishReason: LLMFinishReason;
+};
+
+type ModelStepScope = {
+    [Symbol.dispose](): void;
+};
+
 /**
  * Static cache for tool support validation.
  * Persists across TurnExecutor instances to avoid repeated validation calls.
@@ -254,56 +270,15 @@ export class TurnExecutor {
         let lastFinishReason: LLMFinishReason = 'unknown';
         let lastText = '';
 
-        this.eventBus.emit('llm:thinking', {});
-
-        // Check tool support once before the loop
-        const supportsTools = await this.validateToolSupport();
-
-        // Emit warning if tools are not supported
-        if (!supportsTools) {
-            const modelKey = `${this.llmContext.provider}:${this.llmContext.model}`;
-            this.eventBus.emit('llm:unsupported-input', {
-                errors: [
-                    `Model '${modelKey}' does not support tool calling.`,
-                    'You can still chat, but the model will not be able to use tools or execute commands.',
-                ],
-                provider: this.llmContext.provider,
-                model: this.llmContext.model,
-                details: {
-                    feature: 'tool-calling',
-                    supported: false,
-                },
-            });
-            this.logger.warn(
-                `Model ${modelKey} does not support tools - continuing without tool calling`
-            );
-        }
-
-        // Track current abort handler to remove between iterations (prevents listener accumulation)
-        let currentAbortHandler: (() => void) | null = null;
+        const turn = await this.startTurn();
 
         try {
             while (true) {
-                // 0. Clean up previous iteration's abort handler (if any)
-                if (currentAbortHandler && this.externalSignal) {
-                    this.externalSignal.removeEventListener('abort', currentAbortHandler);
-                }
-
-                // Create fresh abort controller for this step
-                // This allows soft cancel (abort current step) while continuing with queued messages
-                this.stepAbortController = new AbortController();
-
-                // Link external signal to this step only (if not already aborted for hard cancel)
-                currentAbortHandler = () => this.stepAbortController.abort();
-                if (this.externalSignal && !this.externalSignal.aborted) {
-                    this.externalSignal.addEventListener('abort', currentAbortHandler, {
-                        once: true,
-                    });
-                }
+                using _stepScope = this.startModelStepScope();
 
                 const modelStepRequest = await this.prepareNextModelRequest({
                     contributorContext,
-                    supportsTools,
+                    supportsTools: turn.supportsTools,
                     streaming,
                 });
 
@@ -340,49 +315,16 @@ export class TurnExecutor {
                 }
             }
         } catch (error) {
-            // Map provider errors to DextoRuntimeError
-            const mappedError = this.mapProviderError(error);
-            this.logger.error('TurnExecutor failed', { error: mappedError });
-
-            this.eventBus.emit('llm:error', {
-                error: mappedError,
-                context: 'TurnExecutor',
-                recoverable: false,
-            });
-
-            // Flush any pending history updates before completing
-            await this.contextManager.flush();
-
-            // Emit run:complete with error before throwing
-            this.eventBus.emit('run:complete', {
-                finishReason: 'error',
-                stepCount,
-                durationMs: Date.now() - startTime,
-                error: mappedError,
-            });
-
-            throw mappedError;
+            await this.failTurn(error, stepCount, startTime);
         }
 
-        // Flush any pending history updates to ensure durability
-        await this.contextManager.flush();
-
-        // Set telemetry attributes for token usage
-        this.setTelemetryAttributes(lastStepTokens);
-
-        // Emit run:complete event - the entire run is now finished
-        this.eventBus.emit('run:complete', {
-            finishReason: lastFinishReason,
+        return this.finishTurn({
+            startTime,
             stepCount,
-            durationMs: Date.now() - startTime,
-        });
-
-        return {
             text: lastText,
-            stepCount,
             usage: lastStepTokens,
             finishReason: lastFinishReason,
-        };
+        });
     }
 
     /**
@@ -391,6 +333,90 @@ export class TurnExecutor {
      */
     abort(): void {
         this.stepAbortController.abort();
+    }
+
+    private async startTurn(): Promise<TurnStart> {
+        this.eventBus.emit('llm:thinking', {});
+
+        const supportsTools = await this.validateToolSupport();
+        if (!supportsTools) {
+            const modelKey = `${this.llmContext.provider}:${this.llmContext.model}`;
+            this.eventBus.emit('llm:unsupported-input', {
+                errors: [
+                    `Model '${modelKey}' does not support tool calling.`,
+                    'You can still chat, but the model will not be able to use tools or execute commands.',
+                ],
+                provider: this.llmContext.provider,
+                model: this.llmContext.model,
+                details: {
+                    feature: 'tool-calling',
+                    supported: false,
+                },
+            });
+            this.logger.warn(
+                `Model ${modelKey} does not support tools - continuing without tool calling`
+            );
+        }
+
+        return { supportsTools };
+    }
+
+    private startModelStepScope(): ModelStepScope {
+        // Fresh per-step controller: soft cancel aborts current work, while queued input can
+        // continue in a later step with a new controller.
+        this.stepAbortController = new AbortController();
+
+        const abortHandler = () => this.stepAbortController.abort();
+        if (this.externalSignal && !this.externalSignal.aborted) {
+            this.externalSignal.addEventListener('abort', abortHandler, { once: true });
+        }
+
+        return {
+            [Symbol.dispose]: () => {
+                this.externalSignal?.removeEventListener('abort', abortHandler);
+            },
+        };
+    }
+
+    private async finishTurn(input: FinishTurnInput): Promise<ExecutorResult> {
+        await this.contextManager.flush();
+
+        this.setTelemetryAttributes(input.usage);
+
+        this.eventBus.emit('run:complete', {
+            finishReason: input.finishReason,
+            stepCount: input.stepCount,
+            durationMs: Date.now() - input.startTime,
+        });
+
+        return {
+            text: input.text,
+            stepCount: input.stepCount,
+            usage: input.usage,
+            finishReason: input.finishReason,
+        };
+    }
+
+    private async failTurn(error: unknown, stepCount: number, startTime: number): Promise<never> {
+        const mappedError = this.mapProviderError(error);
+        this.logger.error('TurnExecutor failed', { error: mappedError });
+
+        this.eventBus.emit('llm:error', {
+            error: mappedError,
+            context: 'TurnExecutor',
+            recoverable: false,
+        });
+
+        await this.contextManager.flush();
+
+        this.eventBus.emit('run:complete', {
+            finishReason: 'error',
+            stepCount,
+            durationMs: Date.now() - startTime,
+            error: mappedError,
+        });
+
+        throw mappedError;
     }
 
     private advanceStep(stepCount: number): StepAdvance {
