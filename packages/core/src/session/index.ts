@@ -1,4 +1,4 @@
-export { ChatSession } from './chat-session.js';
+export { ChatSession, type ChatSessionTurnDriverInput } from './chat-session.js';
 export { SessionManager } from './session-manager.js';
 export type {
     ModelStatistics,

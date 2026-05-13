@@ -35,6 +35,23 @@ import { parseCodexBaseURL } from '../llm/providers/codex-base-url.js';
 import type { VercelLLMService } from '../llm/services/vercel.js';
 import type { AgentRunContext } from '../runtime/run-context.js';
 import { SessionError } from './errors.js';
+import type { TurnDriver, TurnDriverState } from '../llm/executor/turn-executor.js';
+
+export type ChatSessionTurnDriverInput =
+    | {
+          kind: 'start';
+          content: ContentInput;
+          streaming?: boolean;
+          signal?: AbortSignal;
+          runContext?: AgentRunContext;
+      }
+    | {
+          kind: 'resume';
+          state: TurnDriverState;
+          streaming?: boolean;
+          signal?: AbortSignal;
+          runContext?: AgentRunContext;
+      };
 
 /**
  * Represents an isolated conversation session within a Dexto agent.
@@ -369,6 +386,107 @@ export class ChatSession {
         });
     }
 
+    private normalizeContent(content: ContentInput): ContentPart[] {
+        return typeof content === 'string' ? [{ type: 'text', text: content }] : content;
+    }
+
+    private async prepareTurnInput(
+        content: ContentInput,
+        signal: AbortSignal,
+        runContext?: AgentRunContext
+    ): Promise<ContentPart[]> {
+        const parts = this.normalizeContent(content);
+
+        const textParts = parts.filter(
+            (p): p is { type: 'text'; text: string } => p.type === 'text'
+        );
+        const imageParts = parts.filter((p) => p.type === 'image');
+        const fileParts = parts.filter((p) => p.type === 'file');
+
+        this.logger.debug(
+            `Streaming session ${this.id} | textParts=${textParts.length} | images=${imageParts.length} | files=${fileParts.length}`
+        );
+
+        const textContent = textParts.map((p) => p.text).join('\n');
+        const firstImage = imageParts[0] as
+            | { type: 'image'; image: string; mimeType?: string }
+            | undefined;
+        const firstFile = fileParts[0] as
+            | { type: 'file'; data: string; mimeType: string; filename?: string }
+            | undefined;
+
+        const beforeLLMPayload: BeforeLLMRequestPayload = {
+            text: textContent,
+            ...(firstImage && {
+                imageData: {
+                    image: typeof firstImage.image === 'string' ? firstImage.image : '[binary]',
+                    mimeType: firstImage.mimeType || 'image/jpeg',
+                },
+            }),
+            ...(firstFile && {
+                fileData: {
+                    data: typeof firstFile.data === 'string' ? firstFile.data : '[binary]',
+                    mimeType: firstFile.mimeType,
+                    ...(firstFile.filename && { filename: firstFile.filename }),
+                },
+            }),
+            sessionId: this.id,
+        };
+
+        const modifiedBeforePayload = await this.services.hookManager.executeHooks(
+            'beforeLLMRequest',
+            beforeLLMPayload,
+            {
+                sessionManager: this.services.sessionManager,
+                mcpManager: this.services.mcpManager,
+                toolManager: this.services.toolManager,
+                stateManager: this.services.stateManager,
+                ...(runContext !== undefined && { runContext }),
+                sessionId: this.id,
+                abortSignal: signal,
+            }
+        );
+
+        if (modifiedBeforePayload.text === textContent || textParts.length === 0) {
+            return parts;
+        }
+
+        return [
+            { type: 'text', text: modifiedBeforePayload.text },
+            ...parts.filter((p) => p.type !== 'text'),
+        ];
+    }
+
+    private async applyBeforeResponseHooks(
+        content: string,
+        signal: AbortSignal,
+        runContext?: AgentRunContext
+    ): Promise<string> {
+        const llmConfig = this.services.stateManager.getLLMConfig(this.id);
+        const beforeResponsePayload: BeforeResponsePayload = {
+            content,
+            provider: llmConfig.provider,
+            model: llmConfig.model,
+            sessionId: this.id,
+        };
+
+        const modifiedResponsePayload = await this.services.hookManager.executeHooks(
+            'beforeResponse',
+            beforeResponsePayload,
+            {
+                sessionManager: this.services.sessionManager,
+                mcpManager: this.services.mcpManager,
+                toolManager: this.services.toolManager,
+                stateManager: this.services.stateManager,
+                ...(runContext !== undefined && { runContext }),
+                sessionId: this.id,
+                abortSignal: signal,
+            }
+        );
+
+        return modifiedResponsePayload.content;
+    }
+
     /**
      * Stream a response for the given content.
      * Primary method for running conversations with multi-image support.
@@ -397,20 +515,7 @@ export class ChatSession {
             runContext?: AgentRunContext;
         }
     ): Promise<{ text: string }> {
-        // Normalize content to ContentPart[]
-        const parts: ContentPart[] =
-            typeof content === 'string' ? [{ type: 'text', text: content }] : content;
-
-        // Extract text for logging (no sensitive content)
-        const textParts = parts.filter(
-            (p): p is { type: 'text'; text: string } => p.type === 'text'
-        );
-        const imageParts = parts.filter((p) => p.type === 'image');
-        const fileParts = parts.filter((p) => p.type === 'file');
-
-        this.logger.debug(
-            `Streaming session ${this.id} | textParts=${textParts.length} | images=${imageParts.length} | files=${fileParts.length}`
-        );
+        const parts = this.normalizeContent(content);
 
         if (this.isBusy()) {
             throw SessionError.busy(this.id);
@@ -424,87 +529,17 @@ export class ChatSession {
         const detachForwarders = this.attachRunEventForwarders(options?.runContext);
 
         try {
-            // Execute beforeLLMRequest hooks
-            // Extract first image/file for the hook payload.
-            const textContent = textParts.map((p) => p.text).join('\n');
-            const firstImage = imageParts[0] as
-                | { type: 'image'; image: string; mimeType?: string }
-                | undefined;
-            const firstFile = fileParts[0] as
-                | { type: 'file'; data: string; mimeType: string; filename?: string }
-                | undefined;
-
-            const beforeLLMPayload: BeforeLLMRequestPayload = {
-                text: textContent,
-                ...(firstImage && {
-                    imageData: {
-                        image: typeof firstImage.image === 'string' ? firstImage.image : '[binary]',
-                        mimeType: firstImage.mimeType || 'image/jpeg',
-                    },
-                }),
-                ...(firstFile && {
-                    fileData: {
-                        data: typeof firstFile.data === 'string' ? firstFile.data : '[binary]',
-                        mimeType: firstFile.mimeType,
-                        ...(firstFile.filename && { filename: firstFile.filename }),
-                    },
-                }),
-                sessionId: this.id,
-            };
-
-            const modifiedBeforePayload = await this.services.hookManager.executeHooks(
-                'beforeLLMRequest',
-                beforeLLMPayload,
-                {
-                    sessionManager: this.services.sessionManager,
-                    mcpManager: this.services.mcpManager,
-                    toolManager: this.services.toolManager,
-                    stateManager: this.services.stateManager,
-                    ...(options?.runContext !== undefined && { runContext: options.runContext }),
-                    sessionId: this.id,
-                    abortSignal: signal,
-                }
-            );
-
-            // Apply hook text modifications to the first text part
-            let modifiedParts = [...parts];
-            if (modifiedBeforePayload.text !== textContent && textParts.length > 0) {
-                // Replace text parts with modified text
-                modifiedParts = modifiedParts.filter((p) => p.type !== 'text');
-                modifiedParts.unshift({ type: 'text', text: modifiedBeforePayload.text });
-            }
-
-            // Call LLM service stream
+            const modifiedParts = await this.prepareTurnInput(content, signal, options?.runContext);
             const streamResult = await this.llmService.stream(modifiedParts, {
                 signal,
                 ...(options?.runContext !== undefined && { runContext: options.runContext }),
             });
-
-            // Execute beforeResponse hooks
-            const llmConfig = this.services.stateManager.getLLMConfig(this.id);
-            const beforeResponsePayload: BeforeResponsePayload = {
-                content: streamResult.text,
-                provider: llmConfig.provider,
-                model: llmConfig.model,
-                sessionId: this.id,
-            };
-
-            const modifiedResponsePayload = await this.services.hookManager.executeHooks(
-                'beforeResponse',
-                beforeResponsePayload,
-                {
-                    sessionManager: this.services.sessionManager,
-                    mcpManager: this.services.mcpManager,
-                    toolManager: this.services.toolManager,
-                    stateManager: this.services.stateManager,
-                    ...(options?.runContext !== undefined && { runContext: options.runContext }),
-                    sessionId: this.id,
-                    abortSignal: signal,
-                }
-            );
-
             return {
-                text: modifiedResponsePayload.content,
+                text: await this.applyBeforeResponseHooks(
+                    streamResult.text,
+                    signal,
+                    options?.runContext
+                ),
             };
         } catch (error) {
             // If this was an intentional cancellation, return partial response from history
@@ -582,6 +617,116 @@ export class ChatSession {
             detachForwarders();
             this.currentRunController = null;
         }
+    }
+
+    public async createTurnDriver(input: ChatSessionTurnDriverInput): Promise<TurnDriver> {
+        if (this.isBusy()) {
+            throw SessionError.busy(this.id);
+        }
+
+        this.currentRunController = new AbortController();
+        const signal = input.signal
+            ? this.combineSignals(input.signal, this.currentRunController.signal)
+            : this.currentRunController.signal;
+        const detachForwarders = this.attachRunEventForwarders(input.runContext);
+
+        try {
+            if (input.kind === 'start') {
+                const modifiedParts = await this.prepareTurnInput(
+                    input.content,
+                    signal,
+                    input.runContext
+                );
+                await this.llmService.getContextManager().addUserMessage(modifiedParts);
+            }
+
+            const driver = await this.llmService.createTurnDriver({
+                signal,
+                streaming: input.streaming ?? true,
+                ...(input.runContext !== undefined && { runContext: input.runContext }),
+                ...(input.kind === 'resume' ? { state: input.state } : {}),
+            });
+
+            return this.wrapTurnDriver(driver, signal, input.runContext, detachForwarders);
+        } catch (error) {
+            if (
+                input.kind === 'start' &&
+                error instanceof DextoRuntimeError &&
+                error.code === HookErrorCode.HOOK_BLOCKED_EXECUTION &&
+                error.scope === ErrorScope.HOOK &&
+                error.type === ErrorType.FORBIDDEN
+            ) {
+                const textContent = this.normalizeContent(input.content)
+                    .filter((p): p is { type: 'text'; text: string } => p.type === 'text')
+                    .map((p) => p.text)
+                    .join('\n');
+                await this.saveBlockedInteraction(textContent, error.message);
+            }
+            detachForwarders();
+            this.currentRunController = null;
+            throw error;
+        }
+    }
+
+    private wrapTurnDriver(
+        driver: TurnDriver,
+        signal: AbortSignal,
+        runContext: AgentRunContext | undefined,
+        detachForwarders: () => void
+    ): TurnDriver {
+        let closed = false;
+        const close = () => {
+            if (closed) {
+                return;
+            }
+            closed = true;
+            detachForwarders();
+            this.currentRunController = null;
+        };
+
+        return {
+            runNextModelStep: () => driver.runNextModelStep(),
+            executeToolCalls: () => driver.executeToolCalls(),
+            decideNextStep: () => driver.decideNextStep(),
+            finish: async () => {
+                try {
+                    const result = await driver.finish();
+                    return {
+                        ...result,
+                        text: await this.applyBeforeResponseHooks(result.text, signal, runContext),
+                    };
+                } finally {
+                    driver.dispose();
+                    close();
+                }
+            },
+            fail: async (error) => {
+                try {
+                    return await driver.fail(error);
+                } finally {
+                    driver.dispose();
+                    close();
+                }
+            },
+            getState: () => driver.getState(),
+            checkpoint: () => {
+                try {
+                    return driver.checkpoint();
+                } finally {
+                    close();
+                }
+            },
+            dispose: () => {
+                if (closed) {
+                    return;
+                }
+                try {
+                    driver.dispose();
+                } finally {
+                    close();
+                }
+            },
+        };
     }
 
     /**

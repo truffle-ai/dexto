@@ -5,6 +5,8 @@ import { LLMConfigSchema } from '../llm/schemas.js';
 import { SessionErrorCode } from './error-codes.js';
 import { ErrorScope, ErrorType } from '../errors/types.js';
 import type { SessionEventMap } from '../events/index.js';
+import { DextoRuntimeError } from '../errors/DextoRuntimeError.js';
+import { HookErrorCode } from '../hooks/error-codes.js';
 
 // Mock all dependencies
 vi.mock('../llm/services/factory.js', () => ({
@@ -44,6 +46,86 @@ function createDeferred<T>() {
     return { promise, resolve, reject };
 }
 
+function createMockTurnDriver() {
+    return {
+        runNextModelStep: vi.fn().mockResolvedValue({
+            result: {
+                text: 'driver response',
+                finishReason: 'stop',
+                usage: {
+                    inputTokens: 1,
+                    outputTokens: 2,
+                    totalTokens: 3,
+                    cacheReadTokens: 0,
+                    cacheWriteTokens: 0,
+                },
+                toolCalls: [],
+            },
+            stepCount: 0,
+        }),
+        executeToolCalls: vi.fn().mockResolvedValue(undefined),
+        decideNextStep: vi.fn().mockResolvedValue({
+            kind: 'stop',
+            stepCount: 0,
+            finishReason: 'stop',
+        }),
+        finish: vi.fn().mockResolvedValue({
+            text: 'driver response',
+            stepCount: 0,
+            usage: {
+                inputTokens: 1,
+                outputTokens: 2,
+                totalTokens: 3,
+                cacheReadTokens: 0,
+                cacheWriteTokens: 0,
+            },
+            finishReason: 'stop',
+        }),
+        fail: vi.fn().mockRejectedValue(new Error('driver failed')),
+        getState: vi.fn().mockReturnValue({
+            phase: 'model-step-complete',
+            stepCount: 0,
+            startedAtMs: 123,
+            supportsTools: true,
+            modelStepId: 'model-step-1',
+            result: {
+                text: 'driver response',
+                finishReason: 'stop',
+                usage: {
+                    inputTokens: 1,
+                    outputTokens: 2,
+                    totalTokens: 3,
+                    cacheReadTokens: 0,
+                    cacheWriteTokens: 0,
+                },
+                toolCalls: [],
+            },
+            toolCallsExecuted: true,
+        }),
+        checkpoint: vi.fn().mockReturnValue({
+            phase: 'model-step-complete',
+            stepCount: 0,
+            startedAtMs: 123,
+            supportsTools: true,
+            modelStepId: 'model-step-1',
+            result: {
+                text: 'driver response',
+                finishReason: 'stop',
+                usage: {
+                    inputTokens: 1,
+                    outputTokens: 2,
+                    totalTokens: 3,
+                    cacheReadTokens: 0,
+                    cacheWriteTokens: 0,
+                },
+                toolCalls: [],
+            },
+            toolCallsExecuted: true,
+        }),
+        dispose: vi.fn(),
+    };
+}
+
 describe('ChatSession', () => {
     let chatSession: ChatSession;
     let mockServices: any;
@@ -69,9 +151,11 @@ describe('ChatSession', () => {
         // Mock LLM service
         mockContextManager = {
             resetConversation: vi.fn().mockResolvedValue(undefined),
+            addUserMessage: vi.fn().mockResolvedValue(undefined),
         };
         mockLLMService = {
             stream: vi.fn().mockResolvedValue('Mock response'),
+            createTurnDriver: vi.fn(),
             switchLLM: vi.fn().mockResolvedValue(undefined),
             getContextManager: vi.fn().mockReturnValue(mockContextManager),
             eventBus: {
@@ -445,6 +529,181 @@ describe('ChatSession', () => {
             expect(mockServices.agentEventBus.emit).toHaveBeenCalledWith('session:reset', {
                 sessionId,
             });
+        });
+    });
+
+    describe('Turn driver boundary', () => {
+        test('starts a session turn driver through hooks, message persistence, and event forwarding', async () => {
+            await chatSession.init();
+            const innerDriver = createMockTurnDriver();
+            const runContext = {
+                sessionId,
+                hostRuntime: {
+                    ids: {
+                        runId: 'run-1',
+                        attemptId: 'attempt-1',
+                    },
+                },
+                telemetryContext: {} as any,
+            };
+            mockLLMService.createTurnDriver.mockResolvedValue(innerDriver);
+            mockServices.hookManager.executeHooks.mockImplementation(
+                async (point: string, payload: Record<string, unknown>) => {
+                    if (point === 'beforeLLMRequest') {
+                        return { ...payload, text: 'modified prompt' };
+                    }
+                    if (point === 'beforeResponse') {
+                        return { ...payload, content: 'modified response' };
+                    }
+                    return payload;
+                }
+            );
+
+            const driver = await chatSession.createTurnDriver({
+                kind: 'start',
+                content: 'hello',
+                runContext,
+            });
+
+            expect(chatSession.isBusy()).toBe(true);
+            expect(mockContextManager.addUserMessage).toHaveBeenCalledWith([
+                { type: 'text', text: 'modified prompt' },
+            ]);
+            expect(mockLLMService.createTurnDriver).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    signal: expect.any(AbortSignal),
+                    streaming: true,
+                    runContext,
+                })
+            );
+
+            chatSession.eventBus.emit('llm:thinking', {});
+            expect(mockServices.agentEventBus.emit).toHaveBeenCalledWith('llm:thinking', {
+                sessionId,
+                hostRuntime: runContext.hostRuntime,
+            });
+
+            await driver.runNextModelStep();
+            await driver.executeToolCalls();
+            await driver.decideNextStep();
+            driver.getState();
+            expect(innerDriver.runNextModelStep).toHaveBeenCalledTimes(1);
+            expect(innerDriver.executeToolCalls).toHaveBeenCalledTimes(1);
+            expect(innerDriver.decideNextStep).toHaveBeenCalledTimes(1);
+            expect(innerDriver.getState).toHaveBeenCalledTimes(1);
+
+            await expect(driver.finish()).resolves.toEqual(
+                expect.objectContaining({
+                    text: 'modified response',
+                    finishReason: 'stop',
+                })
+            );
+            expect(innerDriver.dispose).toHaveBeenCalledTimes(1);
+            expect(chatSession.isBusy()).toBe(false);
+            mockServices.agentEventBus.emit.mockClear();
+            chatSession.eventBus.emit('llm:thinking', {});
+            expect(mockServices.agentEventBus.emit).not.toHaveBeenCalled();
+        });
+
+        test('checkpoints through the session driver and resumes that state without a new user message', async () => {
+            await chatSession.init();
+            const firstInnerDriver = createMockTurnDriver();
+            const resumedInnerDriver = createMockTurnDriver();
+            mockLLMService.createTurnDriver
+                .mockResolvedValueOnce(firstInnerDriver)
+                .mockResolvedValueOnce(resumedInnerDriver);
+
+            const driver = await chatSession.createTurnDriver({
+                kind: 'start',
+                content: 'hello',
+            });
+            const state = driver.checkpoint();
+            expect(chatSession.isBusy()).toBe(false);
+
+            const resumedDriver = await chatSession.createTurnDriver({
+                kind: 'resume',
+                state,
+                streaming: false,
+            });
+
+            expect(state).toEqual(
+                expect.objectContaining({
+                    phase: 'model-step-complete',
+                    modelStepId: 'model-step-1',
+                })
+            );
+            expect(firstInnerDriver.checkpoint).toHaveBeenCalledTimes(1);
+            expect(firstInnerDriver.dispose).not.toHaveBeenCalled();
+            expect(mockContextManager.addUserMessage).toHaveBeenCalledTimes(1);
+            expect(mockLLMService.createTurnDriver).toHaveBeenLastCalledWith(
+                expect.objectContaining({
+                    state,
+                    streaming: false,
+                })
+            );
+            expect(chatSession.isBusy()).toBe(true);
+            resumedDriver.dispose();
+            expect(chatSession.isBusy()).toBe(false);
+        });
+
+        test('cleans up busy state and event forwarding after fail and dispose', async () => {
+            await chatSession.init();
+            const failingInnerDriver = createMockTurnDriver();
+            const disposedInnerDriver = createMockTurnDriver();
+            mockLLMService.createTurnDriver
+                .mockResolvedValueOnce(failingInnerDriver)
+                .mockResolvedValueOnce(disposedInnerDriver);
+
+            const failingDriver = await chatSession.createTurnDriver({
+                kind: 'start',
+                content: 'fail',
+            });
+            await expect(failingDriver.fail(new Error('boom'))).rejects.toThrow('driver failed');
+            expect(failingInnerDriver.dispose).toHaveBeenCalledTimes(1);
+            expect(chatSession.isBusy()).toBe(false);
+            mockServices.agentEventBus.emit.mockClear();
+            chatSession.eventBus.emit('llm:thinking', {});
+            expect(mockServices.agentEventBus.emit).not.toHaveBeenCalled();
+
+            const disposedDriver = await chatSession.createTurnDriver({
+                kind: 'start',
+                content: 'dispose',
+            });
+            disposedDriver.dispose();
+            expect(disposedInnerDriver.dispose).toHaveBeenCalledTimes(1);
+            expect(chatSession.isBusy()).toBe(false);
+            mockServices.agentEventBus.emit.mockClear();
+            chatSession.eventBus.emit('llm:thinking', {});
+            expect(mockServices.agentEventBus.emit).not.toHaveBeenCalled();
+        });
+
+        test('preserves blocked hook interactions when creating a start driver', async () => {
+            await chatSession.init();
+            const blocked = new DextoRuntimeError(
+                HookErrorCode.HOOK_BLOCKED_EXECUTION,
+                ErrorScope.HOOK,
+                ErrorType.FORBIDDEN,
+                'blocked by policy'
+            );
+            mockServices.hookManager.executeHooks.mockRejectedValue(blocked);
+
+            await expect(
+                chatSession.createTurnDriver({
+                    kind: 'start',
+                    content: 'blocked prompt',
+                })
+            ).rejects.toThrow('blocked by policy');
+
+            expect(mockServices.conversationStore.saveMessage).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    sessionId,
+                    message: expect.objectContaining({
+                        role: 'assistant',
+                        content: [{ type: 'text', text: 'Error: blocked by policy' }],
+                    }),
+                })
+            );
+            expect(chatSession.isBusy()).toBe(false);
         });
     });
 

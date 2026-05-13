@@ -9,6 +9,7 @@ export * from './usage-scope.js';
 export * from './usage-summary.js';
 export * from './reasoning/profile.js';
 export * from './services/index.js';
+export * from './executor/index.js';
 export * from './schemas.js';
 export {
     getCachedOpenRouterModelsWithInfo,

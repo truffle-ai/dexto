@@ -1,6 +1,6 @@
 import { LanguageModel, type ModelMessage } from 'ai';
 import { ToolManager } from '../../tools/tool-manager.js';
-import type { LLMServiceConfig } from './types.js';
+import type { CreateTurnDriverOptions, LLMServiceConfig } from './types.js';
 import type { Logger } from '../../logger/v2/types.js';
 import { DextoLogComponent } from '../../logger/v2/types.js';
 import { ToolSet } from '../../tools/types.js';
@@ -15,7 +15,7 @@ import { VercelMessageFormatter } from '../formatters/vercel.js';
 import type { ValidatedLLMConfig } from '../schemas.js';
 import { InstrumentClass } from '../../telemetry/decorators.js';
 import { trace, context, propagation } from '@opentelemetry/api';
-import { TurnExecutor } from '../executor/turn-executor.js';
+import { TurnExecutor, type TurnDriver } from '../executor/turn-executor.js';
 import { MessageQueueService } from '../../session/message-queue.js';
 import type { ResourceManager } from '../../resources/index.js';
 import { DextoRuntimeError } from '../../errors/DextoRuntimeError.js';
@@ -147,6 +147,16 @@ export class VercelLLMService {
         return this.toolManager
             .getAllTools()
             .then((tools) => this.toolManager.filterToolsForSession(tools, this.sessionId));
+    }
+
+    async createTurnDriver(options: CreateTurnDriverOptions = {}): Promise<TurnDriver> {
+        const sessionId = ensureRunContextMatchesServiceSession(this.sessionId, options.runContext);
+        const executor = this.createTurnExecutor(options.signal, options.runContext);
+        const contributorContext = await this.toolManager.buildContributorContext({ sessionId });
+        return executor.createDriver(contributorContext, {
+            streaming: options.streaming ?? true,
+            ...(options.state !== undefined ? { state: options.state } : {}),
+        });
     }
 
     /**
