@@ -48,7 +48,6 @@ import { DynamicContributorContext } from '../../systemPrompt/types.js';
 import type { MessageQueueService } from '../../session/message-queue.js';
 import type { StreamProcessorConfig } from './stream-processor.js';
 import type { CoalescedMessage } from '../../session/types.js';
-import { defer } from '../../utils/defer.js';
 import { DextoRuntimeError } from '../../errors/DextoRuntimeError.js';
 import { ErrorScope, ErrorType } from '../../errors/types.js';
 import { LLMErrorCode } from '../error-codes.js';
@@ -151,6 +150,31 @@ type FinishTurnInput = {
 
 type ModelStepScope = {
     [Symbol.dispose](): void;
+};
+
+export type TurnDriverModelStep = {
+    result: StreamProcessorResult;
+    stepCount: number;
+};
+
+export type TurnDriverNextAction =
+    | {
+          kind: 'continue';
+          stepCount: number;
+      }
+    | {
+          kind: 'stop';
+          stepCount: number;
+          finishReason: LLMFinishReason;
+      };
+
+export type TurnDriver = {
+    runNextModelStep(): Promise<TurnDriverModelStep>;
+    executeToolCalls(): Promise<void>;
+    decideNextStep(): Promise<TurnDriverNextAction>;
+    finish(): Promise<ExecutorResult>;
+    fail(error: unknown): Promise<never>;
+    dispose(): void;
 };
 
 /**
@@ -260,23 +284,80 @@ export class TurnExecutor {
         contributorContext: DynamicContributorContext,
         streaming: boolean = true
     ): Promise<ExecutorResult> {
-        // Automatic cleanup when scope exits (normal, throw, or return)
-        using _ = defer(() => this.cleanup());
+        const driver = await this.createDriver(contributorContext, streaming);
 
-        // Track run duration
+        try {
+            let stopped = false;
+            try {
+                while (!stopped) {
+                    const modelStep = await driver.runNextModelStep();
+                    if (modelStep.result.finishReason === 'tool-calls') {
+                        await driver.executeToolCalls();
+                    }
+
+                    const nextStep = await driver.decideNextStep();
+                    if (nextStep.kind === 'stop') {
+                        stopped = true;
+                    }
+                }
+            } catch (error) {
+                return await driver.fail(error);
+            }
+            return await driver.finish();
+        } finally {
+            driver.dispose();
+        }
+    }
+
+    async createDriver(
+        contributorContext: DynamicContributorContext,
+        streaming: boolean = true
+    ): Promise<TurnDriver> {
         const startTime = Date.now();
 
         let stepCount = 0;
         let lastStepTokens: TokenUsage | null = null;
         let lastFinishReason: LLMFinishReason = 'unknown';
         let lastText = '';
+        let currentStepScope: ModelStepScope | null = null;
+        let currentResult: StreamProcessorResult | null = null;
+        let currentToolCallsExecuted = false;
+        let stopped = false;
+        let finished = false;
+        let disposed = false;
 
-        const turn = await this.startTurn();
-
+        let turn: TurnStart;
         try {
-            while (true) {
-                using _stepScope = this.startModelStepScope();
+            turn = await this.startTurn();
+        } catch (error) {
+            this.cleanup();
+            throw error;
+        }
 
+        const closeCurrentStepScope = () => {
+            currentStepScope?.[Symbol.dispose]();
+            currentStepScope = null;
+        };
+
+        const assertCanUseDriver = () => {
+            if (disposed) {
+                throw new Error('Turn driver has already been disposed');
+            }
+            if (finished) {
+                throw new Error('Turn driver has already finished');
+            }
+        };
+
+        return {
+            runNextModelStep: async () => {
+                assertCanUseDriver();
+                if (stopped) {
+                    throw new Error('Turn driver has already reached a stop decision');
+                }
+                if (currentStepScope !== null) {
+                    throw new Error('Previous model step has not been decided yet');
+                }
+                currentStepScope = this.startModelStepScope();
                 const modelStepRequest = await this.prepareNextModelRequest({
                     contributorContext,
                     supportsTools: turn.supportsTools,
@@ -287,8 +368,9 @@ export class TurnExecutor {
                 this.currentModelStepId = `in-memory-model-step-${stepCount}`;
 
                 const result = await this.runModelStepWithRetry(modelStepRequest);
+                currentResult = result;
+                currentToolCallsExecuted = result.finishReason !== 'tool-calls';
 
-                // 7. Capture results for tracking and overflow check
                 lastStepTokens = result.usage;
                 lastFinishReason = result.finishReason;
                 lastText = result.text;
@@ -304,28 +386,83 @@ export class TurnExecutor {
                     contributorContext,
                 });
 
+                return {
+                    result,
+                    stepCount,
+                };
+            },
+            executeToolCalls: async () => {
+                assertCanUseDriver();
+                if (currentStepScope === null) {
+                    throw new Error('No active model step is available for tool execution');
+                }
+                const result = currentResult;
+                if (result === null) {
+                    throw new Error('No model step result is available for tool execution');
+                }
+                if (currentToolCallsExecuted) {
+                    throw new Error('Tool calls for the current model step have already run');
+                }
                 if (result.finishReason === 'tool-calls') {
+                    currentToolCallsExecuted = true;
                     await this.executeModelToolCalls(result.toolCalls);
                 }
-
+            },
+            decideNextStep: async () => {
+                assertCanUseDriver();
+                if (currentStepScope === null) {
+                    throw new Error('No active model step is available to decide');
+                }
+                const result = currentResult;
+                if (result === null) {
+                    throw new Error('No model step result is available to decide');
+                }
+                if (result.finishReason === 'tool-calls' && !currentToolCallsExecuted) {
+                    throw new Error('Tool calls must finish before deciding the next model step');
+                }
                 const nextStep = await this.decideNextStep(result, stepCount);
                 stepCount = nextStep.stepCount;
+                currentResult = null;
+                currentToolCallsExecuted = false;
+                closeCurrentStepScope();
                 if (nextStep.kind === 'stop') {
                     lastFinishReason = nextStep.finishReason;
-                    break;
+                    stopped = true;
+                    return {
+                        kind: 'stop',
+                        stepCount,
+                        finishReason: lastFinishReason,
+                    };
                 }
-            }
-        } catch (error) {
-            await this.failTurn(error, stepCount, startTime);
-        }
-
-        return this.finishTurn({
-            startTime,
-            stepCount,
-            text: lastText,
-            usage: lastStepTokens,
-            finishReason: lastFinishReason,
-        });
+                return {
+                    kind: 'continue',
+                    stepCount,
+                };
+            },
+            finish: async () => {
+                assertCanUseDriver();
+                if (!stopped) {
+                    throw new Error('Turn driver cannot finish before a stop decision');
+                }
+                finished = true;
+                return this.finishTurn({
+                    startTime,
+                    stepCount,
+                    text: lastText,
+                    usage: lastStepTokens,
+                    finishReason: lastFinishReason,
+                });
+            },
+            fail: async (error) => {
+                closeCurrentStepScope();
+                return this.failTurn(error, stepCount, startTime);
+            },
+            dispose: () => {
+                disposed = true;
+                closeCurrentStepScope();
+                this.cleanup();
+            },
+        };
     }
 
     /**
@@ -1369,7 +1506,7 @@ export class TurnExecutor {
 
     /**
      * Cleanup resources when execution scope exits.
-     * Called automatically via defer() on normal exit, throw, or abort.
+     * Called automatically by the turn driver on normal exit, throw, or abort.
      */
     private cleanup(): void {
         this.logger.debug('TurnExecutor cleanup triggered');

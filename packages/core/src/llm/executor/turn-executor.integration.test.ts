@@ -415,6 +415,50 @@ describe('TurnExecutor Integration Tests', () => {
             });
         });
 
+        it('can drive a turn through the explicit turn driver boundary', async () => {
+            const runCompleteHandler = vi.fn();
+            sessionEventBus.on('run:complete', runCompleteHandler);
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
+            const driver = await executor.createDriver({ mcpManager }, true);
+
+            try {
+                const modelStep = await driver.runNextModelStep();
+                const next = await driver.decideNextStep();
+                const result = await driver.finish();
+
+                expect(modelStep.stepCount).toBe(0);
+                expect(modelStep.result.text).toBe('Hello!');
+                expect(next).toEqual(
+                    expect.objectContaining({
+                        kind: 'stop',
+                        finishReason: 'stop',
+                    })
+                );
+                expect(result).toEqual(
+                    expect.objectContaining({
+                        finishReason: 'stop',
+                        text: 'Hello!',
+                        usage: {
+                            inputTokens: 100,
+                            outputTokens: 50,
+                            totalTokens: 150,
+                            cacheReadTokens: 0,
+                            cacheWriteTokens: 0,
+                        },
+                    })
+                );
+                expect(runCompleteHandler).toHaveBeenCalledWith(
+                    expect.objectContaining({
+                        finishReason: 'stop',
+                        stepCount: 0,
+                    })
+                );
+            } finally {
+                driver.dispose();
+            }
+        });
+
         it('should persist assistant response to history', async () => {
             await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
             await executor.execute({ mcpManager }, true);
@@ -536,6 +580,90 @@ describe('TurnExecutor Integration Tests', () => {
                 ])
             );
             expect(toolMessages).toHaveLength(2);
+        });
+
+        it('drives tool-call steps through the explicit turn driver boundary', async () => {
+            const toolExecution = createDeferred<string>();
+            const executeTool = vi.fn(() => toolExecution.promise);
+            toolManager.addTools([
+                defineTool({
+                    id: 'driver_tool',
+                    description: 'Driver tool',
+                    inputSchema: z.object({ value: z.string() }).strict(),
+                    execute: executeTool,
+                }),
+            ]);
+
+            vi.mocked(streamText)
+                .mockImplementationOnce(
+                    () =>
+                        createMockStream({
+                            finishReason: 'tool-calls',
+                            toolCalls: [
+                                {
+                                    toolCallId: 'call-driver',
+                                    toolName: 'driver_tool',
+                                    args: { value: 'one' },
+                                },
+                            ],
+                        }) as unknown as ReturnType<typeof streamText>
+                )
+                .mockImplementationOnce(
+                    () =>
+                        createMockStream({
+                            text: 'done',
+                            finishReason: 'stop',
+                        }) as unknown as ReturnType<typeof streamText>
+                );
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Use tools' }]);
+            const driver = await executor.createDriver({ mcpManager }, true);
+
+            try {
+                const toolStep = await driver.runNextModelStep();
+
+                await expect(driver.decideNextStep()).rejects.toThrow(
+                    'Tool calls must finish before deciding the next model step'
+                );
+                const firstToolExecution = driver.executeToolCalls();
+                await expect(driver.executeToolCalls()).rejects.toThrow(
+                    'Tool calls for the current model step have already run'
+                );
+                toolExecution.resolve('driver result');
+                await firstToolExecution;
+                expect(await driver.decideNextStep()).toEqual({
+                    kind: 'continue',
+                    stepCount: 1,
+                });
+
+                const finalStep = await driver.runNextModelStep();
+                const stop = await driver.decideNextStep();
+                const result = await driver.finish();
+
+                expect(toolStep.result.finishReason).toBe('tool-calls');
+                expect(finalStep.result.text).toBe('done');
+                expect(stop).toEqual(
+                    expect.objectContaining({
+                        kind: 'stop',
+                        finishReason: 'stop',
+                    })
+                );
+                expect(result.text).toBe('done');
+                expect(executeTool).toHaveBeenCalledTimes(1);
+                expect(streamText).toHaveBeenCalledTimes(2);
+                const history = await contextManager.getHistory();
+                const driverToolMessages = history.filter(
+                    (message) => message.role === 'tool' && message.toolCallId === 'call-driver'
+                );
+                expect(driverToolMessages).toEqual([
+                    expect.objectContaining({
+                        name: 'driver_tool',
+                        success: true,
+                    }),
+                ]);
+            } finally {
+                driver.dispose();
+            }
         });
 
         it('passes model-only tool definitions to streamText', async () => {
