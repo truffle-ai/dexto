@@ -19,7 +19,7 @@
     "@dexto/core": "workspace:*",
     "@dexto/orchestration": "workspace:*",
     "@dexto/tools-builtins": "workspace:*",
-    "yaml": "^2.8.3",
+    "yaml": "^2.9.0",
     "zod": "^4.3.6"
   },
   "devDependencies": {
