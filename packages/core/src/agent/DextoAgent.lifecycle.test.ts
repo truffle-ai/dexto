@@ -969,6 +969,61 @@ describe('DextoAgent Lifecycle Management', () => {
             await expect(iterator.next()).rejects.toBe(mappedError);
         });
 
+        test('should yield retrying events from agent stream', async () => {
+            const agent = createTestAgent(mockValidatedConfig);
+            const retryError = new DextoRuntimeError(
+                LLMErrorCode.GENERATION_FAILED,
+                ErrorScope.LLM,
+                ErrorType.THIRD_PARTY,
+                'Provider unavailable'
+            );
+            const sessionStream = vi.fn().mockImplementation(async () => {
+                agent.emit('llm:retrying', {
+                    sessionId: 'test-session',
+                    error: retryError,
+                    context: 'TurnExecutor.runModelStep',
+                    attempt: 1,
+                    maxRetries: 2,
+                    provider: 'openai',
+                    model: 'gpt-5',
+                });
+                agent.emit('run:complete', {
+                    sessionId: 'test-session',
+                    finishReason: 'stop',
+                    stepCount: 1,
+                    durationMs: 1,
+                });
+                return { text: 'Recovered', usage: null, finishReason: 'stop', stepCount: 1 };
+            });
+            mockServices.sessionManager.getSession = vi.fn().mockResolvedValue({
+                id: 'test-session',
+                stream: sessionStream,
+            });
+
+            await agent.start();
+
+            const events: StreamingEvent[] = [];
+            for await (const event of await agent.stream('hello', 'test-session')) {
+                events.push(event);
+            }
+
+            expect(events).toEqual([
+                expect.objectContaining({
+                    name: 'llm:retrying',
+                    error: retryError,
+                    context: 'TurnExecutor.runModelStep',
+                    attempt: 1,
+                    maxRetries: 2,
+                    provider: 'openai',
+                    model: 'gpt-5',
+                }),
+                expect.objectContaining({
+                    name: 'run:complete',
+                    finishReason: 'stop',
+                }),
+            ]);
+        });
+
         test('should reject with the original error when session streaming fails before any terminal event', async () => {
             const agent = createTestAgent(mockValidatedConfig);
             const streamError = new Error('Session stream failed before event emission');

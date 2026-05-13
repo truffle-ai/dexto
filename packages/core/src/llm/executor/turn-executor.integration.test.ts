@@ -131,7 +131,7 @@ vi.mock('@opentelemetry/api', async (importOriginal) => {
     };
 });
 
-import { streamText, generateText } from 'ai';
+import { APICallError, streamText, generateText } from 'ai';
 
 /**
  * Helper to create mock stream results that simulate Vercel AI SDK responses
@@ -610,6 +610,7 @@ describe('TurnExecutor Integration Tests', () => {
                         }),
                     }),
                     maxOutputTokens: 4096,
+                    maxRetries: 0,
                     temperature: 0.7,
                 })
             );
@@ -2121,6 +2122,212 @@ describe('TurnExecutor Integration Tests', () => {
     });
 
     describe('Error Handling', () => {
+        const apiCallError = (input: {
+            message: string;
+            statusCode: number;
+            isRetryable: boolean;
+        }) =>
+            new APICallError({
+                message: input.message,
+                statusCode: input.statusCode,
+                responseHeaders: {},
+                responseBody: input.message,
+                url: 'https://api.openai.com/v1/responses',
+                requestBodyValues: {},
+                isRetryable: input.isRetryable,
+            });
+
+        it('retries a retryable model request failure before terminal run failure', async () => {
+            const retryableError = apiCallError({
+                message: 'Provider unavailable',
+                statusCode: 503,
+                isRetryable: true,
+            });
+
+            vi.mocked(streamText)
+                .mockImplementationOnce(() => {
+                    throw retryableError;
+                })
+                .mockImplementationOnce(
+                    () =>
+                        createMockStream({
+                            text: 'Recovered',
+                            finishReason: 'stop',
+                        }) as unknown as ReturnType<typeof streamText>
+                );
+
+            const retryingHandler = vi.fn();
+            const errorHandler = vi.fn();
+            const completeHandler = vi.fn();
+            sessionEventBus.on('llm:retrying', retryingHandler);
+            sessionEventBus.on('llm:error', errorHandler);
+            sessionEventBus.on('run:complete', completeHandler);
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
+
+            const result = await executor.execute({ mcpManager }, true);
+
+            expect(result.text).toBe('Recovered');
+            expect(streamText).toHaveBeenCalledTimes(2);
+            expect(retryingHandler).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    attempt: 1,
+                    maxRetries: 2,
+                    provider: 'openai',
+                    model: 'gpt-4',
+                })
+            );
+            expect(errorHandler).not.toHaveBeenCalled();
+            expect(completeHandler).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    finishReason: 'stop',
+                })
+            );
+            await expect(contextManager.getHistory()).resolves.toEqual([
+                expect.objectContaining({
+                    role: 'user',
+                    content: [{ type: 'text', text: 'Hello' }],
+                }),
+                expect.objectContaining({
+                    role: 'assistant',
+                    content: [{ type: 'text', text: 'Recovered' }],
+                }),
+            ]);
+        });
+
+        it('fails after retryable model request failures exhaust retry budget', async () => {
+            const retryableError = apiCallError({
+                message: 'Provider unavailable',
+                statusCode: 503,
+                isRetryable: true,
+            });
+
+            vi.mocked(streamText).mockImplementation(() => {
+                throw retryableError;
+            });
+
+            const retryingHandler = vi.fn();
+            const errorHandler = vi.fn();
+            const completeHandler = vi.fn();
+            sessionEventBus.on('llm:retrying', retryingHandler);
+            sessionEventBus.on('llm:error', errorHandler);
+            sessionEventBus.on('run:complete', completeHandler);
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
+
+            await expect(executor.execute({ mcpManager }, true)).rejects.toMatchObject({
+                code: 'llm_generation_failed',
+            });
+
+            expect(streamText).toHaveBeenCalledTimes(3);
+            expect(retryingHandler).toHaveBeenCalledTimes(2);
+            expect(errorHandler).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    context: 'TurnExecutor',
+                    recoverable: false,
+                })
+            );
+            expect(completeHandler).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    finishReason: 'error',
+                })
+            );
+        });
+
+        it('does not retry non-retryable model request failures', async () => {
+            const nonRetryableError = apiCallError({
+                message: 'Bad request',
+                statusCode: 400,
+                isRetryable: false,
+            });
+
+            vi.mocked(streamText).mockImplementation(() => {
+                throw nonRetryableError;
+            });
+
+            const retryingHandler = vi.fn();
+            sessionEventBus.on('llm:retrying', retryingHandler);
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
+
+            await expect(executor.execute({ mcpManager }, true)).rejects.toThrow();
+
+            expect(streamText).toHaveBeenCalledTimes(1);
+            expect(retryingHandler).not.toHaveBeenCalled();
+        });
+
+        it('retries an async stream failure before conversation history changes', async () => {
+            const retryableError = apiCallError({
+                message: 'Provider connection dropped',
+                statusCode: 503,
+                isRetryable: true,
+            });
+
+            vi.mocked(streamText)
+                .mockImplementationOnce(
+                    () =>
+                        ({
+                            fullStream: (async function* () {
+                                yield { type: 'error', error: retryableError };
+                            })(),
+                        }) as unknown as ReturnType<typeof streamText>
+                )
+                .mockImplementationOnce(
+                    () =>
+                        createMockStream({
+                            text: 'Recovered',
+                            finishReason: 'stop',
+                        }) as unknown as ReturnType<typeof streamText>
+                );
+
+            const retryingHandler = vi.fn();
+            sessionEventBus.on('llm:retrying', retryingHandler);
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
+
+            const result = await executor.execute({ mcpManager }, true);
+
+            expect(result.text).toBe('Recovered');
+            expect(streamText).toHaveBeenCalledTimes(2);
+            expect(retryingHandler).toHaveBeenCalledTimes(1);
+        });
+
+        it('does not retry once a failed stream has changed conversation history', async () => {
+            const retryableError = apiCallError({
+                message: 'Provider connection dropped',
+                statusCode: 503,
+                isRetryable: true,
+            });
+
+            vi.mocked(streamText).mockImplementation(
+                () =>
+                    ({
+                        fullStream: (async function* () {
+                            yield { type: 'text-delta', text: 'Partial response' };
+                            yield { type: 'error', error: retryableError };
+                        })(),
+                    }) as unknown as ReturnType<typeof streamText>
+            );
+
+            const retryingHandler = vi.fn();
+            sessionEventBus.on('llm:retrying', retryingHandler);
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
+
+            await expect(executor.execute({ mcpManager }, true)).rejects.toThrow();
+
+            expect(streamText).toHaveBeenCalledTimes(1);
+            expect(retryingHandler).not.toHaveBeenCalled();
+            await expect(contextManager.getHistory()).resolves.toEqual(
+                expect.arrayContaining([
+                    expect.objectContaining({
+                        role: 'assistant',
+                        content: [{ type: 'text', text: 'Partial response' }],
+                    }),
+                ])
+            );
+        });
+
         it('should emit llm:error and run:complete on failure', async () => {
             vi.mocked(streamText).mockImplementation(() => {
                 throw new Error('Stream failed');

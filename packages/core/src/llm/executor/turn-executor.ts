@@ -62,6 +62,7 @@ import { ApprovalStatus, type ApprovalResponse } from '../../approval/types.js';
 import type { ApprovalDecisionInput } from '../../approval/manager.js';
 
 const MCP_TOOL_PREFIX = 'mcp--';
+const MODEL_REQUEST_MAX_RETRIES = 2;
 
 type PreparedModelToolCall =
     | {
@@ -285,7 +286,7 @@ export class TurnExecutor {
                 this.logger.debug(`Step ${stepCount}: Starting`);
                 this.currentModelStepId = `in-memory-model-step-${stepCount}`;
 
-                const result = await this.runModelStep(modelStepRequest);
+                const result = await this.runModelStepWithRetry(modelStepRequest);
 
                 // 7. Capture results for tracking and overflow check
                 lastStepTokens = result.usage;
@@ -749,6 +750,7 @@ export class TurnExecutor {
             streamText({
                 model: this.model,
                 stopWhen: stepCountIs(1),
+                maxRetries: 0,
                 tools: request.tools,
                 abortSignal: this.stepAbortController.signal,
                 messages: request.messages,
@@ -768,6 +770,49 @@ export class TurnExecutor {
                 },
             })
         );
+    }
+
+    private async runModelStepWithRetry(request: ModelStepRequest): Promise<StreamProcessorResult> {
+        for (let failedAttempts = 0; ; failedAttempts += 1) {
+            const historyLengthBefore = (await this.contextManager.getHistory()).length;
+
+            try {
+                return await this.runModelStep(request);
+            } catch (error) {
+                const historyLengthAfter = (await this.contextManager.getHistory()).length;
+                const historyLengthChanged = historyLengthAfter !== historyLengthBefore;
+
+                if (
+                    !this.canRetryModelRequest(error, historyLengthChanged) ||
+                    failedAttempts >= MODEL_REQUEST_MAX_RETRIES
+                ) {
+                    throw error;
+                }
+
+                const mappedError = this.mapProviderError(error);
+                this.eventBus.emit('llm:retrying', {
+                    error: mappedError,
+                    context: 'TurnExecutor.runModelStep',
+                    attempt: failedAttempts + 1,
+                    maxRetries: MODEL_REQUEST_MAX_RETRIES,
+                    provider: this.llmContext.provider,
+                    model: this.llmContext.model,
+                });
+
+                this.logger.warn('Retrying model request after transient failure', {
+                    attempt: failedAttempts + 1,
+                    maxRetries: MODEL_REQUEST_MAX_RETRIES,
+                    error: mappedError,
+                });
+            }
+        }
+    }
+
+    private canRetryModelRequest(error: unknown, historyLengthChanged: boolean): boolean {
+        if (historyLengthChanged) return false;
+        if (this.stepAbortController.signal.aborted) return false;
+        if (!APICallError.isInstance?.(error)) return false;
+        return error.isRetryable;
     }
 
     private async applyModelStepResult(input: ModelStepApplicationInput): Promise<void> {

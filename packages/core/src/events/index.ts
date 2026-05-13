@@ -67,6 +67,7 @@ export const FORWARDED_SESSION_EVENT_NAMES = [
     'llm:tool-call',
     'llm:tool-call-partial',
     'llm:tool-result',
+    'llm:retrying',
     'llm:error',
     'llm:unsupported-input',
     'tool:running',
@@ -120,6 +121,7 @@ export const STREAMING_EVENTS = [
     'llm:tool-call',
     'llm:tool-call-partial',
     'llm:tool-result',
+    'llm:retrying',
     'llm:error',
     'llm:unsupported-input',
 
@@ -565,6 +567,16 @@ interface SessionEventMapBase {
         toolCallId?: string;
     };
 
+    /** LLM request failed transiently and will be retried by the executor */
+    'llm:retrying': {
+        error: Error;
+        context: string;
+        attempt: number;
+        maxRetries: number;
+        provider: LLMProvider;
+        model: string;
+    };
+
     /** LLM service switched */
     'llm:switched': {
         newConfig: any; // LLMConfig type
@@ -948,6 +960,12 @@ export function forwardSessionEventsToAgentBus({
     on('llm:tool-result', (payload) => {
         agentEventBus.emit(
             'llm:tool-result',
+            withForwardedSessionContext(payload, sessionId, hostRuntime)
+        );
+    });
+    on('llm:retrying', (payload) => {
+        agentEventBus.emit(
+            'llm:retrying',
             withForwardedSessionContext(payload, sessionId, hostRuntime)
         );
     });

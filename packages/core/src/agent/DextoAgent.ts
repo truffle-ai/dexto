@@ -1068,6 +1068,12 @@ export class DextoAgent {
         };
         addStreamingListener('llm:tool-result', toolResultListener);
 
+        const retryingListener = (data: AgentEventMap['llm:retrying']) => {
+            if (data.sessionId !== sessionId) return;
+            eventQueue.push({ name: 'llm:retrying', ...data });
+        };
+        addStreamingListener('llm:retrying', retryingListener);
+
         const errorListener = (data: AgentEventMap['llm:error']) => {
             if (data.sessionId !== sessionId) return;
             if (data.recoverable !== true) {
