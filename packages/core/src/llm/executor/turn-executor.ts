@@ -332,56 +332,10 @@ export class TurnExecutor {
                     await this.executeModelToolCalls(result.toolCalls);
                 }
 
-                // 8. Check termination conditions
-                if (result.finishReason !== 'tool-calls') {
-                    // Steer messages submitted while the final LLM request was already in flight
-                    // missed the pre-request injection point. Treat them as end-of-turn input
-                    // before draining explicit follow-ups.
-                    if (this.steerQueue.hasPending()) {
-                        const action = await this.continueWithQueuedInput(
-                            'late-steer',
-                            this.steerQueue,
-                            stepCount,
-                            result.finishReason
-                        );
-                        stepCount = action.stepCount;
-                        if (action.kind === 'stop') {
-                            lastFinishReason = action.finishReason;
-                            break;
-                        }
-                        continue;
-                    }
-
-                    // Follow-ups run only after the active turn naturally reaches a stop point.
-                    if (this.followUpQueue.hasPending()) {
-                        const action = await this.continueWithQueuedInput(
-                            'follow-up',
-                            this.followUpQueue,
-                            stepCount,
-                            result.finishReason
-                        );
-                        stepCount = action.stepCount;
-                        if (action.kind === 'stop') {
-                            lastFinishReason = action.finishReason;
-                            break;
-                        }
-                        continue;
-                    }
-
-                    this.logger.debug(`Terminating: finishReason is "${result.finishReason}"`);
-                    break;
-                }
-                // Hard cancel check during tool-calls - if queue is empty and signal aborted, exit
-                if (this.externalSignal?.aborted && !this.steerQueue.hasPending()) {
-                    this.logger.debug('Terminating: hard cancel - external abort signal received');
-                    lastFinishReason = 'cancelled';
-                    break;
-                }
-                const stepAdvance = this.advanceStep(stepCount);
-                stepCount = stepAdvance.stepCount;
-                if (stepAdvance.kind === 'stop') {
-                    this.logger.debug(`Terminating: reached maxSteps (${this.config.maxSteps})`);
-                    lastFinishReason = stepAdvance.finishReason;
+                const nextStep = await this.decideNextStep(result, stepCount);
+                stepCount = nextStep.stepCount;
+                if (nextStep.kind === 'stop') {
+                    lastFinishReason = nextStep.finishReason;
                     break;
                 }
             }
@@ -496,6 +450,53 @@ export class TurnExecutor {
         return {
             kind: 'continue',
             stepCount: stepAdvance.stepCount,
+        };
+    }
+
+    private async decideNextStep(
+        result: StreamProcessorResult,
+        stepCount: number
+    ): Promise<QueuedInputAction> {
+        if (result.finishReason === 'tool-calls') {
+            // Hard cancel check during tool-calls: if queue is empty and signal aborted, exit.
+            if (this.externalSignal?.aborted && !this.steerQueue.hasPending()) {
+                this.logger.debug('Terminating: hard cancel - external abort signal received');
+                return {
+                    kind: 'stop',
+                    stepCount,
+                    finishReason: 'cancelled',
+                };
+            }
+
+            return this.advanceStep(stepCount);
+        }
+
+        // Steer messages submitted while the final LLM request was already in flight missed the
+        // pre-request injection point. Treat them as end-of-turn input before explicit follow-ups.
+        if (this.steerQueue.hasPending()) {
+            return this.continueWithQueuedInput(
+                'late-steer',
+                this.steerQueue,
+                stepCount,
+                result.finishReason
+            );
+        }
+
+        // Follow-ups run only after the active turn naturally reaches a stop point.
+        if (this.followUpQueue.hasPending()) {
+            return this.continueWithQueuedInput(
+                'follow-up',
+                this.followUpQueue,
+                stepCount,
+                result.finishReason
+            );
+        }
+
+        this.logger.debug(`Terminating: finishReason is "${result.finishReason}"`);
+        return {
+            kind: 'stop',
+            stepCount,
+            finishReason: result.finishReason,
         };
     }
 
