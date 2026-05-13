@@ -130,6 +130,12 @@ type ModelStepPreparationInput = {
     streaming: boolean;
 };
 
+type ModelStepApplicationInput = {
+    result: StreamProcessorResult;
+    request: ModelStepRequest;
+    contributorContext: DynamicContributorContext;
+};
+
 /**
  * Static cache for tool support validation.
  * Persists across TurnExecutor instances to avoid repeated validation calls.
@@ -316,78 +322,14 @@ export class TurnExecutor {
                         `tokens=${JSON.stringify(result.usage)}`
                 );
 
-                // 7a. Store actual token counts for context estimation formula
-                // Formula: estimatedNextInput = lastInput + lastOutput + newMessagesEstimate
-                //
-                // Strategy: Only update tracking variables on successful calls with actual token data.
-                // - lastInput/lastOutput: ground truth from API, used as base for next estimate
-                // - lastCallMessageCount: boundary for identifying "new" messages to estimate
-                //
-                // On cancellation: Don't update anything. The partial response is saved to history,
-                // and newMessagesEstimate will include it when calculating from the last successful
-                // call's boundary. This minimizes estimation surface - we only estimate the delta
-                // since the last call that gave us actual token counts. Multiple consecutive
-                // cancellations accumulate in newMessagesEstimate until a successful call self-corrects.
-                //
-                // Tracking issue for AI SDK to support partial usage on cancel:
-                // https://github.com/vercel/ai/issues/7628
-                if (result.finishReason === 'cancelled') {
-                    // On cancellation, don't update any tracking variables.
-                    // The partial response is saved to history, and newMessagesEstimate will
-                    // include it when calculating from the last successful call's boundary.
-                    // This keeps estimation surface minimal - we only estimate the delta since
-                    // the last call that gave us actual token counts.
-                    this.logger.info(
-                        `Context estimation (cancelled): keeping last known actuals, partial response (${result.text.length} chars) will be estimated`
-                    );
-                } else if (result.usage?.inputTokens !== undefined) {
-                    const contextInputTokens = this.getContextInputTokens(result.usage);
-                    const actualInputTokens = contextInputTokens ?? result.usage.inputTokens;
-
-                    // Log verification metric: compare our estimate vs actual from API
-                    const diff = modelStepRequest.estimatedInputTokens - actualInputTokens;
-                    const diffPercent =
-                        actualInputTokens > 0
-                            ? ((diff / actualInputTokens) * 100).toFixed(1)
-                            : '0.0';
-                    this.logger.info(
-                        `Context estimation accuracy: estimated=${modelStepRequest.estimatedInputTokens}, actual=${actualInputTokens}, ` +
-                            `error=${diff} (${diffPercent}%)`
-                    );
-                    this.contextManager.setLastActualInputTokens(actualInputTokens);
-
-                    if (result.usage?.outputTokens !== undefined) {
-                        this.contextManager.setLastActualOutputTokens(result.usage.outputTokens);
-                    }
-
-                    // Record message count boundary for identifying "new" messages
-                    // Only update on successful calls - cancelled calls leave boundary unchanged
-                    // so their content is included in newMessagesEstimate
-                    await this.contextManager.recordLastCallMessageCount();
-                }
+                await this.applyModelStepResult({
+                    result,
+                    request: modelStepRequest,
+                    contributorContext,
+                });
 
                 if (result.finishReason === 'tool-calls') {
                     await this.executeModelToolCalls(result.toolCalls);
-                }
-
-                // 7b. POST-RESPONSE CHECK: Use actual inputTokens from API to detect overflow
-                // This catches cases where the LLM's response pushed us over the threshold
-                const contextInputTokens = result.usage
-                    ? this.getContextInputTokens(result.usage)
-                    : null;
-                if (
-                    result.finishReason !== 'tool-calls' &&
-                    contextInputTokens &&
-                    this.shouldCompactFromActual(contextInputTokens)
-                ) {
-                    this.logger.debug(
-                        `Post-response: actual ${contextInputTokens} tokens exceeds threshold, compacting`
-                    );
-                    await this.compactContext(
-                        contextInputTokens,
-                        contributorContext,
-                        modelStepRequest.toolDefinitions
-                    );
                 }
 
                 // 8. Check termination conditions
@@ -799,6 +741,59 @@ export class TurnExecutor {
                 },
             })
         );
+    }
+
+    private async applyModelStepResult(input: ModelStepApplicationInput): Promise<void> {
+        const { result, request, contributorContext } = input;
+
+        // Store actual token counts for context estimation formula:
+        // estimatedNextInput = lastInput + lastOutput + newMessagesEstimate.
+        //
+        // On cancellation, keep the last successful boundary. The partial response is saved to
+        // history and included in newMessagesEstimate until a successful call self-corrects.
+        // Tracking issue for AI SDK to support partial usage on cancel:
+        // https://github.com/vercel/ai/issues/7628
+        if (result.finishReason === 'cancelled') {
+            this.logger.info(
+                `Context estimation (cancelled): keeping last known actuals, partial response (${result.text.length} chars) will be estimated`
+            );
+            return;
+        }
+
+        const contextInputTokens = this.getContextInputTokens(result.usage);
+
+        if (result.usage.inputTokens !== undefined) {
+            const actualInputTokens = contextInputTokens ?? result.usage.inputTokens;
+            const diff = request.estimatedInputTokens - actualInputTokens;
+            const diffPercent =
+                actualInputTokens > 0 ? ((diff / actualInputTokens) * 100).toFixed(1) : '0.0';
+            this.logger.info(
+                `Context estimation accuracy: estimated=${request.estimatedInputTokens}, actual=${actualInputTokens}, ` +
+                    `error=${diff} (${diffPercent}%)`
+            );
+            this.contextManager.setLastActualInputTokens(actualInputTokens);
+
+            if (result.usage.outputTokens !== undefined) {
+                this.contextManager.setLastActualOutputTokens(result.usage.outputTokens);
+            }
+
+            await this.contextManager.recordLastCallMessageCount();
+        }
+
+        if (
+            result.finishReason !== 'tool-calls' &&
+            contextInputTokens &&
+            this.shouldCompactFromActual(contextInputTokens)
+        ) {
+            this.logger.debug(
+                `Post-response: actual ${contextInputTokens} tokens exceeds threshold, compacting`
+            );
+            await this.compactContext(
+                contextInputTokens,
+                contributorContext,
+                request.toolDefinitions
+            );
+        }
     }
 
     private async executeModelToolCalls(toolCalls: ModelToolCall[]): Promise<void> {
