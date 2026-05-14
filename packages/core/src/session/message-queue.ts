@@ -130,6 +130,23 @@ export class MessageQueueService {
         await this.store.save({ sessionId: this.sessionId, queue: this.queue });
     }
 
+    private async refreshFromStore(): Promise<void> {
+        const storedQueue = await this.store.load({ sessionId: this.sessionId });
+        const existingIds = new Set(this.queue.map((message) => message.id));
+        const externalMessages = storedQueue.filter((message) => !existingIds.has(message.id));
+
+        if (externalMessages.length === 0) {
+            return;
+        }
+
+        this.queue = [...this.queue, ...cloneQueuedMessages(externalMessages)].sort(
+            (left, right) => left.queuedAt - right.queuedAt
+        );
+        this.logger.debug(
+            `Loaded ${externalMessages.length} externally queued message(s) for session ${this.sessionId}`
+        );
+    }
+
     private runWithMutationLock<T>(fn: () => Promise<T>): Promise<T> {
         const currentResult = this.mutationLock.catch(() => {}).then(() => fn());
         this.mutationLock = currentResult.then(
@@ -209,6 +226,7 @@ export class MessageQueueService {
      */
     async dequeueAll(): Promise<CoalescedMessage | null> {
         return await this.runWithMutationLock(async () => {
+            await this.refreshFromStore();
             if (this.queue.length === 0) return null;
 
             const messages = cloneQueuedMessages(this.queue);
@@ -333,6 +351,12 @@ export class MessageQueueService {
      */
     hasPending(): boolean {
         return this.queue.length > 0;
+    }
+
+    async refresh(): Promise<void> {
+        await this.runWithMutationLock(async () => {
+            await this.refreshFromStore();
+        });
     }
 
     /**

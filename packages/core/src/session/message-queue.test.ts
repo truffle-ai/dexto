@@ -5,6 +5,7 @@ import type { ContentPart } from '../context/types.js';
 import { createMockLogger } from '../logger/v2/test-utils.js';
 import type { Logger } from '../logger/v2/types.js';
 import { createInMemoryMessageQueueStore } from '../test-utils/session-state-stores.js';
+import type { QueuedMessage } from './types.js';
 
 function createDeferred<T>() {
     let resolve!: (value: T | PromiseLike<T>) => void;
@@ -160,6 +161,66 @@ describe('MessageQueueService', () => {
     });
 
     describe('dequeueAll()', () => {
+        it('consumes messages appended to the backing store after initialization', async () => {
+            const store = createInMemoryMessageQueueStore();
+            const persistedMessage: QueuedMessage = {
+                content: [{ type: 'text', text: 'external steer' }],
+                id: 'external-1',
+                queuedAt: 100,
+            };
+            const persistedQueue = new MessageQueueService(
+                eventBus,
+                logger,
+                'session-external',
+                store
+            );
+
+            await persistedQueue.initialize();
+            await store.save({ sessionId: 'session-external', queue: [persistedMessage] });
+
+            const coalesced = await persistedQueue.dequeueAll();
+
+            expect(coalesced?.messages).toEqual([persistedMessage]);
+            await expect(store.load({ sessionId: 'session-external' })).resolves.toEqual([]);
+        });
+
+        it('preserves in-memory and externally appended queue order without duplicating ids', async () => {
+            const store = createInMemoryMessageQueueStore();
+            const persistedQueue = new MessageQueueService(
+                eventBus,
+                logger,
+                'session-merged',
+                store
+            );
+
+            await persistedQueue.initialize();
+            const enqueued = await persistedQueue.enqueue({
+                content: [{ type: 'text', text: 'from live queue' }],
+            });
+            await store.save({
+                sessionId: 'session-merged',
+                queue: [
+                    {
+                        content: [{ type: 'text', text: 'from live queue' }],
+                        id: enqueued.id,
+                        queuedAt: 100,
+                    },
+                    {
+                        content: [{ type: 'text', text: 'from external route' }],
+                        id: 'external-2',
+                        queuedAt: Date.now() + 1000,
+                    },
+                ],
+            });
+
+            const coalesced = await persistedQueue.dequeueAll();
+
+            expect(coalesced?.messages.map((message) => message.id)).toEqual([
+                enqueued.id,
+                'external-2',
+            ]);
+        });
+
         it('should return null when queue is empty', async () => {
             const result = await queue.dequeueAll();
             expect(result).toBeNull();

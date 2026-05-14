@@ -2358,6 +2358,72 @@ describe('TurnExecutor Integration Tests', () => {
             await expect(steerQueue.dequeueAll()).resolves.toBeNull();
         });
 
+        it('should process steer messages appended to the backing store while the model is in flight', async () => {
+            const steerQueueStore = createInMemoryMessageQueueStore();
+            steerQueue = new MessageQueueService(
+                sessionEventBus,
+                logger,
+                sessionId,
+                steerQueueStore
+            );
+            executor = createExecutorWithContext(contextManager);
+            let callCount = 0;
+
+            vi.mocked(streamText).mockImplementation(() => {
+                callCount++;
+                if (callCount === 1) {
+                    const firstStream = createMockStream({
+                        text: 'Initial response',
+                        finishReason: 'stop',
+                    });
+                    return {
+                        fullStream: (async function* () {
+                            await steerQueueStore.save({
+                                sessionId,
+                                queue: [
+                                    {
+                                        content: [
+                                            {
+                                                type: 'text',
+                                                text: 'Persisted route steer',
+                                            },
+                                        ],
+                                        id: 'route-steer-1',
+                                        queuedAt: Date.now(),
+                                    },
+                                ],
+                            });
+                            for await (const event of firstStream.fullStream) {
+                                yield event;
+                            }
+                        })(),
+                    } as unknown as ReturnType<typeof streamText>;
+                }
+                return createMockStream({
+                    text: 'Second response',
+                    finishReason: 'stop',
+                }) as unknown as ReturnType<typeof streamText>;
+            });
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Initial' }]);
+            const result = await executor.execute({ mcpManager }, true);
+
+            expect(callCount).toBe(2);
+            expect(result.text).toBe('Second response');
+            const history = await contextManager.getHistory();
+            expect(history).toEqual(
+                expect.arrayContaining([
+                    expect.objectContaining({
+                        content: expect.arrayContaining([
+                            expect.objectContaining({ text: 'Persisted route steer' }),
+                        ]),
+                        role: 'user',
+                    }),
+                ])
+            );
+            await expect(steerQueueStore.load({ sessionId })).resolves.toEqual([]);
+        });
+
         it('should process structured steer content before structured follow-up content', async () => {
             let callCount = 0;
             const steerImageBytes = new Uint8Array([1, 2, 3]);

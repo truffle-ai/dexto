@@ -967,6 +967,7 @@ export class TurnExecutor {
         stepCount: number
     ): Promise<QueuedInputAction> {
         if (result.finishReason === 'tool-calls') {
+            await this.steerQueue.refresh();
             // Hard cancel check during tool-calls: if queue is empty and signal aborted, exit.
             if (this.externalSignal?.aborted && !this.steerQueue.hasPending()) {
                 this.logger.debug('Terminating: hard cancel - external abort signal received');
@@ -982,6 +983,7 @@ export class TurnExecutor {
 
         // Steer messages submitted while the final LLM request was already in flight missed the
         // pre-request injection point. Treat them as end-of-turn input before explicit follow-ups.
+        await this.steerQueue.refresh();
         if (this.steerQueue.hasPending()) {
             return this.continueWithQueuedInput(
                 'late-steer',
@@ -992,6 +994,7 @@ export class TurnExecutor {
         }
 
         // Follow-ups run only after the active turn naturally reaches a stop point.
+        await this.followUpQueue.refresh();
         if (this.followUpQueue.hasPending()) {
             return this.continueWithQueuedInput(
                 'follow-up',
