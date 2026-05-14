@@ -685,6 +685,7 @@ export class ChatSession {
         };
 
         return {
+            prepareNextModelStep: () => driver.prepareNextModelStep(),
             runNextModelStep: () => driver.runNextModelStep(),
             executeToolCalls: () => driver.executeToolCalls(),
             decideNextStep: () => driver.decideNextStep(),

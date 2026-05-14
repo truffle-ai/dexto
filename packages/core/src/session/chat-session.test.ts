@@ -48,6 +48,9 @@ function createDeferred<T>() {
 
 function createMockTurnDriver() {
     return {
+        prepareNextModelStep: vi.fn().mockResolvedValue({
+            stepCount: 0,
+        }),
         runNextModelStep: vi.fn().mockResolvedValue({
             result: {
                 text: 'driver response',

@@ -291,7 +291,8 @@ describe('TurnExecutor Integration Tests', () => {
     function createExecutorWithContext(
         persistedContextManager: ContextManager<ModelMessage>,
         externalSignal?: AbortSignal,
-        runContext?: AgentRunContext
+        runContext?: AgentRunContext,
+        compactionStrategy: CompactionStrategy | null = null
     ): TurnExecutor {
         return new TurnExecutor(
             createMockModel(),
@@ -305,11 +306,18 @@ describe('TurnExecutor Integration Tests', () => {
             logger,
             steerQueue,
             followUpQueue,
-            undefined,
+            compactionStrategy === null ? undefined : { contextWindow: 100_000 },
             externalSignal,
-            null,
+            compactionStrategy,
             runContext
         );
+    }
+
+    async function seedCompactionEligibleHistory() {
+        await contextManager.addUserMessage([{ type: 'text', text: 'Message 1 before summary' }]);
+        await contextManager.addAssistantMessage('Response 1 before summary', []);
+        await contextManager.addUserMessage([{ type: 'text', text: 'Message 2 before summary' }]);
+        await contextManager.addAssistantMessage('Response 2 before summary', []);
     }
 
     function restartExecutor(externalSignal?: AbortSignal) {
@@ -485,6 +493,202 @@ describe('TurnExecutor Integration Tests', () => {
             }
         });
 
+        it('can checkpoint after preparing the next model step without calling the model', async () => {
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
+            const driver = await executor.createDriver({ mcpManager }, { streaming: true });
+
+            try {
+                const prepared = await driver.prepareNextModelStep();
+                const savedState = serializeTurnDriverState(driver.checkpoint());
+
+                expect(prepared).toEqual({ stepCount: 0 });
+                expect(streamText).not.toHaveBeenCalled();
+                expect(savedState).toEqual(
+                    expect.objectContaining({
+                        phase: 'model-step-prepared',
+                        stepCount: 0,
+                        modelStepId: 'in-memory-model-step-0',
+                        request: expect.objectContaining({
+                            estimatedInputTokens: expect.any(Number),
+                            streaming: true,
+                        }),
+                    })
+                );
+            } finally {
+                driver.dispose();
+            }
+        });
+
+        it('does not checkpoint while model preparation is in flight', async () => {
+            const releaseCompaction = createDeferred<InternalMessage[]>();
+            const compactionStrategy = createTestCompactionStrategy((tokens) => tokens > 10);
+            vi.mocked(compactionStrategy.compact).mockReturnValueOnce(releaseCompaction.promise);
+            const compactingExecutor = createExecutorWithContext(
+                contextManager,
+                undefined,
+                undefined,
+                compactionStrategy
+            );
+
+            await seedCompactionEligibleHistory();
+            const driver = await compactingExecutor.createDriver(
+                { mcpManager },
+                { streaming: true }
+            );
+
+            try {
+                const preparing = driver.prepareNextModelStep();
+
+                expect(() => driver.getState()).toThrow(
+                    'Turn driver cannot checkpoint during model preparation'
+                );
+                releaseCompaction.resolve([
+                    {
+                        role: 'assistant',
+                        content: [
+                            {
+                                type: 'text',
+                                text: '<session_compaction>Prepared summary</session_compaction>',
+                            },
+                        ],
+                        metadata: {
+                            isSummary: true,
+                            originalMessageCount: 4,
+                        },
+                    },
+                ]);
+                await preparing;
+            } finally {
+                driver.dispose();
+            }
+        });
+
+        it('can retry preparation after a transient preparation failure', async () => {
+            const compactionStrategy = createTestCompactionStrategy((tokens) => tokens > 10);
+            vi.mocked(compactionStrategy.compact)
+                .mockRejectedValueOnce(new Error('Temporary compaction failure'))
+                .mockResolvedValueOnce([
+                    {
+                        role: 'assistant',
+                        content: [
+                            {
+                                type: 'text',
+                                text: '<session_compaction>Prepared after retry</session_compaction>',
+                            },
+                        ],
+                        metadata: {
+                            isSummary: true,
+                            originalMessageCount: 4,
+                        },
+                    },
+                ]);
+            const compactingExecutor = createExecutorWithContext(
+                contextManager,
+                undefined,
+                undefined,
+                compactionStrategy
+            );
+
+            await seedCompactionEligibleHistory();
+            const driver = await compactingExecutor.createDriver(
+                { mcpManager },
+                { streaming: true }
+            );
+
+            try {
+                await expect(driver.prepareNextModelStep()).rejects.toThrow(
+                    'Temporary compaction failure'
+                );
+
+                await expect(driver.prepareNextModelStep()).resolves.toEqual({ stepCount: 0 });
+                expect(driver.getState()).toEqual(
+                    expect.objectContaining({
+                        phase: 'model-step-prepared',
+                        stepCount: 0,
+                    })
+                );
+            } finally {
+                driver.dispose();
+            }
+        });
+
+        it('rehydrates a prepared model step and runs the cached request', async () => {
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
+            const firstDriver = await executor.createDriver({ mcpManager }, { streaming: true });
+            await firstDriver.prepareNextModelStep();
+            const savedState = serializeTurnDriverState(firstDriver.checkpoint());
+            const restarted = restartExecutor();
+
+            const rehydratedDriver = await restarted.executor.createDriver(
+                { mcpManager },
+                { streaming: true, state: savedState }
+            );
+
+            try {
+                const modelStep = await rehydratedDriver.runNextModelStep();
+
+                expect(savedState.phase).toBe('model-step-prepared');
+                expect(modelStep.stepCount).toBe(0);
+                expect(modelStep.result.text).toBe('Hello!');
+                expect(streamText).toHaveBeenCalledTimes(1);
+                expect(rehydratedDriver.getState()).toEqual(
+                    expect.objectContaining({
+                        phase: 'model-step-complete',
+                        stepCount: 0,
+                        toolCallsExecuted: true,
+                    })
+                );
+            } finally {
+                rehydratedDriver.dispose();
+            }
+        });
+
+        it('rehydrates the prepared tool definitions instead of rediscovering tools', async () => {
+            toolManager.addTools([
+                defineTool({
+                    id: 'snapshot_tool',
+                    description: 'Original tool description',
+                    inputSchema: z.object({ value: z.string() }).strict(),
+                    execute: vi.fn().mockResolvedValue('unused'),
+                }),
+            ]);
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
+            const firstDriver = await executor.createDriver({ mcpManager }, { streaming: true });
+            await firstDriver.prepareNextModelStep();
+            const savedState = serializeTurnDriverState(firstDriver.checkpoint());
+            firstDriver.dispose();
+            toolManager.setTools([
+                defineTool({
+                    id: 'snapshot_tool',
+                    description: 'Changed tool description',
+                    inputSchema: z.object({ value: z.string() }).strict(),
+                    execute: vi.fn().mockResolvedValue('unused'),
+                }),
+            ]);
+            const restarted = restartExecutor();
+
+            const rehydratedDriver = await restarted.executor.createDriver(
+                { mcpManager },
+                { streaming: true, state: savedState }
+            );
+
+            try {
+                await rehydratedDriver.runNextModelStep();
+
+                expect(streamText).toHaveBeenCalledWith(
+                    expect.objectContaining({
+                        tools: expect.objectContaining({
+                            snapshot_tool: expect.objectContaining({
+                                description: 'Original tool description',
+                            }),
+                        }),
+                    })
+                );
+            } finally {
+                rehydratedDriver.dispose();
+            }
+        });
+
         it('rehydrates a completed terminal model step before deciding and finishing', async () => {
             const thinkingHandler = vi.fn();
             const runCompleteHandler = vi.fn();
@@ -543,6 +747,24 @@ describe('TurnExecutor Integration Tests', () => {
         });
 
         it('does not checkpoint while a model step is in flight', async () => {
+            const releaseStream = createDeferred<void>();
+            vi.mocked(streamText).mockImplementationOnce(
+                () =>
+                    ({
+                        fullStream: (async function* () {
+                            await releaseStream.promise;
+                            yield {
+                                type: 'finish',
+                                finishReason: 'stop',
+                                totalUsage: {
+                                    inputTokens: 100,
+                                    outputTokens: 50,
+                                    totalTokens: 150,
+                                },
+                            };
+                        })(),
+                    }) as unknown as ReturnType<typeof streamText>
+            );
             await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
             const driver = await executor.createDriver({ mcpManager }, { streaming: true });
 
@@ -552,6 +774,7 @@ describe('TurnExecutor Integration Tests', () => {
                 expect(() => driver.getState()).toThrow(
                     'Turn driver cannot checkpoint during a model step'
                 );
+                releaseStream.resolve();
                 await modelStep;
             } finally {
                 driver.dispose();
@@ -3460,17 +3683,6 @@ describe('TurnExecutor Integration Tests', () => {
                 undefined,
                 compactionStrategy
             );
-        }
-
-        async function seedCompactionEligibleHistory() {
-            await contextManager.addUserMessage([
-                { type: 'text', text: 'Message 1 before summary' },
-            ]);
-            await contextManager.addAssistantMessage('Response 1 before summary', []);
-            await contextManager.addUserMessage([
-                { type: 'text', text: 'Message 2 before summary' },
-            ]);
-            await contextManager.addAssistantMessage('Response 2 before summary', []);
         }
 
         it('prunes old tool outputs before formatting the next model request', async () => {
