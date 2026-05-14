@@ -1,5 +1,6 @@
 /* global ReadableStream */
 
+import { EventEmitter } from 'node:events';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type {
     JSONSchema7,
@@ -134,6 +135,7 @@ async function readAllParts(
 describe('createCodexLanguageModel', () => {
     afterEach(() => {
         vi.restoreAllMocks();
+        vi.useRealTimers();
     });
 
     it('serializes circular tool payloads in the transcript without throwing', async () => {
@@ -618,5 +620,36 @@ describe('createCodexLanguageModel', () => {
         await expect(client.waitForNotification('account/login/completed')).rejects.toMatchObject({
             message: 'Codex app-server client is closed',
         });
+    });
+
+    it('does not hang when the app-server child ignores close termination', async () => {
+        vi.useFakeTimers();
+
+        const ClientCtor = CodexAppServerClient as unknown as {
+            new (options?: unknown): CodexAppServerClient;
+        };
+        const client = new ClientCtor();
+        const stderr = new EventEmitter();
+        const child = Object.assign(new EventEmitter(), {
+            stdin: {
+                writable: true,
+                write: vi.fn(),
+            },
+            stdout: new EventEmitter(),
+            stderr,
+            killed: false,
+            exitCode: null,
+            signalCode: null,
+            kill: vi.fn(() => true),
+        });
+
+        (client as unknown as Record<string, unknown>)['child'] = child;
+
+        const closePromise = client.close();
+        await vi.advanceTimersByTimeAsync(1_000);
+        await closePromise;
+
+        expect(child.kill).toHaveBeenCalledWith();
+        expect(child.kill).toHaveBeenCalledWith('SIGKILL');
     });
 });

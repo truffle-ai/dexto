@@ -173,6 +173,7 @@ function createCodexClientExitedError(input: {
 }
 
 const DEFAULT_REQUEST_TIMEOUT_MS = 30_000;
+const CLOSE_GRACE_PERIOD_MS = 1_000;
 const DEFAULT_CLIENT_INFO: CodexClientInfo = {
     name: 'dexto',
     title: 'Dexto',
@@ -994,8 +995,29 @@ export class CodexAppServerClient {
         }
 
         await new Promise<void>((resolve) => {
-            child.once('exit', () => resolve());
-            child.kill();
+            let settled = false;
+            const finish = () => {
+                if (settled) {
+                    return;
+                }
+                settled = true;
+                clearTimeout(timeout);
+                child.off('exit', finish);
+                resolve();
+            };
+            const timeout = setTimeout(() => {
+                try {
+                    child.kill('SIGKILL');
+                } catch {
+                    // Best-effort cleanup only. Closing the client must not hang caller cleanup.
+                }
+                finish();
+            }, CLOSE_GRACE_PERIOD_MS);
+
+            child.once('exit', finish);
+            if (!child.kill()) {
+                finish();
+            }
         });
     }
 
