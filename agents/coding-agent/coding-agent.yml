@@ -130,11 +130,6 @@ permissions:
       - wait_for       # Wait for background tasks without approval
       - check_task     # Check background tasks without approval
 
-    # Tools that are always denied (dangerous operations)
-    # Uncomment to restrict certain operations
-    # alwaysDeny:
-    #   - bash_exec  # Require approval for all shell commands
-
 # Compaction configuration - automatically summarizes conversation when context is full
 compaction:
   type: reactive-overflow

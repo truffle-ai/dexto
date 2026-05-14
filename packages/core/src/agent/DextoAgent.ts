@@ -395,7 +395,7 @@ export class DextoAgent {
                     `An approval handler is required but not configured (${reasons.join(' and ')}).\n` +
                         'Either:\n' +
                         '  • Call agent.setApprovalHandler() before starting\n' +
-                        '  • Set permissions: { mode: "auto-approve" } or { mode: "auto-deny" }\n' +
+                        '  • Set permissions: { mode: "auto-approve" }\n' +
                         '  • Disable elicitation: { enabled: false }'
                 );
             }

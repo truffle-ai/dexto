@@ -56,7 +56,7 @@ export type ToolManagerFactoryOptions = {
     mcpManager: MCPManager;
     approvalManager: ApprovalManager;
     allowedToolsProvider: AllowedToolsProvider;
-    approvalMode: 'manual' | 'auto-approve' | 'auto-deny';
+    approvalMode: 'manual' | 'auto-approve';
     agentEventBus: AgentEventBus;
     toolPolicies: ToolPolicies;
     tools: Tool[];

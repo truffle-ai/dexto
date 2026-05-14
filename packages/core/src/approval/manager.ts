@@ -11,7 +11,7 @@ import type {
     ElicitationMetadata,
     DirectoryAccessMetadata,
 } from './types.js';
-import { ApprovalType, ApprovalStatus, DenialReason } from './types.js';
+import { ApprovalType, ApprovalStatus } from './types.js';
 import {
     CommandApprovalResponseSchema,
     CustomApprovalResponseSchema,
@@ -119,7 +119,7 @@ export interface ApprovalManagerConfig {
  * - Route approvals to appropriate providers
  * - Provide convenience methods for specific approval types
  * - Handle approval responses and errors
- * - Support multiple approval modes (manual, auto-approve, auto-deny)
+ * - Support multiple approval modes (manual, auto-approve)
  *
  * @example
  * ```typescript
@@ -932,18 +932,6 @@ export class ApprovalManager {
             });
         }
 
-        // Auto-deny mode
-        if (mode === 'auto-deny') {
-            this.logger.info(
-                `Auto-deny approval '${request.type}', approvalId: ${request.approvalId}`
-            );
-            return this.createResponse(request, {
-                status: ApprovalStatus.DENIED,
-                reason: DenialReason.SYSTEM_DENIED,
-                message: `Approval automatically denied by system policy (auto-deny mode)`,
-            });
-        }
-
         // Manual mode - delegate to handler
         const handler = this.ensureHandler();
         this.logger.info(
@@ -1211,7 +1199,7 @@ export class ApprovalManager {
                     '  • manual tool approval mode\n' +
                     '  • all elicitation requests (when elicitation is enabled)\n' +
                     'Either:\n' +
-                    '  • set permissions.mode to "auto-approve" or "auto-deny", or\n' +
+                    '  • set permissions.mode to "auto-approve", or\n' +
                     '  • disable elicitation (set elicitation.enabled: false), or\n' +
                     '  • call agent.setApprovalHandler(...) before processing requests.'
             );

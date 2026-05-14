@@ -390,7 +390,7 @@ describe('TurnExecutor Integration Tests', () => {
             mockAllowedToolsProvider,
             'auto-approve',
             agentEventBus,
-            { alwaysAllow: [], alwaysDeny: [] },
+            { alwaysAllow: [] },
             [],
             logger,
             createInMemorySessionToolPreferencesStore(logger),
@@ -1554,7 +1554,7 @@ describe('TurnExecutor Integration Tests', () => {
                 allowedToolsProvider,
                 'manual',
                 agentEventBus,
-                { alwaysAllow: [], alwaysDeny: [] },
+                { alwaysAllow: [] },
                 [],
                 logger,
                 createInMemorySessionToolPreferencesStore(logger),
@@ -1670,7 +1670,7 @@ describe('TurnExecutor Integration Tests', () => {
                 },
                 'manual',
                 agentEventBus,
-                { alwaysAllow: [], alwaysDeny: [] },
+                { alwaysAllow: [] },
                 [
                     defineTool({
                         id: 'approval_error',
@@ -1778,7 +1778,7 @@ describe('TurnExecutor Integration Tests', () => {
                 allowedToolsProvider,
                 'manual',
                 agentEventBus,
-                { alwaysAllow: [], alwaysDeny: [] },
+                { alwaysAllow: [] },
                 [
                     defineTool({
                         id: 'approval_sibling',
@@ -1909,7 +1909,7 @@ describe('TurnExecutor Integration Tests', () => {
                 allowedToolsProvider,
                 'manual',
                 agentEventBus,
-                { alwaysAllow: [], alwaysDeny: [] },
+                { alwaysAllow: [] },
                 [
                     defineTool({
                         id: 'write_file',
@@ -2018,7 +2018,7 @@ describe('TurnExecutor Integration Tests', () => {
                 allowedToolsProvider,
                 'manual',
                 agentEventBus,
-                { alwaysAllow: [], alwaysDeny: [] },
+                { alwaysAllow: [] },
                 [
                     defineTool({
                         id: 'write_file',
@@ -2125,7 +2125,7 @@ describe('TurnExecutor Integration Tests', () => {
                 },
                 'manual',
                 agentEventBus,
-                { alwaysAllow: [], alwaysDeny: [] },
+                { alwaysAllow: [] },
                 [
                     defineTool({
                         id: 'bash_exec',
@@ -3413,7 +3413,7 @@ describe('TurnExecutor Integration Tests', () => {
                 },
                 'manual',
                 agentEventBus,
-                { alwaysAllow: [], alwaysDeny: [] },
+                { alwaysAllow: [] },
                 [
                     defineTool({
                         id: 'pending_approval',

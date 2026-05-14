@@ -969,20 +969,14 @@ export class AgentSpawnerRuntime implements TaskForker {
         const parentToolPolicies = parentSettings.permissions?.toolPolicies;
         const mergeToolPolicies = (subAgentPolicies?: {
             alwaysAllow?: string[] | undefined;
-            alwaysDeny?: string[] | undefined;
-        }): { alwaysAllow: string[]; alwaysDeny: string[] } => {
+        }): { alwaysAllow: string[] } => {
             const alwaysAllow = [
                 ...(parentToolPolicies?.alwaysAllow ?? []),
                 ...(subAgentPolicies?.alwaysAllow ?? []),
             ];
-            const alwaysDeny = [
-                ...(parentToolPolicies?.alwaysDeny ?? []),
-                ...(subAgentPolicies?.alwaysDeny ?? []),
-            ];
 
             return {
                 alwaysAllow: Array.from(new Set(alwaysAllow)),
-                alwaysDeny: Array.from(new Set(alwaysDeny)),
             };
         };
 

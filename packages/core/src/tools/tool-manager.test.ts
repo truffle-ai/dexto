@@ -182,7 +182,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'manual',
                 mockAgentEventBus,
-                { alwaysAllow: [], alwaysDeny: [] },
+                { alwaysAllow: [] },
                 [],
                 mockLogger
             );
@@ -198,7 +198,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'manual',
                 mockAgentEventBus,
-                { alwaysAllow: [], alwaysDeny: [] },
+                { alwaysAllow: [] },
                 [
                     {
                         id: 'search_history',
@@ -227,7 +227,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'manual',
                 mockAgentEventBus,
-                { alwaysAllow: [], alwaysDeny: [] },
+                { alwaysAllow: [] },
                 [],
                 mockLogger
             );
@@ -244,7 +244,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'manual',
                 mockAgentEventBus,
-                { alwaysAllow: [], alwaysDeny: [] },
+                { alwaysAllow: [] },
                 [],
                 mockLogger
             );
@@ -262,7 +262,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'auto-approve',
                 mockAgentEventBus,
-                { alwaysAllow: [], alwaysDeny: [] },
+                { alwaysAllow: [] },
                 [
                     defineTool({
                         id: 'typed',
@@ -303,7 +303,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'manual',
                 mockAgentEventBus,
-                { alwaysAllow: [], alwaysDeny: [] },
+                { alwaysAllow: [] },
                 [
                     defineTool({
                         id: 'write_file',
@@ -350,7 +350,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'manual',
                 mockAgentEventBus,
-                { alwaysAllow: [], alwaysDeny: [] },
+                { alwaysAllow: [] },
                 [
                     defineTool({
                         id: 'write_file',
@@ -395,7 +395,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'manual',
                 mockAgentEventBus,
-                { alwaysAllow: [], alwaysDeny: [] },
+                { alwaysAllow: [] },
                 [
                     defineTool({
                         id: 'fs_like_tool',
@@ -463,132 +463,6 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             expect(mockApprovalManager.addApprovedDirectory).not.toHaveBeenCalled();
         });
 
-        it('prepares denied tools before validation, presentation, execution, or approval', async () => {
-            const execute = vi.fn();
-            const preview = vi.fn();
-            const toolManager = createToolManager(
-                mockMcpManager,
-                mockApprovalManager,
-                mockAllowedToolsProvider,
-                'auto-approve',
-                mockAgentEventBus,
-                { alwaysAllow: [], alwaysDeny: ['blocked'] },
-                [
-                    defineTool({
-                        id: 'blocked',
-                        description: 'Blocked tool',
-                        inputSchema: z.object({ path: z.string() }).strict(),
-                        presentation: { preview },
-                        execute,
-                    }),
-                ],
-                mockLogger
-            );
-
-            const prepared = await toolManager.prepareToolCall({
-                toolName: 'blocked',
-                input: { path: 123 },
-                toolCallId: 'call-deny',
-                sessionId: 'session-1',
-            });
-
-            expect(prepared).toEqual(
-                expect.objectContaining({
-                    kind: 'terminal',
-                    reason: 'denied',
-                    call: expect.objectContaining({
-                        toolName: 'blocked',
-                        input: { path: 123 },
-                    }),
-                    modelVisibleResult: expect.objectContaining({
-                        result: expect.objectContaining({
-                            error: expect.stringContaining('policy denied'),
-                        }),
-                    }),
-                })
-            );
-            expect(preview).not.toHaveBeenCalled();
-            expect(execute).not.toHaveBeenCalled();
-            expect(mockApprovalManager.requestToolApproval).not.toHaveBeenCalled();
-        });
-
-        it('prepares denied tools before non-object input validation', async () => {
-            const execute = vi.fn();
-            const toolManager = createToolManager(
-                mockMcpManager,
-                mockApprovalManager,
-                mockAllowedToolsProvider,
-                'auto-approve',
-                mockAgentEventBus,
-                { alwaysAllow: [], alwaysDeny: ['blocked'] },
-                [
-                    defineTool({
-                        id: 'blocked',
-                        description: 'Blocked tool',
-                        inputSchema: z.object({ path: z.string() }).strict(),
-                        execute,
-                    }),
-                ],
-                mockLogger
-            );
-
-            const prepared = await toolManager.prepareToolCall({
-                toolName: 'blocked',
-                input: null,
-                toolCallId: 'call-deny-null',
-                sessionId: 'session-1',
-            });
-
-            expect(prepared).toEqual(
-                expect.objectContaining({
-                    kind: 'terminal',
-                    reason: 'denied',
-                    call: expect.objectContaining({
-                        toolName: 'blocked',
-                        input: {},
-                    }),
-                })
-            );
-            expect(execute).not.toHaveBeenCalled();
-            expect(mockApprovalManager.requestToolApproval).not.toHaveBeenCalled();
-        });
-
-        it('prepares denied MCP tools before discovery', async () => {
-            mockMcpManager.getAllTools = vi.fn().mockRejectedValue(new Error('discovery failed'));
-            const toolManager = createToolManager(
-                mockMcpManager,
-                mockApprovalManager,
-                mockAllowedToolsProvider,
-                'auto-approve',
-                mockAgentEventBus,
-                { alwaysAllow: [], alwaysDeny: ['mcp--read_file'] },
-                [],
-                mockLogger
-            );
-
-            const prepared = await toolManager.prepareToolCall({
-                toolName: 'mcp--read_file',
-                input: { path: '/tmp/file.txt' },
-                toolCallId: 'call-deny-mcp',
-                sessionId: 'session-1',
-            });
-
-            expect(prepared).toEqual(
-                expect.objectContaining({
-                    kind: 'terminal',
-                    reason: 'denied',
-                    call: expect.objectContaining({
-                        source: 'mcp',
-                        toolName: 'mcp--read_file',
-                        input: { path: '/tmp/file.txt' },
-                    }),
-                })
-            );
-            expect(mockMcpManager.getAllTools).not.toHaveBeenCalled();
-            expect(mockMcpManager.executeTool).not.toHaveBeenCalled();
-            expect(mockApprovalManager.requestToolApproval).not.toHaveBeenCalled();
-        });
-
         it('prepares custom approval overrides as mandatory even when policy would allow the tool', async () => {
             const execute = vi.fn();
             const toolManager = createToolManager(
@@ -597,7 +471,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'auto-approve',
                 mockAgentEventBus,
-                { alwaysAllow: ['custom_gate'], alwaysDeny: [] },
+                { alwaysAllow: ['custom_gate'] },
                 [
                     defineTool({
                         id: 'custom_gate',
@@ -645,7 +519,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'auto-approve',
                 mockAgentEventBus,
-                { alwaysAllow: [], alwaysDeny: [] },
+                { alwaysAllow: [] },
                 [
                     defineTool({
                         id: 'typed',
@@ -685,7 +559,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'auto-approve',
                 mockAgentEventBus,
-                { alwaysAllow: [], alwaysDeny: [] },
+                { alwaysAllow: [] },
                 [],
                 mockLogger
             );
@@ -729,7 +603,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'auto-approve',
                 mockAgentEventBus,
-                { alwaysAllow: [], alwaysDeny: [] },
+                { alwaysAllow: [] },
                 [],
                 mockLogger
             );
@@ -762,7 +636,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'manual',
                 mockAgentEventBus,
-                { alwaysAllow: [], alwaysDeny: [] },
+                { alwaysAllow: [] },
                 [
                     defineTool({
                         id: 'write_file',
@@ -821,7 +695,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'manual',
                 mockAgentEventBus,
-                { alwaysAllow: [], alwaysDeny: [] },
+                { alwaysAllow: [] },
                 [
                     defineTool({
                         id: 'write_file',
@@ -898,7 +772,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'manual',
                 mockAgentEventBus,
-                { alwaysAllow: [], alwaysDeny: [] },
+                { alwaysAllow: [] },
                 [
                     defineTool({
                         id: 'write_file',
@@ -966,7 +840,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'manual',
                 mockAgentEventBus,
-                { alwaysAllow: [], alwaysDeny: [] },
+                { alwaysAllow: [] },
                 [
                     defineTool({
                         id: 'write_file',
@@ -1034,7 +908,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'manual',
                 mockAgentEventBus,
-                { alwaysAllow: [], alwaysDeny: [] },
+                { alwaysAllow: [] },
                 [
                     defineTool({
                         id: 'write_file',
@@ -1101,7 +975,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'manual',
                 mockAgentEventBus,
-                { alwaysAllow: [], alwaysDeny: [] },
+                { alwaysAllow: [] },
                 [
                     defineTool({
                         id: 'write_file',
@@ -1163,7 +1037,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'manual',
                 mockAgentEventBus,
-                { alwaysAllow: [], alwaysDeny: [] },
+                { alwaysAllow: [] },
                 [
                     defineTool({
                         id: 'write_file',
@@ -1204,7 +1078,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'manual',
                 mockAgentEventBus,
-                { alwaysAllow: [], alwaysDeny: [] },
+                { alwaysAllow: [] },
                 [
                     defineTool({
                         id: 'write_file',
@@ -1264,7 +1138,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'manual',
                 mockAgentEventBus,
-                { alwaysAllow: [], alwaysDeny: [] },
+                { alwaysAllow: [] },
                 [
                     defineTool({
                         id: 'write_file',
@@ -1333,7 +1207,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'manual',
                 mockAgentEventBus,
-                { alwaysAllow: [], alwaysDeny: [] },
+                { alwaysAllow: [] },
                 [
                     defineTool({
                         id: 'fs_like_tool',
@@ -1416,7 +1290,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'auto-approve',
                 mockAgentEventBus,
-                { alwaysAllow: [], alwaysDeny: [] },
+                { alwaysAllow: [] },
                 [
                     defineTool({
                         id: 'typed',
@@ -1476,7 +1350,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'auto-approve',
                 mockAgentEventBus,
-                { alwaysAllow: [], alwaysDeny: [] },
+                { alwaysAllow: [] },
                 [],
                 mockLogger
             );
@@ -1513,7 +1387,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'manual',
                 mockAgentEventBus,
-                { alwaysAllow: [], alwaysDeny: [] },
+                { alwaysAllow: [] },
                 [
                     defineTool({
                         id: 'write_file',
@@ -1571,7 +1445,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'auto-approve',
                 mockAgentEventBus,
-                { alwaysAllow: [], alwaysDeny: [] },
+                { alwaysAllow: [] },
                 [
                     defineTool({
                         id: 'write_file',
@@ -1631,7 +1505,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'auto-approve',
                 mockAgentEventBus,
-                { alwaysAllow: [], alwaysDeny: [] },
+                { alwaysAllow: [] },
                 [
                     defineTool({
                         id: 'write_file',
@@ -1680,7 +1554,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'auto-approve',
                 mockAgentEventBus,
-                { alwaysAllow: [], alwaysDeny: [] },
+                { alwaysAllow: [] },
                 [
                     defineTool({
                         id: 'write_file',
@@ -1755,7 +1629,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'auto-approve',
                 mockAgentEventBus,
-                { alwaysAllow: [], alwaysDeny: [] },
+                { alwaysAllow: [] },
                 [
                     defineTool({
                         id: 'hello',
@@ -1829,7 +1703,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     mockAllowedToolsProvider,
                     'auto-approve',
                     mockAgentEventBus,
-                    { alwaysAllow: [], alwaysDeny: [] },
+                    { alwaysAllow: [] },
                     [],
                     mockLogger
                 );
@@ -1891,7 +1765,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'manual',
                 mockAgentEventBus,
-                { alwaysAllow: [], alwaysDeny: [] },
+                { alwaysAllow: [] },
                 [],
                 mockLogger
             );
@@ -1910,7 +1784,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'manual',
                 mockAgentEventBus,
-                { alwaysAllow: [], alwaysDeny: [] },
+                { alwaysAllow: [] },
                 [],
                 mockLogger
             );
@@ -1940,7 +1814,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'manual',
                 mockAgentEventBus,
-                { alwaysAllow: [], alwaysDeny: [] },
+                { alwaysAllow: [] },
                 [],
                 mockLogger
             );
@@ -1982,7 +1856,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'manual',
                 mockAgentEventBus,
-                { alwaysAllow: [], alwaysDeny: [] },
+                { alwaysAllow: [] },
                 [],
                 mockLogger
             );
@@ -2035,7 +1909,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'manual',
                 mockAgentEventBus,
-                { alwaysAllow: [], alwaysDeny: [] },
+                { alwaysAllow: [] },
                 [],
                 mockLogger
             );
@@ -2056,7 +1930,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'manual',
                 mockAgentEventBus,
-                { alwaysAllow: [], alwaysDeny: [] },
+                { alwaysAllow: [] },
                 [],
                 mockLogger
             );
@@ -2080,7 +1954,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'manual',
                 mockAgentEventBus,
-                { alwaysAllow: [], alwaysDeny: [] },
+                { alwaysAllow: [] },
                 [],
                 mockLogger
             );
@@ -2101,7 +1975,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'auto-approve',
                 mockAgentEventBus,
-                { alwaysAllow: [], alwaysDeny: [] },
+                { alwaysAllow: [] },
                 [
                     defineTool({
                         id: 'typed',
@@ -2135,7 +2009,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'auto-approve',
                 mockAgentEventBus,
-                { alwaysAllow: [], alwaysDeny: [] },
+                { alwaysAllow: [] },
                 [
                     {
                         id: 'hello',
@@ -2170,7 +2044,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'auto-approve',
                 mockAgentEventBus,
-                { alwaysAllow: [], alwaysDeny: [] },
+                { alwaysAllow: [] },
                 [
                     defineTool({
                         id: 'write_file',
@@ -2258,7 +2132,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'manual',
                 mockAgentEventBus,
-                { alwaysAllow: [], alwaysDeny: [] },
+                { alwaysAllow: [] },
                 [
                     defineTool({
                         id: 'write_file',
@@ -2323,7 +2197,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'auto-approve',
                 mockAgentEventBus,
-                { alwaysAllow: [], alwaysDeny: [] },
+                { alwaysAllow: [] },
                 [
                     defineTool({
                         id: 'write_file',
@@ -2357,7 +2231,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'auto-approve',
                 mockAgentEventBus,
-                { alwaysAllow: [], alwaysDeny: [] },
+                { alwaysAllow: [] },
                 [
                     defineTool({
                         id: 'list_files',
@@ -2431,7 +2305,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'auto-approve',
                 mockAgentEventBus,
-                { alwaysAllow: [], alwaysDeny: [] },
+                { alwaysAllow: [] },
                 [
                     defineTool({
                         id: 'write_file',
@@ -2470,7 +2344,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'auto-approve',
                 mockAgentEventBus,
-                { alwaysAllow: [], alwaysDeny: [] },
+                { alwaysAllow: [] },
                 [
                     defineTool({
                         id: 'write_file',
@@ -2529,7 +2403,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'manual',
                 mockAgentEventBus,
-                { alwaysAllow: [], alwaysDeny: [] },
+                { alwaysAllow: [] },
                 [
                     defineTool({
                         id: 'write_file',
@@ -2603,7 +2477,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'auto-approve',
                 mockAgentEventBus,
-                { alwaysAllow: [], alwaysDeny: [] },
+                { alwaysAllow: [] },
                 [tool],
                 mockLogger
             );
@@ -2648,7 +2522,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'auto-approve',
                 mockAgentEventBus,
-                { alwaysAllow: [], alwaysDeny: [] },
+                { alwaysAllow: [] },
                 [tool],
                 mockLogger
             );
@@ -2709,7 +2583,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'auto-approve',
                 mockAgentEventBus,
-                { alwaysAllow: [], alwaysDeny: [] },
+                { alwaysAllow: [] },
                 [],
                 mockLogger
             );
@@ -2762,7 +2636,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'manual',
                 mockAgentEventBus,
-                { alwaysAllow: [], alwaysDeny: [] },
+                { alwaysAllow: [] },
                 [tool],
                 mockLogger
             );
@@ -2811,7 +2685,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'manual',
                 mockAgentEventBus,
-                { alwaysAllow: [], alwaysDeny: [] },
+                { alwaysAllow: [] },
                 [tool],
                 mockLogger
             );
@@ -2855,7 +2729,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'manual',
                 mockAgentEventBus,
-                { alwaysAllow: [], alwaysDeny: [] },
+                { alwaysAllow: [] },
                 [tool],
                 mockLogger
             );
@@ -2973,7 +2847,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'manual',
                 mockAgentEventBus,
-                { alwaysAllow: ['fs_like_tool'], alwaysDeny: [] },
+                { alwaysAllow: ['fs_like_tool'] },
                 [tool],
                 mockLogger
             );
@@ -3064,7 +2938,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'manual',
                 mockAgentEventBus,
-                { alwaysAllow: ['fs_like_tool'], alwaysDeny: [] },
+                { alwaysAllow: ['fs_like_tool'] },
                 [tool],
                 mockLogger
             );
@@ -3208,7 +3082,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'manual',
                 mockAgentEventBus,
-                { alwaysAllow: ['fs_like_tool'], alwaysDeny: [] },
+                { alwaysAllow: ['fs_like_tool'] },
                 [tool],
                 mockLogger
             );
@@ -3233,7 +3107,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'manual',
                 mockAgentEventBus,
-                { alwaysAllow: [], alwaysDeny: [] },
+                { alwaysAllow: [] },
                 [],
                 mockLogger
             );
@@ -3330,7 +3204,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'manual',
                 mockAgentEventBus,
-                { alwaysAllow: [], alwaysDeny: [] },
+                { alwaysAllow: [] },
                 [tool],
                 mockLogger
             );
@@ -3360,7 +3234,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'manual',
                 mockAgentEventBus,
-                { alwaysAllow: [], alwaysDeny: [] },
+                { alwaysAllow: [] },
                 [],
                 mockLogger
             );
@@ -3398,7 +3272,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     mockAllowedToolsProvider,
                     'auto-approve',
                     mockAgentEventBus,
-                    { alwaysAllow: [], alwaysDeny: [] },
+                    { alwaysAllow: [] },
                     [],
                     mockLogger
                 );
@@ -3454,7 +3328,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     mockAllowedToolsProvider,
                     'auto-approve',
                     mockAgentEventBus,
-                    { alwaysAllow: [], alwaysDeny: [] },
+                    { alwaysAllow: [] },
                     [],
                     mockLogger,
                     createInMemorySessionToolPreferencesStore(mockLogger),
@@ -3509,7 +3383,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'manual',
                 mockAgentEventBus,
-                { alwaysAllow: [], alwaysDeny: [] },
+                { alwaysAllow: [] },
                 [],
                 mockLogger
             );
@@ -3535,7 +3409,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'manual',
                 mockAgentEventBus,
-                { alwaysAllow: [], alwaysDeny: [] },
+                { alwaysAllow: [] },
                 [],
                 mockLogger
             );
@@ -3574,7 +3448,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'manual',
                 mockAgentEventBus,
-                { alwaysAllow: [], alwaysDeny: [] },
+                { alwaysAllow: [] },
                 [],
                 mockLogger
             );
@@ -3601,7 +3475,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'manual',
                 mockAgentEventBus,
-                { alwaysAllow: [], alwaysDeny: [] },
+                { alwaysAllow: [] },
                 [],
                 mockLogger
             );
@@ -3636,7 +3510,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'manual',
                 mockAgentEventBus,
-                { alwaysAllow: [], alwaysDeny: [] },
+                { alwaysAllow: [] },
                 [],
                 mockLogger
             );
@@ -3664,7 +3538,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'auto-approve',
                 mockAgentEventBus,
-                { alwaysAllow: [], alwaysDeny: [] },
+                { alwaysAllow: [] },
                 [],
                 mockLogger
             );
@@ -3679,28 +3553,6 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             expect(mockMcpManager.executeTool).toHaveBeenCalled();
             expect(result).toEqual(expect.objectContaining({ result: 'success' }));
         });
-
-        it('should auto-deny when mode is auto-deny', async () => {
-            const toolManager = createToolManager(
-                mockMcpManager,
-                mockApprovalManager,
-                mockAllowedToolsProvider,
-                'auto-deny',
-                mockAgentEventBus,
-                { alwaysAllow: [], alwaysDeny: [] },
-                [],
-                mockLogger
-            );
-
-            const error = (await toolManager
-                .executeTool('mcp--file_read', { path: '/test' }, 'test-call-id')
-                .catch((e) => e)) as DextoRuntimeError;
-
-            expect(error).toBeInstanceOf(DextoRuntimeError);
-            expect(error.code).toBe(ToolErrorCode.EXECUTION_DENIED);
-            expect(mockApprovalManager.requestToolApproval).not.toHaveBeenCalled();
-            expect(mockMcpManager.executeTool).not.toHaveBeenCalled();
-        });
     });
 
     describe('Cache Management Logic', () => {
@@ -3714,7 +3566,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'manual',
                 mockAgentEventBus,
-                { alwaysAllow: [], alwaysDeny: [] },
+                { alwaysAllow: [] },
                 [
                     {
                         id: 'dynamic_tool',
@@ -3751,7 +3603,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'manual',
                 mockAgentEventBus,
-                { alwaysAllow: [], alwaysDeny: [] },
+                { alwaysAllow: [] },
                 [],
                 mockLogger
             );
@@ -3777,7 +3629,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'manual',
                 mockAgentEventBus,
-                { alwaysAllow: [], alwaysDeny: [] },
+                { alwaysAllow: [] },
                 [
                     {
                         id: 'spawn_agent',
@@ -3818,7 +3670,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'manual',
                 mockAgentEventBus,
-                { alwaysAllow: [], alwaysDeny: [] },
+                { alwaysAllow: [] },
                 [
                     {
                         id: 'spawn_agent',
@@ -3856,7 +3708,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'manual',
                 mockAgentEventBus,
-                { alwaysAllow: [], alwaysDeny: [] },
+                { alwaysAllow: [] },
                 [],
                 mockLogger
             );
@@ -3898,7 +3750,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'manual',
                 mockAgentEventBus,
-                { alwaysAllow: [], alwaysDeny: [] },
+                { alwaysAllow: [] },
                 [],
                 mockLogger
             );
@@ -3946,7 +3798,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'manual',
                 mockAgentEventBus,
-                { alwaysAllow: [], alwaysDeny: [] },
+                { alwaysAllow: [] },
                 [],
                 mockLogger
             );
@@ -3969,7 +3821,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'manual',
                 mockAgentEventBus,
-                { alwaysAllow: [], alwaysDeny: [] },
+                { alwaysAllow: [] },
                 [],
                 mockLogger
             );
@@ -3992,7 +3844,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'manual',
                 mockAgentEventBus,
-                { alwaysAllow: [], alwaysDeny: [] },
+                { alwaysAllow: [] },
                 [],
                 mockLogger
             );
@@ -4017,7 +3869,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'manual',
                 mockAgentEventBus,
-                { alwaysAllow: [], alwaysDeny: [] },
+                { alwaysAllow: [] },
                 [],
                 mockLogger
             );
@@ -4037,7 +3889,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'manual',
                 mockAgentEventBus,
-                { alwaysAllow: [], alwaysDeny: [] },
+                { alwaysAllow: [] },
                 [],
                 mockLogger
             );
@@ -4054,7 +3906,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'manual',
                 mockAgentEventBus,
-                { alwaysAllow: [], alwaysDeny: [] },
+                { alwaysAllow: [] },
                 [],
                 mockLogger
             );
@@ -4077,7 +3929,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'auto-approve',
                 mockAgentEventBus,
-                { alwaysAllow: [], alwaysDeny: [] },
+                { alwaysAllow: [] },
                 [],
                 mockLogger,
                 createInMemorySessionToolPreferencesStore(mockLogger),
@@ -4117,7 +3969,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'manual',
                 mockAgentEventBus,
-                { alwaysAllow: [], alwaysDeny: [] },
+                { alwaysAllow: [] },
                 [],
                 mockLogger,
                 createInMemorySessionToolPreferencesStore(mockLogger),
@@ -4147,654 +3999,218 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
         });
     });
 
-    describe('Tool Policies (Allow/Deny Lists)', () => {
+    describe('Tool Policies (Allow Lists)', () => {
         beforeEach(() => {
-            // Reset mocks for policy tests
             mockMcpManager.executeTool = vi.fn().mockResolvedValue('success');
             mockAllowedToolsProvider.isToolAllowed = vi.fn().mockResolvedValue(false);
         });
 
-        describe('Precedence Logic', () => {
-            it('should deny tools in alwaysDeny list (highest precedence)', async () => {
-                const toolPolicies = {
-                    alwaysAllow: [],
-                    alwaysDeny: ['mcp--filesystem--delete_file'],
-                };
+        it('allows tools in alwaysAllow without approval', async () => {
+            const toolManager = createToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'manual',
+                mockAgentEventBus,
+                { alwaysAllow: ['mcp--filesystem--read_file'] },
+                [],
+                mockLogger
+            );
 
-                const toolManager = createToolManager(
-                    mockMcpManager,
-                    mockApprovalManager,
-                    mockAllowedToolsProvider,
-                    'manual',
-                    mockAgentEventBus,
-                    toolPolicies,
-                    [],
-                    mockLogger
-                );
+            const result = await toolManager.executeTool(
+                'mcp--filesystem--read_file',
+                { path: '/test' },
+                'test-call-id'
+            );
 
-                await expect(
-                    toolManager.executeTool(
-                        'mcp--filesystem--delete_file',
-                        { path: '/test' },
-                        'test-call-id'
-                    )
-                ).rejects.toThrow();
+            expect(result).toEqual(expect.objectContaining({ result: 'success' }));
+            expect(mockApprovalManager.requestToolApproval).not.toHaveBeenCalled();
+            expect(mockMcpManager.executeTool).toHaveBeenCalledWith(
+                'filesystem--read_file',
+                { path: '/test' },
+                undefined
+            );
+        });
 
-                // Should not reach approval manager or execution
-                expect(mockApprovalManager.requestToolApproval).not.toHaveBeenCalled();
-                expect(mockMcpManager.executeTool).not.toHaveBeenCalled();
+        it('checks dynamic allowed tools after the static allow list', async () => {
+            mockAllowedToolsProvider.isToolAllowed = vi.fn().mockResolvedValue(true);
+            const toolManager = createToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'manual',
+                mockAgentEventBus,
+                { alwaysAllow: [] },
+                [],
+                mockLogger
+            );
+
+            const result = await toolManager.executeTool(
+                'mcp--filesystem--read_file',
+                { path: '/test' },
+                'test-call-id'
+            );
+
+            expect(result).toEqual(expect.objectContaining({ result: 'success' }));
+            expect(mockAllowedToolsProvider.isToolAllowed).toHaveBeenCalledWith(
+                'mcp--filesystem--read_file',
+                undefined
+            );
+            expect(mockApprovalManager.requestToolApproval).not.toHaveBeenCalled();
+        });
+
+        it('falls back to approval mode when no allow policy matches', async () => {
+            mockApprovalManager.requestToolApproval = vi.fn().mockResolvedValue({
+                approvalId: 'test-approval',
+                status: 'approved',
+                data: {},
             });
+            const toolManager = createToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'manual',
+                mockAgentEventBus,
+                { alwaysAllow: ['ask_user'] },
+                [],
+                mockLogger
+            );
 
-            it('should deny even if tool is in alwaysAllow list', async () => {
-                const toolPolicies = {
-                    alwaysAllow: ['mcp--filesystem--delete_file'],
-                    alwaysDeny: ['mcp--filesystem--delete_file'], // Deny takes precedence
-                };
+            const result = await toolManager.executeTool(
+                'mcp--filesystem--read_file',
+                { path: '/test' },
+                'test-call-id'
+            );
 
-                const toolManager = createToolManager(
-                    mockMcpManager,
-                    mockApprovalManager,
-                    mockAllowedToolsProvider,
-                    'manual',
-                    mockAgentEventBus,
-                    toolPolicies,
-                    [],
-                    mockLogger
-                );
+            expect(result).toEqual(
+                expect.objectContaining({
+                    result: 'success',
+                    requireApproval: true,
+                    approvalStatus: 'approved',
+                })
+            );
+            expect(mockApprovalManager.requestToolApproval).toHaveBeenCalled();
+        });
 
-                await expect(
-                    toolManager.executeTool(
-                        'mcp--filesystem--delete_file',
-                        { path: '/test' },
-                        'test-call-id'
-                    )
-                ).rejects.toThrow();
+        it('auto-approve mode still executes tools when no allow policy matches', async () => {
+            const toolManager = createToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'auto-approve',
+                mockAgentEventBus,
+                { alwaysAllow: [] },
+                [],
+                mockLogger
+            );
 
-                expect(mockMcpManager.executeTool).not.toHaveBeenCalled();
-            });
+            const result = await toolManager.executeTool(
+                'mcp--filesystem--write_file',
+                { path: '/test' },
+                'test-call-id'
+            );
 
-            it('should allow tools in alwaysAllow list without approval', async () => {
-                const toolPolicies = {
-                    alwaysAllow: ['mcp--filesystem--read_file'],
-                    alwaysDeny: [],
-                };
+            expect(result).toEqual(expect.objectContaining({ result: 'success' }));
+            expect(mockApprovalManager.requestToolApproval).not.toHaveBeenCalled();
+            expect(mockMcpManager.executeTool).toHaveBeenCalled();
+        });
 
-                const toolManager = createToolManager(
-                    mockMcpManager,
-                    mockApprovalManager,
-                    mockAllowedToolsProvider,
-                    'manual',
-                    mockAgentEventBus,
-                    toolPolicies,
-                    [],
-                    mockLogger
-                );
-
-                const result = await toolManager.executeTool(
-                    'mcp--filesystem--read_file',
-                    { path: '/test' },
-                    'test-call-id'
-                );
-
-                expect(result).toEqual(expect.objectContaining({ result: 'success' }));
-                expect(mockApprovalManager.requestToolApproval).not.toHaveBeenCalled();
-                expect(mockMcpManager.executeTool).toHaveBeenCalledWith(
-                    'filesystem--read_file',
+        it('applies allow policies to local tools', async () => {
+            const toolManager = createToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'manual',
+                mockAgentEventBus,
+                { alwaysAllow: ['ask_user'] },
+                [
                     {
-                        path: '/test',
+                        id: 'ask_user',
+                        description: 'Ask user',
+                        inputSchema: z.object({}).strict(),
+                        execute: vi.fn().mockResolvedValue('ok'),
                     },
-                    undefined
-                );
-            });
+                ] as any,
+                mockLogger
+            );
+            toolManager.setToolExecutionContextFactory((baseContext) => baseContext);
 
-            it('should check dynamic allowed list after static policies', async () => {
-                mockAllowedToolsProvider.isToolAllowed = vi.fn().mockResolvedValue(true);
+            const result = await toolManager.executeTool('ask_user', {}, 'test-call-id');
 
-                const toolPolicies = {
-                    alwaysAllow: [],
-                    alwaysDeny: [],
-                };
-
-                const toolManager = createToolManager(
-                    mockMcpManager,
-                    mockApprovalManager,
-                    mockAllowedToolsProvider,
-                    'manual',
-                    mockAgentEventBus,
-                    toolPolicies,
-                    [],
-                    mockLogger
-                );
-
-                const result = await toolManager.executeTool(
-                    'mcp--filesystem--read_file',
-                    { path: '/test' },
-                    'test-call-id'
-                );
-
-                expect(result).toEqual(expect.objectContaining({ result: 'success' }));
-                expect(mockAllowedToolsProvider.isToolAllowed).toHaveBeenCalledWith(
-                    'mcp--filesystem--read_file',
-                    undefined
-                );
-                expect(mockApprovalManager.requestToolApproval).not.toHaveBeenCalled();
-            });
-
-            it('should fall back to approval mode when no policies match', async () => {
-                mockApprovalManager.requestToolApproval = vi.fn().mockResolvedValue({
-                    approvalId: 'test-approval',
-                    status: 'approved',
-                    data: {},
-                });
-
-                const toolPolicies = {
-                    alwaysAllow: ['ask_user'],
-                    alwaysDeny: ['mcp--filesystem--delete_file'],
-                };
-
-                const toolManager = createToolManager(
-                    mockMcpManager,
-                    mockApprovalManager,
-                    mockAllowedToolsProvider,
-                    'manual',
-                    mockAgentEventBus,
-                    toolPolicies,
-                    [],
-                    mockLogger
-                );
-
-                const result = await toolManager.executeTool(
-                    'mcp--filesystem--read_file',
-                    { path: '/test' },
-                    'test-call-id'
-                );
-
-                expect(result).toEqual(
-                    expect.objectContaining({
-                        result: 'success',
-                        requireApproval: true,
-                        approvalStatus: 'approved',
-                    })
-                );
-                expect(mockApprovalManager.requestToolApproval).toHaveBeenCalled();
-            });
+            expect(result).toEqual(expect.objectContaining({ result: 'ok' }));
+            expect(mockApprovalManager.requestToolApproval).not.toHaveBeenCalled();
         });
 
-        describe('Auto-approve with Deny List', () => {
-            it('should deny tools in alwaysDeny even with auto-approve mode', async () => {
-                const toolPolicies = {
-                    alwaysAllow: [],
-                    alwaysDeny: ['mcp--filesystem--delete_file'],
-                };
+        it('matches exact and qualified MCP tool names in allow policies', async () => {
+            const toolManager = createToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'manual',
+                mockAgentEventBus,
+                { alwaysAllow: ['mcp--read_file', 'mcp--list_directory'] },
+                [],
+                mockLogger
+            );
 
-                const toolManager = createToolManager(
-                    mockMcpManager,
-                    mockApprovalManager,
-                    mockAllowedToolsProvider,
-                    'auto-approve',
-                    mockAgentEventBus,
-                    toolPolicies,
-                    [],
-                    mockLogger
-                );
+            await toolManager.executeTool('mcp--read_file', { path: '/test' }, 'call-1');
+            expect(mockMcpManager.executeTool).toHaveBeenLastCalledWith(
+                'read_file',
+                { path: '/test' },
+                undefined
+            );
 
-                await expect(
-                    toolManager.executeTool(
-                        'mcp--filesystem--delete_file',
-                        { path: '/test' },
-                        'test-call-id'
-                    )
-                ).rejects.toThrow();
+            await toolManager.executeTool(
+                'mcp--filesystem--read_file',
+                { path: '/test' },
+                'call-2'
+            );
+            expect(mockMcpManager.executeTool).toHaveBeenLastCalledWith(
+                'filesystem--read_file',
+                { path: '/test' },
+                undefined
+            );
 
-                expect(mockMcpManager.executeTool).not.toHaveBeenCalled();
-            });
-
-            it('should auto-approve tools not in deny list', async () => {
-                const toolPolicies = {
-                    alwaysAllow: [],
-                    alwaysDeny: ['mcp--filesystem--delete_file'],
-                };
-
-                const toolManager = createToolManager(
-                    mockMcpManager,
-                    mockApprovalManager,
-                    mockAllowedToolsProvider,
-                    'auto-approve',
-                    mockAgentEventBus,
-                    toolPolicies,
-                    [],
-                    mockLogger
-                );
-
-                const result = await toolManager.executeTool(
-                    'mcp--filesystem--read_file',
-                    { path: '/test' },
-                    'test-call-id'
-                );
-
-                expect(result).toEqual(expect.objectContaining({ result: 'success' }));
-                expect(mockMcpManager.executeTool).toHaveBeenCalled();
-            });
+            await toolManager.executeTool('mcp--server2--list_directory', {}, 'call-3');
+            expect(mockMcpManager.executeTool).toHaveBeenLastCalledWith(
+                'server2--list_directory',
+                {},
+                undefined
+            );
+            expect(mockApprovalManager.requestToolApproval).not.toHaveBeenCalled();
         });
 
-        describe('Auto-deny with Allow List', () => {
-            it('should allow tools in alwaysAllow even with auto-deny mode', async () => {
-                const toolPolicies = {
-                    alwaysAllow: ['mcp--filesystem--read_file'],
-                    alwaysDeny: [],
-                };
-
-                const toolManager = createToolManager(
-                    mockMcpManager,
-                    mockApprovalManager,
-                    mockAllowedToolsProvider,
-                    'auto-deny',
-                    mockAgentEventBus,
-                    toolPolicies,
-                    [],
-                    mockLogger
-                );
-
-                const result = await toolManager.executeTool(
-                    'mcp--filesystem--read_file',
-                    { path: '/test' },
-                    'test-call-id'
-                );
-
-                expect(result).toEqual(expect.objectContaining({ result: 'success' }));
-                expect(mockMcpManager.executeTool).toHaveBeenCalled();
+        it('does not match unrelated tools with similar names', async () => {
+            mockApprovalManager.requestToolApproval = vi.fn().mockResolvedValue({
+                approvalId: 'test-approval',
+                status: 'approved',
+                data: {},
             });
+            const toolManager = createToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'manual',
+                mockAgentEventBus,
+                { alwaysAllow: ['mcp--read_file'] },
+                [],
+                mockLogger
+            );
 
-            it('should auto-deny tools not in allow list', async () => {
-                const toolPolicies = {
-                    alwaysAllow: ['mcp--filesystem--read_file'],
-                    alwaysDeny: [],
-                };
+            const result = await toolManager.executeTool(
+                'mcp--read_file_metadata',
+                {},
+                'test-call-id'
+            );
 
-                const toolManager = createToolManager(
-                    mockMcpManager,
-                    mockApprovalManager,
-                    mockAllowedToolsProvider,
-                    'auto-deny',
-                    mockAgentEventBus,
-                    toolPolicies,
-                    [],
-                    mockLogger
-                );
-
-                await expect(
-                    toolManager.executeTool(
-                        'mcp--filesystem--write_file',
-                        { path: '/test' },
-                        'test-call-id'
-                    )
-                ).rejects.toThrow();
-
-                expect(mockMcpManager.executeTool).not.toHaveBeenCalled();
-            });
-        });
-
-        describe('No Policies Configured', () => {
-            it('should work normally when no policies are provided', async () => {
-                mockApprovalManager.requestToolApproval = vi.fn().mockResolvedValue({
-                    approvalId: 'test-approval',
-                    status: 'approved',
-                    data: {},
-                });
-
-                const toolManager = createToolManager(
-                    mockMcpManager,
-                    mockApprovalManager,
-                    mockAllowedToolsProvider,
-                    'manual',
-                    mockAgentEventBus,
-                    { alwaysAllow: [], alwaysDeny: [] }, // No policies
-                    [],
-                    mockLogger
-                );
-
-                const result = await toolManager.executeTool(
-                    'mcp--filesystem--read_file',
-                    { path: '/test' },
-                    'test-call-id'
-                );
-
-                expect(result).toEqual(
-                    expect.objectContaining({
-                        result: 'success',
-                        requireApproval: true,
-                        approvalStatus: 'approved',
-                    })
-                );
-                expect(mockApprovalManager.requestToolApproval).toHaveBeenCalled();
-            });
-
-            it('should work normally when empty policies are provided', async () => {
-                mockApprovalManager.requestToolApproval = vi.fn().mockResolvedValue({
-                    approvalId: 'test-approval',
-                    status: 'approved',
-                    data: {},
-                });
-
-                const toolPolicies = {
-                    alwaysAllow: [],
-                    alwaysDeny: [],
-                };
-
-                const toolManager = createToolManager(
-                    mockMcpManager,
-                    mockApprovalManager,
-                    mockAllowedToolsProvider,
-                    'manual',
-                    mockAgentEventBus,
-                    toolPolicies,
-                    [],
-                    mockLogger
-                );
-
-                const result = await toolManager.executeTool(
-                    'mcp--filesystem--read_file',
-                    { path: '/test' },
-                    'test-call-id'
-                );
-
-                expect(result).toEqual(
-                    expect.objectContaining({
-                        result: 'success',
-                        requireApproval: true,
-                        approvalStatus: 'approved',
-                    })
-                );
-                expect(mockApprovalManager.requestToolApproval).toHaveBeenCalled();
-            });
-        });
-
-        describe('Local Tools with Policies', () => {
-            it('should respect policies for local tools', async () => {
-                const toolPolicies = {
-                    alwaysAllow: ['ask_user'],
-                    alwaysDeny: [],
-                };
-
-                const toolManager = createToolManager(
-                    mockMcpManager,
-                    mockApprovalManager,
-                    mockAllowedToolsProvider,
-                    'manual',
-                    mockAgentEventBus,
-                    toolPolicies,
-                    [
-                        {
-                            id: 'ask_user',
-                            description: 'Ask user',
-                            inputSchema: z.object({}).strict(),
-                            execute: vi.fn().mockResolvedValue('ok'),
-                        },
-                    ] as any,
-                    mockLogger
-                );
-                toolManager.setToolExecutionContextFactory((baseContext) => baseContext);
-
-                const result = await toolManager.executeTool('ask_user', {}, 'test-call-id');
-
-                expect(result).toEqual(expect.objectContaining({ result: 'ok' }));
-                expect(mockApprovalManager.requestToolApproval).not.toHaveBeenCalled();
-            });
-        });
-
-        describe('Dual Matching (Exact + Suffix)', () => {
-            beforeEach(() => {
-                mockMcpManager.executeTool = vi.fn().mockResolvedValue('success');
-                mockAllowedToolsProvider.isToolAllowed = vi.fn().mockResolvedValue(false);
-            });
-
-            it('should match exact tool names in allow list', async () => {
-                const toolPolicies = {
-                    alwaysAllow: ['mcp--read_file'],
-                    alwaysDeny: [],
-                };
-
-                const toolManager = createToolManager(
-                    mockMcpManager,
-                    mockApprovalManager,
-                    mockAllowedToolsProvider,
-                    'manual',
-                    mockAgentEventBus,
-                    toolPolicies,
-                    [],
-                    mockLogger
-                );
-
-                const result = await toolManager.executeTool(
-                    'mcp--read_file',
-                    { path: '/test' },
-                    'test-call-id'
-                );
-
-                expect(result).toEqual(expect.objectContaining({ result: 'success' }));
-                expect(mockApprovalManager.requestToolApproval).not.toHaveBeenCalled();
-            });
-
-            it('should match qualified names with suffix matching in allow list', async () => {
-                const toolPolicies = {
-                    alwaysAllow: ['mcp--read_file'], // Simple policy
-                    alwaysDeny: [],
-                };
-
-                const toolManager = createToolManager(
-                    mockMcpManager,
-                    mockApprovalManager,
-                    mockAllowedToolsProvider,
-                    'manual',
-                    mockAgentEventBus,
-                    toolPolicies,
-                    [],
-                    mockLogger
-                );
-
-                // Tool with server prefix should match simple policy
-                const result = await toolManager.executeTool(
-                    'mcp--filesystem--read_file',
-                    { path: '/test' },
-                    'test-call-id'
-                );
-
-                expect(result).toEqual(expect.objectContaining({ result: 'success' }));
-                expect(mockApprovalManager.requestToolApproval).not.toHaveBeenCalled();
-                expect(mockMcpManager.executeTool).toHaveBeenCalledWith(
-                    'filesystem--read_file',
-                    {
-                        path: '/test',
-                    },
-                    undefined
-                );
-            });
-
-            it('should match exact tool names in deny list', async () => {
-                const toolPolicies = {
-                    alwaysAllow: [],
-                    alwaysDeny: ['mcp--delete_file'],
-                };
-
-                const toolManager = createToolManager(
-                    mockMcpManager,
-                    mockApprovalManager,
-                    mockAllowedToolsProvider,
-                    'manual',
-                    mockAgentEventBus,
-                    toolPolicies,
-                    [],
-                    mockLogger
-                );
-
-                await expect(
-                    toolManager.executeTool('mcp--delete_file', { path: '/test' }, 'test-call-id')
-                ).rejects.toThrow();
-
-                expect(mockMcpManager.executeTool).not.toHaveBeenCalled();
-            });
-
-            it('should match qualified names with suffix matching in deny list', async () => {
-                const toolPolicies = {
-                    alwaysAllow: [],
-                    alwaysDeny: ['mcp--delete_file'], // Simple policy
-                };
-
-                const toolManager = createToolManager(
-                    mockMcpManager,
-                    mockApprovalManager,
-                    mockAllowedToolsProvider,
-                    'manual',
-                    mockAgentEventBus,
-                    toolPolicies,
-                    [],
-                    mockLogger
-                );
-
-                // Tool with server prefix should match simple policy
-                await expect(
-                    toolManager.executeTool(
-                        'mcp--filesystem--delete_file',
-                        { path: '/test' },
-                        'test-call-id'
-                    )
-                ).rejects.toThrow();
-
-                expect(mockMcpManager.executeTool).not.toHaveBeenCalled();
-            });
-
-            it('should not match unrelated tools with similar names', async () => {
-                mockApprovalManager.requestToolApproval = vi.fn().mockResolvedValue({
-                    approvalId: 'test-approval',
-                    status: 'approved',
-                    data: {},
-                });
-
-                const toolPolicies = {
-                    alwaysAllow: ['mcp--read_file'],
-                    alwaysDeny: [],
-                };
-
-                const toolManager = createToolManager(
-                    mockMcpManager,
-                    mockApprovalManager,
-                    mockAllowedToolsProvider,
-                    'manual',
-                    mockAgentEventBus,
-                    toolPolicies,
-                    [],
-                    mockLogger
-                );
-
-                // This should NOT match because it doesn't end with --read_file
-                const result = await toolManager.executeTool(
-                    'mcp--read_file_metadata',
-                    {},
-                    'test-call-id'
-                );
-
-                expect(result).toEqual(
-                    expect.objectContaining({
-                        result: 'success',
-                        requireApproval: true,
-                        approvalStatus: 'approved',
-                    })
-                );
-                // Should require approval since it doesn't match the policy
-                expect(mockApprovalManager.requestToolApproval).toHaveBeenCalled();
-            });
-
-            it('should only apply suffix matching to MCP tools, not internal tools', async () => {
-                mockApprovalManager.requestToolApproval = vi.fn().mockResolvedValue({
-                    approvalId: 'test-approval',
-                    status: 'approved',
-                    data: {},
-                });
-
-                const toolPolicies = {
-                    // Policy for a simple tool name
-                    alwaysAllow: ['mcp--read_file'],
-                    alwaysDeny: [],
-                };
-
-                const toolManager = createToolManager(
-                    mockMcpManager,
-                    mockApprovalManager,
-                    mockAllowedToolsProvider,
-                    'manual',
-                    mockAgentEventBus,
-                    toolPolicies,
-                    [],
-                    mockLogger
-                );
-
-                // MCP tool with suffix should match (suffix matching works)
-                await toolManager.executeTool('mcp--filesystem--read_file', {}, 'test-call-id');
-                expect(mockMcpManager.executeTool).toHaveBeenLastCalledWith(
-                    'filesystem--read_file',
-                    {},
-                    undefined
-                );
-                expect(mockApprovalManager.requestToolApproval).not.toHaveBeenCalled();
-
-                // But if an internal tool had a similar pattern, it shouldn't match via suffix
-                // (This is conceptual - internal tools don't have server prefixes in practice)
-                // The point is that suffix matching logic only applies to mcp-- prefixed patterns
-            });
-
-            it('should handle multiple policies with mixed matching', async () => {
-                mockApprovalManager.requestToolApproval = vi.fn().mockResolvedValue({
-                    approvalId: 'test-approval',
-                    status: 'approved',
-                    data: {},
-                });
-
-                const toolPolicies = {
-                    alwaysAllow: ['mcp--read_file', 'mcp--list_directory', 'ask_user'],
-                    alwaysDeny: ['mcp--delete_file', 'mcp--execute_script'],
-                };
-
-                const toolManager = createToolManager(
-                    mockMcpManager,
-                    mockApprovalManager,
-                    mockAllowedToolsProvider,
-                    'manual',
-                    mockAgentEventBus,
-                    toolPolicies,
-                    [],
-                    mockLogger
-                );
-
-                // Test various matching scenarios
-                await toolManager.executeTool('mcp--read_file', {}, 'test-call-id');
-                expect(mockMcpManager.executeTool).toHaveBeenLastCalledWith(
-                    'read_file',
-                    {},
-                    undefined
-                );
-
-                await toolManager.executeTool('mcp--filesystem--read_file', {}, 'test-call-id');
-                expect(mockMcpManager.executeTool).toHaveBeenLastCalledWith(
-                    'filesystem--read_file',
-                    {},
-                    undefined
-                );
-
-                await toolManager.executeTool('mcp--server2--list_directory', {}, 'test-call-id');
-                expect(mockMcpManager.executeTool).toHaveBeenLastCalledWith(
-                    'server2--list_directory',
-                    {},
-                    undefined
-                );
-
-                // Deny should still work
-                await expect(
-                    toolManager.executeTool('mcp--filesystem--delete_file', {}, 'test-call-id')
-                ).rejects.toThrow();
-
-                // None of these should have triggered approval
-                expect(mockApprovalManager.requestToolApproval).not.toHaveBeenCalled();
-            });
+            expect(result).toEqual(
+                expect.objectContaining({
+                    result: 'success',
+                    requireApproval: true,
+                    approvalStatus: 'approved',
+                })
+            );
+            expect(mockApprovalManager.requestToolApproval).toHaveBeenCalled();
         });
     });
 
@@ -4807,7 +4223,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     mockAllowedToolsProvider,
                     'manual',
                     mockAgentEventBus,
-                    { alwaysAllow: [], alwaysDeny: [] },
+                    { alwaysAllow: [] },
                     [],
                     mockLogger
                 );
@@ -4828,7 +4244,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     mockAllowedToolsProvider,
                     'manual',
                     mockAgentEventBus,
-                    { alwaysAllow: [], alwaysDeny: [] },
+                    { alwaysAllow: [] },
                     [
                         {
                             id: 'bash_exec',
@@ -4854,7 +4270,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     mockAllowedToolsProvider,
                     'manual',
                     mockAgentEventBus,
-                    { alwaysAllow: [], alwaysDeny: [] },
+                    { alwaysAllow: [] },
                     [],
                     mockLogger
                 );
@@ -4870,7 +4286,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     mockAllowedToolsProvider,
                     'manual',
                     mockAgentEventBus,
-                    { alwaysAllow: [], alwaysDeny: [] },
+                    { alwaysAllow: [] },
                     [],
                     mockLogger
                 );
@@ -4893,7 +4309,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     mockAllowedToolsProvider,
                     'manual',
                     mockAgentEventBus,
-                    { alwaysAllow: [], alwaysDeny: [] },
+                    { alwaysAllow: [] },
                     [],
                     mockLogger
                 );
@@ -4927,7 +4343,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     mockAllowedToolsProvider,
                     'manual',
                     mockAgentEventBus,
-                    { alwaysAllow: [], alwaysDeny: [] },
+                    { alwaysAllow: [] },
                     [],
                     mockLogger
                 );
@@ -4949,7 +4365,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     mockAllowedToolsProvider,
                     'manual',
                     mockAgentEventBus,
-                    { alwaysAllow: [], alwaysDeny: [] },
+                    { alwaysAllow: [] },
                     [],
                     mockLogger
                 );
@@ -4982,7 +4398,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     mockAllowedToolsProvider,
                     'manual',
                     mockAgentEventBus,
-                    { alwaysAllow: [], alwaysDeny: [] },
+                    { alwaysAllow: [] },
                     [],
                     mockLogger,
                     emptyPreferencesStore as unknown as ConstructorParameters<
@@ -5039,7 +4455,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     mockAllowedToolsProvider,
                     'manual',
                     mockAgentEventBus,
-                    { alwaysAllow: [], alwaysDeny: [] },
+                    { alwaysAllow: [] },
                     [],
                     mockLogger,
                     controlledStore as unknown as ConstructorParameters<typeof ToolManager>[8],
@@ -5079,7 +4495,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     mockAllowedToolsProvider,
                     'manual',
                     mockAgentEventBus,
-                    { alwaysAllow: [], alwaysDeny: [] },
+                    { alwaysAllow: [] },
                     [],
                     mockLogger
                 );
@@ -5101,7 +4517,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     mockAllowedToolsProvider,
                     'manual',
                     mockAgentEventBus,
-                    { alwaysAllow: [], alwaysDeny: [] },
+                    { alwaysAllow: [] },
                     [
                         {
                             id: 'bash_exec',
@@ -5141,7 +4557,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     mockAllowedToolsProvider,
                     'manual', // Manual mode - normally requires approval
                     mockAgentEventBus,
-                    { alwaysAllow: [], alwaysDeny: [] },
+                    { alwaysAllow: [] },
                     [],
                     mockLogger
                 );
@@ -5180,7 +4596,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     mockAllowedToolsProvider,
                     'manual',
                     mockAgentEventBus,
-                    { alwaysAllow: [], alwaysDeny: [] },
+                    { alwaysAllow: [] },
                     [],
                     mockLogger
                 );
@@ -5193,37 +4609,6 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
 
                 // Should have requested approval
                 expect(mockApprovalManager.requestToolApproval).toHaveBeenCalled();
-            });
-
-            it('should respect alwaysDeny even if tool is in session auto-approve', async () => {
-                (mockMcpManager.getAllTools as ReturnType<typeof vi.fn>).mockResolvedValue({
-                    dangerous_tool: {
-                        name: 'dangerous_tool',
-                        description: 'A dangerous tool',
-                        inputSchema: {},
-                    },
-                });
-
-                const toolManager = createToolManager(
-                    mockMcpManager,
-                    mockApprovalManager,
-                    mockAllowedToolsProvider,
-                    'manual',
-                    mockAgentEventBus,
-                    { alwaysAllow: [], alwaysDeny: ['mcp--dangerous_tool'] }, // In deny list (full qualified name)
-                    [],
-                    mockLogger
-                );
-
-                const sessionId = 'test-session';
-                toolManager.setSessionAutoApproveTools(sessionId, ['mcp--dangerous_tool']);
-
-                // Should throw because alwaysDeny takes precedence
-                await expect(
-                    toolManager.executeTool('mcp--dangerous_tool', {}, 'call-1', { sessionId })
-                ).rejects.toThrow();
-
-                expect(mockMcpManager.executeTool).not.toHaveBeenCalled();
             });
 
             it('should not auto-approve if sessionId does not match', async () => {
@@ -5244,7 +4629,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     mockAllowedToolsProvider,
                     'manual',
                     mockAgentEventBus,
-                    { alwaysAllow: [], alwaysDeny: [] },
+                    { alwaysAllow: [] },
                     [],
                     mockLogger
                 );
@@ -5279,7 +4664,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     mockAllowedToolsProvider,
                     'manual',
                     mockAgentEventBus,
-                    { alwaysAllow: [], alwaysDeny: [] },
+                    { alwaysAllow: [] },
                     [],
                     mockLogger
                 );

@@ -541,7 +541,7 @@ async function generateAgentSystemPromptFromDescription(
                 blob: { type: 'in-memory' },
             },
             permissions: {
-                mode: 'auto-deny',
+                mode: 'auto-approve',
                 allowedToolsStorage: 'memory',
             },
             elicitation: {

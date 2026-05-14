@@ -182,7 +182,7 @@ export class ToolManager {
     private agentTools: Map<string, Tool> = new Map();
     private approvalManager: ApprovalManager;
     private allowedToolsProvider: AllowedToolsProvider;
-    private approvalMode: 'manual' | 'auto-approve' | 'auto-deny';
+    private approvalMode: 'manual' | 'auto-approve';
     private agentEventBus: AgentEventBus;
     private toolPolicies: ToolPolicies | undefined;
     private toolExecutionContextFactory: ToolExecutionContextFactory;
@@ -240,7 +240,7 @@ export class ToolManager {
         mcpManager: MCPManager,
         approvalManager: ApprovalManager,
         allowedToolsProvider: AllowedToolsProvider,
-        approvalMode: 'manual' | 'auto-approve' | 'auto-deny',
+        approvalMode: 'manual' | 'auto-approve',
         agentEventBus: AgentEventBus,
         toolPolicies: ToolPolicies,
         tools: Tool[],
@@ -1201,30 +1201,6 @@ export class ToolManager {
 
     async prepareToolCall(input: PrepareToolCallInput): Promise<PreparedToolCall> {
         const sessionId = input.runContext?.sessionId ?? input.sessionId;
-        if (this.isInAlwaysDenyList(input.toolName)) {
-            const deniedInput = isRecord(input.input) ? extractToolCallMeta(input.input) : null;
-            const rawToolArgs = deniedInput?.toolArgs ?? {};
-            const deniedMeta = deniedInput?.meta ?? {};
-            const eventMeta: ToolCallMetadata | undefined =
-                Object.keys(deniedMeta).length > 0 ? deniedMeta : undefined;
-            const callDescription =
-                typeof deniedMeta.callDescription === 'string'
-                    ? deniedMeta.callDescription
-                    : typeof rawToolArgs.description === 'string'
-                      ? rawToolArgs.description
-                      : undefined;
-            const call: ExecutableToolCall = {
-                input: rawToolArgs,
-                presentationSnapshot: this.toolPresentation.buildGenericSnapshot(input.toolName),
-                source: input.toolName.startsWith(ToolManager.MCP_TOOL_PREFIX) ? 'mcp' : 'local',
-                toolCallId: input.toolCallId,
-                toolName: input.toolName,
-                ...(callDescription !== undefined ? { callDescription } : {}),
-                ...(eventMeta !== undefined ? { meta: eventMeta } : {}),
-            };
-            return this.createPreparedToolTerminal('denied', input.toolName, call);
-        }
-
         const source = await this.resolveExecutableToolSource(input.toolName);
         if (source === 'unknown') {
             return this.createPreparedToolError(
@@ -1306,9 +1282,6 @@ export class ToolManager {
             if (quickResult === 'ready') {
                 return { kind: 'ready', call };
             }
-            if (quickResult === 'denied') {
-                return this.createPreparedToolTerminal('denied', input.toolName, call);
-            }
             const displayPreview = await this.toolPresentation.preview({
                 toolName: input.toolName,
                 args: validatedArgs,
@@ -1341,9 +1314,6 @@ export class ToolManager {
         );
         if (quickResult === 'ready') {
             return { kind: 'ready', call };
-        }
-        if (quickResult === 'denied') {
-            return this.createPreparedToolTerminal('denied', input.toolName, call);
         }
 
         const displayPreview = await this.toolPresentation.preview({
@@ -1694,7 +1664,7 @@ export class ToolManager {
         args: Record<string, unknown>,
         sessionId?: string,
         directoryAccess?: DirectoryAccessMetadata
-    ): Promise<'ready' | 'approval-required' | 'denied'> {
+    ): Promise<'ready' | 'approval-required'> {
         if (directoryAccess) {
             return this.approvalMode === 'auto-approve' ? 'ready' : 'approval-required';
         }
@@ -1718,10 +1688,6 @@ export class ToolManager {
 
         if (this.approvalMode === 'auto-approve') {
             return 'ready';
-        }
-
-        if (this.approvalMode === 'auto-deny') {
-            return 'denied';
         }
 
         return 'approval-required';
@@ -2375,21 +2341,6 @@ export class ToolManager {
         }
 
         return 'unknown';
-    }
-
-    /**
-     * Check if a tool is in the static alwaysDeny list
-     * Supports both exact and suffix matching (e.g., "mcp--read_file" matches "mcp--server--read_file")
-     * @param toolName The fully qualified tool name to check
-     * @returns true if the tool is in the deny list
-     */
-    private isInAlwaysDenyList(toolName: string): boolean {
-        if (!this.toolPolicies?.alwaysDeny) {
-            return false;
-        }
-        return this.toolPolicies.alwaysDeny.some((pattern) =>
-            matchesToolPolicyPattern(toolName, pattern)
-        );
     }
 
     /**

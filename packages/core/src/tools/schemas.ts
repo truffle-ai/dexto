@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export const PERMISSIONS_MODES = ['manual', 'auto-approve', 'auto-deny'] as const;
+export const PERMISSIONS_MODES = ['manual', 'auto-approve'] as const;
 export type PermissionsMode = (typeof PERMISSIONS_MODES)[number];
 
 export const ALLOWED_TOOLS_STORAGE_TYPES = ['memory', 'storage'] as const;
@@ -9,7 +9,7 @@ export type AllowedToolsStorageType = (typeof ALLOWED_TOOLS_STORAGE_TYPES)[numbe
 export const DEFAULT_PERMISSIONS_MODE: PermissionsMode = 'auto-approve';
 export const DEFAULT_ALLOWED_TOOLS_STORAGE: AllowedToolsStorageType = 'storage';
 
-// Tool policies schema - static allow/deny lists for fine-grained control
+// Tool policies schema - static allow list for fine-grained approval control
 export const ToolPoliciesSchema = z
     .object({
         alwaysAllow: z
@@ -18,16 +18,10 @@ export const ToolPoliciesSchema = z
             .describe(
                 'Tools that never require approval (low-risk). Use tool names (e.g., "ask_user", "mcp--filesystem--read_file")'
             ),
-        alwaysDeny: z
-            .array(z.string())
-            .default([])
-            .describe(
-                'Tools that are always denied (high-risk). Takes precedence over alwaysAllow. Use full qualified names (e.g., "mcp--filesystem--delete_file")'
-            ),
     })
     .strict()
-    .default({ alwaysAllow: [], alwaysDeny: [] })
-    .describe('Static tool policies for allow/deny lists');
+    .default({ alwaysAllow: [] })
+    .describe('Static tool policies for approval allow lists');
 
 export type ToolPolicies = z.output<typeof ToolPoliciesSchema>;
 
@@ -36,9 +30,7 @@ export const PermissionsConfigSchema = z
         mode: z
             .enum(PERMISSIONS_MODES)
             .default(DEFAULT_PERMISSIONS_MODE)
-            .describe(
-                'Tool permissions mode: manual (interactive), auto-approve (all tools), auto-deny (no tools)'
-            ),
+            .describe('Tool permissions mode: manual (interactive), auto-approve (all tools)'),
         timeout: z
             .number()
             .int()
@@ -54,7 +46,7 @@ export const PermissionsConfigSchema = z
                 'Storage type for remembered tool approvals: memory (session-only) or storage (persistent)'
             ),
         toolPolicies: ToolPoliciesSchema.describe(
-            'Static tool policies for fine-grained allow/deny control. Deny list takes precedence over allow list.'
+            'Static tool policies for fine-grained approval allow control.'
         ),
     })
     .strict()

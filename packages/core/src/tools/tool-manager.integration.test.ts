@@ -1,9 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ToolManager } from './tool-manager.js';
 import { MCPManager } from '../mcp/manager.js';
-import { DextoRuntimeError } from '../errors/DextoRuntimeError.js';
-import { ToolErrorCode } from './error-codes.js';
-import { ErrorScope, ErrorType } from '../errors/types.js';
 import { z } from 'zod';
 import type { McpClient } from '../mcp/types.js';
 import { AgentEventBus } from '../events/index.js';
@@ -218,7 +215,7 @@ describe('ToolManager Integration Tests', () => {
                 allowedToolsProvider,
                 'auto-approve',
                 mockAgentEventBus,
-                { alwaysAllow: [], alwaysDeny: [] },
+                { alwaysAllow: [] },
                 [],
                 mockLogger
             );
@@ -247,7 +244,7 @@ describe('ToolManager Integration Tests', () => {
                 allowedToolsProvider,
                 'auto-approve',
                 mockAgentEventBus,
-                { alwaysAllow: [], alwaysDeny: [] },
+                { alwaysAllow: [] },
                 [internalSearchHistoryTool],
                 mockLogger
             );
@@ -301,7 +298,7 @@ describe('ToolManager Integration Tests', () => {
                 allowedToolsProvider,
                 'auto-approve',
                 mockAgentEventBus,
-                { alwaysAllow: [], alwaysDeny: [] },
+                { alwaysAllow: [] },
                 [internalSearchHistoryTool],
                 mockLogger
             );
@@ -390,66 +387,13 @@ describe('ToolManager Integration Tests', () => {
                 allowedToolsProvider,
                 'auto-approve',
                 mockAgentEventBus,
-                { alwaysAllow: [], alwaysDeny: [] },
+                { alwaysAllow: [] },
                 [],
                 mockLogger
             );
             const result = await toolManager.executeTool('mcp--test_tool', {}, 'test-call-id');
 
             expect(result).toEqual(expect.objectContaining({ result: 'approved result' }));
-        });
-
-        it('should work with auto-deny mode', async () => {
-            const autoDenyManager = createApprovalManager(
-                {
-                    permissions: {
-                        mode: 'auto-deny',
-                        timeout: 120000,
-                    },
-                    elicitation: {
-                        enabled: true,
-                        timeout: 120000,
-                    },
-                },
-                mockLogger
-            );
-            const mockClient: McpClient = {
-                getTools: vi.fn().mockResolvedValue({
-                    test_tool: {
-                        name: 'test_tool',
-                        description: 'Test tool',
-                        parameters: { type: 'object', properties: {} },
-                    },
-                }),
-                callTool: vi.fn().mockResolvedValue('should not execute'),
-                listPrompts: vi.fn().mockResolvedValue([]),
-                listResources: vi.fn().mockResolvedValue([]),
-            } as any;
-
-            const mcpMgr = new MCPManager(mockLogger);
-            mcpMgr.registerClient('test-server', mockClient);
-            await (mcpMgr as any).updateClientCache('test-server', mockClient);
-
-            const toolManager = createToolManager(
-                mcpMgr,
-                autoDenyManager,
-                allowedToolsProvider,
-                'auto-deny',
-                mockAgentEventBus,
-                { alwaysAllow: [], alwaysDeny: [] },
-                [],
-                mockLogger
-            );
-
-            const error = (await toolManager
-                .executeTool('mcp--test_tool', {}, 'test-call-id')
-                .catch((e) => e)) as DextoRuntimeError;
-            expect(error).toBeInstanceOf(DextoRuntimeError);
-            expect(error.code).toBe(ToolErrorCode.EXECUTION_DENIED);
-            expect(error.scope).toBe(ErrorScope.TOOLS);
-            expect(error.type).toBe(ErrorType.FORBIDDEN);
-
-            expect(mockClient.callTool).not.toHaveBeenCalled();
         });
     });
 
@@ -470,7 +414,7 @@ describe('ToolManager Integration Tests', () => {
                 allowedToolsProvider,
                 'auto-approve',
                 mockAgentEventBus,
-                { alwaysAllow: [], alwaysDeny: [] },
+                { alwaysAllow: [] },
                 [internalSearchHistoryTool],
                 mockLogger
             );
@@ -509,7 +453,7 @@ describe('ToolManager Integration Tests', () => {
                 allowedToolsProvider,
                 'auto-approve',
                 mockAgentEventBus,
-                { alwaysAllow: [], alwaysDeny: [] },
+                { alwaysAllow: [] },
                 [],
                 mockLogger
             );
@@ -532,7 +476,7 @@ describe('ToolManager Integration Tests', () => {
                 allowedToolsProvider,
                 'auto-approve',
                 mockAgentEventBus,
-                { alwaysAllow: [], alwaysDeny: [] },
+                { alwaysAllow: [] },
                 [createSearchHistoryTool(failingSearchService)],
                 mockLogger
             );
@@ -578,7 +522,7 @@ describe('ToolManager Integration Tests', () => {
                 allowedToolsProvider,
                 'auto-approve',
                 mockAgentEventBus,
-                { alwaysAllow: [], alwaysDeny: [] },
+                { alwaysAllow: [] },
                 [],
                 mockLogger
             );
@@ -620,7 +564,7 @@ describe('ToolManager Integration Tests', () => {
                 allowedToolsProvider,
                 'auto-approve',
                 mockAgentEventBus,
-                { alwaysAllow: [], alwaysDeny: [] },
+                { alwaysAllow: [] },
                 [],
                 mockLogger
             );
@@ -666,7 +610,7 @@ describe('ToolManager Integration Tests', () => {
                 allowedToolsProvider,
                 'auto-approve',
                 mockAgentEventBus,
-                { alwaysAllow: [], alwaysDeny: [] },
+                { alwaysAllow: [] },
                 [internalSearchHistoryTool],
                 mockLogger
             );

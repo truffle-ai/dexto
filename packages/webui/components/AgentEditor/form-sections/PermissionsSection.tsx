@@ -65,27 +65,21 @@ export function PermissionsSection({
                         value={value.mode || DEFAULT_PERMISSIONS_MODE}
                         onChange={(e) =>
                             handleChange({
-                                mode: e.target.value as 'auto-approve' | 'manual' | 'auto-deny',
+                                mode: e.target.value as 'auto-approve' | 'manual',
                             })
                         }
                         className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                     >
                         {PERMISSIONS_MODES.map((mode) => (
                             <option key={mode} value={mode}>
-                                {mode === 'auto-approve'
-                                    ? 'Auto-approve'
-                                    : mode === 'manual'
-                                      ? 'Manual'
-                                      : 'Auto-deny'}
+                                {mode === 'auto-approve' ? 'Auto-approve' : 'Manual'}
                             </option>
                         ))}
                     </select>
                     <p className="text-xs text-muted-foreground mt-1">
                         {value.mode === 'manual'
                             ? 'Require explicit approval before executing tools'
-                            : value.mode === 'auto-deny'
-                              ? 'Automatically deny all tool executions'
-                              : 'Automatically approve tool executions'}
+                            : 'Automatically approve tool executions'}
                     </p>
                 </div>
 

@@ -113,7 +113,7 @@ export type DenialReason = (typeof DENIAL_REASONS)[number];
 const DenialReasonValues = {
     /** User explicitly clicked deny/reject */
     USER_DENIED: 'user_denied',
-    /** System denied due to policy (auto-deny mode, alwaysDeny list) */
+    /** System denied due to host policy */
     SYSTEM_DENIED: 'system_denied',
     /** Request timed out waiting for user response */
     TIMEOUT: 'timeout',

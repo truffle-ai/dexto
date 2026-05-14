@@ -356,12 +356,11 @@ Tool approval and confirmation behavior.
 
 ```yaml
 permissions:
-  mode: manual | auto-approve | auto-deny  # Default: manual
+  mode: manual | auto-approve  # Default: manual
   timeout: number               # Default: 120000ms
   allowedToolsStorage: memory | storage  # Default: storage
   toolPolicies:                 # Optional
     alwaysAllow: [string]       # Never require approval
-    alwaysDeny: [string]        # Always denied (takes precedence)
 ```
 
 ### Tool Name Format
@@ -378,8 +377,6 @@ permissions:
     alwaysAllow:
       - ask_user
       - mcp--filesystem--read_file
-    alwaysDeny:
-      - mcp--filesystem--delete_file
 ```
 
 ## Elicitation Configuration

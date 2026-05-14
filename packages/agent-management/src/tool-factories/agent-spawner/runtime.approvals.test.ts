@@ -71,7 +71,6 @@ describe('AgentSpawnerRuntime sub-agent policies and approvals', () => {
                 permissions: {
                     toolPolicies: {
                         alwaysAllow: ['glob_files'],
-                        alwaysDeny: ['bash_exec'],
                     },
                 },
             },
@@ -97,7 +96,6 @@ describe('AgentSpawnerRuntime sub-agent policies and approvals', () => {
         expect(spawnConfig.agentConfig.permissions.toolPolicies.alwaysAllow).toContain(
             'glob_files'
         );
-        expect(spawnConfig.agentConfig.permissions.toolPolicies.alwaysDeny).toContain('bash_exec');
 
         // Safety defaults: keep spawned sub-agents lightweight even if parent is configured for heavy reasoning.
         expect(spawnConfig.agentConfig.llm.maxIterations).toBe(100);

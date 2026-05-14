@@ -1053,9 +1053,7 @@ program
                         console.error(
                             '💡 Run `dexto --auto-approve` or configure your agent to skip approvals when running non-interactively.'
                         );
-                        console.error(
-                            '   permissions.mode: auto-approve (or auto-deny if you want to deny certain tools)'
-                        );
+                        console.error('   permissions.mode: auto-approve');
                         console.error('   elicitation.enabled: false');
                         safeExit('main', 1, 'approval-unsupported-mode');
                     }

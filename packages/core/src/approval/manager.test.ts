@@ -108,31 +108,6 @@ describe('ApprovalManager', () => {
             ).rejects.toThrow(/Elicitation is disabled/);
         });
 
-        it('should auto-deny tools while elicitation is enabled', async () => {
-            const manager = createApprovalManager(
-                {
-                    permissions: {
-                        mode: 'auto-deny',
-                        timeout: 120000,
-                    },
-                    elicitation: {
-                        enabled: true,
-                        timeout: 120000,
-                    },
-                },
-                mockLogger
-            );
-
-            // Tool approval should be auto-denied
-            const toolResponse = await manager.requestToolApproval({
-                toolName: 'test_tool',
-                toolCallId: 'test-call-id',
-                args: { foo: 'bar' },
-            });
-
-            expect(toolResponse.status).toBe(ApprovalStatus.DENIED);
-        });
-
         it('should use separate timeouts for tools and elicitation', () => {
             const manager = createApprovalManager(
                 {
@@ -659,7 +634,7 @@ describe('ApprovalManager', () => {
             const manager = createApprovalManager(
                 {
                     permissions: {
-                        mode: 'auto-deny', // Different mode for tools
+                        mode: 'manual',
                         timeout: 120000,
                     },
                     elicitation: {
@@ -670,7 +645,7 @@ describe('ApprovalManager', () => {
                 mockLogger
             );
 
-            // Elicitation should not be auto-denied (uses manual handler)
+            // Elicitation uses the manual handler and can still timeout independently.
             // We'll timeout immediately to avoid hanging tests
             await expect(
                 manager.requestElicitation({
@@ -684,7 +659,7 @@ describe('ApprovalManager', () => {
                     serverName: 'Test Server',
                     timeout: 1, // 1ms timeout to fail fast
                 })
-            ).rejects.toThrow(); // Should timeout, not be auto-denied
+            ).rejects.toThrow();
         });
     });
 
@@ -987,30 +962,6 @@ describe('ApprovalManager', () => {
 
             expect(response.status).toBe(ApprovalStatus.APPROVED);
         });
-
-        it('should not timeout when timeout is undefined in auto-deny mode', async () => {
-            const manager = createApprovalManager(
-                {
-                    permissions: {
-                        mode: 'auto-deny',
-                        // No timeout - should not cause any issues with auto-deny
-                    },
-                    elicitation: {
-                        enabled: false,
-                    },
-                },
-                mockLogger
-            );
-
-            const response = await manager.requestToolApproval({
-                toolName: 'test_tool',
-                toolCallId: 'test-call-id',
-                args: {},
-            });
-
-            expect(response.status).toBe(ApprovalStatus.DENIED);
-            expect(response.reason).toBe(DenialReason.SYSTEM_DENIED);
-        });
     });
 
     describe('Backward compatibility', () => {
@@ -1061,11 +1012,11 @@ describe('ApprovalManager', () => {
     });
 
     describe('Denial Reasons', () => {
-        it('should include system_denied reason in auto-deny mode', async () => {
+        it('should throw error with specific reason when tool approval is denied', async () => {
             const manager = createApprovalManager(
                 {
                     permissions: {
-                        mode: 'auto-deny',
+                        mode: 'manual',
                         timeout: 120000,
                     },
                     elicitation: {
@@ -1075,32 +1026,13 @@ describe('ApprovalManager', () => {
                 },
                 mockLogger
             );
-
-            const response = await manager.requestToolApproval({
-                toolName: 'test_tool',
-                toolCallId: 'test-call-id',
-                args: {},
-            });
-
-            expect(response.status).toBe(ApprovalStatus.DENIED);
-            expect(response.reason).toBe(DenialReason.SYSTEM_DENIED);
-            expect(response.message).toContain('system policy');
-        });
-
-        it('should throw error with specific reason when tool is denied', async () => {
-            const manager = createApprovalManager(
-                {
-                    permissions: {
-                        mode: 'auto-deny',
-                        timeout: 120000,
-                    },
-                    elicitation: {
-                        enabled: true,
-                        timeout: 120000,
-                    },
-                },
-                mockLogger
-            );
+            manager.setHandler(async (request) => ({
+                approvalId: request.approvalId,
+                status: ApprovalStatus.DENIED,
+                timestamp: new Date(),
+                reason: DenialReason.USER_DENIED,
+                message: 'User rejected this request',
+            }));
 
             try {
                 await manager.checkToolApproval({
@@ -1114,8 +1046,10 @@ describe('ApprovalManager', () => {
                 expect((error as DextoRuntimeError).code).toBe(
                     ApprovalErrorCode.APPROVAL_TOOL_APPROVAL_DENIED
                 );
-                expect((error as DextoRuntimeError).message).toContain('system policy');
-                expect((error as any).context.reason).toBe(DenialReason.SYSTEM_DENIED);
+                expect((error as DextoRuntimeError).message).toContain(
+                    'User rejected this request'
+                );
+                expect((error as any).context.reason).toBe(DenialReason.USER_DENIED);
             }
         });
 
