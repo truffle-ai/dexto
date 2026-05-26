@@ -541,7 +541,7 @@ async function generateAgentSystemPromptFromDescription(
                 blob: { type: 'in-memory' },
             },
             permissions: {
-                mode: 'auto-deny',
+                mode: 'auto-approve',
                 allowedToolsStorage: 'memory',
             },
             elicitation: {
@@ -1203,13 +1203,13 @@ Describe what this skill helps the agent accomplish.
 1. Review the relevant context and only open bundled files that are actually needed.
 2. Use \`references/\` for background knowledge, schemas, or examples.
 3. Use \`scripts/\` for deterministic helper code and \`handlers/\` for reusable workflow logic.
-4. Use \`mcps/\` for any MCP server configs this skill needs to carry with it.
+4. Use \`mcps/\` only for inert MCP-related reference/config files; runtime MCP servers must be configured separately.
 5. Return a concise result with any important follow-up actions.
 
 ## Bundled Resources
 - \`handlers/\`: Reusable workflow helpers or code snippets this skill can point to
 - \`scripts/\`: Executable helpers for deterministic or repetitive tasks
-- \`mcps/\`: MCP server config JSON files associated with this skill
+- \`mcps/\`: Inert MCP-related reference/config files bundled with this skill
 - \`references/\`: Docs, schemas, examples, or domain notes to load on demand
 
 ## Output Format
@@ -1223,8 +1223,6 @@ function buildCreateSkillStarterTemplate(): string {
     return `---
 name: "${STARTER_SKILL_ID}"
 description: "Create or update Dexto skill bundles with SKILL.md, handlers, scripts, mcps, and references."
-toolkits: ["creator-tools"]
-allowed-tools: ["skill_create", "skill_update", "skill_refresh", "skill_search", "skill_list", "tool_catalog"]
 ---
 
 # Create Skill
@@ -1240,21 +1238,18 @@ Create or update standalone Dexto skill bundles. Treat \`skills/<id>/\` as the c
    - \`references/\` for larger docs, copied external material, schemas, examples, or policies
    - \`scripts/\` for deterministic helpers
    - \`handlers/\` for reusable workflow logic or structured helper code
-   - \`mcps/\` for MCP configs the skill should carry with it
-   - When a skill needs a real bundled MCP server, prefer the SDK-based stdio pattern in \`references/mcp-server-pattern.md\`
+   - \`mcps/\` for inert MCP-related reference/config files
 6. Prefer extending existing skills or references over duplicating content.
 7. If you edit \`SKILL.md\` or bundled files with non-creator tools, run \`skill_refresh\` before relying on the skill in the current session.
-8. Creating \`mcps/*.json\` only creates bundled MCP config. Do not say you created a real MCP server unless the config points at a bundled runnable implementation or a verified external command/package.
+8. Creating \`mcps/*.json\` only creates inert bundled files. Configure runtime MCP servers through normal MCP configuration paths.
 
 ## Authoring Rules
 - Default to workspace scope.
-- Default to no extra toolkits and no \`allowed-tools\` unless the skill needs them.
 - Keep most actionable instructions in \`SKILL.md\` so the agent can act without opening extra files.
 - Use \`references/\` sparingly for larger copied docs, external references, schemas, examples, or policies.
 - Keep references one level deep from \`SKILL.md\` and link them explicitly.
 - Reuse language and conventions from nearby skills when possible.
-- If you add MCP config files or update bundled resources outside creator tools, run \`skill_refresh\` so the current session reloads the skill metadata before invoking it.
-- For real bundled MCPs, prefer the official \`@modelcontextprotocol/sdk\` server APIs with \`StdioServerTransport\`. Avoid hand-rolled Content-Length framing unless the user explicitly asks for low-level protocol code.
+- If you update bundled resources outside creator tools, run \`skill_refresh\` so the current session reloads the latest skill content before invoking it.
 
 ## SKILL.md Structure
 - \`# <Title>\`
@@ -1266,7 +1261,6 @@ Create or update standalone Dexto skill bundles. Treat \`skills/<id>/\` as the c
 
 ## Resource Guide
 Read \`references/skill-anatomy.md\` when you need the bundle layout or packaging checklist.
-Read \`references/mcp-server-pattern.md\` when the skill needs a bundled MCP server implementation.
 `;
 }
 
@@ -1287,7 +1281,7 @@ skills/<skill-id>/
 - \`SKILL.md\`: The trigger, workflow, and navigation entrypoint.
 - \`handlers/\`: Reusable helper code or structured workflow fragments the skill can reference.
 - \`scripts/\`: Deterministic helpers the agent can run instead of rewriting logic.
-- \`mcps/\`: JSON config fragments for MCP servers used by the skill. This is config only, not proof that the MCP implementation exists.
+- \`mcps/\`: Inert MCP-related reference/config files. These files are not loaded as runtime MCP configuration by skills.
 - \`references/\`: Supporting material the agent should open only when needed, especially larger copied docs, schemas, external references, or long examples.
 
 ## Creation Checklist
@@ -1295,33 +1289,32 @@ skills/<skill-id>/
 2. Pick a kebab-case id and concise description.
 3. Keep actionable workflow in \`SKILL.md\`; move only larger reference material into \`references/\`.
 4. Add scripts or handlers only when they remove repeated work or improve reliability.
-5. Add MCP configs only when the skill truly depends on them.
+5. Add files under \`mcps/\` only when they are useful as inert bundled references.
 6. Reference bundled files from \`SKILL.md\` using relative paths.
 
 ## MCP Notes
-- Store standalone skill MCP configs as JSON files in \`mcps/\`.
-- Each file may define one or more servers using the same shape as \`.mcp.json\`.
-- Skill MCP configs are bundled metadata. They do not by themselves implement or verify an MCP server.
-- If you claim the skill ships a real MCP, the config must point to a bundled runnable server or a verified external package/command.
-- Run \`skill_refresh\` after editing bundled files so the running session reloads the latest skill content and MCP metadata.
+- Files under \`mcps/\` are bundled content only.
+- Skills do not register or connect MCP servers from \`mcps/\`.
+- Configure runtime MCP servers through normal agent MCP configuration paths.
+- Run \`skill_refresh\` after editing bundled files so the running session reloads the latest skill content.
 `;
 }
 
 function buildCreateSkillMcpReference(): string {
     return `# MCP Server Pattern
 
-Use this pattern when a skill needs to bundle a real MCP server in \`scripts/\`.
+Use this pattern only as reference material when authoring MCP servers. Skills do not register or connect MCP servers from bundled files.
 
 ## Preferred Approach
 - Use the official \`@modelcontextprotocol/sdk\` server APIs.
 - Use \`StdioServerTransport\` for bundled local servers.
-- Keep the MCP config in \`mcps/*.json\` simple and skill-relative.
+- Keep any example MCP config in \`mcps/*.json\` simple and skill-relative.
 - Prefer \`.mjs\` for bundled MCP server scripts to avoid CommonJS/ESM ambiguity.
 
 ## Avoid
 - Do not hand-roll MCP framing with manual \`Content-Length\` parsing unless the user explicitly asks for low-level protocol code.
 - Do not claim the MCP works just because the script exists or passes \`node --check\`.
-- Do not stop at writing \`mcps/*.json\` if the user asked for a real MCP implementation.
+- Do not imply \`mcps/*.json\` activates an MCP server.
 
 ## Minimal Server Template
 \`\`\`js
@@ -1400,13 +1393,12 @@ await server.connect(transport);
 \`\`\`
 
 ## Verification Sequence
-1. Create or update \`SKILL.md\`, \`scripts/\`, and \`mcps/\`.
+1. Create or update \`SKILL.md\`, \`scripts/\`, and any inert \`mcps/\` reference files.
 2. Run \`skill_refresh\` after non-creator file edits.
-3. Invoke the skill in the current session.
-4. Confirm the bundled MCP connects and the new MCP tool appears.
-5. Call the MCP tool once with a simple input and confirm the result.
+3. Invoke the skill in the current session and confirm the updated instructions load.
+4. Configure and verify runtime MCP servers separately through normal MCP configuration paths.
 
-If step 3 or 4 fails, the skill is not done yet.
+If the skill instructions do not refresh, the skill is not done yet.
 `;
 }
 

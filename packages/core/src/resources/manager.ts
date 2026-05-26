@@ -7,17 +7,17 @@ import type { InternalResourceServices } from './handlers/types.js';
 import type { Logger } from '../logger/v2/types.js';
 import { DextoLogComponent } from '../logger/v2/types.js';
 import type { AgentEventBus } from '../events/index.js';
-import type { BlobStore } from '../storage/blob/types.js';
+import type { ArtifactStore } from '../storage/artifacts/types.js';
 
 export interface ResourceManagerOptions {
     resourcesConfig: ValidatedResourcesConfig;
-    blobStore: BlobStore;
+    artifactStore: ArtifactStore;
 }
 
 export class ResourceManager {
     private readonly mcpManager: MCPManager;
     private agentResourcesProvider: AgentResourcesProvider;
-    private readonly blobStore: BlobStore;
+    private readonly artifactStore: ArtifactStore;
     private logger: Logger;
     private readonly eventBus: AgentEventBus;
     private readonly listenerAbort = new AbortController();
@@ -29,12 +29,12 @@ export class ResourceManager {
         logger: Logger
     ) {
         this.mcpManager = mcpManager;
-        this.blobStore = options.blobStore;
+        this.artifactStore = options.artifactStore;
         this.eventBus = eventBus;
         this.logger = logger.createChild(DextoLogComponent.RESOURCE);
 
         const services: InternalResourceServices = {
-            blobStore: this.blobStore,
+            artifactStore: this.artifactStore,
         };
 
         this.agentResourcesProvider = new AgentResourcesProvider(
@@ -61,8 +61,8 @@ export class ResourceManager {
         }
     }
 
-    getBlobStore(): BlobStore {
-        return this.blobStore;
+    getArtifactStore(): ArtifactStore {
+        return this.artifactStore;
     }
 
     private deriveName(uri: string): string {
@@ -137,7 +137,7 @@ export class ResourceManager {
         // Always short-circuit blob: URIs to use blobStore directly
         if (uri.startsWith('blob:')) {
             try {
-                return await this.blobStore.exists(uri);
+                return await this.artifactStore.exists({ reference: uri });
             } catch (error) {
                 this.logger.warn(
                     `BlobService exists check failed for ${uri}: ${error instanceof Error ? error.message : String(error)}`
@@ -159,7 +159,10 @@ export class ResourceManager {
 
             // Always short-circuit blob: URIs to use blobStore directly
             if (uri.startsWith('blob:')) {
-                const blob = await this.blobStore.retrieve(uri, 'base64');
+                const blob = await this.artifactStore.retrieve({
+                    reference: uri,
+                    format: 'base64',
+                });
                 return {
                     contents: [
                         {

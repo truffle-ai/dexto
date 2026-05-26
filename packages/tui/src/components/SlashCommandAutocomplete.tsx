@@ -532,7 +532,7 @@ const SlashCommandAutocompleteInner = forwardRef<
                     );
                 }
 
-                // Prompt command (MCP prompts)
+                // Prompt command
                 const prompt = item.prompt;
                 // Use displayName for user-friendly display, fall back to full name
                 const displayName = prompt.displayName || prompt.name;

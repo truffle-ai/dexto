@@ -1,7 +1,14 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { TextDecoder } from 'node:util';
-import type { StreamingEvent } from '@dexto/core';
+import { mkdtemp, writeFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import type { InternalMessage, StreamingEvent } from '@dexto/core';
 import { ApprovalType } from '@dexto/core';
+import { createDextoApp } from '../index.js';
+import { WebhookEventSubscriber } from '../../events/webhook-subscriber.js';
+import { A2ASseEventSubscriber } from '../../events/a2a-sse-subscriber.js';
+import { SessionSseEventSubscriber } from '../../events/session-sse-subscriber.js';
 import {
     createTestAgent,
     startTestServer,
@@ -228,6 +235,100 @@ describe('Hono API Integration Tests', () => {
             expect(typeof session.messageCount).toBe('number');
             expect(session.createdAt === null || typeof session.createdAt === 'number').toBe(true);
             expect(session.parentSessionId).toBeNull();
+        });
+
+        it('POST /api/sessions/:id/cancel soft cancel preserves queued input', async () => {
+            if (!testServer) throw new Error('Test server not initialized');
+            const sessionId = `cancel-soft-${Date.now()}`;
+            await httpRequest(testServer.baseUrl, 'POST', '/api/sessions', { sessionId });
+            await httpRequest(testServer.baseUrl, 'POST', `/api/steer/${sessionId}`, {
+                content: 'active turn guidance',
+            });
+            await httpRequest(testServer.baseUrl, 'POST', `/api/follow-up/${sessionId}`, {
+                content: 'next turn work',
+            });
+
+            const agent = testServer.agent;
+            const cancelSpy = vi.spyOn(agent, 'cancel').mockResolvedValue(true);
+            try {
+                const res = await httpRequest(
+                    testServer.baseUrl,
+                    'POST',
+                    `/api/sessions/${sessionId}/cancel`,
+                    { clearQueue: false }
+                );
+
+                expect(res.status).toBe(200);
+                expect(res.body).toMatchObject({
+                    cancelled: true,
+                    sessionId,
+                    queueCleared: false,
+                    clearedCount: 0,
+                });
+
+                const steerGet = await httpRequest(
+                    testServer.baseUrl,
+                    'GET',
+                    `/api/steer/${sessionId}`
+                );
+                const followUpGet = await httpRequest(
+                    testServer.baseUrl,
+                    'GET',
+                    `/api/follow-up/${sessionId}`
+                );
+
+                expect((steerGet.body as { count: number }).count).toBe(1);
+                expect((followUpGet.body as { count: number }).count).toBe(1);
+            } finally {
+                cancelSpy.mockRestore();
+            }
+        });
+
+        it('POST /api/sessions/:id/cancel hard cancel clears steer and follow-up input', async () => {
+            if (!testServer) throw new Error('Test server not initialized');
+            const sessionId = `cancel-hard-${Date.now()}`;
+            await httpRequest(testServer.baseUrl, 'POST', '/api/sessions', { sessionId });
+            await httpRequest(testServer.baseUrl, 'POST', `/api/steer/${sessionId}`, {
+                content: 'active turn guidance',
+            });
+            await httpRequest(testServer.baseUrl, 'POST', `/api/follow-up/${sessionId}`, {
+                content: 'next turn work',
+            });
+
+            const agent = testServer.agent;
+            const cancelSpy = vi.spyOn(agent, 'cancel').mockResolvedValue(true);
+            try {
+                const res = await httpRequest(
+                    testServer.baseUrl,
+                    'POST',
+                    `/api/sessions/${sessionId}/cancel`,
+                    { clearQueue: true }
+                );
+
+                expect(res.status).toBe(200);
+                expect(res.body).toMatchObject({
+                    cancelled: true,
+                    sessionId,
+                    queueCleared: true,
+                    clearedCount: 2,
+                });
+
+                const steerGet = await httpRequest(
+                    testServer.baseUrl,
+                    'GET',
+                    `/api/steer/${sessionId}`
+                );
+                const followUpGet = await httpRequest(
+                    testServer.baseUrl,
+                    'GET',
+                    `/api/follow-up/${sessionId}`
+                );
+
+                expect((steerGet.body as { count: number }).count).toBe(0);
+                expect((followUpGet.body as { count: number }).count).toBe(0);
+            } finally {
+                cancelSpy.mockRestore();
+            }
         });
 
         it('GET /api/sessions/:id returns session details', async () => {
@@ -478,37 +579,38 @@ describe('Hono API Integration Tests', () => {
                 sessionId,
             });
 
-            const database = testServer.agent.services.storageManager.getDatabase();
-            await database.append(`messages:${sessionId}`, {
-                role: 'tool',
-                toolCallId: 'call-resource-history',
-                name: 'read_media_file',
-                success: true,
-                content: [
-                    { type: 'text', text: 'Loaded local video resource.' },
-                    {
-                        type: 'resource',
-                        uri: '/tmp/demo-video.mp4',
-                        name: 'demo-video.mp4',
-                        mimeType: 'video/mp4',
-                        kind: 'video',
-                        metadata: {
-                            originalPath: '/tmp/demo-video.mp4',
-                            mtimeMs: 1234.5,
-                            source: 'filesystem',
+            const conversationStore = testServer.agent.services.stores.getStore('conversation');
+            const sessionStore = testServer.agent.services.stores.getStore('sessions');
+            await conversationStore.saveMessage({
+                sessionId,
+                message: {
+                    role: 'tool',
+                    toolCallId: 'call-resource-history',
+                    name: 'read_media_file',
+                    success: true,
+                    content: [
+                        { type: 'text', text: 'Loaded local video resource.' },
+                        {
+                            type: 'resource',
+                            uri: '/tmp/demo-video.mp4',
+                            name: 'demo-video.mp4',
+                            mimeType: 'video/mp4',
+                            kind: 'video',
+                            metadata: {
+                                mtimeMs: 1234.5,
+                                source: 'filesystem',
+                            },
                         },
-                    },
-                ],
+                    ],
+                },
             });
 
-            const sessionData = await database.get<
-                { messageCount: number } & Record<string, unknown>
-            >(`session:${sessionId}`);
+            const sessionData = await sessionStore.getSession({ sessionId });
             if (!sessionData) {
                 throw new Error(`Expected session '${sessionId}' to exist`);
             }
             sessionData.messageCount = 1;
-            await database.set(`session:${sessionId}`, sessionData);
+            await sessionStore.saveSession({ sessionId, session: sessionData });
             await testServer.agent.endSession(sessionId);
 
             const res = await httpRequest(
@@ -541,36 +643,41 @@ describe('Hono API Integration Tests', () => {
                 sessionId,
             });
 
-            const blobStore = testServer.agent.services.storageManager.getBlobStore();
-            const storedBlob = await blobStore.store('iVBORw0KGgo=', {
-                mimeType: 'image/png',
-                originalName: 'demo-image.png',
-                source: 'tool',
+            const artifactStore = testServer.agent.services.stores.getStore('artifacts');
+            const storedBlob = await artifactStore.store({
+                data: 'iVBORw0KGgo=',
+                metadata: {
+                    mimeType: 'image/png',
+                    originalName: 'demo-image.png',
+                    source: 'tool',
+                },
             });
 
-            const database = testServer.agent.services.storageManager.getDatabase();
-            await database.append(`messages:${sessionId}`, {
-                role: 'tool',
-                toolCallId: 'call-history-blob',
-                name: 'read_media_file',
-                success: true,
-                content: [
-                    {
-                        type: 'image',
-                        image: `@${storedBlob.uri}`,
-                        mimeType: 'image/png',
-                    },
-                ],
+            const conversationStore = testServer.agent.services.stores.getStore('conversation');
+            const sessionStore = testServer.agent.services.stores.getStore('sessions');
+            await conversationStore.saveMessage({
+                sessionId,
+                message: {
+                    role: 'tool',
+                    toolCallId: 'call-history-blob',
+                    name: 'read_media_file',
+                    success: true,
+                    content: [
+                        {
+                            type: 'image',
+                            image: `@${storedBlob.uri}`,
+                            mimeType: 'image/png',
+                        },
+                    ],
+                },
             });
 
-            const sessionData = await database.get<
-                { messageCount: number } & Record<string, unknown>
-            >(`session:${sessionId}`);
+            const sessionData = await sessionStore.getSession({ sessionId });
             if (!sessionData) {
                 throw new Error(`Expected session '${sessionId}' to exist`);
             }
             sessionData.messageCount = 1;
-            await database.set(`session:${sessionId}`, sessionData);
+            await sessionStore.saveSession({ sessionId, session: sessionData });
 
             const res = await httpRequest(
                 testServer.baseUrl,
@@ -596,30 +703,32 @@ describe('Hono API Integration Tests', () => {
                 sessionId,
             });
 
-            const database = testServer.agent.services.storageManager.getDatabase();
-            await database.append(`messages:${sessionId}`, {
-                role: 'tool',
-                toolCallId: 'call-history-missing-blob',
-                name: 'read_media_file',
-                success: true,
-                content: [
-                    {
-                        type: 'file',
-                        data: '@blob:missing-history-blob',
-                        mimeType: 'application/pdf',
-                        filename: 'missing.pdf',
-                    },
-                ],
+            const conversationStore = testServer.agent.services.stores.getStore('conversation');
+            const sessionStore = testServer.agent.services.stores.getStore('sessions');
+            await conversationStore.saveMessage({
+                sessionId,
+                message: {
+                    role: 'tool',
+                    toolCallId: 'call-history-missing-blob',
+                    name: 'read_media_file',
+                    success: true,
+                    content: [
+                        {
+                            type: 'file',
+                            data: '@blob:missing-history-blob',
+                            mimeType: 'application/pdf',
+                            filename: 'missing.pdf',
+                        },
+                    ],
+                },
             });
 
-            const sessionData = await database.get<
-                { messageCount: number } & Record<string, unknown>
-            >(`session:${sessionId}`);
+            const sessionData = await sessionStore.getSession({ sessionId });
             if (!sessionData) {
                 throw new Error(`Expected session '${sessionId}' to exist`);
             }
             sessionData.messageCount = 1;
-            await database.set(`session:${sessionId}`, sessionData);
+            await sessionStore.saveSession({ sessionId, session: sessionData });
 
             const readSpy = vi
                 .spyOn(testServer.agent.resourceManager, 'read')
@@ -685,24 +794,26 @@ describe('Hono API Integration Tests', () => {
                 sessionId: parentSessionId,
             });
 
-            const parentHistory = [
-                { role: 'user', content: 'fork me 1' },
-                { role: 'assistant', content: 'forked 1' },
-                { role: 'user', content: 'fork me 2' },
+            const parentHistory: InternalMessage[] = [
+                { role: 'user', content: [{ type: 'text', text: 'fork me 1' }] },
+                { role: 'assistant', content: [{ type: 'text', text: 'forked 1' }] },
+                { role: 'user', content: [{ type: 'text', text: 'fork me 2' }] },
             ];
 
-            const database = testServer.agent.services.storageManager.getDatabase();
+            const conversationStore = testServer.agent.services.stores.getStore('conversation');
+            const sessionStore = testServer.agent.services.stores.getStore('sessions');
             for (const message of parentHistory) {
-                await database.append(`messages:${parentSessionId}`, message);
+                await conversationStore.saveMessage({ sessionId: parentSessionId, message });
             }
-            const parentSessionData = await database.get<
-                { messageCount: number } & Record<string, unknown>
-            >(`session:${parentSessionId}`);
+            const parentSessionData = await sessionStore.getSession({ sessionId: parentSessionId });
             if (!parentSessionData) {
                 throw new Error(`Expected parent session '${parentSessionId}' to exist`);
             }
             parentSessionData.messageCount = parentHistory.length;
-            await database.set(`session:${parentSessionId}`, parentSessionData);
+            await sessionStore.saveSession({
+                sessionId: parentSessionId,
+                session: parentSessionData,
+            });
 
             const forkRes = await httpRequest(
                 testServer.baseUrl,
@@ -712,11 +823,9 @@ describe('Hono API Integration Tests', () => {
             expect(forkRes.status).toBe(201);
             const childSessionId = (forkRes.body as { session: { id: string } }).session.id;
 
-            const childHistory = await testServer.agent.services.storageManager
-                .getDatabase()
-                .getRange<
-                    (typeof parentHistory)[number]
-                >(`messages:${childSessionId}`, 0, parentHistory.length);
+            const childHistory = await conversationStore.listMessages({
+                sessionId: childSessionId,
+            });
             expect(childHistory).toEqual(parentHistory);
 
             const childDetailsRes = await httpRequest(
@@ -901,6 +1010,21 @@ describe('Hono API Integration Tests', () => {
             );
             // May return 404 or empty result depending on implementation
             expect([200, 404]).toContain(res.status);
+        });
+    });
+
+    describe('Skills Routes', () => {
+        it('GET /api/skills returns skill catalog', async () => {
+            if (!testServer) throw new Error('Test server not initialized');
+            const res = await httpRequest(testServer.baseUrl, 'GET', '/api/skills');
+            expect(res.status).toBe(200);
+            expect(res.body).toHaveProperty('skills');
+        });
+
+        it('GET /api/skills/:id returns 404 for unknown skills', async () => {
+            if (!testServer) throw new Error('Test server not initialized');
+            const res = await httpRequest(testServer.baseUrl, 'GET', '/api/skills/missing');
+            expect(res.status).toBe(404);
         });
     });
 
@@ -1172,6 +1296,37 @@ describe('Hono API Integration Tests', () => {
             }
         });
 
+        it('POST /api/message-stream busy response points clients at follow-up input', async () => {
+            if (!testServer) throw new Error('Test server not initialized');
+
+            const sessionId = 'stream-session-busy';
+            await httpRequest(testServer.baseUrl, 'POST', '/api/sessions', { sessionId });
+
+            const agent = testServer.agent;
+            const isSessionBusySpy = vi.spyOn(agent, 'isSessionBusy').mockResolvedValue(true);
+            const getFollowUpMessagesSpy = vi
+                .spyOn(agent, 'getFollowUpMessages')
+                .mockResolvedValue([]);
+
+            try {
+                const res = await httpRequest(testServer.baseUrl, 'POST', '/api/message-stream', {
+                    sessionId,
+                    content: 'Run this next',
+                });
+
+                expect(res.status).toBe(202);
+                expect(res.body).toMatchObject({
+                    busy: true,
+                    sessionId,
+                    queueLength: 0,
+                    hint: 'Use POST /api/follow-up/{sessionId} to queue a follow-up message, or wait for the current request to complete.',
+                });
+            } finally {
+                isSessionBusySpy.mockRestore();
+                getFollowUpMessagesSpy.mockRestore();
+            }
+        });
+
         it('POST /api/message-stream forwards approval requests without waiting for later stream events', async () => {
             if (!testServer) throw new Error('Test server not initialized');
 
@@ -1236,6 +1391,68 @@ describe('Hono API Integration Tests', () => {
                 expect(streamed).toContain('event: approval:request');
                 expect(streamed).toContain('"approvalId":"approval-live-1"');
                 expect(streamed).toContain('"toolName":"read_media_file"');
+            } finally {
+                agent.stream = originalStream;
+            }
+        });
+
+        it('POST /api/message-stream does not duplicate fatal stream errors after iterator rejection', async () => {
+            if (!testServer) throw new Error('Test server not initialized');
+
+            const sessionId = 'stream-session-fatal-error';
+            const agent = testServer.agent;
+            const originalStream = agent.stream;
+            const streamError = new Error('stream failed once');
+            const fatalEvent: StreamingEvent = {
+                name: 'llm:error',
+                error: streamError,
+                recoverable: false,
+                context: 'run_failed',
+                sessionId,
+            };
+
+            const mockedStream: typeof agent.stream = async function (
+                this: typeof agent,
+                _message,
+                _sessionId,
+                _options
+            ) {
+                expect(this).toBe(agent);
+                let emitted = false;
+                const iterator: AsyncIterableIterator<StreamingEvent> = {
+                    [Symbol.asyncIterator]() {
+                        return iterator;
+                    },
+                    async next() {
+                        if (!emitted) {
+                            emitted = true;
+                            return { done: false, value: fatalEvent };
+                        }
+                        throw streamError;
+                    },
+                };
+                return iterator;
+            };
+            agent.stream = mockedStream;
+
+            try {
+                await httpRequest(testServer.baseUrl, 'POST', '/api/sessions', { sessionId });
+
+                const response = await fetch(`${testServer.baseUrl}/api/message-stream`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        sessionId,
+                        content: 'Trigger an error',
+                    }),
+                });
+
+                expect(response.status).toBe(200);
+                const streamed = await response.text();
+                const errorEventMatches = streamed.match(/event: llm:error/g) ?? [];
+
+                expect(errorEventMatches).toHaveLength(1);
+                expect(streamed).toContain('stream failed once');
             } finally {
                 agent.stream = originalStream;
             }
@@ -1316,82 +1533,101 @@ describe('Hono API Integration Tests', () => {
         });
     });
 
-    describe('Queue Routes', () => {
-        it('GET /api/queue/:sessionId returns empty queue initially', async () => {
+    describe('Legacy Queue Routes', () => {
+        it('does not register legacy /api/queue routes', async () => {
             if (!testServer) throw new Error('Test server not initialized');
-            // Create session first
-            await httpRequest(testServer.baseUrl, 'POST', '/api/sessions', {
-                sessionId: 'test-queue-session',
+            const sessionId = `legacy-queue-${Date.now()}`;
+            const createRes = await httpRequest(testServer.baseUrl, 'POST', '/api/sessions', {
+                sessionId,
             });
+            expect(createRes.status).toBe(201);
 
-            const res = await httpRequest(
-                testServer.baseUrl,
-                'GET',
-                '/api/queue/test-queue-session'
-            );
-            expect(res.status).toBe(200);
-            expect((res.body as { messages: unknown[]; count: number }).messages).toEqual([]);
-            expect((res.body as { count: number }).count).toBe(0);
-        });
-
-        it('GET /api/queue/:sessionId returns 404 for non-existent session', async () => {
-            if (!testServer) throw new Error('Test server not initialized');
-            const res = await httpRequest(
-                testServer.baseUrl,
-                'GET',
-                '/api/queue/non-existent-queue-session'
-            );
-            expect(res.status).toBe(404);
-        });
-
-        it('POST /api/queue/:sessionId queues a message', async () => {
-            if (!testServer) throw new Error('Test server not initialized');
-            // Create session first
-            await httpRequest(testServer.baseUrl, 'POST', '/api/sessions', {
-                sessionId: 'test-queue-post-session',
-            });
-
-            const res = await httpRequest(
+            const getRes = await httpRequest(testServer.baseUrl, 'GET', `/api/queue/${sessionId}`);
+            const postRes = await httpRequest(
                 testServer.baseUrl,
                 'POST',
-                '/api/queue/test-queue-post-session',
-                { content: 'Hello from queue' }
+                `/api/queue/${sessionId}`,
+                { content: 'legacy queue should be gone' }
             );
+            const deleteRes = await httpRequest(
+                testServer.baseUrl,
+                'DELETE',
+                `/api/queue/${sessionId}`
+            );
+            const deleteMessageRes = await httpRequest(
+                testServer.baseUrl,
+                'DELETE',
+                `/api/queue/${sessionId}/missing-message`
+            );
+
+            expect(getRes.status).toBe(404);
+            expect(postRes.status).toBe(404);
+            expect(deleteRes.status).toBe(404);
+            expect(deleteMessageRes.status).toBe(404);
+        });
+
+        it('does not let SPA fallback handle legacy /api/queue routes', async () => {
+            if (!testServer) throw new Error('Test server not initialized');
+            const server = testServer;
+            const webRoot = await mkdtemp(join(tmpdir(), 'dexto-webroot-'));
+
+            try {
+                await writeFile(join(webRoot, 'index.html'), '<html><body>SPA</body></html>');
+                const app = createDextoApp({
+                    getAgent: () => server.agent,
+                    getAgentConfigPath: () => undefined,
+                    getAgentCard: () => server.agentCard,
+                    approvalCoordinator: server.approvalCoordinator,
+                    webhookSubscriber: new WebhookEventSubscriber(),
+                    sseSubscriber: new A2ASseEventSubscriber(),
+                    sessionSseSubscriber: new SessionSseEventSubscriber(),
+                    webRoot,
+                });
+
+                const res = await app.request('/api/queue/session-1/missing-message', {
+                    method: 'DELETE',
+                });
+
+                expect(res.status).toBe(404);
+                expect(res.headers.get('content-type')).toContain('application/json');
+                expect(await res.json()).toMatchObject({
+                    error: 'Not Found',
+                    path: '/api/queue/session-1/missing-message',
+                });
+            } finally {
+                await rm(webRoot, { recursive: true, force: true });
+            }
+        });
+    });
+
+    describe('Steer and Follow-up Routes', () => {
+        it('POST /api/steer/:sessionId queues active-turn steer input', async () => {
+            if (!testServer) throw new Error('Test server not initialized');
+            const sessionId = `steer-post-${Date.now()}`;
+            const createRes = await httpRequest(testServer.baseUrl, 'POST', '/api/sessions', {
+                sessionId,
+            });
+            expect(createRes.status).toBe(201);
+
+            const res = await httpRequest(testServer.baseUrl, 'POST', `/api/steer/${sessionId}`, {
+                content: 'Use a smaller implementation',
+            });
             expect(res.status).toBe(201);
             expect((res.body as { queued: boolean }).queued).toBe(true);
-            expect((res.body as { id: string }).id).toBeDefined();
             expect((res.body as { position: number }).position).toBe(1);
 
-            // Verify message is in queue
-            const getRes = await httpRequest(
-                testServer.baseUrl,
-                'GET',
-                '/api/queue/test-queue-post-session'
-            );
+            const getRes = await httpRequest(testServer.baseUrl, 'GET', `/api/steer/${sessionId}`);
+            expect(getRes.status).toBe(200);
             expect((getRes.body as { count: number }).count).toBe(1);
+            expect(
+                (getRes.body as { messages: Array<{ content: Array<{ text?: string }> }> })
+                    .messages[0]?.content[0]?.text
+            ).toBe('Use a smaller implementation');
         });
 
-        it('POST /api/queue/:sessionId validates input', async () => {
+        it('DELETE /api/steer/:sessionId/:messageId removes a steer message', async () => {
             if (!testServer) throw new Error('Test server not initialized');
-            // Create session first
-            await httpRequest(testServer.baseUrl, 'POST', '/api/sessions', {
-                sessionId: 'test-queue-validate-session',
-            });
-
-            const res = await httpRequest(
-                testServer.baseUrl,
-                'POST',
-                '/api/queue/test-queue-validate-session',
-                {} // Empty body should fail validation
-            );
-            expect(res.status).toBeGreaterThanOrEqual(400);
-        });
-
-        it('DELETE /api/queue/:sessionId/:messageId removes a queued message', async () => {
-            if (!testServer) throw new Error('Test server not initialized');
-            const sessionId = `queue-delete-msg-${Date.now()}`;
-
-            // Create session and queue a message
+            const sessionId = `steer-delete-${Date.now()}`;
             const createRes = await httpRequest(testServer.baseUrl, 'POST', '/api/sessions', {
                 sessionId,
             });
@@ -1400,54 +1636,209 @@ describe('Hono API Integration Tests', () => {
             const queueRes = await httpRequest(
                 testServer.baseUrl,
                 'POST',
-                `/api/queue/${sessionId}`,
-                { content: 'Message to delete' }
+                `/api/steer/${sessionId}`,
+                { content: 'remove me' }
             );
             expect(queueRes.status).toBe(201);
             const messageId = (queueRes.body as { id: string }).id;
 
-            // Delete the message
             const res = await httpRequest(
                 testServer.baseUrl,
                 'DELETE',
-                `/api/queue/${sessionId}/${messageId}`
+                `/api/steer/${sessionId}/${messageId}`
             );
             expect(res.status).toBe(200);
             expect((res.body as { removed: boolean }).removed).toBe(true);
 
-            // Verify queue is empty
-            const getRes = await httpRequest(testServer.baseUrl, 'GET', `/api/queue/${sessionId}`);
+            const getRes = await httpRequest(testServer.baseUrl, 'GET', `/api/steer/${sessionId}`);
             expect((getRes.body as { count: number }).count).toBe(0);
         });
 
-        it('DELETE /api/queue/:sessionId clears all queued messages', async () => {
+        it('DELETE /api/steer/:sessionId clears steer messages', async () => {
             if (!testServer) throw new Error('Test server not initialized');
-            const sessionId = `queue-clear-${Date.now()}`;
-
-            // Create session and queue multiple messages
+            const sessionId = `steer-clear-${Date.now()}`;
             const createRes = await httpRequest(testServer.baseUrl, 'POST', '/api/sessions', {
                 sessionId,
             });
             expect(createRes.status).toBe(201);
 
-            const q1 = await httpRequest(testServer.baseUrl, 'POST', `/api/queue/${sessionId}`, {
-                content: 'Message 1',
+            await httpRequest(testServer.baseUrl, 'POST', `/api/steer/${sessionId}`, {
+                content: 'first',
             });
-            expect(q1.status).toBe(201);
-            const q2 = await httpRequest(testServer.baseUrl, 'POST', `/api/queue/${sessionId}`, {
-                content: 'Message 2',
+            await httpRequest(testServer.baseUrl, 'POST', `/api/steer/${sessionId}`, {
+                content: 'second',
             });
-            expect(q2.status).toBe(201);
 
-            // Clear the queue
-            const res = await httpRequest(testServer.baseUrl, 'DELETE', `/api/queue/${sessionId}`);
+            const res = await httpRequest(testServer.baseUrl, 'DELETE', `/api/steer/${sessionId}`);
             expect(res.status).toBe(200);
-            expect((res.body as { cleared: boolean }).cleared).toBe(true);
             expect((res.body as { count: number }).count).toBe(2);
+        });
 
-            // Verify queue is empty
-            const getRes = await httpRequest(testServer.baseUrl, 'GET', `/api/queue/${sessionId}`);
-            expect((getRes.body as { count: number }).count).toBe(0);
+        it('POST /api/follow-up/:sessionId queues follow-up input separately from steer input', async () => {
+            if (!testServer) throw new Error('Test server not initialized');
+            const sessionId = `follow-up-post-${Date.now()}`;
+            const createRes = await httpRequest(testServer.baseUrl, 'POST', '/api/sessions', {
+                sessionId,
+            });
+            expect(createRes.status).toBe(201);
+
+            const steerRes = await httpRequest(
+                testServer.baseUrl,
+                'POST',
+                `/api/steer/${sessionId}`,
+                { content: 'active turn guidance' }
+            );
+            expect(steerRes.status).toBe(201);
+
+            const followUpRes = await httpRequest(
+                testServer.baseUrl,
+                'POST',
+                `/api/follow-up/${sessionId}`,
+                { content: 'next turn work' }
+            );
+            expect(followUpRes.status).toBe(201);
+            expect((followUpRes.body as { queued: boolean }).queued).toBe(true);
+
+            const steerGet = await httpRequest(
+                testServer.baseUrl,
+                'GET',
+                `/api/steer/${sessionId}`
+            );
+            const followUpGet = await httpRequest(
+                testServer.baseUrl,
+                'GET',
+                `/api/follow-up/${sessionId}`
+            );
+
+            expect((steerGet.body as { count: number }).count).toBe(1);
+            expect((followUpGet.body as { count: number }).count).toBe(1);
+            expect(
+                (followUpGet.body as { messages: Array<{ content: Array<{ text?: string }> }> })
+                    .messages[0]?.content[0]?.text
+            ).toBe('next turn work');
+        });
+
+        it('DELETE /api/follow-up/:sessionId/:messageId removes a follow-up message', async () => {
+            if (!testServer) throw new Error('Test server not initialized');
+            const sessionId = `follow-up-delete-${Date.now()}`;
+            const createRes = await httpRequest(testServer.baseUrl, 'POST', '/api/sessions', {
+                sessionId,
+            });
+            expect(createRes.status).toBe(201);
+
+            const queueRes = await httpRequest(
+                testServer.baseUrl,
+                'POST',
+                `/api/follow-up/${sessionId}`,
+                { content: 'remove me later' }
+            );
+            expect(queueRes.status).toBe(201);
+            const messageId = (queueRes.body as { id: string }).id;
+
+            const res = await httpRequest(
+                testServer.baseUrl,
+                'DELETE',
+                `/api/follow-up/${sessionId}/${messageId}`
+            );
+            expect(res.status).toBe(200);
+            expect((res.body as { removed: boolean }).removed).toBe(true);
+        });
+
+        it('DELETE /api/follow-up/:sessionId clears follow-up messages', async () => {
+            if (!testServer) throw new Error('Test server not initialized');
+            const sessionId = `follow-up-clear-${Date.now()}`;
+            const createRes = await httpRequest(testServer.baseUrl, 'POST', '/api/sessions', {
+                sessionId,
+            });
+            expect(createRes.status).toBe(201);
+
+            await httpRequest(testServer.baseUrl, 'POST', `/api/follow-up/${sessionId}`, {
+                content: 'first',
+            });
+            await httpRequest(testServer.baseUrl, 'POST', `/api/follow-up/${sessionId}`, {
+                content: 'second',
+            });
+
+            const res = await httpRequest(
+                testServer.baseUrl,
+                'DELETE',
+                `/api/follow-up/${sessionId}`
+            );
+            expect(res.status).toBe(200);
+            expect((res.body as { count: number }).count).toBe(2);
+        });
+
+        it('returns 404 when removing a missing steer or follow-up message', async () => {
+            if (!testServer) throw new Error('Test server not initialized');
+            const sessionId = `queue-missing-remove-${Date.now()}`;
+            const createRes = await httpRequest(testServer.baseUrl, 'POST', '/api/sessions', {
+                sessionId,
+            });
+            expect(createRes.status).toBe(201);
+
+            const steerRes = await httpRequest(
+                testServer.baseUrl,
+                'DELETE',
+                `/api/steer/${sessionId}/missing`
+            );
+            const followUpRes = await httpRequest(
+                testServer.baseUrl,
+                'DELETE',
+                `/api/follow-up/${sessionId}/missing`
+            );
+
+            expect(steerRes.status).toBe(404);
+            expect(followUpRes.status).toBe(404);
+        });
+
+        it('returns 404 for steer operations on a missing session', async () => {
+            if (!testServer) throw new Error('Test server not initialized');
+            const sessionId = `missing-steer-${Date.now()}`;
+
+            const getRes = await httpRequest(testServer.baseUrl, 'GET', `/api/steer/${sessionId}`);
+            const postRes = await httpRequest(
+                testServer.baseUrl,
+                'POST',
+                `/api/steer/${sessionId}`,
+                {
+                    content: 'use the simpler path',
+                }
+            );
+            const clearRes = await httpRequest(
+                testServer.baseUrl,
+                'DELETE',
+                `/api/steer/${sessionId}`
+            );
+
+            expect(getRes.status).toBe(404);
+            expect(postRes.status).toBe(404);
+            expect(clearRes.status).toBe(404);
+        });
+
+        it('returns 404 for follow-up operations on a missing session', async () => {
+            if (!testServer) throw new Error('Test server not initialized');
+            const sessionId = `missing-follow-up-${Date.now()}`;
+
+            const getRes = await httpRequest(
+                testServer.baseUrl,
+                'GET',
+                `/api/follow-up/${sessionId}`
+            );
+            const postRes = await httpRequest(
+                testServer.baseUrl,
+                'POST',
+                `/api/follow-up/${sessionId}`,
+                { content: 'run this after the current turn' }
+            );
+            const clearRes = await httpRequest(
+                testServer.baseUrl,
+                'DELETE',
+                `/api/follow-up/${sessionId}`
+            );
+
+            expect(getRes.status).toBe(404);
+            expect(postRes.status).toBe(404);
+            expect(clearRes.status).toBe(404);
         });
     });
 
@@ -1457,6 +1848,31 @@ describe('Hono API Integration Tests', () => {
             const res = await httpRequest(testServer.baseUrl, 'GET', '/openapi.json');
             expect(res.status).toBe(200);
             expect((res.body as { openapi: string }).openapi).toBe('3.0.0');
+        });
+
+        it('documents steer and follow-up route names without legacy spelling variants', async () => {
+            if (!testServer) throw new Error('Test server not initialized');
+            const res = await httpRequest(testServer.baseUrl, 'GET', '/openapi.json');
+            expect(res.status).toBe(200);
+
+            const paths = Object.keys((res.body as { paths: Record<string, unknown> }).paths);
+            expect(paths).toContain('/api/steer/{sessionId}');
+            expect(paths).toContain('/api/steer/{sessionId}/{messageId}');
+            expect(paths).toContain('/api/follow-up/{sessionId}');
+            expect(paths).toContain('/api/follow-up/{sessionId}/{messageId}');
+            expect(paths).not.toContain('/api/queue/{sessionId}');
+            expect(paths).not.toContain('/api/queue/{sessionId}/{messageId}');
+            expect(paths).not.toContain('/api/steering/{sessionId}');
+            expect(paths).not.toContain('/api/steering/{sessionId}/{messageId}');
+            expect(paths).not.toContain('/api/follow-ups/{sessionId}');
+            expect(paths).not.toContain('/api/follow-ups/{sessionId}/{messageId}');
+
+            const tags = (res.body as { tags: Array<{ name: string }> }).tags.map(
+                (tag) => tag.name
+            );
+            expect(tags).toContain('steer');
+            expect(tags).toContain('follow-up');
+            expect(tags).not.toContain('queue');
         });
     });
 });

@@ -18,7 +18,7 @@ constructor(confirmationProvider?: ToolConfirmationProvider)
 Creates a new `MCPManager` instance for managing MCP server connections.
 
 **Parameters:**
-- `confirmationProvider` (optional): A custom tool confirmation provider. If not provided, a default CLI-based confirmation is used.
+- `confirmationProvider` (optional): A custom tool approval provider. If not provided, a default CLI-based approval flow is used.
 
 **Example:**
 ```typescript
@@ -412,4 +412,4 @@ console.log('Available tools:', Object.keys(tools));
 
 // Clean up
 await manager.disconnectAll();
-``` 
+```

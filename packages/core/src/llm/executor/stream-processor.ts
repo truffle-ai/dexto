@@ -1,31 +1,31 @@
 import { StreamTextResult, ToolSet as VercelToolSet } from 'ai';
 import { ContextManager } from '../../context/manager.js';
 import { SessionEventBus, LLMFinishReason } from '../../events/index.js';
-import { ResourceManager } from '../../resources/index.js';
-import { truncateToolResult } from './tool-output-truncator.js';
 import { StreamProcessorResult } from './types.js';
-import { sanitizeToolResult } from '../../context/utils.js';
 import type { SanitizedToolResult } from '../../context/types.js';
 import type { Logger } from '../../logger/v2/types.js';
 import { DextoLogComponent } from '../../logger/v2/types.js';
-import type { ToolPresentationSnapshotV1 } from '../../tools/types.js';
-import type { ToolCallMetadata } from '../../tools/tool-call-metadata.js';
+import type { ModelToolCall } from './types.js';
 import { getUsagePricingMetadata } from '../usage-metadata.js';
 import type { TokenUsageCostBreakdown } from '../registry/index.js';
 import type { LLMProvider, LLMPricingStatus, ReasoningVariant, TokenUsage } from '../types.js';
 
 type UsageLike = {
-    inputTokens?: number | undefined;
-    outputTokens?: number | undefined;
-    totalTokens?: number | undefined;
-    reasoningTokens?: number | undefined;
-    cachedInputTokens?: number | undefined;
+    inputTokens?: number | null | undefined;
+    outputTokens?: number | null | undefined;
+    totalTokens?: number | null | undefined;
+    reasoningTokens?: number | null | undefined;
+    cachedInputTokens?: number | null | undefined;
     inputTokenDetails?: {
-        noCacheTokens?: number | undefined;
-        cacheReadTokens?: number | undefined;
-        cacheWriteTokens?: number | undefined;
+        noCacheTokens?: number | null | undefined;
+        cacheReadTokens?: number | null | undefined;
+        cacheWriteTokens?: number | null | undefined;
     };
 };
+
+function finiteUsageCount(value: unknown): number | undefined {
+    return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+}
 
 type FullStreamPart =
     StreamTextResult<VercelToolSet, unknown>['fullStream'] extends AsyncIterable<infer Part>
@@ -78,6 +78,7 @@ export class StreamProcessor {
     private logger: Logger;
     private hasStepUsage = false;
     private readonly usageScopeId: string | undefined;
+    private modelToolCalls: ModelToolCall[] = [];
     /**
      * Track pending tool calls (added to context but no result yet).
      * On cancel/abort, we add synthetic "cancelled" results to maintain tool_use/tool_result pairing.
@@ -88,30 +89,18 @@ export class StreamProcessor {
     /**
      * @param contextManager Context manager for message persistence
      * @param eventBus Event bus for emitting events
-     * @param resourceManager Resource manager for blob storage
      * @param abortSignal Abort signal for cancellation
      * @param config Provider/model configuration
      * @param logger Logger instance
      * @param streaming If true, emits llm:chunk events. Default true.
-     * @param toolCallMetadata Map of tool call IDs to tool-call metadata (approval + presentation)
      */
     constructor(
         private contextManager: ContextManager,
         private eventBus: SessionEventBus,
-        private resourceManager: ResourceManager,
         private abortSignal: AbortSignal,
         private config: StreamProcessorConfig,
         logger: Logger,
-        private streaming: boolean = true,
-        private toolCallMetadata?: Map<
-            string,
-            {
-                presentationSnapshot?: ToolPresentationSnapshotV1;
-                meta?: ToolCallMetadata;
-                requireApproval?: boolean;
-                approvalStatus?: 'approved' | 'rejected';
-            }
-        >
+        private streaming: boolean = true
     ) {
         this.logger = logger.createChild(DextoLogComponent.EXECUTOR);
         this.usageScopeId = config.usageScopeId;
@@ -264,6 +253,11 @@ export class StreamProcessor {
                         }
 
                         await this.contextManager.addToolCall(this.assistantMessageId!, toolCall);
+                        this.modelToolCalls.push({
+                            toolCallId: event.toolCallId,
+                            toolName: event.toolName,
+                            input: event.input,
+                        });
 
                         // Track pending tool call for abort handling
                         this.pendingToolCalls.set(event.toolCallId, {
@@ -271,74 +265,8 @@ export class StreamProcessor {
                         });
                         this.partialToolCalls.delete(event.toolCallId);
 
-                        // NOTE: llm:tool-call is now emitted from ToolManager.executeTool() instead.
-                        // This ensures correct event ordering - llm:tool-call arrives before approval:request.
-                        // See tool-manager.ts for detailed explanation of the timing issue.
-                        break;
-                    }
-
-                    case 'tool-result': {
-                        // PERSISTENCE HAPPENS HERE
-                        const rawResult = event.output;
-
-                        // Log raw tool output for debugging
-                        this.logger.debug('Tool result received', {
-                            toolName: event.toolName,
-                            toolCallId: event.toolCallId,
-                            rawResult,
-                        });
-
-                        // Sanitize
-                        const sanitized = await sanitizeToolResult(
-                            rawResult,
-                            {
-                                blobStore: this.resourceManager.getBlobStore(),
-                                toolName: event.toolName,
-                                toolCallId: event.toolCallId,
-                                success: true,
-                            },
-                            this.logger
-                        );
-
-                        // Truncate
-                        const truncated = truncateToolResult(sanitized);
-
-                        // Get tool-call metadata for this tool call
-                        const metadata = this.toolCallMetadata?.get(event.toolCallId);
-
-                        // Persist to history (success status comes from truncated.meta.success)
-                        await this.contextManager.addToolResult(
-                            event.toolCallId,
-                            event.toolName,
-                            truncated, // Includes meta.success from sanitization
-                            metadata // Only tool-call metadata if present
-                        );
-
-                        this.eventBus.emit('llm:tool-result', {
-                            toolName: event.toolName,
-                            ...(metadata?.presentationSnapshot !== undefined && {
-                                presentationSnapshot: metadata.presentationSnapshot,
-                            }),
-                            ...(metadata?.meta !== undefined && {
-                                meta: metadata.meta,
-                            }),
-                            callId: event.toolCallId,
-                            success: true,
-                            sanitized: truncated,
-                            rawResult: rawResult,
-                            ...(metadata?.requireApproval !== undefined && {
-                                requireApproval: metadata.requireApproval,
-                            }),
-                            ...(metadata?.approvalStatus !== undefined && {
-                                approvalStatus: metadata.approvalStatus,
-                            }),
-                        });
-
-                        // Clean up approval metadata after use
-                        this.toolCallMetadata?.delete(event.toolCallId);
-                        // Remove from pending (tool completed successfully)
-                        this.pendingToolCalls.delete(event.toolCallId);
-                        this.partialToolCalls.delete(event.toolCallId);
+                        // TurnExecutor emits llm:tool-call after preparation so the UI receives
+                        // normalized presentation metadata before approval handling starts.
                         break;
                     }
 
@@ -470,74 +398,6 @@ export class StreamProcessor {
                         break;
                     }
 
-                    case 'tool-error': {
-                        // Tool execution failed - emit error event with tool context
-                        this.logger.error('Tool execution failed', {
-                            toolName: event.toolName,
-                            toolCallId: event.toolCallId,
-                            error: event.error,
-                        });
-
-                        const errorMessage =
-                            event.error instanceof Error
-                                ? event.error.message
-                                : String(event.error);
-                        const metadata = this.toolCallMetadata?.get(event.toolCallId);
-
-                        // CRITICAL: Must persist error result to history to maintain tool_use/tool_result pairing
-                        // Without this, the conversation history has tool_use without tool_result,
-                        // causing "tool_use ids were found without tool_result blocks" API errors
-                        const errorResult: SanitizedToolResult = {
-                            content: [{ type: 'text', text: `Error: ${errorMessage}` }],
-                            meta: {
-                                toolName: event.toolName,
-                                toolCallId: event.toolCallId,
-                                success: false,
-                            },
-                        };
-
-                        await this.contextManager.addToolResult(
-                            event.toolCallId,
-                            event.toolName,
-                            errorResult,
-                            metadata
-                        );
-
-                        this.eventBus.emit('llm:tool-result', {
-                            toolName: event.toolName,
-                            ...(metadata?.presentationSnapshot !== undefined && {
-                                presentationSnapshot: metadata.presentationSnapshot,
-                            }),
-                            ...(metadata?.meta !== undefined && {
-                                meta: metadata.meta,
-                            }),
-                            callId: event.toolCallId,
-                            success: false,
-                            error: errorMessage,
-                            ...(metadata?.requireApproval !== undefined && {
-                                requireApproval: metadata.requireApproval,
-                            }),
-                            ...(metadata?.approvalStatus !== undefined && {
-                                approvalStatus: metadata.approvalStatus,
-                            }),
-                        });
-
-                        this.eventBus.emit('llm:error', {
-                            error:
-                                event.error instanceof Error
-                                    ? event.error
-                                    : new Error(String(event.error)),
-                            context: `Tool execution failed: ${event.toolName}`,
-                            toolCallId: event.toolCallId,
-                            recoverable: true, // Tool errors are typically recoverable
-                        });
-                        this.toolCallMetadata?.delete(event.toolCallId);
-                        // Remove from pending (tool failed but result was persisted)
-                        this.pendingToolCalls.delete(event.toolCallId);
-                        this.partialToolCalls.delete(event.toolCallId);
-                        break;
-                    }
-
                     case 'error': {
                         const err =
                             event.error instanceof Error
@@ -576,6 +436,7 @@ export class StreamProcessor {
                             text: this.accumulatedText,
                             finishReason: 'cancelled',
                             usage: this.actualTokens,
+                            toolCalls: this.modelToolCalls,
                         };
                     }
                 }
@@ -615,6 +476,7 @@ export class StreamProcessor {
                     text: this.accumulatedText,
                     finishReason: 'cancelled',
                     usage: this.actualTokens,
+                    toolCalls: this.modelToolCalls,
                 };
             }
 
@@ -627,6 +489,7 @@ export class StreamProcessor {
             text: this.accumulatedText,
             finishReason: this.finishReason,
             usage: this.actualTokens,
+            toolCalls: this.modelToolCalls,
         };
     }
 
@@ -639,12 +502,12 @@ export class StreamProcessor {
             | undefined;
 
         const cacheWriteTokens =
-            anthropicMeta?.['cacheCreationInputTokens'] ??
-            bedrockMeta?.usage?.['cacheWriteInputTokens'] ??
+            finiteUsageCount(anthropicMeta?.['cacheCreationInputTokens']) ??
+            finiteUsageCount(bedrockMeta?.usage?.['cacheWriteInputTokens']) ??
             0;
         const cacheReadTokens =
-            anthropicMeta?.['cacheReadInputTokens'] ??
-            bedrockMeta?.usage?.['cacheReadInputTokens'] ??
+            finiteUsageCount(anthropicMeta?.['cacheReadInputTokens']) ??
+            finiteUsageCount(bedrockMeta?.usage?.['cacheReadInputTokens']) ??
             0;
 
         return { cacheReadTokens, cacheWriteTokens };
@@ -654,28 +517,30 @@ export class StreamProcessor {
         usage: UsageLike | undefined,
         providerMetadata?: Record<string, unknown>
     ): TokenUsage {
-        const inputTokensRaw = usage?.inputTokens ?? 0;
-        const outputTokens = usage?.outputTokens ?? 0;
-        const totalTokens = usage?.totalTokens ?? 0;
-        const reasoningTokens = usage?.reasoningTokens;
-        const cachedInputTokens = usage?.cachedInputTokens;
+        const inputTokensRaw = finiteUsageCount(usage?.inputTokens) ?? 0;
+        const outputTokens = finiteUsageCount(usage?.outputTokens) ?? 0;
+        const totalTokens = finiteUsageCount(usage?.totalTokens) ?? 0;
+        const reasoningTokens = finiteUsageCount(usage?.reasoningTokens);
+        const cachedInputTokens = finiteUsageCount(usage?.cachedInputTokens);
         const inputTokenDetails = usage?.inputTokenDetails;
 
         const providerCache = this.getCacheTokensFromProviderMetadata(providerMetadata);
         const cacheReadTokens =
-            inputTokenDetails?.cacheReadTokens ??
+            finiteUsageCount(inputTokenDetails?.cacheReadTokens) ??
             cachedInputTokens ??
             providerCache.cacheReadTokens ??
             0;
         const cacheWriteTokens =
-            inputTokenDetails?.cacheWriteTokens ?? providerCache.cacheWriteTokens ?? 0;
+            finiteUsageCount(inputTokenDetails?.cacheWriteTokens) ??
+            providerCache.cacheWriteTokens ??
+            0;
 
         const needsCacheWriteAdjustment =
             inputTokenDetails === undefined &&
             cachedInputTokens !== undefined &&
             providerCache.cacheWriteTokens > 0;
         const noCacheTokens =
-            inputTokenDetails?.noCacheTokens ??
+            finiteUsageCount(inputTokenDetails?.noCacheTokens) ??
             (cachedInputTokens !== undefined
                 ? inputTokensRaw -
                   cachedInputTokens -
@@ -863,7 +728,6 @@ export class StreamProcessor {
         );
 
         for (const [toolCallId, { toolName }] of this.pendingToolCalls) {
-            const metadata = this.toolCallMetadata?.get(toolCallId);
             const syntheticResult: SanitizedToolResult = {
                 content: [{ type: 'text', text: options.resultText }],
                 meta: {
@@ -877,29 +741,16 @@ export class StreamProcessor {
                 toolCallId,
                 toolName,
                 syntheticResult,
-                metadata
+                undefined
             );
 
             // Emit tool-result event so CLI/WebUI can update UI
             this.eventBus.emit('llm:tool-result', {
                 toolName,
-                ...(metadata?.presentationSnapshot !== undefined && {
-                    presentationSnapshot: metadata.presentationSnapshot,
-                }),
-                ...(metadata?.meta !== undefined && {
-                    meta: metadata.meta,
-                }),
                 callId: toolCallId,
                 success: false,
                 error: options.errorMessage,
-                ...(metadata?.requireApproval !== undefined && {
-                    requireApproval: metadata.requireApproval,
-                }),
-                ...(metadata?.approvalStatus !== undefined && {
-                    approvalStatus: metadata.approvalStatus,
-                }),
             });
-            this.toolCallMetadata?.delete(toolCallId);
         }
 
         this.pendingToolCalls.clear();

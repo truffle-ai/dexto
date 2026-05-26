@@ -1,5 +1,5 @@
-import { describe, test, expect, beforeEach, afterEach } from 'vitest';
-import { FileContributor } from './contributors.js';
+import { describe, test, expect, beforeEach, afterEach, it } from 'vitest';
+import { FileContributor, SkillsContributor } from './contributors.js';
 import { writeFile, mkdir, rm } from 'fs/promises';
 import { join } from 'path';
 import { DynamicContributorContext } from './types.js';
@@ -7,6 +7,7 @@ import { DextoRuntimeError } from '../errors/DextoRuntimeError.js';
 import { SystemPromptErrorCode } from './error-codes.js';
 import { ErrorScope, ErrorType } from '../errors/types.js';
 import { createMockLogger } from '../logger/v2/test-utils.js';
+import type { SkillManager } from '../skills/index.js';
 
 const mockLogger = createMockLogger();
 
@@ -256,5 +257,48 @@ describe('FileContributor', () => {
         expect(result).toContain('# Documentation');
         expect(result).toContain('This is documentation.');
         expect(result).toContain('</fileContext>');
+    });
+});
+
+describe('SkillsContributor', () => {
+    const mockContext: DynamicContributorContext = {
+        mcpManager: {} as any,
+    };
+
+    it('lists concise skills from SkillManager', async () => {
+        const skillManager = {
+            list: async () => [
+                { id: 'alpha', displayName: 'Alpha', description: 'Use alpha' },
+                { id: 'beta', displayName: 'Beta' },
+            ],
+        } as SkillManager;
+        const contributor = new SkillsContributor('skills', 50, skillManager, mockLogger);
+
+        await expect(contributor.getContent(mockContext)).resolves.toBe(`## Available Skills
+
+Use \`invoke_skill\` when one of these skills is relevant:
+
+- Alpha - Use alpha
+- Beta`);
+    });
+
+    it('returns empty content when no skills are available', async () => {
+        const skillManager = {
+            list: async () => [],
+        } as unknown as SkillManager;
+        const contributor = new SkillsContributor('skills', 50, skillManager, mockLogger);
+
+        await expect(contributor.getContent(mockContext)).resolves.toBe('');
+    });
+
+    it('returns empty content when SkillManager listing fails', async () => {
+        const skillManager = {
+            list: async () => {
+                throw new Error('boom');
+            },
+        } as unknown as SkillManager;
+        const contributor = new SkillsContributor('skills', 50, skillManager, mockLogger);
+
+        await expect(contributor.getContent(mockContext)).resolves.toBe('');
     });
 });

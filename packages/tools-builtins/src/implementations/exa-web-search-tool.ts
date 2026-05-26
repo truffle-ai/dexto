@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { createLocalToolCallHeader, defineTool, truncateForHeader } from '@dexto/core';
-import type { Tool, ToolExecutionContext } from '@dexto/core';
+import { createLocalToolCallHeader, defineTool, truncateForHeader } from '@dexto/core/tools';
+import type { Tool, ToolExecutionContext } from '@dexto/core/tools';
 import { callExaTool } from './exa-mcp.js';
 
 const WebSearchInputSchema = z

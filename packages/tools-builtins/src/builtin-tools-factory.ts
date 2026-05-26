@@ -1,10 +1,11 @@
 import { z } from 'zod';
 import type { ToolFactory } from '@dexto/agent-config';
-import type { Tool } from '@dexto/core';
+import type { Tool } from '@dexto/core/tools';
 import { createAskUserTool } from './implementations/ask-user-tool.js';
 import { createDelegateToUrlTool } from './implementations/delegate-to-url-tool.js';
 import { createGetResourceTool } from './implementations/get-resource-tool.js';
 import { createInvokeSkillTool } from './implementations/invoke-skill-tool.js';
+import { createReadSkillTool } from './implementations/read-skill-tool.js';
 import { createListResourcesTool } from './implementations/list-resources-tool.js';
 import { createHttpRequestTool } from './implementations/http-request-tool.js';
 import { createSleepTool } from './implementations/sleep-tool.js';
@@ -17,6 +18,7 @@ export const BUILTIN_TOOL_NAMES = [
     'list_resources',
     'get_resource',
     'invoke_skill',
+    'read_skill',
     'http_request',
     'sleep',
     'web_search',
@@ -48,6 +50,8 @@ function createToolByName(name: BuiltinToolName): Tool {
             return createGetResourceTool();
         case 'invoke_skill':
             return createInvokeSkillTool();
+        case 'read_skill':
+            return createReadSkillTool();
         case 'http_request':
             return createHttpRequestTool();
         case 'sleep':

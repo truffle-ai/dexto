@@ -405,6 +405,7 @@ describe('EventBus Integration', () => {
                 sessionId: 'test-session',
                 count: 1,
                 ids: ['queued-1'],
+                queue: 'steer',
                 coalesced: false,
                 content: [{ type: 'text', text: 'Hello from queue' }],
                 messages: [
@@ -428,6 +429,7 @@ describe('EventBus Integration', () => {
                 sessionId: 'test-session',
                 count: 1,
                 ids: ['queued-2'],
+                queue: 'steer',
                 coalesced: false,
                 content: [
                     { type: 'text', text: 'Check this image' },
@@ -460,6 +462,7 @@ describe('EventBus Integration', () => {
                 sessionId: 'test-session',
                 count: 1,
                 ids: ['queued-3'],
+                queue: 'steer',
                 coalesced: false,
                 content: [
                     { type: 'text', text: 'Here is the file' },

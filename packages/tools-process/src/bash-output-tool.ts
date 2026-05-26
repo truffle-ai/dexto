@@ -5,8 +5,8 @@
  */
 
 import { z } from 'zod';
-import { createLocalToolCallHeader, defineTool, truncateForHeader } from '@dexto/core';
-import type { Tool, ToolExecutionContext } from '@dexto/core';
+import { createLocalToolCallHeader, defineTool, truncateForHeader } from '@dexto/core/tools';
+import type { Tool, ToolExecutionContext } from '@dexto/core/tools';
 import type { ProcessServiceGetter } from './bash-exec-tool.js';
 
 const BashOutputInputSchema = z
@@ -34,7 +34,9 @@ export function createBashOutputTool(
                 }),
         },
         async execute(input, context: ToolExecutionContext) {
-            const resolvedProcessService = await getProcessService(context);
+            const resolvedProcessService = await getProcessService(context, {
+                background: true,
+            });
 
             // Input is validated by provider before reaching here
             const { process_id } = input;

@@ -233,10 +233,11 @@ export function useChat(
                     // Update sessions cache
                     updateSessionActivity(event.sessionId);
 
-                    // Invalidate queue cache so UI removes the message
-                    queryClient.invalidateQueries({
-                        queryKey: queryKeys.queue.list(event.sessionId),
-                    });
+                    if (event.queue === 'follow-up') {
+                        queryClient.invalidateQueries({
+                            queryKey: queryKeys.followUp.list(event.sessionId),
+                        });
+                    }
                     break;
                 }
             }

@@ -192,8 +192,6 @@ permissions:
     alwaysAllow:
       - mcp--filesystem--read_file
       - mcp--filesystem--list_directory
-    alwaysDeny:
-      - mcp--filesystem--delete_file
 ```
 
 Agents remember which tools you've approved per session.

@@ -216,7 +216,7 @@ export async function runCliMode(context: MainModeContext): Promise<void> {
                 { getProviderDisplayName, isValidApiKeyFormat, getProviderInstructions },
                 {
                     performDeviceCodeLogin,
-                    persistOAuthLoginResult,
+                    persistDeviceApiKeyLoginResult,
                     ensureDextoApiKeyForAuthToken,
                     loadAuth,
                     storeAuth,
@@ -249,7 +249,7 @@ export async function runCliMode(context: MainModeContext): Promise<void> {
                 isValidApiKeyFormat,
                 getProviderInstructions,
                 performDeviceCodeLogin,
-                persistOAuthLoginResult,
+                persistDeviceApiKeyLoginResult,
                 ensureDextoApiKeyForAuthToken,
                 loadAuth,
                 storeAuth,

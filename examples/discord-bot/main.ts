@@ -3,6 +3,13 @@
 import 'dotenv/config';
 import { DextoAgent } from '@dexto/core';
 import { loadAgentConfig, enrichAgentConfig } from '@dexto/agent-management';
+import {
+    AgentConfigSchema,
+    applyImageDefaults,
+    resolveServicesFromConfig,
+    toDextoAgentOptions,
+} from '@dexto/agent-config';
+import imageLocal from '@dexto/image-local';
 import { startDiscordBot } from './bot.js';
 
 async function main() {
@@ -10,11 +17,14 @@ async function main() {
         // Load agent configuration from local agent-config.yml
         console.log('🚀 Initializing Discord bot...');
         const configPath = './agent-config.yml';
-        const config = await loadAgentConfig(configPath);
-        const enrichedConfig = enrichAgentConfig(config, configPath);
+        const rawConfig = await loadAgentConfig(configPath);
+        const withDefaults = applyImageDefaults(rawConfig, imageLocal.defaults);
+        const enrichedConfig = enrichAgentConfig(withDefaults, configPath);
+        const config = AgentConfigSchema.parse(enrichedConfig);
+        const services = await resolveServicesFromConfig(config, imageLocal);
 
         // Create and start the Dexto agent
-        const agent = new DextoAgent(enrichedConfig, configPath);
+        const agent = new DextoAgent(toDextoAgentOptions({ config, services }));
         await agent.start();
 
         // Start the Discord bot

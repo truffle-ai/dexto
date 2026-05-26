@@ -2,8 +2,7 @@
 // Device code login flow for browserless environments.
 
 import { DextoApiClient, getDextoApiClient } from './api-client.js';
-import type { AuthLoginResult } from './types.js';
-
+import type { DeviceApiKeyLoginResult } from './types.js';
 const TRANSIENT_POLL_BACKOFF_MS = 2_000;
 const MAX_POLL_INTERVAL_MS = 30_000;
 
@@ -72,7 +71,7 @@ async function sleepWithAbort(ms: number, signal: AbortSignal | null): Promise<v
 
 export async function performDeviceCodeLogin(
     optionsInput: DeviceLoginOptionsInput = {}
-): Promise<AuthLoginResult> {
+): Promise<DeviceApiKeyLoginResult> {
     const options = resolveDeviceLoginOptions(optionsInput);
     const authClient = getAuthClient(options.apiUrl);
 
@@ -122,21 +121,10 @@ export async function performDeviceCodeLogin(
             throw new Error('Device login was denied.');
         }
 
-        const tokenResponse = pollResult.token;
-        const computedExpiresIn =
-            tokenResponse.expiresIn ??
-            (tokenResponse.expiresAt
-                ? Math.max(0, tokenResponse.expiresAt - Date.now() / 1000)
-                : undefined);
-        const user = await authClient.fetchSupabaseUser(tokenResponse.accessToken, {
-            signal: options.signal ?? undefined,
-        });
-
         return {
-            accessToken: tokenResponse.accessToken,
-            refreshToken: tokenResponse.refreshToken ?? undefined,
-            expiresIn: computedExpiresIn,
-            user,
+            dextoApiKey: pollResult.apiKey.fullKey,
+            dextoKeyId: pollResult.apiKey.id,
+            dextoKeyDisplay: pollResult.apiKey.keyDisplay,
         };
     }
 

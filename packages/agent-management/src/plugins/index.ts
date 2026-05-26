@@ -50,6 +50,10 @@ export {
 // Standalone skill discovery
 export { discoverStandaloneSkills, getSkillSearchPaths } from './discover-skills.js';
 export type { DiscoveredSkill } from './discover-skills.js';
+export { LocalSkillSource } from './local-skill-source.js';
+export type { LocalSkillRoot } from './local-skill-source.js';
+export { createLocalSkillSources } from './local-skill-sources.js';
+export type { CreateLocalSkillSourcesOptions } from './local-skill-sources.js';
 
 // Loading
 export { loadClaudeCodePlugin } from './load-plugin.js';

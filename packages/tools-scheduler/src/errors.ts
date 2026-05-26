@@ -31,9 +31,9 @@ export class SchedulerError {
             SchedulerErrorCode.SCHEDULER_MISSING_STORAGE,
             SCHEDULER_ERROR_SCOPE,
             ErrorType.SYSTEM,
-            'StorageManager is required but not available',
+            'Tool state store is required but not available',
             undefined,
-            'Ensure StorageManager is available in context.services'
+            'Ensure DextoStores includes the toolState store'
         );
     }
 

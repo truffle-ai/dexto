@@ -26,7 +26,7 @@ import { useScrollable } from '../../contexts/index.js';
 // Components
 import { Header } from '../chat/Header.js';
 import { MessageItem } from '../chat/MessageItem.js';
-import { QueuedMessagesDisplay } from '../chat/QueuedMessagesDisplay.js';
+import { QUEUE_EDIT_SHORTCUTS, QueuedMessagesDisplay } from '../chat/QueuedMessagesDisplay.js';
 import { StatusBar } from '../StatusBar.js';
 import { HistorySearchBar } from '../HistorySearchBar.js';
 import { Footer } from '../Footer.js';
@@ -93,6 +93,8 @@ export function AlternateBufferCLI({
         setPendingMessages,
         dequeuedBuffer,
         setDequeuedBuffer,
+        steerMessages,
+        setSteerMessages,
         queuedMessages,
         setQueuedMessages,
         todos,
@@ -353,7 +355,16 @@ export function AlternateBufferCLI({
                             </Box>
                         )}
 
-                        <QueuedMessagesDisplay messages={queuedMessages} />
+                        <QueuedMessagesDisplay
+                            messages={steerMessages}
+                            label="current-turn input"
+                            hint={QUEUE_EDIT_SHORTCUTS.currentTurn}
+                        />
+                        <QueuedMessagesDisplay
+                            messages={queuedMessages}
+                            label="queued follow-up"
+                            hint={QUEUE_EDIT_SHORTCUTS.followUp}
+                        />
                     </>
                 )}
 
@@ -365,6 +376,7 @@ export function AlternateBufferCLI({
                     session={session}
                     initialPrompt={initialPrompt}
                     approval={approval}
+                    steerMessages={steerMessages}
                     queuedMessages={queuedMessages}
                     setInput={setInput}
                     setUi={setUi}
@@ -372,6 +384,7 @@ export function AlternateBufferCLI({
                     setMessages={setMessages}
                     setPendingMessages={setPendingMessages}
                     setDequeuedBuffer={setDequeuedBuffer}
+                    setSteerMessages={setSteerMessages}
                     setQueuedMessages={setQueuedMessages}
                     setApproval={setApproval}
                     setApprovalQueue={setApprovalQueue}

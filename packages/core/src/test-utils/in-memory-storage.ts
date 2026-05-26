@@ -9,8 +9,6 @@ import type {
     BlobStore,
     StoredBlobMetadata,
 } from '../storage/blob/types.js';
-import { StorageManager } from '../storage/storage-manager.js';
-import type { Logger } from '../logger/v2/types.js';
 import { createHash, randomUUID } from 'crypto';
 import { promises as fs } from 'fs';
 import os from 'os';
@@ -92,6 +90,14 @@ class InMemoryDatabase implements Database {
 
     async set<T>(key: string, value: T): Promise<void> {
         this.data.set(key, value);
+    }
+
+    async setIfAbsent<T>(key: string, value: T): Promise<{ value: T; inserted: boolean }> {
+        if (this.data.has(key)) {
+            return { value: this.data.get(key) as T, inserted: false };
+        }
+        this.data.set(key, value);
+        return { value, inserted: true };
     }
 
     async delete(key: string): Promise<void> {
@@ -311,17 +317,4 @@ export function createInMemoryDatabase(): Database {
 
 export function createInMemoryBlobStore(): BlobStore {
     return new InMemoryBlobStore();
-}
-
-export async function createInMemoryStorageManager(logger: Logger): Promise<StorageManager> {
-    const manager = new StorageManager(
-        {
-            cache: createInMemoryCache(),
-            database: createInMemoryDatabase(),
-            blobStore: createInMemoryBlobStore(),
-        },
-        logger
-    );
-    await manager.connect();
-    return manager;
 }

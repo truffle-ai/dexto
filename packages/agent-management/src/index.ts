@@ -269,6 +269,8 @@ export {
     listAllMarketplacePlugins,
     installPluginFromMarketplace,
     getUninstalledDefaults,
+    createLocalSkillSources,
+    LocalSkillSource,
     isDefaultMarketplace,
     MarketplaceErrorCode,
     MarketplaceError,
@@ -289,6 +291,8 @@ export {
     type ValidatedPluginMCPConfig,
     type InstallPluginOptions,
     type UninstallPluginOptions,
+    type CreateLocalSkillSourcesOptions,
+    type LocalSkillRoot,
     // Marketplace types
     type MarketplaceEntry,
     type MarketplacePlugin,

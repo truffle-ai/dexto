@@ -4,7 +4,7 @@
  * Types shared between file tools and factories.
  */
 
-import type { ToolExecutionContext } from '@dexto/core';
+import type { ToolExecutionContext } from '@dexto/core/tools';
 import type { FileSystemService } from './filesystem-service.js';
 
 /**

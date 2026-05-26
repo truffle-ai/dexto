@@ -96,7 +96,7 @@ export const factory = {
         }
     }, 20000);
 
-    it('bundles an image with tools/storage/hooks/compaction factories', async () => {
+    it('bundles an image with tools/hooks/compaction factories', async () => {
         const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
         const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
 
@@ -125,7 +125,7 @@ export const factory = {
 const image = {
     name: 'test-image-full',
     version: '1.0.0',
-    description: 'Test image with tools/storage/hooks/compaction factories',
+    description: 'Test image with tools/hooks/compaction factories',
     target: 'local-development',
 } satisfies ImageDefinition;
 
@@ -189,45 +189,6 @@ export const factory = {
 `
             );
 
-            await writeFileEnsuringDir(
-                path.join(tempDir, 'storage', 'blob', 'in-memory', 'index.ts'),
-                `const configSchema = {
-    parse: (value: unknown) => value,
-};
-
-export const factory = {
-    configSchema,
-    create: (_config: unknown, _logger: unknown) => ({}),
-};
-`
-            );
-
-            await writeFileEnsuringDir(
-                path.join(tempDir, 'storage', 'database', 'in-memory', 'index.ts'),
-                `const configSchema = {
-    parse: (value: unknown) => value,
-};
-
-export const factory = {
-    configSchema,
-    create: (_config: unknown, _logger: unknown) => ({}),
-};
-`
-            );
-
-            await writeFileEnsuringDir(
-                path.join(tempDir, 'storage', 'cache', 'in-memory', 'index.ts'),
-                `const configSchema = {
-    parse: (value: unknown) => value,
-};
-
-export const factory = {
-    configSchema,
-    create: (_config: unknown, _logger: unknown) => ({}),
-};
-`
-            );
-
             const distDir = path.join(tempDir, 'dist');
             const result = await bundle({
                 imagePath: path.join(tempDir, 'dexto.image.ts'),
@@ -241,9 +202,8 @@ export const factory = {
             expect(image.hooks['sample-hook']).toBeDefined();
             expect(image.compaction['noop']).toBeDefined();
 
-            expect(image.storage.blob['in-memory']).toBeDefined();
-            expect(image.storage.database['in-memory']).toBeDefined();
-            expect(image.storage.cache['in-memory']).toBeDefined();
+            expect(image.storage.configSchema).toBeDefined();
+            expect(image.storage.createStores).toBeDefined();
         } finally {
             await rm(tempDir, { recursive: true, force: true });
             logSpy.mockRestore();

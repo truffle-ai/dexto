@@ -192,6 +192,7 @@ export function displayAllCommands(commands: CommandDefinition[]): void {
         'Plugin Management',
         'Tool Management',
         'Prompt Management',
+        'Skill Management',
         'System',
     ];
 

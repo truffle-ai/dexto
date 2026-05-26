@@ -1,38 +1,73 @@
 # `@dexto/storage`
 
-Concrete storage backends (blob store, database, cache) and their config schemas/factories.
+Concrete Node storage helpers and config schemas for images that choose to build `DextoStores`
+from local backends.
 
-Core (`@dexto/core`) owns the **interfaces** (`BlobStore`, `Database`, `Cache`) and `StorageManager`.
-Product layers (CLI/server/apps) choose which concrete backends are available by including factories
-in an image (`DextoImage.storage.*`) and resolving config via `@dexto/agent-config`.
+Core (`@dexto/core`) owns typed domain store contracts such as `ConversationStore`,
+`SessionStore`, `MemoryStore`, `ArtifactStore`, and `ToolStateStore`. This package provides Node
+backend implementations that image implementations can use internally to compose a `DextoStores`
+implementation.
+
+Product layers (CLI/server/apps) can either use these helpers inside an image or provide a
+native `DextoStores` implementation directly. Core code should depend on typed stores, not these
+backend helper classes.
 
 ## What this package exports
 
-- **Factories** (for image modules):
-  - Blob: `localBlobStoreFactory`, `inMemoryBlobStoreFactory`
-  - Database: `sqliteDatabaseFactory`, `postgresDatabaseFactory`, `inMemoryDatabaseFactory`
-  - Cache: `inMemoryCacheFactory`, `redisCacheFactory`
 - **Schemas** (for config parsing + UI):
   - Import from `@dexto/storage/schemas` for browser-safe schema-only exports.
 - **Concrete implementations** (Node runtime):
   - `LocalBlobStore`, `MemoryBlobStore`, `SQLiteStore`, `PostgresStore`, `RedisStore`, etc.
 
-## Using factories in an image
+## Using helpers in an image
 
 ```ts
 import type { DextoImage } from '@dexto/agent-config';
 import {
-  localBlobStoreFactory,
-  sqliteDatabaseFactory,
-  inMemoryCacheFactory,
+  BackendDextoStores,
+  DatabaseBackedArtifactStore,
+  DatabaseBackedSessionStore,
+  // ...other typed store adapters
+} from '@dexto/core/storage';
+import {
+  StorageSchema,
+  LocalBlobStore,
+  LocalBlobStoreSchema,
+  SQLiteStore,
+  SqliteDatabaseSchema,
+  MemoryCacheStore,
 } from '@dexto/storage';
 
 export const myImage: DextoImage = {
   /* metadata/defaults/tools/hooks/compaction/logger ... */
   storage: {
-    blob: { local: localBlobStoreFactory },
-    database: { sqlite: sqliteDatabaseFactory },
-    cache: { 'in-memory': inMemoryCacheFactory },
+    configSchema: StorageSchema,
+    async createStores(config, logger) {
+      const blobStore = new LocalBlobStore(LocalBlobStoreSchema.parse(config.blob), logger);
+      const database = new SQLiteStore(SqliteDatabaseSchema.parse(config.database), logger);
+      const cache = new MemoryCacheStore();
+
+      return new BackendDextoStores(
+        {
+          sessions: new DatabaseBackedSessionStore(database, cache),
+          artifacts: new DatabaseBackedArtifactStore(blobStore),
+          // ...provide every DextoStoreMap domain
+        },
+        {
+          async connect() {
+            await cache.connect();
+            await database.connect();
+            await blobStore.connect();
+          },
+          async disconnect() {
+            await Promise.all([cache.disconnect(), database.disconnect(), blobStore.disconnect()]);
+          },
+          isConnected() {
+            return cache.isConnected() && database.isConnected() && blobStore.isConnected();
+          },
+        },
+      );
+    },
   },
 };
 ```
@@ -55,26 +90,4 @@ storage:
 ```
 
 Those envelope schemas use `.passthrough()` so extra fields survive initial parsing. Detailed
-validation happens later in `@dexto/agent-config` by selecting the right factory from the loaded
-image and validating against that factory’s `configSchema`.
-
-## Optional dependencies
-
-Some backends rely on optional peer dependencies:
-
-- SQLite: `better-sqlite3`
-- Postgres: `pg`
-- Redis: `ioredis`
-
-Factories load these lazily and throw an actionable error if the dependency is missing.
-
-## Browser safety
-
-If you only need schemas/types (e.g., WebUI), import from:
-
-```ts
-import { StorageSchema } from '@dexto/storage/schemas';
-```
-
-Do not import from `@dexto/storage` in browser bundles, since the root entry also exports Node
-implementations.
+validation happens later inside the loaded image's `storage.createStores(...)` implementation.

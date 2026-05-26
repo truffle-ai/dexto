@@ -32,7 +32,7 @@ import { useGitBranch } from '../../hooks/useGitBranch.js';
 // Components
 import { Header } from '../chat/Header.js';
 import { MessageItem } from '../chat/MessageItem.js';
-import { QueuedMessagesDisplay } from '../chat/QueuedMessagesDisplay.js';
+import { QUEUE_EDIT_SHORTCUTS, QueuedMessagesDisplay } from '../chat/QueuedMessagesDisplay.js';
 import { StatusBar } from '../StatusBar.js';
 import { HistorySearchBar } from '../HistorySearchBar.js';
 import { Footer } from '../Footer.js';
@@ -72,6 +72,8 @@ export function StaticCLI({
         setPendingMessages,
         dequeuedBuffer,
         setDequeuedBuffer,
+        steerMessages,
+        setSteerMessages,
         queuedMessages,
         setQueuedMessages,
         todos,
@@ -260,7 +262,16 @@ export function StaticCLI({
                                 isProcessing={ui.isProcessing}
                             />
 
-                            <QueuedMessagesDisplay messages={queuedMessages} />
+                            <QueuedMessagesDisplay
+                                messages={steerMessages}
+                                label="current-turn input"
+                                hint={QUEUE_EDIT_SHORTCUTS.currentTurn}
+                            />
+                            <QueuedMessagesDisplay
+                                messages={queuedMessages}
+                                label="queued follow-up"
+                                hint={QUEUE_EDIT_SHORTCUTS.followUp}
+                            />
                         </>
                     );
                 })()}
@@ -273,6 +284,7 @@ export function StaticCLI({
                     session={session}
                     initialPrompt={initialPrompt}
                     approval={approval}
+                    steerMessages={steerMessages}
                     queuedMessages={queuedMessages}
                     setInput={setInput}
                     setUi={setUi}
@@ -280,6 +292,7 @@ export function StaticCLI({
                     setMessages={setMessages}
                     setPendingMessages={setPendingMessages}
                     setDequeuedBuffer={setDequeuedBuffer}
+                    setSteerMessages={setSteerMessages}
                     setQueuedMessages={setQueuedMessages}
                     setApproval={setApproval}
                     setApprovalQueue={setApprovalQueue}

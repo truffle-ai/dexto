@@ -1,13 +1,8 @@
 import type { ValidatedLLMConfig } from '../llm/schemas.js';
-import type { ToolManager } from '../tools/tool-manager.js';
-import type { SystemPromptManager } from '../systemPrompt/manager.js';
-import type { ResourceManager } from '../resources/index.js';
 import type { Logger } from '../logger/v2/types.js';
-import type { CreateLLMServiceOptions, LanguageModelFactory } from '../llm/services/types.js';
-import { createLLMService } from '../llm/services/factory.js';
-import { SessionEventBus } from '../events/index.js';
-import { MemoryHistoryProvider } from './history/memory.js';
-import { MessageQueueService } from './message-queue.js';
+import type { DextoProviderContext, LanguageModelFactory } from '../llm/services/types.js';
+import { createVercelModel } from '../llm/services/factory.js';
+import { generateText } from 'ai';
 
 export interface GenerateSessionTitleResult {
     title?: string;
@@ -21,12 +16,13 @@ export interface GenerateSessionTitleResult {
  */
 export async function generateSessionTitle(
     config: ValidatedLLMConfig,
-    toolManager: ToolManager,
-    systemPromptManager: SystemPromptManager,
-    resourceManager: ResourceManager,
     userText: string,
     logger: Logger,
-    opts: { timeoutMs?: number; languageModelFactory?: LanguageModelFactory } = {}
+    opts: {
+        languageModelFactory?: LanguageModelFactory;
+        providerContext?: DextoProviderContext;
+        timeoutMs?: number;
+    } = {}
 ): Promise<GenerateSessionTitleResult> {
     const timeoutMs = opts.timeoutMs;
     const controller = timeoutMs !== undefined ? new AbortController() : undefined;
@@ -36,24 +32,13 @@ export async function generateSessionTitle(
     }
 
     try {
-        const history = new MemoryHistoryProvider(logger);
-        const bus = new SessionEventBus();
-        const sessionId = `titlegen-${Math.random().toString(36).slice(2)}`;
-        const options: CreateLLMServiceOptions = {
-            messageQueue: MessageQueueService.createEphemeral(bus, logger, sessionId),
-        };
-        const tempService = createLLMService(
-            config,
-            toolManager,
-            systemPromptManager,
-            history,
-            bus,
-            sessionId,
-            resourceManager,
-            logger,
-            options,
-            opts.languageModelFactory
-        );
+        const providerContext = opts.providerContext ?? {};
+        const model =
+            opts.languageModelFactory?.({
+                config,
+                context: providerContext,
+                createDefaultLanguageModel: () => createVercelModel(config, providerContext),
+            }) ?? createVercelModel(config, providerContext);
 
         const instruction = [
             'Generate a short conversation title from the following user message.',
@@ -63,12 +48,14 @@ export async function generateSessionTitle(
             sanitizeUserText(userText, 512),
         ].join('\n');
 
-        const streamResult = await tempService.stream(
-            instruction,
-            controller ? { signal: controller.signal } : undefined
-        );
+        const result = await generateText({
+            model,
+            prompt: instruction,
+            maxOutputTokens: 32,
+            ...(controller ? { abortSignal: controller.signal } : {}),
+        });
 
-        const processed = postProcessTitle(streamResult.text);
+        const processed = postProcessTitle(result.text);
         if (!processed) {
             return { error: 'LLM returned empty title' };
         }

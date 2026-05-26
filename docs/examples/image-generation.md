@@ -1,12 +1,12 @@
 ---
-title: "Hugging Face: Image Generation"
+title: "Nano Banana: Image Generation"
 ---
 
 import ExpandableImage from '@site/src/components/ExpandableImage';
 
-# Hugging Face: Image Generation
+# Nano Banana: Image Generation
 
-Generate images using Hugging Face models with simple text prompts.
+Generate images using Google's Gemini 2.5 Flash Image model with simple text prompts.
 
 **Task:** `Generate a photo of a baby panda.`
 
@@ -14,7 +14,7 @@ Generate images using Hugging Face models with simple text prompts.
 dexto --agent nano-banana-agent 
 ```
 
-<ExpandableImage src="https://github.com/user-attachments/assets/570cbd3a-6990-43c5-b355-2b549a4ee6b3" alt="Hugging Face Image Generation Demo" title="Hugging Face: Image Generation" width={900} />
+<ExpandableImage src="https://github.com/user-attachments/assets/570cbd3a-6990-43c5-b355-2b549a4ee6b3" alt="Nano Banana Image Generation Demo" title="Nano Banana: Image Generation" width={900} />
 
 ## What it does
 

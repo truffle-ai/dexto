@@ -5,12 +5,12 @@
  */
 
 import { z } from 'zod';
-import { createLocalToolCallHeader, defineTool, truncateForHeader } from '@dexto/core';
-import type { SearchDisplayData } from '@dexto/core';
-import type { Tool, ToolExecutionContext } from '@dexto/core';
+import { createLocalToolCallHeader, defineTool, truncateForHeader } from '@dexto/core/tools';
+import type { SearchDisplayData, Tool, ToolExecutionContext } from '@dexto/core/tools';
 import type { FileSystemServiceGetter } from './file-tool-types.js';
 import { createDirectoryAccessApprovalHandlers } from './directory-approval.js';
 import { resolveUserPath } from './path-utils.js';
+import { assertWorkspaceRelativeGlob, toWorkspaceRelativePath } from './workspace-paths.js';
 
 const GlobFilesInputSchema = z
     .object({
@@ -70,45 +70,46 @@ export function createGlobFilesTool(
         }),
 
         async execute(input, context: ToolExecutionContext) {
-            const resolvedFileSystemService = await getFileSystemService(context);
-
-            // Input is validated by provider before reaching here
             const { pattern, path: searchPath, max_results } = input;
-
-            // Resolve the search directory consistently with directory-approval path handling
-            const baseDir = resolvedFileSystemService.getWorkingDirectory();
-            const resolvedSearchPath = resolveUserPath(baseDir, searchPath || '.');
-
-            // Search for files using FileSystemService
-            const result = await resolvedFileSystemService.globFiles(pattern, {
-                cwd: resolvedSearchPath,
-                maxResults: max_results,
-                includeMetadata: true,
-            });
+            if (!context.services) {
+                throw new Error('glob_files requires ToolExecutionContext.services');
+            }
+            const handle = await context.services.workspaceManager.open({ intent: 'read' });
+            const workspacePattern = joinWorkspacePattern(handle.context.path, searchPath, pattern);
+            const matches = await handle.files.glob(workspacePattern);
+            const limitedMatches = matches.slice(0, max_results);
+            const truncated = matches.length > max_results;
 
             // Build display data (reuse SearchDisplayData for file list)
             const _display: SearchDisplayData = {
                 type: 'search',
                 pattern,
-                matches: result.files.map((file) => ({
-                    file: file.path,
+                matches: limitedMatches.map((file) => ({
+                    file,
                     line: 0, // No line number for glob
-                    content: file.path,
+                    content: file,
                 })),
-                totalMatches: result.totalFound,
-                truncated: result.truncated,
+                totalMatches: limitedMatches.length,
+                truncated,
             };
 
             return {
-                files: result.files.map((file) => ({
-                    path: file.path,
-                    size: file.size,
-                    modified: file.modified.toISOString(),
-                })),
-                total_found: result.totalFound,
-                truncated: result.truncated,
+                files: limitedMatches.map((filePath) => ({ path: filePath })),
+                total_found: limitedMatches.length,
+                truncated,
                 _display,
             };
         },
     });
+}
+
+function joinWorkspacePattern(
+    workspaceRoot: string,
+    searchPath: string | undefined,
+    pattern: string
+): string {
+    assertWorkspaceRelativeGlob('glob_files', pattern);
+    const basePath = toWorkspaceRelativePath('glob_files', workspaceRoot, searchPath || '.');
+    if (basePath === '.' || basePath === '') return pattern;
+    return `${basePath.replace(/\/$/, '')}/${pattern}`;
 }

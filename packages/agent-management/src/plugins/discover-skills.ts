@@ -9,13 +9,13 @@
  * ~/.agents/skills/
  * ~/.dexto/skills/
  * └── skill-name/
- *     ├── SKILL.md          (required - the skill prompt)
+ *     ├── SKILL.md          (required - skill instructions)
  *     ├── handlers/         (optional - workflow helper files)
  *     ├── scripts/          (optional - executable helpers)
  *     ├── mcps/             (optional - MCP server config JSON files)
  *     └── references/       (optional - reference files)
  *
- * These skills are loaded as prompts directly, not as part of a plugin package.
+ * These skills are discovered by skill tooling, not loaded as prompts.
  */
 
 import * as path from 'path';
@@ -35,7 +35,6 @@ export interface DiscoveredSkill {
     source: 'user' | 'project';
     /**
      * Reserved for future discovery metadata.
-     * Skill-bundled MCP config is resolved lazily from the skill directory when the prompt is loaded.
      */
     warnings?: string[] | undefined;
 }

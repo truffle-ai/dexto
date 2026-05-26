@@ -18,6 +18,14 @@ export function toDextoAgentOptions<THostContext extends DextoHostContext = Dext
     options: ToDextoAgentOptionsInput<THostContext>
 ): DextoAgentOptions {
     const { config, services, image, hostContext, overrides, runtimeOverrides } = options;
+    const resolvedOverrides =
+        services.workspaceHandleProvider !== undefined
+            ? {
+                  ...(overrides ?? {}),
+                  workspaceHandleProvider:
+                      overrides?.workspaceHandleProvider ?? services.workspaceHandleProvider,
+              }
+            : overrides;
     const imageRuntimeConfig = image?.resolveRuntimeConfig?.({
         config,
         context: {
@@ -42,12 +50,13 @@ export function toDextoAgentOptions<THostContext extends DextoHostContext = Dext
         prompts: config.prompts,
         ...(imageRuntimeConfig ?? {}),
         logger: services.logger,
-        storage: services.storage,
+        stores: services.stores,
         tools: services.tools,
+        skillSources: services.skillSources,
         toolkitLoader: services.toolkitLoader,
         hooks: services.hooks,
         compaction: services.compaction,
         ...(runtimeOverrides ? runtimeOverrides : {}),
-        ...(overrides ? { overrides } : {}),
+        ...(resolvedOverrides ? { overrides: resolvedOverrides } : {}),
     };
 }

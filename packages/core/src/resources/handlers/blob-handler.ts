@@ -3,18 +3,18 @@ import { DextoLogComponent } from '../../logger/v2/types.js';
 import { ResourceError } from '../errors.js';
 import type { ResourceMetadata } from '../types.js';
 import type { ReadResourceResult } from '@modelcontextprotocol/sdk/types.js';
-import type { BlobStore, StoredBlobMetadata } from '../../storage/blob/types.js';
+import type { ArtifactStore, StoredArtifactMetadata } from '../../storage/artifacts/types.js';
 import type { ValidatedBlobResourceConfig } from '../schemas.js';
 import type { InternalResourceHandler, InternalResourceServices } from './types.js';
 
 export class BlobResourceHandler implements InternalResourceHandler {
     private config: ValidatedBlobResourceConfig;
-    private blobStore: BlobStore;
+    private artifactStore: ArtifactStore;
     private logger: Logger;
 
-    constructor(config: ValidatedBlobResourceConfig, blobStore: BlobStore, logger: Logger) {
+    constructor(config: ValidatedBlobResourceConfig, artifactStore: ArtifactStore, logger: Logger) {
         this.config = config;
-        this.blobStore = blobStore;
+        this.artifactStore = artifactStore;
         this.logger = logger.createChild(DextoLogComponent.RESOURCE);
     }
 
@@ -23,15 +23,15 @@ export class BlobResourceHandler implements InternalResourceHandler {
     }
 
     async initialize(_services: InternalResourceServices): Promise<void> {
-        // Config and blobStore are set in constructor
-        this.logger.debug('BlobResourceHandler initialized with BlobStore');
+        // Config and artifactStore are set in constructor
+        this.logger.debug('BlobResourceHandler initialized with ArtifactStore');
     }
 
     async listResources(): Promise<ResourceMetadata[]> {
         this.logger.debug('🔍 BlobResourceHandler.listResources() called');
 
         try {
-            const stats = await this.blobStore.getStats();
+            const stats = await this.artifactStore.getStats();
             this.logger.debug(
                 `📊 BlobStore stats: ${stats.count} blobs, backend: ${stats.backendType}`
             );
@@ -39,7 +39,7 @@ export class BlobResourceHandler implements InternalResourceHandler {
 
             // List individual blobs from the store
             try {
-                const blobs = await this.blobStore.listBlobs();
+                const blobs = await this.artifactStore.listArtifacts();
                 this.logger.debug(`📄 Found ${blobs.length} individual blobs`);
 
                 for (const blob of blobs) {
@@ -103,7 +103,7 @@ export class BlobResourceHandler implements InternalResourceHandler {
 
             // Special case: blob store info
             if (blobId === 'store') {
-                const stats = await this.blobStore.getStats();
+                const stats = await this.artifactStore.getStats();
                 return {
                     contents: [
                         {
@@ -116,7 +116,10 @@ export class BlobResourceHandler implements InternalResourceHandler {
             }
 
             // Retrieve actual blob data using blob ID
-            const result = await this.blobStore.retrieve(blobId, 'base64');
+            const result = await this.artifactStore.retrieve({
+                reference: blobId,
+                format: 'base64',
+            });
 
             return {
                 contents: [
@@ -142,24 +145,24 @@ export class BlobResourceHandler implements InternalResourceHandler {
     }
 
     async refresh(): Promise<void> {
-        // BlobStore doesn't need refresh as it's not file-system based scanning
+        // ArtifactStore doesn't need refresh as it's not file-system based scanning
         // But we can perform cleanup of old blobs if configured
         try {
-            await this.blobStore.cleanup();
+            await this.artifactStore.cleanup();
             this.logger.debug('Blob store cleanup completed');
         } catch (error) {
             this.logger.warn(`Blob store cleanup failed: ${String(error)}`);
         }
     }
 
-    getBlobStore(): BlobStore {
-        return this.blobStore;
+    getArtifactStore(): ArtifactStore {
+        return this.artifactStore;
     }
 
     /**
      * Generate a user-friendly display name for a blob with proper file extension
      */
-    private generateBlobDisplayName(metadata: StoredBlobMetadata, _blobId: string): string {
+    private generateBlobDisplayName(metadata: StoredArtifactMetadata, _blobId: string): string {
         // If we have an original name with extension, use it
         if (metadata.originalName && metadata.originalName.includes('.')) {
             return metadata.originalName;

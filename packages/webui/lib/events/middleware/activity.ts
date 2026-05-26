@@ -94,12 +94,12 @@ const activityMappings: Partial<Record<StreamingEventName | string, ActivityMapp
         category: 'approval',
         getDescription: (e) => {
             if (e.name === 'approval:request') {
-                // Tool confirmation requests have toolName in metadata
-                if (e.type === 'tool_confirmation' && 'toolName' in e.metadata) {
+                // Tool approval requests have toolName in metadata
+                if (e.type === 'tool_approval' && 'toolName' in e.metadata) {
                     return `Approval requested for ${e.metadata.toolName}`;
                 }
-                // Command confirmation requests
-                if (e.type === 'command_confirmation' && 'toolName' in e.metadata) {
+                // Command approval requests
+                if (e.type === 'command_approval' && 'toolName' in e.metadata) {
                     return `Command approval requested for ${e.metadata.toolName}`;
                 }
                 // Generic approval request

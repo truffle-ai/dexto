@@ -74,7 +74,8 @@ describe('Init Module', () => {
                 const content = await fs.readFile(examplePath, 'utf8');
                 expect(content).toContain('// Standalone Dexto app (programmatic)');
                 expect(content).toContain("import 'dotenv/config';");
-                expect(content).toContain("from '@dexto/storage';");
+                expect(content).toContain('InMemoryDextoStores');
+                expect(content).toContain('stores: new InMemoryDextoStores(logger)');
                 expect(content).toContain('const agent = new DextoAgent({');
             } finally {
                 process.chdir(originalCwd);

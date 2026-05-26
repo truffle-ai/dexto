@@ -1,15 +1,32 @@
 import { beforeEach, describe, expect, test, vi } from 'vitest';
+import type { LanguageModel } from 'ai';
 import { LLMConfigSchema } from '../llm/schemas.js';
 import { createMockLogger } from '../logger/v2/test-utils.js';
 import { generateSessionTitle } from './title-generator.js';
 
-vi.mock('../llm/services/factory.js', () => ({
-    createLLMService: vi.fn(),
+function createMockModel(modelId: string): LanguageModel {
+    return {
+        specificationVersion: 'v2',
+        provider: 'mock-provider',
+        modelId,
+        supportedUrls: {},
+        doGenerate: vi.fn(),
+        doStream: vi.fn(),
+    };
+}
+
+const mocks = vi.hoisted(() => ({
+    createVercelModel: vi.fn(() => createMockModel('default-model')),
+    generateText: vi.fn(),
 }));
 
-import { createLLMService } from '../llm/services/factory.js';
+vi.mock('ai', () => ({
+    generateText: mocks.generateText,
+}));
 
-const mockCreateLLMService = vi.mocked(createLLMService);
+vi.mock('../llm/services/factory.js', () => ({
+    createVercelModel: mocks.createVercelModel,
+}));
 
 describe('generateSessionTitle', () => {
     const logger = createMockLogger();
@@ -21,87 +38,50 @@ describe('generateSessionTitle', () => {
         maxInputTokens: 128000,
     });
 
-    let mockToolManager: any;
-    let mockSystemPromptManager: any;
-    let mockResourceManager: any;
-    let mockLLMService: any;
-
     beforeEach(() => {
         vi.resetAllMocks();
-
-        mockToolManager = {
-            getAllTools: vi.fn().mockResolvedValue({}),
-        };
-        mockSystemPromptManager = {
-            getSystemPrompt: vi.fn().mockReturnValue('System prompt'),
-        };
-        mockResourceManager = {
-            getBlobStore: vi.fn(),
-            readResource: vi.fn(),
-            listResources: vi.fn(),
-        };
-        mockLLMService = {
-            stream: vi.fn().mockResolvedValue({ text: 'Default title' }),
-        };
-
-        mockCreateLLMService.mockReturnValue(mockLLMService);
+        mocks.createVercelModel.mockReturnValue(createMockModel('default-model'));
+        mocks.generateText.mockResolvedValue({ text: 'Default title' });
     });
 
-    test('passes a host-provided languageModelFactory through to createLLMService', async () => {
-        const languageModelFactory = vi.fn();
-        mockLLMService.stream.mockResolvedValue({ text: 'Hosted transport title' });
+    test('passes a host-provided languageModelFactory through to direct text generation', async () => {
+        const hostedModel = createMockModel('hosted-model');
+        const languageModelFactory = vi.fn(() => hostedModel);
+        mocks.generateText.mockResolvedValue({ text: 'Hosted transport title' });
 
-        const result = await generateSessionTitle(
-            llmConfig,
-            mockToolManager,
-            mockSystemPromptManager,
-            mockResourceManager,
-            'help me debug this session',
-            logger,
-            { languageModelFactory }
-        );
+        const result = await generateSessionTitle(llmConfig, 'help me debug this session', logger, {
+            languageModelFactory,
+            providerContext: { sessionId: 'session-123', clientSource: 'web' },
+        });
 
         expect(result).toEqual({ title: 'Hosted transport title' });
-        expect(mockCreateLLMService).toHaveBeenCalledWith(
-            llmConfig,
-            mockToolManager,
-            mockSystemPromptManager,
-            expect.any(Object),
-            expect.any(Object),
-            expect.stringMatching(/^titlegen-/),
-            mockResourceManager,
-            logger,
+        expect(languageModelFactory).toHaveBeenCalledWith({
+            config: llmConfig,
+            context: { sessionId: 'session-123', clientSource: 'web' },
+            createDefaultLanguageModel: expect.any(Function),
+        });
+        expect(mocks.generateText).toHaveBeenCalledWith(
             expect.objectContaining({
-                messageQueue: expect.any(Object),
-            }),
-            languageModelFactory
+                model: hostedModel,
+                prompt: expect.stringContaining('help me debug this session'),
+                maxOutputTokens: 32,
+            })
         );
     });
 
-    test('falls back to createLLMService when no override is provided', async () => {
-        const result = await generateSessionTitle(
-            llmConfig,
-            mockToolManager,
-            mockSystemPromptManager,
-            mockResourceManager,
-            'generate a title',
-            logger
-        );
+    test('uses the default model factory without constructing a session LLM service', async () => {
+        const defaultModel = createMockModel('default-model');
+        mocks.createVercelModel.mockReturnValue(defaultModel);
+
+        const result = await generateSessionTitle(llmConfig, 'generate a title', logger);
 
         expect(result).toEqual({ title: 'Default title' });
-        expect(mockCreateLLMService).toHaveBeenCalledWith(
-            llmConfig,
-            mockToolManager,
-            mockSystemPromptManager,
-            expect.any(Object),
-            expect.any(Object),
-            expect.stringMatching(/^titlegen-/),
-            mockResourceManager,
-            logger,
+        expect(mocks.createVercelModel).toHaveBeenCalledWith(llmConfig, {});
+        expect(mocks.generateText).toHaveBeenCalledWith(
             expect.objectContaining({
-                messageQueue: expect.any(Object),
-            }),
-            undefined
+                model: defaultModel,
+                prompt: expect.stringContaining('generate a title'),
+            })
         );
     });
 });

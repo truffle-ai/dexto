@@ -9,11 +9,17 @@ export function registerAuthCommand({ program }: RuntimeCommandRegisterContext):
         .description('Login to Dexto')
         .option('--api-key <key>', 'Use Dexto API key instead of device-code login')
         .option('--token <token>', 'Use an existing Supabase access token')
+        .option('--platform-url <url>', 'Use a custom Dexto platform URL for device-code login')
         .option('--no-interactive', 'Disable interactive prompts')
         .action(
             withAnalytics(
                 'auth login',
-                async (options: { apiKey?: string; token?: string; interactive?: boolean }) => {
+                async (options: {
+                    apiKey?: string;
+                    token?: string;
+                    platformUrl?: string;
+                    interactive?: boolean;
+                }) => {
                     try {
                         const { handleLoginCommand } = await import('./login.js');
                         await handleLoginCommand(options);
@@ -71,11 +77,17 @@ export function registerAuthCommand({ program }: RuntimeCommandRegisterContext):
         .description('Login to Dexto (alias for `dexto auth login`)')
         .option('--api-key <key>', 'Use Dexto API key instead of device-code login')
         .option('--token <token>', 'Use an existing Supabase access token')
+        .option('--platform-url <url>', 'Use a custom Dexto platform URL for device-code login')
         .option('--no-interactive', 'Disable interactive prompts')
         .action(
             withAnalytics(
                 'login',
-                async (options: { apiKey?: string; token?: string; interactive?: boolean }) => {
+                async (options: {
+                    apiKey?: string;
+                    token?: string;
+                    platformUrl?: string;
+                    interactive?: boolean;
+                }) => {
                     try {
                         const { handleLoginCommand } = await import('./login.js');
                         await handleLoginCommand(options);

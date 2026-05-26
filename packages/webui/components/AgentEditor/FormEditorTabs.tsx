@@ -463,10 +463,7 @@ function ToolsTab({ config, onChange, errors }: TabProps) {
         onChange({ ...config, tools: nextTools });
     };
 
-    const toolPolicies = config.permissions?.toolPolicies || {
-        alwaysAllow: [],
-        alwaysDeny: [],
-    };
+    const toolPolicies = config.permissions?.toolPolicies || {};
     const alwaysAllowList = toolPolicies.alwaysAllow || [];
 
     const isToolAutoApproved = (qualifiedName: string) => alwaysAllowList.includes(qualifiedName);

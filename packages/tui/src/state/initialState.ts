@@ -20,6 +20,7 @@ export function createInitialState(initialModelName: string = ''): CLIState {
             images: [],
             pastedBlocks: [],
             pasteCounter: 0,
+            editingQueuedFollowUp: false,
         },
         ui: {
             isProcessing: false,

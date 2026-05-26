@@ -7,8 +7,8 @@
 
 import { z } from 'zod';
 import { createPatch } from 'diff';
-import { createLocalToolCallHeader, defineTool } from '@dexto/core';
-import type { Tool, ToolExecutionContext, DiffDisplayData } from '@dexto/core';
+import { createLocalToolCallHeader, defineTool } from '@dexto/core/tools';
+import type { Tool, ToolExecutionContext, DiffDisplayData } from '@dexto/core/tools';
 import type { PlanServiceGetter } from '../plan-service-getter.js';
 import { PlanError } from '../errors.js';
 

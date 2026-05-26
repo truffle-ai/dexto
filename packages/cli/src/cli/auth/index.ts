@@ -15,11 +15,13 @@ export {
 
 export { type OAuthResult } from './oauth.js';
 
+export { type DeviceApiKeyLoginResult } from './types.js';
 export { type DeviceLoginPrompt, performDeviceCodeLogin } from './device.js';
 
 export {
     type PersistOAuthLoginOptions,
     type PersistedLoginResult,
+    persistDeviceApiKeyLoginResult,
     persistOAuthLoginResult,
 } from './login-persistence.js';
 

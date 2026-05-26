@@ -4,11 +4,11 @@ import { type ValidatedLLMConfig } from '../llm/schemas.js';
 import { LLMConfigSchema } from '../llm/schemas.js';
 import { SessionErrorCode } from './error-codes.js';
 import { ErrorScope, ErrorType } from '../errors/types.js';
+import type { SessionEventMap } from '../events/index.js';
+import { DextoRuntimeError } from '../errors/DextoRuntimeError.js';
+import { HookErrorCode } from '../hooks/error-codes.js';
 
 // Mock all dependencies
-vi.mock('./history/factory.js', () => ({
-    createDatabaseHistoryProvider: vi.fn(),
-}));
 vi.mock('../llm/services/factory.js', () => ({
     createLLMService: vi.fn(),
 }));
@@ -29,12 +29,10 @@ vi.mock('../logger/index.js', () => ({
     },
 }));
 
-import { createDatabaseHistoryProvider } from './history/factory.js';
 import { createLLMService } from '../llm/services/factory.js';
 import { getEffectiveMaxInputTokens } from '../llm/registry/index.js';
 import { createMockLogger } from '../logger/v2/test-utils.js';
 
-const mockCreateDatabaseHistoryProvider = vi.mocked(createDatabaseHistoryProvider);
 const mockCreateLLMService = vi.mocked(createLLMService);
 const mockGetEffectiveMaxInputTokens = vi.mocked(getEffectiveMaxInputTokens);
 
@@ -48,10 +46,92 @@ function createDeferred<T>() {
     return { promise, resolve, reject };
 }
 
+function createMockTurnDriver() {
+    return {
+        prepareNextModelStep: vi.fn().mockResolvedValue({
+            stepCount: 0,
+        }),
+        runNextModelStep: vi.fn().mockResolvedValue({
+            result: {
+                text: 'driver response',
+                finishReason: 'stop',
+                usage: {
+                    inputTokens: 1,
+                    outputTokens: 2,
+                    totalTokens: 3,
+                    cacheReadTokens: 0,
+                    cacheWriteTokens: 0,
+                },
+                toolCalls: [],
+            },
+            stepCount: 0,
+        }),
+        executeToolCalls: vi.fn().mockResolvedValue(undefined),
+        decideNextStep: vi.fn().mockResolvedValue({
+            kind: 'stop',
+            stepCount: 0,
+            finishReason: 'stop',
+        }),
+        finish: vi.fn().mockResolvedValue({
+            text: 'driver response',
+            stepCount: 0,
+            usage: {
+                inputTokens: 1,
+                outputTokens: 2,
+                totalTokens: 3,
+                cacheReadTokens: 0,
+                cacheWriteTokens: 0,
+            },
+            finishReason: 'stop',
+        }),
+        fail: vi.fn().mockRejectedValue(new Error('driver failed')),
+        getState: vi.fn().mockReturnValue({
+            phase: 'model-step-complete',
+            stepCount: 0,
+            startedAtMs: 123,
+            supportsTools: true,
+            modelStepId: 'model-step-1',
+            result: {
+                text: 'driver response',
+                finishReason: 'stop',
+                usage: {
+                    inputTokens: 1,
+                    outputTokens: 2,
+                    totalTokens: 3,
+                    cacheReadTokens: 0,
+                    cacheWriteTokens: 0,
+                },
+                toolCalls: [],
+            },
+            toolCallsExecuted: true,
+        }),
+        checkpoint: vi.fn().mockReturnValue({
+            phase: 'model-step-complete',
+            stepCount: 0,
+            startedAtMs: 123,
+            supportsTools: true,
+            modelStepId: 'model-step-1',
+            result: {
+                text: 'driver response',
+                finishReason: 'stop',
+                usage: {
+                    inputTokens: 1,
+                    outputTokens: 2,
+                    totalTokens: 3,
+                    cacheReadTokens: 0,
+                    cacheWriteTokens: 0,
+                },
+                toolCalls: [],
+            },
+            toolCallsExecuted: true,
+        }),
+        dispose: vi.fn(),
+    };
+}
+
 describe('ChatSession', () => {
     let chatSession: ChatSession;
     let mockServices: any;
-    let mockHistoryProvider: any;
     let mockLLMService: any;
     let mockCache: any;
     let mockDatabase: any;
@@ -71,20 +151,14 @@ describe('ChatSession', () => {
     beforeEach(() => {
         vi.resetAllMocks();
 
-        // Mock history provider
-        mockHistoryProvider = {
-            addMessage: vi.fn().mockResolvedValue(undefined),
-            getMessages: vi.fn().mockResolvedValue([]),
-            clearHistory: vi.fn().mockResolvedValue(undefined),
-            getMessageCount: vi.fn().mockResolvedValue(0),
-        };
-
         // Mock LLM service
         mockContextManager = {
             resetConversation: vi.fn().mockResolvedValue(undefined),
+            addUserMessage: vi.fn().mockResolvedValue(undefined),
         };
         mockLLMService = {
             stream: vi.fn().mockResolvedValue('Mock response'),
+            createTurnDriver: vi.fn(),
             switchLLM: vi.fn().mockResolvedValue(undefined),
             getContextManager: vi.fn().mockReturnValue(mockContextManager),
             eventBus: {
@@ -143,6 +217,21 @@ describe('ChatSession', () => {
             getBlobStore: vi.fn().mockReturnValue(mockBlobStore),
             disconnect: vi.fn().mockResolvedValue(undefined),
         };
+        const mockConversationStore = {
+            listMessages: vi.fn(async ({ sessionId }) =>
+                mockDatabase.getRange(`messages:${sessionId}`, 0)
+            ),
+            saveMessage: vi.fn(async ({ sessionId, message }) =>
+                mockDatabase.append(`messages:${sessionId}`, message)
+            ),
+            updateMessage: vi.fn(async ({ sessionId, message }) =>
+                mockDatabase.append(`messages:${sessionId}`, message)
+            ),
+            clearMessages: vi.fn(async ({ sessionId }) =>
+                mockDatabase.delete(`messages:${sessionId}`)
+            ),
+            flush: vi.fn().mockResolvedValue(undefined),
+        };
 
         // Mock services
         mockServices = {
@@ -167,6 +256,7 @@ describe('ChatSession', () => {
             },
             compactionStrategy: null,
             storageManager: mockStorageManager,
+            conversationStore: mockConversationStore,
             resourceManager: {
                 getBlobStore: vi.fn(),
                 readResource: vi.fn(),
@@ -175,7 +265,12 @@ describe('ChatSession', () => {
             toolManager: {
                 getAllTools: vi.fn().mockReturnValue([]),
             },
-            messageQueueStore: {
+            steerQueueStore: {
+                load: vi.fn().mockResolvedValue([]),
+                save: vi.fn().mockResolvedValue(undefined),
+                delete: vi.fn().mockResolvedValue(undefined),
+            },
+            followUpQueueStore: {
                 load: vi.fn().mockResolvedValue([]),
                 save: vi.fn().mockResolvedValue(undefined),
                 delete: vi.fn().mockResolvedValue(undefined),
@@ -193,8 +288,6 @@ describe('ChatSession', () => {
             },
         };
 
-        // Set up factory mocks
-        mockCreateDatabaseHistoryProvider.mockReturnValue(mockHistoryProvider);
         mockCreateLLMService.mockReturnValue(mockLLMService);
         mockGetEffectiveMaxInputTokens.mockReturnValue(128000);
 
@@ -218,11 +311,18 @@ describe('ChatSession', () => {
         test('should initialize with unified storage system', async () => {
             await chatSession.init();
 
-            // Verify createDatabaseHistoryProvider is called with the database backend, sessionId, and logger
-            expect(mockCreateDatabaseHistoryProvider).toHaveBeenCalledWith(
-                mockDatabase,
+            expect(mockServices.conversationStore.listMessages).not.toHaveBeenCalled();
+            expect(mockCreateLLMService).toHaveBeenCalledWith(
+                mockLLMConfig,
+                mockServices.toolManager,
+                mockServices.systemPromptManager,
+                expect.any(Object),
+                chatSession.eventBus,
                 sessionId,
-                expect.any(Object) // Logger object
+                mockServices.resourceManager,
+                expect.any(Object),
+                expect.any(Object),
+                undefined
             );
         });
 
@@ -240,7 +340,7 @@ describe('ChatSession', () => {
                 mockLLMConfig,
                 mockServices.toolManager,
                 mockServices.systemPromptManager,
-                mockHistoryProvider,
+                expect.any(Object),
                 chatSession.eventBus,
                 sessionId,
                 mockServices.resourceManager,
@@ -249,7 +349,7 @@ describe('ChatSession', () => {
                     usageScopeId: undefined,
                     compactionStrategy: null,
                     cwd: '/tmp/dexto-cloud',
-                    messageQueue: expect.any(Object),
+                    steerQueue: expect.any(Object),
                 }),
                 undefined
             );
@@ -268,7 +368,7 @@ describe('ChatSession', () => {
                 mockLLMConfig,
                 mockServices.toolManager,
                 mockServices.systemPromptManager,
-                mockHistoryProvider,
+                expect.any(Object),
                 chatSession.eventBus,
                 sessionId,
                 mockServices.resourceManager,
@@ -276,11 +376,69 @@ describe('ChatSession', () => {
                 expect.objectContaining({
                     usageScopeId: undefined,
                     compactionStrategy: null,
-                    messageQueue: expect.any(Object),
+                    steerQueue: expect.any(Object),
                 }),
                 languageModelFactory
             );
             expect(chatSession.getLLMService()).toBe(mockLLMService);
+        });
+
+        test('exposes split steer and follow-up queues with structured content intact', async () => {
+            mockCreateLLMService.mockImplementation(
+                (
+                    _llmConfig,
+                    _toolManager,
+                    _systemPromptManager,
+                    _contextManager,
+                    _eventBus,
+                    _sessionId,
+                    _resourceManager,
+                    _hookManager,
+                    queueOptions
+                ) => {
+                    mockLLMService.getSteerQueue = vi.fn().mockReturnValue(queueOptions.steerQueue);
+                    mockLLMService.getFollowUpQueue = vi
+                        .fn()
+                        .mockReturnValue(queueOptions.followUpQueue);
+                    return mockLLMService;
+                }
+            );
+            const steerContent = [
+                { type: 'text' as const, text: 'revise the plan' },
+                {
+                    type: 'resource' as const,
+                    uri: 'file:///tmp/plan.md',
+                    name: 'plan.md',
+                    mimeType: 'text/markdown',
+                    kind: 'text' as const,
+                },
+            ];
+            const followUpContent = [
+                { type: 'text' as const, text: 'then summarize the result' },
+                {
+                    type: 'file' as const,
+                    data: 'base64-log',
+                    mimeType: 'text/plain',
+                    filename: 'run.log',
+                },
+            ];
+
+            await chatSession.init();
+            const steer = await chatSession.steer({ content: steerContent });
+            const followUp = await chatSession.followUp({ content: followUpContent });
+
+            expect(chatSession.getSteerMessages()).toEqual([
+                expect.objectContaining({ id: steer.id, content: steerContent }),
+            ]);
+            expect(chatSession.getFollowUpMessages()).toEqual([
+                expect.objectContaining({ id: followUp.id, content: followUpContent }),
+            ]);
+
+            await expect(chatSession.removeSteerMessage(steer.id)).resolves.toBe(true);
+            expect(chatSession.getSteerMessages()).toEqual([]);
+            expect(chatSession.getFollowUpMessages()).toHaveLength(1);
+            await expect(chatSession.clearFollowUpQueue()).resolves.toBe(1);
+            expect(chatSession.getFollowUpMessages()).toEqual([]);
         });
 
         test('should properly dispose resources to prevent memory leaks', () => {
@@ -377,6 +535,181 @@ describe('ChatSession', () => {
         });
     });
 
+    describe('Turn driver boundary', () => {
+        test('starts a session turn driver through hooks, message persistence, and event forwarding', async () => {
+            await chatSession.init();
+            const innerDriver = createMockTurnDriver();
+            const runContext = {
+                sessionId,
+                hostRuntime: {
+                    ids: {
+                        runId: 'run-1',
+                        attemptId: 'attempt-1',
+                    },
+                },
+                telemetryContext: {} as any,
+            };
+            mockLLMService.createTurnDriver.mockResolvedValue(innerDriver);
+            mockServices.hookManager.executeHooks.mockImplementation(
+                async (point: string, payload: Record<string, unknown>) => {
+                    if (point === 'beforeLLMRequest') {
+                        return { ...payload, text: 'modified prompt' };
+                    }
+                    if (point === 'beforeResponse') {
+                        return { ...payload, content: 'modified response' };
+                    }
+                    return payload;
+                }
+            );
+
+            const driver = await chatSession.createTurnDriver({
+                kind: 'start',
+                content: 'hello',
+                runContext,
+            });
+
+            expect(chatSession.isBusy()).toBe(true);
+            expect(mockContextManager.addUserMessage).toHaveBeenCalledWith([
+                { type: 'text', text: 'modified prompt' },
+            ]);
+            expect(mockLLMService.createTurnDriver).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    signal: expect.any(AbortSignal),
+                    streaming: true,
+                    runContext,
+                })
+            );
+
+            chatSession.eventBus.emit('llm:thinking', {});
+            expect(mockServices.agentEventBus.emit).toHaveBeenCalledWith('llm:thinking', {
+                sessionId,
+                hostRuntime: runContext.hostRuntime,
+            });
+
+            await driver.runNextModelStep();
+            await driver.executeToolCalls();
+            await driver.decideNextStep();
+            driver.getState();
+            expect(innerDriver.runNextModelStep).toHaveBeenCalledTimes(1);
+            expect(innerDriver.executeToolCalls).toHaveBeenCalledTimes(1);
+            expect(innerDriver.decideNextStep).toHaveBeenCalledTimes(1);
+            expect(innerDriver.getState).toHaveBeenCalledTimes(1);
+
+            await expect(driver.finish()).resolves.toEqual(
+                expect.objectContaining({
+                    text: 'modified response',
+                    finishReason: 'stop',
+                })
+            );
+            expect(innerDriver.dispose).toHaveBeenCalledTimes(1);
+            expect(chatSession.isBusy()).toBe(false);
+            mockServices.agentEventBus.emit.mockClear();
+            chatSession.eventBus.emit('llm:thinking', {});
+            expect(mockServices.agentEventBus.emit).not.toHaveBeenCalled();
+        });
+
+        test('checkpoints through the session driver and resumes that state without a new user message', async () => {
+            await chatSession.init();
+            const firstInnerDriver = createMockTurnDriver();
+            const resumedInnerDriver = createMockTurnDriver();
+            mockLLMService.createTurnDriver
+                .mockResolvedValueOnce(firstInnerDriver)
+                .mockResolvedValueOnce(resumedInnerDriver);
+
+            const driver = await chatSession.createTurnDriver({
+                kind: 'start',
+                content: 'hello',
+            });
+            const state = driver.checkpoint();
+            expect(chatSession.isBusy()).toBe(false);
+
+            const resumedDriver = await chatSession.createTurnDriver({
+                kind: 'resume',
+                state,
+                streaming: false,
+            });
+
+            expect(state).toEqual(
+                expect.objectContaining({
+                    phase: 'model-step-complete',
+                    modelStepId: 'model-step-1',
+                })
+            );
+            expect(firstInnerDriver.checkpoint).toHaveBeenCalledTimes(1);
+            expect(firstInnerDriver.dispose).not.toHaveBeenCalled();
+            expect(mockContextManager.addUserMessage).toHaveBeenCalledTimes(1);
+            expect(mockLLMService.createTurnDriver).toHaveBeenLastCalledWith(
+                expect.objectContaining({
+                    state,
+                    streaming: false,
+                })
+            );
+            expect(chatSession.isBusy()).toBe(true);
+            resumedDriver.dispose();
+            expect(chatSession.isBusy()).toBe(false);
+        });
+
+        test('cleans up busy state and event forwarding after fail and dispose', async () => {
+            await chatSession.init();
+            const failingInnerDriver = createMockTurnDriver();
+            const disposedInnerDriver = createMockTurnDriver();
+            mockLLMService.createTurnDriver
+                .mockResolvedValueOnce(failingInnerDriver)
+                .mockResolvedValueOnce(disposedInnerDriver);
+
+            const failingDriver = await chatSession.createTurnDriver({
+                kind: 'start',
+                content: 'fail',
+            });
+            await expect(failingDriver.fail(new Error('boom'))).rejects.toThrow('driver failed');
+            expect(failingInnerDriver.dispose).toHaveBeenCalledTimes(1);
+            expect(chatSession.isBusy()).toBe(false);
+            mockServices.agentEventBus.emit.mockClear();
+            chatSession.eventBus.emit('llm:thinking', {});
+            expect(mockServices.agentEventBus.emit).not.toHaveBeenCalled();
+
+            const disposedDriver = await chatSession.createTurnDriver({
+                kind: 'start',
+                content: 'dispose',
+            });
+            disposedDriver.dispose();
+            expect(disposedInnerDriver.dispose).toHaveBeenCalledTimes(1);
+            expect(chatSession.isBusy()).toBe(false);
+            mockServices.agentEventBus.emit.mockClear();
+            chatSession.eventBus.emit('llm:thinking', {});
+            expect(mockServices.agentEventBus.emit).not.toHaveBeenCalled();
+        });
+
+        test('preserves blocked hook interactions when creating a start driver', async () => {
+            await chatSession.init();
+            const blocked = new DextoRuntimeError(
+                HookErrorCode.HOOK_BLOCKED_EXECUTION,
+                ErrorScope.HOOK,
+                ErrorType.FORBIDDEN,
+                'blocked by policy'
+            );
+            mockServices.hookManager.executeHooks.mockRejectedValue(blocked);
+
+            await expect(
+                chatSession.createTurnDriver({
+                    kind: 'start',
+                    content: 'blocked prompt',
+                })
+            ).rejects.toThrow('blocked by policy');
+
+            expect(mockServices.conversationStore.saveMessage).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    sessionId,
+                    message: expect.objectContaining({
+                        role: 'assistant',
+                        content: [{ type: 'text', text: 'Error: blocked by policy' }],
+                    }),
+                })
+            );
+            expect(chatSession.isBusy()).toBe(false);
+        });
+    });
+
     describe('LLM Configuration Management', () => {
         beforeEach(async () => {
             await chatSession.init();
@@ -398,7 +731,7 @@ describe('ChatSession', () => {
                 newConfig,
                 mockServices.toolManager,
                 mockServices.systemPromptManager,
-                mockHistoryProvider,
+                expect.any(Object),
                 chatSession.eventBus,
                 sessionId,
                 mockServices.resourceManager,
@@ -406,7 +739,7 @@ describe('ChatSession', () => {
                 expect.objectContaining({
                     usageScopeId: undefined,
                     compactionStrategy: null,
-                    messageQueue: expect.any(Object),
+                    steerQueue: expect.any(Object),
                 }),
                 undefined
             );
@@ -429,7 +762,7 @@ describe('ChatSession', () => {
                 newConfig,
                 mockServices.toolManager,
                 mockServices.systemPromptManager,
-                mockHistoryProvider,
+                expect.any(Object),
                 chatSession.eventBus,
                 sessionId,
                 mockServices.resourceManager,
@@ -437,7 +770,7 @@ describe('ChatSession', () => {
                 expect.objectContaining({
                     usageScopeId: undefined,
                     compactionStrategy: null,
-                    messageQueue: expect.any(Object),
+                    steerQueue: expect.any(Object),
                 }),
                 undefined
             );
@@ -466,11 +799,10 @@ describe('ChatSession', () => {
 
     describe('Error Handling and Resilience', () => {
         test('should handle storage initialization failures gracefully', async () => {
-            mockCreateDatabaseHistoryProvider.mockImplementation(() => {
-                throw new Error('Storage initialization failed');
-            });
+            mockServices.steerQueueStore.load.mockRejectedValue(
+                new Error('Storage initialization failed')
+            );
 
-            // The init method should throw the error since it doesn't catch it
             await expect(chatSession.init()).rejects.toThrow('Storage initialization failed');
         });
 
@@ -544,19 +876,21 @@ describe('ChatSession', () => {
             );
         });
 
-        test('should delegate history operations to history provider', async () => {
+        test('should read conversation history from the conversation store', async () => {
             const mockHistory = [
                 { role: 'user', content: 'Hello' },
                 { role: 'assistant', content: 'Hi there!' },
             ];
 
-            mockHistoryProvider.getHistory = vi.fn().mockResolvedValue(mockHistory);
+            mockDatabase.getRange.mockResolvedValue(mockHistory);
 
             await chatSession.init();
             const history = await chatSession.getHistory();
 
             expect(history).toEqual(mockHistory);
-            expect(mockHistoryProvider.getHistory).toHaveBeenCalled();
+            expect(mockServices.conversationStore.listMessages).toHaveBeenCalledWith({
+                sessionId,
+            });
         });
     });
 
@@ -569,7 +903,7 @@ describe('ChatSession', () => {
                 mockLLMConfig,
                 mockServices.toolManager,
                 mockServices.systemPromptManager,
-                mockHistoryProvider,
+                expect.any(Object),
                 chatSession.eventBus, // Session-specific event bus
                 sessionId,
                 mockServices.resourceManager, // ResourceManager parameter
@@ -577,17 +911,12 @@ describe('ChatSession', () => {
                 expect.objectContaining({
                     usageScopeId: undefined,
                     compactionStrategy: null,
-                    messageQueue: expect.any(Object),
+                    steerQueue: expect.any(Object),
                 }),
                 undefined
             );
 
-            // Verify session-specific history provider creation
-            expect(mockCreateDatabaseHistoryProvider).toHaveBeenCalledWith(
-                mockDatabase,
-                sessionId,
-                expect.any(Object) // Logger object
-            );
+            expect(mockCreateLLMService).toHaveBeenCalledTimes(1);
         });
     });
 
@@ -717,6 +1046,42 @@ describe('ChatSession', () => {
             // Should log warning but not throw (fire-and-forget pattern)
             expect(mockLogger.warn).toHaveBeenCalledWith(
                 expect.stringContaining('Failed to accumulate token usage')
+            );
+        });
+
+        test('normalizes provider null token counts before accumulation', async () => {
+            const payload = {
+                content: 'Test response',
+                provider: 'dexto-nova',
+                model: 'openai/gpt-5-mini',
+                tokenUsage: {
+                    inputTokens: null,
+                    outputTokens: 6,
+                    reasoningTokens: null,
+                    cacheReadTokens: null,
+                    cacheWriteTokens: 0,
+                    totalTokens: 4560,
+                },
+            } as unknown as SessionEventMap['llm:response'];
+
+            chatSession.eventBus.emit('llm:response', payload);
+
+            await new Promise((resolve) => setTimeout(resolve, 0));
+
+            expect(mockServices.sessionManager.accumulateTokenUsage).toHaveBeenCalledWith(
+                sessionId,
+                {
+                    inputTokens: 0,
+                    outputTokens: 6,
+                    cacheReadTokens: 0,
+                    cacheWriteTokens: 0,
+                    totalTokens: 4560,
+                },
+                expect.any(Number),
+                {
+                    provider: 'dexto-nova',
+                    model: 'openai/gpt-5-mini',
+                }
             );
         });
 

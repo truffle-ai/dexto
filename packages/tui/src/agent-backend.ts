@@ -1,9 +1,16 @@
-import type { AgentEventMap, DextoAgent, EventListener, SessionMetadata } from '@dexto/core';
+import type {
+    AgentEventMap,
+    DextoAgent,
+    EventListener,
+    SessionMetadata,
+    SkillManager,
+} from '@dexto/core';
 import type { CommandDefinition } from './interactive-commands/command-parser.js';
 
 export interface TuiAgentCapabilities {
     supportedCommands?: readonly string[];
     prompts?: boolean;
+    skills?: boolean;
     resources?: boolean;
     attachments?: boolean;
     reasoningCycle?: boolean;
@@ -64,10 +71,14 @@ export interface TuiAgentBackend
         | 'getContextStats'
         | 'clearContext'
         | 'compactContext'
-        | 'queueMessage'
-        | 'getQueuedMessages'
-        | 'removeQueuedMessage'
-        | 'clearMessageQueue'
+        | 'steer'
+        | 'followUp'
+        | 'getSteerMessages'
+        | 'getFollowUpMessages'
+        | 'removeSteerMessage'
+        | 'removeFollowUpMessage'
+        | 'clearSteerQueue'
+        | 'clearFollowUpQueue'
         | 'cancel'
         | 'searchMessages'
         | 'listPrompts'
@@ -137,11 +148,13 @@ export interface TuiAgentBackend
             getHookNames: () => string[];
         };
     };
+    skillManager?: SkillManager | undefined;
     capabilities?: TuiAgentCapabilities;
 }
 
 const DEFAULT_CAPABILITIES: Required<Omit<TuiAgentCapabilities, 'supportedCommands'>> = {
     prompts: true,
+    skills: true,
     resources: true,
     attachments: true,
     reasoningCycle: true,
@@ -158,6 +171,10 @@ const COMMAND_CAPABILITY_GATES: ReadonlyArray<{
         commands: ['prompts', 'sysprompt'],
     },
     {
+        capability: 'skills',
+        commands: ['skills'],
+    },
+    {
         capability: 'reasoningCycle',
         commands: ['reasoning'],
     },
@@ -172,9 +189,14 @@ function normalizeCommandName(command: string): string {
 }
 
 export function getTuiCapabilities(agent: TuiAgentBackend): TuiAgentCapabilities {
-    return {
+    const mergedCapabilities = {
         ...DEFAULT_CAPABILITIES,
         ...agent.capabilities,
+    };
+
+    return {
+        ...mergedCapabilities,
+        skills: mergedCapabilities.skills === false ? false : Boolean(agent.skillManager),
         ...(agent.capabilities?.supportedCommands
             ? {
                   supportedCommands: agent.capabilities.supportedCommands.map(normalizeCommandName),
@@ -224,6 +246,10 @@ export function isCommandDefinitionSupported(
 
 export function supportsPrompts(agent: TuiAgentBackend): boolean {
     return getTuiCapabilities(agent).prompts ?? true;
+}
+
+export function supportsSkills(agent: TuiAgentBackend): boolean {
+    return getTuiCapabilities(agent).skills ?? true;
 }
 
 export function supportsResources(agent: TuiAgentBackend): boolean {

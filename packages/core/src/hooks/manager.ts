@@ -3,7 +3,7 @@ import { HookErrorCode } from './error-codes.js';
 import { getContext } from '../utils/async-context.js';
 import type { ExtensionPoint, HookExecutionContext, Hook, HookResult } from './types.js';
 import type { AgentEventBus } from '../events/index.js';
-import type { StorageManager } from '../storage/index.js';
+import type { DextoStores } from '../storage/index.js';
 import type { SessionManager } from '../session/index.js';
 import type { MCPManager } from '../mcp/manager.js';
 import type { ToolManager } from '../tools/tool-manager.js';
@@ -17,7 +17,7 @@ import type { AgentRunContext } from '../runtime/run-context.js';
  */
 export interface HookManagerOptions {
     agentEventBus: AgentEventBus;
-    storageManager: StorageManager;
+    stores: DextoStores;
 }
 
 /**
@@ -188,7 +188,7 @@ export class HookManager {
                 toolManager: options.toolManager,
                 stateManager: options.stateManager,
                 agentEventBus: this.options.agentEventBus,
-                storageManager: this.options.storageManager,
+                stores: this.options.stores,
             },
         };
 

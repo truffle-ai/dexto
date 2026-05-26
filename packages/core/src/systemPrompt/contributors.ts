@@ -5,7 +5,7 @@ import type { Logger } from '../logger/v2/types.js';
 import { SystemPromptError } from './errors.js';
 import { DextoRuntimeError } from '../errors/DextoRuntimeError.js';
 import type { MemoryManager } from '../memory/index.js';
-import type { PromptManager } from '../prompts/prompt-manager.js';
+import type { SkillManager } from '../skills/index.js';
 
 export class StaticContributor implements SystemPromptContributor {
     constructor(
@@ -247,7 +247,7 @@ export class SkillsContributor implements SystemPromptContributor {
     constructor(
         public id: string,
         public priority: number,
-        private promptManager: PromptManager,
+        private skillManager: SkillManager,
         logger: Logger
     ) {
         this.logger = logger;
@@ -256,31 +256,26 @@ export class SkillsContributor implements SystemPromptContributor {
 
     async getContent(_context: DynamicContributorContext): Promise<string> {
         try {
-            const skills = await this.promptManager.listAutoInvocablePrompts();
-            const skillEntries = Object.entries(skills);
-
-            if (skillEntries.length === 0) {
+            const skills = await this.skillManager.list();
+            if (skills.length === 0) {
                 return '';
             }
 
-            const skillsList = skillEntries
-                .map(([_key, info]) => {
-                    const name = info.displayName || info.name;
-                    const desc = info.description ? ` - ${info.description}` : '';
-                    return `- ${name}${desc}`;
+            const skillsList = skills
+                .map((skill) => {
+                    const desc = skill.description ? ` - ${skill.description}` : '';
+                    return `- ${skill.displayName}${desc}`;
                 })
                 .join('\n');
 
             const result = `## Available Skills
 
-You can invoke the following skills using the \`invoke_skill\` tool when they are relevant to the task:
+Use \`invoke_skill\` when one of these skills is relevant:
 
-${skillsList}
-
-To use a skill, call invoke_skill with the skill name. The skill will provide specialized instructions for the task.`;
+${skillsList}`;
 
             this.logger.debug(
-                `[SkillsContributor] Listed ${skillEntries.length} skills in system prompt`
+                `[SkillsContributor] Listed ${skills.length} skills in system prompt`
             );
             return result;
         } catch (error) {

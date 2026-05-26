@@ -13,19 +13,44 @@ import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
 import {
     ContentPolicyHook,
+    BackendDextoStores,
+    DatabaseBackedApprovalStore,
+    DatabaseBackedArtifactStore,
+    DatabaseBackedCustomPromptStore,
+    DatabaseBackedMemoryStore,
+    DatabaseBackedRuntimeEventStore,
+    DatabaseBackedSessionMessageQueueStore,
+    DatabaseBackedSessionStore,
+    DatabaseBackedToolExecutionStore,
+    DatabaseBackedToolPreferenceStore,
+    DatabaseBackedToolStateStore,
+    DatabaseBackedWorkspaceStore,
+    SESSION_FOLLOW_UP_QUEUE_KEY_PREFIX,
+    SESSION_STEER_QUEUE_KEY_PREFIX,
+    DatabaseConversationStore,
     ResponseSanitizerHook,
     defaultLoggerFactory,
     NoOpCompactionStrategy,
     ReactiveOverflowCompactionStrategy,
+    type Logger,
 } from '@dexto/core';
 import {
-    localBlobStoreFactory,
-    inMemoryBlobStoreFactory,
-    sqliteDatabaseFactory,
-    postgresDatabaseFactory,
-    inMemoryDatabaseFactory,
-    inMemoryCacheFactory,
-    redisCacheFactory,
+    StorageSchema,
+    type ValidatedStorageConfig,
+    LocalBlobStoreSchema,
+    InMemoryBlobStoreSchema,
+    SqliteDatabaseSchema,
+    PostgresDatabaseSchema,
+    InMemoryDatabaseSchema,
+    RedisCacheSchema,
+    InMemoryCacheSchema,
+    LocalBlobStore,
+    MemoryBlobStore,
+    SQLiteStore,
+    PostgresStore,
+    MemoryDatabaseStore,
+    RedisStore,
+    MemoryCacheStore,
 } from '@dexto/storage';
 import { builtinToolsFactory } from '@dexto/tools-builtins';
 import { fileSystemToolsFactory } from '@dexto/tools-filesystem';
@@ -36,9 +61,11 @@ import { schedulerToolsFactory } from '@dexto/tools-scheduler';
 import { lifecycleToolsFactory } from '@dexto/tools-lifecycle';
 import {
     agentSpawnerToolsFactory,
+    createLocalSkillSources,
     creatorToolsFactory,
     getDextoPackageRoot,
 } from '@dexto/agent-management';
+import { LocalWorkspaceHandleProvider } from './local-workspace-handle-provider.js';
 
 function readPackageJson(packageJsonPath: string): { name?: string; version?: string } | null {
     if (!existsSync(packageJsonPath)) {
@@ -153,6 +180,86 @@ const reactiveOverflowCompactionFactory: CompactionFactory<ReactiveOverflowCompa
         }),
 };
 
+async function createLocalStores(config: ValidatedStorageConfig, logger: Logger) {
+    let blobStore;
+    if (config.blob.type === 'local') {
+        blobStore = new LocalBlobStore(LocalBlobStoreSchema.parse(config.blob), logger);
+    } else {
+        const memoryBlobConfig = InMemoryBlobStoreSchema.parse(config.blob);
+        blobStore = new MemoryBlobStore(
+            {
+                maxBlobSize: memoryBlobConfig.maxBlobSize,
+                maxTotalSize: memoryBlobConfig.maxTotalSize,
+            },
+            logger
+        );
+    }
+
+    let database;
+    if (config.database.type === 'sqlite') {
+        database = new SQLiteStore(SqliteDatabaseSchema.parse(config.database), logger);
+    } else if (config.database.type === 'postgres') {
+        database = new PostgresStore(PostgresDatabaseSchema.parse(config.database), logger);
+    } else {
+        InMemoryDatabaseSchema.parse(config.database);
+        database = new MemoryDatabaseStore();
+    }
+
+    let cache;
+    if (config.cache.type === 'redis') {
+        cache = new RedisStore(RedisCacheSchema.parse(config.cache), logger);
+    } else {
+        InMemoryCacheSchema.parse(config.cache);
+        cache = new MemoryCacheStore();
+    }
+
+    return new BackendDextoStores(
+        {
+            conversation: new DatabaseConversationStore(database, logger),
+            sessions: new DatabaseBackedSessionStore(database, cache),
+            memories: new DatabaseBackedMemoryStore(database),
+            workspaces: new DatabaseBackedWorkspaceStore(database),
+            approvals: new DatabaseBackedApprovalStore(database, cache, logger),
+            toolPreferences: new DatabaseBackedToolPreferenceStore(database, cache, logger),
+            toolState: new DatabaseBackedToolStateStore(database),
+            steerQueue: new DatabaseBackedSessionMessageQueueStore(
+                database,
+                cache,
+                logger,
+                SESSION_STEER_QUEUE_KEY_PREFIX
+            ),
+            followUpQueue: new DatabaseBackedSessionMessageQueueStore(
+                database,
+                cache,
+                logger,
+                SESSION_FOLLOW_UP_QUEUE_KEY_PREFIX
+            ),
+            customPrompts: new DatabaseBackedCustomPromptStore(database),
+            artifacts: new DatabaseBackedArtifactStore(blobStore),
+            runtimeEvents: new DatabaseBackedRuntimeEventStore(database),
+            toolExecutions: new DatabaseBackedToolExecutionStore(database),
+        },
+        {
+            async connect(): Promise<void> {
+                await cache.connect();
+                await database.connect();
+                await blobStore.connect();
+            },
+            async disconnect(): Promise<void> {
+                await Promise.all([
+                    cache.disconnect(),
+                    database.disconnect(),
+                    blobStore.disconnect(),
+                ]);
+            },
+            isConnected(): boolean {
+                return cache.isConnected() && database.isConnected() && blobStore.isConnected();
+            },
+        },
+        'backend'
+    );
+}
+
 const imageLocal: DextoImage = {
     metadata: {
         name: imageMetadata.name,
@@ -186,7 +293,6 @@ const imageLocal: DextoImage = {
                 description:
                     'Internal prompt used by the CLI plan mode toggle. This is injected into the first user message when plan mode is enabled.',
                 'user-invocable': false,
-                'disable-model-invocation': true,
                 prompt: [
                     'You are in PLAN MODE.',
                     '',
@@ -220,19 +326,8 @@ const imageLocal: DextoImage = {
         'agent-spawner': agentSpawnerToolsFactory,
     },
     storage: {
-        blob: {
-            local: localBlobStoreFactory,
-            'in-memory': inMemoryBlobStoreFactory,
-        },
-        database: {
-            sqlite: sqliteDatabaseFactory,
-            postgres: postgresDatabaseFactory,
-            'in-memory': inMemoryDatabaseFactory,
-        },
-        cache: {
-            'in-memory': inMemoryCacheFactory,
-            redis: redisCacheFactory,
-        },
+        configSchema: StorageSchema,
+        createStores: createLocalStores,
     },
     hooks: {
         'content-policy': contentPolicyFactory,
@@ -243,6 +338,16 @@ const imageLocal: DextoImage = {
         noop: noopCompactionFactory,
     },
     logger: defaultLoggerFactory,
+    workspace: {
+        create: () => new LocalWorkspaceHandleProvider(),
+    },
+    skills: {
+        create: (context) =>
+            createLocalSkillSources({
+                workspaceRoot: context?.hostContext?.workspaceRoot,
+            }),
+    },
 };
 
 export default imageLocal;
+export { LocalWorkspaceHandleProvider };

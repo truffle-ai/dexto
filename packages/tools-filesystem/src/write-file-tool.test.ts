@@ -13,6 +13,8 @@ import { FileSystemService } from './filesystem-service.js';
 import { ToolErrorCode } from '@dexto/core';
 import { DextoRuntimeError } from '@dexto/core';
 import type { Logger, ToolExecutionContext } from '@dexto/core';
+import type { ToolServices } from '@dexto/core/tools';
+import { WorkspaceError } from '@dexto/core/workspace';
 
 // Create mock logger
 const createMockLogger = (): Logger => {
@@ -35,9 +37,78 @@ const createMockLogger = (): Logger => {
 
 function createToolContext(
     logger: Logger,
-    overrides: Partial<ToolExecutionContext> = {}
+    overrides: Partial<ToolExecutionContext> = {},
+    workspaceRoot = currentWorkspaceRoot
 ): ToolExecutionContext {
-    return { logger, ...overrides };
+    return {
+        logger,
+        services: createWorkspaceServices(workspaceRoot),
+        ...overrides,
+    };
+}
+
+let currentWorkspaceRoot = process.cwd();
+
+function createWorkspaceServices(
+    workspaceRoot: string,
+    overrides: Partial<ToolServices['workspaceManager']> = {}
+): ToolServices {
+    const workspaceManager = {
+        open: vi.fn(async () => ({
+            context: {
+                id: 'test-workspace',
+                path: workspaceRoot,
+                createdAt: Date.now(),
+                lastActiveAt: Date.now(),
+            },
+            capabilities: ['files' as const],
+            files: {
+                readFile: async (filePath: string) => readWorkspaceFile(workspaceRoot, filePath),
+                readText: async (filePath: string) => readWorkspaceFile(workspaceRoot, filePath),
+                glob: vi.fn(async () => []),
+                writeFile: async (filePath: string, content: string) => {
+                    const resolvedPath = resolveWorkspacePath(workspaceRoot, filePath);
+                    await fs.mkdir(path.dirname(resolvedPath), { recursive: true });
+                    try {
+                        await fs.writeFile(resolvedPath, content, 'utf-8');
+                    } catch (error) {
+                        if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+                            throw WorkspaceError.fileNotFound(filePath);
+                        }
+                        throw error;
+                    }
+                },
+                listFiles: vi.fn(async () => []),
+            },
+        })),
+        ...overrides,
+    };
+
+    return {
+        approval: {} as ToolServices['approval'],
+        search: {} as ToolServices['search'],
+        resources: {} as ToolServices['resources'],
+        prompts: {} as ToolServices['prompts'],
+        skills: {} as ToolServices['skills'],
+        mcp: {} as ToolServices['mcp'],
+        taskForker: null,
+        workspaceManager: workspaceManager as unknown as ToolServices['workspaceManager'],
+    };
+}
+
+function resolveWorkspacePath(workspaceRoot: string, filePath: string): string {
+    return path.isAbsolute(filePath) ? filePath : path.join(workspaceRoot, filePath);
+}
+
+async function readWorkspaceFile(workspaceRoot: string, filePath: string): Promise<string> {
+    try {
+        return await fs.readFile(resolveWorkspacePath(workspaceRoot, filePath), 'utf-8');
+    } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+            throw WorkspaceError.fileNotFound(filePath);
+        }
+        throw error;
+    }
 }
 
 describe('write_file tool', () => {
@@ -65,6 +136,7 @@ describe('write_file tool', () => {
             mockLogger
         );
         await fileSystemService.initialize();
+        currentWorkspaceRoot = tempDir;
 
         vi.clearAllMocks();
     });
@@ -76,6 +148,207 @@ describe('write_file tool', () => {
         } catch {
             // Ignore cleanup errors
         }
+    });
+
+    it('writes through WorkspaceManager.open without FileSystemService execution', async () => {
+        const getFileSystemService = vi.fn(async () => {
+            throw new Error('write_file execute must not use FileSystemService');
+        });
+        const tool = createWriteFileTool(getFileSystemService);
+        const parsedInput = tool.inputSchema.parse({
+            file_path: 'workspace.txt',
+            content: 'workspace write',
+        });
+
+        const result = (await tool.execute(parsedInput, createToolContext(mockLogger))) as {
+            success: boolean;
+            path: string;
+        };
+
+        expect(getFileSystemService).not.toHaveBeenCalled();
+        expect(result).toMatchObject({ success: true, path: 'workspace.txt' });
+        await expect(fs.readFile(path.join(tempDir, 'workspace.txt'), 'utf-8')).resolves.toBe(
+            'workspace write'
+        );
+    });
+
+    it('creates missing parent directories by default', async () => {
+        const tool = createWriteFileTool(vi.fn());
+        const parsedInput = tool.inputSchema.parse({
+            file_path: 'missing-parent/file.txt',
+            content: 'content',
+        });
+
+        await expect(
+            tool.execute(parsedInput, createToolContext(mockLogger))
+        ).resolves.toMatchObject({
+            success: true,
+            path: 'missing-parent/file.txt',
+        });
+        await expect(
+            fs.readFile(path.join(tempDir, 'missing-parent', 'file.txt'), 'utf-8')
+        ).resolves.toBe('content');
+    });
+
+    it('rejects obsolete create_dirs input', async () => {
+        const tool = createWriteFileTool(vi.fn());
+
+        expect(() =>
+            tool.inputSchema.parse({
+                file_path: 'file.txt',
+                content: 'content',
+                create_dirs: true,
+            })
+        ).toThrow();
+    });
+
+    it('passes normalized workspace paths to the provider without write options', async () => {
+        const writeFile = vi.fn(async () => undefined);
+        const workspaceManager = {
+            open: vi.fn(async () => ({
+                context: {
+                    id: 'test-workspace',
+                    path: tempDir,
+                    createdAt: Date.now(),
+                    lastActiveAt: Date.now(),
+                },
+                capabilities: ['files' as const],
+                files: {
+                    readFile: vi.fn(async () => {
+                        throw WorkspaceError.fileNotFound('nested/file.txt');
+                    }),
+                    readText: vi.fn(async () => {
+                        throw WorkspaceError.fileNotFound('nested/file.txt');
+                    }),
+                    glob: vi.fn(async () => []),
+                    writeFile,
+                    listFiles: vi.fn(async () => []),
+                },
+            })),
+        };
+        const tool = createWriteFileTool(vi.fn());
+        const context = createToolContext(mockLogger, {
+            services: {
+                ...createWorkspaceServices(tempDir),
+                workspaceManager: workspaceManager as unknown as ToolServices['workspaceManager'],
+            },
+        });
+
+        await tool.execute(
+            tool.inputSchema.parse({
+                file_path: path.join(tempDir, 'nested', 'file.txt'),
+                content: 'content',
+            }),
+            context
+        );
+
+        expect(writeFile).toHaveBeenCalledWith('nested/file.txt', 'content');
+    });
+
+    it('generates file creation previews through WorkspaceManager.open in hosted mode', async () => {
+        const getFileSystemService = vi.fn(async () => {
+            throw new Error('write_file preview must not use FileSystemService in workspace mode');
+        });
+        const tool = createWriteFileTool(getFileSystemService);
+
+        const preview = await tool.presentation!.preview!(
+            tool.inputSchema.parse({
+                file_path: 'workspace-new.txt',
+                content: 'workspace content',
+            }),
+            createToolContext(mockLogger, { toolCallId: 'workspace-preview-create' })
+        );
+
+        expect(getFileSystemService).not.toHaveBeenCalled();
+        expect(preview).toMatchObject({
+            content: 'workspace content',
+            operation: 'create',
+            path: 'workspace-new.txt',
+            title: 'Create file',
+            type: 'file',
+        });
+    });
+
+    it('rejects external absolute paths before file provider calls', async () => {
+        const readText = vi.fn(async () => 'existing');
+        const writeFile = vi.fn(async () => undefined);
+        const workspaceManager = {
+            open: vi.fn(async () => ({
+                context: {
+                    id: 'test-workspace',
+                    path: tempDir,
+                    createdAt: Date.now(),
+                    lastActiveAt: Date.now(),
+                },
+                capabilities: ['files' as const],
+                files: {
+                    readFile: readText,
+                    readText,
+                    glob: vi.fn(async () => []),
+                    writeFile,
+                    listFiles: vi.fn(async () => []),
+                },
+            })),
+        };
+        const tool = createWriteFileTool(vi.fn());
+        const context = createToolContext(mockLogger, {
+            services: {
+                ...createWorkspaceServices(tempDir),
+                workspaceManager: workspaceManager as unknown as ToolServices['workspaceManager'],
+            },
+        });
+
+        await expect(
+            tool.execute(
+                tool.inputSchema.parse({ file_path: '/outside/file.txt', content: 'content' }),
+                context
+            )
+        ).rejects.toMatchObject({ code: ToolErrorCode.VALIDATION_FAILED });
+
+        expect(readText).not.toHaveBeenCalled();
+        expect(writeFile).not.toHaveBeenCalled();
+    });
+
+    it('propagates non-not-found read errors and does not overwrite', async () => {
+        const readError = new Error('permission denied');
+        const writeFile = vi.fn(async () => undefined);
+        const workspaceManager = {
+            open: vi.fn(async () => ({
+                context: {
+                    id: 'test-workspace',
+                    path: tempDir,
+                    createdAt: Date.now(),
+                    lastActiveAt: Date.now(),
+                },
+                capabilities: ['files' as const],
+                files: {
+                    readFile: vi.fn(async () => {
+                        throw readError;
+                    }),
+                    readText: vi.fn(async () => {
+                        throw readError;
+                    }),
+                    glob: vi.fn(async () => []),
+                    writeFile,
+                    listFiles: vi.fn(async () => []),
+                },
+            })),
+        };
+        const tool = createWriteFileTool(vi.fn());
+        const context = createToolContext(mockLogger, {
+            services: {
+                ...createWorkspaceServices(tempDir),
+                workspaceManager: workspaceManager as unknown as ToolServices['workspaceManager'],
+            },
+        });
+
+        await expect(
+            tool.execute(
+                tool.inputSchema.parse({ file_path: 'file.txt', content: 'content' }),
+                context
+            )
+        ).rejects.toBe(readError);
+        expect(writeFile).not.toHaveBeenCalled();
     });
 
     describe('File Modification Detection - Existing Files', () => {
@@ -99,7 +372,14 @@ describe('write_file tool', () => {
 
                 const preview = await tool.presentation!.preview!(
                     parsedInput,
-                    createToolContext(mockLogger, { toolCallId })
+                    createToolContext(mockLogger, {
+                        services: {
+                            ...createWorkspaceServices(tempDir),
+                            workspaceManager:
+                                undefined as unknown as ToolServices['workspaceManager'],
+                        },
+                        toolCallId,
+                    })
                 );
 
                 expect(preview).toBeDefined();
@@ -229,11 +509,10 @@ describe('write_file tool', () => {
     });
 
     describe('File Modification Detection - New Files', () => {
-        it('should expand home-directory shorthand when creating a file', async () => {
+        it('should create a workspace-relative file', async () => {
             const homeTempDir = await fs.mkdtemp(
                 path.join(os.homedir(), '.dexto-write-home-test-')
             );
-            const homeRelativeDir = `~/${path.basename(homeTempDir)}`;
             const fileSystemServiceForHome = new FileSystemService(
                 {
                     allowedPaths: [homeTempDir],
@@ -251,19 +530,20 @@ describe('write_file tool', () => {
 
             try {
                 const parsedInput = tool.inputSchema.parse({
-                    file_path: `${homeRelativeDir}/nested/new-file.txt`,
+                    file_path: 'nested/new-file.txt',
                     content: 'brand new content',
-                    create_dirs: true,
                 });
 
-                const result = (await tool.execute(parsedInput, createToolContext(mockLogger))) as {
-                    success: boolean;
-                    path: string;
-                };
+                const result = (await tool.execute(
+                    parsedInput,
+                    createToolContext(mockLogger, {}, homeTempDir)
+                )) as { success: boolean; path: string };
 
                 expect(result.success).toBe(true);
-                expect(result.path).toBe(path.join(homeTempDir, 'nested', 'new-file.txt'));
-                expect(await fs.readFile(result.path, 'utf-8')).toBe('brand new content');
+                expect(result.path).toBe('nested/new-file.txt');
+                expect(await fs.readFile(path.join(homeTempDir, result.path), 'utf-8')).toBe(
+                    'brand new content'
+                );
             } finally {
                 await fs.rm(homeTempDir, { recursive: true, force: true });
             }

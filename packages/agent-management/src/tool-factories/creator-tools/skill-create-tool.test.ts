@@ -23,19 +23,6 @@ function createMockLogger(): Logger {
     return logger;
 }
 
-function createMockAgent(existingPrompts: Array<{ type: 'file'; file: string }> = []) {
-    let prompts = [...existingPrompts];
-
-    return {
-        getEffectiveConfig: vi.fn(() => ({ prompts })),
-        refreshPrompts: vi.fn(async (nextPrompts) => {
-            prompts = Array.isArray(nextPrompts)
-                ? (nextPrompts as Array<{ type: 'file'; file: string }>)
-                : prompts;
-        }),
-    };
-}
-
 function getCreatorTool(id: 'skill_create' | 'skill_refresh') {
     const tools = creatorToolsFactory.create({
         type: 'creator-tools',
@@ -80,7 +67,6 @@ describe('skill_create tool', () => {
             scope: string;
             resourceDirectories: string[];
             notes: string[];
-            bundledMcpServers: string[];
         };
 
         expect(result.scope).toBe('workspace');
@@ -91,9 +77,8 @@ describe('skill_create tool', () => {
             path.join(tempDir, 'skills', 'release-check', 'mcps'),
             path.join(tempDir, 'skills', 'release-check', 'references'),
         ]);
-        expect(result.bundledMcpServers).toEqual([]);
         expect(result.notes).toContain(
-            'Creating or editing files under mcps/ only defines bundled MCP config. It does not implement or verify the target MCP server.'
+            'Files under mcps/ are inert bundled files. Configure MCP servers through normal MCP configuration paths.'
         );
 
         await expect(
@@ -131,7 +116,7 @@ describe('skill_create tool', () => {
                 '# Roll Dice via MCP',
                 '',
                 '## Purpose',
-                'Roll weighted dice through a bundled MCP tool.',
+                'Roll weighted dice through a bundled helper.',
             ].join('\n'),
         });
 
@@ -147,10 +132,76 @@ describe('skill_create tool', () => {
         expect(skillMarkdown).not.toContain('# Roll Dice via MCP');
     });
 
-    it('refreshes one skill bundle so later mcps/ edits are visible in the current session', async () => {
+    it('rejects dead allowed-tools and toolkits skill metadata', async () => {
+        const tool = getCreatorTool('skill_create');
+
+        expect(() =>
+            tool.inputSchema.parse({
+                id: 'legacy-metadata',
+                description: 'Legacy metadata should not be accepted.',
+                content: 'Body.',
+                allowedTools: ['read_file'],
+            })
+        ).toThrow();
+        expect(() =>
+            tool.inputSchema.parse({
+                id: 'legacy-metadata',
+                description: 'Legacy metadata should not be accepted.',
+                content: 'Body.',
+                toolkits: ['creator-tools'],
+            })
+        ).toThrow();
+    });
+
+    it('does not preserve dead metadata when updating a skill', async () => {
+        const logger = createMockLogger();
+        const skillFile = path.join(tempDir, 'skills', 'legacy-metadata', 'SKILL.md');
+        await fs.mkdir(path.dirname(skillFile), { recursive: true });
+        await fs.writeFile(
+            skillFile,
+            [
+                '---',
+                'name: "legacy-metadata"',
+                'description: "Legacy metadata should be removed."',
+                'allowed-tools: ["read_file"]',
+                'toolkits: ["creator-tools"]',
+                '---',
+                '',
+                '# Legacy Metadata',
+                '',
+                'Old body.',
+            ].join('\n'),
+            'utf8'
+        );
+
+        const tool = creatorToolsFactory
+            .create({ type: 'creator-tools', enabledTools: ['skill_update'] })
+            .find((candidate) => candidate.id === 'skill_update');
+        expect(tool).toBeDefined();
+
+        await tool!.execute(
+            tool!.inputSchema.parse({
+                id: 'legacy-metadata',
+                content: 'New body.',
+            }),
+            {
+                logger,
+                workspace: { path: tempDir },
+                services: { skills: { refresh: vi.fn(async () => undefined) } },
+            } as unknown as ToolExecutionContext
+        );
+
+        const skillMarkdown = await fs.readFile(skillFile, 'utf8');
+        expect(skillMarkdown).not.toContain('allowed-tools');
+        expect(skillMarkdown).not.toContain('toolkits');
+    });
+
+    it('refreshes one skill bundle so later bundled file edits are visible in the current session', async () => {
         const logger = createMockLogger();
         const skillFile = path.join(tempDir, 'skills', 'release-check', 'SKILL.md');
-        const mockAgent = createMockAgent([{ type: 'file', file: skillFile }]);
+        const skillManager = {
+            refresh: vi.fn(async () => undefined),
+        };
 
         await fs.mkdir(path.join(tempDir, 'skills', 'release-check', 'mcps'), { recursive: true });
         await fs.writeFile(
@@ -187,7 +238,9 @@ describe('skill_create tool', () => {
 
         const context = {
             logger,
-            agent: mockAgent,
+            services: {
+                skills: skillManager,
+            },
             workspace: {
                 path: tempDir,
             },
@@ -200,17 +253,15 @@ describe('skill_create tool', () => {
 
         const result = (await tool.execute(input, context)) as {
             refreshed: boolean;
-            promptsRefreshed: boolean;
-            bundledMcpServers: string[];
+            skillsRefreshed: boolean;
             notes: string[];
         };
 
         expect(result.refreshed).toBe(true);
-        expect(result.promptsRefreshed).toBe(true);
-        expect(result.bundledMcpServers).toEqual(['release_echo']);
+        expect(result.skillsRefreshed).toBe(true);
         expect(result.notes).toContain(
-            'Bundled MCP config is present. Only describe the skill as shipping a real MCP when the config points at a bundled runnable server or a verified external command/package.'
+            'After editing SKILL.md or bundled files with non-creator tools, run skill_refresh so the current session sees the latest skill content.'
         );
-        expect(mockAgent.refreshPrompts).toHaveBeenCalledTimes(1);
+        expect(skillManager.refresh).toHaveBeenCalledTimes(1);
     });
 });

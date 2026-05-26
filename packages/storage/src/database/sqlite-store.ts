@@ -196,6 +196,30 @@ export class SQLiteStore implements Database {
         }
     }
 
+    async setIfAbsent<T>(key: string, value: T): Promise<{ value: T; inserted: boolean }> {
+        this.checkConnection();
+        try {
+            const serialized = JSON.stringify(value);
+            const result = this.db
+                .prepare('INSERT OR IGNORE INTO kv_store (key, value, updated_at) VALUES (?, ?, ?)')
+                .run(key, serialized, Date.now());
+
+            const row = this.db.prepare('SELECT value FROM kv_store WHERE key = ?').get(key) as
+                | { value: string }
+                | undefined;
+            return {
+                value: row ? JSON.parse(row.value) : value,
+                inserted: result.changes > 0,
+            };
+        } catch (error) {
+            throw StorageError.writeFailed(
+                'setIfAbsent',
+                error instanceof Error ? error.message : String(error),
+                { key }
+            );
+        }
+    }
+
     async delete(key: string): Promise<void> {
         this.checkConnection();
         try {

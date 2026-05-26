@@ -132,7 +132,7 @@ type ApprovalData = {
 const PendingApprovalSchema = z
     .object({
         approvalId: z.string().describe('The unique ID of the approval request'),
-        type: z.string().describe('The type of approval (tool_confirmation, elicitation, etc.)'),
+        type: z.string().describe('The type of approval (tool_approval, elicitation, etc.)'),
         sessionId: z.string().optional().describe('The session ID if applicable'),
         timeout: z.number().optional().describe('Timeout in milliseconds'),
         timestamp: z.string().describe('ISO timestamp when the request was created'),

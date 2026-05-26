@@ -5,7 +5,12 @@ title: "Custom Slash Commands"
 
 # Custom Slash Commands
 
-Custom slash commands (also called File Prompts) let you create reusable prompt templates that work like shortcuts in the Dexto CLI and Web UI. Think of them as your personal command library that you can invoke with a simple `/command-name` syntax.
+Custom slash commands are file prompts: reusable prompt templates that work like shortcuts in the
+Dexto CLI and Web UI. Think of them as your personal command library that you can invoke with a
+simple `/command-name` syntax.
+
+They are not skills. Skills live in `skills/<id>/SKILL.md` directories, are managed by
+`SkillManager`, and are listed with `/skills` or the server skill catalog API (`GET /api/skills`).
 
 ## What are Custom Slash Commands?
 
@@ -138,6 +143,8 @@ Shows commands from:
 - Global `~/.dexto/commands` directory
 - Connected MCP server prompts
 
+Skills do not appear in `/prompts`; use `/skills` for the skill catalog.
+
 ## Best Practices
 
 ✅ **DO:**
@@ -153,7 +160,10 @@ Shows commands from:
 
 ## How It Works
 
-Dexto's `ConfigPromptProvider` loads prompts from your agent configuration (both inline and file-based). For file-based prompts, it parses markdown files with frontmatter and registers them as slash commands. When invoked, placeholders expand with your arguments and send to the LLM.
+Dexto's `PromptManager` loads prompts from your agent configuration, command files, custom prompt
+storage, and MCP prompt providers. For file-based prompts, it parses markdown files with frontmatter
+and registers them as slash commands. When invoked, placeholders expand with your arguments and send
+the resolved prompt text to the LLM.
 
 ## Troubleshooting
 

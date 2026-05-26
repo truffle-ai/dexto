@@ -22,6 +22,116 @@
         "./utils/path.js": {
             "import": "./dist/utils/path.js",
             "require": "./dist/utils/path.cjs"
+        },
+        "./agent": {
+            "types": "./dist/agent/index.d.ts",
+            "import": "./dist/agent/index.js",
+            "require": "./dist/agent/index.cjs"
+        },
+        "./approval": {
+            "types": "./dist/approval/index.d.ts",
+            "import": "./dist/approval/index.js",
+            "require": "./dist/approval/index.cjs"
+        },
+        "./config": {
+            "types": "./dist/config/index.d.ts",
+            "import": "./dist/config/index.js",
+            "require": "./dist/config/index.cjs"
+        },
+        "./context": {
+            "types": "./dist/context/index.d.ts",
+            "import": "./dist/context/index.js",
+            "require": "./dist/context/index.cjs"
+        },
+        "./context/compaction": {
+            "types": "./dist/context/compaction/index.d.ts",
+            "import": "./dist/context/compaction/index.js",
+            "require": "./dist/context/compaction/index.cjs"
+        },
+        "./errors": {
+            "types": "./dist/errors/index.d.ts",
+            "import": "./dist/errors/index.js",
+            "require": "./dist/errors/index.cjs"
+        },
+        "./events": {
+            "types": "./dist/events/index.d.ts",
+            "import": "./dist/events/index.js",
+            "require": "./dist/events/index.cjs"
+        },
+        "./hooks": {
+            "types": "./dist/hooks/index.d.ts",
+            "import": "./dist/hooks/index.js",
+            "require": "./dist/hooks/index.cjs"
+        },
+        "./logger": {
+            "types": "./dist/logger/index.d.ts",
+            "import": "./dist/logger/index.js",
+            "require": "./dist/logger/index.cjs"
+        },
+        "./llm": {
+            "types": "./dist/llm/index.d.ts",
+            "import": "./dist/llm/index.js",
+            "require": "./dist/llm/index.cjs"
+        },
+        "./mcp": {
+            "types": "./dist/mcp/index.d.ts",
+            "import": "./dist/mcp/index.js",
+            "require": "./dist/mcp/index.cjs"
+        },
+        "./memory": {
+            "types": "./dist/memory/index.d.ts",
+            "import": "./dist/memory/index.js",
+            "require": "./dist/memory/index.cjs"
+        },
+        "./prompts": {
+            "types": "./dist/prompts/index.d.ts",
+            "import": "./dist/prompts/index.js",
+            "require": "./dist/prompts/index.cjs"
+        },
+        "./resources": {
+            "types": "./dist/resources/index.d.ts",
+            "import": "./dist/resources/index.js",
+            "require": "./dist/resources/index.cjs"
+        },
+        "./runtime": {
+            "types": "./dist/runtime/index.d.ts",
+            "import": "./dist/runtime/index.js",
+            "require": "./dist/runtime/index.cjs"
+        },
+        "./search": {
+            "types": "./dist/search/index.d.ts",
+            "import": "./dist/search/index.js",
+            "require": "./dist/search/index.cjs"
+        },
+        "./skills": {
+            "types": "./dist/skills/index.d.ts",
+            "import": "./dist/skills/index.js",
+            "require": "./dist/skills/index.cjs"
+        },
+        "./session": {
+            "types": "./dist/session/index.d.ts",
+            "import": "./dist/session/index.js",
+            "require": "./dist/session/index.cjs"
+        },
+        "./storage": {
+            "types": "./dist/storage/index.d.ts",
+            "import": "./dist/storage/index.js",
+            "require": "./dist/storage/index.cjs"
+        },
+        "./systemPrompt": {
+            "types": "./dist/systemPrompt/index.d.ts",
+            "import": "./dist/systemPrompt/index.js",
+            "require": "./dist/systemPrompt/index.cjs"
+        },
+        "./tools": {
+            "types": "./dist/tools/index.d.ts",
+            "import": "./dist/tools/index.js",
+            "require": "./dist/tools/index.cjs"
+        },
+        "./workspace": {
+            "types": "./dist/workspace/index.d.ts",
+            "import": "./dist/workspace/index.js",
+            "require": "./dist/workspace/index.cjs"
         }
     },
     "dependencies": {
@@ -129,5 +239,5 @@
     "publishConfig": {
         "access": "public"
     },
-    "sideEffects": false
+    "sideEffects": ["./dist/chunk-*.js"]
 }

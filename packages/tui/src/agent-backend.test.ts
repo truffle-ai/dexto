@@ -5,8 +5,24 @@ import {
     type TuiAgentCapabilities,
 } from './agent-backend.js';
 
-function createAgent(capabilities?: TuiAgentCapabilities): TuiAgentBackend {
-    return { capabilities } as unknown as TuiAgentBackend;
+function createAgent(
+    capabilities?: TuiAgentCapabilities,
+    options: { hasSkillManager?: boolean } = {}
+): TuiAgentBackend {
+    return {
+        capabilities,
+        ...(options.hasSkillManager
+            ? {
+                  skillManager: {
+                      list: async () => [],
+                      get: async () => null,
+                      readFile: async () => null,
+                      invoke: async () => null,
+                      refresh: async () => {},
+                  },
+              }
+            : {}),
+    } as unknown as TuiAgentBackend;
 }
 
 describe('isCommandSupported', () => {
@@ -34,5 +50,23 @@ describe('isCommandSupported', () => {
         const agent = createAgent({ prompts: false });
 
         expect(isCommandSupported(agent, 'help', { name: 'help', aliases: ['h'] })).toBe(true);
+    });
+
+    it('gates skill commands separately from prompt commands', () => {
+        const promptlessAgent = createAgent({ prompts: false }, { hasSkillManager: true });
+        const skilllessAgent = createAgent({ skills: false }, { hasSkillManager: true });
+
+        expect(isCommandSupported(promptlessAgent, 'skills', { name: 'skills', aliases: [] })).toBe(
+            true
+        );
+        expect(isCommandSupported(skilllessAgent, 'skills', { name: 'skills', aliases: [] })).toBe(
+            false
+        );
+    });
+
+    it('requires a real SkillManager for skill commands', () => {
+        const agent = createAgent();
+
+        expect(isCommandSupported(agent, 'skills', { name: 'skills', aliases: [] })).toBe(false);
     });
 });

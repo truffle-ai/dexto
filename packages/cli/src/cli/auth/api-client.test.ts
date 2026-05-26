@@ -304,4 +304,90 @@ describe('DextoApiClient', () => {
 
         expect(result).toEqual({ status: 'transientError' });
     });
+
+    it('parses Cloudflare device auth start and approved poll responses', async () => {
+        const fetchMock = vi
+            .fn()
+            .mockResolvedValueOnce(
+                createJsonResponse({
+                    deviceCode: 'device-code',
+                    userCode: 'ABCD-EFGH',
+                    verificationUri: 'http://localhost:8787/auth/device',
+                    verificationUriComplete:
+                        'http://localhost:8787/auth/device?user_code=ABCD-EFGH',
+                    expiresIn: 300,
+                    interval: 2,
+                })
+            )
+            .mockResolvedValueOnce(
+                createJsonResponse({
+                    status: 'approved',
+                    fullKey: 'dxt_full_key',
+                    apiKey: {
+                        id: 'key-id',
+                        keyDisplay: 'dxt_abc...',
+                        name: 'Dexto CLI Key',
+                        scopes: ['gateway:use'],
+                        status: 'active',
+                    },
+                })
+            );
+        vi.stubGlobal('fetch', fetchMock);
+
+        const client = new DextoApiClient('http://localhost:8787');
+
+        await expect(client.startDeviceCodeLogin('dexto-cli')).resolves.toEqual({
+            deviceCode: 'device-code',
+            userCode: 'ABCD-EFGH',
+            verificationUrl: 'http://localhost:8787/auth/device',
+            verificationUrlComplete: 'http://localhost:8787/auth/device?user_code=ABCD-EFGH',
+            expiresIn: 300,
+            interval: 2,
+        });
+        await expect(client.pollDeviceCodeLogin('device-code')).resolves.toEqual({
+            status: 'approved',
+            apiKey: {
+                id: 'key-id',
+                keyDisplay: 'dxt_abc...',
+                name: 'Dexto CLI Key',
+                scopes: ['gateway:use'],
+                status: 'active',
+                fullKey: 'dxt_full_key',
+            },
+        });
+
+        expect(fetchMock).toHaveBeenNthCalledWith(
+            1,
+            'http://localhost:8787/api/auth/device/start',
+            expect.objectContaining({
+                method: 'POST',
+                body: JSON.stringify({ client: 'dexto-cli' }),
+            })
+        );
+        expect(fetchMock).toHaveBeenNthCalledWith(
+            2,
+            'http://localhost:8787/api/auth/device/poll',
+            expect.objectContaining({
+                method: 'POST',
+                body: JSON.stringify({ deviceCode: 'device-code' }),
+            })
+        );
+    });
+
+    it('throws when an approved device poll response is missing key material', async () => {
+        vi.stubGlobal(
+            'fetch',
+            vi.fn().mockResolvedValue(
+                createJsonResponse({
+                    status: 'approved',
+                })
+            )
+        );
+
+        const client = new DextoApiClient('http://localhost:8787');
+
+        await expect(client.pollDeviceCodeLogin('device-code')).rejects.toThrow(
+            'Device login approved response missing API key fields'
+        );
+    });
 });

@@ -67,6 +67,7 @@ export const FORWARDED_SESSION_EVENT_NAMES = [
     'llm:tool-call',
     'llm:tool-call-partial',
     'llm:tool-result',
+    'llm:retrying',
     'llm:error',
     'llm:unsupported-input',
     'tool:running',
@@ -120,6 +121,7 @@ export const STREAMING_EVENTS = [
     'llm:tool-call',
     'llm:tool-call-partial',
     'llm:tool-result',
+    'llm:retrying',
     'llm:error',
     'llm:unsupported-input',
 
@@ -141,7 +143,7 @@ export const STREAMING_EVENTS = [
     // Session metadata
     'session:title-updated',
 
-    // Approval events (needed for tool confirmation in streaming UIs)
+    // Approval events (needed for tool approval in streaming UIs)
     'approval:request',
     'approval:response',
 
@@ -517,7 +519,7 @@ interface SessionEventMapBase {
         meta?: ToolCallMetadata;
         /** Optional user-facing description from tool call metadata (e.g., __meta.callDescription) */
         callDescription?: string;
-        callId?: string;
+        callId: string;
     };
 
     /** LLM service streamed partial tool input */
@@ -526,7 +528,7 @@ interface SessionEventMapBase {
         args: Record<string, any>;
         /** Optional user-facing description from tool call metadata (e.g., __meta.callDescription) */
         callDescription?: string;
-        callId?: string;
+        callId: string;
         isComplete?: boolean;
     };
 
@@ -537,7 +539,7 @@ interface SessionEventMapBase {
         presentationSnapshot?: ToolPresentationSnapshotV1;
         /** Optional non-execution metadata from the reserved __meta wrapper */
         meta?: ToolCallMetadata;
-        callId?: string;
+        callId: string;
         success: boolean;
         /** Sanitized result - present when success=true */
         sanitized?: SanitizedToolResult;
@@ -563,6 +565,16 @@ interface SessionEventMapBase {
         recoverable?: boolean;
         /** Tool call ID if error occurred during tool execution */
         toolCallId?: string;
+    };
+
+    /** LLM request failed transiently and will be retried by the executor */
+    'llm:retrying': {
+        error: Error;
+        context: string;
+        attempt: number;
+        maxRetries: number;
+        provider: LLMProvider;
+        model: string;
     };
 
     /** LLM service switched */
@@ -608,12 +620,14 @@ interface SessionEventMapBase {
     'message:queued': {
         position: number;
         id: string;
+        queue: 'steer' | 'follow-up';
     };
 
     /** Queued messages were dequeued and injected into context */
     'message:dequeued': {
         count: number;
         ids: string[];
+        queue: 'steer' | 'follow-up';
         coalesced: boolean;
         /** Combined content of all dequeued messages (for UI display) */
         content: import('../context/types.js').ContentPart[];
@@ -624,6 +638,7 @@ interface SessionEventMapBase {
     /** Queued message was removed from queue */
     'message:removed': {
         id: string;
+        queue: 'steer' | 'follow-up';
     };
 
     /** Agent run completed (all steps done, no queued messages remaining) */
@@ -945,6 +960,12 @@ export function forwardSessionEventsToAgentBus({
     on('llm:tool-result', (payload) => {
         agentEventBus.emit(
             'llm:tool-result',
+            withForwardedSessionContext(payload, sessionId, hostRuntime)
+        );
+    });
+    on('llm:retrying', (payload) => {
+        agentEventBus.emit(
+            'llm:retrying',
             withForwardedSessionContext(payload, sessionId, hostRuntime)
         );
     });

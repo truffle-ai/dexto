@@ -1,30 +1,24 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { MemoryManager } from './manager.js';
-import type { Database } from '../storage/database/types.js';
+import type { MemoryStore } from '../storage/memories/types.js';
 import type { CreateMemoryInput, UpdateMemoryInput } from './types.js';
 import { createMockLogger } from '../logger/v2/test-utils.js';
 
 describe('MemoryManager', () => {
     let memoryManager: MemoryManager;
-    let mockDatabase: Database;
+    let mockMemoryStore: MemoryStore;
     const mockLogger = createMockLogger();
 
     beforeEach(() => {
-        // Create a mock database
-        mockDatabase = {
+        mockMemoryStore = {
+            create: vi.fn(),
             get: vi.fn(),
-            set: vi.fn(),
+            update: vi.fn(),
             delete: vi.fn(),
             list: vi.fn(),
-            append: vi.fn(),
-            getRange: vi.fn(),
-            connect: vi.fn(),
-            disconnect: vi.fn(),
-            isConnected: vi.fn(),
-            getStoreType: vi.fn(),
         };
 
-        memoryManager = new MemoryManager(mockDatabase, mockLogger);
+        memoryManager = new MemoryManager(mockMemoryStore, mockLogger);
     });
 
     describe('create', () => {
@@ -35,7 +29,7 @@ describe('MemoryManager', () => {
                 metadata: { source: 'user' },
             };
 
-            vi.mocked(mockDatabase.set).mockResolvedValue(undefined);
+            vi.mocked(mockMemoryStore.create).mockResolvedValue(undefined);
 
             const memory = await memoryManager.create(input);
 
@@ -47,10 +41,9 @@ describe('MemoryManager', () => {
             expect(memory.createdAt).toBeDefined();
             expect(memory.updatedAt).toBeDefined();
             expect(memory.metadata?.source).toBe('user');
-            expect(mockDatabase.set).toHaveBeenCalledWith(
-                expect.stringContaining('memory:item:'),
-                expect.objectContaining({ content: 'Test memory content' })
-            );
+            expect(mockMemoryStore.create).toHaveBeenCalledWith({
+                memory: expect.objectContaining({ content: 'Test memory content' }),
+            });
         });
 
         it('should create a memory without optional fields', async () => {
@@ -58,7 +51,7 @@ describe('MemoryManager', () => {
                 content: 'Simple memory',
             };
 
-            vi.mocked(mockDatabase.set).mockResolvedValue(undefined);
+            vi.mocked(mockMemoryStore.create).mockResolvedValue(undefined);
 
             const memory = await memoryManager.create(input);
 
@@ -80,7 +73,7 @@ describe('MemoryManager', () => {
                 content: 'Test memory',
             };
 
-            vi.mocked(mockDatabase.set).mockRejectedValue(new Error('Database error'));
+            vi.mocked(mockMemoryStore.create).mockRejectedValue(new Error('Database error'));
 
             await expect(memoryManager.create(input)).rejects.toThrow('Memory storage error');
         });
@@ -95,16 +88,16 @@ describe('MemoryManager', () => {
                 updatedAt: Date.now(),
             };
 
-            vi.mocked(mockDatabase.get).mockResolvedValue(mockMemory);
+            vi.mocked(mockMemoryStore.get).mockResolvedValue(mockMemory);
 
             const memory = await memoryManager.get('test-id');
 
             expect(memory).toEqual(mockMemory);
-            expect(mockDatabase.get).toHaveBeenCalledWith('memory:item:test-id');
+            expect(mockMemoryStore.get).toHaveBeenCalledWith({ id: 'test-id' });
         });
 
         it('should throw not found error for non-existent memory', async () => {
-            vi.mocked(mockDatabase.get).mockResolvedValue(undefined);
+            vi.mocked(mockMemoryStore.get).mockResolvedValue(undefined);
 
             await expect(memoryManager.get('non-existent')).rejects.toThrow('Memory not found');
         });
@@ -127,8 +120,8 @@ describe('MemoryManager', () => {
                 content: 'Updated content',
             };
 
-            vi.mocked(mockDatabase.get).mockResolvedValue(existingMemory);
-            vi.mocked(mockDatabase.set).mockResolvedValue(undefined);
+            vi.mocked(mockMemoryStore.get).mockResolvedValue(existingMemory);
+            vi.mocked(mockMemoryStore.update).mockResolvedValue(undefined);
 
             const updatedMemory = await memoryManager.update('test-id', updates);
 
@@ -150,8 +143,8 @@ describe('MemoryManager', () => {
                 tags: ['new-tag', 'another-tag'],
             };
 
-            vi.mocked(mockDatabase.get).mockResolvedValue(existingMemory);
-            vi.mocked(mockDatabase.set).mockResolvedValue(undefined);
+            vi.mocked(mockMemoryStore.get).mockResolvedValue(existingMemory);
+            vi.mocked(mockMemoryStore.update).mockResolvedValue(undefined);
 
             const updatedMemory = await memoryManager.update('test-id', updates);
 
@@ -176,8 +169,8 @@ describe('MemoryManager', () => {
                 },
             };
 
-            vi.mocked(mockDatabase.get).mockResolvedValue(existingMemory);
-            vi.mocked(mockDatabase.set).mockResolvedValue(undefined);
+            vi.mocked(mockMemoryStore.get).mockResolvedValue(existingMemory);
+            vi.mocked(mockMemoryStore.update).mockResolvedValue(undefined);
 
             const updatedMemory = await memoryManager.update('test-id', updates);
 
@@ -198,16 +191,16 @@ describe('MemoryManager', () => {
                 updatedAt: Date.now(),
             };
 
-            vi.mocked(mockDatabase.get).mockResolvedValue(existingMemory);
-            vi.mocked(mockDatabase.delete).mockResolvedValue(undefined);
+            vi.mocked(mockMemoryStore.get).mockResolvedValue(existingMemory);
+            vi.mocked(mockMemoryStore.delete).mockResolvedValue(undefined);
 
             await memoryManager.delete('test-id');
 
-            expect(mockDatabase.delete).toHaveBeenCalledWith('memory:item:test-id');
+            expect(mockMemoryStore.delete).toHaveBeenCalledWith({ id: 'test-id' });
         });
 
         it('should throw error if memory does not exist', async () => {
-            vi.mocked(mockDatabase.get).mockResolvedValue(undefined);
+            vi.mocked(mockMemoryStore.get).mockResolvedValue(undefined);
 
             await expect(memoryManager.delete('non-existent')).rejects.toThrow('Memory not found');
         });
@@ -230,13 +223,7 @@ describe('MemoryManager', () => {
                 },
             ];
 
-            vi.mocked(mockDatabase.list).mockResolvedValue([
-                'memory:item:mem-1',
-                'memory:item:mem-2',
-            ]);
-            vi.mocked(mockDatabase.get)
-                .mockResolvedValueOnce(mockMemories[0])
-                .mockResolvedValueOnce(mockMemories[1]);
+            vi.mocked(mockMemoryStore.list).mockResolvedValue(mockMemories);
 
             const memories = await memoryManager.list();
 
@@ -264,13 +251,7 @@ describe('MemoryManager', () => {
                 },
             ];
 
-            vi.mocked(mockDatabase.list).mockResolvedValue([
-                'memory:item:mem-1',
-                'memory:item:mem-2',
-            ]);
-            vi.mocked(mockDatabase.get)
-                .mockResolvedValueOnce(mockMemories[0])
-                .mockResolvedValueOnce(mockMemories[1]);
+            vi.mocked(mockMemoryStore.list).mockResolvedValue(mockMemories);
 
             const memories = await memoryManager.list({ tags: ['work'] });
 
@@ -286,12 +267,7 @@ describe('MemoryManager', () => {
                 updatedAt: Date.now() - (5 - i) * 1000,
             }));
 
-            vi.mocked(mockDatabase.list).mockResolvedValue(
-                mockMemories.map((m) => `memory:item:${m.id}`)
-            );
-            mockMemories.forEach((mem) => {
-                vi.mocked(mockDatabase.get).mockResolvedValueOnce(mem);
-            });
+            vi.mocked(mockMemoryStore.list).mockResolvedValue(mockMemories);
 
             const memories = await memoryManager.list({ limit: 2, offset: 1 });
 
@@ -304,7 +280,7 @@ describe('MemoryManager', () => {
 
     describe('has', () => {
         it('should return true for existing memory', async () => {
-            vi.mocked(mockDatabase.get).mockResolvedValue({
+            vi.mocked(mockMemoryStore.get).mockResolvedValue({
                 id: 'test-id',
                 content: 'Test',
                 createdAt: Date.now(),
@@ -317,7 +293,7 @@ describe('MemoryManager', () => {
         });
 
         it('should return false for non-existent memory', async () => {
-            vi.mocked(mockDatabase.get).mockResolvedValue(undefined);
+            vi.mocked(mockMemoryStore.get).mockResolvedValue(undefined);
 
             const exists = await memoryManager.has('non-existent');
 
@@ -334,12 +310,7 @@ describe('MemoryManager', () => {
                 updatedAt: Date.now(),
             }));
 
-            vi.mocked(mockDatabase.list).mockResolvedValue(
-                mockMemories.map((m) => `memory:item:${m.id}`)
-            );
-            mockMemories.forEach((mem) => {
-                vi.mocked(mockDatabase.get).mockResolvedValueOnce(mem);
-            });
+            vi.mocked(mockMemoryStore.list).mockResolvedValue(mockMemories);
 
             const count = await memoryManager.count();
 

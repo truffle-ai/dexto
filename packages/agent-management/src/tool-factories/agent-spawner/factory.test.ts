@@ -163,7 +163,7 @@ describe('agentSpawnerToolsFactory', () => {
                 backgroundListeners.set(event, listener);
             }),
             isSessionBusy: vi.fn().mockResolvedValue(false),
-            queueMessage: vi.fn(),
+            steer: vi.fn().mockResolvedValue({ queued: true, position: 1, id: 'queued-1' }),
             generate: vi.fn().mockResolvedValue({}),
         };
 

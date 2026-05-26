@@ -5,7 +5,7 @@
  * llm:error, run:complete, message:dequeued) are handled via agent.stream() iterator in processStream.
  *
  * This hook handles:
- * - approval:request - Tool/command confirmation requests
+ * - approval:request - Tool/command approval requests
  * - llm:switched - Model change notifications
  * - session:reset - Conversation reset
  * - session:created - New session creation (e.g., from /clear)
@@ -43,6 +43,7 @@ interface UseAgentEventsProps {
     setInput: React.Dispatch<React.SetStateAction<InputState>>;
     setApproval: React.Dispatch<React.SetStateAction<ApprovalRequest | null>>;
     setApprovalQueue: React.Dispatch<React.SetStateAction<ApprovalRequest[]>>;
+    setSteerMessages: React.Dispatch<React.SetStateAction<QueuedMessage[]>>;
     setQueuedMessages: React.Dispatch<React.SetStateAction<QueuedMessage[]>>;
     /** Current session ID for filtering events */
     currentSessionId: string | null;
@@ -75,6 +76,7 @@ export function useAgentEvents({
     setInput,
     setApproval,
     setApprovalQueue,
+    setSteerMessages,
     setQueuedMessages,
     currentSessionId,
     buffer,
@@ -92,6 +94,24 @@ export function useAgentEvents({
 
         // Increase listener limit for safety (added more for external trigger events)
         setMaxListeners(25, signal);
+
+        const syncQueue = (sessionId: string, queue: 'steer' | 'follow-up'): void => {
+            const getMessages =
+                queue === 'steer'
+                    ? agent.getSteerMessages(sessionId)
+                    : agent.getFollowUpMessages(sessionId);
+            void getMessages
+                .then((messages) => {
+                    if (queue === 'steer') {
+                        setSteerMessages(messages);
+                    } else {
+                        setQueuedMessages(messages);
+                    }
+                })
+                .catch(() => {
+                    // Silently ignore - queue state will sync on next event
+                });
+        };
 
         // NOTE: approval:request is now handled in processStream (via iterator) for proper
         // event ordering. Direct bus subscription here caused a race condition where
@@ -243,6 +263,7 @@ export function useAgentEvents({
                 setMessages([]);
                 setApproval(null);
                 setApprovalQueue([]);
+                setSteerMessages([]);
                 setQueuedMessages([]);
                 setUi((prev) => ({
                     ...prev,
@@ -270,6 +291,7 @@ export function useAgentEvents({
                     setPendingMessages([]);
                     setApproval(null);
                     setApprovalQueue([]);
+                    setSteerMessages([]);
                     setQueuedMessages([]);
 
                     // Reset input state including history (up/down arrow) and Ctrl+R search state
@@ -281,6 +303,7 @@ export function useAgentEvents({
                         history: [],
                         historyIndex: -1,
                         draftBeforeHistory: '',
+                        editingQueuedFollowUp: false,
                         images: [],
                         pastedBlocks: [],
                         pasteCounter: 0,
@@ -323,6 +346,7 @@ export function useAgentEvents({
             () => {
                 setApproval(null);
                 setApprovalQueue([]);
+                setSteerMessages([]);
                 setQueuedMessages([]);
                 setUi((prev) => ({
                     ...prev,
@@ -380,20 +404,12 @@ export function useAgentEvents({
             { signal }
         );
 
-        // Handle message queued - fetch full queue state from agent
+        // Handle message queued - fetch the queue that changed so preview content stays fresh
         agent.on(
             'message:queued',
             (payload) => {
                 if (!payload.sessionId) return;
-                // Fetch fresh queue state from agent to ensure consistency
-                agent
-                    .getQueuedMessages(payload.sessionId)
-                    .then((messages) => {
-                        setQueuedMessages(messages);
-                    })
-                    .catch(() => {
-                        // Silently ignore - queue state will sync on next event
-                    });
+                syncQueue(payload.sessionId, payload.queue);
             },
             { signal }
         );
@@ -402,7 +418,15 @@ export function useAgentEvents({
         agent.on(
             'message:removed',
             (payload) => {
-                setQueuedMessages((prev) => prev.filter((m) => m.id !== payload.id));
+                if (!payload.sessionId) {
+                    if (payload.queue === 'steer') {
+                        setSteerMessages((prev) => prev.filter((m) => m.id !== payload.id));
+                    } else {
+                        setQueuedMessages((prev) => prev.filter((m) => m.id !== payload.id));
+                    }
+                    return;
+                }
+                syncQueue(payload.sessionId, payload.queue);
             },
             { signal }
         );
@@ -595,6 +619,7 @@ export function useAgentEvents({
         setInput,
         setApproval,
         setApprovalQueue,
+        setSteerMessages,
         setQueuedMessages,
         currentSessionId,
         buffer,

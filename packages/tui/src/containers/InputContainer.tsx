@@ -23,6 +23,7 @@ import type {
 } from '../state/types.js';
 import { createUserMessage } from '../utils/messageFormatting.js';
 import { generateMessageId } from '../utils/idGenerator.js';
+import { restoreQueuedContentForComposer } from '../utils/queuedComposerContent.js';
 import type { ApprovalRequest } from '../components/ApprovalPrompt.js';
 import type { TextBuffer } from '../components/shared/text-buffer.js';
 import { captureAnalytics } from '../host/index.js';
@@ -52,7 +53,9 @@ interface InputContainerProps {
     /** If provided, auto-submits once when the UI is ready */
     initialPrompt?: string | undefined;
     approval: ApprovalRequest | null;
-    /** Queued messages waiting to be processed */
+    /** Active-turn input waiting for the next executor boundary */
+    steerMessages: QueuedMessage[];
+    /** Follow-up messages waiting to run after the current turn */
     queuedMessages: QueuedMessage[];
     setInput: React.Dispatch<React.SetStateAction<InputState>>;
     setUi: React.Dispatch<React.SetStateAction<UIState>>;
@@ -63,7 +66,9 @@ interface InputContainerProps {
     setPendingMessages: React.Dispatch<React.SetStateAction<Message[]>>;
     /** Setter for dequeued buffer (user messages waiting to render after pending) */
     setDequeuedBuffer: React.Dispatch<React.SetStateAction<Message[]>>;
-    /** Setter for queued messages */
+    /** Setter for active-turn steer messages */
+    setSteerMessages: React.Dispatch<React.SetStateAction<QueuedMessage[]>>;
+    /** Setter for queued follow-up messages */
     setQueuedMessages: React.Dispatch<React.SetStateAction<QueuedMessage[]>>;
     /** Setter for current approval request (for approval UI via processStream) */
     setApproval: React.Dispatch<React.SetStateAction<ApprovalRequest | null>>;
@@ -94,6 +99,7 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
             session,
             initialPrompt,
             approval,
+            steerMessages,
             queuedMessages,
             setInput,
             setUi,
@@ -101,6 +107,7 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
             setMessages,
             setPendingMessages,
             setDequeuedBuffer,
+            setSteerMessages,
             setQueuedMessages,
             setApproval,
             setApprovalQueue,
@@ -115,6 +122,8 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
     ) {
         // Track pending session creation to prevent race conditions
         const sessionCreationPromiseRef = useRef<Promise<SessionCreationResult> | null>(null);
+        const queuedEditPendingRef = useRef(false);
+        const [isQueuedEditPending, setIsQueuedEditPending] = React.useState(false);
 
         const didAutoSubmitInitialPromptRef = useRef(false);
 
@@ -140,34 +149,94 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
             }
         }, [session.id]);
 
-        // Extract text content from ContentPart[]
-        const extractTextFromContent = useCallback((content: ContentPart[]): string => {
-            return content
-                .filter((part): part is TextPart => part.type === 'text')
-                .map((part) => part.text)
-                .join('\n');
-        }, []);
+        const popQueuedMessageForEdit = useCallback(
+            async (
+                message: QueuedMessage,
+                editingQueuedFollowUp: boolean,
+                removeMessage: () => Promise<boolean>
+            ): Promise<void> => {
+                if (queuedEditPendingRef.current) {
+                    return;
+                }
+
+                const result = restoreQueuedContentForComposer(message);
+                if (!result.ok) {
+                    setMessages((prev) => [
+                        ...prev,
+                        {
+                            id: generateMessageId('system'),
+                            role: 'system',
+                            content: result.reason,
+                            timestamp: new Date(),
+                        },
+                    ]);
+                    return;
+                }
+
+                queuedEditPendingRef.current = true;
+                setIsQueuedEditPending(true);
+                let removed = false;
+                try {
+                    removed = await removeMessage();
+
+                    if (!removed) {
+                        setMessages((prev) => [
+                            ...prev,
+                            {
+                                id: generateMessageId('system'),
+                                role: 'system',
+                                content:
+                                    'Queued input could not be edited because it is no longer pending.',
+                                timestamp: new Date(),
+                            },
+                        ]);
+                        return;
+                    }
+
+                    buffer.setText(result.composer.text);
+                    setInput((prev) => ({
+                        ...prev,
+                        value: result.composer.text,
+                        images: result.composer.images,
+                        pastedBlocks: [],
+                        historyIndex: -1,
+                        draftBeforeHistory: '',
+                        editingQueuedFollowUp,
+                    }));
+                } catch {
+                    setMessages((prev) => [
+                        ...prev,
+                        {
+                            id: generateMessageId('system'),
+                            role: 'system',
+                            content: 'Queued input could not be edited. Try again.',
+                            timestamp: new Date(),
+                        },
+                    ]);
+                } finally {
+                    queuedEditPendingRef.current = false;
+                    setIsQueuedEditPending(false);
+                }
+            },
+            [buffer, setInput, setMessages]
+        );
 
         // Handle history navigation - set text directly on buffer
-        // Up arrow first edits queued messages (removes from queue), then navigates history
+        // Up arrow first edits queued follow-ups (removes from follow-up queue), then navigates history
         const handleHistoryNavigate = useCallback(
             (direction: 'up' | 'down') => {
                 const { history, historyIndex, draftBeforeHistory } = input;
 
                 if (direction === 'up') {
-                    // First check if there are queued messages to edit
+                    // First check if there are queued follow-ups to edit
                     if (queuedMessages.length > 0 && session.id) {
+                        const sessionId = session.id;
                         // Get the last queued message
                         const lastQueued = queuedMessages[queuedMessages.length - 1];
                         if (lastQueued) {
-                            // Extract text content and put it in the input
-                            const text = extractTextFromContent(lastQueued.content);
-                            buffer.setText(text);
-                            setInput((prev) => ({ ...prev, value: text }));
-                            // Remove from queue (this will trigger the event and update queuedMessages state)
-                            agent.removeQueuedMessage(session.id, lastQueued.id).catch(() => {
-                                // Silently ignore errors - queue might have been cleared
-                            });
+                            void popQueuedMessageForEdit(lastQueued, true, () =>
+                                agent.removeFollowUpMessage(sessionId, lastQueued.id)
+                            );
                             return;
                         }
                     }
@@ -187,6 +256,7 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                             draftBeforeHistory: currentText,
                             historyIndex: history.length - 1,
                             value: history[history.length - 1] || '',
+                            editingQueuedFollowUp: false,
                         }));
                         buffer.setText(history[history.length - 1] || '');
                         return;
@@ -198,7 +268,12 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
 
                     const historyItem = history[newIndex] || '';
                     buffer.setText(historyItem);
-                    setInput((prev) => ({ ...prev, value: historyItem, historyIndex: newIndex }));
+                    setInput((prev) => ({
+                        ...prev,
+                        value: historyItem,
+                        historyIndex: newIndex,
+                        editingQueuedFollowUp: false,
+                    }));
                 } else {
                     // Down - navigate history (queued messages don't affect down navigation)
                     // Don't navigate history when processing
@@ -212,6 +287,7 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                             ...prev,
                             value: historyItem,
                             historyIndex: newIndex,
+                            editingQueuedFollowUp: false,
                         }));
                     } else {
                         // At newest history item, restore draft
@@ -221,6 +297,7 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                             value: draftBeforeHistory,
                             historyIndex: -1,
                             draftBeforeHistory: '',
+                            editingQueuedFollowUp: false,
                         }));
                     }
                 }
@@ -232,10 +309,27 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                 queuedMessages,
                 session.id,
                 agent,
-                extractTextFromContent,
+                popQueuedMessageForEdit,
                 ui.isProcessing,
             ]
         );
+
+        const handleCurrentTurnEdit = useCallback((): boolean => {
+            if (steerMessages.length === 0 || !session.id) {
+                return false;
+            }
+
+            const lastSteer = steerMessages[steerMessages.length - 1];
+            if (!lastSteer) {
+                return false;
+            }
+
+            const sessionId = session.id;
+            void popQueuedMessageForEdit(lastSteer, false, () =>
+                agent.removeSteerMessage(sessionId, lastSteer.id)
+            );
+            return true;
+        }, [agent, popQueuedMessageForEdit, session.id, steerMessages]);
 
         // Handle overlay triggers
         // Allow triggers while processing (for queuing), but not during approval
@@ -427,16 +521,16 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
 
         // Handle submission
         // bypassOverlayCheck: skip the overlay check when called programmatically (e.g., from OverlayContainer)
+        // queueAsFollowUp: while processing, queue this as the next turn instead of steering this turn.
         const handleSubmit = useCallback(
-            async (value: string, bypassOverlayCheck = false) => {
+            async (value: string, bypassOverlayCheck = false, queueAsFollowUp = false) => {
                 // Expand all collapsed paste blocks before processing
                 const expandedValue = expandPasteBlocks(value, input.pastedBlocks);
                 const trimmed = expandedValue.trim();
                 if (!trimmed) return;
 
-                // Auto-queue when agent is processing
+                // Active run input: Enter steers the current turn, Ctrl+Enter queues a follow-up.
                 if (ui.isProcessing && session.id) {
-                    // Build content parts for queueing
                     const content: ContentPart[] = [{ type: 'text', text: trimmed } as TextPart];
                     // Add images if any
                     for (const img of input.images) {
@@ -447,10 +541,14 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                         } as ImagePart);
                     }
 
+                    const submitAsFollowUp = queueAsFollowUp || input.editingQueuedFollowUp;
+
                     try {
-                        await agent.queueMessage(session.id, { content });
-                        // Queued messages are displayed via QueuedMessagesDisplay component
-                        // (state updated by message:queued event handler in useAgentEvents)
+                        if (submitAsFollowUp) {
+                            await agent.followUp(session.id, { content });
+                        } else {
+                            await agent.steer(session.id, { content });
+                        }
 
                         // Clear input, update history, and clear images
                         buffer.setText('');
@@ -466,6 +564,7 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                                 history: newHistory,
                                 historyIndex: -1,
                                 draftBeforeHistory: '',
+                                editingQueuedFollowUp: false,
                                 images: [],
                                 pastedBlocks: [],
                             };
@@ -476,7 +575,7 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                             {
                                 id: generateMessageId('error'),
                                 role: 'system',
-                                content: `Failed to queue message: ${error instanceof Error ? error.message : String(error)}`,
+                                content: `Failed to submit ${submitAsFollowUp ? 'follow-up' : 'steer'} message: ${error instanceof Error ? error.message : String(error)}`,
                                 timestamp: new Date(),
                             },
                         ]);
@@ -513,6 +612,7 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                         history: newHistory,
                         historyIndex: -1,
                         draftBeforeHistory: '',
+                        editingQueuedFollowUp: false,
                         images: [], // Clear images on submit
                         pastedBlocks: [], // Clear paste blocks on submit
                         pasteCounter: prev.pasteCounter, // Keep counter for next session
@@ -630,6 +730,7 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                                     setDequeuedBuffer,
                                     setUi,
                                     setSession,
+                                    setSteerMessages,
                                     setQueuedMessages,
                                     setApproval,
                                     setApprovalQueue,
@@ -779,6 +880,7 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                                 setDequeuedBuffer,
                                 setUi,
                                 setSession,
+                                setSteerMessages,
                                 setQueuedMessages,
                                 setApproval,
                                 setApprovalQueue,
@@ -827,6 +929,7 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                 setMessages,
                 setPendingMessages,
                 setDequeuedBuffer,
+                setSteerMessages,
                 setQueuedMessages,
                 setSession,
                 agent,
@@ -873,7 +976,8 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
         const mainInputAllowed = mainInputAllowedOverlays.includes(ui.activeOverlay);
         const isHistorySearchActive = ui.historySearch.isActive;
         const isInputActive = !approval && mainInputAllowed && !isHistorySearchActive;
-        const isInputDisabled = approval !== null || !mainInputAllowed || isHistorySearchActive;
+        const isInputDisabled =
+            approval !== null || !mainInputAllowed || isHistorySearchActive || isQueuedEditPending;
         // Allow submit when:
         // - no overlay active
         // - approval active
@@ -905,10 +1009,16 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
             <InputArea
                 buffer={buffer}
                 onSubmit={shouldHandleSubmit ? handleSubmit : () => {}}
+                onQueueSubmit={
+                    shouldHandleSubmit
+                        ? (value) => void handleSubmit(value, false, true)
+                        : undefined
+                }
                 isDisabled={isInputDisabled}
                 isActive={isInputActive}
                 placeholder={placeholder}
                 onHistoryNavigate={canNavigateHistory ? handleHistoryNavigate : undefined}
+                onCurrentTurnEdit={handleCurrentTurnEdit}
                 onTriggerOverlay={handleTriggerOverlay}
                 onKeyboardScroll={onKeyboardScroll}
                 imageCount={input.images.length}

@@ -10,7 +10,7 @@
  * ├── .claude-plugin/
  * │   └── plugin.json          # {name, description, version, author?}
  * ├── commands/*.md            # Commands (→ prompts, user-invocable by default)
- * ├── skills/* /SKILL.md       # Skills (→ prompts, user-invocable by default)
+ * ├── skills/* /SKILL.md       # Skills (metadata only; not loaded as prompts)
  * ├── hooks/hooks.json         # UNSUPPORTED - shell injection
  * ├── .mcp.json                # MCP servers to merge into config
  * └── .lsp.json                # UNSUPPORTED - language servers

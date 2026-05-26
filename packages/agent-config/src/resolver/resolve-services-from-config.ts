@@ -58,34 +58,10 @@ export async function resolveServicesFromConfig<
     const logger = image.logger.create(loggerConfig, resolutionContext);
 
     // 2) Storage
-    const blobFactory = resolveByType({
-        kind: 'blob storage',
-        type: config.storage.blob.type,
-        factories: image.storage.blob,
-        imageName,
-    });
-    const databaseFactory = resolveByType({
-        kind: 'database',
-        type: config.storage.database.type,
-        factories: image.storage.database,
-        imageName,
-    });
-    const cacheFactory = resolveByType({
-        kind: 'cache',
-        type: config.storage.cache.type,
-        factories: image.storage.cache,
-        imageName,
-    });
-
-    const blobConfig = blobFactory.configSchema.parse(config.storage.blob);
-    const databaseConfig = databaseFactory.configSchema.parse(config.storage.database);
-    const cacheConfig = cacheFactory.configSchema.parse(config.storage.cache);
-
-    const storage = {
-        blob: await blobFactory.create(blobConfig, logger, resolutionContext),
-        database: await databaseFactory.create(databaseConfig, logger, resolutionContext),
-        cache: await cacheFactory.create(cacheConfig, logger, resolutionContext),
-    };
+    const storageConfig = image.storage.configSchema.parse(config.storage);
+    const stores = await image.storage.createStores(storageConfig, logger, resolutionContext);
+    const workspaceHandleProvider = image.workspace?.create(resolutionContext);
+    const skillSources = (await image.skills?.create(resolutionContext)) ?? [];
 
     // 3) Tools
     const toolEntries = config.tools ?? image.defaults?.tools ?? [];
@@ -146,7 +122,16 @@ export async function resolveServicesFromConfig<
         compaction = await factory.create(parsedConfig, resolutionContext);
     }
 
-    return { logger, storage, tools, toolkitLoader, hooks, compaction };
+    return {
+        logger,
+        stores,
+        tools,
+        skillSources,
+        toolkitLoader,
+        ...(workspaceHandleProvider !== undefined && { workspaceHandleProvider }),
+        hooks,
+        compaction,
+    };
 }
 
 export function resolveToolsFromEntries<

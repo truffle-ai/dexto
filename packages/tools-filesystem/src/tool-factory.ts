@@ -1,6 +1,6 @@
 import type { ToolFactory } from '@dexto/agent-config';
-import type { ToolExecutionContext } from '@dexto/core';
-import { ToolError } from '@dexto/core';
+import type { ToolExecutionContext } from '@dexto/core/tools';
+import { ToolError } from '@dexto/core/tools';
 import { FileSystemService } from './filesystem-service.js';
 import type { FileSystemConfig } from './types.js';
 import { createReadFileTool } from './read-file-tool.js';
@@ -14,7 +14,7 @@ import {
     FileSystemToolsConfigSchema,
     type FileSystemToolsConfig,
 } from './tool-factory-config.js';
-import type { Tool } from '@dexto/core';
+import type { Tool } from '@dexto/core/tools';
 
 type FileSystemToolName = (typeof FILESYSTEM_TOOL_NAMES)[number];
 

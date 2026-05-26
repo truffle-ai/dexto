@@ -13,24 +13,8 @@ export default {
         },
     },
     storage: {
-        blob: {
-            'in-memory': {
-                configSchema: z.any(),
-                create: () => ({}),
-            },
-        },
-        database: {
-            'in-memory': {
-                configSchema: z.any(),
-                create: () => ({}),
-            },
-        },
-        cache: {
-            'in-memory': {
-                configSchema: z.any(),
-                create: () => ({}),
-            },
-        },
+        configSchema: z.any(),
+        createStores: () => ({}),
     },
     hooks: {
         noop: {

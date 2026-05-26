@@ -74,9 +74,7 @@ export const agentSpawnerToolsFactory: ToolFactory<AgentSpawnerConfig> = {
             const { toolServices, taskForker, logger } = options;
             if (toolServices.taskForker !== taskForker) {
                 toolServices.taskForker = taskForker;
-                logger.debug(
-                    'AgentSpawnerRuntime attached as taskForker for context:fork skill support'
-                );
+                logger.debug('AgentSpawnerRuntime attached as taskForker');
             }
         };
 
@@ -211,7 +209,7 @@ export const agentSpawnerToolsFactory: ToolFactory<AgentSpawnerConfig> = {
                     .then((isBusy) => {
                         if (isBusy) {
                             agent
-                                .queueMessage(sessionId, {
+                                .steer(sessionId, {
                                     content,
                                     kind: 'background',
                                 })

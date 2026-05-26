@@ -16,7 +16,7 @@ import type { LanguageModel } from 'ai';
 import { SessionEventBus } from '../../events/index.js';
 import { createCohere } from '@ai-sdk/cohere';
 import { createLocalLanguageModel } from '../providers/local/ai-sdk-adapter.js';
-import type { ConversationHistoryProvider } from '../../session/history/types.js';
+import type { ConversationStore } from '../../storage/conversation/types.js';
 import type { SystemPromptManager } from '../../systemPrompt/manager.js';
 import type { Logger } from '../../logger/v2/types.js';
 import type {
@@ -339,7 +339,7 @@ export function createVercelModel(
  * @param config LLM configuration from the config file
  * @param toolManager Unified tool manager instance
  * @param systemPromptManager Prompt manager for system prompts
- * @param historyProvider History provider for conversation persistence
+ * @param conversationStore Store for conversation persistence
  * @param sessionEventBus Session-level event bus for emitting LLM events
  * @param sessionId Session ID
  * @param resourceManager Resource manager for blob storage and resource access
@@ -351,7 +351,7 @@ export function createLLMService(
     config: ValidatedLLMConfig,
     toolManager: ToolManager,
     systemPromptManager: SystemPromptManager,
-    historyProvider: ConversationHistoryProvider,
+    conversationStore: ConversationStore,
     sessionEventBus: SessionEventBus,
     sessionId: string,
     resourceManager: import('../../resources/index.js').ResourceManager,
@@ -359,7 +359,7 @@ export function createLLMService(
     options: CreateLLMServiceOptions,
     languageModelFactory?: LanguageModelFactory
 ): VercelLLMService {
-    const { usageScopeId, compactionStrategy, messageQueue } = options;
+    const { usageScopeId, compactionStrategy, steerQueue, followUpQueue } = options;
 
     const providerContext: DextoProviderContext = {
         sessionId,
@@ -384,13 +384,14 @@ export function createLLMService(
         toolManager,
         model,
         systemPromptManager,
-        historyProvider,
+        conversationStore,
         sessionEventBus,
         config,
         sessionId,
         resourceManager,
         logger,
-        messageQueue,
+        steerQueue,
+        followUpQueue,
         usageScopeId,
         compactionStrategy
     );

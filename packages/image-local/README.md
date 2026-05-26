@@ -7,7 +7,9 @@ This package default-exports a typed `DextoImage` (no side effects, no registrie
 
 ## What’s included
 
-- **Storage factories**: local filesystem blob store, SQLite database, in-memory cache (plus in-memory alternatives; Postgres/Redis factories are included but require optional deps)
+- **Stores**: local `DextoStores` built with filesystem artifacts, SQLite session data, and in-memory fast state by default
+- **Workspace handles**: local filesystem workspace handles for local CLI/app runs
+- **Skill sources**: local and plugin skill directories loaded through `SkillManager`
 - **Tool factories**: builtin, filesystem, process, todo, plan, agent-spawner
 - **Hooks**: content-policy, response-sanitizer
 - **Compaction**: reactive-overflow, noop
@@ -44,7 +46,7 @@ tools:
 
 Notes:
 - Omit `tools:` to use `image.defaults.tools`.
-- Storage defaults come from `image.defaults.storage` (override with `storage:` in YAML).
+- Store defaults come from `image.defaults.storage` and are resolved by `storage.createStores(...)`.
 - `filesystem-tools.allowedPaths` defines the static sandbox. In manual mode, attempts to access paths outside the sandbox trigger a directory access approval prompt; if approved, access is granted for the current session or for a single occurrence.
 
 ## App usage (direct import)

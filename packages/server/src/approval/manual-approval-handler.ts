@@ -15,7 +15,7 @@ import type { ApprovalCoordinator } from './approval-coordinator.js';
  * for managing pending approval requests.
  *
  * Timeouts are handled per-request using the timeout value from ApprovalRequest, which
- * is set by ApprovalManager based on the request type (tool confirmation vs elicitation).
+ * is set by ApprovalManager based on the request type (tool approval vs elicitation).
  *
  * @param coordinator The approval coordinator for request/response communication
  * @returns ApprovalHandler with cancellation support
@@ -44,7 +44,7 @@ export function createManualApprovalHandler(coordinator: ApprovalCoordinator): A
     const handleApproval = (request: ApprovalRequest): Promise<ApprovalResponse> => {
         return new Promise<ApprovalResponse>((resolve) => {
             // Use per-request timeout (optional - undefined means no timeout)
-            // - Tool confirmations use config.permissions.timeout
+            // - Tool approvals use config.permissions.timeout
             // - Elicitations use config.elicitation.timeout
             const effectiveTimeout = request.timeout;
 

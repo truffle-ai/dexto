@@ -1,6 +1,6 @@
 /**
  * Tools-specific error codes
- * Includes tool execution, confirmation, and authorization errors
+ * Includes tool execution, approval, and authorization errors
  */
 export enum ToolErrorCode {
     // Execution
@@ -13,10 +13,10 @@ export enum ToolErrorCode {
     VALIDATION_FAILED = 'tools_validation_failed',
     FILE_MODIFIED_SINCE_PREVIEW = 'tools_file_modified_since_preview',
 
-    // Confirmation
-    CONFIRMATION_HANDLER_MISSING = 'tools_confirmation_handler_missing',
-    CONFIRMATION_TIMEOUT = 'tools_confirmation_timeout',
-    CONFIRMATION_CANCELLED = 'tools_confirmation_cancelled',
+    // Approval
+    APPROVAL_HANDLER_MISSING = 'tools_approval_handler_missing',
+    APPROVAL_TIMEOUT = 'tools_approval_timeout',
+    APPROVAL_CANCELLED = 'tools_approval_cancelled',
 
     // Tool management
     TOOL_NOT_FOUND = 'tools_tool_not_found',

@@ -97,14 +97,14 @@ export async function ensureSchedulerManagerForAgent(
     }
 
     const initPromise = (async () => {
-        const storageManager = agent.services?.storageManager;
-        if (!storageManager) {
+        const toolStateStore = agent.services?.stores.getStore('toolState');
+        if (!toolStateStore) {
             throw SchedulerError.missingStorage();
         }
 
         const logger = loggerOverride ?? agent.logger;
 
-        const manager = new SchedulerManager(storageManager, resolvedConfig, logger);
+        const manager = new SchedulerManager(toolStateStore, resolvedConfig, logger);
 
         const waitForAgentStart = async (): Promise<boolean> => {
             if (!agent || typeof agent.isStarted !== 'function') {

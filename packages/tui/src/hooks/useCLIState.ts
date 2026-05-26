@@ -48,7 +48,10 @@ export interface CLIStateReturn {
     // (ensures correct visual order regardless of React batching)
     dequeuedBuffer: Message[];
     setDequeuedBuffer: React.Dispatch<React.SetStateAction<Message[]>>;
-    // Queued messages (messages waiting to be processed)
+    // Active-turn steer messages waiting for the next executor boundary
+    steerMessages: QueuedMessage[];
+    setSteerMessages: React.Dispatch<React.SetStateAction<QueuedMessage[]>>;
+    // Follow-up messages waiting to run after the current turn
     queuedMessages: QueuedMessage[];
     setQueuedMessages: React.Dispatch<React.SetStateAction<QueuedMessage[]>>;
     // Todo items for workflow tracking
@@ -96,7 +99,9 @@ export function useCLIState({
     const [pendingMessages, setPendingMessages] = useState<Message[]>([]);
     // Dequeued buffer - user messages rendered after pending (guarantees visual order)
     const [dequeuedBuffer, setDequeuedBuffer] = useState<Message[]>([]);
-    // Queued messages - messages waiting to be processed (uses core type)
+    // Steer messages - active-turn guidance waiting for the next executor boundary
+    const [steerMessages, setSteerMessages] = useState<QueuedMessage[]>([]);
+    // Queued follow-up messages - messages waiting to run after the current turn
     const [queuedMessages, setQueuedMessages] = useState<QueuedMessage[]>([]);
     // Todo items for workflow tracking (populated via service:event from todo tools)
     const [todos, setTodos] = useState<TodoItem[]>([]);
@@ -145,6 +150,7 @@ export function useCLIState({
         images: [],
         pastedBlocks: [],
         pasteCounter: 0,
+        editingQueuedFollowUp: false,
     });
 
     // Session state - use display name for built-in models at startup
@@ -200,6 +206,7 @@ export function useCLIState({
         setInput,
         setApproval,
         setApprovalQueue,
+        setSteerMessages,
         setQueuedMessages,
         currentSessionId: session.id,
         buffer,
@@ -221,13 +228,13 @@ export function useCLIState({
         approval,
         input,
         session,
-        queuedMessages,
+        steerMessages,
         buffer,
         setUi,
         setInput,
         setMessages,
         setPendingMessages,
-        setQueuedMessages,
+        setSteerMessages,
         agent,
         handlers: {
             approval: approvalHandler,
@@ -273,6 +280,7 @@ export function useCLIState({
                     ...prev,
                     history: userInputHistory,
                     historyIndex: -1,
+                    editingQueuedFollowUp: false,
                 }));
             } catch (error) {
                 if (cancelled) return;
@@ -305,6 +313,8 @@ export function useCLIState({
         setPendingMessages,
         dequeuedBuffer,
         setDequeuedBuffer,
+        steerMessages,
+        setSteerMessages,
         queuedMessages,
         setQueuedMessages,
         todos,

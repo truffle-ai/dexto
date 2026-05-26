@@ -10,28 +10,28 @@ import { MCPManager } from '../mcp/manager.js';
 import { ToolManager } from '../tools/tool-manager.js';
 import type { ToolPolicies } from '../tools/schemas.js';
 import type { Tool } from '../tools/types.js';
-import type { AllowedToolsProvider } from '../tools/confirmation/allowed-tools-provider/types.js';
+import type { AllowedToolsProvider } from '../tools/approval/allowed-tools-provider/types.js';
 import { SystemPromptManager } from '../systemPrompt/manager.js';
 import { AgentStateManager } from '../agent/state-manager.js';
 import { SessionManager } from '../session/index.js';
 import { SearchService } from '../search/index.js';
-import { StorageManager } from '../storage/index.js';
+import type { DextoStores } from '../storage/index.js';
+import type { ToolExecutionStore } from '../storage/tool-executions/types.js';
 import { AgentError } from '../agent/errors.js';
 import { WorkspaceManager } from '../workspace/index.js';
-import { createAllowedToolsProvider } from '../tools/confirmation/allowed-tools-provider/factory.js';
+import { createAllowedToolsProvider } from '../tools/approval/allowed-tools-provider/factory.js';
 import type { Logger } from '../logger/v2/types.js';
 import type { AgentRuntimeSettings } from '../agent/runtime-config.js';
 import { AgentEventBus } from '../events/index.js';
 import { ResourceManager } from '../resources/manager.js';
 import { ApprovalManager } from '../approval/manager.js';
-import { SessionApprovalStore } from '../approval/session-approval-store.js';
 import { MemoryManager } from '../memory/index.js';
 import { HookManager } from '../hooks/manager.js';
 import type { Hook } from '../hooks/types.js';
 import type { CompactionStrategy } from '../context/compaction/types.js';
-import { MessageQueueStore } from '../session/message-queue-store.js';
 import { SessionToolPreferencesStore } from '../tools/session-tool-preferences-store.js';
 import type { LanguageModelFactory } from '../llm/services/types.js';
+import type { WorkspaceHandleProvider } from '../workspace/types.js';
 
 /**
  * Type for the core agent services returned by createAgentServices
@@ -45,7 +45,7 @@ export type AgentServices = {
     sessionManager: SessionManager;
     workspaceManager: WorkspaceManager;
     searchService: SearchService;
-    storageManager: StorageManager;
+    stores: DextoStores;
     resourceManager: ResourceManager;
     approvalManager: ApprovalManager;
     memoryManager: MemoryManager;
@@ -56,11 +56,12 @@ export type ToolManagerFactoryOptions = {
     mcpManager: MCPManager;
     approvalManager: ApprovalManager;
     allowedToolsProvider: AllowedToolsProvider;
-    approvalMode: 'manual' | 'auto-approve' | 'auto-deny';
+    approvalMode: 'manual' | 'auto-approve';
     agentEventBus: AgentEventBus;
     toolPolicies: ToolPolicies;
     tools: Tool[];
     logger: Logger;
+    toolExecutionStore: ToolExecutionStore;
 };
 
 export type ToolManagerFactory = (options: ToolManagerFactoryOptions) => ToolManager;
@@ -81,8 +82,9 @@ export type InitializeServicesOptions = {
     mcpAuthProviderFactory?: import('../mcp/types.js').McpAuthProviderFactory | null;
     toolManager?: ToolManager;
     toolManagerFactory?: ToolManagerFactory;
-    storageManager?: StorageManager;
+    stores?: DextoStores;
     hooks?: Hook[] | undefined;
+    workspaceHandleProvider?: WorkspaceHandleProvider | undefined;
     telemetryBootstrap?: TelemetryBootstrap | undefined;
 };
 
@@ -130,39 +132,42 @@ export async function createAgentServices(
     // 1. Use the event bus provided by DextoAgent constructor
     logger.debug('Using pre-created agent event bus');
 
-    // 2. Initialize storage manager (schema provides in-memory defaults, CLI enrichment adds filesystem paths)
-    logger.debug('Initializing storage manager');
-    const storageManager =
-        overrides?.storageManager ??
+    // 2. Initialize typed stores (config/image layers own backend resolution)
+    logger.debug('Initializing typed stores');
+    const stores =
+        overrides?.stores ??
         (() => {
             throw AgentError.initializationFailed(
-                'StorageManager must be provided via overrides.storageManager during the DI refactor'
+                'DextoStores must be provided via overrides.stores during the DI refactor'
             );
         })();
 
-    if (!storageManager.isConnected()) {
-        await storageManager.initialize();
-        await storageManager.connect();
+    if (!stores.isConnected()) {
+        await stores.connect();
     }
 
-    logger.debug('Storage manager initialized', await storageManager.getInfo());
+    logger.debug('Typed stores initialized', { type: stores.getStoreType() });
 
     const sessionCacheTtlMs = config.sessions?.sessionTTL ?? 3600000;
-    const sessionApprovalStore = new SessionApprovalStore(storageManager, logger, {
-        cacheTtlMs: sessionCacheTtlMs,
-    });
-    const sessionToolPreferencesStore = new SessionToolPreferencesStore(storageManager, logger, {
-        cacheTtlMs: sessionCacheTtlMs,
-    });
-    const messageQueueStore = new MessageQueueStore(storageManager, logger, {
-        cacheTtlMs: sessionCacheTtlMs,
-    });
+    const approvalStore = stores.getStore('approvals');
+    const sessionStore = stores.getStore('sessions');
+    const conversationStore = stores.getStore('conversation');
+    const sessionToolPreferencesStore = new SessionToolPreferencesStore(
+        stores.getStore('toolPreferences'),
+        logger,
+        {
+            cacheTtlMs: sessionCacheTtlMs,
+        }
+    );
+    const steerQueueStore = stores.getStore('steerQueue');
+    const followUpQueueStore = stores.getStore('followUpQueue');
 
     // 2.5 Initialize workspace manager (uses persistent database)
     const workspaceManager = new WorkspaceManager(
-        storageManager.getDatabase(),
+        stores.getStore('workspaces'),
         agentEventBus,
-        logger
+        logger,
+        overrides?.workspaceHandleProvider
     );
     logger.debug('Workspace manager initialized');
 
@@ -185,7 +190,7 @@ export async function createAgentServices(
             },
         },
         logger,
-        sessionApprovalStore
+        approvalStore
     );
     logger.debug('Approval system initialized');
 
@@ -201,10 +206,10 @@ export async function createAgentServices(
     logger.debug('Approval manager connected to MCP manager for elicitation support');
 
     // 5. Initialize search service
-    const searchService = new SearchService(storageManager.getDatabase(), logger);
+    const searchService = new SearchService(conversationStore, sessionStore, logger);
 
     // 6. Initialize memory manager
-    const memoryManager = new MemoryManager(storageManager.getDatabase(), logger);
+    const memoryManager = new MemoryManager(stores.getStore('memories'), logger);
     logger.debug('Memory manager initialized');
 
     // 6.5 Initialize hook manager
@@ -212,7 +217,7 @@ export async function createAgentServices(
     const hookManager = new HookManager(
         {
             agentEventBus,
-            storageManager,
+            stores,
         },
         hooks,
         logger
@@ -228,7 +233,7 @@ export async function createAgentServices(
         mcpManager,
         {
             resourcesConfig: config.resources,
-            blobStore: storageManager.getBlobStore(),
+            artifactStore: stores.getStore('artifacts'),
         },
         agentEventBus,
         logger
@@ -240,7 +245,7 @@ export async function createAgentServices(
     const allowedToolsProvider = createAllowedToolsProvider(
         {
             type: config.permissions.allowedToolsStorage,
-            storageManager,
+            toolPreferenceStore: stores.getStore('toolPreferences'),
         },
         logger
     );
@@ -256,6 +261,7 @@ export async function createAgentServices(
             toolPolicies: config.permissions.toolPolicies,
             tools: [],
             logger,
+            toolExecutionStore: stores.getStore('toolExecutions'),
         }) ??
         new ToolManager(
             mcpManager,
@@ -266,7 +272,8 @@ export async function createAgentServices(
             config.permissions.toolPolicies,
             [],
             logger,
-            sessionToolPreferencesStore
+            sessionToolPreferencesStore,
+            stores.getStore('toolExecutions')
         );
     await toolManager.setWorkspaceManager(workspaceManager);
     // NOTE: local tools + ToolExecutionContext are wired in DextoAgent.start()
@@ -298,11 +305,13 @@ export async function createAgentServices(
             toolManager,
             approvalManager,
             agentEventBus,
-            storageManager, // Add storage manager to session services
+            sessionStore,
+            conversationStore,
             resourceManager, // Add resource manager for blob storage
             hookManager, // Add hook manager for hook execution
             mcpManager, // Add MCP manager for ChatSession
-            messageQueueStore,
+            steerQueueStore,
+            followUpQueueStore,
             compactionStrategy: compactionStrategy ?? null,
             workspaceManager, // Workspace context propagation
         },
@@ -338,7 +347,7 @@ export async function createAgentServices(
         sessionManager,
         workspaceManager,
         searchService,
-        storageManager,
+        stores,
         resourceManager,
         approvalManager,
         memoryManager,

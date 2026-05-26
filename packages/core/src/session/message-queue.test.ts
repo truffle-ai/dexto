@@ -1,10 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { MessageQueueService } from './message-queue.js';
-import type { SessionEventBus } from '../events/index.js';
+import { SessionEventBus } from '../events/index.js';
 import type { ContentPart } from '../context/types.js';
 import { createMockLogger } from '../logger/v2/test-utils.js';
 import type { Logger } from '../logger/v2/types.js';
 import { createInMemoryMessageQueueStore } from '../test-utils/session-state-stores.js';
+import type { QueuedMessage } from './types.js';
 
 function createDeferred<T>() {
     let resolve!: (value: T | PromiseLike<T>) => void;
@@ -74,6 +75,7 @@ describe('MessageQueueService', () => {
             expect(eventBus.emit).toHaveBeenCalledWith('message:queued', {
                 position: 1,
                 id: result.id,
+                queue: 'steer',
             });
         });
 
@@ -89,6 +91,63 @@ describe('MessageQueueService', () => {
             expect(firstMessage?.metadata).toEqual(metadata);
         });
 
+        it('should snapshot structured content and metadata on enqueue', async () => {
+            const imageBytes = new Uint8Array([1, 2, 3]);
+            const imageUrl = new URL('https://example.com/image.png');
+            const fileBytes = Buffer.from([4, 5, 6]);
+            const fileUrl = new URL('https://example.com/file.pdf');
+            const content: ContentPart[] = [
+                { type: 'text', text: 'look' },
+                { type: 'image', image: imageBytes, mimeType: 'image/png' },
+                { type: 'image', image: imageUrl, mimeType: 'image/png' },
+                { type: 'file', data: fileBytes, mimeType: 'application/pdf' },
+                { type: 'file', data: fileUrl, mimeType: 'application/pdf' },
+            ];
+            const metadata = { source: 'webui', nested: { editable: true } };
+
+            await queue.enqueue({ content, metadata });
+            content[0] = { type: 'text', text: 'mutated' };
+            imageBytes[0] = 9;
+            imageUrl.pathname = '/mutated.png';
+            fileBytes[0] = 9;
+            fileUrl.pathname = '/mutated.pdf';
+            metadata.nested.editable = false;
+
+            const queued = queue.getAll()[0];
+            const queuedUrlPart = queued?.content[2];
+            if (queuedUrlPart?.type !== 'image') throw new Error('Expected image URL part');
+            if (!(queuedUrlPart.image instanceof URL)) throw new Error('Expected URL clone');
+            const queuedFileUrlPart = queued?.content[4];
+            if (queuedFileUrlPart?.type !== 'file') throw new Error('Expected file URL part');
+            if (!(queuedFileUrlPart.data instanceof URL))
+                throw new Error('Expected file URL clone');
+
+            expect(queue.getAll()).toEqual([
+                expect.objectContaining({
+                    content: [
+                        { type: 'text', text: 'look' },
+                        { type: 'image', image: new Uint8Array([1, 2, 3]), mimeType: 'image/png' },
+                        {
+                            type: 'image',
+                            image: new URL('https://example.com/image.png'),
+                            mimeType: 'image/png',
+                        },
+                        {
+                            type: 'file',
+                            data: Buffer.from([4, 5, 6]),
+                            mimeType: 'application/pdf',
+                        },
+                        {
+                            type: 'file',
+                            data: new URL('https://example.com/file.pdf'),
+                            mimeType: 'application/pdf',
+                        },
+                    ],
+                    metadata: { source: 'webui', nested: { editable: true } },
+                }),
+            ]);
+        });
+
         it('should not include metadata field when not provided', async () => {
             const content: ContentPart[] = [{ type: 'text', text: 'hello' }];
 
@@ -102,6 +161,66 @@ describe('MessageQueueService', () => {
     });
 
     describe('dequeueAll()', () => {
+        it('consumes messages appended to the backing store after initialization', async () => {
+            const store = createInMemoryMessageQueueStore();
+            const persistedMessage: QueuedMessage = {
+                content: [{ type: 'text', text: 'external steer' }],
+                id: 'external-1',
+                queuedAt: 100,
+            };
+            const persistedQueue = new MessageQueueService(
+                eventBus,
+                logger,
+                'session-external',
+                store
+            );
+
+            await persistedQueue.initialize();
+            await store.save({ sessionId: 'session-external', queue: [persistedMessage] });
+
+            const coalesced = await persistedQueue.dequeueAll();
+
+            expect(coalesced?.messages).toEqual([persistedMessage]);
+            await expect(store.load({ sessionId: 'session-external' })).resolves.toEqual([]);
+        });
+
+        it('preserves in-memory and externally appended queue order without duplicating ids', async () => {
+            const store = createInMemoryMessageQueueStore();
+            const persistedQueue = new MessageQueueService(
+                eventBus,
+                logger,
+                'session-merged',
+                store
+            );
+
+            await persistedQueue.initialize();
+            const enqueued = await persistedQueue.enqueue({
+                content: [{ type: 'text', text: 'from live queue' }],
+            });
+            await store.save({
+                sessionId: 'session-merged',
+                queue: [
+                    {
+                        content: [{ type: 'text', text: 'from live queue' }],
+                        id: enqueued.id,
+                        queuedAt: 100,
+                    },
+                    {
+                        content: [{ type: 'text', text: 'from external route' }],
+                        id: 'external-2',
+                        queuedAt: Date.now() + 1000,
+                    },
+                ],
+            });
+
+            const coalesced = await persistedQueue.dequeueAll();
+
+            expect(coalesced?.messages.map((message) => message.id)).toEqual([
+                enqueued.id,
+                'external-2',
+            ]);
+        });
+
         it('should return null when queue is empty', async () => {
             const result = await queue.dequeueAll();
             expect(result).toBeNull();
@@ -135,6 +254,7 @@ describe('MessageQueueService', () => {
             expect(eventBus.emit).toHaveBeenCalledWith('message:dequeued', {
                 count: 2,
                 ids: expect.arrayContaining([expect.stringMatching(/^msg_/)]),
+                queue: 'steer',
                 coalesced: true,
                 content: expect.any(Array),
                 messages: expect.any(Array),
@@ -149,10 +269,35 @@ describe('MessageQueueService', () => {
             expect(eventBus.emit).toHaveBeenCalledWith('message:dequeued', {
                 count: 1,
                 ids: expect.any(Array),
+                queue: 'steer',
                 coalesced: false,
                 content: [{ type: 'text', text: 'solo' }],
                 messages: expect.any(Array),
             });
+        });
+
+        it('should not let dequeued event listeners mutate the returned message', async () => {
+            const realEventBus = new SessionEventBus();
+            const eventedQueue = new MessageQueueService(
+                realEventBus,
+                logger,
+                'session-with-events',
+                createInMemoryMessageQueueStore()
+            );
+            realEventBus.on('message:dequeued', (payload) => {
+                payload.content.push({ type: 'text', text: 'event mutation' });
+                if (!payload.messages) throw new Error('Expected dequeued messages');
+                const firstMessagePart = payload.messages[0]?.content[0];
+                if (firstMessagePart?.type === 'text') {
+                    firstMessagePart.text = 'event-mutated message';
+                }
+            });
+
+            await eventedQueue.enqueue({ content: [{ type: 'text', text: 'original' }] });
+            const result = await eventedQueue.dequeueAll();
+
+            expect(result?.combinedContent).toEqual([{ type: 'text', text: 'original' }]);
+            expect(result?.messages[0]?.content).toEqual([{ type: 'text', text: 'original' }]);
         });
     });
 
@@ -169,36 +314,45 @@ describe('MessageQueueService', () => {
             expect(result?.combinedContent).toEqual(content);
         });
 
-        it('should prefix two messages with First and Also', async () => {
+        it('should combine two user messages with a neutral bullet list', async () => {
             await queue.enqueue({ content: [{ type: 'text', text: 'stop' }] });
             await queue.enqueue({ content: [{ type: 'text', text: 'try another way' }] });
 
             const result = await queue.dequeueAll();
 
-            expect(result?.combinedContent).toHaveLength(3); // First + separator + Also
-            expect(result?.combinedContent[0]).toEqual({ type: 'text', text: 'First: stop' });
-            expect(result?.combinedContent[1]).toEqual({ type: 'text', text: '\n\n' });
-            expect(result?.combinedContent[2]).toEqual({
+            expect(result?.combinedContent).toHaveLength(4);
+            expect(result?.combinedContent[0]).toEqual({
                 type: 'text',
-                text: 'Also: try another way',
+                text: 'Additional user input received:',
+            });
+            expect(result?.combinedContent[1]).toEqual({ type: 'text', text: '\n\n' });
+            expect(result?.combinedContent[2]).toEqual({ type: 'text', text: '- stop' });
+            expect(result?.combinedContent[3]).toEqual({
+                type: 'text',
+                text: '\n\n- try another way',
             });
         });
 
-        it('should number three or more messages', async () => {
+        it('should combine three or more user messages with neutral bullets', async () => {
             await queue.enqueue({ content: [{ type: 'text', text: 'one' }] });
             await queue.enqueue({ content: [{ type: 'text', text: 'two' }] });
             await queue.enqueue({ content: [{ type: 'text', text: 'three' }] });
 
             const result = await queue.dequeueAll();
 
-            expect(result?.combinedContent).toHaveLength(5); // 3 messages + 2 separators
-            expect(result?.combinedContent[0]).toEqual({ type: 'text', text: '[1]: one' });
-            expect(result?.combinedContent[2]).toEqual({ type: 'text', text: '[2]: two' });
-            expect(result?.combinedContent[4]).toEqual({ type: 'text', text: '[3]: three' });
+            expect(result?.combinedContent).toHaveLength(5);
+            expect(result?.combinedContent[0]).toEqual({
+                type: 'text',
+                text: 'Additional user input received:',
+            });
+            expect(result?.combinedContent[2]).toEqual({ type: 'text', text: '- one' });
+            expect(result?.combinedContent[3]).toEqual({ type: 'text', text: '\n\n- two' });
+            expect(result?.combinedContent[4]).toEqual({ type: 'text', text: '\n\n- three' });
         });
 
         it('should preserve multimodal content (text + images)', async () => {
             await queue.enqueue({
+                metadata: { source: 'preview', nested: { editable: true } },
                 content: [
                     { type: 'text', text: 'look at this' },
                     { type: 'image', image: 'base64img1', mimeType: 'image/png' },
@@ -210,26 +364,75 @@ describe('MessageQueueService', () => {
 
             const result = await queue.dequeueAll();
 
-            // Should have: "First: look at this", image1, separator, "Also: ", image2
-            expect(result?.combinedContent).toHaveLength(5);
+            expect(result?.combinedContent).toHaveLength(6);
             expect(result?.combinedContent[0]).toEqual({
                 type: 'text',
-                text: 'First: look at this',
+                text: 'Additional user input received:',
             });
-            expect(result?.combinedContent[1]).toEqual({
+            expect(result?.combinedContent[2]).toEqual({
+                type: 'text',
+                text: '- look at this',
+            });
+            expect(result?.combinedContent[3]).toEqual({
                 type: 'image',
                 image: 'base64img1',
                 mimeType: 'image/png',
             });
-            expect(result?.combinedContent[3]).toEqual({ type: 'text', text: 'Also: ' });
-            expect(result?.combinedContent[4]).toEqual({
+            expect(result?.combinedContent[4]).toEqual({ type: 'text', text: '\n\n- ' });
+            expect(result?.combinedContent[5]).toEqual({
                 type: 'image',
                 image: 'base64img2',
                 mimeType: 'image/jpeg',
             });
         });
 
-        it('should tag user messages in mixed batches', async () => {
+        it('should preserve structured content parts while coalescing split queued input', async () => {
+            const filePart = {
+                type: 'file' as const,
+                data: 'base64-pdf',
+                mimeType: 'application/pdf',
+                filename: 'brief.pdf',
+            };
+            const resourcePart = {
+                type: 'resource' as const,
+                uri: 'file:///tmp/chart.png',
+                name: 'chart.png',
+                mimeType: 'image/png',
+                kind: 'image' as const,
+                size: 128,
+                metadata: { source: 'filesystem' as const, mtimeMs: 123 },
+            };
+            const uiResourcePart = {
+                type: 'ui-resource' as const,
+                uri: 'ui://dashboard',
+                mimeType: 'text/html',
+                content: '<section>Dashboard</section>',
+                metadata: { title: 'Dashboard', preferredSize: { width: 640, height: 480 } },
+            };
+
+            await queue.enqueue({
+                content: [{ type: 'text', text: 'use this brief' }, filePart],
+                metadata: { source: 'steer' },
+            });
+            await queue.enqueue({
+                content: [resourcePart, uiResourcePart],
+            });
+
+            const result = await queue.dequeueAll();
+
+            expect(result?.combinedContent).toEqual([
+                { type: 'text', text: 'Additional user input received:' },
+                { type: 'text', text: '\n\n' },
+                { type: 'text', text: '- use this brief' },
+                filePart,
+                { type: 'text', text: '\n\n- ' },
+                resourcePart,
+                uiResourcePart,
+            ]);
+            expect(result?.messages[0]?.metadata).toEqual({ source: 'steer' });
+        });
+
+        it('should combine user messages neutrally and preserve background payloads in mixed batches', async () => {
             await queue.enqueue({ content: [{ type: 'text', text: 'user note' }] });
             await queue.enqueue({
                 content: [{ type: 'text', text: 'bg payload' }],
@@ -238,11 +441,54 @@ describe('MessageQueueService', () => {
 
             const result = await queue.dequeueAll();
 
-            expect(result?.combinedContent[0]).toEqual({
-                type: 'text',
-                text: 'User follow-up 1: user note',
+            expect(result?.combinedContent).toEqual([
+                { type: 'text', text: 'Additional user input received:' },
+                { type: 'text', text: '\n\n' },
+                { type: 'text', text: '- user note' },
+                { type: 'text', text: '\n\n' },
+                { type: 'text', text: 'bg payload' },
+            ]);
+        });
+
+        it('should preserve mixed batch order when background payload comes first', async () => {
+            await queue.enqueue({
+                content: [{ type: 'text', text: 'bg payload' }],
+                kind: 'background',
             });
-            expect(result?.combinedContent[2]).toEqual({ type: 'text', text: 'bg payload' });
+            await queue.enqueue({ content: [{ type: 'text', text: 'user note' }] });
+
+            const result = await queue.dequeueAll();
+
+            expect(result?.combinedContent).toEqual([
+                { type: 'text', text: 'bg payload' },
+                { type: 'text', text: '\n\n' },
+                { type: 'text', text: 'Additional user input received:' },
+                { type: 'text', text: '\n\n' },
+                { type: 'text', text: '- user note' },
+            ]);
+        });
+
+        it('should reopen the user section after background payloads', async () => {
+            await queue.enqueue({ content: [{ type: 'text', text: 'first user note' }] });
+            await queue.enqueue({
+                content: [{ type: 'text', text: 'bg payload' }],
+                kind: 'background',
+            });
+            await queue.enqueue({ content: [{ type: 'text', text: 'second user note' }] });
+
+            const result = await queue.dequeueAll();
+
+            expect(result?.combinedContent).toEqual([
+                { type: 'text', text: 'Additional user input received:' },
+                { type: 'text', text: '\n\n' },
+                { type: 'text', text: '- first user note' },
+                { type: 'text', text: '\n\n' },
+                { type: 'text', text: 'bg payload' },
+                { type: 'text', text: '\n\n' },
+                { type: 'text', text: 'Additional user input received:' },
+                { type: 'text', text: '\n\n' },
+                { type: 'text', text: '- second user note' },
+            ]);
         });
 
         it('should handle empty message content with placeholder', async () => {
@@ -253,7 +499,7 @@ describe('MessageQueueService', () => {
 
             expect(result?.combinedContent).toContainEqual({
                 type: 'text',
-                text: 'Also: [empty message]',
+                text: '\n\n- [empty message]',
             });
         });
 
@@ -309,10 +555,11 @@ describe('MessageQueueService', () => {
                     loadStarted.resolve();
                     return await releaseLoad.promise;
                 }),
-                save: vi.fn().mockImplementation(async (_sessionId, nextQueue) => {
-                    savedQueues.push(structuredClone(nextQueue));
+                save: vi.fn().mockImplementation(async (input) => {
+                    savedQueues.push(structuredClone(input.queue));
                 }),
                 delete: vi.fn().mockResolvedValue(undefined),
+                listSessionIds: vi.fn().mockResolvedValue([]),
             });
 
             const initializePromise = serializedQueue.initialize();
@@ -362,7 +609,7 @@ describe('MessageQueueService', () => {
             expect(queue.getAll()).toEqual([]);
         });
 
-        it('should return shallow copy of queued messages', async () => {
+        it('should return copies of queued messages', async () => {
             const result1 = await queue.enqueue({ content: [{ type: 'text', text: 'msg1' }] });
             const result2 = await queue.enqueue({ content: [{ type: 'text', text: 'msg2' }] });
 
@@ -373,8 +620,27 @@ describe('MessageQueueService', () => {
             expect(all[1]?.id).toBe(result2.id);
         });
 
-        it('should not allow external mutation of queue', async () => {
-            await queue.enqueue({ content: [{ type: 'text', text: 'msg1' }] });
+        it('should not allow external mutation of queued message arrays or parts', async () => {
+            await queue.enqueue({
+                metadata: { source: 'preview', nested: { editable: true } },
+                content: [
+                    { type: 'text', text: 'msg1' },
+                    {
+                        type: 'resource',
+                        uri: 'file:///tmp/chart.png',
+                        name: 'chart.png',
+                        mimeType: 'image/png',
+                        kind: 'image',
+                        metadata: { source: 'filesystem' },
+                    },
+                    {
+                        type: 'ui-resource',
+                        uri: 'ui://dashboard',
+                        mimeType: 'text/html',
+                        metadata: { preferredSize: { width: 640, height: 480 } },
+                    },
+                ],
+            });
 
             const all = queue.getAll();
             all.push({
@@ -382,8 +648,54 @@ describe('MessageQueueService', () => {
                 content: [{ type: 'text', text: 'fake' }],
                 queuedAt: Date.now(),
             });
+            all[0]?.content.push({ type: 'text', text: 'extra' });
+            const firstPart = all[0]?.content[0];
+            if (firstPart?.type !== 'text') throw new Error('Expected text part');
+            firstPart.text = 'mutated';
+            const resourcePart = all[0]?.content[1];
+            if (resourcePart?.type !== 'resource') throw new Error('Expected resource part');
+            if (resourcePart.metadata) resourcePart.metadata.source = 'upload';
+            const uiResourcePart = all[0]?.content[2];
+            if (uiResourcePart?.type !== 'ui-resource')
+                throw new Error('Expected UI resource part');
+            if (uiResourcePart.metadata?.preferredSize) {
+                uiResourcePart.metadata.preferredSize.width = 1;
+            }
+            const queueMetadata = all[0]?.metadata;
+            if (!queueMetadata) throw new Error('Expected queue metadata');
+            queueMetadata.source = 'mutated';
+            const nestedMetadata = queueMetadata.nested;
+            if (
+                typeof nestedMetadata !== 'object' ||
+                nestedMetadata === null ||
+                !('editable' in nestedMetadata)
+            ) {
+                throw new Error('Expected nested metadata');
+            }
+            nestedMetadata.editable = false;
 
             expect(queue.getAll()).toHaveLength(1);
+            expect(queue.getAll()[0]?.content).toEqual([
+                { type: 'text', text: 'msg1' },
+                {
+                    type: 'resource',
+                    uri: 'file:///tmp/chart.png',
+                    name: 'chart.png',
+                    mimeType: 'image/png',
+                    kind: 'image',
+                    metadata: { source: 'filesystem' },
+                },
+                {
+                    type: 'ui-resource',
+                    uri: 'ui://dashboard',
+                    mimeType: 'text/html',
+                    metadata: { preferredSize: { width: 640, height: 480 } },
+                },
+            ]);
+            expect(queue.getAll()[0]?.metadata).toEqual({
+                source: 'preview',
+                nested: { editable: true },
+            });
         });
     });
 
@@ -401,6 +713,24 @@ describe('MessageQueueService', () => {
             expect(msg).toBeDefined();
             expect(msg?.id).toBe(result.id);
             expect(msg?.content).toEqual(content);
+        });
+
+        it('should not allow mutation through get()', async () => {
+            const imageBytes = new Uint8Array([1, 2, 3]);
+            const result = await queue.enqueue({
+                content: [{ type: 'image', image: imageBytes, mimeType: 'image/png' }],
+            });
+
+            const msg = queue.get(result.id);
+            msg?.content.push({ type: 'text', text: 'extra' });
+            const imagePart = msg?.content[0];
+            if (imagePart?.type !== 'image') throw new Error('Expected image part');
+            if (!(imagePart.image instanceof Uint8Array)) throw new Error('Expected image bytes');
+            imagePart.image[0] = 9;
+
+            expect(queue.get(result.id)?.content).toEqual([
+                { type: 'image', image: new Uint8Array([1, 2, 3]), mimeType: 'image/png' },
+            ]);
         });
     });
 
@@ -431,6 +761,7 @@ describe('MessageQueueService', () => {
 
             expect(eventBus.emit).toHaveBeenCalledWith('message:removed', {
                 id: result.id,
+                queue: 'steer',
             });
         });
 

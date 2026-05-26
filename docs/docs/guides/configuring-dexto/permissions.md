@@ -5,7 +5,7 @@ sidebar_label: "Permissions"
 
 # Permissions Configuration
 
-Control how and when users are prompted to approve tool execution through Dexto's flexible confirmation system.
+Control how and when users are prompted to approve tool execution through Dexto's approval system.
 
 :::tip Complete Reference
 For complete field documentation, event specifications, and UI integration details, see **[agent.yml → Permissions](./agent-yml.md#permissions)**.
@@ -13,35 +13,34 @@ For complete field documentation, event specifications, and UI integration detai
 
 ## Overview
 
-The permissions system provides security and oversight by controlling which tools your agent can execute and when. It supports multiple modes and fine-grained policies for different environments and use cases.
+The permissions system controls whether tools require user approval before execution.
 
 **Configuration controls:**
-- **Confirmation mode** - How tools are approved (interactive, auto-approve, auto-deny)
-- **Timeout duration** - How long to wait for user response
-- **Storage type** - Where to remember approvals (persistent vs session-only)
-- **Tool policies** - Fine-grained allow/deny lists
+- **Approval mode** - How tools are approved (`manual` or `auto-approve`)
+- **Timeout duration** - How long manual mode waits for a user response
+- **Storage type** - Where remembered approvals are stored
+- **Tool policies** - Fine-grained allow lists for low-risk tools
 
 :::note Elicitation vs Permissions
 **Permissions** control whether tools require approval before execution. **Elicitation** is a separate feature that controls whether MCP servers can request user input during interactions. These are independent settings - see [Elicitation Configuration](./agent-yml.md#elicitation-configuration) for details.
 :::
 
-## Confirmation Modes
+## Approval Modes
 
 | Mode | Behavior | Use Case |
 |------|----------|----------|
 | **manual** | Interactive prompts via CLI/WebUI | Production with oversight |
 | **auto-approve** | Automatically approve all tools | Development/testing |
-| **auto-deny** | Block all tool execution | Read-only/high-security |
 
 ### manual (Default)
 
-Interactive confirmation via CLI prompts or WebUI dialogs:
+Interactive approval via CLI prompts or WebUI dialogs:
 
 ```yaml
 permissions:
   mode: manual
   timeout: 30000               # 30 seconds
-  allowedToolsStorage: storage # Persist across sessions
+  allowedToolsStorage: storage # Persist remembered approvals
 ```
 
 **When to use:**
@@ -65,23 +64,9 @@ permissions:
 
 CLI shortcut: `dexto --auto-approve`
 
-### auto-deny
-
-Block all tool execution:
-
-```yaml
-permissions:
-  mode: auto-deny
-```
-
-**When to use:**
-- High-security environments
-- Read-only deployments
-- Completely disable tool execution
-
 ## Tool Policies
 
-Fine-grained control over specific tools:
+Fine-grained control over specific low-risk tools:
 
 ```yaml
 permissions:
@@ -91,9 +76,6 @@ permissions:
       - ask_user
       - read_file
       - mcp--filesystem--read_file
-    alwaysDeny:
-      - mcp--filesystem--delete_file
-      - mcp--git--push
 ```
 
 **Tool name format:**
@@ -101,10 +83,11 @@ permissions:
 - MCP tools: `mcp--<server_name>--<tool_name>`
   - You can also use `mcp--<tool_name>` as a shorthand to match any MCP server that exposes that tool.
 
-**Precedence rules:**
-1. `alwaysDeny` takes precedence over `alwaysAllow`
-2. Tool policies override confirmation mode
-3. Empty arrays by default
+**Resolution order:**
+1. Session-specific remembered approvals
+2. Static `alwaysAllow` policies
+3. Dynamic allowed-tools provider
+4. Manual approval or auto-approve mode
 
 ## Storage Options
 
@@ -140,7 +123,7 @@ Approvals can be scoped to specific sessions or applied globally:
 
 **Global:** Applies to all sessions
 
-The system checks: session-specific → global → deny
+The system checks session-specific approvals before global approvals.
 
 ## Configuration Examples
 
@@ -150,9 +133,6 @@ The system checks: session-specific → global → deny
 permissions:
   mode: auto-approve
   allowedToolsStorage: memory
-  toolPolicies:
-    alwaysDeny:
-      - bash_exec
 ```
 
 ### Production Environment
@@ -166,12 +146,9 @@ permissions:
     alwaysAllow:
       - ask_user
       - read_file
-    alwaysDeny:
-      - mcp--filesystem--delete_file
-      - mcp--git--push
 ```
 
-### High-Security Environment
+### Sensitive Environment
 
 ```yaml
 permissions:
@@ -179,10 +156,6 @@ permissions:
   allowedToolsStorage: memory
   toolPolicies:
     alwaysAllow: []
-    alwaysDeny:
-      - mcp--filesystem--write_file
-      - mcp--filesystem--delete_file
-      - bash_exec
 ```
 
 ## Manual Mode Requirements
@@ -193,7 +166,7 @@ Manual mode requires UI integration to prompt the user for approvals:
 - **Web/Server Mode**: Approval dialogs in the WebUI
 - **Custom Integration**: Implement your own approval handler via `agent.setApprovalHandler()`
 
-The system will wait for user input up to the configured timeout, then auto-deny if no response is received.
+The system will wait for user input up to the configured timeout. If no timeout is configured, the approval waits until a response is submitted or the host cancels the request.
 
 ## Approval Handlers
 
@@ -201,7 +174,7 @@ Approval handlers control how your application prompts for and receives user dec
 
 ### Built-in Options
 
-**Auto modes**: No handler needed - `auto-approve` and `auto-deny` modes handle approvals automatically without requiring a handler implementation.
+**Auto-approve mode**: No handler needed for tool approvals.
 
 **Manual handler for server/API mode**: Use `createManualApprovalHandler` from `@dexto/server` when building web applications. This handler coordinates approvals between backend and frontend via event bus:
 
@@ -246,20 +219,19 @@ agent.setApprovalHandler(async (request) => {
 
 1. **Use manual mode in production** - Maintain oversight and control
 2. **Set reasonable timeouts** - Balance security with user experience
-3. **Enable read-only tools** - Allow safe operations without confirmation
-4. **Block destructive operations** - Use `alwaysDeny` for dangerous tools
-5. **Use memory storage for sensitive environments** - Don't persist approvals
-6. **Test policies** - Verify tool policies work as expected
+3. **Allow read-only tools** - Let safe operations run without repeated confirmation
+4. **Use memory storage for sensitive environments** - Don't persist approvals
+5. **Test policies** - Verify allow policies work as expected
 
 ## Common Use Cases
 
 | Scenario | Configuration |
 |----------|--------------|
 | **Development** | auto-approve + memory storage |
-| **Production** | manual + storage + policies |
-| **CI/CD** | auto-deny (no tool execution) |
+| **Production** | manual + storage + allow policies |
+| **CI/CD** | auto-approve only when the environment is trusted |
 | **Read-only** | manual + alwaysAllow read operations |
-| **High-security** | manual + memory storage + strict deny list |
+| **Sensitive** | manual + memory storage |
 
 ## See Also
 

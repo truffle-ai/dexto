@@ -40,6 +40,7 @@ export function cliReducer(state: CLIState, action: CLIAction): CLIState {
                     ...state.input,
                     value: '',
                     historyIndex: -1,
+                    editingQueuedFollowUp: false,
                 },
             };
 
@@ -70,6 +71,7 @@ export function cliReducer(state: CLIState, action: CLIAction): CLIState {
                             ...state.input,
                             value: '',
                             historyIndex: -1,
+                            editingQueuedFollowUp: false,
                         },
                     };
                 }
@@ -84,6 +86,7 @@ export function cliReducer(state: CLIState, action: CLIAction): CLIState {
                     ...state.input,
                     value: historyItem || '',
                     historyIndex: newIndex,
+                    editingQueuedFollowUp: false,
                 },
             };
         }
@@ -94,6 +97,7 @@ export function cliReducer(state: CLIState, action: CLIAction): CLIState {
                 input: {
                     ...state.input,
                     historyIndex: -1,
+                    editingQueuedFollowUp: false,
                 },
             };
 
@@ -112,6 +116,7 @@ export function cliReducer(state: CLIState, action: CLIAction): CLIState {
                     ...state.input,
                     history: [...history, action.value].slice(-100), // Keep last 100
                     historyIndex: -1,
+                    editingQueuedFollowUp: false,
                 },
             };
         }

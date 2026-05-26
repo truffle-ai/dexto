@@ -162,7 +162,7 @@ program
     .option('--no-interactive', 'Disable interactive prompts and API key setup')
     .option('--skip-setup', 'Skip global setup validation (useful for MCP mode, automation)')
     .option('-m, --model <model>', 'Specify the LLM model to use')
-    .option('--auto-approve', 'Always approve tool executions without confirmation prompts')
+    .option('--auto-approve', 'Always approve tool executions without approval prompts')
     .option(
         '--bypass-permissions',
         'Start the interactive CLI in bypass permissions mode (auto-approve approval prompts)'
@@ -463,12 +463,13 @@ async function bootstrapAgentFromGlobalOpts(options: {
     };
 
     const validatedConfig = AgentConfigSchema.parse(enrichedConfig);
-    const services = await resolveServicesFromConfig(validatedConfig, image);
+    const services = await resolveServicesFromConfig(validatedConfig, image, { workspaceRoot });
     const agent = new DextoAgent(
         toDextoAgentOptions({
             config: validatedConfig,
             services,
             image,
+            hostContext: { workspaceRoot },
         })
     );
     await agent.start();
@@ -1052,9 +1053,7 @@ program
                         console.error(
                             '💡 Run `dexto --auto-approve` or configure your agent to skip approvals when running non-interactively.'
                         );
-                        console.error(
-                            '   permissions.mode: auto-approve (or auto-deny if you want to deny certain tools)'
-                        );
+                        console.error('   permissions.mode: auto-approve');
                         console.error('   elicitation.enabled: false');
                         safeExit('main', 1, 'approval-unsupported-mode');
                     }
@@ -1064,7 +1063,7 @@ program
                 let agent: DextoAgent;
                 let derivedAgentId: string;
                 try {
-                    // Set run mode for tool confirmation provider
+                    // Set run mode for tool approval provider
                     process.env.DEXTO_RUN_MODE = opts.mode;
 
                     // Apply --strict flag to all server configs
@@ -1094,12 +1093,15 @@ program
                               })
                             : null;
 
-                    const services = await resolveServicesFromConfig(validatedConfig, image);
+                    const services = await resolveServicesFromConfig(validatedConfig, image, {
+                        workspaceRoot,
+                    });
                     agent = new DextoAgent(
                         toDextoAgentOptions({
                             config: validatedConfig,
                             services,
                             image,
+                            hostContext: { workspaceRoot },
                             overrides: {
                                 sessionLoggerFactory,
                                 mcpAuthProviderFactory,

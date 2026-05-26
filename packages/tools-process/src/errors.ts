@@ -4,7 +4,7 @@
  * Error classes for process execution and management
  */
 
-import { DextoRuntimeError, ErrorType } from '@dexto/core';
+import { DextoRuntimeError, ErrorType } from '@dexto/core/errors';
 
 /** Error scope for process operations */
 const PROCESS_SCOPE = 'process';

@@ -18,11 +18,7 @@ import type { AgentConfig } from '@dexto/agent-config';
 import * as path from 'path';
 import { discoverCommandPrompts, discoverAgentInstructionFile } from './discover-prompts.js';
 import { findDextoProjectRoot } from '../utils/execution-context.js';
-import {
-    discoverClaudeCodePlugins,
-    loadClaudeCodePlugin,
-    discoverStandaloneSkills,
-} from '../plugins/index.js';
+import { discoverClaudeCodePlugins, loadClaudeCodePlugin } from '../plugins/index.js';
 
 // Re-export for backwards compatibility
 export { discoverCommandPrompts, discoverAgentInstructionFile } from './discover-prompts.js';
@@ -255,8 +251,7 @@ export function enrichAgentConfig(
 
     // Discover and load Claude Code plugins (skip for subagents to avoid duplicate warnings)
     if (!skipPluginDiscovery) {
-        // Build set of existing file paths for deduplication
-        // This prevents duplicate prompts when same file appears in config and plugins/skills
+        // Build set of existing file paths for deduplication.
         const existingPromptPaths = new Set<string>();
         for (const prompt of enriched.prompts ?? []) {
             if (prompt.type === 'file') {
@@ -275,10 +270,10 @@ export function enrichAgentConfig(
                 console.warn(`[plugin] ${warning}`);
             }
 
-            // Add commands/skills as prompts with namespace
-            // Note: Both commands and skills are user-invocable by default (per schema).
-            // SKILL.md frontmatter can override with `user-invocable: false` if needed.
+            // Add commands as prompts with namespace. Skills are discovered by SkillManager.
             for (const cmd of loaded.commands) {
+                if (cmd.isSkill) continue;
+
                 const resolvedPath = path.resolve(cmd.file);
                 if (existingPromptPaths.has(resolvedPath)) {
                     continue; // Skip duplicate
@@ -304,31 +299,6 @@ export function enrichAgentConfig(
                     ...(loaded.mcpConfig.mcpServers as typeof enriched.mcpServers),
                 };
             }
-        }
-
-        // Discover standalone skills from <projectRoot>/skills/,
-        // <projectRoot>/.agents/skills/, <projectRoot>/.dexto/skills/,
-        // ~/.agents/skills/, and ~/.dexto/skills/
-        // These are bare skill directories with SKILL.md files (not full plugins)
-        // Unlike plugin commands, standalone skills don't need namespace prefixing -
-        // the id from frontmatter or directory name is used directly.
-        const standaloneSkills = discoverStandaloneSkills(workspaceRoot);
-        for (const skill of standaloneSkills) {
-            const resolvedPath = path.resolve(skill.skillFile);
-            if (existingPromptPaths.has(resolvedPath)) {
-                continue; // Skip duplicate
-            }
-            existingPromptPaths.add(resolvedPath);
-
-            const promptEntry = {
-                type: 'file' as const,
-                file: skill.skillFile,
-                // No namespace for standalone skills - they use id directly
-                // (unlike plugin commands which need plugin:command naming)
-            };
-
-            enriched.prompts = enriched.prompts ?? [];
-            enriched.prompts.push(promptEntry);
         }
     }
 

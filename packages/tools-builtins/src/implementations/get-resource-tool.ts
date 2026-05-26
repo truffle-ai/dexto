@@ -1,6 +1,11 @@
 import { z } from 'zod';
-import { ToolError, createLocalToolCallHeader, defineTool, truncateForHeader } from '@dexto/core';
-import type { Tool, ToolExecutionContext } from '@dexto/core';
+import {
+    ToolError,
+    createLocalToolCallHeader,
+    defineTool,
+    truncateForHeader,
+} from '@dexto/core/tools';
+import type { Tool, ToolExecutionContext } from '@dexto/core/tools';
 
 const GetResourceInputSchema = z
     .object({
@@ -58,8 +63,8 @@ export function createGetResourceTool(): Tool<typeof GetResourceInputSchema> {
             }
 
             try {
-                const blobStore = resourceManager.getBlobStore();
-                const storeType = blobStore.getStoreType();
+                const artifactStore = resourceManager.getArtifactStore();
+                const storeType = (await artifactStore.getStats()).backendType;
 
                 let blobUri = reference;
 
@@ -75,7 +80,7 @@ export function createGetResourceTool(): Tool<typeof GetResourceInputSchema> {
                     blobUri = `blob:${blobUri}`;
                 }
 
-                const exists = await blobStore.exists(blobUri);
+                const exists = await artifactStore.exists({ reference: blobUri });
                 if (!exists) {
                     return {
                         success: false,
@@ -85,8 +90,8 @@ export function createGetResourceTool(): Tool<typeof GetResourceInputSchema> {
                 }
 
                 if (format === 'metadata') {
-                    const allBlobs = await blobStore.listBlobs();
-                    const blobRef = allBlobs.find((b) => b.uri === blobUri);
+                    const artifacts = await artifactStore.listArtifacts();
+                    const blobRef = artifacts.find((artifact) => artifact.uri === blobUri);
 
                     if (!blobRef) {
                         return {
@@ -119,7 +124,7 @@ export function createGetResourceTool(): Tool<typeof GetResourceInputSchema> {
                     };
                 }
 
-                const blob = await blobStore.retrieve(blobUri, 'url');
+                const blob = await artifactStore.retrieve({ reference: blobUri, format: 'url' });
 
                 return {
                     success: true,

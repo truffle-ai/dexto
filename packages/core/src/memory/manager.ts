@@ -1,4 +1,4 @@
-import type { Database } from '../storage/database/types.js';
+import type { MemoryStore } from '../storage/memories/types.js';
 import type { Memory, CreateMemoryInput, UpdateMemoryInput, ListMemoriesOptions } from './types.js';
 import {
     MemorySchema,
@@ -13,20 +13,14 @@ import type { Logger } from '../logger/v2/types.js';
 import { DextoLogComponent } from '../logger/v2/types.js';
 import { nanoid } from 'nanoid';
 
-const MEMORY_KEY_PREFIX = 'memory:item:';
-
 /**
  * MemoryManager handles CRUD operations for user memories
  *
  * Responsibilities:
- * - Store and retrieve memories from the database
+ * - Store and retrieve memories from the memory store
  * - Validate memory data
  * - Generate unique IDs for memories
  * - Filter and search memories
- *
- * Storage format:
- * - Key: `memory:item:{id}`
- * - Value: Memory object
  *
  * TODO: Expand to support multi-scope memories (user, agent, entity, session)
  * with namespaced keys (e.g., `memory:user:{userId}:item:{id}`) and
@@ -36,7 +30,7 @@ export class MemoryManager {
     private logger: Logger;
 
     constructor(
-        private database: Database,
+        private memoryStore: MemoryStore,
         logger: Logger
     ) {
         this.logger = logger.createChild(DextoLogComponent.MEMORY);
@@ -67,8 +61,7 @@ export class MemoryManager {
         const validatedMemory = MemorySchema.parse(memory);
 
         try {
-            // Store in database
-            await this.database.set(this.toKey(id), validatedMemory);
+            await this.memoryStore.create({ memory: validatedMemory });
             this.logger.info(`Created memory: ${id}`);
             return validatedMemory;
         } catch (error) {
@@ -88,7 +81,7 @@ export class MemoryManager {
         }
 
         try {
-            const memory = await this.database.get<Memory>(this.toKey(id));
+            const memory = await this.memoryStore.get({ id });
             if (!memory) {
                 throw MemoryError.notFound(id);
             }
@@ -142,7 +135,7 @@ export class MemoryManager {
         const validatedMemory = MemorySchema.parse(updated);
 
         try {
-            await this.database.set(this.toKey(id), validatedMemory);
+            await this.memoryStore.update({ memory: validatedMemory });
             this.logger.info(`Updated memory: ${id}`);
             return validatedMemory;
         } catch (error) {
@@ -165,7 +158,7 @@ export class MemoryManager {
         await this.get(id);
 
         try {
-            await this.database.delete(this.toKey(id));
+            await this.memoryStore.delete({ id });
             this.logger.info(`Deleted memory: ${id}`);
         } catch (error) {
             throw MemoryError.deleteError(
@@ -183,23 +176,7 @@ export class MemoryManager {
         const validatedOptions = ListMemoriesOptionsSchema.parse(options);
 
         try {
-            // Get all memory keys
-            const keys = await this.database.list(MEMORY_KEY_PREFIX);
-
-            // Retrieve all memories
-            const memories: Memory[] = [];
-            for (const key of keys) {
-                try {
-                    const memory = await this.database.get<Memory>(key);
-                    if (memory) {
-                        memories.push(memory);
-                    }
-                } catch (error) {
-                    this.logger.warn(
-                        `Failed to retrieve memory from key ${key}: ${error instanceof Error ? error.message : String(error)}`
-                    );
-                }
-            }
+            const memories = await this.memoryStore.list();
 
             // Apply filters
             let filtered = memories;
@@ -264,12 +241,5 @@ export class MemoryManager {
     async count(options: ListMemoriesOptions = {}): Promise<number> {
         const memories = await this.list(options);
         return memories.length;
-    }
-
-    /**
-     * Convert memory ID to database key
-     */
-    private toKey(id: string): string {
-        return `${MEMORY_KEY_PREFIX}${id}`;
     }
 }

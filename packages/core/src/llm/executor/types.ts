@@ -1,6 +1,12 @@
 import { TokenUsage } from '../types.js';
 import { LLMFinishReason } from '../../events/index.js';
 
+export type ModelToolCall = {
+    toolCallId: string;
+    toolName: string;
+    input: unknown;
+};
+
 export interface ExecutorResult {
     /**
      * The accumulated text from assistant responses.
@@ -25,4 +31,5 @@ export interface StreamProcessorResult {
     text: string;
     finishReason: LLMFinishReason;
     usage: TokenUsage;
+    toolCalls: ModelToolCall[];
 }

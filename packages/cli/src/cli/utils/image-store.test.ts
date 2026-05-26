@@ -60,7 +60,7 @@ describe('image-store', () => {
                 `export default {`,
                 `  metadata: { name: '@myorg/my-image', version: '1.0.0', description: 'test image' },`,
                 `  tools: {},`,
-                `  storage: { blob: {}, database: {}, cache: {} },`,
+                `  storage: { configSchema: schema, createStores: () => ({}) },`,
                 `  hooks: {},`,
                 `  compaction: {},`,
                 `  logger: { configSchema: schema, create: () => ({}) },`,

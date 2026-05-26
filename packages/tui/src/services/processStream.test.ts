@@ -36,10 +36,18 @@ async function* eventStream(events: StreamingEvent[]) {
     }
 }
 
-function createSetters() {
+function createSetters({
+    steerMessages: initialSteerMessages = [],
+    queuedMessages: initialQueuedMessages = [],
+}: {
+    steerMessages?: QueuedMessage[];
+    queuedMessages?: QueuedMessage[];
+} = {}) {
     const messages = createState<Message[]>([]);
     const pendingMessages = createState<Message[]>([]);
     const dequeuedBuffer = createState<Message[]>([]);
+    const steerMessages = createState<QueuedMessage[]>(initialSteerMessages);
+    const queuedMessages = createState<QueuedMessage[]>(initialQueuedMessages);
     const ui = createState<UIState>({
         isProcessing: false,
         isCancelling: false,
@@ -87,6 +95,8 @@ function createSetters() {
     return {
         getMessages: messages.get,
         getPendingMessages: pendingMessages.get,
+        getSteerMessages: steerMessages.get,
+        getQueuedMessages: queuedMessages.get,
         getUi: ui.get,
         setters: {
             setMessages: messages.set,
@@ -94,7 +104,8 @@ function createSetters() {
             setDequeuedBuffer: dequeuedBuffer.set,
             setUi: ui.set,
             setSession: session.set,
-            setQueuedMessages: createNoopDispatch<QueuedMessage[]>(),
+            setSteerMessages: steerMessages.set,
+            setQueuedMessages: queuedMessages.set,
             setApproval: createNoopDispatch<ApprovalRequest | null>(),
             setApprovalQueue: createNoopDispatch<ApprovalRequest[]>(),
         },
@@ -104,6 +115,50 @@ function createSetters() {
 describe('processStream (reasoning)', () => {
     beforeEach(() => {
         captureAnalyticsMock.mockClear();
+    });
+
+    it('removes only dequeued queue ids from steer and follow-up state', async () => {
+        const steer: QueuedMessage = {
+            id: 'steer-1',
+            content: [{ type: 'text', text: 'active steer' }],
+            queuedAt: Date.now(),
+            kind: 'default',
+        };
+        const followUp: QueuedMessage = {
+            id: 'follow-up-1',
+            content: [{ type: 'text', text: 'later' }],
+            queuedAt: Date.now(),
+            kind: 'default',
+        };
+        const { getSteerMessages, getQueuedMessages, setters } = createSetters({
+            steerMessages: [steer],
+            queuedMessages: [followUp],
+        });
+
+        await processStream(
+            eventStream([
+                {
+                    name: 'message:dequeued',
+                    sessionId: 'test-session',
+                    count: 1,
+                    ids: [steer.id],
+                    queue: 'steer',
+                    coalesced: false,
+                    content: steer.content,
+                    messages: [steer],
+                },
+            ]),
+            setters,
+            {
+                useStreaming: true,
+                autoApproveEditsRef: { current: false },
+                bypassPermissionsRef: { current: false },
+                eventBus: { emit: vi.fn() },
+            }
+        );
+
+        expect(getSteerMessages()).toEqual([]);
+        expect(getQueuedMessages()).toEqual([followUp]);
     });
 
     it('attaches streamed reasoning chunks to the assistant message', async () => {
@@ -273,6 +328,7 @@ describe('processStream (reasoning)', () => {
                 name: 'llm:tool-call',
                 sessionId: 'test-session',
                 toolName: 'test-tool',
+                callId: 'call-1',
                 args: {},
             },
             {

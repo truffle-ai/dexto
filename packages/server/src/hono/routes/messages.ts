@@ -84,7 +84,7 @@ const MessageStreamBusyResponseSchema = z
     .object({
         busy: z.literal(true).describe('Indicates session is busy'),
         sessionId: z.string().describe('The session ID'),
-        queueLength: z.number().describe('Current number of messages in queue'),
+        queueLength: z.number().describe('Current number of queued follow-up messages'),
         hint: z.string().describe('Instructions for the client'),
     })
     .strict()
@@ -215,7 +215,7 @@ const messageStreamRoute = createRoute({
         },
         202: {
             description:
-                'Session is busy processing another message. Use the queue endpoints to manage pending messages.',
+                'Session is busy processing another message. Use the follow-up endpoint to queue input for the next turn.',
             content: {
                 'application/json': {
                     schema: MessageStreamBusyResponseSchema,
@@ -294,13 +294,13 @@ export function createMessagesRouter(getAgent: GetAgentFn, _approvalCoordinator?
             // Check if session is busy before starting stream
             const isBusy = await agent.isSessionBusy(sessionId);
             if (isBusy) {
-                const queuedMessages = await agent.getQueuedMessages(sessionId);
+                const followUpMessages = await agent.getFollowUpMessages(sessionId);
                 return ctx.json(
                     {
                         busy: true as const,
                         sessionId,
-                        queueLength: queuedMessages.length,
-                        hint: 'Use POST /api/queue/{sessionId} to queue this message, or wait for the current request to complete.',
+                        queueLength: followUpMessages.length,
+                        hint: 'Use POST /api/follow-up/{sessionId} to queue a follow-up message, or wait for the current request to complete.',
                     },
                     202
                 );
@@ -364,9 +364,18 @@ export function createMessagesRouter(getAgent: GetAgentFn, _approvalCoordinator?
                     return writeChain;
                 };
 
+                let sawFatalStreamError = false;
+
                 try {
                     // Stream LLM/tool events from iterator
                     for await (const event of iterator) {
+                        if (event.name === 'llm:error' && event.recoverable !== true) {
+                            sawFatalStreamError = true;
+                        }
+                        if (event.name === 'run:complete' && event.finishReason === 'error') {
+                            sawFatalStreamError = true;
+                        }
+
                         // Serialize errors properly since Error objects don't JSON.stringify well
                         const eventData =
                             event.name === 'llm:error' && event.error instanceof Error
@@ -382,13 +391,15 @@ export function createMessagesRouter(getAgent: GetAgentFn, _approvalCoordinator?
                         await enqueueSSEWrite(event.name, eventData);
                     }
                 } catch (error) {
-                    await enqueueSSEWrite('llm:error', {
-                        error: {
-                            message: error instanceof Error ? error.message : String(error),
-                        },
-                        recoverable: false,
-                        sessionId,
-                    });
+                    if (!sawFatalStreamError) {
+                        await enqueueSSEWrite('llm:error', {
+                            error: {
+                                message: error instanceof Error ? error.message : String(error),
+                            },
+                            recoverable: false,
+                            sessionId,
+                        });
+                    }
                 } finally {
                     requestDisconnectSignal.removeEventListener('abort', abortOnDisconnect);
                     abortController.abort(); // Cleanup subscriptions

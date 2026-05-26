@@ -8,7 +8,9 @@ import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { glob } from 'glob';
 import safeRegex from 'safe-regex';
-import { DextoRuntimeError, getDextoPath, Logger, DextoLogComponent } from '@dexto/core';
+import { DextoRuntimeError } from '@dexto/core/errors';
+import { DextoLogComponent, type Logger } from '@dexto/core/logger';
+import { getDextoPath } from '@dexto/core/utils/path.js';
 import {
     FileSystemConfig,
     FileContent,
@@ -960,11 +962,8 @@ export class FileSystemService {
         }
 
         try {
-            // Create parent directories if needed
-            if (options.createDirs) {
-                const dir = path.dirname(normalizedPath);
-                await fs.mkdir(dir, { recursive: true });
-            }
+            const dir = path.dirname(normalizedPath);
+            await fs.mkdir(dir, { recursive: true });
 
             // Write file
             await fs.writeFile(normalizedPath, content, encoding);

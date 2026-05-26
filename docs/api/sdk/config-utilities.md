@@ -125,17 +125,27 @@ The agent ID is derived in priority order:
 ### Example
 
 ```typescript
-import { loadAgentConfig, enrichAgentConfig } from '@dexto/agent-management';
 import { DextoAgent } from '@dexto/core';
+import { loadAgentConfig, enrichAgentConfig } from '@dexto/agent-management';
+import {
+  AgentConfigSchema,
+  applyImageDefaults,
+  resolveServicesFromConfig,
+  toDextoAgentOptions,
+} from '@dexto/agent-config';
+import imageLocal from '@dexto/image-local';
 
-// Load raw config
-const config = await loadAgentConfig('./agents/coding-agent.yml');
+const configPath = './agents/coding-agent.yml';
 
-// Enrich with runtime paths
-const enrichedConfig = enrichAgentConfig(config, './agents/coding-agent.yml');
+// Load YAML, apply image defaults, and enrich local runtime paths
+const rawConfig = await loadAgentConfig(configPath);
+const withDefaults = applyImageDefaults(rawConfig, imageLocal.defaults);
+const enrichedConfig = enrichAgentConfig(withDefaults, configPath);
 
-// Create agent with enriched config
-const agent = new DextoAgent(enrichedConfig, './agents/coding-agent.yml');
+// Resolve image-provided services before constructing the agent
+const config = AgentConfigSchema.parse(enrichedConfig);
+const services = await resolveServicesFromConfig(config, imageLocal);
+const agent = new DextoAgent(toDextoAgentOptions({ config, services }));
 await agent.start();
 ```
 
@@ -158,18 +168,30 @@ If no storage is specified in the config, enrichment adds:
 ## Complete Usage Pattern
 
 ```typescript
-import { loadAgentConfig, enrichAgentConfig } from '@dexto/agent-management';
 import { DextoAgent } from '@dexto/core';
+import { loadAgentConfig, enrichAgentConfig } from '@dexto/agent-management';
+import {
+  AgentConfigSchema,
+  applyImageDefaults,
+  resolveServicesFromConfig,
+  toDextoAgentOptions,
+} from '@dexto/agent-config';
+import imageLocal from '@dexto/image-local';
 
 async function createAgentFromConfig(configPath: string): Promise<DextoAgent> {
   // 1. Load the YAML config
-  const config = await loadAgentConfig(configPath);
+  const rawConfig = await loadAgentConfig(configPath);
 
-  // 2. Enrich with runtime paths
-  const enrichedConfig = enrichAgentConfig(config, configPath);
+  // 2. Apply image defaults and enrich with runtime paths
+  const withDefaults = applyImageDefaults(rawConfig, imageLocal.defaults);
+  const enrichedConfig = enrichAgentConfig(withDefaults, configPath);
 
-  // 3. Create and start the agent
-  const agent = new DextoAgent(enrichedConfig, configPath);
+  // 3. Validate config and resolve image-provided services
+  const config = AgentConfigSchema.parse(enrichedConfig);
+  const services = await resolveServicesFromConfig(config, imageLocal);
+
+  // 4. Create and start the agent
+  const agent = new DextoAgent(toDextoAgentOptions({ config, services }));
   await agent.start();
 
   return agent;

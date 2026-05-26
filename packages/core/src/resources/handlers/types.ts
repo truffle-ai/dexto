@@ -1,9 +1,9 @@
 import type { ResourceMetadata } from '../types.js';
 import type { ReadResourceResult } from '@modelcontextprotocol/sdk/types.js';
-import type { BlobStore } from '../../storage/blob/types.js';
+import type { ArtifactStore } from '../../storage/artifacts/types.js';
 
 export type InternalResourceServices = {
-    blobStore: BlobStore;
+    artifactStore: ArtifactStore;
 };
 
 export interface InternalResourceHandler {

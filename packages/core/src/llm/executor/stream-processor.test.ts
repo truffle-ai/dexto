@@ -3,10 +3,7 @@ import { StreamProcessor } from './stream-processor.js';
 import type { StreamProcessorConfig } from './stream-processor.js';
 import type { ContextManager } from '../../context/manager.js';
 import type { SessionEventBus } from '../../events/index.js';
-import type { ResourceManager } from '../../resources/index.js';
 import type { Logger } from '../../logger/v2/types.js';
-import type { ToolPresentationSnapshotV1 } from '../../tools/types.js';
-import type { ToolCallMetadata } from '../../tools/tool-call-metadata.js';
 
 /**
  * Creates a mock async generator that yields events
@@ -42,10 +39,6 @@ function createMocks() {
         }),
     } as unknown as SessionEventBus;
 
-    const mockResourceManager = {
-        getBlobStore: vi.fn().mockReturnValue({}),
-    } as unknown as ResourceManager;
-
     const mockLogger = {
         createChild: vi.fn().mockReturnThis(),
         debug: vi.fn(),
@@ -64,7 +57,6 @@ function createMocks() {
     return {
         contextManager: mockContextManager,
         eventBus: mockEventBus,
-        resourceManager: mockResourceManager,
         logger: mockLogger,
         abortController: mockAbortController,
         config,
@@ -87,7 +79,6 @@ describe('StreamProcessor', () => {
             const processor = new StreamProcessor(
                 mocks.contextManager,
                 mocks.eventBus,
-                mocks.resourceManager,
                 mocks.abortController.signal,
                 mocks.config,
                 mocks.logger,
@@ -115,7 +106,6 @@ describe('StreamProcessor', () => {
             const processor = new StreamProcessor(
                 mocks.contextManager,
                 mocks.eventBus,
-                mocks.resourceManager,
                 mocks.abortController.signal,
                 mocks.config,
                 mocks.logger,
@@ -142,7 +132,6 @@ describe('StreamProcessor', () => {
             const processor = new StreamProcessor(
                 mocks.contextManager,
                 mocks.eventBus,
-                mocks.resourceManager,
                 mocks.abortController.signal,
                 mocks.config,
                 mocks.logger,
@@ -172,7 +161,6 @@ describe('StreamProcessor', () => {
             const processor = new StreamProcessor(
                 mocks.contextManager,
                 mocks.eventBus,
-                mocks.resourceManager,
                 mocks.abortController.signal,
                 mocks.config,
                 mocks.logger,
@@ -198,7 +186,6 @@ describe('StreamProcessor', () => {
             const processor = new StreamProcessor(
                 mocks.contextManager,
                 mocks.eventBus,
-                mocks.resourceManager,
                 mocks.abortController.signal,
                 mocks.config,
                 mocks.logger,
@@ -237,7 +224,6 @@ describe('StreamProcessor', () => {
             const processor = new StreamProcessor(
                 mocks.contextManager,
                 mocks.eventBus,
-                mocks.resourceManager,
                 mocks.abortController.signal,
                 mocks.config,
                 mocks.logger,
@@ -267,7 +253,6 @@ describe('StreamProcessor', () => {
             const processor = new StreamProcessor(
                 mocks.contextManager,
                 mocks.eventBus,
-                mocks.resourceManager,
                 mocks.abortController.signal,
                 mocks.config,
                 mocks.logger,
@@ -295,7 +280,6 @@ describe('StreamProcessor', () => {
             const processor = new StreamProcessor(
                 mocks.contextManager,
                 mocks.eventBus,
-                mocks.resourceManager,
                 mocks.abortController.signal,
                 mocks.config,
                 mocks.logger,
@@ -324,7 +308,6 @@ describe('StreamProcessor', () => {
             const processor = new StreamProcessor(
                 mocks.contextManager,
                 mocks.eventBus,
-                mocks.resourceManager,
                 mocks.abortController.signal,
                 mocks.config,
                 mocks.logger,
@@ -352,7 +335,6 @@ describe('StreamProcessor', () => {
             const processor = new StreamProcessor(
                 mocks.contextManager,
                 mocks.eventBus,
-                mocks.resourceManager,
                 mocks.abortController.signal,
                 mocks.config,
                 mocks.logger,
@@ -384,7 +366,6 @@ describe('StreamProcessor', () => {
             const processor = new StreamProcessor(
                 mocks.contextManager,
                 mocks.eventBus,
-                mocks.resourceManager,
                 mocks.abortController.signal,
                 mocks.config,
                 mocks.logger,
@@ -414,7 +395,6 @@ describe('StreamProcessor', () => {
             const processor = new StreamProcessor(
                 mocks.contextManager,
                 mocks.eventBus,
-                mocks.resourceManager,
                 mocks.abortController.signal,
                 mocks.config,
                 mocks.logger,
@@ -445,7 +425,6 @@ describe('StreamProcessor', () => {
             const processor = new StreamProcessor(
                 mocks.contextManager,
                 mocks.eventBus,
-                mocks.resourceManager,
                 mocks.abortController.signal,
                 mocks.config,
                 mocks.logger,
@@ -483,7 +462,6 @@ describe('StreamProcessor', () => {
             const processor = new StreamProcessor(
                 mocks.contextManager,
                 mocks.eventBus,
-                mocks.resourceManager,
                 mocks.abortController.signal,
                 mocks.config,
                 mocks.logger,
@@ -523,7 +501,6 @@ describe('StreamProcessor', () => {
             const processor = new StreamProcessor(
                 mocks.contextManager,
                 mocks.eventBus,
-                mocks.resourceManager,
                 mocks.abortController.signal,
                 config,
                 mocks.logger,
@@ -545,7 +522,7 @@ describe('StreamProcessor', () => {
                 },
             ];
 
-            await processor.process(() => createMockStream(events) as never);
+            const result = await processor.process(() => createMockStream(events) as never);
 
             expect(mocks.contextManager.addToolCall).toHaveBeenCalledWith('msg-1', {
                 id: 'call-1',
@@ -556,17 +533,23 @@ describe('StreamProcessor', () => {
                 },
                 providerOptions: { google: { thoughtSignature: 'sig-1' } },
             });
+            expect(result.toolCalls).toEqual([
+                {
+                    toolCallId: 'call-1',
+                    toolName: 'test_tool',
+                    input: { arg: 'value' },
+                },
+            ]);
         });
 
-        test('persists tool call to context (llm:tool-call emitted by ToolManager)', async () => {
-            // NOTE: llm:tool-call is now emitted from ToolManager.executeTool() instead of StreamProcessor.
-            // This ensures correct event ordering - llm:tool-call arrives before approval:request.
+        test('persists tool call to context without emitting UI tool-call event', async () => {
+            // TurnExecutor emits llm:tool-call after preparation so the UI receives
+            // normalized presentation metadata before approval handling starts.
             // This test verifies StreamProcessor still persists tool calls to context.
             const mocks = createMocks();
             const processor = new StreamProcessor(
                 mocks.contextManager,
                 mocks.eventBus,
-                mocks.resourceManager,
                 mocks.abortController.signal,
                 mocks.config,
                 mocks.logger,
@@ -604,263 +587,12 @@ describe('StreamProcessor', () => {
         });
     });
 
-    describe('Tool Result Handling', () => {
-        test('persists sanitized and truncated tool result via contextManager', async () => {
-            const mocks = createMocks();
-            const processor = new StreamProcessor(
-                mocks.contextManager,
-                mocks.eventBus,
-                mocks.resourceManager,
-                mocks.abortController.signal,
-                mocks.config,
-                mocks.logger,
-                true
-            );
-
-            const events = [
-                {
-                    type: 'tool-result',
-                    toolCallId: 'call-1',
-                    toolName: 'test_tool',
-                    output: { result: 'raw output' },
-                },
-                {
-                    type: 'finish',
-                    finishReason: 'stop',
-                    totalUsage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
-                },
-            ];
-
-            await processor.process(() => createMockStream(events) as never);
-
-            // Verify addToolResult was called with sanitized result containing meta.success
-            expect(mocks.contextManager.addToolResult).toHaveBeenCalledWith(
-                'call-1',
-                'test_tool',
-                expect.objectContaining({
-                    content: expect.arrayContaining([expect.objectContaining({ type: 'text' })]),
-                    meta: expect.objectContaining({
-                        success: true, // Success status is in sanitizedResult.meta
-                    }),
-                }),
-                undefined // No approval metadata for this call
-            );
-        });
-
-        test('emits llm:tool-result with success=true', async () => {
-            const mocks = createMocks();
-            const processor = new StreamProcessor(
-                mocks.contextManager,
-                mocks.eventBus,
-                mocks.resourceManager,
-                mocks.abortController.signal,
-                mocks.config,
-                mocks.logger,
-                true
-            );
-
-            const events = [
-                {
-                    type: 'tool-result',
-                    toolCallId: 'call-1',
-                    toolName: 'test_tool',
-                    output: { result: 'success' },
-                },
-                {
-                    type: 'finish',
-                    finishReason: 'stop',
-                    totalUsage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
-                },
-            ];
-
-            await processor.process(() => createMockStream(events) as never);
-
-            const toolResultEvent = mocks.emittedEvents.find((e) => e.name === 'llm:tool-result');
-            expect(toolResultEvent).toBeDefined();
-            expect((toolResultEvent?.payload as { success: boolean }).success).toBe(true);
-            expect((toolResultEvent?.payload as { toolName: string }).toolName).toBe('test_tool');
-            expect((toolResultEvent?.payload as { callId: string }).callId).toBe('call-1');
-        });
-
-        test('stores tool result with success status for rehydration', async () => {
-            const mocks = createMocks();
-            const processor = new StreamProcessor(
-                mocks.contextManager,
-                mocks.eventBus,
-                mocks.resourceManager,
-                mocks.abortController.signal,
-                mocks.config,
-                mocks.logger,
-                true
-            );
-
-            const events = [
-                {
-                    type: 'tool-result',
-                    toolCallId: 'call-rehydrate',
-                    toolName: 'storage_tool',
-                    output: { stored: true, id: 'doc-123' },
-                },
-                {
-                    type: 'finish',
-                    finishReason: 'stop',
-                    totalUsage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
-                },
-            ];
-
-            await processor.process(() => createMockStream(events) as never);
-
-            // Verify addToolResult is called with success in meta for storage/rehydration
-            expect(mocks.contextManager.addToolResult).toHaveBeenCalledWith(
-                'call-rehydrate',
-                'storage_tool',
-                expect.objectContaining({
-                    meta: expect.objectContaining({
-                        success: true, // Success status is in sanitizedResult.meta
-                    }),
-                }),
-                undefined // No approval metadata for this call
-            );
-        });
-
-        test('passes approval metadata separately from success status', async () => {
-            const mocks = createMocks();
-
-            // Create approval metadata to pass via constructor
-            const approvalMetadata = new Map<
-                string,
-                { requireApproval: boolean; approvalStatus?: 'approved' | 'rejected' }
-            >([['call-with-approval', { requireApproval: true, approvalStatus: 'approved' }]]);
-
-            const processor = new StreamProcessor(
-                mocks.contextManager,
-                mocks.eventBus,
-                mocks.resourceManager,
-                mocks.abortController.signal,
-                mocks.config,
-                mocks.logger,
-                true,
-                approvalMetadata
-            );
-
-            const events = [
-                {
-                    type: 'tool-result',
-                    toolCallId: 'call-with-approval',
-                    toolName: 'approved_tool',
-                    output: { result: 'approved execution' },
-                },
-                {
-                    type: 'finish',
-                    finishReason: 'stop',
-                    totalUsage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
-                },
-            ];
-
-            await processor.process(() => createMockStream(events) as never);
-
-            // Verify success is in meta, approval metadata passed separately
-            expect(mocks.contextManager.addToolResult).toHaveBeenCalledWith(
-                'call-with-approval',
-                'approved_tool',
-                expect.objectContaining({
-                    meta: expect.objectContaining({
-                        success: true, // Success status is in sanitizedResult.meta
-                    }),
-                }),
-                expect.objectContaining({
-                    requireApproval: true,
-                    approvalStatus: 'approved',
-                })
-            );
-        });
-
-        test('propagates stored tool metadata for tool errors', async () => {
-            const mocks = createMocks();
-            const presentationSnapshot: ToolPresentationSnapshotV1 = {
-                version: 1,
-                header: { title: 'Command' },
-            };
-            const meta: ToolCallMetadata = {
-                reactiveUi: { type: 'open', surface: 'browser' },
-            };
-            const toolCallMetadata = new Map([
-                [
-                    'call-error',
-                    {
-                        presentationSnapshot,
-                        meta,
-                        requireApproval: true,
-                        approvalStatus: 'approved' as const,
-                    },
-                ],
-            ]);
-
-            const processor = new StreamProcessor(
-                mocks.contextManager,
-                mocks.eventBus,
-                mocks.resourceManager,
-                mocks.abortController.signal,
-                mocks.config,
-                mocks.logger,
-                true,
-                toolCallMetadata
-            );
-
-            const events = [
-                {
-                    type: 'tool-error',
-                    toolCallId: 'call-error',
-                    toolName: 'bash',
-                    error: new Error('boom'),
-                },
-                {
-                    type: 'finish',
-                    finishReason: 'stop',
-                    totalUsage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
-                },
-            ];
-
-            await processor.process(() => createMockStream(events) as never);
-
-            expect(mocks.contextManager.addToolResult).toHaveBeenCalledWith(
-                'call-error',
-                'bash',
-                expect.objectContaining({
-                    meta: expect.objectContaining({
-                        success: false,
-                    }),
-                }),
-                expect.objectContaining({
-                    presentationSnapshot,
-                    meta,
-                    requireApproval: true,
-                    approvalStatus: 'approved',
-                })
-            );
-
-            const toolResultEvent = mocks.emittedEvents.find((e) => e.name === 'llm:tool-result');
-            expect(toolResultEvent?.payload).toMatchObject({
-                toolName: 'bash',
-                callId: 'call-error',
-                success: false,
-                error: 'boom',
-                meta,
-                presentationSnapshot,
-                requireApproval: true,
-                approvalStatus: 'approved',
-            });
-            expect(toolCallMetadata.size).toBe(0);
-        });
-    });
-
     describe('Finish Event Handling', () => {
         test('captures finishReason', async () => {
             const mocks = createMocks();
             const processor = new StreamProcessor(
                 mocks.contextManager,
                 mocks.eventBus,
-                mocks.resourceManager,
                 mocks.abortController.signal,
                 mocks.config,
                 mocks.logger,
@@ -886,7 +618,6 @@ describe('StreamProcessor', () => {
             const processor = new StreamProcessor(
                 mocks.contextManager,
                 mocks.eventBus,
-                mocks.resourceManager,
                 mocks.abortController.signal,
                 mocks.config,
                 mocks.logger,
@@ -919,12 +650,95 @@ describe('StreamProcessor', () => {
             });
         });
 
+        test('treats null usage fields from providers as missing', async () => {
+            const mocks = createMocks();
+            const processor = new StreamProcessor(
+                mocks.contextManager,
+                mocks.eventBus,
+                mocks.abortController.signal,
+                mocks.config,
+                mocks.logger,
+                true
+            );
+
+            const events = [
+                { type: 'text-delta', text: 'Response' },
+                {
+                    type: 'finish',
+                    finishReason: 'stop',
+                    totalUsage: {
+                        inputTokens: null,
+                        outputTokens: null,
+                        totalTokens: null,
+                        reasoningTokens: null,
+                        cachedInputTokens: null,
+                        inputTokenDetails: {
+                            noCacheTokens: null,
+                            cacheReadTokens: null,
+                            cacheWriteTokens: null,
+                        },
+                    },
+                },
+            ];
+
+            const result = await processor.process(() => createMockStream(events) as never);
+
+            expect(result.usage).toEqual({
+                inputTokens: 0,
+                outputTokens: 0,
+                totalTokens: 0,
+                cacheReadTokens: 0,
+                cacheWriteTokens: 0,
+            });
+        });
+
+        test('treats NaN usage fields from providers as missing', async () => {
+            const mocks = createMocks();
+            const processor = new StreamProcessor(
+                mocks.contextManager,
+                mocks.eventBus,
+                mocks.abortController.signal,
+                mocks.config,
+                mocks.logger,
+                true
+            );
+
+            const events = [
+                { type: 'text-delta', text: 'Response' },
+                {
+                    type: 'finish',
+                    finishReason: 'stop',
+                    totalUsage: {
+                        inputTokens: Number.NaN,
+                        outputTokens: 6,
+                        totalTokens: 4560,
+                        reasoningTokens: Number.NaN,
+                        cachedInputTokens: Number.NaN,
+                        inputTokenDetails: {
+                            noCacheTokens: Number.NaN,
+                            cacheReadTokens: Number.NaN,
+                            cacheWriteTokens: 0,
+                        },
+                    },
+                },
+            ];
+
+            const result = await processor.process(() => createMockStream(events) as never);
+
+            expect(result.usage).toEqual({
+                inputTokens: 0,
+                outputTokens: 6,
+                totalTokens: 4560,
+                cacheReadTokens: 0,
+                cacheWriteTokens: 0,
+            });
+        });
+
         test('subtracts cached input tokens from inputTokens when cachedInputTokens is present', async () => {
             const mocks = createMocks();
             const processor = new StreamProcessor(
                 mocks.contextManager,
                 mocks.eventBus,
-                mocks.resourceManager,
                 mocks.abortController.signal,
                 mocks.config,
                 mocks.logger,
@@ -961,7 +775,6 @@ describe('StreamProcessor', () => {
             const processor = new StreamProcessor(
                 mocks.contextManager,
                 mocks.eventBus,
-                mocks.resourceManager,
                 mocks.abortController.signal,
                 mocks.config,
                 mocks.logger,
@@ -1004,7 +817,6 @@ describe('StreamProcessor', () => {
             const processor = new StreamProcessor(
                 mocks.contextManager,
                 mocks.eventBus,
-                mocks.resourceManager,
                 mocks.abortController.signal,
                 mocks.config,
                 mocks.logger,
@@ -1043,7 +855,6 @@ describe('StreamProcessor', () => {
             const processor = new StreamProcessor(
                 mocks.contextManager,
                 mocks.eventBus,
-                mocks.resourceManager,
                 mocks.abortController.signal,
                 mocks.config,
                 mocks.logger,
@@ -1077,7 +888,6 @@ describe('StreamProcessor', () => {
             const processor = new StreamProcessor(
                 mocks.contextManager,
                 mocks.eventBus,
-                mocks.resourceManager,
                 mocks.abortController.signal,
                 mocks.config,
                 mocks.logger,
@@ -1112,7 +922,6 @@ describe('StreamProcessor', () => {
             const processor = new StreamProcessor(
                 mocks.contextManager,
                 mocks.eventBus,
-                mocks.resourceManager,
                 mocks.abortController.signal,
                 mocks.config,
                 mocks.logger,
@@ -1160,7 +969,6 @@ describe('StreamProcessor', () => {
             const processor = new StreamProcessor(
                 mocks.contextManager,
                 mocks.eventBus,
-                mocks.resourceManager,
                 mocks.abortController.signal,
                 mocks.config,
                 mocks.logger,
@@ -1208,7 +1016,6 @@ describe('StreamProcessor', () => {
             const processor = new StreamProcessor(
                 mocks.contextManager,
                 mocks.eventBus,
-                mocks.resourceManager,
                 mocks.abortController.signal,
                 mocks.config,
                 mocks.logger,
@@ -1245,7 +1052,6 @@ describe('StreamProcessor', () => {
             const processor = new StreamProcessor(
                 mocks.contextManager,
                 mocks.eventBus,
-                mocks.resourceManager,
                 mocks.abortController.signal,
                 mocks.config,
                 mocks.logger,
@@ -1266,7 +1072,6 @@ describe('StreamProcessor', () => {
             const processor = new StreamProcessor(
                 mocks.contextManager,
                 mocks.eventBus,
-                mocks.resourceManager,
                 mocks.abortController.signal,
                 mocks.config,
                 mocks.logger,
@@ -1288,7 +1093,6 @@ describe('StreamProcessor', () => {
             const processor = new StreamProcessor(
                 mocks.contextManager,
                 mocks.eventBus,
-                mocks.resourceManager,
                 mocks.abortController.signal,
                 mocks.config,
                 mocks.logger,
@@ -1339,6 +1143,85 @@ describe('StreamProcessor', () => {
                 error: 'Test error',
             });
         });
+
+        test('persists failed tool results for every pending sibling before fatal stream errors', async () => {
+            const mocks = createMocks();
+            const processor = new StreamProcessor(
+                mocks.contextManager,
+                mocks.eventBus,
+                mocks.abortController.signal,
+                mocks.config,
+                mocks.logger,
+                true
+            );
+
+            const testError = new Error('Model stream failed');
+            const events = [
+                {
+                    type: 'tool-call',
+                    toolCallId: 'call-1',
+                    toolName: 'read_file',
+                    input: { path: 'a.txt' },
+                },
+                {
+                    type: 'tool-call',
+                    toolCallId: 'call-2',
+                    toolName: 'write_file',
+                    input: { path: 'b.txt', content: 'hello' },
+                },
+                { type: 'error', error: testError },
+            ];
+
+            await expect(processor.process(() => createMockStream(events) as never)).rejects.toBe(
+                testError
+            );
+
+            expect(mocks.contextManager.addToolResult).toHaveBeenCalledTimes(2);
+            expect(mocks.contextManager.addToolResult).toHaveBeenNthCalledWith(
+                1,
+                'call-1',
+                'read_file',
+                expect.objectContaining({
+                    content: [{ type: 'text', text: 'Error: Model stream failed' }],
+                    meta: expect.objectContaining({
+                        toolCallId: 'call-1',
+                        success: false,
+                    }),
+                }),
+                undefined
+            );
+            expect(mocks.contextManager.addToolResult).toHaveBeenNthCalledWith(
+                2,
+                'call-2',
+                'write_file',
+                expect.objectContaining({
+                    content: [{ type: 'text', text: 'Error: Model stream failed' }],
+                    meta: expect.objectContaining({
+                        toolCallId: 'call-2',
+                        success: false,
+                    }),
+                }),
+                undefined
+            );
+
+            const toolResultEvents = mocks.emittedEvents.filter(
+                (event) => event.name === 'llm:tool-result'
+            );
+            expect(toolResultEvents.map((event) => event.payload)).toMatchObject([
+                {
+                    toolName: 'read_file',
+                    callId: 'call-1',
+                    success: false,
+                    error: 'Model stream failed',
+                },
+                {
+                    toolName: 'write_file',
+                    callId: 'call-2',
+                    success: false,
+                    error: 'Model stream failed',
+                },
+            ]);
+        });
     });
 
     describe('Abort Signal', () => {
@@ -1358,7 +1241,6 @@ describe('StreamProcessor', () => {
             const processor = new StreamProcessor(
                 mocks.contextManager,
                 mocks.eventBus,
-                mocks.resourceManager,
                 mocks.abortController.signal,
                 mocks.config,
                 mocks.logger,
@@ -1385,7 +1267,6 @@ describe('StreamProcessor', () => {
             const processor = new StreamProcessor(
                 mocks.contextManager,
                 mocks.eventBus,
-                mocks.resourceManager,
                 mocks.abortController.signal,
                 mocks.config,
                 mocks.logger,
@@ -1415,7 +1296,6 @@ describe('StreamProcessor', () => {
             const processor = new StreamProcessor(
                 mocks.contextManager,
                 mocks.eventBus,
-                mocks.resourceManager,
                 mocks.abortController.signal,
                 mocks.config,
                 mocks.logger,
@@ -1461,36 +1341,21 @@ describe('StreamProcessor', () => {
             ).toBeGreaterThan(0);
         });
 
-        test('propagates stored tool metadata for cancelled pending tool calls', async () => {
+        test('persists cancelled tool results for every pending sibling tool call', async () => {
             const mocks = createMocks();
-            const presentationSnapshot: ToolPresentationSnapshotV1 = {
-                version: 1,
-                header: { title: 'Preview App' },
-            };
-            const meta: ToolCallMetadata = {
-                reactiveUi: {
-                    type: 'open',
-                    surface: 'workspace',
-                    target: { kind: 'app', appId: 'smoke-app' },
-                },
-            };
-            const toolCallMetadata = new Map([
-                [
-                    'call-cancelled',
-                    {
-                        presentationSnapshot,
-                        meta,
-                    },
-                ],
-            ]);
-
             const abortingStream = {
                 fullStream: (async function* () {
                     yield {
                         type: 'tool-call',
-                        toolCallId: 'call-cancelled',
-                        toolName: 'bash',
-                        input: { command: 'echo hi' },
+                        toolCallId: 'call-done',
+                        toolName: 'read_file',
+                        input: { path: 'a.txt' },
+                    };
+                    yield {
+                        type: 'tool-call',
+                        toolCallId: 'call-pending',
+                        toolName: 'write_file',
+                        input: { path: 'b.txt', content: 'hello' },
                     };
                     yield { type: 'abort' };
                 })(),
@@ -1499,41 +1364,59 @@ describe('StreamProcessor', () => {
             const processor = new StreamProcessor(
                 mocks.contextManager,
                 mocks.eventBus,
-                mocks.resourceManager,
                 mocks.abortController.signal,
                 mocks.config,
                 mocks.logger,
-                true,
-                toolCallMetadata
+                true
             );
 
             await processor.process(() => abortingStream as never);
 
-            expect(mocks.contextManager.addToolResult).toHaveBeenCalledWith(
-                'call-cancelled',
-                'bash',
+            expect(mocks.contextManager.addToolResult).toHaveBeenCalledTimes(2);
+            expect(mocks.contextManager.addToolResult).toHaveBeenNthCalledWith(
+                1,
+                'call-done',
+                'read_file',
                 expect.objectContaining({
                     content: [{ type: 'text', text: 'Cancelled by user' }],
                     meta: expect.objectContaining({
+                        toolCallId: 'call-done',
                         success: false,
                     }),
                 }),
+                undefined
+            );
+            expect(mocks.contextManager.addToolResult).toHaveBeenNthCalledWith(
+                2,
+                'call-pending',
+                'write_file',
                 expect.objectContaining({
-                    presentationSnapshot,
-                    meta,
-                })
+                    content: [{ type: 'text', text: 'Cancelled by user' }],
+                    meta: expect.objectContaining({
+                        toolCallId: 'call-pending',
+                        success: false,
+                    }),
+                }),
+                undefined
             );
 
-            const toolResultEvent = mocks.emittedEvents.find((e) => e.name === 'llm:tool-result');
-            expect(toolResultEvent?.payload).toMatchObject({
-                toolName: 'bash',
-                callId: 'call-cancelled',
-                success: false,
-                error: 'Cancelled by user',
-                meta,
-                presentationSnapshot,
-            });
-            expect(toolCallMetadata.size).toBe(0);
+            const toolResultEvents = mocks.emittedEvents.filter(
+                (event) => event.name === 'llm:tool-result'
+            );
+            expect(toolResultEvents.map((event) => event.payload)).toMatchObject([
+                {
+                    toolName: 'read_file',
+                    callId: 'call-done',
+                    success: false,
+                    error: 'Cancelled by user',
+                },
+                {
+                    toolName: 'write_file',
+                    callId: 'call-pending',
+                    success: false,
+                    error: 'Cancelled by user',
+                },
+            ]);
         });
     });
 
@@ -1543,7 +1426,6 @@ describe('StreamProcessor', () => {
             const processor = new StreamProcessor(
                 mocks.contextManager,
                 mocks.eventBus,
-                mocks.resourceManager,
                 mocks.abortController.signal,
                 mocks.config,
                 mocks.logger,
@@ -1569,7 +1451,6 @@ describe('StreamProcessor', () => {
             const processor = new StreamProcessor(
                 mocks.contextManager,
                 mocks.eventBus,
-                mocks.resourceManager,
                 mocks.abortController.signal,
                 mocks.config,
                 mocks.logger,
@@ -1590,36 +1471,28 @@ describe('StreamProcessor', () => {
                     input: { b: 2 },
                 },
                 {
-                    type: 'tool-result',
-                    toolCallId: 'call-1',
-                    toolName: 'tool_a',
-                    output: 'result a',
-                },
-                {
-                    type: 'tool-result',
-                    toolCallId: 'call-2',
-                    toolName: 'tool_b',
-                    output: 'result b',
-                },
-                {
                     type: 'finish',
                     finishReason: 'tool-calls',
                     totalUsage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
                 },
             ];
 
-            await processor.process(() => createMockStream(events) as never);
-
-            // NOTE: llm:tool-call is now emitted from ToolManager.executeTool() instead of StreamProcessor.
-            // StreamProcessor still emits llm:tool-result events.
-            const toolResultEvents = mocks.emittedEvents.filter(
-                (e) => e.name === 'llm:tool-result'
-            );
-
-            expect(toolResultEvents).toHaveLength(2);
+            const result = await processor.process(() => createMockStream(events) as never);
 
             // Verify both tool calls were persisted to context
             expect(mocks.contextManager.addToolCall).toHaveBeenCalledTimes(2);
+            expect(result.toolCalls).toEqual([
+                {
+                    toolCallId: 'call-1',
+                    toolName: 'tool_a',
+                    input: { a: 1 },
+                },
+                {
+                    toolCallId: 'call-2',
+                    toolName: 'tool_b',
+                    input: { b: 2 },
+                },
+            ]);
         });
 
         test('handles interleaved text and tool calls', async () => {
@@ -1627,7 +1500,6 @@ describe('StreamProcessor', () => {
             const processor = new StreamProcessor(
                 mocks.contextManager,
                 mocks.eventBus,
-                mocks.resourceManager,
                 mocks.abortController.signal,
                 mocks.config,
                 mocks.logger,
@@ -1641,12 +1513,6 @@ describe('StreamProcessor', () => {
                     toolCallId: 'call-1',
                     toolName: 'lookup',
                     input: {},
-                },
-                {
-                    type: 'tool-result',
-                    toolCallId: 'call-1',
-                    toolName: 'lookup',
-                    output: 'found',
                 },
                 { type: 'text-delta', text: 'the answer is 42' },
                 {

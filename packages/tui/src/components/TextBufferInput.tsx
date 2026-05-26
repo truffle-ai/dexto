@@ -33,12 +33,16 @@ interface TextBufferInputProps {
     buffer: TextBuffer;
     /** Called when user presses Enter to submit */
     onSubmit: (value: string) => void;
+    /** Called when user presses Alt+Enter to queue a follow-up */
+    onQueueSubmit?: ((value: string) => void) | undefined;
     /** Placeholder text when empty */
     placeholder?: string | undefined;
     /** Whether input handling is disabled (e.g., during processing) */
     isDisabled?: boolean | undefined;
     /** Called for history navigation (up/down at boundaries) */
     onHistoryNavigate?: ((direction: 'up' | 'down') => void) | undefined;
+    /** Called before Alt+Up jumps to top; return true to consume */
+    onCurrentTurnEdit?: (() => boolean) | undefined;
     /** Called to trigger overlay (slash command, @mention) */
     onTriggerOverlay?: ((trigger: OverlayTrigger) => void) | undefined;
     /** Maximum lines to show in viewport */
@@ -109,9 +113,11 @@ function HighlightedText({ text, query }: { text: string; query: string | undefi
 export function TextBufferInput({
     buffer,
     onSubmit,
+    onQueueSubmit,
     placeholder,
     isDisabled = false,
     onHistoryNavigate,
+    onCurrentTurnEdit,
     onTriggerOverlay,
     maxViewportLines = 10,
     isActive,
@@ -320,6 +326,14 @@ export function TextBufferInput({
                 return;
             }
 
+            // === FOLLOW-UP QUEUE SUBMIT (Alt+Enter) ===
+            if (key.name === 'return' && key.meta && !key.paste && onQueueSubmit) {
+                if (currentText.trim()) {
+                    onQueueSubmit(currentText);
+                }
+                return;
+            }
+
             // === NEWLINE DETECTION ===
             const isCtrlJ = key.sequence === '\n';
             const isShiftEnter =
@@ -328,8 +342,7 @@ export function TextBufferInput({
                 key.sequence === '\x1b[13;2u' ||
                 key.sequence === '\x1bOM';
             const isPasteReturn = key.name === 'return' && key.paste;
-            const wantsNewline =
-                isCtrlJ || isShiftEnter || (key.name === 'return' && key.meta) || isPasteReturn;
+            const wantsNewline = isCtrlJ || isShiftEnter || isPasteReturn;
 
             if (wantsNewline) {
                 buffer.newline();
@@ -424,8 +437,11 @@ export function TextBufferInput({
                 buffer.move(key.meta || key.ctrl ? 'wordRight' : 'right');
                 return;
             }
-            // Cmd+Up: Move to start of input
+            // Alt+Up edits current-turn input when available; otherwise jump to start.
             if (key.meta && key.name === 'up') {
+                if (onCurrentTurnEdit?.()) {
+                    return;
+                }
                 buffer.moveToOffset(0);
                 return;
             }
@@ -540,7 +556,9 @@ export function TextBufferInput({
             buffer,
             isDisabled,
             onSubmit,
+            onQueueSubmit,
             onHistoryNavigate,
+            onCurrentTurnEdit,
             onTriggerOverlay,
             onKeyboardScroll,
             // imageCount intentionally omitted - callback uses imageCountRef which is synced via useEffect

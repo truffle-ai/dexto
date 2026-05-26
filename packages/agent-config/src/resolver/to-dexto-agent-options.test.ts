@@ -8,15 +8,14 @@ import type {
 import { AgentConfigSchema } from '../schemas/agent-config.js';
 import type { ResolvedServices } from './types.js';
 import { toDextoAgentOptions } from './to-dexto-agent-options.js';
-import {
-    createMockBlobStore,
-    createMockCache,
-    createMockDatabase,
-    createMockLogger,
-    createMockTool,
-} from './__fixtures__/test-mocks.js';
+import { InMemoryDextoStores } from '@dexto/core/storage';
+import { createMockLogger, createMockTool } from './__fixtures__/test-mocks.js';
 
 describe('toDextoAgentOptions', () => {
+    function createMockStores() {
+        return new InMemoryDextoStores();
+    }
+
     function createMockImage<THostContext extends DextoHostContext = DextoHostContext>(
         overrides?: Partial<DextoImage<THostContext>>
     ): DextoImage<THostContext> {
@@ -29,24 +28,8 @@ describe('toDextoAgentOptions', () => {
                 },
             },
             storage: {
-                blob: {
-                    'in-memory': {
-                        configSchema: z.any(),
-                        create: () => createMockBlobStore('in-memory'),
-                    },
-                },
-                database: {
-                    'in-memory': {
-                        configSchema: z.any(),
-                        create: () => createMockDatabase('in-memory'),
-                    },
-                },
-                cache: {
-                    'in-memory': {
-                        configSchema: z.any(),
-                        create: () => createMockCache('in-memory'),
-                    },
-                },
+                configSchema: z.any(),
+                createStores: () => createMockStores(),
             },
             hooks: {},
             compaction: {},
@@ -79,15 +62,12 @@ describe('toDextoAgentOptions', () => {
         const logger = createMockLogger();
         const services: ResolvedServices = {
             logger,
-            storage: {
-                blob: createMockBlobStore('in-memory'),
-                database: createMockDatabase('in-memory'),
-                cache: createMockCache('in-memory'),
-            },
+            stores: createMockStores(),
             tools: [createMockTool('foo')],
             toolkitLoader: async () => [],
             hooks: [],
             compaction: null,
+            skillSources: [],
         };
 
         const options = toDextoAgentOptions({
@@ -108,11 +88,45 @@ describe('toDextoAgentOptions', () => {
         expect(options.overrides).toEqual({});
 
         expect(options.logger).toBe(logger);
-        expect(options.storage.blob.getStoreType()).toBe('in-memory');
+        expect(options.stores.getStore('artifacts')).toBeDefined();
         expect((options.tools ?? []).map((t) => t.id)).toEqual(['foo']);
         expect(options.hooks).toEqual([]);
         expect(options.compaction).toBeNull();
         expect(options.toolkitLoader).toBe(services.toolkitLoader);
+    });
+
+    it('passes resolved workspace handle provider through service overrides', () => {
+        const validated = AgentConfigSchema.parse({
+            systemPrompt: 'You are a helpful assistant',
+            llm: {
+                provider: 'openai',
+                model: 'gpt-4o-mini',
+                apiKey: 'test-key',
+            },
+            storage: {
+                cache: { type: 'in-memory' },
+                database: { type: 'in-memory' },
+                blob: { type: 'in-memory' },
+            },
+            compaction: { type: 'noop', enabled: false },
+        });
+        const workspaceHandleProvider = { open: vi.fn() };
+        const services: ResolvedServices = {
+            logger: createMockLogger(),
+            stores: createMockStores(),
+            tools: [],
+            hooks: [],
+            compaction: null,
+            skillSources: [],
+            workspaceHandleProvider,
+        };
+
+        const options = toDextoAgentOptions({
+            config: validated,
+            services,
+        });
+
+        expect(options.overrides?.workspaceHandleProvider).toBe(workspaceHandleProvider);
     });
 
     it('applies runtime overrides outside the validated agent config', () => {
@@ -134,15 +148,12 @@ describe('toDextoAgentOptions', () => {
         const logger = createMockLogger();
         const services: ResolvedServices = {
             logger,
-            storage: {
-                blob: createMockBlobStore('in-memory'),
-                database: createMockDatabase('in-memory'),
-                cache: createMockCache('in-memory'),
-            },
+            stores: createMockStores(),
             tools: [createMockTool('foo')],
             toolkitLoader: async () => [],
             hooks: [],
             compaction: null,
+            skillSources: [],
         };
 
         const options = toDextoAgentOptions({
@@ -175,15 +186,12 @@ describe('toDextoAgentOptions', () => {
         const logger = createMockLogger();
         const services: ResolvedServices = {
             logger,
-            storage: {
-                blob: createMockBlobStore('in-memory'),
-                database: createMockDatabase('in-memory'),
-                cache: createMockCache('in-memory'),
-            },
+            stores: createMockStores(),
             tools: [createMockTool('foo')],
             toolkitLoader: async () => [],
             hooks: [],
             compaction: null,
+            skillSources: [],
         };
 
         type HostedContext = DextoHostContext<

@@ -386,8 +386,8 @@ const cancelRoute = createRoute({
     summary: 'Cancel Session Run',
     description:
         'Cancels an in-flight agent run for the specified session. ' +
-        'By default (soft cancel), only the current LLM call is cancelled and queued messages continue processing. ' +
-        'Set clearQueue=true for hard cancel to also clear any queued messages.',
+        'By default (soft cancel), only the current LLM call is cancelled and queued steer/follow-up input continues processing. ' +
+        'Set clearQueue=true for hard cancel to also clear queued steer/follow-up input.',
     tags: ['sessions'],
     request: {
         params: z.object({ sessionId: z.string().describe('Session identifier') }),
@@ -401,7 +401,7 @@ const cancelRoute = createRoute({
                                 .optional()
                                 .default(false)
                                 .describe(
-                                    'If true (hard cancel), clears queued messages. If false (soft cancel, default), queued messages continue processing.'
+                                    'If true (hard cancel), clears queued steer/follow-up input. If false (soft cancel, default), queued input continues processing.'
                                 ),
                         })
                         .strict(),
@@ -421,10 +421,12 @@ const cancelRoute = createRoute({
                             sessionId: z.string().describe('Session ID'),
                             queueCleared: z
                                 .boolean()
-                                .describe('Whether queued messages were cleared'),
+                                .describe('Whether queued steer/follow-up input was cleared'),
                             clearedCount: z
                                 .number()
-                                .describe('Number of queued messages cleared (0 if soft cancel)'),
+                                .describe(
+                                    'Number of queued input messages cleared (0 if soft cancel)'
+                                ),
                         })
                         .strict(),
                 },
@@ -859,23 +861,20 @@ export function createSessionsRouter(
                 // No body or invalid body - use default (soft cancel)
             }
 
-            // If hard cancel, clear the queue first
-            let clearedCount = 0;
-            if (clearQueue) {
-                try {
-                    clearedCount = await agent.clearMessageQueue(sessionId);
-                    agent.logger.debug(
-                        `Hard cancel: cleared ${clearedCount} queued message(s) for session: ${sessionId}`
-                    );
-                } catch {
-                    // Session might not exist or queue not accessible - continue with cancel
-                }
-            }
-
-            // Then cancel the current run
+            // Cancel first so hard cancel remains idempotent for missing sessions that only have
+            // an active stream controller.
             const cancelled = await agent.cancel(sessionId);
             if (!cancelled) {
                 agent.logger.debug(`No in-flight run to cancel for session: ${sessionId}`);
+            }
+
+            // If hard cancel, clear pending steer and follow-up input from durable session state.
+            let clearedCount = 0;
+            if (clearQueue) {
+                clearedCount = await agent.clearPendingInput(sessionId);
+                agent.logger.debug(
+                    `Hard cancel: cleared ${clearedCount} queued input message(s) for session: ${sessionId}`
+                );
             }
 
             return ctx.json(

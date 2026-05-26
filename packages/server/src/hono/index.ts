@@ -21,6 +21,7 @@ import { createResourcesRouter, type ResourcesRouterSchema } from './routes/reso
 import { createMemoryRouter, type MemoryRouterSchema } from './routes/memory.js';
 import { createWorkspacesRouter, type WorkspacesRouterSchema } from './routes/workspaces.js';
 import { createSchedulesRouter, type SchedulesRouterSchema } from './routes/schedules.js';
+import { createSkillsRouter, type SkillsRouterSchema } from './routes/skills.js';
 import {
     createAgentsRouter,
     type AgentsRouterContext,
@@ -163,7 +164,8 @@ type IntegrationRouterSchema =
     | ResourcesRouterSchema
     | MemoryRouterSchema
     | WorkspacesRouterSchema
-    | SchedulesRouterSchema;
+    | SchedulesRouterSchema
+    | SkillsRouterSchema;
 
 type ManagementRouterSchema = ApprovalsRouterSchema | AgentsRouterSchema | QueueRouterSchema;
 
@@ -265,6 +267,7 @@ export function createDextoApp(options: CreateDextoAppOptions): DextoApp {
         [routePrefix, createMemoryRouter(getAgent)],
         [routePrefix, createWorkspacesRouter(getAgent)],
         [routePrefix, createSchedulesRouter(getAgent)],
+        [routePrefix, createSkillsRouter(getAgent)],
         [routePrefix, createApprovalsRouter(getAgent, approvalCoordinator)],
         [
             routePrefix,
@@ -365,6 +368,10 @@ export function createDextoApp(options: CreateDextoAppOptions): DextoApp {
                 description: 'Manage custom prompts and templates',
             },
             {
+                name: 'skills',
+                description: 'List and read available agent skills',
+            },
+            {
                 name: 'resources',
                 description: 'Access and manage resources from MCP servers and internal providers',
             },
@@ -377,8 +384,12 @@ export function createDextoApp(options: CreateDextoAppOptions): DextoApp {
                 description: 'Install, switch, and manage agent configurations',
             },
             {
-                name: 'queue',
-                description: 'Manage message queue for busy sessions',
+                name: 'steer',
+                description: 'Manage active-turn steer messages for busy sessions',
+            },
+            {
+                name: 'follow-up',
+                description: 'Manage follow-up messages that run after the active turn',
             },
             {
                 name: 'openrouter',
@@ -409,7 +420,7 @@ export function createDextoApp(options: CreateDextoAppOptions): DextoApp {
         // SPA fallback: serve index.html for unmatched routes without file extensions
         // Must be registered as notFound handler so it runs AFTER all routes (including /openapi.json)
         // webUIConfig is injected into index.html for runtime configuration (analytics, etc.)
-        fullApp.notFound(createSpaFallbackHandler(webRoot, webUIConfig));
+        fullApp.notFound(createSpaFallbackHandler(webRoot, webUIConfig, normalizedPrefix));
     }
 
     // NOTE: Subscribers and approval handler are wired in CLI layer before agent.start()

@@ -1,9 +1,8 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import * as path from 'node:path';
-import * as fs from 'node:fs/promises';
-import * as os from 'node:os';
+import { describe, it, expect, vi } from 'vitest';
+import { ToolErrorCode } from '@dexto/core';
 import type { Logger, ToolExecutionContext } from '@dexto/core';
-import { FileSystemService } from './filesystem-service.js';
+import type { ToolServices } from '@dexto/core/tools';
+import { WorkspaceError } from '@dexto/core/workspace';
 import { createGrepContentTool } from './grep-content-tool.js';
 
 const createMockLogger = (): Logger => {
@@ -24,86 +23,157 @@ const createMockLogger = (): Logger => {
     return logger;
 };
 
-function createToolContext(logger: Logger): ToolExecutionContext {
-    return { logger };
+function createToolContext(
+    logger: Logger,
+    filesByPath: Record<string, string>,
+    glob = vi.fn(async () => Object.keys(filesByPath))
+): ToolExecutionContext {
+    const workspaceManager = {
+        open: vi.fn(async () => ({
+            context: {
+                id: 'test-workspace',
+                path: '/repo',
+                createdAt: Date.now(),
+                lastActiveAt: Date.now(),
+            },
+            capabilities: ['files' as const],
+            files: {
+                readFile: async (filePath: string) => readTestFile(filesByPath, filePath),
+                readText: async (filePath: string) => readTestFile(filesByPath, filePath),
+                glob,
+                writeFile: vi.fn(async () => undefined),
+                listFiles: vi.fn(async () => []),
+            },
+        })),
+    };
+
+    return {
+        logger,
+        services: {
+            approval: {} as ToolServices['approval'],
+            search: {} as ToolServices['search'],
+            resources: {} as ToolServices['resources'],
+            prompts: {} as ToolServices['prompts'],
+            skills: {} as ToolServices['skills'],
+            mcp: {} as ToolServices['mcp'],
+            taskForker: null,
+            workspaceManager: workspaceManager as unknown as ToolServices['workspaceManager'],
+        },
+    };
+}
+
+function readTestFile(filesByPath: Record<string, string>, filePath: string): string {
+    const content = filesByPath[filePath];
+    if (content === undefined) {
+        throw WorkspaceError.fileNotFound(filePath);
+    }
+    return content;
 }
 
 describe('grep_content tool', () => {
-    let mockLogger: Logger;
-    let tempDir: string;
-    let fileSystemService: FileSystemService;
+    it('searches content through WorkspaceManager.open without FileSystemService execution', async () => {
+        const mockLogger = createMockLogger();
+        const getFileSystemService = vi.fn(async () => {
+            throw new Error('grep_content execute must not use FileSystemService');
+        });
+        const glob = vi.fn(async () => ['src/notes.txt']);
+        const tool = createGrepContentTool(getFileSystemService);
+        const parsedInput = tool.inputSchema.parse({
+            pattern: 'needle',
+            path: 'src',
+            glob: '**/*.txt',
+            context_lines: 1,
+        });
 
-    beforeEach(async () => {
-        mockLogger = createMockLogger();
+        const result = (await tool.execute(
+            parsedInput,
+            createToolContext(mockLogger, { 'src/notes.txt': 'alpha\nneedle\nomega\n' }, glob)
+        )) as {
+            matches: Array<{
+                file: string;
+                line_number: number;
+                line: string;
+                context?: { before: string[]; after: string[] };
+            }>;
+            files_searched: number;
+        };
 
-        const rawTempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'dexto-grep-test-'));
-        tempDir = await fs.realpath(rawTempDir);
-
-        fileSystemService = new FileSystemService(
+        expect(getFileSystemService).not.toHaveBeenCalled();
+        expect(glob).toHaveBeenCalledWith('src/**/*.txt');
+        expect(result.files_searched).toBe(1);
+        expect(result.matches).toEqual([
             {
-                allowedPaths: [tempDir],
-                blockedPaths: [],
-                blockedExtensions: [],
-                maxFileSize: 10 * 1024 * 1024,
-                workingDirectory: tempDir,
-                enableBackups: false,
-                backupRetentionDays: 7,
-            },
-            mockLogger
-        );
-        await fileSystemService.initialize();
-    });
-
-    afterEach(async () => {
-        vi.restoreAllMocks();
-
-        try {
-            await fs.rm(tempDir, { recursive: true, force: true });
-        } catch {
-            // ignore cleanup failures
-        }
-    });
-
-    it('expands home-directory shorthand for search paths', async () => {
-        const homeTempDir = await fs.mkdtemp(path.join(os.homedir(), '.dexto-grep-home-test-'));
-        const fileSystemServiceForHome = new FileSystemService(
-            {
-                allowedPaths: [homeTempDir],
-                blockedPaths: [],
-                blockedExtensions: [],
-                maxFileSize: 10 * 1024 * 1024,
-                workingDirectory: tempDir,
-                enableBackups: false,
-                backupRetentionDays: 7,
-            },
-            mockLogger
-        );
-        await fileSystemServiceForHome.initialize();
-
-        try {
-            const filePath = path.join(homeTempDir, 'notes.txt');
-            await fs.writeFile(filePath, 'alpha\nneedle\nomega\n');
-
-            const tool = createGrepContentTool(async () => fileSystemServiceForHome);
-            const parsedInput = tool.inputSchema.parse({
-                pattern: 'needle',
-                path: `~/${path.basename(homeTempDir)}`,
-            });
-            const result = (await tool.execute(parsedInput, createToolContext(mockLogger))) as {
-                matches: Array<{ file: string; line_number: number; line: string }>;
-                files_searched: number;
-            };
-
-            expect(result.files_searched).toBe(1);
-            expect(result.matches).toEqual([
-                {
-                    file: filePath,
-                    line_number: 2,
-                    line: 'needle',
+                file: 'src/notes.txt',
+                line_number: 2,
+                line: 'needle',
+                context: {
+                    before: ['alpha'],
+                    after: ['omega'],
                 },
-            ]);
-        } finally {
-            await fs.rm(homeTempDir, { recursive: true, force: true });
-        }
+            },
+        ]);
+    });
+
+    it('normalizes workspace-contained absolute search paths before globbing', async () => {
+        const mockLogger = createMockLogger();
+        const glob = vi.fn(async () => ['src/notes.txt']);
+        const tool = createGrepContentTool(vi.fn());
+
+        await tool.execute(
+            tool.inputSchema.parse({
+                pattern: 'needle',
+                path: '/repo/src',
+                glob: '**/*.txt',
+            }),
+            createToolContext(mockLogger, { 'src/notes.txt': 'needle' }, glob)
+        );
+
+        expect(glob).toHaveBeenCalledWith('src/**/*.txt');
+    });
+
+    it('rejects external absolute search paths before file provider calls', async () => {
+        const mockLogger = createMockLogger();
+        const glob = vi.fn(async () => ['src/notes.txt']);
+        const tool = createGrepContentTool(vi.fn());
+
+        await expect(
+            tool.execute(
+                tool.inputSchema.parse({
+                    pattern: 'needle',
+                    path: '/outside/src',
+                    glob: '**/*.txt',
+                }),
+                createToolContext(mockLogger, { 'src/notes.txt': 'needle' }, glob)
+            )
+        ).rejects.toMatchObject({ code: ToolErrorCode.VALIDATION_FAILED });
+
+        expect(glob).not.toHaveBeenCalled();
+    });
+
+    it('rejects absolute and escaping glob filters before file provider calls', async () => {
+        const mockLogger = createMockLogger();
+        const glob = vi.fn(async () => ['src/notes.txt']);
+        const tool = createGrepContentTool(vi.fn());
+
+        await expect(
+            tool.execute(
+                tool.inputSchema.parse({
+                    pattern: 'needle',
+                    glob: '/outside/**/*.txt',
+                }),
+                createToolContext(mockLogger, { 'src/notes.txt': 'needle' }, glob)
+            )
+        ).rejects.toMatchObject({ code: ToolErrorCode.VALIDATION_FAILED });
+        await expect(
+            tool.execute(
+                tool.inputSchema.parse({
+                    pattern: 'needle',
+                    glob: '../**/*.txt',
+                }),
+                createToolContext(mockLogger, { 'src/notes.txt': 'needle' }, glob)
+            )
+        ).rejects.toMatchObject({ code: ToolErrorCode.VALIDATION_FAILED });
+
+        expect(glob).not.toHaveBeenCalled();
     });
 });

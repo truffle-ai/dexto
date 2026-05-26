@@ -14,7 +14,7 @@ import { PromptError } from './errors.js';
 import type { Logger } from '../logger/v2/types.js';
 import { DextoLogComponent } from '../logger/v2/types.js';
 import type { ResourceManager } from '../resources/manager.js';
-import type { Database } from '../storage/database/types.js';
+import type { DextoStores } from '../storage/index.js';
 import { normalizePromptArgs, flattenPromptResult } from './utils.js';
 
 interface PromptCacheEntry {
@@ -37,7 +37,7 @@ export class PromptManager {
         resourceManager: ResourceManager,
         agentConfig: AgentRuntimeSettings,
         private readonly eventBus: AgentEventBus,
-        private readonly database: Database,
+        stores: DextoStores,
         logger: Logger
     ) {
         this.logger = logger.createChild(DextoLogComponent.PROMPT);
@@ -46,7 +46,12 @@ export class PromptManager {
         this.providers.set('config', this.configProvider);
         this.providers.set(
             'custom',
-            new CustomPromptProvider(this.database, resourceManager, this.logger)
+            new CustomPromptProvider(
+                stores.getStore('customPrompts'),
+                stores.getStore('artifacts'),
+                resourceManager,
+                this.logger
+            )
         );
 
         this.logger.debug(
@@ -108,16 +113,7 @@ export class PromptManager {
             ...(info.title && { title: info.title }),
             ...(info.description && { description: info.description }),
             ...(info.arguments && { arguments: info.arguments }),
-            // Claude Code compatibility fields
-            ...(info.disableModelInvocation !== undefined && {
-                disableModelInvocation: info.disableModelInvocation,
-            }),
             ...(info.userInvocable !== undefined && { userInvocable: info.userInvocable }),
-            ...(info.allowedTools !== undefined && { allowedTools: info.allowedTools }),
-            ...(info.toolkits !== undefined && { toolkits: info.toolkits }),
-            ...(info.model !== undefined && { model: info.model }),
-            ...(info.context !== undefined && { context: info.context }),
-            ...(info.agent !== undefined && { agent: info.agent }),
         };
     }
 
@@ -133,24 +129,6 @@ export class PromptManager {
         for (const [key, entry] of index.entries()) {
             // Include prompt if userInvocable is not explicitly set to false
             if (entry.info.userInvocable !== false) {
-                result[key] = entry.info;
-            }
-        }
-        return result;
-    }
-
-    /**
-     * List prompts that can be auto-invoked by the LLM.
-     * Filters out prompts with `disableModelInvocation: true`.
-     * These prompts should appear in the system prompt as available skills.
-     */
-    async listAutoInvocablePrompts(): Promise<PromptSet> {
-        await this.ensureCache();
-        const index = this.promptIndex ?? new Map();
-        const result: PromptSet = {};
-        for (const [key, entry] of index.entries()) {
-            // Include prompt if disableModelInvocation is not explicitly set to true
-            if (entry.info.disableModelInvocation !== true) {
                 result[key] = entry.info;
             }
         }
@@ -261,7 +239,6 @@ export class PromptManager {
      * - Passing `_context` through to providers so they can decide whether to append it
      *   (e.g., file prompts without placeholders will append `Context: ...`)
      * - Prompt execution and flattening
-     * - Returning per-prompt overrides (allowedTools, model) for the invoker to apply
      *
      * @param name The prompt name or alias
      * @param options Optional configuration for prompt resolution
@@ -281,9 +258,6 @@ export class PromptManager {
 
         // Resolve provided name to a valid prompt key using promptManager
         const resolvedName = (await this.resolvePromptKey(name)) ?? name;
-
-        // Get prompt definition to extract per-prompt overrides
-        const promptDef = await this.getPromptDefinition(resolvedName);
 
         // Normalize args (converts to strings, extracts context)
         const normalized = normalizePromptArgs(args);
@@ -309,12 +283,6 @@ export class PromptManager {
         return {
             text: flattened.text,
             resources: flattened.resourceUris,
-            // Include per-prompt overrides from prompt definition
-            ...(promptDef?.allowedTools && { allowedTools: promptDef.allowedTools }),
-            ...(promptDef?.toolkits && { toolkits: promptDef.toolkits }),
-            ...(promptDef?.model && { model: promptDef.model }),
-            ...(promptDef?.context && { context: promptDef.context }),
-            ...(promptDef?.agent && { agent: promptDef.agent }),
         };
     }
 

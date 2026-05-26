@@ -568,6 +568,7 @@ describe('Event Handler Registry', () => {
                 sessionId: TEST_SESSION_ID,
                 count: 1,
                 ids: ['queued-1'],
+                queue: 'steer',
                 coalesced: false,
                 content: [{ type: 'text', text: 'Queued message' }],
             };
@@ -586,6 +587,7 @@ describe('Event Handler Registry', () => {
                 sessionId: TEST_SESSION_ID,
                 count: 1,
                 ids: ['queued-1'],
+                queue: 'steer',
                 coalesced: false,
                 content: [
                     { type: 'text', text: 'Check this out' },
@@ -608,6 +610,7 @@ describe('Event Handler Registry', () => {
                 sessionId: TEST_SESSION_ID,
                 count: 1,
                 ids: ['queued-1'],
+                queue: 'steer',
                 coalesced: false,
                 content: [
                     { type: 'text', text: 'Here is a file' },

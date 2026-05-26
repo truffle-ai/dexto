@@ -16,11 +16,7 @@ import { AgentErrorCode } from './error-codes.js';
 import { LLMErrorCode } from '../llm/error-codes.js';
 import { createLogger } from '../logger/factory.js';
 import { AgentEventBus, type StreamingEvent } from '../events/index.js';
-import {
-    createInMemoryBlobStore,
-    createInMemoryCache,
-    createInMemoryDatabase,
-} from '../test-utils/in-memory-storage.js';
+import { InMemoryDextoStores } from '../storage/index.js';
 
 // Mock the createAgentServices function
 vi.mock('../utils/service-initializer.js', () => ({
@@ -63,11 +59,7 @@ describe('DextoAgent Lifecycle Management', () => {
         return new DextoAgent({
             ...settings,
             logger: agentLogger,
-            storage: {
-                blob: createInMemoryBlobStore(),
-                database: createInMemoryDatabase(),
-                cache: createInMemoryCache(),
-            },
+            stores: new InMemoryDextoStores(),
             tools: [],
             hooks: [],
         });
@@ -102,6 +94,9 @@ describe('DextoAgent Lifecycle Management', () => {
             resources: ResourcesConfigSchema.parse([]),
             prompts: PromptsSchema.parse([]),
         };
+
+        const stores = new InMemoryDextoStores();
+        vi.spyOn(stores, 'disconnect').mockResolvedValue(undefined);
 
         mockServices = {
             mcpManager: {
@@ -140,12 +135,7 @@ describe('DextoAgent Lifecycle Management', () => {
                 listWorkspaces: vi.fn(),
             } as any,
             searchService: {} as any,
-            storageManager: {
-                disconnect: vi.fn(),
-                getDatabase: vi.fn().mockReturnValue({}),
-                getCache: vi.fn().mockReturnValue({}),
-                getBlobStore: vi.fn().mockReturnValue({}),
-            } as any,
+            stores,
             resourceManager: {} as any,
             approvalManager: {
                 requestToolApproval: vi.fn(),
@@ -166,7 +156,7 @@ describe('DextoAgent Lifecycle Management', () => {
         // Set up default behaviors for mock functions that will be overridden in tests
         (mockServices.sessionManager.cleanup as any).mockResolvedValue(undefined);
         (mockServices.mcpManager.disconnectAll as any).mockResolvedValue(undefined);
-        (mockServices.storageManager!.disconnect as any).mockResolvedValue(undefined);
+        (mockServices.stores.disconnect as any).mockResolvedValue(undefined);
     });
 
     describe('Constructor Patterns', () => {
@@ -221,11 +211,7 @@ describe('DextoAgent Lifecycle Management', () => {
                     }),
                     agentId: mockValidatedConfig.agentId,
                 }),
-                storage: {
-                    blob: createInMemoryBlobStore(),
-                    database: createInMemoryDatabase(),
-                    cache: createInMemoryCache(),
-                },
+                stores: new InMemoryDextoStores(),
                 tools: [],
                 hooks: [],
                 overrides: {
@@ -249,19 +235,55 @@ describe('DextoAgent Lifecycle Management', () => {
 
             await agent.start();
 
+            await expect(agent.generateSessionTitleDetails('session-123')).resolves.toEqual({
+                source: 'llm',
+                title: 'Generated title',
+            });
             await expect(agent.generateSessionTitle('session-123')).resolves.toBe(
                 'Generated title'
             );
             expect(mockGenerateSessionTitle).toHaveBeenCalledWith(
                 mockValidatedConfig.llm,
-                mockServices.toolManager,
-                mockServices.systemPromptManager,
-                mockServices.resourceManager,
                 'Need a title for this session',
                 expect.any(Object),
                 {
                     languageModelFactory,
+                    providerContext: { sessionId: 'session-123' },
                 }
+            );
+        });
+
+        test('reports heuristic title provenance when LLM title generation fails', async () => {
+            const agent = createTestAgent(mockValidatedConfig);
+
+            (mockServices.sessionManager.getSessionMetadata as any).mockResolvedValue({
+                createdAt: Date.now(),
+                lastActivity: Date.now(),
+                messageCount: 1,
+            });
+            (mockServices.sessionManager.getSession as any).mockResolvedValue({
+                getHistory: vi.fn().mockResolvedValue([
+                    {
+                        role: 'user',
+                        content: 'summarize cloudflare storage adapter decisions',
+                    },
+                ]),
+            });
+            mockGenerateSessionTitle.mockResolvedValueOnce({
+                error: 'LLM returned empty title',
+            });
+
+            await agent.start();
+
+            await expect(agent.generateSessionTitleDetails('session-123')).resolves.toEqual({
+                reason: 'LLM returned empty title',
+                source: 'heuristic',
+                title: 'Summarize cloudflare storage adapter decisions',
+            });
+            expect(mockServices.sessionManager.setSessionTitle).toHaveBeenCalledWith(
+                'session-123',
+                'Summarize cloudflare storage adapter decisions',
+                { ifUnsetOnly: true }
             );
         });
     });
@@ -362,11 +384,7 @@ describe('DextoAgent Lifecycle Management', () => {
             const agent = new DextoAgent({
                 ...mockValidatedConfig,
                 logger: agentLogger,
-                storage: {
-                    blob: createInMemoryBlobStore(),
-                    database: createInMemoryDatabase(),
-                    cache: createInMemoryCache(),
-                },
+                stores: new InMemoryDextoStores(),
                 tools: [],
                 hooks: [],
                 overrides: {
@@ -421,7 +439,7 @@ describe('DextoAgent Lifecycle Management', () => {
             expect(agent.isStopped()).toBe(true);
             expect(mockServices.sessionManager.cleanup).toHaveBeenCalled();
             expect(mockServices.mcpManager.disconnectAll).toHaveBeenCalled();
-            expect(mockServices.storageManager!.disconnect).toHaveBeenCalled();
+            expect(mockServices.stores.disconnect).toHaveBeenCalled();
         });
 
         test('should throw error when stopping before start', async () => {
@@ -460,7 +478,7 @@ describe('DextoAgent Lifecycle Management', () => {
 
             // Should still try to clean other services
             expect(mockServices.mcpManager.disconnectAll).toHaveBeenCalled();
-            expect(mockServices.storageManager!.disconnect).toHaveBeenCalled();
+            expect(mockServices.stores.disconnect).toHaveBeenCalled();
         });
     });
 
@@ -682,6 +700,78 @@ describe('DextoAgent Lifecycle Management', () => {
             expect(mockServices.sessionManager).not.toHaveProperty('withExecutionContext');
         });
 
+        test('generate correlates tool calls and results by required call id', async () => {
+            const agent = createTestAgent(mockValidatedConfig);
+            const sessionStream = vi.fn().mockImplementation(async () => {
+                agent.emit('llm:tool-call', {
+                    sessionId: 'test-session',
+                    toolName: 'read_file',
+                    args: { path: 'README.md' },
+                    callId: 'call-readme',
+                });
+                agent.emit('llm:tool-result', {
+                    sessionId: 'test-session',
+                    toolName: 'read_file',
+                    callId: 'call-readme',
+                    success: true,
+                    sanitized: {
+                        content: [{ type: 'text', text: 'README contents' }],
+                        meta: {
+                            toolName: 'read_file',
+                            toolCallId: 'call-readme',
+                            success: true,
+                        },
+                    },
+                });
+                agent.emit('llm:response', {
+                    sessionId: 'test-session',
+                    content: 'Done',
+                    tokenUsage: {
+                        inputTokens: 1,
+                        outputTokens: 1,
+                        totalTokens: 2,
+                        cacheReadTokens: 0,
+                        cacheWriteTokens: 0,
+                    },
+                });
+                agent.emit('run:complete', {
+                    sessionId: 'test-session',
+                    finishReason: 'stop',
+                    stepCount: 1,
+                    durationMs: 1,
+                });
+                return { text: 'Done' };
+            });
+            mockServices.sessionManager.getSession = vi.fn().mockResolvedValue({
+                id: 'test-session',
+                stream: sessionStream,
+            });
+
+            await agent.start();
+
+            await expect(agent.generate('read the readme', 'test-session')).resolves.toMatchObject({
+                content: 'Done',
+                toolCalls: [
+                    {
+                        toolName: 'read_file',
+                        args: { path: 'README.md' },
+                        callId: 'call-readme',
+                        result: {
+                            success: true,
+                            data: {
+                                content: [{ type: 'text', text: 'README contents' }],
+                                meta: {
+                                    toolName: 'read_file',
+                                    toolCallId: 'call-readme',
+                                    success: true,
+                                },
+                            },
+                        },
+                    },
+                ],
+            });
+        });
+
         test('should reject invalid execution context as a typed API validation error', async () => {
             const agent = createTestAgent(mockValidatedConfig);
 
@@ -851,10 +941,16 @@ describe('DextoAgent Lifecycle Management', () => {
 
             await agent.start();
 
-            const events: StreamingEvent[] = [];
-            for await (const event of await agent.stream('hello', 'test-session')) {
-                events.push(event);
+            const iterator = await agent.stream('hello', 'test-session');
+            const first = await iterator.next();
+            const second = await iterator.next();
+
+            if (first.done || second.done) {
+                throw new Error(
+                    'Expected fatal llm:error and run:complete events before rejection'
+                );
             }
+            const events = [first.value, second.value];
 
             expect(events.map((event) => event.name)).toEqual(['llm:error', 'run:complete']);
             expect(events[0]).toMatchObject({
@@ -870,12 +966,35 @@ describe('DextoAgent Lifecycle Management', () => {
             expect(
                 events.some((event) => event.name === 'llm:error' && event.context === 'run_failed')
             ).toBe(false);
+            await expect(iterator.next()).rejects.toBe(mappedError);
         });
 
-        test('should still emit a fallback run_failed error when session streaming fails before any terminal event', async () => {
+        test('should yield retrying events from agent stream', async () => {
             const agent = createTestAgent(mockValidatedConfig);
-            const streamError = new Error('Session stream failed before event emission');
-            const sessionStream = vi.fn().mockRejectedValue(streamError);
+            const retryError = new DextoRuntimeError(
+                LLMErrorCode.GENERATION_FAILED,
+                ErrorScope.LLM,
+                ErrorType.THIRD_PARTY,
+                'Provider unavailable'
+            );
+            const sessionStream = vi.fn().mockImplementation(async () => {
+                agent.emit('llm:retrying', {
+                    sessionId: 'test-session',
+                    error: retryError,
+                    context: 'TurnExecutor.runModelStep',
+                    attempt: 1,
+                    maxRetries: 2,
+                    provider: 'openai',
+                    model: 'gpt-5',
+                });
+                agent.emit('run:complete', {
+                    sessionId: 'test-session',
+                    finishReason: 'stop',
+                    stepCount: 1,
+                    durationMs: 1,
+                });
+                return { text: 'Recovered', usage: null, finishReason: 'stop', stepCount: 1 };
+            });
             mockServices.sessionManager.getSession = vi.fn().mockResolvedValue({
                 id: 'test-session',
                 stream: sessionStream,
@@ -888,16 +1007,49 @@ describe('DextoAgent Lifecycle Management', () => {
                 events.push(event);
             }
 
-            expect(events).toHaveLength(1);
-            expect(events[0]).toMatchObject({
+            expect(events).toEqual([
+                expect.objectContaining({
+                    name: 'llm:retrying',
+                    error: retryError,
+                    context: 'TurnExecutor.runModelStep',
+                    attempt: 1,
+                    maxRetries: 2,
+                    provider: 'openai',
+                    model: 'gpt-5',
+                }),
+                expect.objectContaining({
+                    name: 'run:complete',
+                    finishReason: 'stop',
+                }),
+            ]);
+        });
+
+        test('should reject with the original error when session streaming fails before any terminal event', async () => {
+            const agent = createTestAgent(mockValidatedConfig);
+            const streamError = new Error('Session stream failed before event emission');
+            const sessionStream = vi.fn().mockRejectedValue(streamError);
+            mockServices.sessionManager.getSession = vi.fn().mockResolvedValue({
+                id: 'test-session',
+                stream: sessionStream,
+            });
+
+            await agent.start();
+
+            const iterator = await agent.stream('hello', 'test-session');
+            const first = await iterator.next();
+            if (first.done) {
+                throw new Error('Expected fallback llm:error event before rejection');
+            }
+            expect(first.value).toMatchObject({
                 name: 'llm:error',
                 context: 'run_failed',
                 recoverable: false,
             });
-            if (events[0]?.name !== 'llm:error') {
+            if (first.value.name !== 'llm:error') {
                 throw new Error('Expected llm:error event');
             }
-            expect(events[0].error).toBe(streamError);
+            expect(first.value.error).toBe(streamError);
+            await expect(iterator.next()).rejects.toBe(streamError);
         });
     });
 
@@ -1053,7 +1205,7 @@ describe('DextoAgent Lifecycle Management', () => {
                 return Promise.resolve();
             });
 
-            (mockServices.storageManager!.disconnect as any).mockImplementation(() => {
+            (mockServices.stores.disconnect as any).mockImplementation(() => {
                 cleanupOrder.push('storage');
                 return Promise.resolve();
             });

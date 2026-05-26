@@ -12,6 +12,13 @@ function createInMemoryDatabase(): Database {
         async set<T>(key: string, value: T): Promise<void> {
             store.set(key, value);
         },
+        async setIfAbsent<T>(key: string, value: T): Promise<{ value: T; inserted: boolean }> {
+            if (store.has(key)) {
+                return { value: store.get(key) as T, inserted: false };
+            }
+            store.set(key, value);
+            return { value, inserted: true };
+        },
         async delete(key: string): Promise<void> {
             store.delete(key);
         },

@@ -13,6 +13,7 @@ import { FileSystemService } from './filesystem-service.js';
 import { ToolErrorCode } from '@dexto/core';
 import { DextoRuntimeError } from '@dexto/core';
 import type { Logger, ToolExecutionContext } from '@dexto/core';
+import type { ToolServices } from '@dexto/core/tools';
 
 // Create mock logger
 const createMockLogger = (): Logger => {
@@ -35,9 +36,57 @@ const createMockLogger = (): Logger => {
 
 function createToolContext(
     logger: Logger,
-    overrides: Partial<ToolExecutionContext> = {}
+    overrides: Partial<ToolExecutionContext> = {},
+    workspaceRoot = currentWorkspaceRoot
 ): ToolExecutionContext {
-    return { logger, ...overrides };
+    return {
+        logger,
+        services: createWorkspaceServices(workspaceRoot),
+        ...overrides,
+    };
+}
+
+let currentWorkspaceRoot = process.cwd();
+
+function createWorkspaceServices(workspaceRoot: string): ToolServices {
+    const workspaceManager = {
+        open: vi.fn(async () => ({
+            context: {
+                id: 'test-workspace',
+                path: workspaceRoot,
+                createdAt: Date.now(),
+                lastActiveAt: Date.now(),
+            },
+            capabilities: ['files' as const],
+            files: {
+                readFile: async (filePath: string) =>
+                    fs.readFile(resolveWorkspacePath(workspaceRoot, filePath), 'utf-8'),
+                readText: async (filePath: string) =>
+                    fs.readFile(resolveWorkspacePath(workspaceRoot, filePath), 'utf-8'),
+                glob: vi.fn(async () => []),
+                writeFile: async (filePath: string, content: string) => {
+                    const resolvedPath = resolveWorkspacePath(workspaceRoot, filePath);
+                    await fs.writeFile(resolvedPath, content, 'utf-8');
+                },
+                listFiles: vi.fn(async () => []),
+            },
+        })),
+    };
+
+    return {
+        approval: {} as ToolServices['approval'],
+        search: {} as ToolServices['search'],
+        resources: {} as ToolServices['resources'],
+        prompts: {} as ToolServices['prompts'],
+        skills: {} as ToolServices['skills'],
+        mcp: {} as ToolServices['mcp'],
+        taskForker: null,
+        workspaceManager: workspaceManager as unknown as ToolServices['workspaceManager'],
+    };
+}
+
+function resolveWorkspacePath(workspaceRoot: string, filePath: string): string {
+    return path.isAbsolute(filePath) ? filePath : path.join(workspaceRoot, filePath);
 }
 
 describe('edit_file tool', () => {
@@ -65,6 +114,7 @@ describe('edit_file tool', () => {
             mockLogger
         );
         await fileSystemService.initialize();
+        currentWorkspaceRoot = tempDir;
 
         vi.clearAllMocks();
     });
@@ -76,6 +126,138 @@ describe('edit_file tool', () => {
         } catch {
             // Ignore cleanup errors
         }
+    });
+
+    it('edits through WorkspaceManager.open without FileSystemService execution', async () => {
+        await fs.writeFile(path.join(tempDir, 'workspace.txt'), 'hello world');
+        const getFileSystemService = vi.fn(async () => {
+            throw new Error('edit_file execute must not use FileSystemService');
+        });
+        const tool = createEditFileTool(getFileSystemService);
+        const parsedInput = tool.inputSchema.parse({
+            file_path: 'workspace.txt',
+            old_string: 'world',
+            new_string: 'workspace',
+        });
+
+        const result = (await tool.execute(parsedInput, createToolContext(mockLogger))) as {
+            success: boolean;
+            path: string;
+            changes_count: number;
+        };
+
+        expect(getFileSystemService).not.toHaveBeenCalled();
+        expect(result).toMatchObject({
+            success: true,
+            path: 'workspace.txt',
+            changes_count: 1,
+        });
+        await expect(fs.readFile(path.join(tempDir, 'workspace.txt'), 'utf-8')).resolves.toBe(
+            'hello workspace'
+        );
+    });
+
+    it('normalizes workspace-contained absolute paths before editing', async () => {
+        const readText = vi.fn(async () => 'hello world');
+        const writeFile = vi.fn(async () => undefined);
+        const workspaceManager = {
+            open: vi.fn(async () => ({
+                context: {
+                    id: 'test-workspace',
+                    path: tempDir,
+                    createdAt: Date.now(),
+                    lastActiveAt: Date.now(),
+                },
+                capabilities: ['files' as const],
+                files: {
+                    readFile: readText,
+                    readText,
+                    glob: vi.fn(async () => []),
+                    writeFile,
+                    listFiles: vi.fn(async () => []),
+                },
+            })),
+        };
+        const tool = createEditFileTool(vi.fn());
+
+        await tool.execute(
+            tool.inputSchema.parse({
+                file_path: path.join(tempDir, 'workspace.txt'),
+                old_string: 'world',
+                new_string: 'workspace',
+            }),
+            createToolContext(mockLogger, {
+                services: {
+                    ...createWorkspaceServices(tempDir),
+                    workspaceManager:
+                        workspaceManager as unknown as ToolServices['workspaceManager'],
+                },
+            })
+        );
+
+        expect(readText).toHaveBeenCalledWith('workspace.txt');
+        expect(writeFile).toHaveBeenCalledWith('workspace.txt', 'hello workspace');
+    });
+
+    it('rejects external absolute paths before file provider calls', async () => {
+        const readText = vi.fn(async () => 'hello world');
+        const writeFile = vi.fn(async () => undefined);
+        const workspaceManager = {
+            open: vi.fn(async () => ({
+                context: {
+                    id: 'test-workspace',
+                    path: tempDir,
+                    createdAt: Date.now(),
+                    lastActiveAt: Date.now(),
+                },
+                capabilities: ['files' as const],
+                files: {
+                    readFile: readText,
+                    readText,
+                    glob: vi.fn(async () => []),
+                    writeFile,
+                    listFiles: vi.fn(async () => []),
+                },
+            })),
+        };
+        const tool = createEditFileTool(vi.fn());
+
+        await expect(
+            tool.execute(
+                tool.inputSchema.parse({
+                    file_path: '/outside/workspace.txt',
+                    old_string: 'world',
+                    new_string: 'workspace',
+                }),
+                createToolContext(mockLogger, {
+                    services: {
+                        ...createWorkspaceServices(tempDir),
+                        workspaceManager:
+                            workspaceManager as unknown as ToolServices['workspaceManager'],
+                    },
+                })
+            )
+        ).rejects.toMatchObject({ code: ToolErrorCode.VALIDATION_FAILED });
+
+        expect(readText).not.toHaveBeenCalled();
+        expect(writeFile).not.toHaveBeenCalled();
+    });
+
+    it('should describe edit calls with an Edit header', () => {
+        const tool = createEditFileTool(async () => fileSystemService);
+        const header = tool.presentation?.describeHeader?.(
+            tool.inputSchema.parse({
+                file_path: 'snake.py',
+                old_string: 'old',
+                new_string: 'new',
+            }),
+            createToolContext(mockLogger)
+        );
+
+        expect(header).toEqual({
+            argsText: 'snake.py',
+            title: 'Edit',
+        });
     });
 
     describe('File Modification Detection', () => {

@@ -11,6 +11,7 @@ describe('builtinToolsFactory', () => {
             'list_resources',
             'get_resource',
             'invoke_skill',
+            'read_skill',
             'http_request',
             'sleep',
             'web_search',
@@ -21,8 +22,8 @@ describe('builtinToolsFactory', () => {
     it('creates only the selected builtins when enabledTools is provided', () => {
         const tools: Tool[] = builtinToolsFactory.create({
             type: 'builtin-tools',
-            enabledTools: ['ask_user', 'invoke_skill'],
+            enabledTools: ['ask_user', 'read_skill'],
         });
-        expect(tools.map((t) => t.id)).toEqual(['ask_user', 'invoke_skill']);
+        expect(tools.map((t) => t.id)).toEqual(['ask_user', 'read_skill']);
     });
 });

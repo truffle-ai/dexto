@@ -56,6 +56,23 @@ export class MemoryDatabaseStore implements Database {
         }
     }
 
+    async setIfAbsent<T>(key: string, value: T): Promise<{ value: T; inserted: boolean }> {
+        this.checkConnection();
+        try {
+            if (this.data.has(key)) {
+                return { value: this.data.get(key) as T, inserted: false };
+            }
+            this.data.set(key, value);
+            return { value, inserted: true };
+        } catch (error) {
+            throw StorageError.writeFailed(
+                'setIfAbsent',
+                error instanceof Error ? error.message : String(error),
+                { key }
+            );
+        }
+    }
+
     async delete(key: string): Promise<void> {
         this.checkConnection();
         this.data.delete(key);

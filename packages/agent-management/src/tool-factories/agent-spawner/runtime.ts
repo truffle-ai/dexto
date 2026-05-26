@@ -373,7 +373,7 @@ export class AgentSpawnerRuntime implements TaskForker {
      * @param input.task - Short task description (for logging/UI)
      * @param input.instructions - Full prompt sent to sub-agent
      * @param input.agentId - Optional agent ID from registry
-     * @param input.autoApprove - Optional override for auto-approve (used by fork skills)
+     * @param input.autoApprove - Optional override for auto-approve
      * @param input.timeout - Optional task timeout in milliseconds
      * @param input.toolCallId - Optional tool call ID for progress events
      * @param input.sessionId - Optional session ID for progress events
@@ -434,12 +434,12 @@ export class AgentSpawnerRuntime implements TaskForker {
 
     /**
      * Fork execution to an isolated subagent.
-     * Implements TaskForker interface for use by invoke_skill when context: fork is set.
+     * Implements TaskForker interface for isolated subagent execution.
      *
      * @param options.task - Short description for UI/logs
      * @param options.instructions - Full instructions for the subagent
      * @param options.agentId - Optional agent ID from registry to use for execution
-     * @param options.autoApprove - Auto-approve tool calls (default: true for fork skills)
+     * @param options.autoApprove - Auto-approve tool calls
      * @param options.toolCallId - Optional tool call ID for progress events
      * @param options.sessionId - Optional session ID for progress events
      */
@@ -969,20 +969,14 @@ export class AgentSpawnerRuntime implements TaskForker {
         const parentToolPolicies = parentSettings.permissions?.toolPolicies;
         const mergeToolPolicies = (subAgentPolicies?: {
             alwaysAllow?: string[] | undefined;
-            alwaysDeny?: string[] | undefined;
-        }): { alwaysAllow: string[]; alwaysDeny: string[] } => {
+        }): { alwaysAllow: string[] } => {
             const alwaysAllow = [
                 ...(parentToolPolicies?.alwaysAllow ?? []),
                 ...(subAgentPolicies?.alwaysAllow ?? []),
             ];
-            const alwaysDeny = [
-                ...(parentToolPolicies?.alwaysDeny ?? []),
-                ...(subAgentPolicies?.alwaysDeny ?? []),
-            ];
 
             return {
                 alwaysAllow: Array.from(new Set(alwaysAllow)),
-                alwaysDeny: Array.from(new Set(alwaysDeny)),
             };
         };
 

@@ -76,13 +76,23 @@ function buildInjectionScript(config: WebUIRuntimeConfig): string {
  */
 export function createSpaFallbackHandler(
     webRoot: string,
-    runtimeConfig?: WebUIRuntimeConfig
+    runtimeConfig?: WebUIRuntimeConfig,
+    apiPrefix = '/api'
 ): NotFoundHandler {
     // Pre-build the injection script once (not per-request)
     const injectionScript = runtimeConfig ? buildInjectionScript(runtimeConfig) : '';
 
     return async (c) => {
         const path = c.req.path;
+        const normalizedApiPrefix = apiPrefix === '' ? '/' : apiPrefix.replace(/\/+$/, '') || '/';
+        const isApiRoute =
+            normalizedApiPrefix === '/'
+                ? true
+                : path === normalizedApiPrefix || path.startsWith(`${normalizedApiPrefix}/`);
+
+        if (isApiRoute) {
+            return c.json({ error: 'Not Found', path }, 404);
+        }
 
         // If path ends with a file extension, it's a real 404 (not an SPA route)
         // This allows /openapi.json, /.well-known/agent-card.json etc. to 404 properly

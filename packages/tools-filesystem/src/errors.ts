@@ -4,7 +4,7 @@
  * Error classes for file system operations
  */
 
-import { DextoRuntimeError, ErrorType } from '@dexto/core';
+import { DextoRuntimeError, ErrorType } from '@dexto/core/errors';
 
 /** Error scope for filesystem operations */
 const FILESYSTEM_SCOPE = 'filesystem';

@@ -4,7 +4,7 @@
  * Error factory for todo list management operations
  */
 
-import { DextoRuntimeError, ErrorScope, ErrorType } from '@dexto/core';
+import { DextoRuntimeError, ErrorScope, ErrorType } from '@dexto/core/errors';
 import { TodoErrorCode } from './error-codes.js';
 
 /**

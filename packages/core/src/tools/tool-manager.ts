@@ -1,3 +1,4 @@
+import { isDeepStrictEqual } from 'node:util';
 import { MCPManager } from '../mcp/manager.js';
 import type { ToolPolicies } from './schemas.js';
 import {
@@ -6,24 +7,34 @@ import {
     ToolExecutionContextBase,
     Tool,
     ToolPresentationSnapshotV1,
+    ToolExecutionResult,
 } from './types.js';
-import type { ToolDisplayData } from './display-types.js';
 import { ToolError } from './errors.js';
-import { ToolErrorCode } from './error-codes.js';
 import { DextoRuntimeError, ErrorScope, ErrorType } from '../errors/index.js';
 import type { Logger } from '../logger/v2/types.js';
 import { DextoLogComponent } from '../logger/v2/types.js';
 import { convertZodSchemaToJsonSchema } from '../utils/schema.js';
 import type { AgentEventBus } from '../events/index.js';
-import type { ApprovalManager } from '../approval/manager.js';
+import type {
+    ApprovalDecisionInput,
+    ApprovalManager,
+    ApprovalRecordIdentity,
+} from '../approval/manager.js';
 import { ApprovalStatus, ApprovalType, DenialReason } from '../approval/types.js';
 import type {
     ApprovalRequest,
     ApprovalResponse,
     ApprovalRequestDetails,
     DirectoryAccessMetadata,
+    ToolApprovalResponseData,
 } from '../approval/types.js';
-import type { AllowedToolsProvider } from './confirmation/allowed-tools-provider/types.js';
+import {
+    DirectoryAccessMetadataSchema,
+    ToolApprovalResponseDataSchema,
+} from '../approval/schemas.js';
+import type { AllowedToolsProvider } from './approval/allowed-tools-provider/types.js';
+import { matchesToolPolicyPattern, SessionToolPolicy } from './approval/session-tool-policy.js';
+import { ToolPresentation } from './presentation/tool-presentation.js';
 import type { HookManager } from '../hooks/manager.js';
 import type { SessionManager } from '../session/index.js';
 import type { AgentStateManager } from '../agent/state-manager.js';
@@ -31,10 +42,16 @@ import type { BeforeToolCallPayload, AfterToolResultPayload } from '../hooks/typ
 import type { WorkspaceManager } from '../workspace/manager.js';
 import type { WorkspaceContext } from '../workspace/types.js';
 import { InstrumentClass } from '../telemetry/decorators.js';
+import type { SessionToolPreferencesStore } from './session-tool-preferences-store.js';
 import type {
-    SessionToolPreferences,
-    SessionToolPreferencesStore,
-} from './session-tool-preferences-store.js';
+    ToolExecutionIdentity,
+    ToolExecutionRecord,
+    ToolExecutionStore,
+} from '../storage/tool-executions/types.js';
+import {
+    completedToolExecutionToResult,
+    createToolExecutionId,
+} from '../storage/tool-executions/types.js';
 import {
     extractToolCallMeta,
     wrapToolParametersSchema,
@@ -55,7 +72,81 @@ type ToolExecutionInvocation = {
     sessionId?: string | undefined;
     abortSignal?: AbortSignal | undefined;
     runContext?: AgentRunContext | undefined;
+    executionIdentity?: ToolExecutionIdentity | undefined;
 };
+
+export type ExecutableToolCall = {
+    approval?: {
+        approvalStatus: 'approved';
+        requireApproval: true;
+    };
+    callDescription?: string;
+    input: Record<string, unknown>;
+    meta?: ToolCallMetadata;
+    presentationSnapshot: ToolPresentationSnapshotV1;
+    source: 'local' | 'mcp';
+    toolCallId: string;
+    toolName: string;
+};
+
+export type PreparedToolCall =
+    | {
+          kind: 'ready';
+          call: ExecutableToolCall;
+      }
+    | {
+          kind: 'approval-required';
+          call: ExecutableToolCall;
+          onGrantedRequestDetails: ApprovalRequestDetails;
+          requestDetails: ApprovalRequestDetails;
+      }
+    | {
+          kind: 'terminal';
+          reason: 'denied';
+          call: ExecutableToolCall;
+          modelVisibleResult: ToolExecutionResult;
+      }
+    | {
+          kind: 'terminal';
+          reason: 'invalid-input' | 'unknown-tool';
+          modelVisibleResult: ToolExecutionResult;
+      };
+
+export type ApprovalRequiredPreparedToolCall = Extract<
+    PreparedToolCall,
+    { kind: 'approval-required' }
+>;
+
+export type ToolApprovalRecordIdentity = Omit<ApprovalRecordIdentity, 'toolCallId'>;
+
+export type RecordedToolApproval = {
+    prepared: ApprovalRequiredPreparedToolCall;
+    request: ApprovalRequest;
+};
+
+export type ToolApprovalDecisionApplication =
+    | {
+          kind: 'ready';
+          call: ExecutableToolCall;
+          response: ApprovalResponse;
+      }
+    | {
+          kind: 'terminal';
+          modelVisibleResult: ToolExecutionResult;
+          response: ApprovalResponse;
+      };
+
+export type PrepareToolCallInput = {
+    toolName: string;
+    input: unknown;
+    toolCallId: string;
+    sessionId?: string | undefined;
+    runContext?: AgentRunContext | undefined;
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
 /**
  * Unified Tool Manager - Single interface for all tool operations
  *
@@ -91,7 +182,7 @@ export class ToolManager {
     private agentTools: Map<string, Tool> = new Map();
     private approvalManager: ApprovalManager;
     private allowedToolsProvider: AllowedToolsProvider;
-    private approvalMode: 'manual' | 'auto-approve' | 'auto-deny';
+    private approvalMode: 'manual' | 'auto-approve';
     private agentEventBus: AgentEventBus;
     private toolPolicies: ToolPolicies | undefined;
     private toolExecutionContextFactory: ToolExecutionContextFactory;
@@ -115,17 +206,8 @@ export class ToolManager {
     private toolsCache: ToolSet = {};
     private cacheValid: boolean = false;
     private logger: Logger;
-
-    // Session-level auto-approve tools for skills
-    // When a skill with allowedTools is invoked, those tools are auto-approved (skip confirmation)
-    // This is ADDITIVE - other tools are NOT blocked, they just go through normal approval flow
-    private sessionAutoApproveTools: Map<string, string[]> = new Map();
-    // Session-level auto-approve tools set by users (UI)
-    private sessionUserAutoApproveTools: Map<string, string[]> = new Map();
-    private sessionDisabledTools: Map<string, string[]> = new Map();
-    private readonly restoredSessionPreferences = new Set<string>();
-    private readonly sessionPreferenceLocks = new Map<string, Promise<void>>();
-    private globalDisabledTools: string[] = [];
+    private readonly sessionToolPolicy: SessionToolPolicy;
+    private readonly toolPresentation: ToolPresentation;
     private cleanupHandlers: Set<() => Promise<void> | void> = new Set();
     private cleanupStarted = false;
 
@@ -158,12 +240,13 @@ export class ToolManager {
         mcpManager: MCPManager,
         approvalManager: ApprovalManager,
         allowedToolsProvider: AllowedToolsProvider,
-        approvalMode: 'manual' | 'auto-approve' | 'auto-deny',
+        approvalMode: 'manual' | 'auto-approve',
         agentEventBus: AgentEventBus,
         toolPolicies: ToolPolicies,
         tools: Tool[],
         logger: Logger,
-        private readonly sessionToolPreferencesStore: SessionToolPreferencesStore
+        private readonly sessionToolPreferencesStore: SessionToolPreferencesStore,
+        private readonly toolExecutionStore: ToolExecutionStore
     ) {
         this.mcpManager = mcpManager;
         this.approvalManager = approvalManager;
@@ -172,6 +255,17 @@ export class ToolManager {
         this.agentEventBus = agentEventBus;
         this.toolPolicies = toolPolicies;
         this.logger = logger.createChild(DextoLogComponent.TOOLS);
+        this.sessionToolPolicy = new SessionToolPolicy(
+            sessionToolPreferencesStore,
+            this.logger,
+            (pattern) => this.normalizeToolPolicyPattern(pattern)
+        );
+        this.toolPresentation = new ToolPresentation(
+            (toolName) => this.agentTools.get(toolName),
+            (toolName, args) => this.validateLocalToolArgs(toolName, args),
+            (options) => this.buildToolExecutionContext(options),
+            this.logger
+        );
         this.setTools(tools);
         this.toolExecutionContextFactory = () => {
             throw ToolError.configInvalid(
@@ -185,92 +279,16 @@ export class ToolManager {
         this.logger.debug('ToolManager initialized');
     }
 
-    private async runWithSessionPreferenceLock<T>(
-        sessionId: string,
-        fn: () => Promise<T>
-    ): Promise<T> {
-        const previousLock = this.sessionPreferenceLocks.get(sessionId) ?? Promise.resolve();
-        const currentResult = previousLock.catch(() => {}).then(() => fn());
-        const currentLock = currentResult.then(
-            () => undefined,
-            () => undefined
-        );
-
-        this.sessionPreferenceLocks.set(sessionId, currentLock);
-
-        try {
-            return await currentResult;
-        } finally {
-            if (this.sessionPreferenceLocks.get(sessionId) === currentLock) {
-                this.sessionPreferenceLocks.delete(sessionId);
-            }
-        }
-    }
-
-    private applySessionToolPreferences(
-        sessionId: string,
-        preferences: SessionToolPreferences
-    ): void {
-        if (preferences.userAutoApproveTools.length > 0) {
-            this.sessionUserAutoApproveTools.set(sessionId, [...preferences.userAutoApproveTools]);
-        } else {
-            this.sessionUserAutoApproveTools.delete(sessionId);
-        }
-        if (preferences.disabledTools.length > 0) {
-            this.sessionDisabledTools.set(sessionId, [...preferences.disabledTools]);
-        } else {
-            this.sessionDisabledTools.delete(sessionId);
-        }
-    }
-
-    private getSessionToolPreferencesSnapshot(sessionId: string): SessionToolPreferences {
-        return {
-            userAutoApproveTools: [...(this.sessionUserAutoApproveTools.get(sessionId) ?? [])],
-            disabledTools: [...(this.sessionDisabledTools.get(sessionId) ?? [])],
-        };
-    }
-
     async restoreSessionState(sessionId: string): Promise<void> {
-        if (this.restoredSessionPreferences.has(sessionId)) {
-            return;
-        }
-
-        await this.runWithSessionPreferenceLock(sessionId, async () => {
-            if (this.restoredSessionPreferences.has(sessionId)) {
-                return;
-            }
-
-            const preferences = await this.sessionToolPreferencesStore.load(sessionId);
-            this.applySessionToolPreferences(sessionId, preferences);
-            this.restoredSessionPreferences.add(sessionId);
-
-            this.logger.debug('Restored persisted session tool preferences', {
-                sessionId,
-                autoApproveCount: preferences.userAutoApproveTools.length,
-                disabledCount: preferences.disabledTools.length,
-            });
-        });
+        await this.sessionToolPolicy.restoreSessionState(sessionId);
     }
 
     evictSessionState(sessionId: string): void {
-        this.sessionAutoApproveTools.delete(sessionId);
-        this.sessionUserAutoApproveTools.delete(sessionId);
-        this.sessionDisabledTools.delete(sessionId);
-        this.restoredSessionPreferences.delete(sessionId);
+        this.sessionToolPolicy.evictSessionState(sessionId);
     }
 
     async deleteSessionState(sessionId: string): Promise<void> {
-        await this.runWithSessionPreferenceLock(sessionId, async () => {
-            this.evictSessionState(sessionId);
-            await this.sessionToolPreferencesStore.delete(sessionId);
-        });
-    }
-
-    private async persistSessionToolPreferences(sessionId: string): Promise<void> {
-        await this.sessionToolPreferencesStore.save(
-            sessionId,
-            this.getSessionToolPreferencesSnapshot(sessionId)
-        );
+        await this.sessionToolPolicy.deleteSessionState(sessionId);
     }
 
     /**
@@ -390,26 +408,14 @@ export class ToolManager {
 
     /**
      * Set session-level auto-approve tools.
-     * When set, these tools will skip confirmation prompts for this session.
+     * When set, these tools will skip approval prompts for this session.
      * This is ADDITIVE - other tools are NOT blocked, they just go through normal approval flow.
      *
      * @param sessionId The session ID
      * @param autoApproveTools Array of tool names to auto-approve (e.g., ['bash_exec', 'mcp--read_file'])
      */
     setSessionAutoApproveTools(sessionId: string, autoApproveTools: string[]): void {
-        // Empty array = no auto-approvals, same as clearing
-        if (autoApproveTools.length === 0) {
-            this.clearSessionAutoApproveTools(sessionId);
-            return;
-        }
-        const normalized = autoApproveTools.map((pattern) =>
-            this.normalizeToolPolicyPattern(pattern)
-        );
-        this.sessionAutoApproveTools.set(sessionId, normalized);
-        this.logger.info(
-            `Session auto-approve tools set for '${sessionId}': ${autoApproveTools.length} tools`
-        );
-        this.logger.debug(`Auto-approve tools: ${normalized.join(', ')}`);
+        this.sessionToolPolicy.setSessionAutoApproveTools(sessionId, autoApproveTools);
     }
 
     /**
@@ -420,31 +426,7 @@ export class ToolManager {
      * @param autoApproveTools Array of tool names to auto-approve (e.g., ['bash_exec', 'mcp--read_file'])
      */
     addSessionAutoApproveTools(sessionId: string, autoApproveTools: string[]): void {
-        if (autoApproveTools.length === 0) {
-            return;
-        }
-
-        const normalized = autoApproveTools.map((pattern) =>
-            this.normalizeToolPolicyPattern(pattern)
-        );
-        const existing = this.sessionAutoApproveTools.get(sessionId) ?? [];
-        const merged = [...existing];
-        const seen = new Set(existing);
-
-        for (const toolName of normalized) {
-            if (seen.has(toolName)) {
-                continue;
-            }
-            merged.push(toolName);
-            seen.add(toolName);
-        }
-
-        const actuallyAdded = Math.max(0, merged.length - existing.length);
-        this.sessionAutoApproveTools.set(sessionId, merged);
-        this.logger.info(
-            `Session auto-approve tools updated for '${sessionId}': +${actuallyAdded} tools`
-        );
-        this.logger.debug(`Auto-approve tools: ${merged.join(', ')}`);
+        this.sessionToolPolicy.addSessionAutoApproveTools(sessionId, autoApproveTools);
     }
 
     /**
@@ -454,43 +436,14 @@ export class ToolManager {
         sessionId: string,
         autoApproveTools: string[]
     ): Promise<void> {
-        await this.restoreSessionState(sessionId);
-        if (autoApproveTools.length === 0) {
-            await this.clearSessionUserAutoApproveTools(sessionId);
-            return;
-        }
-
-        const normalized = autoApproveTools.map((pattern) =>
-            this.normalizeToolPolicyPattern(pattern)
-        );
-
-        await this.runWithSessionPreferenceLock(sessionId, async () => {
-            this.sessionUserAutoApproveTools.set(sessionId, normalized);
-            await this.persistSessionToolPreferences(sessionId);
-        });
-
-        this.logger.info(
-            `Session user auto-approve tools set for '${sessionId}': ${autoApproveTools.length} tools`
-        );
-        this.logger.debug(`User auto-approve tools: ${normalized.join(', ')}`);
+        await this.sessionToolPolicy.setSessionUserAutoApproveTools(sessionId, autoApproveTools);
     }
 
     /**
      * Clear session-level auto-approve tools chosen by the user.
      */
     async clearSessionUserAutoApproveTools(sessionId: string): Promise<void> {
-        await this.restoreSessionState(sessionId);
-
-        let hadAutoApprove = false;
-        await this.runWithSessionPreferenceLock(sessionId, async () => {
-            hadAutoApprove = this.sessionUserAutoApproveTools.has(sessionId);
-            this.sessionUserAutoApproveTools.delete(sessionId);
-            await this.persistSessionToolPreferences(sessionId);
-        });
-
-        if (hadAutoApprove) {
-            this.logger.info(`Session user auto-approve tools cleared for '${sessionId}'`);
-        }
+        await this.sessionToolPolicy.clearSessionUserAutoApproveTools(sessionId);
     }
 
     /**
@@ -500,15 +453,11 @@ export class ToolManager {
      * @param sessionId The session ID to clear auto-approve tools for
      */
     clearSessionAutoApproveTools(sessionId: string): void {
-        const hadAutoApprove = this.sessionAutoApproveTools.has(sessionId);
-        this.sessionAutoApproveTools.delete(sessionId);
-        if (hadAutoApprove) {
-            this.logger.info(`Session auto-approve tools cleared for '${sessionId}'`);
-        }
+        this.sessionToolPolicy.clearSessionAutoApproveTools(sessionId);
     }
 
     hasSessionUserAutoApproveTools(sessionId: string): boolean {
-        return this.sessionUserAutoApproveTools.has(sessionId);
+        return this.sessionToolPolicy.hasSessionUserAutoApproveTools(sessionId);
     }
 
     // ============= ENABLED/DISABLED TOOLS =============
@@ -517,40 +466,22 @@ export class ToolManager {
      * Set global disabled tools (agent-level preferences).
      */
     setGlobalDisabledTools(toolNames: string[]): void {
-        this.globalDisabledTools = [...toolNames];
-        this.logger.info('Global disabled tools updated', {
-            count: toolNames.length,
-        });
-
+        this.sessionToolPolicy.setGlobalDisabledTools(toolNames);
         this.agentEventBus.emit('tools:enabled-updated', {
             scope: 'global',
-            disabledTools: [...this.globalDisabledTools],
+            disabledTools: this.sessionToolPolicy.getGlobalDisabledTools(),
         });
     }
 
     getGlobalDisabledTools(): string[] {
-        return [...this.globalDisabledTools];
+        return this.sessionToolPolicy.getGlobalDisabledTools();
     }
 
     /**
      * Set session-level disabled tools (overrides global list).
      */
     async setSessionDisabledTools(sessionId: string, toolNames: string[]): Promise<void> {
-        await this.restoreSessionState(sessionId);
-        if (toolNames.length === 0) {
-            await this.clearSessionDisabledTools(sessionId);
-            return;
-        }
-
-        await this.runWithSessionPreferenceLock(sessionId, async () => {
-            this.sessionDisabledTools.set(sessionId, [...toolNames]);
-            await this.persistSessionToolPreferences(sessionId);
-        });
-
-        this.logger.info('Session disabled tools updated', {
-            sessionId,
-            count: toolNames.length,
-        });
+        await this.sessionToolPolicy.setSessionDisabledTools(sessionId, toolNames);
         this.agentEventBus.emit('tools:enabled-updated', {
             scope: 'session',
             sessionId,
@@ -562,43 +493,21 @@ export class ToolManager {
      * Clear session-level disabled tools.
      */
     async clearSessionDisabledTools(sessionId: string): Promise<void> {
-        await this.restoreSessionState(sessionId);
-
-        let hadOverrides = false;
-        await this.runWithSessionPreferenceLock(sessionId, async () => {
-            hadOverrides = this.sessionDisabledTools.has(sessionId);
-            this.sessionDisabledTools.delete(sessionId);
-            await this.persistSessionToolPreferences(sessionId);
-        });
-
-        if (hadOverrides) {
-            this.logger.info('Session disabled tools cleared', { sessionId });
-        }
+        await this.sessionToolPolicy.clearSessionDisabledTools(sessionId);
     }
 
     /**
      * Get disabled tools for a session (session override wins).
      */
     getDisabledTools(sessionId?: string): string[] {
-        if (sessionId && this.sessionDisabledTools.has(sessionId)) {
-            return this.sessionDisabledTools.get(sessionId) ?? [];
-        }
-
-        return this.globalDisabledTools;
+        return this.sessionToolPolicy.getDisabledTools(sessionId);
     }
 
     /**
      * Filter a tool set based on disabled tools for a session.
      */
     filterToolsForSession(toolSet: ToolSet, sessionId?: string): ToolSet {
-        const disabled = new Set(this.getDisabledTools(sessionId));
-        if (disabled.size === 0) {
-            return toolSet;
-        }
-
-        return Object.fromEntries(
-            Object.entries(toolSet).filter(([toolName]) => !disabled.has(toolName))
-        );
+        return this.sessionToolPolicy.filterToolsForSession(toolSet, sessionId);
     }
 
     /**
@@ -608,7 +517,7 @@ export class ToolManager {
      * @returns true if the session has auto-approve tools
      */
     hasSessionAutoApproveTools(sessionId: string): boolean {
-        return this.sessionAutoApproveTools.has(sessionId);
+        return this.sessionToolPolicy.hasSessionAutoApproveTools(sessionId);
     }
 
     /**
@@ -618,24 +527,21 @@ export class ToolManager {
      * @returns Array of auto-approve tool names, or undefined if none set
      */
     getSessionAutoApproveTools(sessionId: string): string[] | undefined {
-        return this.sessionAutoApproveTools.get(sessionId);
+        return this.sessionToolPolicy.getSessionAutoApproveTools(sessionId);
     }
 
     /**
      * Get the user auto-approve tools for a session.
      */
     getSessionUserAutoApproveTools(sessionId: string): string[] | undefined {
-        return this.sessionUserAutoApproveTools.get(sessionId);
+        return this.sessionToolPolicy.getSessionUserAutoApproveTools(sessionId);
     }
 
     /**
      * Combined auto-approve list for a session.
      */
     getCombinedSessionAutoApproveTools(sessionId: string): string[] {
-        return [
-            ...(this.sessionAutoApproveTools.get(sessionId) ?? []),
-            ...(this.sessionUserAutoApproveTools.get(sessionId) ?? []),
-        ];
+        return this.sessionToolPolicy.getCombinedSessionAutoApproveTools(sessionId);
     }
 
     /**
@@ -647,12 +553,7 @@ export class ToolManager {
      * @returns true if the tool should be auto-approved
      */
     private isToolAutoApprovedForSession(sessionId: string, toolName: string): boolean {
-        const autoApproveTools = this.getCombinedSessionAutoApproveTools(sessionId);
-        if (autoApproveTools.length === 0) {
-            return false;
-        }
-        // Check if tool matches any auto-approve pattern
-        return autoApproveTools.some((pattern) => this.matchesToolPolicy(toolName, pattern));
+        return this.sessionToolPolicy.isToolAutoApprovedForSession(sessionId, toolName);
     }
 
     /**
@@ -768,250 +669,6 @@ export class ToolManager {
         | undefined {
         const tool = this.agentTools.get(toolName);
         return tool?.approval?.onGranted;
-    }
-
-    private getToolPreviewFn(
-        toolName: string
-    ):
-        | ((
-              args: Record<string, unknown>,
-              context: ToolExecutionContext
-          ) => Promise<ToolDisplayData | null> | ToolDisplayData | null)
-        | undefined {
-        const tool = this.agentTools.get(toolName);
-        return tool?.presentation?.preview;
-    }
-
-    private getToolDescribeHeaderFn(
-        toolName: string
-    ):
-        | ((
-              args: Record<string, unknown>,
-              context: ToolExecutionContext
-          ) =>
-              | Promise<ToolPresentationSnapshotV1['header'] | null>
-              | ToolPresentationSnapshotV1['header']
-              | null)
-        | undefined {
-        const tool = this.agentTools.get(toolName);
-        return tool?.presentation?.describeHeader;
-    }
-
-    private getToolDescribeArgsFn(
-        toolName: string
-    ):
-        | ((
-              args: Record<string, unknown>,
-              context: ToolExecutionContext
-          ) =>
-              | Promise<ToolPresentationSnapshotV1['args'] | null>
-              | ToolPresentationSnapshotV1['args']
-              | null)
-        | undefined {
-        const tool = this.agentTools.get(toolName);
-        return tool?.presentation?.describeArgs;
-    }
-
-    private getToolDescribeResultFn(
-        toolName: string
-    ):
-        | ((
-              result: unknown,
-              args: Record<string, unknown>,
-              context: ToolExecutionContext
-          ) =>
-              | Promise<ToolPresentationSnapshotV1['result'] | null>
-              | ToolPresentationSnapshotV1['result']
-              | null)
-        | undefined {
-        const tool = this.agentTools.get(toolName);
-        return tool?.presentation?.describeResult;
-    }
-
-    private buildGenericToolPresentationSnapshot(toolName: string): ToolPresentationSnapshotV1 {
-        const toTitleCase = (name: string): string =>
-            name
-                .replace(/[_-]+/g, ' ')
-                .split(' ')
-                .filter(Boolean)
-                .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-                .join(' ');
-
-        const isMcp = toolName.startsWith(ToolManager.MCP_TOOL_PREFIX);
-        const fallbackTitle = (() => {
-            if (!isMcp) {
-                return toTitleCase(toolName);
-            }
-
-            const actualToolName = toolName.substring(ToolManager.MCP_TOOL_PREFIX.length);
-            const parts = actualToolName.split('--');
-            const toolPart = parts.length >= 2 ? parts.slice(1).join('--') : actualToolName;
-            return toTitleCase(toolPart);
-        })();
-
-        const snapshot: ToolPresentationSnapshotV1 = {
-            version: 1,
-            source: {
-                type: toolName.startsWith(ToolManager.MCP_TOOL_PREFIX) ? 'mcp' : 'local',
-            },
-            header: {
-                title: fallbackTitle,
-            },
-        };
-
-        if (snapshot.source?.type === 'mcp') {
-            const actualToolName = toolName.substring(ToolManager.MCP_TOOL_PREFIX.length);
-            const parts = actualToolName.split('--');
-            if (parts.length >= 2 && parts[0]) {
-                snapshot.source.mcpServerName = parts[0];
-            }
-        }
-
-        return snapshot;
-    }
-
-    private getToolPresentationSnapshotForToolCallEvent(
-        toolName: string,
-        args: Record<string, unknown>,
-        toolCallId: string,
-        sessionId?: string,
-        runContext?: AgentRunContext
-    ): ToolPresentationSnapshotV1 {
-        const fallback = this.buildGenericToolPresentationSnapshot(toolName);
-
-        if (toolName.startsWith(ToolManager.MCP_TOOL_PREFIX)) {
-            return fallback;
-        }
-
-        const describeHeader = this.getToolDescribeHeaderFn(toolName);
-        const describeArgs = this.getToolDescribeArgsFn(toolName);
-        if (!describeHeader && !describeArgs) {
-            return fallback;
-        }
-
-        try {
-            const validatedArgs = this.validateLocalToolArgs(toolName, args);
-            const context = this.buildToolExecutionContext({ sessionId, toolCallId, runContext });
-
-            const isPromiseLike = (value: unknown): value is PromiseLike<unknown> => {
-                if (typeof value !== 'object' || value === null) {
-                    return false;
-                }
-                return typeof (value as { then?: unknown }).then === 'function';
-            };
-
-            let nextSnapshot: ToolPresentationSnapshotV1 = fallback;
-
-            if (describeHeader) {
-                const header = describeHeader(validatedArgs, context);
-                if (!isPromiseLike(header) && header) {
-                    nextSnapshot = {
-                        ...nextSnapshot,
-                        header: { ...nextSnapshot.header, ...header },
-                    };
-                }
-            }
-
-            if (describeArgs) {
-                const argsPresentation = describeArgs(validatedArgs, context);
-                if (!isPromiseLike(argsPresentation) && argsPresentation) {
-                    nextSnapshot = {
-                        ...nextSnapshot,
-                        args: argsPresentation,
-                    };
-                }
-            }
-
-            return nextSnapshot;
-        } catch (error) {
-            this.logger.debug(
-                `Tool presentation snapshot generation failed for '${toolName}': ${
-                    error instanceof Error ? error.message : String(error)
-                }`
-            );
-            return fallback;
-        }
-    }
-
-    private async getToolPresentationSnapshotForCall(
-        toolName: string,
-        args: Record<string, unknown>,
-        toolCallId: string,
-        sessionId?: string,
-        runContext?: AgentRunContext
-    ): Promise<ToolPresentationSnapshotV1> {
-        const fallback = this.buildGenericToolPresentationSnapshot(toolName);
-
-        if (toolName.startsWith(ToolManager.MCP_TOOL_PREFIX)) {
-            return fallback;
-        }
-
-        const describeHeader = this.getToolDescribeHeaderFn(toolName);
-        const describeArgs = this.getToolDescribeArgsFn(toolName);
-        if (!describeHeader && !describeArgs) {
-            return fallback;
-        }
-
-        try {
-            const context = this.buildToolExecutionContext({ sessionId, toolCallId, runContext });
-            const describedHeader = describeHeader
-                ? await Promise.resolve(describeHeader(args, context))
-                : null;
-            const describedArgs = describeArgs
-                ? await Promise.resolve(describeArgs(args, context))
-                : null;
-
-            return {
-                ...fallback,
-                ...(describedHeader ? { header: { ...fallback.header, ...describedHeader } } : {}),
-                ...(describedArgs ? { args: describedArgs } : {}),
-            };
-        } catch (error) {
-            this.logger.debug(
-                `Tool presentation snapshot generation failed for '${toolName}': ${
-                    error instanceof Error ? error.message : String(error)
-                }`
-            );
-            return fallback;
-        }
-    }
-
-    private async augmentSnapshotWithResult(
-        toolName: string,
-        snapshot: ToolPresentationSnapshotV1,
-        result: unknown,
-        args: Record<string, unknown>,
-        toolCallId: string,
-        sessionId?: string,
-        runContext?: AgentRunContext
-    ): Promise<ToolPresentationSnapshotV1> {
-        if (toolName.startsWith(ToolManager.MCP_TOOL_PREFIX)) {
-            return snapshot;
-        }
-
-        const describeResult = this.getToolDescribeResultFn(toolName);
-        if (!describeResult) {
-            return snapshot;
-        }
-
-        try {
-            const context = this.buildToolExecutionContext({ sessionId, toolCallId, runContext });
-            const resultPresentation = await Promise.resolve(describeResult(result, args, context));
-            if (!resultPresentation) {
-                return snapshot;
-            }
-            return {
-                ...snapshot,
-                result: resultPresentation,
-            };
-        } catch (error) {
-            this.logger.debug(
-                `Tool result presentation snapshot generation failed for '${toolName}': ${
-                    error instanceof Error ? error.message : String(error)
-                }`
-            );
-            return snapshot;
-        }
     }
 
     private getToolPatternKey(toolName: string, args: Record<string, unknown>): string | null {
@@ -1134,16 +791,9 @@ export class ToolManager {
                     return false;
                 }
 
-                const args = request.metadata.args;
-                if (typeof args !== 'object' || args === null) {
-                    return false;
-                }
-
-                const argsRecord = args as Record<string, unknown>;
-
                 let patternKey: string | null;
                 try {
-                    patternKey = getPatternKey(argsRecord);
+                    patternKey = getPatternKey(request.metadata.args);
                 } catch (error) {
                     this.logger.debug(
                         `Pattern key generation failed for '${toolName}': ${
@@ -1316,31 +966,72 @@ export class ToolManager {
     }
 
     private resolveToolExecutionInvocation(
-        invocationOrSessionId?: ToolExecutionInvocation | string,
-        legacyAbortSignal?: AbortSignal
+        invocation?: ToolExecutionInvocation
     ): ToolExecutionInvocation & {
         sessionId?: string | undefined;
         hostRuntime?: ToolExecutionContext['hostRuntime'];
     } {
-        if (typeof invocationOrSessionId === 'string') {
-            return {
-                sessionId: invocationOrSessionId,
-                abortSignal: legacyAbortSignal,
-                hostRuntime: undefined,
-            };
+        if (typeof invocation !== 'object' && invocation !== undefined) {
+            throw new TypeError('Tool execution invocation must be an object');
         }
 
-        const invocation = invocationOrSessionId ?? {};
-        const sessionId = invocation.runContext?.sessionId ?? invocation.sessionId;
+        const options = invocation ?? {};
+        const sessionId = options.runContext?.sessionId ?? options.sessionId;
+
+        return { ...options, sessionId, hostRuntime: options.runContext?.hostRuntime };
+    }
+
+    private resolveToolExecutionIdentity(
+        invocation: ToolExecutionInvocation,
+        toolCallId: string
+    ): ToolExecutionIdentity | undefined {
+        if (invocation.executionIdentity !== undefined) {
+            return invocation.executionIdentity;
+        }
+
+        const ids = invocation.runContext?.hostRuntime?.ids;
+        if (!ids) {
+            return undefined;
+        }
+
+        const runId = ids.runId;
+        const turnId = ids.turnId;
+        const modelStepId = ids.modelStepId;
+        if (runId === undefined || turnId === undefined || modelStepId === undefined) {
+            return undefined;
+        }
 
         return {
-            ...invocation,
-            ...(invocation.abortSignal === undefined && legacyAbortSignal !== undefined
-                ? { abortSignal: legacyAbortSignal }
-                : {}),
-            sessionId,
-            hostRuntime: invocation.runContext?.hostRuntime,
+            runId,
+            turnId,
+            modelStepId,
+            toolCallId,
         };
+    }
+
+    private assertToolExecutionRecordMatches(input: {
+        record: ToolExecutionRecord;
+        identity: ToolExecutionIdentity;
+        toolName: string;
+        toolInput: Record<string, unknown>;
+    }): void {
+        const expected = {
+            identity: input.identity,
+            toolName: input.toolName,
+            input: input.toolInput,
+        };
+        const actual = {
+            identity: input.record.identity,
+            toolName: input.record.toolName,
+            input: input.record.input,
+        };
+
+        if (!isDeepStrictEqual(actual, expected)) {
+            throw ToolError.executionFailed(
+                input.toolName,
+                'Tool execution record does not match the current tool call'
+            );
+        }
     }
 
     private validateLocalToolArgs(
@@ -1508,149 +1199,880 @@ export class ToolManager {
         return this.toolsCache;
     }
 
-    /**
-     * Execute a tool by routing based on prefix:
-     * - MCP tools: `mcp--...`
-     * - Local tools: `Tool.id`
-     *
-     * @param toolName Tool name (e.g., "edit_file", "mcp--filesystem--read_file")
-     * @param args The arguments for the tool
-     * @param toolCallId The unique tool call ID for tracking (from LLM or generated for direct calls)
-     * @param invocationOrSessionId Optional execution-scoped context for this tool call,
-     * or the legacy positional sessionId
-     * @param legacyAbortSignal Optional legacy positional abort signal
-     */
-    async executeTool(
-        toolName: string,
-        args: Record<string, unknown>,
-        toolCallId: string,
-        invocationOrSessionId?: ToolExecutionInvocation | string,
-        legacyAbortSignal?: AbortSignal
-    ): Promise<import('./types.js').ToolExecutionResult> {
-        const { sessionId, abortSignal, runContext, hostRuntime } =
-            this.resolveToolExecutionInvocation(invocationOrSessionId, legacyAbortSignal);
-        const { toolArgs: rawToolArgs, meta } = extractToolCallMeta(args);
+    async prepareToolCall(input: PrepareToolCallInput): Promise<PreparedToolCall> {
+        const sessionId = input.runContext?.sessionId ?? input.sessionId;
+        const source = await this.resolveExecutableToolSource(input.toolName);
+        if (source === 'unknown') {
+            return this.createPreparedToolError(
+                'unknown-tool',
+                input.toolName,
+                `Tool '${input.toolName}' not found`
+            );
+        }
+
+        if (!isRecord(input.input)) {
+            return this.createPreparedToolError(
+                'invalid-input',
+                input.toolName,
+                'Invalid arguments: expected an object'
+            );
+        }
+
+        const { toolArgs: rawToolArgs, meta } = extractToolCallMeta(input.input);
         const eventMeta: ToolCallMetadata | undefined =
             Object.keys(meta).length > 0 ? meta : undefined;
-        let toolArgs = rawToolArgs;
         const callDescription =
             typeof meta.callDescription === 'string'
                 ? meta.callDescription
                 : typeof rawToolArgs.description === 'string'
                   ? rawToolArgs.description
                   : undefined;
-        const backgroundTasksEnabled = isBackgroundTasksEnabled();
 
-        this.logger.debug(`🔧 Tool execution requested: '${toolName}' (toolCallId: ${toolCallId})`);
-        this.logger.debug(`Tool args: ${JSON.stringify(toolArgs, null, 2)}`);
-
-        // IMPORTANT: Emit llm:tool-call FIRST, before approval handling.
-        // This ensures correct event ordering - llm:tool-call must arrive before approval:request
-        // in the CLI's event stream.
-        //
-        // Why this is needed: The Vercel SDK enqueues tool-call to the stream BEFORE calling execute(),
-        // but our async iterator hasn't read from the queue yet. Meanwhile, execute() runs synchronously
-        // until its first await, and EventEmitter.emit() is synchronous. So events emitted here arrive
-        // before our iterator processes the queued tool-call. By emitting here, we guarantee llm:tool-call
-        // arrives before approval:request.
-        if (sessionId) {
-            const presentationSnapshot = this.getToolPresentationSnapshotForToolCallEvent(
-                toolName,
-                toolArgs,
-                toolCallId,
-                sessionId,
-                runContext
+        let validatedArgs: Record<string, unknown>;
+        try {
+            validatedArgs = this.validateLocalToolArgs(input.toolName, rawToolArgs);
+        } catch (error) {
+            return this.createPreparedToolError(
+                'invalid-input',
+                input.toolName,
+                error instanceof Error ? error.message : String(error)
             );
-            this.agentEventBus.emit('llm:tool-call', {
-                toolName,
-                presentationSnapshot,
-                args: toolArgs,
-                ...(eventMeta !== undefined ? { meta: eventMeta } : {}),
-                ...(callDescription !== undefined && { callDescription }),
-                callId: toolCallId,
-                sessionId,
-                ...(hostRuntime !== undefined && { hostRuntime }),
-            });
         }
 
-        // Handle approval/confirmation flow - returns whether approval was required
-        const {
-            requireApproval,
-            approvalStatus,
-            args: validatedToolArgs,
-            presentationSnapshot: callSnapshot,
-        } = await this.handleToolApproval(
-            toolName,
-            toolArgs,
-            toolCallId,
+        const presentationSnapshot = await this.toolPresentation.snapshotForCall({
+            toolName: input.toolName,
+            args: validatedArgs,
+            toolCallId: input.toolCallId,
+            ...(sessionId !== undefined ? { sessionId } : {}),
+            ...(input.runContext !== undefined ? { runContext: input.runContext } : {}),
+        });
+        const call: ExecutableToolCall = {
+            input: validatedArgs,
+            presentationSnapshot,
+            source,
+            toolCallId: input.toolCallId,
+            toolName: input.toolName,
+            ...(callDescription !== undefined ? { callDescription } : {}),
+            ...(eventMeta !== undefined ? { meta: eventMeta } : {}),
+        };
+
+        const overrideRequest = await this.getToolApprovalOverrideRequest(
+            input.toolName,
+            validatedArgs,
+            input.toolCallId,
             sessionId,
-            runContext,
-            callDescription
+            input.runContext
         );
-        toolArgs = validatedToolArgs;
+        if (overrideRequest) {
+            if (!overrideRequest.directoryAccess) {
+                return {
+                    kind: 'approval-required',
+                    call,
+                    onGrantedRequestDetails: overrideRequest.onGrantedRequestDetails,
+                    requestDetails: overrideRequest.requestDetails,
+                };
+            }
 
-        this.logger.debug(`✅ Tool execution approved: ${toolName}`);
-        this.logger.info(
-            `🔧 Tool execution started for ${toolName}, sessionId: ${sessionId ?? 'global'}`
-        );
-
-        // Emit tool:running event - tool is now actually executing (after approval if needed)
-        // Only emit when sessionId is provided (LLM flow) - direct API calls don't need UI updates
-        if (sessionId) {
-            this.agentEventBus.emit('tool:running', {
-                toolName,
-                toolCallId,
+            const quickResult = await this.classifyQuickApprovalRequirement(
+                input.toolName,
+                validatedArgs,
                 sessionId,
-                ...(hostRuntime !== undefined && { hostRuntime }),
+                overrideRequest.directoryAccess
+            );
+            if (quickResult === 'ready') {
+                return { kind: 'ready', call };
+            }
+            const displayPreview = await this.toolPresentation.preview({
+                toolName: input.toolName,
+                args: validatedArgs,
+                toolCallId: input.toolCallId,
+                ...(sessionId !== undefined ? { sessionId } : {}),
+                ...(input.runContext !== undefined ? { runContext: input.runContext } : {}),
             });
+            const suggestedPatterns = this.getToolSuggestedPatterns(input.toolName, validatedArgs);
+            return {
+                kind: 'approval-required',
+                call,
+                onGrantedRequestDetails: overrideRequest.onGrantedRequestDetails,
+                requestDetails: {
+                    ...overrideRequest.requestDetails,
+                    metadata: {
+                        ...overrideRequest.requestDetails.metadata,
+                        presentationSnapshot,
+                        ...(callDescription !== undefined ? { description: callDescription } : {}),
+                        ...(displayPreview !== undefined ? { displayPreview } : {}),
+                        ...(suggestedPatterns !== undefined ? { suggestedPatterns } : {}),
+                    },
+                },
+            };
         }
 
-        const startTime = Date.now();
+        const quickResult = await this.classifyQuickApprovalRequirement(
+            input.toolName,
+            validatedArgs,
+            sessionId
+        );
+        if (quickResult === 'ready') {
+            return { kind: 'ready', call };
+        }
 
-        // Execute beforeToolCall hooks if available
-        if (this.hookManager && this.sessionManager && this.stateManager) {
-            const beforePayload: BeforeToolCallPayload = {
-                toolName,
-                args: toolArgs,
-                ...(sessionId !== undefined && { sessionId }),
+        const displayPreview = await this.toolPresentation.preview({
+            toolName: input.toolName,
+            args: validatedArgs,
+            toolCallId: input.toolCallId,
+            ...(sessionId !== undefined ? { sessionId } : {}),
+            ...(input.runContext !== undefined ? { runContext: input.runContext } : {}),
+        });
+        const suggestedPatterns = this.getToolSuggestedPatterns(input.toolName, validatedArgs);
+        const hostRuntime = input.runContext?.hostRuntime;
+        const requestDetails: ApprovalRequestDetails = {
+            type: ApprovalType.TOOL_APPROVAL,
+            ...(sessionId !== undefined ? { sessionId } : {}),
+            ...(hostRuntime !== undefined ? { hostRuntime } : {}),
+            metadata: {
+                toolName: input.toolName,
+                presentationSnapshot,
+                toolCallId: input.toolCallId,
+                args: validatedArgs,
+                ...(callDescription !== undefined ? { description: callDescription } : {}),
+                ...(displayPreview !== undefined ? { displayPreview } : {}),
+                ...(suggestedPatterns !== undefined ? { suggestedPatterns } : {}),
+            },
+        };
+
+        return {
+            kind: 'approval-required',
+            call,
+            onGrantedRequestDetails: requestDetails,
+            requestDetails,
+        };
+    }
+
+    async recordApprovalRequest(
+        prepared: ApprovalRequiredPreparedToolCall,
+        identity: ToolApprovalRecordIdentity
+    ): Promise<RecordedToolApproval> {
+        this.assertOnGrantedRequestMatchesPreparedCall(prepared);
+        const request = await this.approvalManager.recordApprovalRequest(prepared.requestDetails, {
+            ...identity,
+            toolCallId: prepared.call.toolCallId,
+        });
+        this.assertRecordedApprovalMatchesPreparedCall(prepared, request);
+        return { prepared, request };
+    }
+
+    async applyApprovalDecision(
+        recorded: RecordedToolApproval,
+        decision: ApprovalDecisionInput,
+        runContext?: AgentRunContext
+    ): Promise<ToolApprovalDecisionApplication> {
+        if (decision.approvalId !== recorded.request.approvalId) {
+            throw ToolError.executionFailed(
+                recorded.prepared.call.toolName,
+                'Approval decision does not match the recorded approval request'
+            );
+        }
+        this.assertOnGrantedRequestMatchesPreparedCall(recorded.prepared);
+        this.assertRecordedApprovalMatchesPreparedCall(recorded.prepared, recorded.request);
+
+        const record = await this.approvalManager.recordApprovalResponseRecord(
+            decision,
+            recorded.request
+        );
+
+        if (record.response.status !== ApprovalStatus.APPROVED) {
+            return {
+                kind: 'terminal',
+                modelVisibleResult: this.createApprovalTerminalResult(
+                    recorded.prepared.call,
+                    record.response
+                ),
+                response: record.response,
+            };
+        }
+
+        await this.applyApprovalGrantedEffects(recorded.prepared, record.response, runContext);
+        return {
+            kind: 'ready',
+            call: {
+                ...recorded.prepared.call,
+                approval: {
+                    requireApproval: true,
+                    approvalStatus: 'approved',
+                },
+            },
+            response: record.response,
+        };
+    }
+
+    async requestApprovalDecision(recorded: RecordedToolApproval): Promise<ApprovalResponse> {
+        return this.approvalManager.requestApprovalDecision(recorded.request);
+    }
+
+    private assertRecordedApprovalMatchesPreparedCall(
+        prepared: ApprovalRequiredPreparedToolCall,
+        request: ApprovalRequest
+    ): void {
+        const expected = {
+            type: prepared.requestDetails.type,
+            sessionId: prepared.requestDetails.sessionId,
+            hostRuntime: prepared.requestDetails.hostRuntime,
+            metadata: prepared.requestDetails.metadata,
+        };
+        const actual = {
+            type: request.type,
+            sessionId: request.sessionId,
+            hostRuntime: request.hostRuntime,
+            metadata: request.metadata,
+        };
+
+        if (!isDeepStrictEqual(actual, expected)) {
+            throw ToolError.executionFailed(
+                prepared.call.toolName,
+                'Recorded approval request does not match the prepared tool call'
+            );
+        }
+    }
+
+    private assertOnGrantedRequestMatchesPreparedCall(
+        prepared: ApprovalRequiredPreparedToolCall
+    ): void {
+        const approvalDetails = prepared.requestDetails;
+        const grantedDetails = prepared.onGrantedRequestDetails;
+        const directoryAccess =
+            approvalDetails.type === ApprovalType.TOOL_APPROVAL &&
+            'directoryAccess' in approvalDetails.metadata
+                ? DirectoryAccessMetadataSchema.parse(approvalDetails.metadata.directoryAccess)
+                : undefined;
+
+        if (directoryAccess !== undefined) {
+            const expected = {
+                type: ApprovalType.DIRECTORY_ACCESS,
+                sessionId: approvalDetails.sessionId,
+                hostRuntime: approvalDetails.hostRuntime,
+                metadata: directoryAccess,
+            };
+            const actual = {
+                type: grantedDetails.type,
+                sessionId: grantedDetails.sessionId,
+                hostRuntime: grantedDetails.hostRuntime,
+                metadata: grantedDetails.metadata,
             };
 
-            const modifiedPayload = await this.hookManager.executeHooks(
-                'beforeToolCall',
-                beforePayload,
-                {
-                    sessionManager: this.sessionManager,
-                    mcpManager: this.mcpManager,
-                    toolManager: this,
-                    stateManager: this.stateManager,
-                    ...(runContext !== undefined && { runContext }),
-                    ...(sessionId !== undefined && { sessionId }),
-                }
-            );
-
-            // Use modified payload for execution
-            toolArgs = modifiedPayload.args;
-
-            // Hooks may modify tool args (including in-place). Re-validate before execution so tools
-            // always receive schema-validated args and defaults/coercions are re-applied after hook mutation.
-            try {
-                toolArgs = this.validateLocalToolArgs(toolName, toolArgs);
-            } catch (error) {
-                this.logger.error(
-                    `Post-hook validation failed for tool '${toolName}': a beforeToolCall hook may have set invalid args`
+            if (!isDeepStrictEqual(actual, expected)) {
+                throw ToolError.executionFailed(
+                    prepared.call.toolName,
+                    'Approval granted-effects request does not match the prepared tool call'
                 );
+            }
+            return;
+        }
+
+        if (!isDeepStrictEqual(grantedDetails, approvalDetails)) {
+            throw ToolError.executionFailed(
+                prepared.call.toolName,
+                'Approval granted-effects request does not match the prepared tool call'
+            );
+        }
+    }
+
+    private async applyApprovalGrantedEffects(
+        prepared: ApprovalRequiredPreparedToolCall,
+        response: ApprovalResponse,
+        runContext?: AgentRunContext
+    ): Promise<void> {
+        const requestDetails = prepared.onGrantedRequestDetails;
+        const approvalRequestDetails = prepared.requestDetails;
+        const sessionId = approvalRequestDetails.sessionId;
+        const onGranted = this.getToolApprovalOnGrantedFn(prepared.call.toolName);
+
+        if (onGranted) {
+            const context = this.buildToolExecutionContext({
+                sessionId,
+                toolCallId: prepared.call.toolCallId,
+                runContext,
+            });
+            await Promise.resolve(onGranted(response, context, requestDetails));
+        }
+
+        if (approvalRequestDetails.type === ApprovalType.TOOL_APPROVAL && response.data) {
+            await this.handleRememberChoice(
+                prepared.call.toolName,
+                {
+                    data: ToolApprovalResponseDataSchema.parse(response.data),
+                    ...(response.sessionId !== undefined ? { sessionId: response.sessionId } : {}),
+                },
+                sessionId
+            );
+        }
+    }
+
+    private createApprovalTerminalResult(
+        call: ExecutableToolCall,
+        response: ApprovalResponse
+    ): ToolExecutionResult {
+        return {
+            result: {
+                error: this.formatApprovalTerminalMessage(call.toolName, response),
+            },
+            presentationSnapshot: call.presentationSnapshot,
+            ...(call.meta !== undefined ? { meta: call.meta } : {}),
+            requireApproval: true,
+            approvalStatus: 'rejected',
+        };
+    }
+
+    private formatApprovalTerminalMessage(toolName: string, response: ApprovalResponse): string {
+        if (
+            response.status === ApprovalStatus.CANCELLED &&
+            response.reason === DenialReason.TIMEOUT
+        ) {
+            return `Tool '${toolName}' was not executed because approval timed out${
+                response.timeoutMs !== undefined ? ` after ${response.timeoutMs}ms` : ''
+            }.`;
+        }
+
+        const outcome =
+            response.status === ApprovalStatus.DENIED
+                ? 'approval was denied'
+                : 'approval was cancelled';
+        return `Tool '${toolName}' was not executed because ${outcome}${
+            response.message ? `: ${response.message}` : ''
+        }.`;
+    }
+
+    private async resolveExecutableToolSource(
+        toolName: string
+    ): Promise<'local' | 'mcp' | 'unknown'> {
+        if (this.agentTools.has(toolName)) {
+            return 'local';
+        }
+
+        if (
+            toolName.startsWith(ToolManager.MCP_TOOL_PREFIX) &&
+            toolName.length > ToolManager.MCP_TOOL_PREFIX.length
+        ) {
+            return 'mcp';
+        }
+
+        return 'unknown';
+    }
+
+    private createPreparedToolError(
+        kind: 'invalid-input' | 'unknown-tool',
+        toolName: string,
+        error: string
+    ): PreparedToolCall {
+        return {
+            kind: 'terminal',
+            reason: kind,
+            modelVisibleResult: {
+                result: { error },
+                presentationSnapshot: this.toolPresentation.buildGenericSnapshot(toolName),
+            },
+        };
+    }
+
+    private createPreparedToolTerminal(
+        reason: 'denied',
+        toolName: string,
+        call: ExecutableToolCall
+    ): PreparedToolCall {
+        return {
+            kind: 'terminal',
+            reason,
+            call,
+            modelVisibleResult: {
+                result: {
+                    error: `Tool '${toolName}' was not executed because policy denied it.`,
+                },
+                presentationSnapshot: call.presentationSnapshot,
+                ...(call.meta !== undefined ? { meta: call.meta } : {}),
+            },
+        };
+    }
+
+    private async getToolApprovalOverrideRequest(
+        toolName: string,
+        args: Record<string, unknown>,
+        toolCallId: string,
+        sessionId?: string,
+        runContext?: AgentRunContext
+    ): Promise<{
+        requestDetails: ApprovalRequestDetails;
+        onGrantedRequestDetails: ApprovalRequestDetails;
+        directoryAccess?: DirectoryAccessMetadata;
+    } | null> {
+        if (toolName.startsWith(ToolManager.MCP_TOOL_PREFIX)) {
+            return null;
+        }
+
+        const getApprovalOverride = this.getToolApprovalOverrideFn(toolName);
+        if (!getApprovalOverride) {
+            return null;
+        }
+
+        const context = this.buildToolExecutionContext({ sessionId, toolCallId, runContext });
+        const approvalRequest = await getApprovalOverride(args, context);
+        if (!approvalRequest) {
+            return null;
+        }
+
+        const requestDetails: ApprovalRequestDetails = {
+            ...approvalRequest,
+            ...(sessionId && !approvalRequest.sessionId ? { sessionId } : {}),
+            ...(runContext?.hostRuntime !== undefined && approvalRequest.hostRuntime === undefined
+                ? { hostRuntime: runContext.hostRuntime }
+                : {}),
+        };
+
+        if (requestDetails.type !== ApprovalType.DIRECTORY_ACCESS) {
+            return { requestDetails, onGrantedRequestDetails: requestDetails };
+        }
+
+        const parseResult = DirectoryAccessMetadataSchema.safeParse(requestDetails.metadata);
+        if (!parseResult.success) {
+            throw ToolError.configInvalid(
+                `Tool '${toolName}' returned invalid directory access metadata`
+            );
+        }
+
+        const directoryAccess = parseResult.data;
+        return {
+            directoryAccess,
+            onGrantedRequestDetails: requestDetails,
+            requestDetails: {
+                type: ApprovalType.TOOL_APPROVAL,
+                ...(requestDetails.sessionId !== undefined
+                    ? { sessionId: requestDetails.sessionId }
+                    : {}),
+                ...(requestDetails.hostRuntime !== undefined
+                    ? { hostRuntime: requestDetails.hostRuntime }
+                    : {}),
+                metadata: {
+                    toolName,
+                    toolCallId,
+                    args,
+                    directoryAccess,
+                },
+            },
+        };
+    }
+
+    private async classifyQuickApprovalRequirement(
+        toolName: string,
+        args: Record<string, unknown>,
+        sessionId?: string,
+        directoryAccess?: DirectoryAccessMetadata
+    ): Promise<'ready' | 'approval-required'> {
+        if (directoryAccess) {
+            return this.approvalMode === 'auto-approve' ? 'ready' : 'approval-required';
+        }
+
+        if (sessionId && this.isToolAutoApprovedForSession(sessionId, toolName)) {
+            return 'ready';
+        }
+
+        if (this.isInAlwaysAllowList(toolName)) {
+            return 'ready';
+        }
+
+        if (await this.allowedToolsProvider.isToolAllowed(toolName, sessionId)) {
+            return 'ready';
+        }
+
+        const patternKey = this.getToolPatternKey(toolName, args);
+        if (patternKey && this.approvalManager.matchesPattern(toolName, patternKey, sessionId)) {
+            return 'ready';
+        }
+
+        if (this.approvalMode === 'auto-approve') {
+            return 'ready';
+        }
+
+        return 'approval-required';
+    }
+
+    async executeTool(
+        toolName: string,
+        args: Record<string, unknown>,
+        toolCallId: string,
+        invocation?: ToolExecutionInvocation
+    ): Promise<import('./types.js').ToolExecutionResult> {
+        const { sessionId, runContext, hostRuntime } =
+            this.resolveToolExecutionInvocation(invocation);
+
+        this.logger.debug(`🔧 Tool execution requested: '${toolName}' (toolCallId: ${toolCallId})`);
+        this.logger.debug(`Tool args: ${JSON.stringify(args, null, 2)}`);
+
+        if (toolName === ToolManager.MCP_TOOL_PREFIX) {
+            throw ToolError.invalidName(toolName, 'tool name cannot be empty after prefix');
+        }
+
+        const prepared = await this.prepareToolCall({
+            toolName,
+            input: args,
+            toolCallId,
+            ...(sessionId !== undefined ? { sessionId } : {}),
+            ...(runContext !== undefined ? { runContext } : {}),
+        });
+
+        if (prepared.kind === 'terminal') {
+            this.throwPreparedTerminalResult(toolName, prepared, sessionId);
+        }
+
+        this.emitPreparedToolCallEvent(prepared.call, sessionId, runContext, hostRuntime);
+        const replayed = await this.replayExistingDirectToolExecution(prepared.call, invocation);
+        if (replayed !== undefined) {
+            return replayed;
+        }
+
+        if (prepared.kind === 'ready') {
+            return this.executePreparedToolCall(prepared.call, invocation, { throwOnError: true });
+        }
+
+        let applied: ToolApprovalDecisionApplication;
+        try {
+            const recorded = await this.recordApprovalRequest(
+                prepared,
+                this.resolveDirectApprovalIdentity(invocation, toolCallId)
+            );
+            const response = await this.requestApprovalDecision(recorded);
+            applied = await this.applyApprovalDecision(
+                recorded,
+                {
+                    approvalId: response.approvalId,
+                    status: response.status,
+                    ...(response.reason !== undefined ? { reason: response.reason } : {}),
+                    ...(response.message !== undefined ? { message: response.message } : {}),
+                    ...(response.data !== undefined ? { data: response.data } : {}),
+                },
+                runContext
+            );
+        } catch (error) {
+            await this.recordDirectToolExecutionFailure(prepared.call, invocation, error);
+            throw error;
+        }
+
+        if (applied.kind === 'terminal') {
+            try {
+                this.handleApprovalDenied(toolName, applied.response, sessionId);
+            } catch (error) {
+                await this.recordDirectToolExecutionFailure(prepared.call, invocation, error);
                 throw error;
             }
         }
 
+        return this.executePreparedToolCall(applied.call, invocation, { throwOnError: true });
+    }
+
+    private emitPreparedToolCallEvent(
+        call: ExecutableToolCall,
+        sessionId: string | undefined,
+        runContext: AgentRunContext | undefined,
+        hostRuntime: AgentRunContext['hostRuntime'] | undefined
+    ): void {
+        if (!sessionId) {
+            return;
+        }
+
+        this.agentEventBus.emit('llm:tool-call', {
+            toolName: call.toolName,
+            presentationSnapshot: this.toolPresentation.snapshotForToolCallEvent({
+                toolName: call.toolName,
+                args: call.input,
+                toolCallId: call.toolCallId,
+                sessionId,
+                ...(runContext !== undefined ? { runContext } : {}),
+            }),
+            args: call.input,
+            ...(call.meta !== undefined ? { meta: call.meta } : {}),
+            ...(call.callDescription !== undefined
+                ? { callDescription: call.callDescription }
+                : {}),
+            callId: call.toolCallId,
+            sessionId,
+            ...(hostRuntime !== undefined && { hostRuntime }),
+        });
+    }
+
+    private async replayExistingDirectToolExecution(
+        call: ExecutableToolCall,
+        invocation: ToolExecutionInvocation | undefined
+    ): Promise<ToolExecutionResult | undefined> {
+        const { sessionId } = this.resolveToolExecutionInvocation(invocation);
+        if (
+            isBackgroundTasksEnabled() &&
+            call.meta?.runInBackground === true &&
+            sessionId !== undefined
+        ) {
+            return undefined;
+        }
+
+        const identity = this.resolveToolExecutionIdentity(invocation ?? {}, call.toolCallId);
+        if (identity === undefined) {
+            return undefined;
+        }
+
+        const executionId = createToolExecutionId(identity);
+        const record = await this.toolExecutionStore.get({ executionId });
+        if (record === undefined) {
+            return undefined;
+        }
+
+        this.assertToolExecutionRecordMatches({
+            record,
+            identity,
+            toolName: call.toolName,
+            toolInput: call.input,
+        });
+        if (record.status === 'completed') {
+            this.logger.info('Replaying completed direct tool execution result', {
+                executionId,
+                toolName: call.toolName,
+            });
+            return completedToolExecutionToResult(record);
+        }
+        if (record.status === 'failed') {
+            throw ToolError.executionFailed(
+                call.toolName,
+                `Tool execution already failed: ${executionId}`
+            );
+        }
+        throw ToolError.executionFailed(
+            call.toolName,
+            `Tool execution already ${record.status}: ${executionId}`
+        );
+    }
+
+    private async recordDirectToolExecutionFailure(
+        call: ExecutableToolCall,
+        invocation: ToolExecutionInvocation | undefined,
+        error: unknown
+    ): Promise<void> {
+        const identity = this.resolveToolExecutionIdentity(invocation ?? {}, call.toolCallId);
+        if (identity === undefined) {
+            return;
+        }
+
+        const executionId = createToolExecutionId(identity);
+        const started = await this.toolExecutionStore.start({
+            record: {
+                executionId,
+                identity,
+                input: call.input,
+                toolName: call.toolName,
+                status: 'running',
+                startedAt: new Date(),
+                updatedAt: new Date(),
+            },
+        });
+        if (started.status === 'existing') {
+            this.assertToolExecutionRecordMatches({
+                record: started.record,
+                identity,
+                toolName: call.toolName,
+                toolInput: call.input,
+            });
+            if (started.record.status !== 'running') {
+                return;
+            }
+        }
+
+        await this.toolExecutionStore.fail({
+            executionId,
+            completedAt: new Date(),
+            error: error instanceof Error ? error.message : String(error),
+        });
+    }
+
+    private resolveDirectApprovalIdentity(
+        invocation: ToolExecutionInvocation | undefined,
+        toolCallId: string
+    ): ToolApprovalRecordIdentity {
+        const executionIdentity = this.resolveToolExecutionIdentity(invocation ?? {}, toolCallId);
+        if (executionIdentity !== undefined) {
+            return {
+                runId: executionIdentity.runId,
+                turnId: executionIdentity.turnId,
+                modelStepId: executionIdentity.modelStepId,
+            };
+        }
+
+        const ids = invocation?.runContext?.hostRuntime?.ids;
+        const runId = ids?.runId;
+        const turnId = ids?.turnId;
+        const modelStepId = ids?.modelStepId;
+        if (runId !== undefined && turnId !== undefined && modelStepId !== undefined) {
+            return { runId, turnId, modelStepId };
+        }
+
+        return {
+            runId: invocation?.sessionId ?? invocation?.runContext?.sessionId ?? 'direct',
+            turnId: 'direct',
+            modelStepId: 'direct',
+        };
+    }
+
+    private throwPreparedTerminalResult(
+        toolName: string,
+        prepared: Extract<PreparedToolCall, { kind: 'terminal' }>,
+        sessionId?: string
+    ): never {
+        if (prepared.reason === 'unknown-tool') {
+            throw ToolError.notFound(toolName);
+        }
+
+        if (prepared.reason === 'denied') {
+            throw ToolError.executionDenied(toolName, sessionId);
+        }
+
+        if (prepared.reason === 'invalid-input') {
+            throw ToolError.validationFailed(
+                toolName,
+                this.getPreparedTerminalMessage(prepared.modelVisibleResult)
+            );
+        }
+
+        throw ToolError.executionFailed(
+            toolName,
+            this.getPreparedTerminalMessage(prepared.modelVisibleResult),
+            sessionId
+        );
+    }
+
+    private getPreparedTerminalMessage(result: ToolExecutionResult): string {
+        const output = result.result;
+        if (isRecord(output) && typeof output.error === 'string') {
+            return output.error;
+        }
+        return 'Tool call could not be prepared for execution';
+    }
+
+    async executePreparedToolCall(
+        call: ExecutableToolCall,
+        invocation?: ToolExecutionInvocation,
+        options?: { throwOnError?: boolean }
+    ): Promise<ToolExecutionResult> {
+        const { sessionId, abortSignal, runContext, hostRuntime } =
+            this.resolveToolExecutionInvocation(invocation);
+        const durableIdentity = this.resolveToolExecutionIdentity(
+            invocation ?? {},
+            call.toolCallId
+        );
+        const backgroundTasksEnabled = isBackgroundTasksEnabled();
+        const willRunInBackground =
+            backgroundTasksEnabled &&
+            call.meta?.runInBackground === true &&
+            sessionId !== undefined;
+        const executionIdentity = willRunInBackground ? undefined : durableIdentity;
+        const executionId =
+            executionIdentity === undefined ? undefined : createToolExecutionId(executionIdentity);
+        let toolArgs = call.input;
+
+        this.logger.debug(
+            `🔧 Prepared tool execution requested: '${call.toolName}' (toolCallId: ${call.toolCallId})`
+        );
+
+        if (executionIdentity !== undefined && executionId !== undefined) {
+            const started = await this.toolExecutionStore.start({
+                record: {
+                    executionId,
+                    identity: executionIdentity,
+                    input: call.input,
+                    toolName: call.toolName,
+                    status: 'running',
+                    startedAt: new Date(),
+                    updatedAt: new Date(),
+                },
+            });
+            if (started.status === 'existing') {
+                this.assertToolExecutionRecordMatches({
+                    record: started.record,
+                    identity: executionIdentity,
+                    toolName: call.toolName,
+                    toolInput: call.input,
+                });
+                if (started.record.status === 'completed') {
+                    this.logger.info('Replaying completed prepared tool execution result', {
+                        executionId,
+                        toolName: call.toolName,
+                    });
+                    return completedToolExecutionToResult(started.record);
+                }
+                if (started.record.status === 'failed') {
+                    this.logger.info('Replaying failed prepared tool execution result', {
+                        executionId,
+                        toolName: call.toolName,
+                    });
+                    if (options?.throwOnError === true) {
+                        throw ToolError.executionFailed(
+                            call.toolName,
+                            `Tool execution already failed: ${executionId}`
+                        );
+                    }
+                    return this.createFailedPreparedToolResult(call, started.record.error);
+                }
+                throw ToolError.executionFailed(
+                    call.toolName,
+                    `Tool execution already ${started.record.status}: ${executionId}`
+                );
+            }
+        }
+
+        const startTime = Date.now();
+
         try {
+            this.logger.info(
+                `🔧 Prepared tool execution started for ${call.toolName}, sessionId: ${sessionId ?? 'global'}`
+            );
+
+            if (sessionId) {
+                this.agentEventBus.emit('tool:running', {
+                    toolName: call.toolName,
+                    toolCallId: call.toolCallId,
+                    sessionId,
+                    ...(hostRuntime !== undefined && { hostRuntime }),
+                });
+            }
+
+            if (this.hookManager && this.sessionManager && this.stateManager) {
+                const beforePayload: BeforeToolCallPayload = {
+                    toolName: call.toolName,
+                    args: toolArgs,
+                    ...(sessionId !== undefined && { sessionId }),
+                };
+
+                const modifiedPayload = await this.hookManager.executeHooks(
+                    'beforeToolCall',
+                    beforePayload,
+                    {
+                        sessionManager: this.sessionManager,
+                        mcpManager: this.mcpManager,
+                        toolManager: this,
+                        stateManager: this.stateManager,
+                        ...(runContext !== undefined && { runContext }),
+                        ...(sessionId !== undefined && { sessionId }),
+                    }
+                );
+
+                toolArgs = modifiedPayload.args;
+                try {
+                    toolArgs = this.validateLocalToolArgs(call.toolName, toolArgs);
+                } catch (error) {
+                    this.logger.error(
+                        `Post-hook validation failed for tool '${call.toolName}': a beforeToolCall hook may have set invalid args`
+                    );
+                    throw error;
+                }
+            }
+
             let result: unknown;
 
             const registerBackgroundTask = (promise: Promise<unknown>, description: string) => {
-                const fallbackId = `task-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
                 return {
                     result: {
-                        taskId: toolCallId ?? fallbackId,
+                        taskId: call.toolCallId,
                         status: 'running' as const,
                         description,
                     },
@@ -1658,19 +2080,15 @@ export class ToolManager {
                 };
             };
 
-            // Route to MCP tools
-            if (toolName.startsWith(ToolManager.MCP_TOOL_PREFIX)) {
-                this.logger.debug(`🔧 Detected MCP tool: '${toolName}'`);
-                const actualToolName = toolName.substring(ToolManager.MCP_TOOL_PREFIX.length);
+            if (call.source === 'mcp') {
+                const actualToolName = call.toolName.substring(ToolManager.MCP_TOOL_PREFIX.length);
                 if (actualToolName.length === 0) {
-                    throw ToolError.invalidName(toolName, 'tool name cannot be empty after prefix');
+                    throw ToolError.invalidName(
+                        call.toolName,
+                        'tool name cannot be empty after prefix'
+                    );
                 }
-                this.logger.debug(`🎯 MCP routing: '${toolName}' -> '${actualToolName}'`);
 
-                const runInBackground =
-                    backgroundTasksEnabled &&
-                    meta.runInBackground === true &&
-                    sessionId !== undefined;
                 const executeMcpTool = () =>
                     runContext === undefined
                         ? this.mcpManager.executeTool(actualToolName, toolArgs, sessionId)
@@ -1680,28 +2098,30 @@ export class ToolManager {
                               sessionId,
                               runContext
                           );
-                if (meta.runInBackground === true && !backgroundTasksEnabled) {
+                if (call.meta?.runInBackground === true && !backgroundTasksEnabled) {
                     this.logger.debug(
                         'Background tool execution disabled; running synchronously instead.',
-                        { toolName }
+                        { toolName: call.toolName }
                     );
                 }
-                if (runInBackground) {
+                if (willRunInBackground) {
                     const backgroundSessionId = sessionId;
                     const { result: backgroundResult, promise } = registerBackgroundTask(
                         executeMcpTool(),
                         `MCP tool ${actualToolName}`
                     );
                     this.agentEventBus.emit('tool:background', {
-                        toolName,
+                        toolName: call.toolName,
                         toolCallId: backgroundResult.taskId,
                         sessionId: backgroundSessionId,
                         description: backgroundResult.description,
                         promise,
                         ...(hostRuntime !== undefined && { hostRuntime }),
-                        ...(meta.timeoutMs !== undefined && { timeoutMs: meta.timeoutMs }),
-                        ...(meta.notifyOnComplete !== undefined && {
-                            notifyOnComplete: meta.notifyOnComplete,
+                        ...(call.meta?.timeoutMs !== undefined && {
+                            timeoutMs: call.meta.timeoutMs,
+                        }),
+                        ...(call.meta?.notifyOnComplete !== undefined && {
+                            notifyOnComplete: call.meta.notifyOnComplete,
                         }),
                     });
                     result = backgroundResult;
@@ -1709,62 +2129,57 @@ export class ToolManager {
                     result = await executeMcpTool();
                 }
             } else {
-                // Route to local tools
-                const runInBackground =
-                    backgroundTasksEnabled &&
-                    meta.runInBackground === true &&
-                    sessionId !== undefined;
-                if (meta.runInBackground === true && !backgroundTasksEnabled) {
+                if (call.meta?.runInBackground === true && !backgroundTasksEnabled) {
                     this.logger.debug(
                         'Background tool execution disabled; running synchronously instead.',
-                        { toolName }
+                        { toolName: call.toolName }
                     );
                 }
 
-                if (runInBackground) {
+                if (willRunInBackground) {
                     const backgroundSessionId = sessionId;
                     const { result: backgroundResult, promise } = registerBackgroundTask(
-                        this.executeLocalTool(toolName, toolArgs, {
+                        this.executeLocalTool(call.toolName, toolArgs, {
                             sessionId: backgroundSessionId,
                             abortSignal,
-                            toolCallId,
+                            toolCallId: call.toolCallId,
                             runContext,
                         }),
-                        `Tool ${toolName}`
+                        `Tool ${call.toolName}`
                     );
                     this.agentEventBus.emit('tool:background', {
-                        toolName,
+                        toolName: call.toolName,
                         toolCallId: backgroundResult.taskId,
                         sessionId: backgroundSessionId,
                         description: backgroundResult.description,
                         promise,
                         ...(hostRuntime !== undefined && { hostRuntime }),
-                        ...(meta.timeoutMs !== undefined && { timeoutMs: meta.timeoutMs }),
-                        ...(meta.notifyOnComplete !== undefined && {
-                            notifyOnComplete: meta.notifyOnComplete,
+                        ...(call.meta?.timeoutMs !== undefined && {
+                            timeoutMs: call.meta.timeoutMs,
+                        }),
+                        ...(call.meta?.notifyOnComplete !== undefined && {
+                            notifyOnComplete: call.meta.notifyOnComplete,
                         }),
                     });
                     result = backgroundResult;
                 } else {
-                    result = await this.executeLocalTool(toolName, toolArgs, {
+                    result = await this.executeLocalTool(call.toolName, toolArgs, {
                         sessionId,
                         abortSignal,
-                        toolCallId,
+                        toolCallId: call.toolCallId,
                         runContext,
                     });
                 }
             }
 
             const duration = Date.now() - startTime;
-            this.logger.debug(`🎯 Tool execution completed in ${duration}ms: '${toolName}'`);
-            this.logger.info(
-                `✅ Tool execution completed successfully for ${toolName} in ${duration}ms, sessionId: ${sessionId ?? 'global'}`
+            this.logger.debug(
+                `🎯 Prepared tool execution completed in ${duration}ms: '${call.toolName}'`
             );
 
-            // Execute afterToolResult hooks if available
             if (this.hookManager && this.sessionManager && this.stateManager) {
                 const afterPayload: AfterToolResultPayload = {
-                    toolName,
+                    toolName: call.toolName,
                     result,
                     success: true,
                     ...(sessionId !== undefined && { sessionId }),
@@ -1783,43 +2198,58 @@ export class ToolManager {
                     }
                 );
 
-                // Use modified result
                 result = modifiedPayload.result;
             }
 
-            const presentationSnapshot = await this.augmentSnapshotWithResult(
-                toolName,
-                callSnapshot,
+            const presentationSnapshot = await this.toolPresentation.augmentWithResult({
+                toolName: call.toolName,
+                snapshot: call.presentationSnapshot,
                 result,
-                toolArgs,
-                toolCallId,
-                sessionId,
-                runContext
-            );
+                args: toolArgs,
+                toolCallId: call.toolCallId,
+                ...(sessionId !== undefined ? { sessionId } : {}),
+                ...(runContext !== undefined ? { runContext } : {}),
+            });
 
-            return {
+            const executionResult = {
                 result,
                 ...(presentationSnapshot !== undefined && { presentationSnapshot }),
-                ...(eventMeta !== undefined ? { meta: eventMeta } : {}),
-                ...(requireApproval && { requireApproval, approvalStatus }),
+                ...(call.meta !== undefined ? { meta: call.meta } : {}),
+                ...(call.approval !== undefined ? call.approval : {}),
             };
+
+            if (executionId !== undefined) {
+                await this.toolExecutionStore.complete({
+                    executionId,
+                    completedAt: new Date(),
+                    result: executionResult,
+                });
+            }
+
+            return executionResult;
         } catch (error) {
             const duration = Date.now() - startTime;
             this.logger.error(
-                `❌ Tool execution failed for ${toolName} after ${duration}ms, sessionId: ${sessionId ?? 'global'}: ${error instanceof Error ? error.message : String(error)}`
+                `❌ Prepared tool execution failed for ${call.toolName} after ${duration}ms, sessionId: ${sessionId ?? 'global'}: ${error instanceof Error ? error.message : String(error)}`
             );
+            const message = error instanceof Error ? error.message : String(error);
 
-            // Execute afterToolResult hooks for error case if available
+            if (executionId !== undefined) {
+                await this.toolExecutionStore.fail({
+                    executionId,
+                    completedAt: new Date(),
+                    error: message,
+                });
+            }
+
             if (this.hookManager && this.sessionManager && this.stateManager) {
                 const afterPayload: AfterToolResultPayload = {
-                    toolName,
+                    toolName: call.toolName,
                     result: error instanceof Error ? error.message : String(error),
                     success: false,
                     ...(sessionId !== undefined && { sessionId }),
                 };
 
-                // Note: We still execute hooks even on error, but we don't use the modified result.
-                // Hooks can log, track metrics, etc. but cannot suppress the error.
                 await this.hookManager.executeHooks('afterToolResult', afterPayload, {
                     sessionManager: this.sessionManager,
                     mcpManager: this.mcpManager,
@@ -1830,8 +2260,24 @@ export class ToolManager {
                 });
             }
 
-            throw error;
+            if (options?.throwOnError === true) {
+                throw error;
+            }
+
+            return this.createFailedPreparedToolResult(call, message);
         }
+    }
+
+    private createFailedPreparedToolResult(
+        call: ExecutableToolCall,
+        error: string
+    ): ToolExecutionResult {
+        return {
+            result: { error },
+            presentationSnapshot: call.presentationSnapshot,
+            ...(call.meta !== undefined ? { meta: call.meta } : {}),
+            ...(call.approval !== undefined ? call.approval : {}),
+        };
     }
 
     /**
@@ -1898,60 +2344,6 @@ export class ToolManager {
     }
 
     /**
-     * Check if a tool matches a policy pattern
-     * Supports both exact matching and suffix matching for MCP tools with server prefixes
-     *
-     * Examples:
-     * - Policy "mcp--read_file" matches "mcp--read_file" (exact)
-     * - Policy "mcp--read_file" matches "mcp--filesystem--read_file" (suffix)
-     * - Policy "read_file" matches "read_file" (local tool exact only)
-     *
-     * @param toolName The fully qualified tool name (e.g., "mcp--filesystem--read_file")
-     * @param policyPattern The policy pattern to match against (e.g., "mcp--read_file")
-     * @returns true if the tool matches the policy pattern
-     */
-    private matchesToolPolicy(toolName: string, policyPattern: string): boolean {
-        // Exact match
-        if (toolName === policyPattern) {
-            return true;
-        }
-
-        // Suffix match for MCP tools with server conflicts
-        // Policy "mcp--read_file" should match "mcp--filesystem--read_file"
-        // Note: MCP server delimiter is '--' (defined in MCPManager.SERVER_DELIMITER)
-        if (policyPattern.startsWith(ToolManager.MCP_TOOL_PREFIX)) {
-            // Extract the base tool name without mcp-- prefix
-            const baseName = policyPattern.substring(ToolManager.MCP_TOOL_PREFIX.length);
-
-            // Check if the tool name ends with --{baseName} and starts with mcp--
-            // This handles: mcp--filesystem--read_file matching policy mcp--read_file
-            if (
-                toolName.endsWith(`--${baseName}`) &&
-                toolName.startsWith(ToolManager.MCP_TOOL_PREFIX)
-            ) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    /**
-     * Check if a tool is in the static alwaysDeny list
-     * Supports both exact and suffix matching (e.g., "mcp--read_file" matches "mcp--server--read_file")
-     * @param toolName The fully qualified tool name to check
-     * @returns true if the tool is in the deny list
-     */
-    private isInAlwaysDenyList(toolName: string): boolean {
-        if (!this.toolPolicies?.alwaysDeny) {
-            return false;
-        }
-        return this.toolPolicies.alwaysDeny.some((pattern) =>
-            this.matchesToolPolicy(toolName, pattern)
-        );
-    }
-
-    /**
      * Check if a tool is in the static alwaysAllow list
      * Supports both exact and suffix matching (e.g., "mcp--read_file" matches "mcp--server--read_file")
      * @param toolName The fully qualified tool name to check
@@ -1962,356 +2354,8 @@ export class ToolManager {
             return false;
         }
         return this.toolPolicies.alwaysAllow.some((pattern) =>
-            this.matchesToolPolicy(toolName, pattern)
+            matchesToolPolicyPattern(toolName, pattern)
         );
-    }
-
-    /**
-     * Handle tool approval flow. Checks various precedence levels to determine
-     * if a tool should be auto-approved, denied, or requires manual approval.
-     */
-    private async handleToolApproval(
-        toolName: string,
-        args: Record<string, unknown>,
-        toolCallId: string,
-        sessionId?: string,
-        runContext?: AgentRunContext,
-        callDescription?: string
-    ): Promise<{
-        requireApproval: boolean;
-        approvalStatus?: 'approved' | 'rejected';
-        args: Record<string, unknown>;
-        presentationSnapshot: ToolPresentationSnapshotV1;
-    }> {
-        // 1. Check static alwaysDeny list (highest priority - security-first)
-        if (this.isInAlwaysDenyList(toolName)) {
-            this.logger.info(
-                `Tool '${toolName}' is in static deny list – blocking execution (session: ${sessionId ?? 'global'})`
-            );
-            throw ToolError.executionDenied(toolName, sessionId);
-        }
-
-        const validatedArgs = this.validateLocalToolArgs(toolName, args);
-        const presentationSnapshot = await this.getToolPresentationSnapshotForCall(
-            toolName,
-            validatedArgs,
-            toolCallId,
-            sessionId,
-            runContext
-        );
-
-        // 2. Tool-specific approval override (directory access and other custom approvals)
-        let directoryAccess: DirectoryAccessMetadata | undefined;
-        let directoryAccessApprovalRequest: ApprovalRequestDetails | undefined;
-
-        if (!toolName.startsWith(ToolManager.MCP_TOOL_PREFIX)) {
-            const getApprovalOverride = this.getToolApprovalOverrideFn(toolName);
-            if (getApprovalOverride) {
-                const context = this.buildToolExecutionContext({
-                    sessionId,
-                    toolCallId,
-                    runContext,
-                });
-                const approvalRequest = await getApprovalOverride(validatedArgs, context);
-
-                if (approvalRequest) {
-                    // Directory access is handled via the normal tool approval UI so we can show
-                    // tool previews/diffs (directory session choice is presented as an extra option).
-                    if (approvalRequest.type === ApprovalType.DIRECTORY_ACCESS) {
-                        const metadata = approvalRequest.metadata;
-                        if (
-                            typeof metadata !== 'object' ||
-                            metadata === null ||
-                            typeof (metadata as DirectoryAccessMetadata).path !== 'string' ||
-                            typeof (metadata as DirectoryAccessMetadata).parentDir !== 'string' ||
-                            typeof (metadata as DirectoryAccessMetadata).operation !== 'string' ||
-                            typeof (metadata as DirectoryAccessMetadata).toolName !== 'string'
-                        ) {
-                            throw ToolError.configInvalid(
-                                `Tool '${toolName}' returned invalid directory access metadata`
-                            );
-                        }
-
-                        directoryAccess = metadata as DirectoryAccessMetadata;
-                        directoryAccessApprovalRequest = approvalRequest;
-                    } else {
-                        this.logger.debug(
-                            `Tool '${toolName}' requested custom approval: type=${approvalRequest.type}`
-                        );
-
-                        // Add sessionId to the approval request if not already present
-                        if (sessionId && !approvalRequest.sessionId) {
-                            approvalRequest.sessionId = sessionId;
-                        }
-                        if (
-                            runContext?.hostRuntime !== undefined &&
-                            approvalRequest.hostRuntime === undefined
-                        ) {
-                            approvalRequest.hostRuntime = runContext.hostRuntime;
-                        }
-
-                        const response =
-                            await this.approvalManager.requestApproval(approvalRequest);
-
-                        if (response.status === ApprovalStatus.APPROVED) {
-                            const onGranted = this.getToolApprovalOnGrantedFn(toolName);
-                            if (onGranted) {
-                                await Promise.resolve(
-                                    onGranted(response, context, approvalRequest)
-                                );
-                            }
-
-                            this.logger.info(
-                                `Custom approval granted for '${toolName}', type=${approvalRequest.type}, session=${sessionId ?? 'global'}`
-                            );
-                            return {
-                                requireApproval: true,
-                                approvalStatus: 'approved',
-                                args: validatedArgs,
-                                presentationSnapshot,
-                            };
-                        }
-
-                        // Handle denial - throw appropriate error based on approval type
-                        this.logger.info(
-                            `Custom approval denied for '${toolName}', type=${approvalRequest.type}, reason=${response.reason ?? 'unknown'}`
-                        );
-
-                        throw ToolError.executionDenied(toolName, sessionId);
-                    }
-                }
-            }
-        }
-
-        // Try quick resolution first (auto-approve/deny based on policies)
-        const quickResult = await this.tryQuickApprovalResolution(
-            toolName,
-            validatedArgs,
-            sessionId,
-            directoryAccess
-        );
-        if (quickResult !== null) {
-            return { ...quickResult, args: validatedArgs, presentationSnapshot };
-        }
-
-        // Fall back to manual approval flow
-        const manualResult = await this.requestManualApproval(
-            toolName,
-            validatedArgs,
-            toolCallId,
-            sessionId,
-            runContext,
-            directoryAccess,
-            directoryAccessApprovalRequest,
-            callDescription,
-            presentationSnapshot
-        );
-        return { ...manualResult, args: validatedArgs, presentationSnapshot };
-    }
-
-    /**
-     * Try to resolve tool approval quickly based on policies and cached permissions.
-     * Returns null if manual approval is needed.
-     *
-     * Precedence order (highest to lowest):
-     * 1. Directory access requirement (outside-root paths)
-     * 2. Session auto-approve (skill allowed-tools)
-     * 3. Static allow list
-     * 4. Dynamic "remembered" allowed list
-     * 5. Tool approval patterns
-     * 6. Approval mode (auto-approve/auto-deny)
-     */
-    private async tryQuickApprovalResolution(
-        toolName: string,
-        args: Record<string, unknown>,
-        sessionId?: string,
-        directoryAccess?: DirectoryAccessMetadata
-    ): Promise<{ requireApproval: boolean; approvalStatus?: 'approved' } | null> {
-        // 2. Directory access: require explicit tool approval unless the directory is already session-approved.
-        // This bypasses remembered-tool approvals and edit-mode auto-approvals for outside-root paths.
-        if (directoryAccess) {
-            if (this.approvalMode === 'auto-approve') {
-                await this.approvalManager.addApprovedDirectory(
-                    directoryAccess.parentDir,
-                    'once',
-                    sessionId
-                );
-                return { requireApproval: false };
-            }
-            return null;
-        }
-
-        // 3. Check session auto-approve (skill allowed-tools)
-        if (sessionId && this.isToolAutoApprovedForSession(sessionId, toolName)) {
-            this.logger.info(
-                `Tool '${toolName}' is in session's auto-approve list – skipping confirmation (session: ${sessionId})`
-            );
-            return { requireApproval: false };
-        }
-
-        // 4. Check static alwaysAllow list
-        if (this.isInAlwaysAllowList(toolName)) {
-            this.logger.info(
-                `Tool '${toolName}' is in static allow list – skipping confirmation (session: ${sessionId ?? 'global'})`
-            );
-            return { requireApproval: false };
-        }
-
-        // 5. Check dynamic "remembered" allowed list
-        if (await this.allowedToolsProvider.isToolAllowed(toolName, sessionId)) {
-            this.logger.info(
-                `Tool '${toolName}' already allowed for session '${sessionId ?? 'global'}' – skipping confirmation.`
-            );
-            return { requireApproval: false };
-        }
-
-        // 6. Check tool approval patterns
-        const patternKey = this.getToolPatternKey(toolName, args);
-        if (patternKey && this.approvalManager.matchesPattern(toolName, patternKey, sessionId)) {
-            this.logger.info(
-                `Tool '${toolName}' matched approved pattern key '${patternKey}' – skipping confirmation.`
-            );
-            return { requireApproval: false };
-        }
-
-        // 7. Check approval mode
-        if (this.approvalMode === 'auto-approve') {
-            this.logger.debug(`🟢 Auto-approving tool execution: ${toolName}`);
-            return { requireApproval: false };
-        }
-
-        if (this.approvalMode === 'auto-deny') {
-            this.logger.debug(`🚫 Auto-denying tool execution: ${toolName}`);
-            throw ToolError.executionDenied(toolName, sessionId);
-        }
-
-        // Needs manual approval
-        return null;
-    }
-
-    /**
-     * Request manual approval from the user for a tool execution.
-     * Generates preview, sends approval request, and handles the response.
-     */
-    private async requestManualApproval(
-        toolName: string,
-        args: Record<string, unknown>,
-        toolCallId: string,
-        sessionId?: string,
-        runContext?: AgentRunContext,
-        directoryAccess?: DirectoryAccessMetadata,
-        directoryAccessApprovalRequest?: ApprovalRequestDetails,
-        callDescription?: string,
-        presentationSnapshot?: ToolPresentationSnapshotV1
-    ): Promise<{ requireApproval: boolean; approvalStatus: 'approved' | 'rejected' }> {
-        this.logger.info(
-            `Tool approval requested for ${toolName}, sessionId: ${sessionId ?? 'global'}`
-        );
-
-        try {
-            // Generate preview for approval UI
-            const displayPreview = await this.generateToolPreview(
-                toolName,
-                args,
-                toolCallId,
-                sessionId,
-                runContext
-            );
-            const hostRuntime =
-                runContext?.hostRuntime ?? directoryAccessApprovalRequest?.hostRuntime;
-
-            // Get suggested patterns if applicable
-            const suggestedPatterns = this.getToolSuggestedPatterns(toolName, args);
-
-            // Build and send approval request
-            const response = await this.approvalManager.requestToolApproval({
-                toolName,
-                ...(presentationSnapshot !== undefined && { presentationSnapshot }),
-                toolCallId,
-                args,
-                ...(callDescription !== undefined && { description: callDescription }),
-                ...(sessionId !== undefined && { sessionId }),
-                ...(hostRuntime !== undefined && { hostRuntime }),
-                ...(displayPreview !== undefined && { displayPreview }),
-                ...(directoryAccess !== undefined && { directoryAccess }),
-                ...(suggestedPatterns !== undefined && { suggestedPatterns }),
-            });
-
-            // Let tools handle approval responses (e.g., remember directory)
-            if (
-                response.status === ApprovalStatus.APPROVED &&
-                directoryAccessApprovalRequest !== undefined
-            ) {
-                const onGranted = this.getToolApprovalOnGrantedFn(toolName);
-                if (onGranted) {
-                    const context = this.buildToolExecutionContext({
-                        sessionId,
-                        toolCallId,
-                        runContext,
-                    });
-                    await Promise.resolve(
-                        onGranted(response, context, directoryAccessApprovalRequest)
-                    );
-                }
-            }
-
-            // Handle "remember" choices if approved
-            if (response.status === ApprovalStatus.APPROVED && response.data) {
-                await this.handleRememberChoice(toolName, response, sessionId);
-            }
-
-            // Process response
-            if (response.status !== ApprovalStatus.APPROVED) {
-                this.handleApprovalDenied(toolName, response, sessionId);
-            }
-
-            this.logger.info(
-                `Tool approval approved for ${toolName}, sessionId: ${sessionId ?? 'global'}`
-            );
-            return { requireApproval: true, approvalStatus: 'approved' };
-        } catch (error) {
-            this.logger.error(
-                `Tool approval error for ${toolName}: ${error instanceof Error ? error.message : String(error)}`
-            );
-            throw error;
-        }
-    }
-
-    /**
-     * Generate a preview for the tool approval UI if the tool supports it.
-     */
-    private async generateToolPreview(
-        toolName: string,
-        args: Record<string, unknown>,
-        toolCallId: string,
-        sessionId?: string,
-        runContext?: AgentRunContext
-    ): Promise<ToolDisplayData | undefined> {
-        const previewFn = this.getToolPreviewFn(toolName);
-        if (!previewFn) {
-            return undefined;
-        }
-
-        try {
-            const context = this.buildToolExecutionContext({ sessionId, toolCallId, runContext });
-            const preview = await previewFn(args, context);
-            this.logger.debug(`Generated preview for ${toolName}`);
-            return preview ?? undefined;
-        } catch (previewError) {
-            // Validation errors should fail before approval
-            if (
-                previewError instanceof DextoRuntimeError &&
-                previewError.code === ToolErrorCode.VALIDATION_FAILED
-            ) {
-                this.logger.debug(`Validation failed for ${toolName}: ${previewError.message}`);
-                throw previewError;
-            }
-            // Other errors should not block approval
-            this.logger.debug(
-                `Preview generation failed for ${toolName}: ${previewError instanceof Error ? previewError.message : String(previewError)}`
-            );
-            return undefined;
-        }
     }
 
     /**
@@ -2319,15 +2363,18 @@ export class ToolManager {
      */
     private async handleRememberChoice(
         toolName: string,
-        response: { status: ApprovalStatus; data?: unknown; sessionId?: string | undefined },
+        response: {
+            data?: ToolApprovalResponseData | undefined;
+            sessionId?: string | undefined;
+        },
         sessionId?: string
     ): Promise<void> {
-        const data = response.data as Record<string, unknown> | undefined;
+        const data = response.data;
         if (!data) return;
 
-        const rememberChoice = data.rememberChoice as boolean | undefined;
-        const rememberPattern = data.rememberPattern as string | undefined;
-        const rememberDirectory = data.rememberDirectory as boolean | undefined;
+        const rememberChoice = data.rememberChoice;
+        const rememberPattern = data.rememberPattern;
+        const rememberDirectory = data.rememberDirectory;
 
         if (rememberChoice) {
             const allowSessionId = sessionId ?? response.sessionId;
@@ -2364,13 +2411,13 @@ export class ToolManager {
             response.reason === DenialReason.TIMEOUT
         ) {
             this.logger.info(
-                `Tool confirmation timed out for ${toolName}, sessionId: ${sessionId ?? 'global'}`
+                `Tool approval timed out for ${toolName}, sessionId: ${sessionId ?? 'global'}`
             );
             throw ToolError.executionTimeout(toolName, response.timeoutMs ?? 0, sessionId);
         }
 
         this.logger.info(
-            `Tool confirmation denied for ${toolName}, sessionId: ${sessionId ?? 'global'}, reason: ${response.reason ?? 'unknown'}`
+            `Tool approval denied for ${toolName}, sessionId: ${sessionId ?? 'global'}, reason: ${response.reason ?? 'unknown'}`
         );
         throw ToolError.executionDenied(toolName, sessionId, response.message);
     }
@@ -2387,26 +2434,5 @@ export class ToolManager {
         this.invalidateCache();
 
         this.logger.debug('ToolManager refreshed (including MCP server capabilities)');
-    }
-
-    /**
-     * Get list of pending confirmation requests
-     */
-    getPendingConfirmations(): string[] {
-        return this.approvalManager.getPendingApprovals();
-    }
-
-    /**
-     * Cancel a pending confirmation request
-     */
-    cancelConfirmation(approvalId: string): void {
-        this.approvalManager.cancelApproval(approvalId);
-    }
-
-    /**
-     * Cancel all pending confirmation requests
-     */
-    cancelAllConfirmations(): void {
-        this.approvalManager.cancelAllApprovals();
     }
 }

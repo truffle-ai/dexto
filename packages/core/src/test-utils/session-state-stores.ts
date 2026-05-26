@@ -1,57 +1,45 @@
 import type { Logger } from '../logger/v2/types.js';
-import type { StorageManager } from '../storage/index.js';
-import { SessionApprovalStore } from '../approval/session-approval-store.js';
-import type { MessageQueueStore } from '../session/message-queue-store.js';
+import { cloneQueuedMessages } from '../session/queue-clone.js';
 import type { QueuedMessage } from '../session/types.js';
+import type { ApprovalStore } from '../storage/approvals/types.js';
+import type { SessionMessageQueueStore } from '../storage/message-queue/types.js';
+import { InMemoryDextoStores } from '../storage/stores/in-memory.js';
 import { SessionToolPreferencesStore } from '../tools/session-tool-preferences-store.js';
-import { createInMemoryCache, createInMemoryDatabase } from './in-memory-storage.js';
 
-type SessionStateStorage = Pick<StorageManager, 'getCache' | 'getDatabase'>;
-
-export function createInMemorySessionStateStorage(): SessionStateStorage {
-    const cache = createInMemoryCache();
-    const database = createInMemoryDatabase();
-
-    return {
-        getCache: () => cache,
-        getDatabase: () => database,
-    };
-}
-
-export function createInMemorySessionApprovalStore(
-    logger: Logger,
-    storageManager: SessionStateStorage = createInMemorySessionStateStorage()
-): SessionApprovalStore {
-    return new SessionApprovalStore(storageManager as StorageManager, logger);
+export function createInMemorySessionApprovalStore(logger: Logger): ApprovalStore {
+    void logger;
+    return new InMemoryDextoStores().getStore('approvals');
 }
 
 export function createInMemorySessionToolPreferencesStore(
-    logger: Logger,
-    storageManager: SessionStateStorage = createInMemorySessionStateStorage()
+    logger: Logger
 ): SessionToolPreferencesStore {
-    return new SessionToolPreferencesStore(storageManager as StorageManager, logger);
+    return new SessionToolPreferencesStore(
+        new InMemoryDextoStores().getStore('toolPreferences'),
+        logger
+    );
 }
 
-export function createInMemoryMessageQueueStore(): Pick<
-    MessageQueueStore,
-    'load' | 'save' | 'delete'
-> {
+export function createInMemoryMessageQueueStore(): SessionMessageQueueStore {
     const queues = new Map<string, QueuedMessage[]>();
 
     return {
-        async load(sessionId: string): Promise<QueuedMessage[]> {
-            return structuredClone(queues.get(sessionId) ?? []);
+        async load(input: { sessionId: string }): Promise<QueuedMessage[]> {
+            return cloneQueuedMessages(queues.get(input.sessionId) ?? []);
         },
-        async save(sessionId: string, queue: QueuedMessage[]): Promise<void> {
-            if (queue.length === 0) {
-                queues.delete(sessionId);
+        async save(input: { sessionId: string; queue: QueuedMessage[] }): Promise<void> {
+            if (input.queue.length === 0) {
+                queues.delete(input.sessionId);
                 return;
             }
 
-            queues.set(sessionId, structuredClone(queue));
+            queues.set(input.sessionId, cloneQueuedMessages(input.queue));
         },
-        async delete(sessionId: string): Promise<void> {
-            queues.delete(sessionId);
+        async delete(input: { sessionId: string }): Promise<void> {
+            queues.delete(input.sessionId);
+        },
+        async listSessionIds(): Promise<string[]> {
+            return Array.from(queues.keys());
         },
     };
 }

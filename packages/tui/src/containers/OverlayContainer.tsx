@@ -2149,7 +2149,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             },
                         ]);
 
-                        // Refresh prompts to remove uninstalled plugin skills
+                        // Refresh prompts to remove uninstalled plugin commands.
                         try {
                             const agentPath = getConfigFilePathOrWarn(
                                 'refresh prompts after plugin uninstall'
@@ -2199,7 +2199,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         },
                     ]);
 
-                    // Refresh prompts to include new plugin skills
+                    // Refresh prompts to include new plugin commands.
                     try {
                         const { reloadAgentConfigFromFile, enrichAgentConfig } = await import(
                             '@dexto/agent-management'

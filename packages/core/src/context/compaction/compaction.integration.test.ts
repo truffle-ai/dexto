@@ -5,12 +5,9 @@ import { ReactiveOverflowCompactionStrategy } from './strategies/reactive-overfl
 import { VercelMessageFormatter } from '../../llm/formatters/vercel.js';
 import { SystemPromptManager } from '../../systemPrompt/manager.js';
 import { SystemPromptConfigSchema } from '../../systemPrompt/schemas.js';
-import { MemoryHistoryProvider } from '../../session/history/memory.js';
 import { ResourceManager } from '../../resources/index.js';
 import { MCPManager } from '../../mcp/manager.js';
 import { MemoryManager } from '../../memory/index.js';
-import { StorageManager } from '../../storage/storage-manager.js';
-import { createInMemoryStorageManager } from '../../test-utils/in-memory-storage.js';
 import { createLogger } from '../../logger/factory.js';
 import { AgentEventBus } from '../../events/index.js';
 import type { ModelMessage } from 'ai';
@@ -18,6 +15,9 @@ import type { LanguageModel } from 'ai';
 import type { ValidatedLLMConfig } from '../../llm/schemas.js';
 import type { Logger } from '../../logger/v2/types.js';
 import type { InternalMessage } from '../types.js';
+import { InMemoryDextoStores } from '../../storage/stores/in-memory.js';
+import type { DextoStores } from '../../storage/index.js';
+import type { ConversationStore } from '../../storage/conversation/types.js';
 
 // Only mock the AI SDK's generateText - everything else is real
 vi.mock('ai', async (importOriginal) => {
@@ -53,8 +53,8 @@ describe('Context Compaction Integration Tests', () => {
     let contextManager: ContextManager<ModelMessage>;
     let compactionStrategy: ReactiveOverflowCompactionStrategy;
     let logger: Logger;
-    let historyProvider: MemoryHistoryProvider;
-    let storageManager: StorageManager;
+    let conversationStore: ConversationStore;
+    let stores: DextoStores;
     let mcpManager: MCPManager;
     let resourceManager: ResourceManager;
 
@@ -72,8 +72,8 @@ describe('Context Compaction Integration Tests', () => {
             agentId: 'test-agent',
         });
 
-        // Create real storage manager with in-memory backends
-        storageManager = await createInMemoryStorageManager(logger);
+        stores = new InMemoryDextoStores();
+        await stores.connect();
 
         // Create real MCP and resource managers
         const agentEventBus = new AgentEventBus();
@@ -82,18 +82,18 @@ describe('Context Compaction Integration Tests', () => {
             mcpManager,
             {
                 resourcesConfig: [],
-                blobStore: storageManager.getBlobStore(),
+                artifactStore: stores.getStore('artifacts'),
             },
             agentEventBus,
             logger
         );
         await resourceManager.initialize();
 
-        // Create real history provider
-        historyProvider = new MemoryHistoryProvider(logger);
+        // Create real conversation store
+        conversationStore = stores.getStore('conversation');
 
         // Create real memory and system prompt managers
-        const memoryManager = new MemoryManager(storageManager.getDatabase(), logger);
+        const memoryManager = new MemoryManager(stores.getStore('memories'), logger);
         const systemPromptConfig = SystemPromptConfigSchema.parse('You are a helpful assistant.');
         const systemPromptManager = new SystemPromptManager(
             systemPromptConfig,
@@ -117,7 +117,7 @@ describe('Context Compaction Integration Tests', () => {
             formatter,
             systemPromptManager,
             100000,
-            historyProvider,
+            conversationStore,
             sessionId,
             resourceManager,
             logger
@@ -134,6 +134,7 @@ describe('Context Compaction Integration Tests', () => {
 
     afterEach(async () => {
         vi.restoreAllMocks();
+        await stores.disconnect();
         logger.destroy();
     });
 
@@ -268,7 +269,7 @@ describe('Context Compaction Integration Tests', () => {
             // 1. Only the most recent summary should be visible
             const summariesInFiltered = filteredFinal.filter((m) => m.metadata?.isSummary);
             expect(summariesInFiltered).toHaveLength(1);
-            expect(summariesInFiltered[0]).toBe(summary3);
+            expect(summariesInFiltered[0]).toStrictEqual(summary3);
 
             // 2. Neither summary1 nor summary2 should be in the result
             expect(filteredFinal).not.toContain(summary1);

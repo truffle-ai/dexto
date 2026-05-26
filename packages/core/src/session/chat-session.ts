@@ -1,14 +1,12 @@
 import { randomUUID } from 'crypto';
-import { createDatabaseHistoryProvider } from './history/factory.js';
 import { createLLMService } from '../llm/services/factory.js';
 import type { ContextManager } from '../context/index.js';
-import type { ConversationHistoryProvider } from './history/types.js';
 import type { CreateLLMServiceOptions, LanguageModelFactory } from '../llm/services/types.js';
 import type { SystemPromptManager } from '../systemPrompt/manager.js';
 import type { ToolManager } from '../tools/tool-manager.js';
 import type { ValidatedLLMConfig } from '../llm/schemas.js';
 import type { AgentStateManager } from '../agent/state-manager.js';
-import type { StorageManager } from '../storage/index.js';
+import type { ConversationStore } from '../storage/index.js';
 import type { HookManager } from '../hooks/manager.js';
 import type { MCPManager } from '../mcp/manager.js';
 import type { BeforeLLMRequestPayload, BeforeResponsePayload } from '../hooks/types.js';
@@ -23,15 +21,37 @@ import { DextoLogComponent } from '../logger/v2/types.js';
 import { DextoRuntimeError, ErrorScope, ErrorType } from '../errors/index.js';
 import { HookErrorCode } from '../hooks/error-codes.js';
 import type { InternalMessage, ContentPart } from '../context/types.js';
+import type { QueuedMessage } from './types.js';
 import { MessageQueueService, type UserMessageInput } from './message-queue.js';
-import type { MessageQueueStore } from './message-queue-store.js';
+import type { SessionMessageQueueStore } from '../storage/message-queue/types.js';
 import type { ContentInput } from '../agent/types.js';
-import { getUsagePricingMetadata, hasMeaningfulTokenUsage } from '../llm/usage-metadata.js';
+import {
+    getUsagePricingMetadata,
+    hasMeaningfulTokenUsage,
+    normalizeTokenUsageForAccounting,
+} from '../llm/usage-metadata.js';
 import type { CompactionStrategy } from '../context/compaction/types.js';
 import { parseCodexBaseURL } from '../llm/providers/codex-base-url.js';
 import type { VercelLLMService } from '../llm/services/vercel.js';
 import type { AgentRunContext } from '../runtime/run-context.js';
 import { SessionError } from './errors.js';
+import type { TurnDriver, TurnDriverState } from '../llm/executor/turn-executor.js';
+
+export type ChatSessionTurnDriverInput =
+    | {
+          kind: 'start';
+          content: ContentInput;
+          streaming?: boolean;
+          signal?: AbortSignal;
+          runContext?: AgentRunContext;
+      }
+    | {
+          kind: 'resume';
+          state: TurnDriverState;
+          streaming?: boolean;
+          signal?: AbortSignal;
+          runContext?: AgentRunContext;
+      };
 
 /**
  * Represents an isolated conversation session within a Dexto agent.
@@ -92,10 +112,10 @@ export class ChatSession {
     public readonly eventBus: SessionEventBus;
 
     /**
-     * History provider that persists conversation messages.
+     * Store that persists conversation messages.
      * Shared across LLM switches to maintain conversation continuity.
      */
-    private historyProvider!: ConversationHistoryProvider;
+    private conversationStore!: ConversationStore;
 
     /**
      * Handles AI model interactions, tool execution, and response generation for this session.
@@ -106,10 +126,11 @@ export class ChatSession {
     private llmService!: VercelLLMService;
 
     /**
-     * Durable queued follow-up messages for this session.
-     * Reused across LLM switches so mid-task follow-ups survive service recreation.
+     * Durable queued user input for this session.
+     * Reused across LLM switches so mid-task steer/follow-up input survives service recreation.
      */
-    private messageQueue!: MessageQueueService;
+    private steerQueue!: MessageQueueService;
+    private followUpQueue!: MessageQueueService;
 
     private activeForwarderCleanup: (() => void) | null = null;
 
@@ -131,7 +152,7 @@ export class ChatSession {
      * Creates a new ChatSession instance.
      *
      * Each session creates its own isolated services:
-     * - ConversationHistoryProvider (with session-specific storage, shared across LLM switches)
+     * - ConversationStore (with session-specific storage, shared across LLM switches)
      * - LLM service (creates its own properly-typed ContextManager internally)
      * - SessionEventBus (session-local event handling)
      *
@@ -145,12 +166,13 @@ export class ChatSession {
             systemPromptManager: SystemPromptManager;
             toolManager: ToolManager;
             agentEventBus: AgentEventBus;
-            storageManager: StorageManager;
+            conversationStore: ConversationStore;
             resourceManager: import('../resources/index.js').ResourceManager;
             hookManager: HookManager;
             mcpManager: MCPManager;
             sessionManager: import('./session-manager.js').SessionManager;
-            messageQueueStore: Pick<MessageQueueStore, 'load' | 'save' | 'delete'>;
+            steerQueueStore: SessionMessageQueueStore;
+            followUpQueueStore: SessionMessageQueueStore;
             languageModelFactory?: LanguageModelFactory;
             workspaceManager?: import('../workspace/manager.js').WorkspaceManager;
             compactionStrategy: CompactionStrategy | null;
@@ -161,11 +183,19 @@ export class ChatSession {
         this.logger = logger.createChild(DextoLogComponent.SESSION);
         // Create session-specific event bus
         this.eventBus = new SessionEventBus();
-        this.messageQueue = new MessageQueueService(
+        this.steerQueue = new MessageQueueService(
             this.eventBus,
             this.logger,
             this.id,
-            this.services.messageQueueStore
+            this.services.steerQueueStore,
+            'steer'
+        );
+        this.followUpQueue = new MessageQueueService(
+            this.eventBus,
+            this.logger,
+            this.id,
+            this.services.followUpQueueStore,
+            'follow-up'
         );
 
         this.setupTokenAccumulation();
@@ -208,11 +238,12 @@ export class ChatSession {
     private setupTokenAccumulation(): void {
         this.tokenAccumulatorListener = (payload: SessionEventMap['llm:response']) => {
             if (payload.tokenUsage) {
+                const tokenUsage = normalizeTokenUsageForAccounting(payload.tokenUsage);
                 const llmConfig = this.services.stateManager.getLLMConfig(this.id);
                 const isChatGPTLogin =
                     llmConfig.provider === 'openai-compatible' &&
                     parseCodexBaseURL(llmConfig.baseURL)?.authMode === 'chatgpt';
-                const hasMeaningfulUsage = hasMeaningfulTokenUsage(payload.tokenUsage);
+                const hasMeaningfulUsage = hasMeaningfulTokenUsage(tokenUsage);
 
                 if (isChatGPTLogin && !hasMeaningfulUsage) {
                     this.services.sessionManager
@@ -234,14 +265,14 @@ export class ChatSession {
                 const pricingMetadata = getUsagePricingMetadata({
                     provider: modelInfo.provider,
                     model: modelInfo.model,
-                    tokenUsage: payload.tokenUsage,
+                    tokenUsage,
                 });
 
                 // Fire and forget - don't block the event flow
                 this.services.sessionManager
                     .accumulateTokenUsage(
                         this.id,
-                        payload.tokenUsage,
+                        tokenUsage,
                         payload.estimatedCost ?? pricingMetadata.estimatedCost,
                         modelInfo
                     )
@@ -264,15 +295,10 @@ export class ChatSession {
         const runtimeConfig = this.services.stateManager.getRuntimeConfig(this.id);
         const llmConfig = runtimeConfig.llm;
 
-        await this.messageQueue.initialize();
+        await this.steerQueue.initialize();
+        await this.followUpQueue.initialize();
 
-        // Create session-specific history provider directly with database backend
-        // This persists across LLM switches to maintain conversation history
-        this.historyProvider = createDatabaseHistoryProvider(
-            this.services.storageManager.getDatabase(),
-            this.id,
-            this.logger
-        );
+        this.conversationStore = this.services.conversationStore;
 
         this.llmService = await this.createSessionLLMService(llmConfig, runtimeConfig.usageScopeId);
 
@@ -288,14 +314,15 @@ export class ChatSession {
             usageScopeId,
             compactionStrategy: this.services.compactionStrategy,
             ...(workspace?.path !== undefined && { cwd: workspace.path }),
-            messageQueue: this.messageQueue,
+            steerQueue: this.steerQueue,
+            followUpQueue: this.followUpQueue,
         };
 
         return createLLMService(
             llmConfig,
             this.services.toolManager,
             this.services.systemPromptManager,
-            this.historyProvider,
+            this.conversationStore,
             this.eventBus,
             this.id,
             this.services.resourceManager,
@@ -344,8 +371,8 @@ export class ChatSession {
         };
 
         // Add both messages to history
-        await this.historyProvider.saveMessage(userMessage);
-        await this.historyProvider.saveMessage(assistantMessage);
+        await this.conversationStore.saveMessage({ sessionId: this.id, message: userMessage });
+        await this.conversationStore.saveMessage({ sessionId: this.id, message: assistantMessage });
 
         // Emit response event so UI updates immediately on blocked interactions
         // This ensures listeners relying on llm:response know a response was added
@@ -357,6 +384,107 @@ export class ChatSession {
             model: llmConfig.model,
             ...(assistantMessage.id && { messageId: assistantMessage.id }),
         });
+    }
+
+    private normalizeContent(content: ContentInput): ContentPart[] {
+        return typeof content === 'string' ? [{ type: 'text', text: content }] : content;
+    }
+
+    private async prepareTurnInput(
+        content: ContentInput,
+        signal: AbortSignal,
+        runContext?: AgentRunContext
+    ): Promise<ContentPart[]> {
+        const parts = this.normalizeContent(content);
+
+        const textParts = parts.filter(
+            (p): p is { type: 'text'; text: string } => p.type === 'text'
+        );
+        const imageParts = parts.filter((p) => p.type === 'image');
+        const fileParts = parts.filter((p) => p.type === 'file');
+
+        this.logger.debug(
+            `Streaming session ${this.id} | textParts=${textParts.length} | images=${imageParts.length} | files=${fileParts.length}`
+        );
+
+        const textContent = textParts.map((p) => p.text).join('\n');
+        const firstImage = imageParts[0] as
+            | { type: 'image'; image: string; mimeType?: string }
+            | undefined;
+        const firstFile = fileParts[0] as
+            | { type: 'file'; data: string; mimeType: string; filename?: string }
+            | undefined;
+
+        const beforeLLMPayload: BeforeLLMRequestPayload = {
+            text: textContent,
+            ...(firstImage && {
+                imageData: {
+                    image: typeof firstImage.image === 'string' ? firstImage.image : '[binary]',
+                    mimeType: firstImage.mimeType || 'image/jpeg',
+                },
+            }),
+            ...(firstFile && {
+                fileData: {
+                    data: typeof firstFile.data === 'string' ? firstFile.data : '[binary]',
+                    mimeType: firstFile.mimeType,
+                    ...(firstFile.filename && { filename: firstFile.filename }),
+                },
+            }),
+            sessionId: this.id,
+        };
+
+        const modifiedBeforePayload = await this.services.hookManager.executeHooks(
+            'beforeLLMRequest',
+            beforeLLMPayload,
+            {
+                sessionManager: this.services.sessionManager,
+                mcpManager: this.services.mcpManager,
+                toolManager: this.services.toolManager,
+                stateManager: this.services.stateManager,
+                ...(runContext !== undefined && { runContext }),
+                sessionId: this.id,
+                abortSignal: signal,
+            }
+        );
+
+        if (modifiedBeforePayload.text === textContent || textParts.length === 0) {
+            return parts;
+        }
+
+        return [
+            { type: 'text', text: modifiedBeforePayload.text },
+            ...parts.filter((p) => p.type !== 'text'),
+        ];
+    }
+
+    private async applyBeforeResponseHooks(
+        content: string,
+        signal: AbortSignal,
+        runContext?: AgentRunContext
+    ): Promise<string> {
+        const llmConfig = this.services.stateManager.getLLMConfig(this.id);
+        const beforeResponsePayload: BeforeResponsePayload = {
+            content,
+            provider: llmConfig.provider,
+            model: llmConfig.model,
+            sessionId: this.id,
+        };
+
+        const modifiedResponsePayload = await this.services.hookManager.executeHooks(
+            'beforeResponse',
+            beforeResponsePayload,
+            {
+                sessionManager: this.services.sessionManager,
+                mcpManager: this.services.mcpManager,
+                toolManager: this.services.toolManager,
+                stateManager: this.services.stateManager,
+                ...(runContext !== undefined && { runContext }),
+                sessionId: this.id,
+                abortSignal: signal,
+            }
+        );
+
+        return modifiedResponsePayload.content;
     }
 
     /**
@@ -387,20 +515,7 @@ export class ChatSession {
             runContext?: AgentRunContext;
         }
     ): Promise<{ text: string }> {
-        // Normalize content to ContentPart[]
-        const parts: ContentPart[] =
-            typeof content === 'string' ? [{ type: 'text', text: content }] : content;
-
-        // Extract text for logging (no sensitive content)
-        const textParts = parts.filter(
-            (p): p is { type: 'text'; text: string } => p.type === 'text'
-        );
-        const imageParts = parts.filter((p) => p.type === 'image');
-        const fileParts = parts.filter((p) => p.type === 'file');
-
-        this.logger.debug(
-            `Streaming session ${this.id} | textParts=${textParts.length} | images=${imageParts.length} | files=${fileParts.length}`
-        );
+        const parts = this.normalizeContent(content);
 
         if (this.isBusy()) {
             throw SessionError.busy(this.id);
@@ -414,87 +529,17 @@ export class ChatSession {
         const detachForwarders = this.attachRunEventForwarders(options?.runContext);
 
         try {
-            // Execute beforeLLMRequest hooks
-            // Extract first image/file for the hook payload.
-            const textContent = textParts.map((p) => p.text).join('\n');
-            const firstImage = imageParts[0] as
-                | { type: 'image'; image: string; mimeType?: string }
-                | undefined;
-            const firstFile = fileParts[0] as
-                | { type: 'file'; data: string; mimeType: string; filename?: string }
-                | undefined;
-
-            const beforeLLMPayload: BeforeLLMRequestPayload = {
-                text: textContent,
-                ...(firstImage && {
-                    imageData: {
-                        image: typeof firstImage.image === 'string' ? firstImage.image : '[binary]',
-                        mimeType: firstImage.mimeType || 'image/jpeg',
-                    },
-                }),
-                ...(firstFile && {
-                    fileData: {
-                        data: typeof firstFile.data === 'string' ? firstFile.data : '[binary]',
-                        mimeType: firstFile.mimeType,
-                        ...(firstFile.filename && { filename: firstFile.filename }),
-                    },
-                }),
-                sessionId: this.id,
-            };
-
-            const modifiedBeforePayload = await this.services.hookManager.executeHooks(
-                'beforeLLMRequest',
-                beforeLLMPayload,
-                {
-                    sessionManager: this.services.sessionManager,
-                    mcpManager: this.services.mcpManager,
-                    toolManager: this.services.toolManager,
-                    stateManager: this.services.stateManager,
-                    ...(options?.runContext !== undefined && { runContext: options.runContext }),
-                    sessionId: this.id,
-                    abortSignal: signal,
-                }
-            );
-
-            // Apply hook text modifications to the first text part
-            let modifiedParts = [...parts];
-            if (modifiedBeforePayload.text !== textContent && textParts.length > 0) {
-                // Replace text parts with modified text
-                modifiedParts = modifiedParts.filter((p) => p.type !== 'text');
-                modifiedParts.unshift({ type: 'text', text: modifiedBeforePayload.text });
-            }
-
-            // Call LLM service stream
+            const modifiedParts = await this.prepareTurnInput(content, signal, options?.runContext);
             const streamResult = await this.llmService.stream(modifiedParts, {
                 signal,
                 ...(options?.runContext !== undefined && { runContext: options.runContext }),
             });
-
-            // Execute beforeResponse hooks
-            const llmConfig = this.services.stateManager.getLLMConfig(this.id);
-            const beforeResponsePayload: BeforeResponsePayload = {
-                content: streamResult.text,
-                provider: llmConfig.provider,
-                model: llmConfig.model,
-                sessionId: this.id,
-            };
-
-            const modifiedResponsePayload = await this.services.hookManager.executeHooks(
-                'beforeResponse',
-                beforeResponsePayload,
-                {
-                    sessionManager: this.services.sessionManager,
-                    mcpManager: this.services.mcpManager,
-                    toolManager: this.services.toolManager,
-                    stateManager: this.services.stateManager,
-                    ...(options?.runContext !== undefined && { runContext: options.runContext }),
-                    sessionId: this.id,
-                    abortSignal: signal,
-                }
-            );
-
             return {
-                text: modifiedResponsePayload.content,
+                text: await this.applyBeforeResponseHooks(
+                    streamResult.text,
+                    signal,
+                    options?.runContext
+                ),
             };
         } catch (error) {
             // If this was an intentional cancellation, return partial response from history
@@ -574,6 +619,117 @@ export class ChatSession {
         }
     }
 
+    public async createTurnDriver(input: ChatSessionTurnDriverInput): Promise<TurnDriver> {
+        if (this.isBusy()) {
+            throw SessionError.busy(this.id);
+        }
+
+        this.currentRunController = new AbortController();
+        const signal = input.signal
+            ? this.combineSignals(input.signal, this.currentRunController.signal)
+            : this.currentRunController.signal;
+        const detachForwarders = this.attachRunEventForwarders(input.runContext);
+
+        try {
+            if (input.kind === 'start') {
+                const modifiedParts = await this.prepareTurnInput(
+                    input.content,
+                    signal,
+                    input.runContext
+                );
+                await this.llmService.getContextManager().addUserMessage(modifiedParts);
+            }
+
+            const driver = await this.llmService.createTurnDriver({
+                signal,
+                streaming: input.streaming ?? true,
+                ...(input.runContext !== undefined && { runContext: input.runContext }),
+                ...(input.kind === 'resume' ? { state: input.state } : {}),
+            });
+
+            return this.wrapTurnDriver(driver, signal, input.runContext, detachForwarders);
+        } catch (error) {
+            if (
+                input.kind === 'start' &&
+                error instanceof DextoRuntimeError &&
+                error.code === HookErrorCode.HOOK_BLOCKED_EXECUTION &&
+                error.scope === ErrorScope.HOOK &&
+                error.type === ErrorType.FORBIDDEN
+            ) {
+                const textContent = this.normalizeContent(input.content)
+                    .filter((p): p is { type: 'text'; text: string } => p.type === 'text')
+                    .map((p) => p.text)
+                    .join('\n');
+                await this.saveBlockedInteraction(textContent, error.message);
+            }
+            detachForwarders();
+            this.currentRunController = null;
+            throw error;
+        }
+    }
+
+    private wrapTurnDriver(
+        driver: TurnDriver,
+        signal: AbortSignal,
+        runContext: AgentRunContext | undefined,
+        detachForwarders: () => void
+    ): TurnDriver {
+        let closed = false;
+        const close = () => {
+            if (closed) {
+                return;
+            }
+            closed = true;
+            detachForwarders();
+            this.currentRunController = null;
+        };
+
+        return {
+            prepareNextModelStep: () => driver.prepareNextModelStep(),
+            runNextModelStep: () => driver.runNextModelStep(),
+            executeToolCalls: () => driver.executeToolCalls(),
+            decideNextStep: () => driver.decideNextStep(),
+            finish: async () => {
+                try {
+                    const result = await driver.finish();
+                    return {
+                        ...result,
+                        text: await this.applyBeforeResponseHooks(result.text, signal, runContext),
+                    };
+                } finally {
+                    driver.dispose();
+                    close();
+                }
+            },
+            fail: async (error) => {
+                try {
+                    return await driver.fail(error);
+                } finally {
+                    driver.dispose();
+                    close();
+                }
+            },
+            getState: () => driver.getState(),
+            checkpoint: () => {
+                try {
+                    return driver.checkpoint();
+                } finally {
+                    close();
+                }
+            },
+            dispose: () => {
+                if (closed) {
+                    return;
+                }
+                try {
+                    driver.dispose();
+                } finally {
+                    close();
+                }
+            },
+        };
+    }
+
     /**
      * Combine multiple abort signals into one.
      */
@@ -614,7 +770,7 @@ export class ChatSession {
      * ```
      */
     public async getHistory() {
-        return await this.historyProvider.getHistory();
+        return await this.conversationStore.listMessages({ sessionId: this.id });
     }
 
     /**
@@ -768,44 +924,96 @@ export class ChatSession {
     }
 
     /**
-     * Queue a message for processing when the session is busy.
-     * The message will be injected into the conversation when the current turn completes.
+     * Queue a message as active-turn steer input.
+     * The message is injected at the next executor boundary while the current turn is active.
      *
-     * @param message The user message to queue
+     * @param message The user message to use as steer input
      * @returns Queue position and message ID
      */
-    public async queueMessage(
+    public async steer(
         message: UserMessageInput
     ): Promise<{ queued: true; position: number; id: string }> {
-        return await this.llmService.getMessageQueue().enqueue(message);
+        return await this.llmService.getSteerQueue().enqueue(message);
     }
 
     /**
-     * Get all messages currently in the queue.
-     * @returns Array of queued messages
+     * Queue a follow-up message for processing after the current turn naturally completes.
+     *
+     * @param message The user message to queue as follow-up work
+     * @returns Queue position and message ID
      */
-    public getQueuedMessages(): import('./types.js').QueuedMessage[] {
-        return this.llmService.getMessageQueue().getAll();
+    public async followUp(
+        message: UserMessageInput
+    ): Promise<{ queued: true; position: number; id: string }> {
+        return await this.llmService.getFollowUpQueue().enqueue(message);
     }
 
     /**
-     * Remove a queued message.
+     * Get all steer messages currently queued.
+     * @returns Array of steer messages
+     */
+    public getSteerMessages(): QueuedMessage[] {
+        return this.llmService.getSteerQueue().getAll();
+    }
+
+    /**
+     * Get all follow-up messages currently queued.
+     * @returns Array of follow-up messages
+     */
+    public getFollowUpMessages(): QueuedMessage[] {
+        return this.llmService.getFollowUpQueue().getAll();
+    }
+
+    /**
+     * Remove a steer message.
      * @param id Message ID to remove
      * @returns true if message was found and removed; false otherwise
      */
-    public async removeQueuedMessage(id: string): Promise<boolean> {
-        return await this.llmService.getMessageQueue().remove(id);
+    public async removeSteerMessage(id: string): Promise<boolean> {
+        return await this.llmService.getSteerQueue().remove(id);
     }
 
     /**
-     * Clear all queued messages.
+     * Remove a follow-up message.
+     * @param id Message ID to remove
+     * @returns true if message was found and removed; false otherwise
+     */
+    public async removeFollowUpMessage(id: string): Promise<boolean> {
+        return await this.llmService.getFollowUpQueue().remove(id);
+    }
+
+    /**
+     * Clear all steer messages.
      * @returns Number of messages that were cleared
      */
-    public async clearMessageQueue(): Promise<number> {
-        const queue = this.llmService.getMessageQueue();
+    public async clearSteerQueue(): Promise<number> {
+        const queue = this.llmService.getSteerQueue();
         const count = queue.pendingCount();
         await queue.clear();
         return count;
+    }
+
+    /**
+     * Clear all follow-up messages.
+     * @returns Number of messages that were cleared
+     */
+    public async clearFollowUpQueue(): Promise<number> {
+        const queue = this.llmService.getFollowUpQueue();
+        const count = queue.pendingCount();
+        await queue.clear();
+        return count;
+    }
+
+    /**
+     * Clear all pending steer and follow-up input for this session.
+     * @returns Number of messages that were cleared
+     */
+    public async clearPendingInput(): Promise<number> {
+        const [steerCount, followUpCount] = await Promise.all([
+            this.clearSteerQueue(),
+            this.clearFollowUpQueue(),
+        ]);
+        return steerCount + followUpCount;
     }
 
     /**

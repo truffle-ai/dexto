@@ -73,24 +73,7 @@ function generateImports(
     const compactionProviders = [...discoveredFactories.compaction].sort((a, b) =>
         a.type.localeCompare(b.type)
     );
-    const blobProviders = [...discoveredFactories.storage.blob].sort((a, b) =>
-        a.type.localeCompare(b.type)
-    );
-    const databaseProviders = [...discoveredFactories.storage.database].sort((a, b) =>
-        a.type.localeCompare(b.type)
-    );
-    const cacheProviders = [...discoveredFactories.storage.cache].sort((a, b) =>
-        a.type.localeCompare(b.type)
-    );
-
-    if (
-        toolProviders.length > 0 ||
-        hookProviders.length > 0 ||
-        compactionProviders.length > 0 ||
-        blobProviders.length > 0 ||
-        databaseProviders.length > 0 ||
-        cacheProviders.length > 0
-    ) {
+    if (toolProviders.length > 0 || hookProviders.length > 0 || compactionProviders.length > 0) {
         imports.push('');
         imports.push('// Factories (convention folders; each must `export const factory = ...`)');
     }
@@ -107,19 +90,6 @@ function generateImports(
         const symbol = toFactoryImportSymbol('compaction', entry.type);
         imports.push(`import { factory as ${symbol} } from '${entry.importPath}';`);
     }
-    for (const entry of blobProviders) {
-        const symbol = toFactoryImportSymbol('storage_blob', entry.type);
-        imports.push(`import { factory as ${symbol} } from '${entry.importPath}';`);
-    }
-    for (const entry of databaseProviders) {
-        const symbol = toFactoryImportSymbol('storage_database', entry.type);
-        imports.push(`import { factory as ${symbol} } from '${entry.importPath}';`);
-    }
-    for (const entry of cacheProviders) {
-        const symbol = toFactoryImportSymbol('storage_cache', entry.type);
-        imports.push(`import { factory as ${symbol} } from '${entry.importPath}';`);
-    }
-
     return imports.join('\n');
 }
 
@@ -219,30 +189,6 @@ function generateImageModule(
             return `        ${JSON.stringify(entry.type)}: ${symbol},`;
         });
 
-    const blobEntries = discoveredFactories.storage.blob
-        .slice()
-        .sort((a, b) => a.type.localeCompare(b.type))
-        .map((entry) => {
-            const symbol = toFactoryImportSymbol('storage_blob', entry.type);
-            return `            ${JSON.stringify(entry.type)}: ${symbol},`;
-        });
-
-    const databaseEntries = discoveredFactories.storage.database
-        .slice()
-        .sort((a, b) => a.type.localeCompare(b.type))
-        .map((entry) => {
-            const symbol = toFactoryImportSymbol('storage_database', entry.type);
-            return `            ${JSON.stringify(entry.type)}: ${symbol},`;
-        });
-
-    const cacheEntries = discoveredFactories.storage.cache
-        .slice()
-        .sort((a, b) => a.type.localeCompare(b.type))
-        .map((entry) => {
-            const symbol = toFactoryImportSymbol('storage_cache', entry.type);
-            return `            ${JSON.stringify(entry.type)}: ${symbol},`;
-        });
-
     const metadataLines: string[] = [];
     metadataLines.push(`        name: ${JSON.stringify(definition.name)},`);
     metadataLines.push(`        version: ${JSON.stringify(definition.version)},`);
@@ -271,9 +217,14 @@ function generateImageModule(
     const hooksSpread = definition.extends ? `        ...baseImage.hooks,\n` : '';
     const compactionSpread = definition.extends ? `        ...baseImage.compaction,\n` : '';
 
-    const blobSpread = definition.extends ? `            ...baseImage.storage.blob,\n` : '';
-    const databaseSpread = definition.extends ? `            ...baseImage.storage.database,\n` : '';
-    const cacheSpread = definition.extends ? `            ...baseImage.storage.cache,\n` : '';
+    const storageExpression = definition.extends
+        ? `baseImage.storage`
+        : `{
+        configSchema: { parse: (config) => config },
+        createStores: () => {
+            throw new Error('This generated image does not define storage. Extend an image with storage or provide a storage implementation.');
+        },
+    }`;
 
     const loggerExpression = definition.extends
         ? `baseImage.logger ?? defaultLoggerFactory`
@@ -287,17 +238,7 @@ ${metadataLines.join('\n')}
     tools: {
 ${toolsSpread}${toolsEntries.join('\n')}
     },
-    storage: {
-        blob: {
-${blobSpread}${blobEntries.join('\n')}
-        },
-        database: {
-${databaseSpread}${databaseEntries.join('\n')}
-        },
-        cache: {
-${cacheSpread}${cacheEntries.join('\n')}
-        },
-    },
+    storage: ${storageExpression},
     hooks: {
 ${hooksSpread}${hookEntries.join('\n')}
     },

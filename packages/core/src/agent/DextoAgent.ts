@@ -6,15 +6,21 @@ import { MCPManager } from '../mcp/manager.js';
 import { ToolManager } from '../tools/tool-manager.js';
 import { SystemPromptManager } from '../systemPrompt/manager.js';
 import { SkillsContributor } from '../systemPrompt/contributors.js';
+import {
+    CompositeSkillManager,
+    WorkspaceSkillSource,
+    type SkillManager,
+    type SkillSource,
+} from '../skills/index.js';
 import { ResourceManager, expandMessageReferences } from '../resources/index.js';
 import { expandBlobReferences, fileTypesToMimePatterns } from '../context/utils.js';
-import { StorageManager } from '../storage/index.js';
 import type { ContentPart, InternalMessage } from '../context/types.js';
 import { PromptManager } from '../prompts/index.js';
 import type { PromptsConfig } from '../prompts/schemas.js';
 import { AgentStateManager } from './state-manager.js';
 import { SessionManager, ChatSession, SessionError } from '../session/index.js';
-import type { SessionMetadata } from '../session/index.js';
+import type { QueuedMessage, SessionMetadata } from '../session/index.js';
+import type { UserMessageInput } from '../session/message-queue.js';
 import {
     AgentServices,
     type InitializeServicesOptions,
@@ -106,6 +112,15 @@ export interface AgentEventSubscriber {
     subscribe(eventBus: AgentEventBus): void;
 }
 
+export type SessionTitleSource = 'existing' | 'llm' | 'heuristic';
+
+export interface SessionTitleGenerationDetails {
+    title: string;
+    source: SessionTitleSource;
+    reason?: string;
+    timedOut?: boolean;
+}
+
 /**
  * The main entry point into Dexto's core functionality.
  *
@@ -188,6 +203,7 @@ export class DextoAgent {
     public readonly systemPromptManager!: SystemPromptManager;
     private readonly agentEventBus: AgentEventBus;
     public readonly promptManager!: PromptManager;
+    public readonly skillManager!: SkillManager;
     public readonly stateManager!: AgentStateManager;
     public readonly sessionManager!: SessionManager;
     public readonly workspaceManager!: WorkspaceManager;
@@ -212,7 +228,7 @@ export class DextoAgent {
     // Telemetry instance for distributed tracing
     private telemetry?: Telemetry;
 
-    // Approval handler for manual tool confirmation and elicitation
+    // Approval handler for manual tool approval and elicitation
     // Set via setApprovalHandler() before start() if needed
     private approvalHandler?: ApprovalHandler | undefined;
     private mcpAuthProviderFactory: import('../mcp/types.js').McpAuthProviderFactory | null = null;
@@ -225,6 +241,7 @@ export class DextoAgent {
     private readonly toolkitLoader: ToolkitLoader | undefined;
     private readonly loadedToolkits: Set<string> = new Set();
     private readonly loadingToolkits: Set<string> = new Set();
+    private readonly skillSources: SkillSource[];
 
     // DI-provided local tools.
     private tools: Tool[];
@@ -278,7 +295,7 @@ export class DextoAgent {
     constructor(options: DextoAgentOptions) {
         const {
             logger,
-            storage,
+            stores,
             tools: toolsInput,
             hooks: hooksInput,
             compaction,
@@ -299,15 +316,8 @@ export class DextoAgent {
 
         const overrides: InitializeServicesOptions = { ...(overridesInput ?? {}) };
 
-        if (overrides.storageManager === undefined) {
-            overrides.storageManager = new StorageManager(
-                {
-                    cache: storage.cache,
-                    database: storage.database,
-                    blobStore: storage.blob,
-                },
-                this.logger
-            );
+        if (overrides.stores === undefined) {
+            overrides.stores = stores;
         }
 
         if (overrides.hooks === undefined) {
@@ -316,6 +326,7 @@ export class DextoAgent {
 
         this.overrides = overrides;
         this.toolkitLoader = options.toolkitLoader;
+        this.skillSources = options.skillSources ?? [];
 
         if (overrides.mcpAuthProviderFactory !== undefined) {
             this.mcpAuthProviderFactory = overrides.mcpAuthProviderFactory;
@@ -367,7 +378,7 @@ export class DextoAgent {
             }
 
             // Validate approval configuration
-            // Handler is required for manual tool confirmation OR when elicitation is enabled
+            // Handler is required for manual tool approval OR when elicitation is enabled
             const needsHandler =
                 this.config.permissions.mode === 'manual' || this.config.elicitation.enabled;
 
@@ -384,7 +395,7 @@ export class DextoAgent {
                     `An approval handler is required but not configured (${reasons.join(' and ')}).\n` +
                         'Either:\n' +
                         '  • Call agent.setApprovalHandler() before starting\n' +
-                        '  • Set permissions: { mode: "auto-approve" } or { mode: "auto-deny" }\n' +
+                        '  • Set permissions: { mode: "auto-approve" }\n' +
                         '  • Disable elicitation: { enabled: false }'
                 );
             }
@@ -409,31 +420,32 @@ export class DextoAgent {
 
             // Initialize prompts manager (aggregates MCP, internal, starter prompts)
             // File prompts automatically resolve custom slash commands
-            // Must be initialized before toolManager so invoke_skill tool can access prompts
+            // Must be initialized before toolManager so read_skill/invoke_skill can access skills.
             const promptManager = new PromptManager(
                 this.mcpManager,
                 this.resourceManager,
                 this.config,
                 this.agentEventBus,
-                services.storageManager.getDatabase(),
+                services.stores,
                 this.logger
             );
             await promptManager.initialize();
-            Object.assign(this, { promptManager });
+            const skillManager = new CompositeSkillManager([
+                ...this.skillSources,
+                new WorkspaceSkillSource(services.workspaceManager),
+            ]);
+            Object.assign(this, { promptManager, skillManager });
 
             // Provide ToolExecutionContext to tools at runtime (late-binding to avoid init ordering cycles)
-            const toolExecutionStorage = {
-                blob: services.storageManager.getBlobStore(),
-                database: services.storageManager.getDatabase(),
-                cache: services.storageManager.getCache(),
-            };
             const toolExecutionServices = {
                 approval: services.approvalManager,
                 search: services.searchService,
                 resources: services.resourceManager,
                 prompts: promptManager,
+                skills: skillManager,
                 mcp: services.mcpManager,
                 taskForker: null,
+                workspaceManager: services.workspaceManager,
             };
             services.toolManager.setToolExecutionContextFactory((baseContext) => ({
                 ...baseContext,
@@ -441,7 +453,7 @@ export class DextoAgent {
                     hostRuntime: baseContext.runContext.hostRuntime,
                 }),
                 agent: this,
-                storage: toolExecutionStorage,
+                toolState: services.stores.getStore('toolState'),
                 services: toolExecutionServices,
             }));
 
@@ -453,7 +465,7 @@ export class DextoAgent {
                 const skillsContributor = new SkillsContributor(
                     'skills',
                     50, // Priority after memories (40) but before most other content
-                    promptManager,
+                    skillManager,
                     this.logger
                 );
                 services.systemPromptManager.addContributor(skillsContributor);
@@ -565,15 +577,15 @@ export class DextoAgent {
                 shutdownErrors.push(new Error(`ResourceManager cleanup failed: ${err.message}`));
             }
 
-            // 4. Close storage backends
+            // 4. Close stores
             try {
-                if (this.services?.storageManager) {
-                    await this.services.storageManager.disconnect();
-                    this.logger.debug('Storage manager disconnected successfully');
+                if (this.services?.stores) {
+                    await this.services.stores.disconnect();
+                    this.logger.debug('Stores disconnected successfully');
                 }
             } catch (error) {
                 const err = error instanceof Error ? error : new Error(String(error));
-                shutdownErrors.push(new Error(`Storage disconnect failed: ${err.message}`));
+                shutdownErrors.push(new Error(`Store disconnect failed: ${err.message}`));
             }
 
             // Note: Telemetry is NOT shut down here
@@ -838,7 +850,7 @@ export class DextoAgent {
             return {
                 toolName: tc.toolName,
                 args: tc.args,
-                callId: tc.callId || `tool_${Date.now()}`,
+                callId: tc.callId,
                 result: toolResult
                     ? {
                           success: toolResult.success,
@@ -949,6 +961,7 @@ export class DextoAgent {
         // Event queue for aggregation - now holds core events directly
         const eventQueue: StreamingEvent[] = [];
         let completed = false;
+        let terminalError: Error | undefined;
         let sawFatalErrorEvent = false;
         let sawRunCompleteEvent = false;
 
@@ -1055,10 +1068,17 @@ export class DextoAgent {
         };
         addStreamingListener('llm:tool-result', toolResultListener);
 
+        const retryingListener = (data: AgentEventMap['llm:retrying']) => {
+            if (data.sessionId !== sessionId) return;
+            eventQueue.push({ name: 'llm:retrying', ...data });
+        };
+        addStreamingListener('llm:retrying', retryingListener);
+
         const errorListener = (data: AgentEventMap['llm:error']) => {
             if (data.sessionId !== sessionId) return;
             if (data.recoverable !== true) {
                 sawFatalErrorEvent = true;
+                terminalError = data.error;
             }
             eventQueue.push({ name: 'llm:error', ...data });
         };
@@ -1108,7 +1128,7 @@ export class DextoAgent {
         };
         addStreamingListener('context:compacted', contextCompactedListener);
 
-        // Message queue events (for mid-task user guidance)
+        // Queued input events (for mid-task user guidance)
         const messageQueuedListener = (data: AgentEventMap['message:queued']) => {
             if (data.sessionId !== sessionId) return;
             eventQueue.push({ name: 'message:queued', ...data });
@@ -1133,6 +1153,9 @@ export class DextoAgent {
         const runCompleteListener = (data: AgentEventMap['run:complete']) => {
             if (data.sessionId !== sessionId) return;
             sawRunCompleteEvent = true;
+            if (data.finishReason === 'error' && data.error !== undefined) {
+                terminalError = data.error;
+            }
             eventQueue.push({ name: 'run:complete', ...data });
             completed = true; // NOW close the iterator
         };
@@ -1366,6 +1389,7 @@ export class DextoAgent {
                     }
 
                     completed = true;
+                    terminalError = error;
                     this.logger.error(`Error in DextoAgent.stream: ${error.message}`);
 
                     const errorEvent: { name: 'llm:error' } & AgentEventMap['llm:error'] = {
@@ -1405,6 +1429,9 @@ export class DextoAgent {
                 if (completed) {
                     cleanupListeners();
                     controller.abort();
+                    if (terminalError !== undefined) {
+                        throw terminalError;
+                    }
                     return { done: true, value: undefined };
                 }
 
@@ -1440,69 +1467,143 @@ export class DextoAgent {
     }
 
     /**
-     * Queue a message for processing when a session is busy.
-     * The message will be injected into the conversation when the current turn completes.
+     * Queue a message as active-turn steer input for a session.
+     * The message is injected at the next executor boundary while the current turn is active.
      *
      * @param sessionId Session id
-     * @param message The user message to queue
+     * @param message The user message to use as steer input
      * @returns Queue position and message ID
-     * @throws Error if session doesn't support message queueing
      */
-    public async queueMessage(
+    public async steer(
         sessionId: string,
-        message: import('../session/message-queue.js').UserMessageInput
+        message: UserMessageInput
     ): Promise<{ queued: true; position: number; id: string }> {
         this.ensureStarted();
         const session = await this.sessionManager.getSession(sessionId, false);
         if (!session) {
             throw SessionError.notFound(sessionId);
         }
-        return session.queueMessage(message);
+        return session.steer(message);
     }
 
     /**
-     * Get all queued messages for a session.
+     * Queue a message as follow-up work for a session.
+     * The message is processed only after the active turn would otherwise stop.
+     *
      * @param sessionId Session id
-     * @returns Array of queued messages
+     * @param message The user message to queue as follow-up work
+     * @returns Queue position and message ID
      */
-    public async getQueuedMessages(
-        sessionId: string
-    ): Promise<import('../session/types.js').QueuedMessage[]> {
+    public async followUp(
+        sessionId: string,
+        message: UserMessageInput
+    ): Promise<{ queued: true; position: number; id: string }> {
         this.ensureStarted();
         const session = await this.sessionManager.getSession(sessionId, false);
         if (!session) {
             throw SessionError.notFound(sessionId);
         }
-        return session.getQueuedMessages();
+        return session.followUp(message);
     }
 
     /**
-     * Remove a queued message.
+     * Get all steer messages for a session.
      * @param sessionId Session id
-     * @param messageId The ID of the queued message to remove
+     * @returns Array of steer messages
+     */
+    public async getSteerMessages(sessionId: string): Promise<QueuedMessage[]> {
+        this.ensureStarted();
+        const session = await this.sessionManager.getSession(sessionId, false);
+        if (!session) {
+            throw SessionError.notFound(sessionId);
+        }
+        return session.getSteerMessages();
+    }
+
+    /**
+     * Get all follow-up messages for a session.
+     * @param sessionId Session id
+     * @returns Array of follow-up messages
+     */
+    public async getFollowUpMessages(sessionId: string): Promise<QueuedMessage[]> {
+        this.ensureStarted();
+        const session = await this.sessionManager.getSession(sessionId, false);
+        if (!session) {
+            throw SessionError.notFound(sessionId);
+        }
+        return session.getFollowUpMessages();
+    }
+
+    /**
+     * Remove a steer message.
+     * @param sessionId Session id
+     * @param messageId The ID of the steer message to remove
      * @returns true if message was found and removed, false otherwise
      */
-    public async removeQueuedMessage(sessionId: string, messageId: string): Promise<boolean> {
+    public async removeSteerMessage(sessionId: string, messageId: string): Promise<boolean> {
         this.ensureStarted();
         const session = await this.sessionManager.getSession(sessionId, false);
         if (!session) {
             throw SessionError.notFound(sessionId);
         }
-        return session.removeQueuedMessage(messageId);
+        return session.removeSteerMessage(messageId);
     }
 
     /**
-     * Clear all queued messages for a session.
+     * Remove a follow-up message.
+     * @param sessionId Session id
+     * @param messageId The ID of the follow-up message to remove
+     * @returns true if message was found and removed, false otherwise
+     */
+    public async removeFollowUpMessage(sessionId: string, messageId: string): Promise<boolean> {
+        this.ensureStarted();
+        const session = await this.sessionManager.getSession(sessionId, false);
+        if (!session) {
+            throw SessionError.notFound(sessionId);
+        }
+        return session.removeFollowUpMessage(messageId);
+    }
+
+    /**
+     * Clear all steer messages for a session.
      * @param sessionId Session id
      * @returns Number of messages that were cleared
      */
-    public async clearMessageQueue(sessionId: string): Promise<number> {
+    public async clearSteerQueue(sessionId: string): Promise<number> {
         this.ensureStarted();
         const session = await this.sessionManager.getSession(sessionId, false);
         if (!session) {
             throw SessionError.notFound(sessionId);
         }
-        return session.clearMessageQueue();
+        return session.clearSteerQueue();
+    }
+
+    /**
+     * Clear all follow-up messages for a session.
+     * @param sessionId Session id
+     * @returns Number of messages that were cleared
+     */
+    public async clearFollowUpQueue(sessionId: string): Promise<number> {
+        this.ensureStarted();
+        const session = await this.sessionManager.getSession(sessionId, false);
+        if (!session) {
+            throw SessionError.notFound(sessionId);
+        }
+        return session.clearFollowUpQueue();
+    }
+
+    /**
+     * Clear all pending steer and follow-up input for a session.
+     * @param sessionId Session id
+     * @returns Number of messages that were cleared
+     */
+    public async clearPendingInput(sessionId: string): Promise<number> {
+        this.ensureStarted();
+        const session = await this.sessionManager.getSession(sessionId, false);
+        if (!session) {
+            throw SessionError.notFound(sessionId);
+        }
+        return session.clearPendingInput();
     }
 
     /**
@@ -1697,6 +1798,19 @@ export class DextoAgent {
      * @returns Promise that resolves to the generated title, or null if generation failed
      */
     public async generateSessionTitle(sessionId: string): Promise<string | null> {
+        const result = await this.generateSessionTitleDetails(sessionId);
+        return result?.title ?? null;
+    }
+
+    /**
+     * Generate a title for a session and report whether it came from the LLM or heuristic fallback.
+     *
+     * @param sessionId Session ID to generate title for
+     * @returns Promise that resolves to title details, or null if generation failed
+     */
+    public async generateSessionTitleDetails(
+        sessionId: string
+    ): Promise<SessionTitleGenerationDetails | null> {
         this.ensureStarted();
 
         // Get session metadata to check if title already exists
@@ -1708,7 +1822,10 @@ export class DextoAgent {
             this.logger.debug(
                 `[SessionTitle] Session ${sessionId} already has title '${metadata.title}'`
             );
-            return metadata.title;
+            return {
+                source: 'existing',
+                title: metadata.title,
+            };
         }
 
         // Get first user message
@@ -1740,19 +1857,12 @@ export class DextoAgent {
         const llmConfig = this.getEffectiveConfig(sessionId).llm;
 
         // Generate title
-        const result = await generateSessionTitle(
-            llmConfig,
-            this.toolManager,
-            this.systemPromptManager,
-            this.resourceManager,
-            userText,
-            this.logger,
-            {
-                ...(this.overrides.languageModelFactory !== undefined && {
-                    languageModelFactory: this.overrides.languageModelFactory,
-                }),
-            }
-        );
+        const result = await generateSessionTitle(llmConfig, userText, this.logger, {
+            providerContext: { sessionId },
+            ...(this.overrides.languageModelFactory !== undefined && {
+                languageModelFactory: this.overrides.languageModelFactory,
+            }),
+        });
 
         let title = result.title;
         if (!title) {
@@ -1760,6 +1870,14 @@ export class DextoAgent {
             title = deriveHeuristicTitle(userText);
             if (title) {
                 this.logger.info(`[SessionTitle] Using heuristic title for ${sessionId}: ${title}`);
+                const details = {
+                    ...(result.error !== undefined && { reason: result.error }),
+                    ...(result.timedOut !== undefined && { timedOut: result.timedOut }),
+                    source: 'heuristic',
+                    title,
+                } satisfies SessionTitleGenerationDetails;
+                await this.sessionManager.setSessionTitle(sessionId, title, { ifUnsetOnly: true });
+                return details;
             } else {
                 this.logger.debug(`[SessionTitle] No suitable title derived for ${sessionId}`);
                 return null;
@@ -1771,7 +1889,10 @@ export class DextoAgent {
         // Save title
         await this.sessionManager.setSessionTitle(sessionId, title, { ifUnsetOnly: true });
 
-        return title;
+        return {
+            source: 'llm',
+            title,
+        };
     }
 
     /**
@@ -3427,11 +3548,10 @@ export class DextoAgent {
      * - Prompt key resolution (resolving aliases)
      * - Argument normalization (including special _context field)
      * - Prompt execution and flattening
-     * - Returning per-prompt overrides (allowedTools, model) for the invoker to apply
      *
      * @param name The prompt name or alias
      * @param options Optional configuration for prompt resolution
-     * @returns Promise resolving to the resolved text, resource URIs, and optional overrides
+     * @returns Promise resolving to the resolved text and resource URIs.
      */
     public async resolvePrompt(
         name: string,
@@ -3472,7 +3592,7 @@ export class DextoAgent {
      * Set a custom approval handler for manual approval mode.
      *
      * When `permissions.mode` is set to 'manual', an approval handler must be
-     * provided to process tool confirmation requests. The handler will be called
+     * provided to process tool approval requests. The handler will be called
      * whenever a tool execution requires user approval.
      *
      * The handler receives an approval request and must return a promise that resolves

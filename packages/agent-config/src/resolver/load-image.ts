@@ -90,9 +90,16 @@ function assertDextoImage(value: unknown, imageName: string): asserts value is D
     if (!isPlainObject(storage)) {
         throw new Error(`Invalid image '${imageName}': missing required 'storage' object`);
     }
-    assertFactoryMap(storage.blob, { imageName, field: 'storage.blob' });
-    assertFactoryMap(storage.database, { imageName, field: 'storage.database' });
-    assertFactoryMap(storage.cache, { imageName, field: 'storage.cache' });
+    if (!isSchemaLike(storage.configSchema)) {
+        throw new Error(
+            `Invalid image '${imageName}': expected 'storage.configSchema' to be a Zod schema`
+        );
+    }
+    if (typeof storage.createStores !== 'function') {
+        throw new Error(
+            `Invalid image '${imageName}': expected 'storage.createStores' to be a function`
+        );
+    }
 
     assertFactoryMap(value.hooks, { imageName, field: 'hooks' });
     assertFactoryMap(value.compaction, { imageName, field: 'compaction' });

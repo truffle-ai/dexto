@@ -10,6 +10,8 @@ export * from './types.js';
 
 // Tool definition helper (schema-driven typing)
 export { defineTool } from './define-tool.js';
+export { SessionToolPreferencesSchema } from './session-tool-preferences-store.js';
+export type { SessionToolPreferences } from './session-tool-preferences-store.js';
 
 // Display types for tool result rendering
 export * from './display-types.js';
@@ -27,3 +29,12 @@ export { ToolErrorCode } from './error-codes.js';
 
 // Unified tool manager (main interface for LLM)
 export { ToolManager, type ToolExecutionContextFactory } from './tool-manager.js';
+export type {
+    ExecutableToolCall,
+    RecordedToolApproval,
+    ToolApprovalDecisionApplication,
+    ToolApprovalRecordIdentity,
+    ApprovalRequiredPreparedToolCall,
+    PreparedToolCall,
+    PrepareToolCallInput,
+} from './tool-manager.js';

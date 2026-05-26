@@ -106,7 +106,9 @@ export interface ProcessStreamSetters {
     setUi: React.Dispatch<React.SetStateAction<UIState>>;
     /** Setter for session state (for session switch on compaction) */
     setSession: React.Dispatch<React.SetStateAction<import('../state/types.js').SessionState>>;
-    /** Setter for queued messages (cleared when dequeued) */
+    /** Setter for active-turn steer messages */
+    setSteerMessages: React.Dispatch<React.SetStateAction<import('@dexto/core').QueuedMessage[]>>;
+    /** Setter for queued follow-up messages */
     setQueuedMessages: React.Dispatch<React.SetStateAction<import('@dexto/core').QueuedMessage[]>>;
     /** Setter for current approval request (for approval UI) */
     setApproval: React.Dispatch<React.SetStateAction<ApprovalRequest | null>>;
@@ -204,6 +206,7 @@ export async function processStream(
         setDequeuedBuffer,
         setUi,
         setSession: _setSession,
+        setSteerMessages,
         setQueuedMessages,
         setApproval,
         setApprovalQueue,
@@ -262,6 +265,27 @@ export async function processStream(
                 return `${prefix}: ${content}`;
             })
             .join('\n\n');
+    };
+
+    const removeDequeuedMessagesFromState = (
+        event: Extract<StreamingEvent, { name: 'message:dequeued' }>
+    ): void => {
+        const dequeuedIds = new Set(
+            event.ids ?? event.messages?.map((message) => message.id) ?? []
+        );
+        if (dequeuedIds.size === 0) {
+            if (event.queue === 'steer') {
+                setSteerMessages([]);
+            } else {
+                setQueuedMessages([]);
+            }
+            return;
+        }
+        if (event.queue === 'steer') {
+            setSteerMessages((prev) => prev.filter((message) => !dequeuedIds.has(message.id)));
+        } else {
+            setQueuedMessages((prev) => prev.filter((message) => !dequeuedIds.has(message.id)));
+        }
     };
 
     /**
@@ -1071,7 +1095,7 @@ export async function processStream(
                                 },
                             ]);
                         }
-                        setQueuedMessages([]);
+                        removeDequeuedMessagesFromState(event);
                         setUi((prev) => ({ ...prev, isProcessing: true }));
                         break;
                     }
@@ -1094,7 +1118,7 @@ export async function processStream(
                     }
 
                     // Clear queue state - message was consumed
-                    setQueuedMessages([]);
+                    removeDequeuedMessagesFromState(event);
 
                     // Set processing state for the queued message run
                     setUi((prev) => ({ ...prev, isProcessing: true }));
@@ -1127,7 +1151,7 @@ export async function processStream(
                     if (
                         bypassPermissions &&
                         (event.type === ApprovalTypeEnum.TOOL_APPROVAL ||
-                            event.type === ApprovalTypeEnum.COMMAND_CONFIRMATION ||
+                            event.type === ApprovalTypeEnum.COMMAND_APPROVAL ||
                             event.type === ApprovalTypeEnum.DIRECTORY_ACCESS)
                     ) {
                         if (event.type === ApprovalTypeEnum.TOOL_APPROVAL) {
@@ -1185,7 +1209,7 @@ export async function processStream(
                     // Show approval UI (moved from useAgentEvents for ordering)
                     if (
                         event.type === ApprovalTypeEnum.TOOL_APPROVAL ||
-                        event.type === ApprovalTypeEnum.COMMAND_CONFIRMATION ||
+                        event.type === ApprovalTypeEnum.COMMAND_APPROVAL ||
                         event.type === ApprovalTypeEnum.ELICITATION ||
                         event.type === ApprovalTypeEnum.DIRECTORY_ACCESS
                     ) {

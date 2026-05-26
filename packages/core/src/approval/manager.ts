@@ -1,33 +1,68 @@
 import path from 'node:path';
 import { realpathSync } from 'node:fs';
+import { isDeepStrictEqual } from 'node:util';
 import type {
     ApprovalHandler,
     ApprovalRequest,
     ApprovalResponse,
     ApprovalRequestDetails,
     ToolApprovalMetadata,
-    CommandConfirmationMetadata,
+    CommandApprovalMetadata,
     ElicitationMetadata,
     DirectoryAccessMetadata,
 } from './types.js';
-import { ApprovalType, ApprovalStatus, DenialReason } from './types.js';
-import { createApprovalRequest } from './factory.js';
+import { ApprovalType, ApprovalStatus } from './types.js';
+import {
+    CommandApprovalResponseSchema,
+    CustomApprovalResponseSchema,
+    DirectoryAccessResponseSchema,
+    ElicitationResponseSchema,
+    ToolApprovalResponseSchema,
+} from './schemas.js';
+import { createApprovalRequest, createDeterministicApprovalId } from './factory.js';
 import type { Logger } from '../logger/v2/types.js';
 import { DextoLogComponent } from '../logger/v2/types.js';
 import { ApprovalError } from './errors.js';
 import { patternCovers } from '../tools/pattern-utils.js';
 import type { PermissionsMode } from '../tools/schemas.js';
-import {
-    SessionApprovalStore,
-    type PersistedApprovedDirectory,
-    type SessionApprovalState,
-} from './session-approval-store.js';
+import type {
+    ApprovalStore,
+    PersistedApprovedDirectory,
+    SessionApprovalState,
+} from '../storage/approvals/types.js';
 
 const GLOBAL_APPROVAL_SCOPE = '__global__';
 
 type ApprovalScopeState = {
     toolPatterns: Map<string, Set<string>>;
     approvedDirectories: Map<string, 'session' | 'once'>;
+};
+
+export type ApprovalRecordIdentity = {
+    runId: string;
+    turnId: string;
+    modelStepId: string;
+    toolCallId: string;
+};
+
+export type ApprovalDecisionInput =
+    | {
+          approvalId: ApprovalRequest['approvalId'];
+          status: typeof ApprovalStatus.APPROVED;
+          data?: ApprovalResponse['data'];
+      }
+    | {
+          approvalId: ApprovalRequest['approvalId'];
+          status: typeof ApprovalStatus.DENIED | typeof ApprovalStatus.CANCELLED;
+          reason?: ApprovalResponse['reason'];
+          message?: string;
+          timeoutMs?: number;
+          data?: ApprovalResponse['data'];
+      };
+
+export type ApprovalResponseRecord = {
+    response: ApprovalResponse;
+    status: 'created' | 'replayed';
 };
 
 function tryRealpathSync(targetPath: string): string | null {
@@ -84,7 +119,7 @@ export interface ApprovalManagerConfig {
  * - Route approvals to appropriate providers
  * - Provide convenience methods for specific approval types
  * - Handle approval responses and errors
- * - Support multiple approval modes (manual, auto-approve, auto-deny)
+ * - Support multiple approval modes (manual, auto-approve)
  *
  * @example
  * ```typescript
@@ -111,12 +146,13 @@ export class ApprovalManager {
     private logger: Logger;
     private readonly loadedScopes = new Set<string>();
     private readonly scopeLocks = new Map<string, Promise<void>>();
+    private readonly approvalRecordLocks = new Map<string, Promise<void>>();
     private readonly scopes = new Map<string, ApprovalScopeState>();
 
     constructor(
         config: ApprovalManagerConfig,
         logger: Logger,
-        private readonly sessionApprovalStore: SessionApprovalStore
+        private readonly approvalStore: ApprovalStore
     ) {
         this.config = config;
         this.logger = logger.createChild(DextoLogComponent.APPROVAL);
@@ -132,6 +168,10 @@ export class ApprovalManager {
 
     private getScopeLabel(sessionId?: string): string {
         return sessionId ?? 'global';
+    }
+
+    private sessionScope(sessionId: string | undefined): { sessionId?: string } {
+        return sessionId === undefined ? {} : { sessionId };
     }
 
     private getApprovalTimeout(type: ApprovalType, timeout?: number): number | undefined {
@@ -182,6 +222,28 @@ export class ApprovalManager {
         }
     }
 
+    private async runWithApprovalRecordLock<T>(
+        approvalId: string,
+        fn: () => Promise<T>
+    ): Promise<T> {
+        const previousLock = this.approvalRecordLocks.get(approvalId) ?? Promise.resolve();
+        const currentResult = previousLock.catch(() => {}).then(() => fn());
+        const currentLock = currentResult.then(
+            () => undefined,
+            () => undefined
+        );
+
+        this.approvalRecordLocks.set(approvalId, currentLock);
+
+        try {
+            return await currentResult;
+        } finally {
+            if (this.approvalRecordLocks.get(approvalId) === currentLock) {
+                this.approvalRecordLocks.delete(approvalId);
+            }
+        }
+    }
+
     private snapshotToolPatterns(scopeKey: string): Record<string, string[]> {
         const snapshot: Record<string, string[]> = {};
         for (const [toolName, patterns] of this.getScope(scopeKey).toolPatterns) {
@@ -205,7 +267,10 @@ export class ApprovalManager {
             toolPatterns: this.snapshotToolPatterns(scopeKey),
             approvedDirectories: this.snapshotApprovedDirectories(scopeKey),
         };
-        await this.sessionApprovalStore.save(sessionId, state);
+        await this.approvalStore.saveSessionState({
+            ...this.sessionScope(sessionId),
+            state,
+        });
     }
 
     private hydrateScope(sessionId: string | undefined, state: SessionApprovalState): void {
@@ -238,7 +303,7 @@ export class ApprovalManager {
                 return;
             }
 
-            const state = await this.sessionApprovalStore.load(sessionId);
+            const state = await this.approvalStore.loadSessionState(this.sessionScope(sessionId));
             this.hydrateScope(sessionId, state);
             this.loadedScopes.add(scopeKey);
 
@@ -260,7 +325,7 @@ export class ApprovalManager {
         const scopeKey = this.getScopeKey(sessionId);
         await this.runWithScopeLock(scopeKey, async () => {
             this.evictSessionState(sessionId);
-            await this.sessionApprovalStore.delete(sessionId);
+            await this.approvalStore.deleteSessionState(this.sessionScope(sessionId));
         });
     }
 
@@ -599,16 +664,84 @@ export class ApprovalManager {
         return details;
     }
 
+    private withDefaultTimeout(details: ApprovalRequestDetails): ApprovalRequestDetails {
+        return {
+            ...details,
+            timeout: this.getApprovalTimeout(details.type, details.timeout),
+        };
+    }
+
+    private approvalIdentityKey(identity: ApprovalRecordIdentity): string {
+        return JSON.stringify([
+            identity.runId,
+            identity.turnId,
+            identity.modelStepId,
+            identity.toolCallId,
+        ]);
+    }
+
+    private assertMatchingRecordedRequest(
+        existing: ApprovalRequest,
+        candidate: ApprovalRequest
+    ): void {
+        const existingComparable = {
+            type: existing.type,
+            sessionId: existing.sessionId,
+            hostRuntime: existing.hostRuntime,
+            timeout: existing.timeout,
+            metadata: existing.metadata,
+        };
+        const candidateComparable = {
+            type: candidate.type,
+            sessionId: candidate.sessionId,
+            hostRuntime: candidate.hostRuntime,
+            timeout: candidate.timeout,
+            metadata: candidate.metadata,
+        };
+
+        if (!isDeepStrictEqual(existingComparable, candidateComparable)) {
+            throw ApprovalError.invalidRequest(
+                'Approval request conflicts with existing approval request',
+                {
+                    approvalId: existing.approvalId,
+                    type: existing.type,
+                }
+            );
+        }
+    }
+
     private createResponse(
         request: ApprovalRequest,
         response: Omit<ApprovalResponse, 'approvalId' | 'sessionId'>
     ): ApprovalResponse {
         return {
+            status: response.status,
             approvalId: request.approvalId,
             ...(request.sessionId !== undefined ? { sessionId: request.sessionId } : {}),
             ...(request.hostRuntime !== undefined ? { hostRuntime: request.hostRuntime } : {}),
-            ...response,
+            ...(response.reason !== undefined ? { reason: response.reason } : {}),
+            ...(response.message !== undefined ? { message: response.message } : {}),
+            ...(response.timeoutMs !== undefined ? { timeoutMs: response.timeoutMs } : {}),
+            ...(response.data !== undefined ? { data: response.data } : {}),
         };
+    }
+
+    private parseResponseForRequest(
+        request: ApprovalRequest,
+        response: ApprovalResponse
+    ): ApprovalResponse {
+        switch (request.type) {
+            case ApprovalType.TOOL_APPROVAL:
+                return ToolApprovalResponseSchema.parse(response);
+            case ApprovalType.COMMAND_APPROVAL:
+                return CommandApprovalResponseSchema.parse(response);
+            case ApprovalType.ELICITATION:
+                return ElicitationResponseSchema.parse(response);
+            case ApprovalType.CUSTOM:
+                return CustomApprovalResponseSchema.parse(response);
+            case ApprovalType.DIRECTORY_ACCESS:
+                return DirectoryAccessResponseSchema.parse(response);
+        }
     }
 
     private getElicitationFormData(response: ApprovalResponse): Record<string, unknown> {
@@ -676,7 +809,7 @@ export class ApprovalManager {
      * Request a generic approval
      */
     async requestApproval(details: ApprovalRequestDetails): Promise<ApprovalResponse> {
-        const request = createApprovalRequest(details);
+        const request = createApprovalRequest(this.withDefaultTimeout(details));
 
         // Check elicitation config if this is an elicitation request
         if (request.type === ApprovalType.ELICITATION && !this.config.elicitation.enabled) {
@@ -689,8 +822,91 @@ export class ApprovalManager {
         return this.handleApproval(request);
     }
 
+    async recordApprovalRequest(
+        details: ApprovalRequestDetails,
+        identity: ApprovalRecordIdentity
+    ): Promise<ApprovalRequest> {
+        if (details.type === ApprovalType.ELICITATION && !this.config.elicitation.enabled) {
+            throw ApprovalError.invalidConfig(
+                'Elicitation is disabled. Enable elicitation in your agent configuration to use the ask_user tool or MCP server elicitations.'
+            );
+        }
+
+        const approvalId = createDeterministicApprovalId(this.approvalIdentityKey(identity));
+        const request = createApprovalRequest(this.withDefaultTimeout(details), approvalId);
+        return this.runWithApprovalRecordLock(approvalId, async () => {
+            const existing = await this.approvalStore.getRequest({ approvalId });
+            if (existing) {
+                this.assertMatchingRecordedRequest(existing, request);
+                return existing;
+            }
+
+            const recorded = await this.approvalStore.createRequest({ request });
+            this.assertMatchingRecordedRequest(recorded, request);
+            return recorded;
+        });
+    }
+
+    async recordApprovalResponse(decision: ApprovalDecisionInput): Promise<ApprovalResponse> {
+        const record = await this.recordApprovalResponseRecord(decision);
+        return record.response;
+    }
+
+    async recordApprovalResponseRecord(
+        decision: ApprovalDecisionInput,
+        expectedRequest?: ApprovalRequest
+    ): Promise<ApprovalResponseRecord> {
+        return this.runWithApprovalRecordLock(decision.approvalId, async () => {
+            const request = await this.approvalStore.getRequest({
+                approvalId: decision.approvalId,
+            });
+            if (!request) {
+                throw ApprovalError.invalidResponse('Approval response has no recorded request', {
+                    approvalId: decision.approvalId,
+                });
+            }
+            if (expectedRequest !== undefined) {
+                this.assertMatchingRecordedRequest(request, expectedRequest);
+            }
+
+            const response = this.parseResponseForRequest(
+                request,
+                this.createResponse(request, decision)
+            );
+            const existing = await this.approvalStore.getResponse({
+                approvalId: decision.approvalId,
+            });
+            if (existing) {
+                if (!isDeepStrictEqual(existing, response)) {
+                    throw ApprovalError.invalidResponse(
+                        'Approval response conflicts with existing approval response',
+                        {
+                            approvalId: decision.approvalId,
+                        }
+                    );
+                }
+                return { response: existing, status: 'replayed' };
+            }
+
+            const record = await this.approvalStore.saveResponse({ response });
+            if (!isDeepStrictEqual(record.response, response)) {
+                throw ApprovalError.invalidResponse(
+                    'Approval response conflicts with existing approval response',
+                    {
+                        approvalId: decision.approvalId,
+                    }
+                );
+            }
+            return record;
+        });
+    }
+
+    async requestApprovalDecision(request: ApprovalRequest): Promise<ApprovalResponse> {
+        return this.handleApproval(request);
+    }
+
     /**
-     * Handle approval requests (tool approval, elicitation, command confirmation, directory access, custom)
+     * Handle approval requests (tool approval, elicitation, command approval, directory access, custom)
      * @private
      */
     private async handleApproval(request: ApprovalRequest): Promise<ApprovalResponse> {
@@ -703,7 +919,7 @@ export class ApprovalManager {
             return handler(request);
         }
 
-        // Tool/command/directory-access/custom confirmations respect the configured mode
+        // Tool/command/directory-access/custom approvals respect the configured mode
         const mode = this.config.permissions.mode;
 
         // Auto-approve mode
@@ -713,18 +929,6 @@ export class ApprovalManager {
             );
             return this.createResponse(request, {
                 status: ApprovalStatus.APPROVED,
-            });
-        }
-
-        // Auto-deny mode
-        if (mode === 'auto-deny') {
-            this.logger.info(
-                `Auto-deny approval '${request.type}', approvalId: ${request.approvalId}`
-            );
-            return this.createResponse(request, {
-                status: ApprovalStatus.DENIED,
-                reason: DenialReason.SYSTEM_DENIED,
-                message: `Approval automatically denied by system policy (auto-deny mode)`,
             });
         }
 
@@ -741,7 +945,7 @@ export class ApprovalManager {
      * Convenience method for tool execution approval
      *
      * TODO: Make sessionId required once all callers are updated to pass it
-     * Tool confirmations always happen in session context during LLM execution
+     * Tool approvals always happen in session context during LLM execution
      */
     async requestToolApproval(
         metadata: ToolApprovalMetadata & {
@@ -763,19 +967,19 @@ export class ApprovalManager {
     }
 
     /**
-     * Request command confirmation approval
+     * Request command approval
      * Convenience method for dangerous command execution within an already-approved tool
      *
      * This is different from tool approval - it's for per-command approval
      * of dangerous operations (like rm, git push) within tools that are already approved.
      *
      * TODO: Make sessionId required once all callers are updated to pass it
-     * Command confirmations always happen during tool execution which has session context
+     * Command approvals always happen during tool execution which has session context
      *
      * @example
      * ```typescript
      * // bash_exec tool is approved, but dangerous commands still require approval
-     * const response = await manager.requestCommandConfirmation({
+     * const response = await manager.requestCommandApproval({
      *   toolName: 'bash_exec',
      *   command: 'rm -rf /important',
      *   originalCommand: 'rm -rf /important',
@@ -783,8 +987,8 @@ export class ApprovalManager {
      * });
      * ```
      */
-    async requestCommandConfirmation(
-        metadata: CommandConfirmationMetadata & {
+    async requestCommandApproval(
+        metadata: CommandApprovalMetadata & {
             sessionId?: string;
             hostRuntime?: ApprovalRequestDetails['hostRuntime'];
             timeout?: number;
@@ -793,7 +997,7 @@ export class ApprovalManager {
         const { sessionId, hostRuntime, timeout, ...commandMetadata } = metadata;
         return this.requestApproval(
             this.createApprovalDetails(
-                ApprovalType.COMMAND_CONFIRMATION,
+                ApprovalType.COMMAND_APPROVAL,
                 commandMetadata,
                 sessionId,
                 hostRuntime,
@@ -949,7 +1153,7 @@ export class ApprovalManager {
      * Set the approval handler for manual approval mode.
      *
      * The handler will be called for:
-     * - Tool confirmation requests when permissions.mode is 'manual'
+     * - Tool approval requests when permissions.mode is 'manual'
      * - All elicitation requests (when elicitation is enabled, regardless of permissions.mode)
      *
      * A handler must be set before processing requests if:
@@ -995,7 +1199,7 @@ export class ApprovalManager {
                     '  • manual tool approval mode\n' +
                     '  • all elicitation requests (when elicitation is enabled)\n' +
                     'Either:\n' +
-                    '  • set permissions.mode to "auto-approve" or "auto-deny", or\n' +
+                    '  • set permissions.mode to "auto-approve", or\n' +
                     '  • disable elicitation (set elicitation.enabled: false), or\n' +
                     '  • call agent.setApprovalHandler(...) before processing requests.'
             );

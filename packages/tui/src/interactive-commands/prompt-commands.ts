@@ -172,7 +172,7 @@ function createPromptCommand(promptInfo: PromptInfo): CommandDefinition {
         handler: async (
             args: string[],
             agent: TuiAgentBackend,
-            ctx: CommandContext
+            _ctx: CommandContext
         ): Promise<CommandHandlerResult> => {
             try {
                 const { argMap, context: contextString } = splitPromptArguments(args);
@@ -191,84 +191,6 @@ function createPromptCommand(promptInfo: PromptInfo): CommandDefinition {
                 // Use internal name for resolution (includes prefix like "config:")
                 const result = await agent.resolvePrompt(internalName, resolveOptions);
 
-                // Apply per-prompt overrides (Phase 2 Claude Code compatibility)
-                // These overrides persist for the session until explicitly cleared
-                if (ctx.sessionId) {
-                    // Apply model override if specified
-                    if (result.model) {
-                        try {
-                            await agent.switchLLM({ model: result.model }, ctx.sessionId);
-                        } catch (modelError) {
-                            agent.logger.warn('Failed to switch model for prompt override', {
-                                model: result.model,
-                                error:
-                                    modelError instanceof Error
-                                        ? modelError.message
-                                        : String(modelError),
-                            });
-                        }
-                    }
-
-                    // Apply auto-approve tools if specified
-                    // These tools will skip confirmation prompts during skill execution
-                    if (result.allowedTools && result.allowedTools.length > 0) {
-                        try {
-                            agent.toolManager.addSessionAutoApproveTools(
-                                ctx.sessionId,
-                                result.allowedTools
-                            );
-                        } catch (toolError) {
-                            agent.logger.warn('Failed to set auto-approve tools for prompt', {
-                                tools: result.allowedTools,
-                                error:
-                                    toolError instanceof Error
-                                        ? toolError.message
-                                        : String(toolError),
-                            });
-                        }
-                    }
-                }
-
-                if (result.context !== 'fork' && result.toolkits && result.toolkits.length > 0) {
-                    if (!agent.loadToolkits) {
-                        return formatForInkCli(
-                            `❌ Skill '${commandName}' requires toolkits (${result.toolkits.join(', ')}), but this agent does not support dynamic tool loading.`
-                        );
-                    }
-
-                    try {
-                        await agent.loadToolkits(result.toolkits);
-                    } catch (error) {
-                        return formatForInkCli(
-                            `❌ Failed to load toolkits for skill '${commandName}': ${
-                                error instanceof Error ? error.message : String(error)
-                            }`
-                        );
-                    }
-                }
-
-                // Fork skills: route through LLM to call invoke_skill
-                // This ensures approval flow and context management work naturally through
-                // processStream, rather than bypassing it with direct tool execution.
-                if (result.context === 'fork') {
-                    const skillName = internalName;
-                    const taskContext = contextString || '';
-
-                    // Build instruction message for the LLM
-                    // The <skill-invocation> tags help the LLM recognize this is a structured request
-                    const instructionText = `<skill-invocation>
-Execute the fork skill: ${commandName}
-${taskContext ? `Task context: ${taskContext}` : ''}
-
-Call the invoke_skill tool immediately with:
-- skill: "${skillName}"
-${taskContext ? `- taskContext: "${taskContext}"` : ''}
-</skill-invocation>`;
-
-                    return createSendMessageMarker(instructionText);
-                }
-
-                // Inline skills: wrap content in <skill-invocation> for clean history display
                 // Convert resource URIs to @resource mentions so agent.run() can expand them
                 let finalText = result.text;
                 if (result.resources.length > 0) {
@@ -278,23 +200,11 @@ ${taskContext ? `- taskContext: "${taskContext}"` : ''}
                 }
 
                 if (finalText.trim()) {
-                    // Wrap in <skill-invocation> tags for clean display in history
-                    // The tags help formatSkillInvocationMessage() detect and format these
-                    const taskContext = contextString || '';
-                    const wrappedText = `<skill-invocation>
-Execute the inline skill: ${commandName}
-${taskContext ? `Task context: ${taskContext}` : ''}
-
-skill: "${internalName}"
-</skill-invocation>
-
-${finalText.trim()}`;
-
-                    return createSendMessageMarker(wrappedText);
-                } else {
-                    const warningMsg = `⚠️  Prompt '${commandName}' returned no content`;
-                    return formatForInkCli(warningMsg);
+                    return createSendMessageMarker(finalText.trim());
                 }
+
+                const warningMsg = `⚠️  Prompt '${commandName}' returned no content`;
+                return formatForInkCli(warningMsg);
             } catch (error) {
                 const errorMessage = error instanceof Error ? error.message : String(error);
                 agent.logger.error(
@@ -311,16 +221,13 @@ ${finalText.trim()}`;
 /**
  * Get all dynamic prompt commands based on available prompts.
  * Uses pre-computed commandName from PromptManager for collision handling.
- * Filters out prompts with `userInvocable: false` as these are not intended
- * for direct user invocation via slash commands.
+ * Filters out prompts with `userInvocable: false` as these are not intended for slash commands.
  */
 export async function getDynamicPromptCommands(
     agent: TuiAgentBackend
 ): Promise<CommandDefinition[]> {
     try {
         const prompts = await agent.listPrompts();
-        // Filter out prompts that are not user-invocable (userInvocable: false)
-        // These prompts are intended for LLM auto-invocation only, not CLI slash commands
         const promptEntries = Object.entries(prompts).filter(
             ([, info]) => info.userInvocable !== false
         );

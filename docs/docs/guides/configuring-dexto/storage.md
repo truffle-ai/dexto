@@ -5,7 +5,8 @@ sidebar_label: "Storage Configuration"
 
 # Storage Configuration
 
-Configure how your Dexto agent stores data: cache, database, and blob storage.
+Configure the storage input passed to the active image. The image resolves this input into
+`DextoStores` with `storage.createStores(...)`.
 
 :::tip Complete Reference
 For complete field documentation and all storage options, see **[agent.yml → Storage](./agent-yml.md#storage-configuration)**.
@@ -13,12 +14,16 @@ For complete field documentation and all storage options, see **[agent.yml → S
 
 ## Overview
 
-Dexto storage has three components:
-- **Cache** - Temporary, high-speed data access (in-memory or Redis)
-- **Database** - Persistent storage (in-memory, SQLite, or PostgreSQL)
-- **Blob** - Binary data storage (in-memory or local filesystem)
+Core services use typed stores such as conversations, sessions, artifacts, memories, workspaces,
+and tool state. Core does not construct low-level storage backends directly.
+
+The local image accepts a `storage` config with cache/database/blob sections and uses it internally
+to build a `DextoStores` implementation. Hosted images can accept the same shape, a narrower shape,
+or ignore YAML storage entirely and inject hosted stores.
 
 ## Storage Types
+
+For `@dexto/image-local`, the storage input supports:
 
 | Component | Options | Use Case |
 |-----------|---------|----------|
@@ -148,9 +153,9 @@ storage:
 ```
 
 :::tip CLI Auto-Configuration
-When using the Dexto CLI, SQLite database and local blob storage paths are automatically provided at:
-- Database: `~/.dexto/database/<agent-id>.db`
-- Blobs: `~/.dexto/blobs/<agent-id>/`
+When using the local Dexto CLI image, SQLite and local artifact paths are automatically provided at:
+- SQLite: `~/.dexto/database/<agent-id>.db`
+- Artifacts: `~/.dexto/blobs/<agent-id>/`
 
 You don't need to specify these paths manually unless you want custom locations.
 :::
@@ -206,6 +211,6 @@ storage:
 ## Best Practices
 
 1. **Use environment variables** - Store passwords and connection strings as `$VAR`
-2. **Match storage to use case** - Redis for caching, Postgres/SQLite for persistence
+2. **Treat storage as image-owned** - Core receives `DextoStores`; images decide how config maps to backends
 3. **Set appropriate limits** - Configure `maxConnections`, `maxBlobSize` based on load
-4. **Use local blob storage in production** - For persistence and automatic cleanup
+4. **Use hosted stores in hosted runtimes** - Cloud/server hosts should inject their own store implementations when needed

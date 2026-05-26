@@ -43,11 +43,13 @@ export interface DeviceCodeStartResponse {
     interval: number;
 }
 
-export interface DeviceCodeTokenResponse {
-    accessToken: string;
-    refreshToken?: string | null;
-    expiresIn?: number | null;
-    expiresAt?: number | null;
+export interface DeviceCodeApiKeyResponse {
+    id: string;
+    keyDisplay: string;
+    name: string;
+    scopes: string[];
+    status: string;
+    fullKey: string;
 }
 
 export type DeviceCodePollResponse =
@@ -56,7 +58,7 @@ export type DeviceCodePollResponse =
     | { status: 'expired' }
     | { status: 'denied' }
     | { status: 'transientError' }
-    | { status: 'success'; token: DeviceCodeTokenResponse };
+    | { status: 'approved'; apiKey: DeviceCodeApiKeyResponse };
 
 export interface UsageSummaryResponse {
     credits_usd: number;
@@ -122,21 +124,11 @@ function parseDeviceCodeStartResponse(payload: unknown): DeviceCodeStartResponse
         throw new Error('Invalid device start response');
     }
 
-    const deviceCode =
-        parseString(Reflect.get(payload, 'device_code')) ??
-        parseString(Reflect.get(payload, 'deviceCode'));
-    const userCode =
-        parseString(Reflect.get(payload, 'user_code')) ??
-        parseString(Reflect.get(payload, 'userCode'));
-    const verificationUrl =
-        parseString(Reflect.get(payload, 'verification_uri')) ??
-        parseString(Reflect.get(payload, 'verificationUrl'));
-    const verificationUrlComplete =
-        parseString(Reflect.get(payload, 'verification_uri_complete')) ??
-        parseString(Reflect.get(payload, 'verificationUrlComplete'));
-    const expiresIn =
-        parseNumber(Reflect.get(payload, 'expires_in')) ??
-        parseNumber(Reflect.get(payload, 'expiresIn'));
+    const deviceCode = parseString(Reflect.get(payload, 'deviceCode'));
+    const userCode = parseString(Reflect.get(payload, 'userCode'));
+    const verificationUrl = parseString(Reflect.get(payload, 'verificationUri'));
+    const verificationUrlComplete = parseString(Reflect.get(payload, 'verificationUriComplete'));
+    const expiresIn = parseNumber(Reflect.get(payload, 'expiresIn'));
     const interval = parseNumber(Reflect.get(payload, 'interval'));
 
     if (!deviceCode || !userCode || !verificationUrl || !expiresIn || !interval) {
@@ -153,33 +145,48 @@ function parseDeviceCodeStartResponse(payload: unknown): DeviceCodeStartResponse
     };
 }
 
-function parseDeviceCodeTokenResponse(payload: unknown): DeviceCodeTokenResponse | null {
+function parseStringArray(value: unknown): string[] | null {
+    if (!Array.isArray(value)) {
+        return null;
+    }
+
+    const strings = value.filter((item): item is string => typeof item === 'string');
+    return strings.length === value.length ? strings : null;
+}
+
+function parseDeviceCodeApiKeyResponse(payload: unknown): DeviceCodeApiKeyResponse | null {
     if (typeof payload !== 'object' || payload === null) {
         return null;
     }
 
-    const accessToken =
-        parseString(Reflect.get(payload, 'accessToken')) ??
-        parseString(Reflect.get(payload, 'access_token'));
-    if (!accessToken) {
+    const status = parseString(Reflect.get(payload, 'status'));
+    if (status !== 'approved') {
         return null;
     }
 
-    const refreshToken =
-        parseString(Reflect.get(payload, 'refreshToken')) ??
-        parseString(Reflect.get(payload, 'refresh_token'));
-    const expiresIn =
-        parseNumber(Reflect.get(payload, 'expiresIn')) ??
-        parseNumber(Reflect.get(payload, 'expires_in'));
-    const expiresAt =
-        parseNumber(Reflect.get(payload, 'expiresAt')) ??
-        parseNumber(Reflect.get(payload, 'expires_at'));
+    const fullKey = parseString(Reflect.get(payload, 'fullKey'));
+    const apiKey = Reflect.get(payload, 'apiKey');
+    if (!fullKey || typeof apiKey !== 'object' || apiKey === null) {
+        throw new Error('Device login approved response missing API key fields');
+    }
+
+    const id = parseString(Reflect.get(apiKey, 'id'));
+    const keyDisplay = parseString(Reflect.get(apiKey, 'keyDisplay'));
+    const name = parseString(Reflect.get(apiKey, 'name'));
+    const scopes = parseStringArray(Reflect.get(apiKey, 'scopes'));
+    const keyStatus = parseString(Reflect.get(apiKey, 'status'));
+
+    if (!id || !keyDisplay || !name || !scopes || !keyStatus) {
+        throw new Error('Device login approved response missing API key fields');
+    }
 
     return {
-        accessToken,
-        refreshToken,
-        expiresIn,
-        expiresAt,
+        id,
+        keyDisplay,
+        name,
+        scopes,
+        status: keyStatus,
+        fullKey,
     };
 }
 
@@ -189,14 +196,6 @@ function parseDeviceErrorCode(payload: unknown): string | null {
     }
 
     return parseString(Reflect.get(payload, 'error'));
-}
-
-function isTransientDevicePollErrorCode(errorCode: string): boolean {
-    return (
-        errorCode === 'server_error' ||
-        errorCode === 'temporary_unavailable' ||
-        errorCode === 'temporarily_unavailable'
-    );
 }
 
 function parseSupabaseUser(payload: unknown): AuthenticatedUser | null {
@@ -795,7 +794,7 @@ export class DextoApiClient {
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ device_code: deviceCode }),
+                body: JSON.stringify({ deviceCode }),
                 signal: this.createRequestSignal(options.signal),
             });
         } catch (error) {
@@ -820,25 +819,11 @@ export class DextoApiClient {
                 return { status: 'slowDown' };
             }
 
-            const errorCode = parseDeviceErrorCode(payload);
-            if (errorCode === 'authorization_pending') {
-                return { status: 'pending' };
-            }
-            if (errorCode === 'slow_down') {
-                return { status: 'slowDown' };
-            }
-            if (errorCode === 'expired_token') {
-                return { status: 'expired' };
-            }
-            if (errorCode === 'access_denied') {
-                return { status: 'denied' };
-            }
-            if (errorCode && isTransientDevicePollErrorCode(errorCode)) {
-                return { status: 'transientError' };
-            }
             if (response.status >= 500) {
                 return { status: 'transientError' };
             }
+
+            const errorCode = parseDeviceErrorCode(payload);
             if (errorCode) {
                 throw new Error(`Device login failed: ${errorCode}`);
             }
@@ -846,29 +831,17 @@ export class DextoApiClient {
             throw new Error(`Device login polling failed with status ${response.status}`);
         }
 
-        const token = parseDeviceCodeTokenResponse(payload);
-        if (token) {
+        const apiKey = parseDeviceCodeApiKeyResponse(payload);
+        if (apiKey) {
             return {
-                status: 'success',
-                token,
+                status: 'approved',
+                apiKey,
             };
         }
 
         const errorCode = parseDeviceErrorCode(payload);
-        if (errorCode === 'authorization_pending') {
-            return { status: 'pending' };
-        }
-        if (errorCode === 'slow_down') {
-            return { status: 'slowDown' };
-        }
-        if (errorCode === 'expired_token') {
-            return { status: 'expired' };
-        }
-        if (errorCode === 'access_denied') {
-            return { status: 'denied' };
-        }
-        if (errorCode && isTransientDevicePollErrorCode(errorCode)) {
-            return { status: 'transientError' };
+        if (errorCode) {
+            throw new Error(`Device login failed: ${errorCode}`);
         }
 
         return { status: 'pending' };

@@ -1,12 +1,11 @@
-import type { BlobStore } from '../storage/blob/types.js';
-import type { Cache } from '../storage/cache/types.js';
-import type { Database } from '../storage/database/types.js';
 import type { CompactionStrategy } from '../context/compaction/types.js';
 import type { Logger } from '../logger/v2/types.js';
 import type { Hook } from '../hooks/types.js';
 import type { Tool } from '../tools/types.js';
 import type { InitializeServicesOptions, ToolkitLoader } from '../utils/service-initializer.js';
+import type { DextoStores } from '../storage/stores/types.js';
 import type { DextoAgentConfigInput } from './runtime-config.js';
+import type { SkillSource } from '../skills/index.js';
 
 /**
  * Constructor options for {@link DextoAgent}.
@@ -44,15 +43,17 @@ export interface DextoAgentOptions {
      */
     logger: Logger;
 
-    /** Concrete storage backends (DI-first). */
-    storage: { blob: BlobStore; database: Database; cache: Cache };
+    /** Concrete typed storage stores (DI-first). */
+    stores: DextoStores;
 
     /** Concrete tool implementations (DI-first). */
     tools?: Tool[] | undefined;
 
+    /** Host-provided skill sources, such as package, plugin, or user-local skill roots. */
+    skillSources?: SkillSource[] | undefined;
+
     /**
      * Toolkits loader resolved from image factories.
-     * Used to dynamically load toolkits requested by prompts/skills.
      */
     toolkitLoader?: ToolkitLoader | undefined;
 

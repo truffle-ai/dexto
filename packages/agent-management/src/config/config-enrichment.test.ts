@@ -14,13 +14,12 @@ vi.mock('./discover-prompts.js', () => ({
 vi.mock('../plugins/index.js', () => ({
     discoverClaudeCodePlugins: vi.fn(() => []),
     loadClaudeCodePlugin: vi.fn(() => ({ manifest: {}, commands: [], warnings: [] })),
-    discoverStandaloneSkills: vi.fn(() => []),
 }));
 
 // Import after mock is set up
 import { enrichAgentConfig } from './config-enrichment.js';
 import { discoverAgentInstructionFile, discoverCommandPrompts } from './discover-prompts.js';
-import { discoverClaudeCodePlugins, discoverStandaloneSkills } from '../plugins/index.js';
+import { discoverClaudeCodePlugins, loadClaudeCodePlugin } from '../plugins/index.js';
 
 // TODO: Add more comprehensive tests for config-enrichment:
 // - Test path resolution for per-agent logs, database, blobs
@@ -34,8 +33,12 @@ describe('enrichAgentConfig', () => {
         vi.mocked(discoverAgentInstructionFile).mockReturnValue(null);
         vi.mocked(discoverClaudeCodePlugins).mockReset();
         vi.mocked(discoverClaudeCodePlugins).mockReturnValue([]);
-        vi.mocked(discoverStandaloneSkills).mockReset();
-        vi.mocked(discoverStandaloneSkills).mockReturnValue([]);
+        vi.mocked(loadClaudeCodePlugin).mockReset();
+        vi.mocked(loadClaudeCodePlugin).mockReturnValue({
+            manifest: { name: 'test' },
+            commands: [],
+            warnings: [],
+        });
     });
 
     describe('logger defaults', () => {
@@ -96,7 +99,6 @@ describe('enrichAgentConfig', () => {
             });
 
             expect(discoverClaudeCodePlugins).toHaveBeenCalledWith('/workspace/project', []);
-            expect(discoverStandaloneSkills).toHaveBeenCalledWith('/workspace/project');
             expect(discoverAgentInstructionFile).toHaveBeenCalledWith('/workspace/project');
             expect(discoverCommandPrompts).toHaveBeenCalledWith('/workspace/project');
         });
@@ -118,7 +120,6 @@ describe('enrichAgentConfig', () => {
                 '/tmp/standalone/review-agent',
                 []
             );
-            expect(discoverStandaloneSkills).toHaveBeenCalledWith('/tmp/standalone/review-agent');
             expect(discoverAgentInstructionFile).toHaveBeenCalledWith(
                 '/tmp/standalone/review-agent'
             );
@@ -152,16 +153,8 @@ describe('enrichAgentConfig', () => {
             expect(enriched.prompts).toEqual([{ type: 'file', file: workspacePrompt }]);
         });
 
-        it('discovers standalone skills without preloading their bundled MCP servers', () => {
+        it('does not add standalone skills to prompts', () => {
             const workspaceRoot = '/workspace/project';
-            vi.mocked(discoverStandaloneSkills).mockReturnValue([
-                {
-                    name: 'release-skill',
-                    path: path.join(workspaceRoot, 'skills', 'release-skill'),
-                    skillFile: path.join(workspaceRoot, 'skills', 'release-skill', 'SKILL.md'),
-                    source: 'project',
-                },
-            ]);
 
             const baseConfig: AgentConfig = {
                 llm: {
@@ -176,11 +169,63 @@ describe('enrichAgentConfig', () => {
                 workspaceRoot,
             });
 
-            expect(enriched.prompts).toContainEqual({
-                type: 'file',
-                file: path.join(workspaceRoot, 'skills', 'release-skill', 'SKILL.md'),
-            });
+            expect(enriched.prompts).toBeUndefined();
             expect(enriched.mcpServers).toBeUndefined();
+        });
+
+        it('does not add plugin skills to prompts', () => {
+            const workspaceRoot = '/workspace/project';
+            vi.mocked(discoverClaudeCodePlugins).mockReturnValue([
+                {
+                    path: path.join(workspaceRoot, 'plugins', 'review'),
+                    manifest: { name: 'review' },
+                    source: 'project',
+                },
+            ]);
+            vi.mocked(loadClaudeCodePlugin).mockReturnValue({
+                manifest: { name: 'review' },
+                commands: [
+                    {
+                        file: path.join(workspaceRoot, 'plugins', 'review', 'commands', 'plan.md'),
+                        namespace: 'review',
+                        isSkill: false,
+                    },
+                    {
+                        file: path.join(
+                            workspaceRoot,
+                            'plugins',
+                            'review',
+                            'skills',
+                            'audit',
+                            'SKILL.md'
+                        ),
+                        namespace: 'review',
+                        isSkill: true,
+                    },
+                ],
+                warnings: [],
+            });
+
+            const baseConfig: AgentConfig = {
+                llm: {
+                    provider: 'openai',
+                    model: 'gpt-5',
+                    apiKey: 'test-key',
+                },
+                systemPrompt: 'You are a helpful assistant.',
+            };
+
+            const enriched = enrichAgentConfig(baseConfig, 'test-agent', {
+                workspaceRoot,
+            });
+
+            expect(enriched.prompts).toEqual([
+                {
+                    type: 'file',
+                    file: path.join(workspaceRoot, 'plugins', 'review', 'commands', 'plan.md'),
+                    namespace: 'review',
+                },
+            ]);
         });
 
         it('uses the resolved workspace root for storage defaults too', async () => {

@@ -1,24 +1,23 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { MemoryManager } from './manager.js';
-import type { Database } from '../storage/database/types.js';
+import type { DextoStores } from '../storage/index.js';
 import type { CreateMemoryInput } from './types.js';
 import { createMockLogger } from '../logger/v2/test-utils.js';
-import { createInMemoryDatabase } from '../test-utils/in-memory-storage.js';
+import { InMemoryDextoStores } from '../storage/index.js';
 
 describe('MemoryManager Integration Tests', () => {
     let memoryManager: MemoryManager;
-    let database: Database;
+    let stores: DextoStores;
     const mockLogger = createMockLogger();
 
     beforeEach(async () => {
-        // Use in-memory database for integration tests
-        database = createInMemoryDatabase();
-        await database.connect();
-        memoryManager = new MemoryManager(database, mockLogger);
+        stores = new InMemoryDextoStores();
+        await stores.connect();
+        memoryManager = new MemoryManager(stores.getStore('memories'), mockLogger);
     });
 
     afterEach(async () => {
-        await database.disconnect();
+        await stores.disconnect();
     });
 
     it('should create, retrieve, update, and delete a memory', async () => {

@@ -1,9 +1,7 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import * as path from 'node:path';
-import * as fs from 'node:fs/promises';
-import * as os from 'node:os';
+import { describe, it, expect, vi } from 'vitest';
+import { ToolErrorCode } from '@dexto/core';
 import type { Logger, ToolExecutionContext } from '@dexto/core';
-import { FileSystemService } from './filesystem-service.js';
+import type { ToolServices } from '@dexto/core/tools';
 import { createGlobFilesTool } from './glob-files-tool.js';
 
 const createMockLogger = (): Logger => {
@@ -24,86 +22,129 @@ const createMockLogger = (): Logger => {
     return logger;
 };
 
-function createToolContext(logger: Logger): ToolExecutionContext {
-    return { logger };
+function createToolContext(
+    logger: Logger,
+    glob: (pattern: string) => Promise<string[]>
+): ToolExecutionContext {
+    const workspaceManager = {
+        open: vi.fn(async () => ({
+            context: {
+                id: 'test-workspace',
+                path: '/repo',
+                createdAt: Date.now(),
+                lastActiveAt: Date.now(),
+            },
+            capabilities: ['files' as const],
+            files: {
+                readFile: vi.fn(async () => ''),
+                readText: vi.fn(async () => ''),
+                glob,
+                writeFile: vi.fn(async () => undefined),
+                listFiles: vi.fn(async () => []),
+            },
+        })),
+    };
+
+    return {
+        logger,
+        services: {
+            approval: {} as ToolServices['approval'],
+            search: {} as ToolServices['search'],
+            resources: {} as ToolServices['resources'],
+            prompts: {} as ToolServices['prompts'],
+            skills: {} as ToolServices['skills'],
+            mcp: {} as ToolServices['mcp'],
+            taskForker: null,
+            workspaceManager: workspaceManager as unknown as ToolServices['workspaceManager'],
+        },
+    };
 }
 
 describe('glob_files tool', () => {
-    let mockLogger: Logger;
-    let tempDir: string;
-    let fileSystemService: FileSystemService;
+    it('searches through WorkspaceManager.open without FileSystemService execution', async () => {
+        const mockLogger = createMockLogger();
+        const getFileSystemService = vi.fn(async () => {
+            throw new Error('glob_files execute must not use FileSystemService');
+        });
+        const glob = vi.fn(async () => ['src/a.ts', 'src/b.ts', 'src/c.ts']);
+        const tool = createGlobFilesTool(getFileSystemService);
+        const parsedInput = tool.inputSchema.parse({
+            pattern: '**/*.ts',
+            path: 'src',
+            max_results: 2,
+        });
 
-    beforeEach(async () => {
-        mockLogger = createMockLogger();
+        const result = (await tool.execute(parsedInput, createToolContext(mockLogger, glob))) as {
+            files: Array<{ path: string }>;
+            total_found: number;
+            truncated: boolean;
+        };
 
-        const rawTempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'dexto-glob-test-'));
-        tempDir = await fs.realpath(rawTempDir);
-
-        fileSystemService = new FileSystemService(
-            {
-                allowedPaths: [tempDir],
-                blockedPaths: [],
-                blockedExtensions: [],
-                maxFileSize: 10 * 1024 * 1024,
-                workingDirectory: tempDir,
-                enableBackups: false,
-                backupRetentionDays: 7,
-            },
-            mockLogger
-        );
-        await fileSystemService.initialize();
+        expect(getFileSystemService).not.toHaveBeenCalled();
+        expect(glob).toHaveBeenCalledWith('src/**/*.ts');
+        expect(result).toMatchObject({
+            files: [{ path: 'src/a.ts' }, { path: 'src/b.ts' }],
+            total_found: 2,
+            truncated: true,
+        });
     });
 
-    afterEach(async () => {
-        vi.restoreAllMocks();
+    it('normalizes workspace-contained absolute search paths before globbing', async () => {
+        const mockLogger = createMockLogger();
+        const glob = vi.fn(async () => ['src/a.ts']);
+        const tool = createGlobFilesTool(vi.fn());
 
-        try {
-            await fs.rm(tempDir, { recursive: true, force: true });
-        } catch {
-            // ignore cleanup failures
-        }
+        await tool.execute(
+            tool.inputSchema.parse({
+                pattern: '**/*.ts',
+                path: '/repo/src',
+            }),
+            createToolContext(mockLogger, glob)
+        );
+
+        expect(glob).toHaveBeenCalledWith('src/**/*.ts');
     });
 
-    it('expands home-directory shorthand for glob base paths', async () => {
-        const homeTempDir = await fs.mkdtemp(path.join(os.homedir(), '.dexto-glob-home-test-'));
-        const fileSystemServiceForHome = new FileSystemService(
-            {
-                allowedPaths: [homeTempDir],
-                blockedPaths: [],
-                blockedExtensions: [],
-                maxFileSize: 10 * 1024 * 1024,
-                workingDirectory: tempDir,
-                enableBackups: false,
-                backupRetentionDays: 7,
-            },
-            mockLogger
-        );
-        await fileSystemServiceForHome.initialize();
+    it('rejects external absolute search paths before file provider calls', async () => {
+        const mockLogger = createMockLogger();
+        const glob = vi.fn(async () => ['src/a.ts']);
+        const tool = createGlobFilesTool(vi.fn());
 
-        try {
-            const filePath = path.join(homeTempDir, 'notes.txt');
-            await fs.writeFile(filePath, 'hello');
+        await expect(
+            tool.execute(
+                tool.inputSchema.parse({
+                    pattern: '**/*.ts',
+                    path: '/outside/src',
+                }),
+                createToolContext(mockLogger, glob)
+            )
+        ).rejects.toMatchObject({ code: ToolErrorCode.VALIDATION_FAILED });
 
-            const tool = createGlobFilesTool(async () => fileSystemServiceForHome);
-            const parsedInput = tool.inputSchema.parse({
-                pattern: '**/*.txt',
-                path: `~/${path.basename(homeTempDir)}`,
-            });
-            const result = (await tool.execute(parsedInput, createToolContext(mockLogger))) as {
-                files: Array<{ path: string }>;
-                total_found: number;
-            };
+        expect(glob).not.toHaveBeenCalled();
+    });
 
-            expect(result.total_found).toBe(1);
-            expect(result.files).toEqual([
-                {
-                    path: filePath,
-                    size: 5,
-                    modified: expect.any(String),
-                },
-            ]);
-        } finally {
-            await fs.rm(homeTempDir, { recursive: true, force: true });
-        }
+    it('rejects absolute and escaping glob patterns before file provider calls', async () => {
+        const mockLogger = createMockLogger();
+        const glob = vi.fn(async () => ['src/a.ts']);
+        const tool = createGlobFilesTool(vi.fn());
+
+        await expect(
+            tool.execute(
+                tool.inputSchema.parse({
+                    pattern: '/outside/**/*.ts',
+                }),
+                createToolContext(mockLogger, glob)
+            )
+        ).rejects.toMatchObject({ code: ToolErrorCode.VALIDATION_FAILED });
+        await expect(
+            tool.execute(
+                tool.inputSchema.parse({
+                    pattern: '../**/*.ts',
+                }),
+                createToolContext(mockLogger, glob)
+            )
+        ).rejects.toMatchObject({ code: ToolErrorCode.VALIDATION_FAILED });
+
+        expect(glob).not.toHaveBeenCalled();
     });
 });

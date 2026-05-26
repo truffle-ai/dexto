@@ -6,16 +6,14 @@ import type {
     PromptArgument,
 } from '../types.js';
 import type { GetPromptResult } from '@modelcontextprotocol/sdk/types.js';
-import type { Database } from '../../storage/database/types.js';
+import type { ArtifactStore, CustomPromptStore } from '../../storage/index.js';
 import type { ResourceManager } from '../../resources/manager.js';
 import type { Logger } from '../../logger/v2/types.js';
 import { DextoLogComponent } from '../../logger/v2/types.js';
 import { expandPlaceholders } from '../utils.js';
 import { PromptError } from '../errors.js';
 
-const CUSTOM_PROMPT_KEY_PREFIX = 'prompt:custom:';
-
-interface StoredCustomPrompt {
+export interface StoredCustomPrompt {
     id: string;
     name: string;
     title?: string;
@@ -51,7 +49,8 @@ export class CustomPromptProvider implements PromptProvider {
     private logger: Logger;
 
     constructor(
-        private database: Database,
+        private promptStore: CustomPromptStore,
+        private artifactStore: ArtifactStore,
         private resourceManager: ResourceManager,
         logger: Logger
     ) {
@@ -110,8 +109,10 @@ export class CustomPromptProvider implements PromptProvider {
 
         if (record.resourceUri) {
             try {
-                const blobService = this.resourceManager.getBlobStore();
-                const blobData = await blobService.retrieve(record.resourceUri, 'base64');
+                const blobData = await this.artifactStore.retrieve({
+                    reference: record.resourceUri,
+                    format: 'base64',
+                });
                 if (blobData.format === 'base64') {
                     messages.push({
                         role: 'user',
@@ -178,12 +179,14 @@ export class CustomPromptProvider implements PromptProvider {
 
         if (input.resource) {
             try {
-                const blobService = this.resourceManager.getBlobStore();
                 const { data, mimeType, filename } = input.resource;
-                const blobRef = await blobService.store(data, {
-                    mimeType,
-                    originalName: filename,
-                    source: 'system',
+                const blobRef = await this.artifactStore.store({
+                    data,
+                    metadata: {
+                        mimeType,
+                        ...(filename !== undefined && { originalName: filename }),
+                        source: 'system',
+                    },
                 });
                 resourceUri = blobRef.uri;
                 const meta: { originalName?: string; mimeType?: string } = {};
@@ -214,7 +217,7 @@ export class CustomPromptProvider implements PromptProvider {
             ...(resourceMetadata ? { resourceMetadata } : {}),
         };
 
-        await this.database.set(this.toKey(id), record);
+        await this.promptStore.save({ prompt: record });
         this.invalidateCache();
         await this.buildCache();
 
@@ -234,11 +237,10 @@ export class CustomPromptProvider implements PromptProvider {
             throw PromptError.notFound(name);
         }
 
-        await this.database.delete(this.toKey(name));
+        await this.promptStore.delete({ name });
         if (record.resourceUri) {
             try {
-                const blobService = this.resourceManager.getBlobStore();
-                await blobService.delete(record.resourceUri);
+                await this.artifactStore.delete({ reference: record.resourceUri });
             } catch (error) {
                 this.logger.warn(
                     `Failed to delete blob for custom prompt ${name}: ${String(error)}`
@@ -250,13 +252,10 @@ export class CustomPromptProvider implements PromptProvider {
 
     private async buildCache(): Promise<void> {
         try {
-            const keys = await this.database.list(CUSTOM_PROMPT_KEY_PREFIX);
             const prompts: PromptInfo[] = [];
             this.promptRecords.clear();
-            for (const key of keys) {
+            for (const record of await this.promptStore.list()) {
                 try {
-                    const record = await this.database.get<StoredCustomPrompt>(key);
-                    if (!record) continue;
                     this.promptRecords.set(record.name, record);
                     const metadata: Record<string, unknown> = {
                         originalName:
@@ -287,7 +286,9 @@ export class CustomPromptProvider implements PromptProvider {
                         metadata,
                     });
                 } catch (error) {
-                    this.logger.warn(`Failed to load custom prompt from ${key}: ${String(error)}`);
+                    this.logger.warn(
+                        `Failed to load custom prompt '${record.name}': ${String(error)}`
+                    );
                 }
             }
             this.promptsCache = prompts;
@@ -297,10 +298,6 @@ export class CustomPromptProvider implements PromptProvider {
             this.promptsCache = [];
             this.cacheValid = false;
         }
-    }
-
-    private toKey(id: string): string {
-        return `${CUSTOM_PROMPT_KEY_PREFIX}${id}`;
     }
 
     private slugify(name: string): string {

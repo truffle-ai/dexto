@@ -68,6 +68,9 @@ export { getFileMediaKind, getResourceKind } from './context/index.js';
 // Prompts
 export * from './prompts/index.js';
 
+// Skills
+export * from './skills/index.js';
+
 // Utils
 export * from './utils/index.js';
 

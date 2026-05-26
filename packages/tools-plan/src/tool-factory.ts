@@ -1,6 +1,6 @@
 import * as path from 'node:path';
 import type { ToolFactory } from '@dexto/agent-config';
-import type { ToolExecutionContext } from '@dexto/core';
+import type { ToolExecutionContext } from '@dexto/core/tools';
 import { PlanService } from './plan-service.js';
 import type { PlanServiceGetter } from './plan-service-getter.js';
 import { createPlanCreateTool } from './tools/plan-create-tool.js';
@@ -12,7 +12,7 @@ import {
     PlanToolsConfigSchema,
     type PlanToolsConfig,
 } from './tool-factory-config.js';
-import type { Tool } from '@dexto/core';
+import type { Tool } from '@dexto/core/tools';
 
 type PlanToolName = (typeof PLAN_TOOL_NAMES)[number];
 

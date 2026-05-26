@@ -6,8 +6,8 @@
  */
 
 import { z } from 'zod';
-import { createLocalToolCallHeader, defineTool } from '@dexto/core';
-import type { Tool, ToolExecutionContext } from '@dexto/core';
+import { createLocalToolCallHeader, defineTool } from '@dexto/core/tools';
+import type { Tool, ToolExecutionContext } from '@dexto/core/tools';
 import type { PlanServiceGetter } from '../plan-service-getter.js';
 import { PlanError } from '../errors.js';
 

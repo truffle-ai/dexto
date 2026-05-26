@@ -1,6 +1,6 @@
 import { LanguageModel, type ModelMessage } from 'ai';
 import { ToolManager } from '../../tools/tool-manager.js';
-import type { LLMServiceConfig } from './types.js';
+import type { CreateTurnDriverOptions, LLMServiceConfig } from './types.js';
 import type { Logger } from '../../logger/v2/types.js';
 import { DextoLogComponent } from '../../logger/v2/types.js';
 import { ToolSet } from '../../tools/types.js';
@@ -9,13 +9,13 @@ import { getEffectiveMaxInputTokens, getMaxInputTokensForModel } from '../regist
 import type { ModelLimits } from '../../context/compaction/overflow.js';
 import { ContentPart } from '../../context/types.js';
 import type { SessionEventBus } from '../../events/index.js';
-import type { ConversationHistoryProvider } from '../../session/history/types.js';
+import type { ConversationStore } from '../../storage/conversation/types.js';
 import type { SystemPromptManager } from '../../systemPrompt/manager.js';
 import { VercelMessageFormatter } from '../formatters/vercel.js';
 import type { ValidatedLLMConfig } from '../schemas.js';
 import { InstrumentClass } from '../../telemetry/decorators.js';
 import { trace, context, propagation } from '@opentelemetry/api';
-import { TurnExecutor } from '../executor/turn-executor.js';
+import { TurnExecutor, type TurnDriver } from '../executor/turn-executor.js';
 import { MessageQueueService } from '../../session/message-queue.js';
 import type { ResourceManager } from '../../resources/index.js';
 import { DextoRuntimeError } from '../../errors/DextoRuntimeError.js';
@@ -53,7 +53,7 @@ export function ensureRunContextMatchesServiceSession(
  * - Message persistence via StreamProcessor
  * - Reactive compaction on overflow
  * - Tool output pruning
- * - Message queue injection
+ * - Steer queue injection
  *
  * @see TurnExecutor for the main execution loop
  * @see StreamProcessor for stream event handling
@@ -71,7 +71,8 @@ export class VercelLLMService {
     private readonly sessionId: string;
     private logger: Logger;
     private resourceManager: ResourceManager;
-    private messageQueue: MessageQueueService;
+    private steerQueue: MessageQueueService;
+    private followUpQueue: MessageQueueService;
     private compactionStrategy:
         | import('../../context/compaction/types.js').CompactionStrategy
         | null;
@@ -89,13 +90,14 @@ export class VercelLLMService {
         toolManager: ToolManager,
         model: LanguageModel,
         systemPromptManager: SystemPromptManager,
-        historyProvider: ConversationHistoryProvider,
+        conversationStore: ConversationStore,
         sessionEventBus: SessionEventBus,
         config: ValidatedLLMConfig,
         sessionId: string,
         resourceManager: ResourceManager,
         logger: Logger,
-        messageQueue: MessageQueueService,
+        steerQueue: MessageQueueService,
+        followUpQueue: MessageQueueService,
         usageScopeId?: string,
         compactionStrategy?: import('../../context/compaction/types.js').CompactionStrategy | null
     ) {
@@ -109,7 +111,8 @@ export class VercelLLMService {
         this.usageScopeId = usageScopeId;
         this.compactionStrategy = compactionStrategy ?? null;
 
-        this.messageQueue = messageQueue;
+        this.steerQueue = steerQueue;
+        this.followUpQueue = followUpQueue;
 
         // Create properly-typed ContextManager for Vercel
         const formatter = new VercelMessageFormatter(this.logger);
@@ -125,7 +128,7 @@ export class VercelLLMService {
             formatter,
             systemPromptManager,
             maxInputTokens,
-            historyProvider,
+            conversationStore,
             sessionId,
             resourceManager,
             this.logger
@@ -144,6 +147,16 @@ export class VercelLLMService {
         return this.toolManager
             .getAllTools()
             .then((tools) => this.toolManager.filterToolsForSession(tools, this.sessionId));
+    }
+
+    async createTurnDriver(options: CreateTurnDriverOptions = {}): Promise<TurnDriver> {
+        const sessionId = ensureRunContextMatchesServiceSession(this.sessionId, options.runContext);
+        const executor = this.createTurnExecutor(options.signal, options.runContext);
+        const contributorContext = await this.toolManager.buildContributorContext({ sessionId });
+        return executor.createDriver(contributorContext, {
+            streaming: options.streaming ?? true,
+            ...(options.state !== undefined ? { state: options.state } : {}),
+        });
     }
 
     /**
@@ -171,7 +184,8 @@ export class VercelLLMService {
             },
             { provider: this.config.provider, model: this.getModelId() },
             this.logger,
-            this.messageQueue,
+            this.steerQueue,
+            this.followUpQueue,
             this.modelLimits,
             externalSignal,
             this.compactionStrategy,
@@ -246,7 +260,7 @@ export class VercelLLMService {
             // Add user message with all content parts
             await this.contextManager.addUserMessage(parts);
 
-            // Create executor (uses session-level messageQueue, pass external abort signal)
+            // Create executor (uses session-level steerQueue, pass external abort signal)
             const executor = this.createTurnExecutor(options?.signal, options?.runContext);
 
             // Execute with streaming enabled
@@ -304,10 +318,14 @@ export class VercelLLMService {
     }
 
     /**
-     * Get the message queue for external access (e.g., queueing messages while busy)
+     * Get the steer queue for external access (e.g., queueing messages while busy)
      */
-    getMessageQueue(): MessageQueueService {
-        return this.messageQueue;
+    getSteerQueue(): MessageQueueService {
+        return this.steerQueue;
+    }
+
+    getFollowUpQueue(): MessageQueueService {
+        return this.followUpQueue;
     }
 
     /**

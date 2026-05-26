@@ -6,9 +6,6 @@ import {
     generateExampleTool,
     generateExampleHook,
     generateExampleCompaction,
-    generateExampleCacheFactory,
-    generateExampleDatabaseFactory,
-    generateExampleBlobStoreFactory,
     generateAppReadme,
 } from './template-engine.js';
 
@@ -24,8 +21,9 @@ describe('template-engine', () => {
             expect(result).toContain("import 'dotenv/config';");
             expect(result).toContain('DextoAgent');
             expect(result).toContain("from '@dexto/core';");
-            expect(result).toContain("from '@dexto/storage';");
+            expect(result).toContain('InMemoryDextoStores');
             expect(result).toContain('const agent = new DextoAgent({');
+            expect(result).toContain('stores: new InMemoryDextoStores(logger)');
             expect(result).toContain('await agent.start()');
             expect(result).toContain('await agent.generate(');
         });
@@ -70,9 +68,6 @@ describe('template-engine', () => {
                 '// Factories are AUTO-DISCOVERED from convention-based folders'
             );
             expect(result).toContain('//   tools/<type>/index.ts');
-            expect(result).toContain('//   storage/blob/<type>/index.ts');
-            expect(result).toContain('//   storage/database/<type>/index.ts');
-            expect(result).toContain('//   storage/cache/<type>/index.ts');
             expect(result).toContain('//   hooks/<type>/index.ts');
             expect(result).toContain('//   compaction/<type>/index.ts');
         });
@@ -133,7 +128,7 @@ describe('template-engine', () => {
             expect(result).toContain('logger: {');
         });
 
-        it('should include example storage defaults when no baseImage is provided', () => {
+        it('should not include storage defaults when no baseImage is provided', () => {
             const result = generateDextoImageFile({
                 projectName: 'my-image',
                 packageName: 'my-image',
@@ -141,10 +136,10 @@ describe('template-engine', () => {
             });
 
             expect(result).toContain('defaults: {');
-            expect(result).toContain('storage: {');
-            expect(result).toContain("type: 'example-blob'");
-            expect(result).toContain("type: 'example-database'");
-            expect(result).toContain("type: 'example-cache'");
+            expect(result).not.toContain('storage: {');
+            expect(result).not.toContain("type: 'example-blob'");
+            expect(result).not.toContain("type: 'example-database'");
+            expect(result).not.toContain("type: 'example-cache'");
             expect(result).toContain('logger: {');
         });
     });
@@ -221,7 +216,6 @@ describe('template-engine', () => {
             });
 
             expect(result).toContain('tools/<type>/');
-            expect(result).toContain('storage/blob/<type>/');
             expect(result).toContain('compaction/<type>/');
         });
     });
@@ -279,13 +273,6 @@ describe('template-engine', () => {
         it('should generate minimal factories that export a `factory` constant', () => {
             expect(generateExampleHook('example-hook')).toContain('export const factory');
             expect(generateExampleCompaction('example-compaction')).toContain(
-                'export const factory'
-            );
-            expect(generateExampleCacheFactory('example-cache')).toContain('export const factory');
-            expect(generateExampleDatabaseFactory('example-database')).toContain(
-                'export const factory'
-            );
-            expect(generateExampleBlobStoreFactory('example-blob')).toContain(
                 'export const factory'
             );
         });

@@ -7,15 +7,20 @@
 
 import * as path from 'node:path';
 import { z } from 'zod';
-import { createLocalToolCallHeader, defineTool, truncateForHeader } from '@dexto/core';
-import type { Tool, ToolExecutionContext } from '@dexto/core';
-import { ProcessService } from './process-service.js';
+import { createLocalToolCallHeader, defineTool, truncateForHeader } from '@dexto/core/tools';
+import type { ShellDisplayData, Tool, ToolExecutionContext } from '@dexto/core/tools';
 import { ProcessError } from './errors.js';
-import type { ShellDisplayData } from '@dexto/core';
 import {
     generateCommandPatternKey,
     generateCommandPatternSuggestions,
 } from './command-pattern-utils.js';
+import type {
+    ExecuteOptions,
+    ProcessConfig,
+    ProcessHandle,
+    ProcessOutput,
+    ProcessResult,
+} from './types.js';
 
 const BashExecInputSchema = z
     .object({
@@ -46,7 +51,20 @@ const BashExecInputSchema = z
 /**
  * Create the bash_exec internal tool
  */
-export type ProcessServiceGetter = (context: ToolExecutionContext) => Promise<ProcessService>;
+export interface ProcessCommandService {
+    executeCommand(
+        command: string,
+        options?: ExecuteOptions
+    ): Promise<ProcessResult | ProcessHandle>;
+    getConfig(): Readonly<ProcessConfig>;
+    getProcessOutput(processId: string): Promise<ProcessOutput>;
+    killProcess(processId: string): Promise<void>;
+}
+
+export type ProcessServiceGetter = (
+    context: ToolExecutionContext,
+    options?: { background?: boolean }
+) => Promise<ProcessCommandService>;
 
 export function createBashExecTool(
     getProcessService: ProcessServiceGetter
@@ -130,10 +148,11 @@ Security: Dangerous commands are blocked. Injection attempts are detected. Requi
         },
 
         async execute(input, context: ToolExecutionContext) {
-            const resolvedProcessService = await getProcessService(context);
-
             // Input is validated by provider before reaching here
             const { command, description, timeout, run_in_background, cwd } = input;
+            const resolvedProcessService = await getProcessService(context, {
+                background: run_in_background,
+            });
 
             // Validate cwd to prevent path traversal
             let validatedCwd: string | undefined = cwd;

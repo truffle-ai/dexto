@@ -15,12 +15,12 @@ export function createInternalResourceHandler(
 ): InternalResourceHandler {
     const type = config.type;
     if (type === 'filesystem') {
-        // Pass blob storage path to filesystem handler to avoid scanning blob directories
-        const blobStoragePath = services.blobStore.getStoragePath();
-        return new FileSystemResourceHandler(config, logger, blobStoragePath);
+        // Avoid scanning the artifact storage directory as user resources.
+        const artifactStoragePath = services.artifactStore.getStoragePath();
+        return new FileSystemResourceHandler(config, logger, artifactStoragePath);
     }
     if (type === 'blob') {
-        return new BlobResourceHandler(config, services.blobStore, logger);
+        return new BlobResourceHandler(config, services.artifactStore, logger);
     }
     throw ResourceError.providerError(
         'Internal',

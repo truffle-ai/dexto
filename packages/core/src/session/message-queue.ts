@@ -1,24 +1,28 @@
 import type { SessionEventBus } from '../events/index.js';
+import { cloneCoalescedMessage, cloneQueuedMessage, cloneQueuedMessages } from './queue-clone.js';
 import type { QueuedMessage, CoalescedMessage } from './types.js';
 import type { ContentPart } from '../context/types.js';
 import type { Logger } from '../logger/v2/types.js';
-import type { MessageQueueStore } from './message-queue-store.js';
+import type { SessionMessageQueueStore } from '../storage/message-queue/types.js';
 
-type MessageQueueBackingStore = Pick<MessageQueueStore, 'load' | 'save' | 'delete'>;
+type MessageQueueBackingStore = SessionMessageQueueStore;
 
 class EphemeralMessageQueueStore implements MessageQueueBackingStore {
-    async load(sessionId: string): Promise<QueuedMessage[]> {
-        void sessionId;
+    async listSessionIds(): Promise<string[]> {
         return [];
     }
 
-    async save(sessionId: string, queue: QueuedMessage[]): Promise<void> {
-        void sessionId;
-        void queue;
+    async load(input: { sessionId: string }): Promise<QueuedMessage[]> {
+        void input;
+        return [];
     }
 
-    async delete(sessionId: string): Promise<void> {
-        void sessionId;
+    async save(input: { sessionId: string; queue: QueuedMessage[] }): Promise<void> {
+        void input;
+    }
+
+    async delete(input: { sessionId: string }): Promise<void> {
+        void input;
     }
 }
 
@@ -80,13 +84,15 @@ export class MessageQueueService {
     static createEphemeral(
         eventBus: SessionEventBus,
         logger: Logger,
-        sessionId: string
+        sessionId: string,
+        queueKind: 'steer' | 'follow-up' = 'steer'
     ): MessageQueueService {
         return new MessageQueueService(
             eventBus,
             logger,
             sessionId,
-            new EphemeralMessageQueueStore()
+            new EphemeralMessageQueueStore(),
+            queueKind
         );
     }
 
@@ -94,7 +100,8 @@ export class MessageQueueService {
         private eventBus: SessionEventBus,
         private logger: Logger,
         private sessionId: string,
-        private store: MessageQueueBackingStore
+        private store: MessageQueueBackingStore,
+        private queueKind: 'steer' | 'follow-up' = 'steer'
     ) {}
 
     async initialize(): Promise<void> {
@@ -103,7 +110,7 @@ export class MessageQueueService {
                 return;
             }
 
-            this.queue = await this.store.load(this.sessionId);
+            this.queue = await this.store.load({ sessionId: this.sessionId });
             if (this.queue.length > 0) {
                 this.logger.debug(
                     `Restored ${this.queue.length} queued message(s) for session ${this.sessionId}`
@@ -120,7 +127,24 @@ export class MessageQueueService {
     }
 
     private async persistQueue(): Promise<void> {
-        await this.store.save(this.sessionId, this.queue);
+        await this.store.save({ sessionId: this.sessionId, queue: this.queue });
+    }
+
+    private async refreshFromStore(): Promise<void> {
+        const storedQueue = await this.store.load({ sessionId: this.sessionId });
+        const existingIds = new Set(this.queue.map((message) => message.id));
+        const externalMessages = storedQueue.filter((message) => !existingIds.has(message.id));
+
+        if (externalMessages.length === 0) {
+            return;
+        }
+
+        this.queue = [...this.queue, ...cloneQueuedMessages(externalMessages)].sort(
+            (left, right) => left.queuedAt - right.queuedAt
+        );
+        this.logger.debug(
+            `Loaded ${externalMessages.length} externally queued message(s) for session ${this.sessionId}`
+        );
     }
 
     private runWithMutationLock<T>(fn: () => Promise<T>): Promise<T> {
@@ -147,11 +171,14 @@ export class MessageQueueService {
                 id: generateId(),
                 content: message.content,
                 queuedAt: Date.now(),
-                ...(message.metadata !== undefined && { metadata: message.metadata }),
+                ...(message.metadata !== undefined && {
+                    metadata: message.metadata,
+                }),
                 ...(message.kind !== undefined && { kind: message.kind }),
             };
+            const copiedQueuedMsg = cloneQueuedMessage(queuedMsg);
 
-            this.queue.push(queuedMsg);
+            this.queue.push(copiedQueuedMsg);
 
             try {
                 await this.persistQueue();
@@ -165,6 +192,7 @@ export class MessageQueueService {
             this.eventBus.emit('message:queued', {
                 position: this.queue.length,
                 id: queuedMsg.id,
+                queue: this.queueKind,
             });
 
             return {
@@ -185,20 +213,23 @@ export class MessageQueueService {
      * If 3 messages are queued: "stop", "try X instead", "also check Y"
      * They become:
      * ```
-     * [1]: stop
+     * Additional user input received:
      *
-     * [2]: try X instead
+     * - stop
      *
-     * [3]: also check Y
+     * - try X instead
+     *
+     * - also check Y
      * ```
      *
      * @returns Coalesced message or null if queue is empty
      */
     async dequeueAll(): Promise<CoalescedMessage | null> {
         return await this.runWithMutationLock(async () => {
+            await this.refreshFromStore();
             if (this.queue.length === 0) return null;
 
-            const messages = [...this.queue];
+            const messages = cloneQueuedMessages(this.queue);
             this.queue = [];
 
             try {
@@ -217,9 +248,10 @@ export class MessageQueueService {
             this.eventBus.emit('message:dequeued', {
                 count: messages.length,
                 ids: messages.map((m) => m.id),
+                queue: this.queueKind,
                 coalesced: messages.length > 1,
-                content: combined.combinedContent,
-                messages,
+                content: cloneCoalescedMessage(combined).combinedContent,
+                messages: cloneQueuedMessages(messages),
             });
 
             return combined;
@@ -246,49 +278,35 @@ export class MessageQueueService {
             };
         }
 
-        const getMessageKind = (message: QueuedMessage): 'default' | 'background' =>
-            message.kind ?? 'default';
-
-        const totalUserMessages = messages.filter(
-            (message) => getMessageKind(message) !== 'background'
-        ).length;
-        const hasBackgroundMessages = messages.some(
-            (message) => getMessageKind(message) === 'background'
-        );
-
-        const getUserPrefix = (index: number, total: number, mixed: boolean): string | null => {
-            if (mixed) {
-                return `User follow-up ${index + 1}`;
-            }
-            if (total <= 1) return null;
-            if (total === 2) {
-                return index === 0 ? 'First' : 'Also';
-            }
-            return `[${index + 1}]`;
-        };
-
-        // Multiple messages - combine with structured per-kind prefixes
         const combinedContent: ContentPart[] = [];
-        let userIndex = 0;
+        let hasEntries = false;
+        let inUserSection = false;
 
-        for (const [i, msg] of messages.entries()) {
-            const kind = getMessageKind(msg);
-            const prefix =
-                kind === 'background'
-                    ? null
-                    : getUserPrefix(userIndex, totalUserMessages, hasBackgroundMessages);
+        for (const msg of messages) {
+            const isUserMessage = msg.kind !== 'background';
 
-            if (kind !== 'background') {
-                userIndex += 1;
+            if (isUserMessage && !inUserSection) {
+                if (hasEntries) {
+                    combinedContent.push({ type: 'text', text: '\n\n' });
+                }
+                combinedContent.push({ type: 'text', text: 'Additional user input received:' });
+                combinedContent.push({ type: 'text', text: '\n\n' });
+                inUserSection = true;
+                hasEntries = false;
             }
 
-            // Start with prefix text
-            let prefixText = prefix ? `${prefix}: ` : '';
+            let prefixText = isUserMessage ? '- ' : '';
 
-            // Process content parts
+            if (hasEntries && !isUserMessage) {
+                combinedContent.push({ type: 'text', text: '\n\n' });
+                inUserSection = false;
+            } else if (hasEntries && isUserMessage) {
+                prefixText = `\n\n${prefixText}`;
+            }
+
+            const entryStartIndex = combinedContent.length;
             for (const part of msg.content) {
                 if (part.type === 'text') {
-                    // Combine prefix with first text part for cleaner output
                     if (prefixText) {
                         combinedContent.push({ type: 'text', text: prefixText + part.text });
                         prefixText = '';
@@ -296,25 +314,20 @@ export class MessageQueueService {
                         combinedContent.push(part);
                     }
                 } else {
-                    // If we haven't added prefix yet (message started with media), add it first
                     if (prefixText) {
                         combinedContent.push({ type: 'text', text: prefixText });
                         prefixText = '';
                     }
-                    // Images, files, and other media are added as-is
                     combinedContent.push(part);
                 }
             }
 
-            // If the message only had media (no text), prefix was already added
-            // If message was empty, add just the prefix
             if (prefixText && msg.content.length === 0) {
                 combinedContent.push({ type: 'text', text: prefixText + '[empty message]' });
             }
 
-            // Add separator between messages (not after last one)
-            if (i < messages.length - 1) {
-                combinedContent.push({ type: 'text', text: '\n\n' });
+            if (combinedContent.length > entryStartIndex) {
+                hasEntries = true;
             }
         }
 
@@ -338,6 +351,12 @@ export class MessageQueueService {
      */
     hasPending(): boolean {
         return this.queue.length > 0;
+    }
+
+    async refresh(): Promise<void> {
+        await this.runWithMutationLock(async () => {
+            await this.refreshFromStore();
+        });
     }
 
     /**
@@ -371,17 +390,18 @@ export class MessageQueueService {
 
     /**
      * Get all queued messages (for UI display).
-     * Returns a shallow copy to prevent external mutation.
+     * Returns defensive copies to prevent external mutation.
      */
     getAll(): QueuedMessage[] {
-        return [...this.queue];
+        return cloneQueuedMessages(this.queue);
     }
 
     /**
      * Get a single queued message by ID.
      */
     get(id: string): QueuedMessage | undefined {
-        return this.queue.find((m) => m.id === id);
+        const message = this.queue.find((m) => m.id === id);
+        return message ? cloneQueuedMessage(message) : undefined;
     }
 
     /**
@@ -408,7 +428,7 @@ export class MessageQueueService {
             }
 
             this.logger.debug(`Message removed: ${id}, remaining: ${this.queue.length}`);
-            this.eventBus.emit('message:removed', { id });
+            this.eventBus.emit('message:removed', { id, queue: this.queueKind });
             return true;
         });
     }

@@ -6,14 +6,16 @@
  */
 
 import { nanoid } from 'nanoid';
-import type { Database, AgentEventBus, Logger } from '@dexto/core';
-import { DextoRuntimeError } from '@dexto/core';
+import type { AgentEventBus } from '@dexto/core/events';
+import type { Logger } from '@dexto/core/logger';
+import type { ToolStateStore } from '@dexto/core/storage';
+import { DextoRuntimeError } from '@dexto/core/errors';
 import { TodoError } from './errors.js';
 import type { Todo, TodoInput, TodoUpdateResult, TodoConfig, TodoStatus } from './types.js';
 import { TODO_STATUS_VALUES } from './types.js';
 
 const DEFAULT_MAX_TODOS = 100;
-const TODOS_KEY_PREFIX = 'todos:';
+const TODO_TOOL_STATE_NAME = 'todo';
 
 type TodoEventEmitter = Pick<AgentEventBus, 'emit'>;
 
@@ -21,19 +23,19 @@ type TodoEventEmitter = Pick<AgentEventBus, 'emit'>;
  * TodoService - Manages todo lists for agent workflow tracking
  */
 export class TodoService {
-    private database: Database;
+    private toolState: ToolStateStore;
     private eventBus: TodoEventEmitter;
     private logger: Logger;
     private config: Required<TodoConfig>;
     private initialized: boolean = false;
 
     constructor(
-        database: Database,
+        toolState: ToolStateStore,
         eventBus: TodoEventEmitter,
         logger: Logger,
         config: TodoConfig = {}
     ) {
-        this.database = database;
+        this.toolState = toolState;
         this.eventBus = eventBus;
         this.logger = logger;
         this.config = {
@@ -117,9 +119,11 @@ export class TodoService {
             // Remaining items in existingMap are deleted
             stats.deleted = existingMap.size;
 
-            // Save to database
-            const key = this.getTodosDatabaseKey(sessionId);
-            await this.database.set(key, newTodos);
+            await this.toolState.set({
+                toolName: TODO_TOOL_STATE_NAME,
+                key: this.getTodosStateKey(sessionId),
+                value: newTodos,
+            });
 
             // Emit event using the service:event pattern
             if (this.config.enableEvents) {
@@ -163,8 +167,10 @@ export class TodoService {
         }
 
         try {
-            const key = this.getTodosDatabaseKey(sessionId);
-            const todos = await this.database.get<Todo[]>(key);
+            const todos = await this.toolState.get<Todo[]>({
+                toolName: TODO_TOOL_STATE_NAME,
+                key: this.getTodosStateKey(sessionId),
+            });
             return todos || [];
         } catch (error) {
             if (error instanceof DextoRuntimeError) {
@@ -178,10 +184,10 @@ export class TodoService {
     }
 
     /**
-     * Generate database key for session todos
+     * Generate state key for session todos
      */
-    private getTodosDatabaseKey(sessionId: string): string {
-        return `${TODOS_KEY_PREFIX}${sessionId}`;
+    private getTodosStateKey(sessionId: string): string {
+        return `sessions:${sessionId}:todos`;
     }
 
     /**

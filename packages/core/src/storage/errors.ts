@@ -35,28 +35,28 @@ export class StorageError {
     }
 
     /**
-     * Storage manager not initialized
+     * Storage stores not initialized
      */
     static managerNotInitialized(method: string) {
         return new DextoRuntimeError(
             StorageErrorCode.MANAGER_NOT_INITIALIZED,
             ErrorScope.STORAGE,
             ErrorType.USER,
-            `StorageManager is not initialized. Call initialize() before ${method}()`,
-            { method, hint: 'Call await manager.initialize() first' }
+            `Storage stores are not initialized. Call initialize() before ${method}()`,
+            { method, hint: 'Initialize the configured DextoStores before use' }
         );
     }
 
     /**
-     * Storage manager not connected
+     * Storage stores not connected
      */
     static managerNotConnected(method: string) {
         return new DextoRuntimeError(
             StorageErrorCode.MANAGER_NOT_CONNECTED,
             ErrorScope.STORAGE,
             ErrorType.USER,
-            `StorageManager is not connected. Call connect() before ${method}()`,
-            { method, hint: 'Call await manager.connect() after initialize()' }
+            `Storage stores are not connected. Call connect() before ${method}()`,
+            { method, hint: 'Call await stores.connect() before use' }
         );
     }
 

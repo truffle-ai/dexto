@@ -1,16 +1,11 @@
 import { describe, it, expect, vi } from 'vitest';
 import { z } from 'zod';
-import type { CompactionStrategy, Hook } from '@dexto/core';
+import type { CompactionStrategy, Hook, Logger } from '@dexto/core';
+import { InMemoryDextoStores } from '@dexto/core/storage';
 import type { DextoHostContext, DextoImage, ImageResolutionContext } from '../image/types.js';
 import { AgentConfigSchema, type AgentConfig } from '../schemas/agent-config.js';
 import { resolveServicesFromConfig } from './resolve-services-from-config.js';
-import {
-    createMockBlobStore,
-    createMockCache,
-    createMockDatabase,
-    createMockLogger,
-    createMockTool,
-} from './__fixtures__/test-mocks.js';
+import { createMockLogger, createMockTool } from './__fixtures__/test-mocks.js';
 
 describe('resolveServicesFromConfig', () => {
     const baseConfig: AgentConfig = {
@@ -27,6 +22,10 @@ describe('resolveServicesFromConfig', () => {
         },
         compaction: { type: 'noop', enabled: false },
     };
+
+    function createMockStores(_logger = createMockLogger()) {
+        return new InMemoryDextoStores();
+    }
 
     function createMockImage<THostContext extends DextoHostContext = DextoHostContext>(
         overrides?: Partial<DextoImage<THostContext>>
@@ -45,24 +44,8 @@ describe('resolveServicesFromConfig', () => {
             metadata: { name: 'mock-image', version: '0.0.0', description: 'mock' },
             tools: {},
             storage: {
-                blob: {
-                    'in-memory': {
-                        configSchema: z.any(),
-                        create: () => createMockBlobStore('in-memory'),
-                    },
-                },
-                database: {
-                    'in-memory': {
-                        configSchema: z.any(),
-                        create: () => createMockDatabase('in-memory'),
-                    },
-                },
-                cache: {
-                    'in-memory': {
-                        configSchema: z.any(),
-                        create: () => createMockCache('in-memory'),
-                    },
-                },
+                configSchema: z.any(),
+                createStores: (_config, logger) => createMockStores(logger),
             },
             hooks: {},
             compaction: {},
@@ -98,9 +81,14 @@ describe('resolveServicesFromConfig', () => {
 
         const logger = createMockLogger();
         const loggerCreate = vi.fn(() => logger);
-        const blobCreate = vi.fn(() => createMockBlobStore('in-memory'));
-        const databaseCreate = vi.fn(() => createMockDatabase('in-memory'));
-        const cacheCreate = vi.fn(() => createMockCache('in-memory'));
+        const storageCreate = vi.fn(
+            (_config: unknown, logger: Logger, context?: ImageResolutionContext<HostedContext>) => {
+                expect(context?.hostContext?.runtime?.session.id).toBe('session-1');
+                expect(context?.hostContext?.capabilities?.workspace).toBe(true);
+                expect(context?.hostContext?.clients?.gateway.id).toBe('gateway-1');
+                return createMockStores(logger);
+            }
+        );
         const toolCreate = vi.fn((_config, context?: ImageResolutionContext<HostedContext>) => {
             expect(context?.hostContext?.runtime?.session.id).toBe('session-1');
             expect(context?.hostContext?.capabilities?.workspace).toBe(true);
@@ -125,24 +113,8 @@ describe('resolveServicesFromConfig', () => {
                 create: loggerCreate,
             },
             storage: {
-                blob: {
-                    'in-memory': {
-                        configSchema: z.any(),
-                        create: blobCreate,
-                    },
-                },
-                database: {
-                    'in-memory': {
-                        configSchema: z.any(),
-                        create: databaseCreate,
-                    },
-                },
-                cache: {
-                    'in-memory': {
-                        configSchema: z.any(),
-                        create: cacheCreate,
-                    },
-                },
+                configSchema: z.any(),
+                createStores: storageCreate,
             },
             tools: {
                 'foo-tools': {
@@ -181,18 +153,8 @@ describe('resolveServicesFromConfig', () => {
             },
             expectedContext
         );
-        expect(blobCreate).toHaveBeenCalledWith(
-            { type: 'in-memory' },
-            services.logger,
-            expectedContext
-        );
-        expect(databaseCreate).toHaveBeenCalledWith(
-            { type: 'in-memory' },
-            services.logger,
-            expectedContext
-        );
-        expect(cacheCreate).toHaveBeenCalledWith(
-            { type: 'in-memory' },
+        expect(storageCreate).toHaveBeenCalledWith(
+            validated.storage,
             services.logger,
             expectedContext
         );
@@ -236,9 +198,8 @@ describe('resolveServicesFromConfig', () => {
 
         const services = await resolveServicesFromConfig(validated, image);
 
-        expect(services.storage.blob.getStoreType()).toBe('in-memory');
-        expect(services.storage.database.getStoreType()).toBe('in-memory');
-        expect(services.storage.cache.getStoreType()).toBe('in-memory');
+        expect(services.stores.getStore('artifacts').getStoragePath()).toBeUndefined();
+        expect(services.stores.getStore('conversation')).toBeDefined();
 
         expect(services.tools.map((t) => t.id)).toEqual(['foo']);
         expect(fooFactoryCreate).toHaveBeenCalledTimes(1);
@@ -247,6 +208,24 @@ describe('resolveServicesFromConfig', () => {
             { agentId: validated.agentId }
         );
         expect(barFactoryCreate).not.toHaveBeenCalled();
+    });
+
+    it('resolves workspace handle provider from image runtime services', async () => {
+        const workspaceHandleProvider = {
+            open: vi.fn(),
+        };
+        const workspaceCreate = vi.fn(() => workspaceHandleProvider);
+        const image = createMockImage({
+            workspace: {
+                create: workspaceCreate,
+            },
+        });
+        const validated = AgentConfigSchema.parse(baseConfig);
+
+        const services = await resolveServicesFromConfig(validated, image);
+
+        expect(workspaceCreate).toHaveBeenCalledWith({ agentId: validated.agentId });
+        expect(services.workspaceHandleProvider).toBe(workspaceHandleProvider);
     });
 
     it('uses image.defaults.tools when config.tools is omitted', async () => {
@@ -293,8 +272,17 @@ describe('resolveServicesFromConfig', () => {
         );
     });
 
-    it('throws a clear error for unknown storage types', async () => {
-        const image = createMockImage();
+    it('throws a clear error for invalid image storage config', async () => {
+        const image = createMockImage({
+            storage: {
+                configSchema: z.object({
+                    blob: z.object({ type: z.literal('in-memory') }).passthrough(),
+                    database: z.object({ type: z.literal('in-memory') }).passthrough(),
+                    cache: z.object({ type: z.literal('in-memory') }).passthrough(),
+                }),
+                createStores: (_config, logger) => createMockStores(logger),
+            },
+        });
 
         const validated = AgentConfigSchema.parse({
             ...baseConfig,
@@ -305,9 +293,7 @@ describe('resolveServicesFromConfig', () => {
             },
         } satisfies AgentConfig);
 
-        await expect(resolveServicesFromConfig(validated, image)).rejects.toThrow(
-            "Unknown blob storage type 'local'."
-        );
+        await expect(resolveServicesFromConfig(validated, image)).rejects.toThrow('invalid_value');
     });
 
     it('preserves tool ids returned by factories', async () => {

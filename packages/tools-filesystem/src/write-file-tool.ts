@@ -9,17 +9,22 @@ import { z } from 'zod';
 import { createPatch } from 'diff';
 import {
     createLocalToolCallHeader,
-    DextoRuntimeError,
     ToolError,
     defineTool,
     truncateForHeader,
-} from '@dexto/core';
-import type { DiffDisplayData, FileDisplayData } from '@dexto/core';
-import type { Tool, ToolExecutionContext } from '@dexto/core';
+} from '@dexto/core/tools';
+import { DextoRuntimeError } from '@dexto/core/errors';
+import type {
+    DiffDisplayData,
+    FileDisplayData,
+    Tool,
+    ToolExecutionContext,
+} from '@dexto/core/tools';
 import { FileSystemErrorCode } from './error-codes.js';
 import { BufferEncoding } from './types.js';
 import type { FileSystemServiceGetter } from './file-tool-types.js';
 import { createDirectoryAccessApprovalHandlers, resolveFilePath } from './directory-approval.js';
+import { isWorkspaceFileNotFound, toWorkspaceRelativePath } from './workspace-paths.js';
 
 /**
  * Cache for content hashes between preview and execute phases.
@@ -43,13 +48,13 @@ function computeContentHash(content: string): string {
 
 const WriteFileInputSchema = z
     .object({
-        file_path: z.string().min(1).describe('Absolute path where the file should be written'),
+        file_path: z
+            .string()
+            .min(1)
+            .describe(
+                'Path where the file should be written. Relative paths resolve inside the active workspace; absolute paths must stay inside the active workspace.'
+            ),
         content: z.string().describe('Content to write to the file'),
-        create_dirs: z
-            .boolean()
-            .optional()
-            .default(false)
-            .describe("Create parent directories if they don't exist (default: false)"),
         encoding: z
             .enum(['utf-8', 'ascii', 'latin1', 'utf16le'])
             .optional()
@@ -92,7 +97,7 @@ export function createWriteFileTool(
         id: 'write_file',
         aliases: ['write'],
         description:
-            'Write content to a file. Creates a new file or overwrites existing file. Automatically creates backup of existing files before overwriting. Use create_dirs to create parent directories. Requires approval for all write operations. Returns success status, path, bytes written, and backup path if applicable.',
+            'Write content to a file inside the active workspace. Creates missing parent directories, creates new files, and overwrites existing files. Relative paths resolve inside the workspace; absolute paths must stay inside it. Requires approval for all write operations. Returns success status, path, bytes written, and display data.',
         inputSchema: WriteFileInputSchema,
 
         ...createDirectoryAccessApprovalHandlers({
@@ -117,6 +122,41 @@ export function createWriteFileTool(
              */
             preview: async (input, context: ToolExecutionContext) => {
                 const { file_path, content } = input;
+                const workspaceManager = context.services?.workspaceManager;
+                if (workspaceManager !== undefined) {
+                    const handle = await workspaceManager.open({ intent: 'write' });
+                    const workspacePath = toWorkspaceRelativePath(
+                        'write_file',
+                        handle.context.path,
+                        file_path
+                    );
+                    try {
+                        const originalContent = await handle.files.readText(workspacePath);
+                        if (context.toolCallId) {
+                            previewContentHashCache.set(
+                                context.toolCallId,
+                                computeContentHash(originalContent)
+                            );
+                        }
+                        return generateDiffPreview(file_path, originalContent, content);
+                    } catch (error) {
+                        if (!isWorkspaceFileNotFound(error)) {
+                            throw error;
+                        }
+                        if (context.toolCallId) {
+                            previewContentHashCache.set(context.toolCallId, FILE_NOT_EXISTS_MARKER);
+                        }
+                        return {
+                            type: 'file',
+                            title: 'Create file',
+                            path: file_path,
+                            operation: 'create',
+                            size: Buffer.byteLength(content, 'utf8'),
+                            lineCount: content.split('\n').length,
+                            content,
+                        } satisfies FileDisplayData;
+                    }
+                }
 
                 const resolvedFileSystemService = await getFileSystemService(context);
                 const { path: resolvedPath } = resolveFilePath(
@@ -186,12 +226,11 @@ export function createWriteFileTool(
         },
 
         async execute(input, context: ToolExecutionContext) {
-            const resolvedFileSystemService = await getFileSystemService(context);
-
-            // Input is validated by provider before reaching here
-            const { file_path, content, create_dirs, encoding } = input;
-            const { path: resolvedPath } = resolveFilePath(
-                resolvedFileSystemService.getWorkingDirectory(),
+            const { file_path, content, encoding } = input;
+            const handle = await openWorkspace(context, 'write_file');
+            const workspacePath = toWorkspaceRelativePath(
+                'write_file',
+                handle.context.path,
                 file_path
             );
 
@@ -201,22 +240,14 @@ export function createWriteFileTool(
             let fileExistsNow = false;
 
             try {
-                const originalFile = await resolvedFileSystemService.readFile(resolvedPath);
-                originalContent = originalFile.content;
+                originalContent = await handle.files.readText(workspacePath);
                 fileExistsNow = true;
             } catch (error) {
-                // Only treat FILE_NOT_FOUND as "create new file", rethrow other errors
-                if (
-                    error instanceof DextoRuntimeError &&
-                    error.code === FileSystemErrorCode.FILE_NOT_FOUND
-                ) {
-                    // File doesn't exist - this is a create operation
-                    originalContent = null;
-                    fileExistsNow = false;
-                } else {
-                    // Permission denied, I/O errors, etc. - rethrow
+                if (!isWorkspaceFileNotFound(error)) {
                     throw error;
                 }
+                originalContent = null;
+                fileExistsNow = false;
             }
 
             // Verify file hasn't changed since preview
@@ -227,13 +258,13 @@ export function createWriteFileTool(
                 if (expectedHash === FILE_NOT_EXISTS_MARKER) {
                     // File didn't exist at preview time - verify it still doesn't exist
                     if (fileExistsNow) {
-                        throw ToolError.fileModifiedSincePreview('write_file', resolvedPath);
+                        throw ToolError.fileModifiedSincePreview('write_file', file_path);
                     }
                 } else if (expectedHash !== null) {
                     // File existed at preview time - verify content hasn't changed
                     if (!fileExistsNow) {
                         // File was deleted between preview and execute
-                        throw ToolError.fileModifiedSincePreview('write_file', resolvedPath);
+                        throw ToolError.fileModifiedSincePreview('write_file', file_path);
                     }
                     if (originalContent === null) {
                         throw ToolError.executionFailed(
@@ -243,17 +274,13 @@ export function createWriteFileTool(
                     }
                     const currentHash = computeContentHash(originalContent);
                     if (expectedHash !== currentHash) {
-                        throw ToolError.fileModifiedSincePreview('write_file', resolvedPath);
+                        throw ToolError.fileModifiedSincePreview('write_file', file_path);
                     }
                 }
             }
 
-            // Write file using FileSystemService
-            // Backup behavior is controlled by config.enableBackups (default: false)
-            const result = await resolvedFileSystemService.writeFile(resolvedPath, content, {
-                createDirs: create_dirs,
-                encoding: encoding as BufferEncoding,
-            });
+            await handle.files.writeFile(workspacePath, content);
+            const bytesWritten = Buffer.byteLength(content, encoding as BufferEncoding);
 
             // Build display data based on operation type
             let _display: DiffDisplayData | FileDisplayData;
@@ -264,24 +291,30 @@ export function createWriteFileTool(
                 _display = {
                     type: 'file',
                     title: 'Create file',
-                    path: resolvedPath,
+                    path: file_path,
                     operation: 'create',
-                    size: result.bytesWritten,
+                    size: bytesWritten,
                     lineCount,
                     content,
                 };
             } else {
                 // File overwrite - generate diff using shared helper
-                _display = generateDiffPreview(resolvedPath, originalContent, content);
+                _display = generateDiffPreview(file_path, originalContent, content);
             }
 
             return {
-                success: result.success,
-                path: result.path,
-                bytes_written: result.bytesWritten,
-                ...(result.backupPath && { backup_path: result.backupPath }),
+                success: true,
+                path: file_path,
+                bytes_written: bytesWritten,
                 _display,
             };
         },
     });
+}
+
+async function openWorkspace(context: ToolExecutionContext, toolName: string) {
+    if (!context.services) {
+        throw new Error(`${toolName} requires ToolExecutionContext.services`);
+    }
+    return context.services.workspaceManager.open({ intent: 'write' });
 }

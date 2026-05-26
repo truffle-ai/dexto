@@ -17,17 +17,10 @@ export interface TuiAuthConfig {
     dextoApiKeySource?: 'provisioned' | 'user-supplied' | undefined;
 }
 
-export interface TuiOAuthResult {
-    accessToken: string;
-    refreshToken?: string | undefined;
-    expiresIn?: number | undefined;
-    user?:
-        | {
-              id: string;
-              email: string;
-              name?: string | undefined;
-          }
-        | undefined;
+export interface TuiDeviceApiKeyLoginResult {
+    dextoApiKey: string;
+    dextoKeyId: string;
+    dextoKeyDisplay: string;
 }
 
 export interface TuiDeviceLoginPrompt {
@@ -66,12 +59,9 @@ export interface TuiRuntimeServices {
     performDeviceCodeLogin?: (options?: {
         signal?: AbortSignal | undefined;
         onPrompt?: ((prompt: TuiDeviceLoginPrompt) => void) | undefined;
-    }) => Promise<TuiOAuthResult>;
-    persistOAuthLoginResult?: (
-        result: TuiOAuthResult,
-        options?: {
-            onProvisionStatus?: ((status: TuiDextoApiKeyProvisionStatus) => void) | undefined;
-        }
+    }) => Promise<TuiDeviceApiKeyLoginResult>;
+    persistDeviceApiKeyLoginResult?: (
+        result: TuiDeviceApiKeyLoginResult
     ) => Promise<TuiPersistedLoginResult>;
     ensureDextoApiKeyForAuthToken?: (
         authToken: string,
@@ -141,21 +131,20 @@ export function getProviderInstructions(provider: LLMProvider): {
 export async function performDeviceCodeLogin(options?: {
     signal?: AbortSignal | undefined;
     onPrompt?: ((prompt: TuiDeviceLoginPrompt) => void) | undefined;
-}): Promise<TuiOAuthResult> {
+}): Promise<TuiDeviceApiKeyLoginResult> {
     if (!runtimeServices.performDeviceCodeLogin) {
         throw missingHostMethod('performDeviceCodeLogin');
     }
     return runtimeServices.performDeviceCodeLogin(options);
 }
 
-export async function persistOAuthLoginResult(
-    result: TuiOAuthResult,
-    options?: { onProvisionStatus?: ((status: TuiDextoApiKeyProvisionStatus) => void) | undefined }
+export async function persistDeviceApiKeyLoginResult(
+    result: TuiDeviceApiKeyLoginResult
 ): Promise<TuiPersistedLoginResult> {
-    if (!runtimeServices.persistOAuthLoginResult) {
-        throw missingHostMethod('persistOAuthLoginResult');
+    if (!runtimeServices.persistDeviceApiKeyLoginResult) {
+        throw missingHostMethod('persistDeviceApiKeyLoginResult');
     }
-    return runtimeServices.persistOAuthLoginResult(result, options);
+    return runtimeServices.persistDeviceApiKeyLoginResult(result);
 }
 
 export async function ensureDextoApiKeyForAuthToken(

@@ -79,27 +79,6 @@ export async function bundle(options: BundleOptions): Promise<BundleResult> {
         compiledCount++;
     }
 
-    // storage/blob/
-    const storageBlobDir = join(imageDir, 'storage', 'blob');
-    if (existsSync(storageBlobDir)) {
-        compileSourceFiles(storageBlobDir, join(outDir, 'storage', 'blob'));
-        compiledCount++;
-    }
-
-    // storage/database/
-    const storageDatabaseDir = join(imageDir, 'storage', 'database');
-    if (existsSync(storageDatabaseDir)) {
-        compileSourceFiles(storageDatabaseDir, join(outDir, 'storage', 'database'));
-        compiledCount++;
-    }
-
-    // storage/cache/
-    const storageCacheDir = join(imageDir, 'storage', 'cache');
-    if (existsSync(storageCacheDir)) {
-        compileSourceFiles(storageCacheDir, join(outDir, 'storage', 'cache'));
-        compiledCount++;
-    }
-
     if (compiledCount > 0) {
         console.log(
             `✅ Compiled ${compiledCount} factory categor${compiledCount === 1 ? 'y' : 'ies'}`
@@ -335,11 +314,6 @@ export interface DiscoveredFactory {
 
 export interface DiscoveredFactories {
     tools: DiscoveredFactory[];
-    storage: {
-        blob: DiscoveredFactory[];
-        database: DiscoveredFactory[];
-        cache: DiscoveredFactory[];
-    };
     hooks: DiscoveredFactory[];
     compaction: DiscoveredFactory[];
     totalCount: number;
@@ -356,9 +330,7 @@ export interface DiscoveredFactories {
  *       types.ts     - Optional type definitions
  *   compaction/      - CompactionFactory folders
  *   hooks/           - HookFactory folders
- *   storage/blob/    - BlobStoreFactory folders
- *   storage/cache/   - CacheFactory folders
- *   storage/database/ - DatabaseFactory folders
+ *   storage is an image-level createStores implementation, not convention-discovered
  *
  * Naming Convention (Node.js standard):
  *   <folder>/index.ts    - Auto-discovered and registered
@@ -367,11 +339,6 @@ export interface DiscoveredFactories {
 function discoverFactories(imageDir: string, warnings: string[]): DiscoveredFactories {
     const result: DiscoveredFactories = {
         tools: [],
-        storage: {
-            blob: [],
-            database: [],
-            cache: [],
-        },
         hooks: [],
         compaction: [],
         totalCount: 0,
@@ -430,38 +397,11 @@ function discoverFactories(imageDir: string, warnings: string[]): DiscoveredFact
         label: 'compaction/',
     });
 
-    // storage/blob/
-    result.storage.blob = discoverFolder({
-        srcDir: join(imageDir, 'storage', 'blob'),
-        importBase: 'storage/blob',
-        label: 'storage/blob/',
-    });
-
-    // storage/database/
-    result.storage.database = discoverFolder({
-        srcDir: join(imageDir, 'storage', 'database'),
-        importBase: 'storage/database',
-        label: 'storage/database/',
-    });
-
-    // storage/cache/
-    result.storage.cache = discoverFolder({
-        srcDir: join(imageDir, 'storage', 'cache'),
-        importBase: 'storage/cache',
-        label: 'storage/cache/',
-    });
-
-    result.totalCount =
-        result.tools.length +
-        result.hooks.length +
-        result.compaction.length +
-        result.storage.blob.length +
-        result.storage.database.length +
-        result.storage.cache.length;
+    result.totalCount = result.tools.length + result.hooks.length + result.compaction.length;
 
     if (result.totalCount === 0) {
         warnings.push(
-            'No factories discovered from convention folders. This image will not be able to resolve tools/storage unless it extends a base image.'
+            'No factories discovered from convention folders. This image will not be able to resolve tools/hooks/compaction unless it extends a base image.'
         );
     }
 
@@ -533,15 +473,5 @@ async function validateDiscoveredFactories(
     for (const entry of discovered.compaction) {
         validations.push(validateFactoryExport({ outDir, kind: 'compaction', entry }));
     }
-    for (const entry of discovered.storage.blob) {
-        validations.push(validateFactoryExport({ outDir, kind: 'storage.blob', entry }));
-    }
-    for (const entry of discovered.storage.database) {
-        validations.push(validateFactoryExport({ outDir, kind: 'storage.database', entry }));
-    }
-    for (const entry of discovered.storage.cache) {
-        validations.push(validateFactoryExport({ outDir, kind: 'storage.cache', entry }));
-    }
-
     await Promise.all(validations);
 }

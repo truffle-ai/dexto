@@ -7,11 +7,11 @@ import type { Logger } from '../logger/v2/types.js';
 import { DextoLogComponent } from '../logger/v2/types.js';
 import type { AgentStateManager } from '../agent/state-manager.js';
 import type { ValidatedLLMConfig } from '../llm/schemas.js';
-import type { StorageManager } from '../storage/index.js';
 import type { HookManager } from '../hooks/manager.js';
 import type { ApprovalManager } from '../approval/manager.js';
 import { SessionError } from './errors.js';
 import type { TokenUsage } from '../llm/types.js';
+import { normalizeTokenUsageForAccounting } from '../llm/usage-metadata.js';
 import type { LanguageModelFactory } from '../llm/services/types.js';
 import type { CompactionStrategy } from '../context/compaction/types.js';
 import { ZodError } from 'zod';
@@ -19,7 +19,9 @@ import {
     SessionPromptContributorSchema,
     type SessionPromptContributor,
 } from '../systemPrompt/schemas.js';
-import type { MessageQueueStore } from './message-queue-store.js';
+import type { SessionMessageQueueStore } from '../storage/message-queue/types.js';
+import type { ConversationStore } from '../storage/conversation/types.js';
+import type { SessionStore } from '../storage/sessions/types.js';
 export type SessionLoggerFactory = (options: {
     baseLogger: Logger;
     agentId: string;
@@ -120,7 +122,6 @@ export class SessionManager {
     private sessions: Map<string, ChatSession> = new Map();
     private readonly maxSessions: number;
     private readonly sessionTTL: number;
-    private static readonly MESSAGE_QUEUE_KEY_PREFIX = 'session-message-queue:';
     private initialized = false;
     private cleanupInterval?: NodeJS.Timeout;
     private initializationPromise!: Promise<void>;
@@ -129,7 +130,6 @@ export class SessionManager {
     // Per-session mutex for any SessionData read-modify-write path.
     private readonly sessionDataLocks = new Map<string, Promise<void>>();
     private logger: Logger;
-    private static readonly FORK_HISTORY_BATCH_SIZE = 500;
     private static readonly FORK_ID_GENERATION_MAX_ATTEMPTS = 5;
     private static readonly FORK_TITLE_PREFIX = 'Fork: ';
     private static readonly FORK_PARENT_ID_PREVIEW_LENGTH = 8;
@@ -144,11 +144,13 @@ export class SessionManager {
             toolManager: ToolManager;
             approvalManager: ApprovalManager;
             agentEventBus: AgentEventBus;
-            storageManager: StorageManager;
+            sessionStore: SessionStore;
+            conversationStore: ConversationStore;
             resourceManager: import('../resources/index.js').ResourceManager;
             hookManager: HookManager;
             mcpManager: import('../mcp/manager.js').MCPManager;
-            messageQueueStore: Pick<MessageQueueStore, 'load' | 'save' | 'delete'>;
+            steerQueueStore: SessionMessageQueueStore;
+            followUpQueueStore: SessionMessageQueueStore;
             compactionStrategy: CompactionStrategy | null;
             workspaceManager?: import('../workspace/manager.js').WorkspaceManager;
         },
@@ -209,15 +211,11 @@ export class SessionManager {
      */
     private async restoreSessionsFromStorage(): Promise<void> {
         try {
-            // Use the database backend to list sessions with the 'session:' prefix
-            const sessionKeys = await this.services.storageManager.getDatabase().list('session:');
-            this.logger.debug(`Found ${sessionKeys.length} persisted sessions to restore`);
+            const sessionIds = await this.services.sessionStore.listSessionIds();
+            this.logger.debug(`Found ${sessionIds.length} persisted sessions to restore`);
 
-            for (const sessionKey of sessionKeys) {
-                const sessionId = sessionKey.replace('session:', '');
-                const sessionData = await this.services.storageManager
-                    .getDatabase()
-                    .get<SessionData>(sessionKey);
+            for (const sessionId of sessionIds) {
+                const sessionData = await this.services.sessionStore.getSession({ sessionId });
 
                 if (sessionData) {
                     // Check if session is still valid (not expired)
@@ -228,14 +226,11 @@ export class SessionManager {
                         // Session is still valid, but don't create ChatSession until requested
                         this.logger.debug(`Session ${sessionId} restored from storage`);
                     } else {
-                        // Session expired, purge the session record plus any persisted
-                        // interaction state keyed off the same session ID.
-                        await Promise.all([
-                            this.services.storageManager.getDatabase().delete(sessionKey),
-                            this.services.storageManager.getCache().delete(sessionKey),
-                            this.deleteSessionInteractionState(sessionId),
-                        ]);
-                        this.logger.debug(`Expired session ${sessionId} cleaned up during restore`);
+                        await this.services.sessionStore.evictSession({ sessionId });
+                        this.evictSessionInteractionState(sessionId);
+                        this.logger.debug(
+                            `Expired session ${sessionId} evicted during restore; durable history preserved`
+                        );
                     }
                 }
             }
@@ -249,22 +244,21 @@ export class SessionManager {
 
     private async clearPersistedQueuedMessages(reason: 'startup' | 'shutdown'): Promise<void> {
         try {
-            const queueKeys = await this.services.storageManager
-                .getDatabase()
-                .list(SessionManager.MESSAGE_QUEUE_KEY_PREFIX);
-            if (queueKeys.length === 0) {
+            const steerSessionIds = await this.services.steerQueueStore.listSessionIds();
+            const followUpSessionIds = await this.services.followUpQueueStore.listSessionIds();
+            const sessionIds = Array.from(new Set([...steerSessionIds, ...followUpSessionIds]));
+            if (sessionIds.length === 0) {
                 return;
             }
 
             await Promise.all(
-                queueKeys.map((key) =>
-                    this.services.messageQueueStore.delete(
-                        key.slice(SessionManager.MESSAGE_QUEUE_KEY_PREFIX.length)
-                    )
-                )
+                sessionIds.flatMap((sessionId) => [
+                    this.services.steerQueueStore.delete({ sessionId }),
+                    this.services.followUpQueueStore.delete({ sessionId }),
+                ])
             );
 
-            const message = `${reason === 'startup' ? 'Cleared stale queued follow-up state from previous agent run' : 'Cleared queued follow-up state during agent shutdown'} (${queueKeys.length} session bucket(s))`;
+            const message = `${reason === 'startup' ? 'Cleared stale pending input state from previous agent run' : 'Cleared pending input state during agent shutdown'} (${sessionIds.length} session bucket(s))`;
             if (reason === 'startup') {
                 // TODO(issue-743): Replace startup purge with explicit resume semantics for interrupted queued follow-ups.
                 this.logger.info(message);
@@ -341,24 +335,19 @@ export class SessionManager {
     public async forkSession(parentSessionId: string): Promise<ChatSession> {
         await this.ensureInitialized();
 
-        const database = this.services.storageManager.getDatabase();
-        const cache = this.services.storageManager.getCache();
-        const parentSessionKey = `session:${parentSessionId}`;
-        const parentMessagesKey = `messages:${parentSessionId}`;
-
-        const parentSessionData = await database.get<SessionData>(parentSessionKey);
+        const parentSessionData = await this.services.sessionStore.getSession({
+            sessionId: parentSessionId,
+        });
         if (!parentSessionData) {
             throw SessionError.notFound(parentSessionId);
         }
 
-        const activeSessionKeys = await database.list('session:');
-        if (activeSessionKeys.length >= this.maxSessions) {
-            throw SessionError.maxSessionsExceeded(activeSessionKeys.length, this.maxSessions);
+        const activeSessionIds = await this.services.sessionStore.listSessionIds();
+        if (activeSessionIds.length >= this.maxSessions) {
+            throw SessionError.maxSessionsExceeded(activeSessionIds.length, this.maxSessions);
         }
 
         const childSessionId = await this.generateForkSessionId();
-        const childSessionKey = `session:${childSessionId}`;
-        const childMessagesKey = `messages:${childSessionId}`;
         const now = Date.now();
 
         const childTitle = this.buildForkTitle(parentSessionData, parentSessionId);
@@ -389,8 +378,12 @@ export class SessionManager {
         };
 
         try {
-            await database.set(childSessionKey, childSessionData);
-            await this.copySessionHistory(parentMessagesKey, childMessagesKey);
+            await this.services.sessionStore.saveSession({
+                sessionId: childSessionId,
+                session: childSessionData,
+                ttlSeconds: this.sessionTTL / 1000,
+            });
+            await this.copySessionHistory(parentSessionId, childSessionId);
 
             const childSession = await this.createSession(childSessionId);
             this.logger.info(`Forked session '${parentSessionId}' into child '${childSessionId}'`);
@@ -398,9 +391,8 @@ export class SessionManager {
         } catch (error) {
             // Best-effort rollback for partially created fork state.
             await Promise.allSettled([
-                database.delete(childSessionKey),
-                database.delete(childMessagesKey),
-                cache.delete(childSessionKey),
+                this.services.sessionStore.deleteSession({ sessionId: childSessionId }),
+                this.services.conversationStore.clearMessages({ sessionId: childSessionId }),
             ]);
 
             const inMemorySession = this.sessions.get(childSessionId);
@@ -433,15 +425,15 @@ export class SessionManager {
     }
 
     private async generateForkSessionId(): Promise<string> {
-        const database = this.services.storageManager.getDatabase();
-
         for (let attempt = 0; attempt < SessionManager.FORK_ID_GENERATION_MAX_ATTEMPTS; attempt++) {
             const candidateId = randomUUID();
             if (this.sessions.has(candidateId) || this.pendingCreations.has(candidateId)) {
                 continue;
             }
 
-            const existing = await database.get<SessionData>(`session:${candidateId}`);
+            const existing = await this.services.sessionStore.getSession({
+                sessionId: candidateId,
+            });
             if (!existing) {
                 return candidateId;
             }
@@ -454,32 +446,18 @@ export class SessionManager {
     }
 
     private async copySessionHistory(
-        parentMessagesKey: string,
-        childMessagesKey: string
+        parentSessionId: string,
+        childSessionId: string
     ): Promise<void> {
-        const database = this.services.storageManager.getDatabase();
-        let offset = 0;
+        const messages = await this.services.conversationStore.listMessages({
+            sessionId: parentSessionId,
+        });
 
-        while (true) {
-            const batch = await database.getRange<unknown>(
-                parentMessagesKey,
-                offset,
-                SessionManager.FORK_HISTORY_BATCH_SIZE
-            );
-
-            if (batch.length === 0) {
-                return;
-            }
-
-            for (const message of batch) {
-                await database.append(childMessagesKey, message);
-            }
-
-            offset += batch.length;
-
-            if (batch.length < SessionManager.FORK_HISTORY_BATCH_SIZE) {
-                return;
-            }
+        for (const message of messages) {
+            await this.services.conversationStore.saveMessage({
+                sessionId: childSessionId,
+                message,
+            });
         }
     }
 
@@ -492,10 +470,7 @@ export class SessionManager {
         await this.cleanupExpiredSessions();
 
         // Check if session exists in storage (could have been created by another process)
-        const sessionKey = `session:${id}`;
-        const existingMetadata = await this.services.storageManager
-            .getDatabase()
-            .get<SessionData>(sessionKey);
+        const existingMetadata = await this.services.sessionStore.getSession({ sessionId: id });
         if (existingMetadata) {
             // Session exists in storage, restore it
             await this.updateSessionActivity(id);
@@ -509,9 +484,7 @@ export class SessionManager {
 
             // Restore LLM override BEFORE session init so the service is created with correct config
             // SECURITY: Re-resolve API key from environment when restoring (never persisted)
-            const sessionData = await this.services.storageManager
-                .getDatabase()
-                .get<SessionData>(sessionKey);
+            const sessionData = await this.services.sessionStore.getSession({ sessionId: id });
             if (sessionData?.llmOverride) {
                 const { resolveApiKeyForProvider } = await import('../utils/api-key-resolver.js');
                 const apiKey = resolveApiKeyForProvider(sessionData.llmOverride.provider);
@@ -541,7 +514,7 @@ export class SessionManager {
 
         // Perform atomic session limit check and creation
         // This ensures the limit check and session creation happen as close to atomically as possible
-        const activeSessionKeys = await this.services.storageManager.getDatabase().list('session:');
+        const activeSessionKeys = await this.services.sessionStore.listSessionIds();
         if (activeSessionKeys.length >= this.maxSessions) {
             throw SessionError.maxSessionsExceeded(activeSessionKeys.length, this.maxSessions);
         }
@@ -563,7 +536,11 @@ export class SessionManager {
 
         // Store session metadata in persistent storage immediately to claim the session
         try {
-            await this.services.storageManager.getDatabase().set(sessionKey, sessionData);
+            await this.services.sessionStore.saveSession({
+                sessionId: id,
+                session: sessionData,
+                ttlSeconds: this.sessionTTL / 1000,
+            });
         } catch (error) {
             // If storage fails, another concurrent creation might have succeeded
             this.logger.error(`Failed to store session metadata for ${id}:`, {
@@ -587,11 +564,6 @@ export class SessionManager {
             await session.init();
             this.sessions.set(id, session);
 
-            // Also store in cache with TTL for faster access
-            await this.services.storageManager
-                .getCache()
-                .set(sessionKey, sessionData, this.sessionTTL / 1000);
-
             this.logger.info(`Created new session: ${id}`);
             return session;
         } catch (error) {
@@ -599,8 +571,7 @@ export class SessionManager {
             this.logger.error(
                 `Failed to initialize session ${id}: ${error instanceof Error ? error.message : String(error)}`
             );
-            await this.services.storageManager.getDatabase().delete(sessionKey);
-            await this.services.storageManager.getCache().delete(sessionKey);
+            await this.services.sessionStore.deleteSession({ sessionId: id });
             const reason = error instanceof Error ? error.message : 'unknown error';
             throw SessionError.initializationFailed(id, reason);
         }
@@ -631,10 +602,7 @@ export class SessionManager {
 
         // Conditionally check storage if restoreFromStorage is true
         if (restoreFromStorage) {
-            const sessionKey = `session:${sessionId}`;
-            const sessionData = await this.services.storageManager
-                .getDatabase()
-                .get<SessionData>(sessionKey);
+            const sessionData = await this.services.sessionStore.getSession({ sessionId });
             if (sessionData) {
                 // Restore session to memory
                 const runtimeConfig = this.services.stateManager.getRuntimeConfig();
@@ -699,9 +667,8 @@ export class SessionManager {
             this.sessions.delete(sessionId);
         }
 
-        // Remove from cache but preserve database storage
-        const sessionKey = `session:${sessionId}`;
-        await this.services.storageManager.getCache().delete(sessionKey);
+        // Remove from cache but preserve durable storage
+        await this.services.sessionStore.evictSession({ sessionId });
         this.evictSessionInteractionState(sessionId);
 
         this.logger.debug(
@@ -726,13 +693,9 @@ export class SessionManager {
         }
 
         // Remove session metadata from storage
-        const sessionKey = `session:${sessionId}`;
-        await this.services.storageManager.getDatabase().delete(sessionKey);
-        await this.services.storageManager.getCache().delete(sessionKey);
+        await this.services.sessionStore.deleteSession({ sessionId });
         await this.deleteSessionInteractionState(sessionId);
-
-        const messagesKey = `messages:${sessionId}`;
-        await this.services.storageManager.getDatabase().delete(messagesKey);
+        await this.services.conversationStore.clearMessages({ sessionId });
 
         this.logger.debug(`Deleted session and conversation history: ${sessionId}`);
     }
@@ -752,7 +715,7 @@ export class SessionManager {
         }
 
         await session.reset();
-        await session.clearMessageQueue();
+        await session.clearPendingInput();
         await Promise.all([
             this.services.toolManager.deleteSessionState(sessionId),
             this.services.approvalManager.deleteSessionState(sessionId),
@@ -764,10 +727,8 @@ export class SessionManager {
         }
 
         // Reset message count in metadata
-        await this.runWithSessionDataLock(sessionId, async (sessionKey) => {
-            const sessionData = await this.services.storageManager
-                .getDatabase()
-                .get<SessionData>(sessionKey);
+        await this.runWithSessionDataLock(sessionId, async () => {
+            const sessionData = await this.services.sessionStore.getSession({ sessionId });
             if (!sessionData) {
                 return;
             }
@@ -775,7 +736,7 @@ export class SessionManager {
             sessionData.messageCount = 0;
             sessionData.lastActivity = Date.now();
             delete sessionData.llmOverride;
-            await this.persistSessionData(sessionKey, sessionData);
+            await this.persistSessionData(sessionId, sessionData);
         });
 
         this.logger.debug(`Reset session conversation: ${sessionId}`);
@@ -788,8 +749,7 @@ export class SessionManager {
      */
     public async listSessions(): Promise<string[]> {
         await this.ensureInitialized();
-        const sessionKeys = await this.services.storageManager.getDatabase().list('session:');
-        return sessionKeys.map((key) => key.replace('session:', ''));
+        return await this.services.sessionStore.listSessionIds();
     }
 
     /**
@@ -800,10 +760,7 @@ export class SessionManager {
      */
     public async getSessionMetadata(sessionId: string): Promise<SessionMetadata | undefined> {
         await this.ensureInitialized();
-        const sessionKey = `session:${sessionId}`;
-        const sessionData = await this.services.storageManager
-            .getDatabase()
-            .get<SessionData>(sessionKey);
+        const sessionData = await this.services.sessionStore.getSession({ sessionId });
         if (!sessionData) return undefined;
 
         return {
@@ -828,11 +785,7 @@ export class SessionManager {
         sessionId: string
     ): Promise<SessionPromptContributor[]> {
         await this.ensureInitialized();
-
-        const sessionKey = `session:${sessionId}`;
-        const sessionData = await this.services.storageManager
-            .getDatabase()
-            .get<SessionData>(sessionKey);
+        const sessionData = await this.services.sessionStore.getSession({ sessionId });
 
         if (!sessionData) {
             throw SessionError.notFound(sessionId);
@@ -847,10 +800,8 @@ export class SessionManager {
     ): Promise<boolean> {
         await this.ensureInitialized();
 
-        return await this.runWithSessionDataLock(sessionId, async (sessionKey) => {
-            const sessionData = await this.services.storageManager
-                .getDatabase()
-                .get<SessionData>(sessionKey);
+        return await this.runWithSessionDataLock(sessionId, async () => {
+            const sessionData = await this.services.sessionStore.getSession({ sessionId });
 
             if (!sessionData) {
                 throw SessionError.notFound(sessionId);
@@ -867,7 +818,7 @@ export class SessionManager {
             sessionData.metadata.systemPromptContributors = next;
             sessionData.lastActivity = Date.now();
 
-            await this.persistSessionData(sessionKey, sessionData);
+            await this.persistSessionData(sessionId, sessionData);
             return replaced;
         });
     }
@@ -878,10 +829,8 @@ export class SessionManager {
     ): Promise<boolean> {
         await this.ensureInitialized();
 
-        return await this.runWithSessionDataLock(sessionId, async (sessionKey) => {
-            const sessionData = await this.services.storageManager
-                .getDatabase()
-                .get<SessionData>(sessionKey);
+        return await this.runWithSessionDataLock(sessionId, async () => {
+            const sessionData = await this.services.sessionStore.getSession({ sessionId });
 
             if (!sessionData) {
                 throw SessionError.notFound(sessionId);
@@ -899,7 +848,7 @@ export class SessionManager {
             sessionData.metadata.systemPromptContributors = next;
             sessionData.lastActivity = Date.now();
 
-            await this.persistSessionData(sessionKey, sessionData);
+            await this.persistSessionData(sessionId, sessionData);
             return true;
         });
     }
@@ -924,10 +873,8 @@ export class SessionManager {
     public async markUntrackedChatGPTLoginUsage(sessionId: string): Promise<void> {
         await this.ensureInitialized();
 
-        await this.runWithSessionDataLock(sessionId, async (sessionKey) => {
-            const sessionData = await this.services.storageManager
-                .getDatabase()
-                .get<SessionData>(sessionKey);
+        await this.runWithSessionDataLock(sessionId, async () => {
+            const sessionData = await this.services.sessionStore.getSession({ sessionId });
 
             if (!sessionData || sessionData.usageTracking?.hasUntrackedChatGPTLoginUsage) {
                 return;
@@ -938,7 +885,7 @@ export class SessionManager {
                 hasUntrackedChatGPTLoginUsage: true,
             };
 
-            await this.persistSessionData(sessionKey, sessionData);
+            await this.persistSessionData(sessionId, sessionData);
         });
     }
 
@@ -956,17 +903,15 @@ export class SessionManager {
      * Updates the last activity timestamp for a session.
      */
     private async updateSessionActivity(sessionId: string): Promise<void> {
-        await this.runWithSessionDataLock(sessionId, async (sessionKey) => {
-            const sessionData = await this.services.storageManager
-                .getDatabase()
-                .get<SessionData>(sessionKey);
+        await this.runWithSessionDataLock(sessionId, async () => {
+            const sessionData = await this.services.sessionStore.getSession({ sessionId });
 
             if (!sessionData) {
                 return;
             }
 
             sessionData.lastActivity = Date.now();
-            await this.persistSessionData(sessionKey, sessionData);
+            await this.persistSessionData(sessionId, sessionData);
         });
     }
 
@@ -976,10 +921,8 @@ export class SessionManager {
     public async incrementMessageCount(sessionId: string): Promise<void> {
         await this.ensureInitialized();
 
-        await this.runWithSessionDataLock(sessionId, async (sessionKey) => {
-            const sessionData = await this.services.storageManager
-                .getDatabase()
-                .get<SessionData>(sessionKey);
+        await this.runWithSessionDataLock(sessionId, async () => {
+            const sessionData = await this.services.sessionStore.getSession({ sessionId });
 
             if (!sessionData) {
                 return;
@@ -987,7 +930,7 @@ export class SessionManager {
 
             sessionData.messageCount++;
             sessionData.lastActivity = Date.now();
-            await this.persistSessionData(sessionKey, sessionData);
+            await this.persistSessionData(sessionId, sessionData);
         });
     }
 
@@ -1010,16 +953,16 @@ export class SessionManager {
     ): Promise<void> {
         await this.ensureInitialized();
 
-        await this.runWithSessionDataLock(sessionId, async (sessionKey) => {
-            const sessionData = await this.services.storageManager
-                .getDatabase()
-                .get<SessionData>(sessionKey);
+        await this.runWithSessionDataLock(sessionId, async () => {
+            const sessionData = await this.services.sessionStore.getSession({ sessionId });
+            const normalizedUsage = normalizeTokenUsageForAccounting(usage);
+            const finiteCost = typeof cost === 'number' && Number.isFinite(cost) ? cost : undefined;
 
             if (!sessionData) return;
 
             // Update per-model statistics if model info provided
             if (modelInfo) {
-                this.updateModelStats(sessionData, usage, cost, modelInfo);
+                this.updateModelStats(sessionData, normalizedUsage, finiteCost, modelInfo);
             }
 
             // Initialize if needed
@@ -1035,16 +978,16 @@ export class SessionManager {
             }
 
             // Accumulate aggregate totals using helper
-            this.accumulateTokensInto(sessionData.tokenUsage, usage);
+            this.accumulateTokensInto(sessionData.tokenUsage, normalizedUsage);
 
             // Add cost if provided
-            if (cost !== undefined) {
-                sessionData.estimatedCost = (sessionData.estimatedCost ?? 0) + cost;
+            if (finiteCost !== undefined) {
+                sessionData.estimatedCost = (sessionData.estimatedCost ?? 0) + finiteCost;
             }
 
             sessionData.lastActivity = Date.now();
 
-            await this.persistSessionData(sessionKey, sessionData);
+            await this.persistSessionData(sessionId, sessionData);
         });
     }
 
@@ -1131,10 +1074,8 @@ export class SessionManager {
         await this.ensureInitialized();
 
         const normalized = title.trim().slice(0, 80);
-        await this.runWithSessionDataLock(sessionId, async (sessionKey) => {
-            const sessionData = await this.services.storageManager
-                .getDatabase()
-                .get<SessionData>(sessionKey);
+        await this.runWithSessionDataLock(sessionId, async () => {
+            const sessionData = await this.services.sessionStore.getSession({ sessionId });
 
             if (!sessionData) {
                 throw SessionError.notFound(sessionId);
@@ -1148,7 +1089,7 @@ export class SessionManager {
             sessionData.metadata.title = normalized;
             sessionData.lastActivity = Date.now();
 
-            await this.persistSessionData(sessionKey, sessionData);
+            await this.persistSessionData(sessionId, sessionData);
         });
     }
 
@@ -1157,10 +1098,7 @@ export class SessionManager {
      */
     public async getSessionTitle(sessionId: string): Promise<string | undefined> {
         await this.ensureInitialized();
-        const sessionKey = `session:${sessionId}`;
-        const sessionData = await this.services.storageManager
-            .getDatabase()
-            .get<SessionData>(sessionKey);
+        const sessionData = await this.services.sessionStore.getSession({ sessionId });
         return sessionData?.metadata?.title;
     }
 
@@ -1174,10 +1112,7 @@ export class SessionManager {
 
         // Check in-memory sessions for expiry
         for (const [sessionId, _session] of this.sessions.entries()) {
-            const sessionKey = `session:${sessionId}`;
-            const sessionData = await this.services.storageManager
-                .getDatabase()
-                .get<SessionData>(sessionKey);
+            const sessionData = await this.services.sessionStore.getSession({ sessionId });
 
             if (sessionData && now - sessionData.lastActivity > this.sessionTTL) {
                 expiredSessions.push(sessionId);
@@ -1339,10 +1274,8 @@ export class SessionManager {
         sessionId: string,
         llmOverride: PersistedLLMConfig | undefined
     ): Promise<void> {
-        await this.runWithSessionDataLock(sessionId, async (sessionKey) => {
-            const sessionData = await this.services.storageManager
-                .getDatabase()
-                .get<SessionData>(sessionKey);
+        await this.runWithSessionDataLock(sessionId, async () => {
+            const sessionData = await this.services.sessionStore.getSession({ sessionId });
             if (!sessionData) {
                 return;
             }
@@ -1352,7 +1285,7 @@ export class SessionManager {
             } else {
                 delete sessionData.llmOverride;
             }
-            await this.persistSessionData(sessionKey, sessionData);
+            await this.persistSessionData(sessionId, sessionData);
         });
     }
 
@@ -1361,7 +1294,8 @@ export class SessionManager {
         await Promise.all([
             this.services.toolManager.deleteSessionState(sessionId),
             this.services.approvalManager.deleteSessionState(sessionId),
-            this.services.messageQueueStore.delete(sessionId),
+            this.services.steerQueueStore.delete({ sessionId }),
+            this.services.followUpQueueStore.delete({ sessionId }),
         ]);
     }
 
@@ -1370,13 +1304,10 @@ export class SessionManager {
         this.services.approvalManager.evictSessionState(sessionId);
     }
 
-    private async runWithSessionDataLock<T>(
-        sessionId: string,
-        fn: (sessionKey: string) => Promise<T>
-    ): Promise<T> {
+    private async runWithSessionDataLock<T>(sessionId: string, fn: () => Promise<T>): Promise<T> {
         const sessionKey = `session:${sessionId}`;
         const previousLock = this.sessionDataLocks.get(sessionKey) ?? Promise.resolve();
-        const currentResult = previousLock.catch(() => {}).then(() => fn(sessionKey));
+        const currentResult = previousLock.catch(() => {}).then(() => fn());
         const currentLock = currentResult.then(
             () => undefined,
             () => undefined
@@ -1393,11 +1324,12 @@ export class SessionManager {
         }
     }
 
-    private async persistSessionData(sessionKey: string, sessionData: SessionData): Promise<void> {
-        await this.services.storageManager.getDatabase().set(sessionKey, sessionData);
-        await this.services.storageManager
-            .getCache()
-            .set(sessionKey, sessionData, this.sessionTTL / 1000);
+    private async persistSessionData(sessionId: string, sessionData: SessionData): Promise<void> {
+        await this.services.sessionStore.saveSession({
+            sessionId,
+            session: sessionData,
+            ttlSeconds: this.sessionTTL / 1000,
+        });
     }
 
     /**
@@ -1430,8 +1362,7 @@ export class SessionManager {
      */
     public async getSessionData(sessionId: string): Promise<SessionData | undefined> {
         await this.ensureInitialized();
-        const sessionKey = `session:${sessionId}`;
-        return await this.services.storageManager.getDatabase().get<SessionData>(sessionKey);
+        return await this.services.sessionStore.getSession({ sessionId });
     }
 
     /**

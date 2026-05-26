@@ -329,6 +329,8 @@ export interface InputState {
     pastedBlocks: PastedBlock[];
     /** Counter for generating sequential paste numbers */
     pasteCounter: number;
+    /** True while editing a queued follow-up pulled back into the input */
+    editingQueuedFollowUp: boolean;
 }
 
 export interface InsufficientCreditsState {

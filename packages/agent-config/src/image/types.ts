@@ -1,12 +1,12 @@
 import type {
-    BlobStore,
-    Cache,
     DextoAgentConfigInput,
-    Database,
+    DextoStores,
     Hook,
     Logger,
     CompactionStrategy as CompactionStrategy,
     Tool,
+    WorkspaceHandleProvider,
+    SkillSource,
 } from '@dexto/core';
 import type { z } from 'zod';
 import type { AgentConfig, ValidatedAgentConfig } from '../schemas/agent-config.js';
@@ -46,6 +46,7 @@ export interface DextoHostContext<
     mode?: 'local' | 'server' | 'hosted';
     sessionId?: string;
     workspaceId?: string;
+    workspaceRoot?: string;
     runId?: string;
     attemptId?: string;
     clients?: TClients;
@@ -92,47 +93,16 @@ export interface ToolFactory<
     metadata?: ToolFactoryMetadata;
 }
 
-/**
- * Storage factories are keyed by `type` in the agent config (`storage.blob.type`, etc.).
- *
- * Factories may return a Promise to support lazy optional dependencies (e.g., sqlite/pg/redis).
- */
-export interface BlobStoreFactory<
+export interface StorageFactory<
     TConfig = unknown,
     THostContext extends DextoHostContext = DextoHostContext,
 > {
     configSchema: z.ZodType<TConfig, unknown>;
-    create(
+    createStores(
         config: TConfig,
         logger: Logger,
         context?: ImageResolutionContext<THostContext>
-    ): BlobStore | Promise<BlobStore>;
-    metadata?: Record<string, unknown> | undefined;
-}
-
-export interface DatabaseFactory<
-    TConfig = unknown,
-    THostContext extends DextoHostContext = DextoHostContext,
-> {
-    configSchema: z.ZodType<TConfig, unknown>;
-    create(
-        config: TConfig,
-        logger: Logger,
-        context?: ImageResolutionContext<THostContext>
-    ): Database | Promise<Database>;
-    metadata?: Record<string, unknown> | undefined;
-}
-
-export interface CacheFactory<
-    TConfig = unknown,
-    THostContext extends DextoHostContext = DextoHostContext,
-> {
-    configSchema: z.ZodType<TConfig, unknown>;
-    create(
-        config: TConfig,
-        logger: Logger,
-        context?: ImageResolutionContext<THostContext>
-    ): Cache | Promise<Cache>;
+    ): DextoStores | Promise<DextoStores>;
     metadata?: Record<string, unknown> | undefined;
 }
 
@@ -177,6 +147,18 @@ export interface LoggerFactory<
     metadata?: Record<string, unknown> | undefined;
 }
 
+export interface WorkspaceHandleProviderFactory<
+    THostContext extends DextoHostContext = DextoHostContext,
+> {
+    create(context?: ImageResolutionContext<THostContext>): WorkspaceHandleProvider;
+    metadata?: Record<string, unknown> | undefined;
+}
+
+export interface SkillSourceFactory<THostContext extends DextoHostContext = DextoHostContext> {
+    create(context?: ImageResolutionContext<THostContext>): SkillSource[] | Promise<SkillSource[]>;
+    metadata?: Record<string, unknown> | undefined;
+}
+
 /**
  * An image is a typed module that bundles defaults and a set of factories that a host (CLI/server/app)
  * may use to resolve config → concrete instances.
@@ -206,17 +188,12 @@ export interface DextoImage<THostContext extends DextoHostContext = DextoHostCon
      * Example: `{ "filesystem-tools": fileSystemToolsFactory }`.
      */
     tools: Record<string, ToolFactory<unknown, THostContext>>;
-    /**
-     * Storage factories keyed by config `type`.
-     */
-    storage: {
-        blob: Record<string, BlobStoreFactory<unknown, THostContext>>;
-        database: Record<string, DatabaseFactory<unknown, THostContext>>;
-        cache: Record<string, CacheFactory<unknown, THostContext>>;
-    };
+    storage: StorageFactory<unknown, THostContext>;
     hooks: Record<string, HookFactory<unknown, THostContext>>;
     compaction: Record<string, CompactionFactory<unknown, THostContext>>;
     logger: LoggerFactory<unknown, THostContext>;
+    workspace?: WorkspaceHandleProviderFactory<THostContext> | undefined;
+    skills?: SkillSourceFactory<THostContext> | undefined;
     resolveRuntimeConfig?(
         options: ResolveImageRuntimeConfigOptions<THostContext>
     ): DextoImageRuntimeConfigOverrides | undefined;
