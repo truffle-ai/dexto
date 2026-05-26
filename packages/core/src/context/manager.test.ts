@@ -262,6 +262,7 @@ describe('ContextManager', () => {
 
         it('should not rehydrate tool media for the LLM', async () => {
             const formatter = createMockFormatter();
+            const stores = new InMemoryDextoStores();
             const resourceManager = {
                 read: vi.fn(async (uri: string) => {
                     if (uri === 'blob:tool-image') {
@@ -272,7 +273,7 @@ describe('ContextManager', () => {
                     }
                     throw new Error(`Unexpected blob URI: ${uri}`);
                 }),
-                getBlobStore: vi.fn().mockReturnValue(createMockBlobStore()),
+                getArtifactStore: vi.fn().mockReturnValue(stores.getStore('artifacts')),
             } as unknown as ResourceManager;
 
             const contextManager = createContextManager({
