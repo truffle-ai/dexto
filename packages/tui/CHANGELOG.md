@@ -1,5 +1,18 @@
 # @dexto/tui
 
+## 1.8.0
+
+### Minor Changes
+
+- 241875a: Rebuild runtime storage, skills, workspace-backed tools, and turn execution architecture.
+
+### Patch Changes
+
+- Updated dependencies [241875a]
+    - @dexto/agent-management@1.8.0
+    - @dexto/core@1.8.0
+    - @dexto/registry@1.8.0
+
 ## 1.7.2
 
 ### Patch Changes

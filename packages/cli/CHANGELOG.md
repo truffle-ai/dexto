@@ -1,5 +1,26 @@
 # dexto
 
+## 1.8.0
+
+### Minor Changes
+
+- 241875a: Rebuild runtime storage, skills, workspace-backed tools, and turn execution architecture.
+
+### Patch Changes
+
+- Updated dependencies [241875a]
+    - @dexto/agent-config@1.8.0
+    - @dexto/agent-management@1.8.0
+    - @dexto/analytics@1.8.0
+    - @dexto/client-sdk@1.8.0
+    - @dexto/core@1.8.0
+    - @dexto/image-local@1.8.0
+    - @dexto/image-logger-agent@1.8.0
+    - @dexto/registry@1.8.0
+    - @dexto/server@1.8.0
+    - @dexto/storage@1.8.0
+    - @dexto/tui@1.8.0
+
 ## 1.7.2
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
     "name": "@dexto/core",
-    "version": "1.7.2",
+    "version": "1.8.0",
     "private": false,
     "type": "module",
     "main": "./dist/index.js",
@@ -239,5 +239,7 @@
     "publishConfig": {
         "access": "public"
     },
-    "sideEffects": ["./dist/chunk-*.js"]
+    "sideEffects": [
+        "./dist/chunk-*.js"
+    ]
 }

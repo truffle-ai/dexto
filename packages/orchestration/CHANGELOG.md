@@ -1,5 +1,16 @@
 # @dexto/orchestration
 
+## 1.8.0
+
+### Minor Changes
+
+- 241875a: Rebuild runtime storage, skills, workspace-backed tools, and turn execution architecture.
+
+### Patch Changes
+
+- Updated dependencies [241875a]
+    - @dexto/core@1.8.0
+
 ## 1.7.2
 
 ### Patch Changes
