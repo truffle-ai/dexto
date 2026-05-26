@@ -669,66 +669,87 @@ describe('Session Integration: Core-owned Interaction State Persistence', () => 
     });
 
     test('preserves durable expired sessions when startup cleanup evicts runtime state', async () => {
-        const sharedStorage = {
-            blob: createInMemoryBlobStore(),
-            cache: createInMemoryCache(),
-            database: createInMemoryDatabase(),
-        };
-        const sessionId = 'expired-persisted-interaction-session';
-        const approvedDirectory = path.join(os.tmpdir(), 'dexto-expired-persisted-approval');
+        const originalOpenAiApiKey = process.env.OPENAI_API_KEY;
+        process.env.OPENAI_API_KEY = 'test-key-123';
 
-        const agent1 = await createAgentWithSharedStorage('expired-state-agent-1', sharedStorage);
-        await agent1.createSession(sessionId);
-        await agent1.switchLLM({ model: 'gpt-5' }, sessionId);
-        await agent1.steer(sessionId, {
-            content: [{ type: 'text', text: 'stale queued follow-up' }],
-        });
-        await agent1.setSessionAutoApproveTools(sessionId, ['allowed_tool']);
-        await agent1.setSessionDisabledTools(sessionId, ['disabled_tool']);
-        await agent1.services.approvalManager.addPattern('bash_exec', 'git *', sessionId);
-        await agent1.services.approvalManager.addApprovedDirectory(
-            approvedDirectory,
-            'session',
-            sessionId
-        );
+        try {
+            const sharedStorage = {
+                blob: createInMemoryBlobStore(),
+                cache: createInMemoryCache(),
+                database: createInMemoryDatabase(),
+            };
+            const sessionId = 'expired-persisted-interaction-session';
+            const approvedDirectory = path.join(os.tmpdir(), 'dexto-expired-persisted-approval');
 
-        const database = sharedStorage.database;
-        const expiredSession = await database.get<SessionData>(`session:${sessionId}`);
-        if (!expiredSession) {
-            throw new Error(`Expected session '${sessionId}' to exist`);
-        }
-
-        expiredSession.lastActivity = Date.now() - 120000;
-        await database.set(`session:${sessionId}`, expiredSession);
-        await agent1.services.sessionManager.cleanup();
-
-        const agent2 = await createAgentWithSharedStorage('expired-state-agent-2', sharedStorage);
-
-        expect(await database.get(`session:${sessionId}`)).toBeDefined();
-        expect(await database.get(`session-steer-queue:${sessionId}`)).toBeUndefined();
-        expect(await database.get(`session-tool-preferences:${sessionId}`)).toBeDefined();
-        expect(await database.get(`session-approvals:${sessionId}`)).toBeDefined();
-
-        await agent2.getSession(sessionId);
-
-        expect(agent2.hasSessionLLMOverride(sessionId)).toBe(true);
-        expect(agent2.getCurrentLLMConfig(sessionId).model).toBe('gpt-5');
-        expect(await agent2.getSteerMessages(sessionId)).toEqual([]);
-        expect(await agent2.getSessionAutoApproveTools(sessionId)).toEqual(['allowed_tool']);
-
-        const enabledTools = await agent2.getEnabledTools(sessionId);
-        expect(Object.keys(enabledTools)).toContain('allowed_tool');
-        expect(Object.keys(enabledTools)).not.toContain('disabled_tool');
-
-        expect(
-            agent2.services.approvalManager.matchesPattern('bash_exec', 'git status *', sessionId)
-        ).toBe(true);
-        expect(
-            agent2.services.approvalManager.isDirectorySessionApproved(
-                path.join(approvedDirectory, 'file.ts'),
+            const agent1 = await createAgentWithSharedStorage(
+                'expired-state-agent-1',
+                sharedStorage
+            );
+            await agent1.createSession(sessionId);
+            await agent1.switchLLM({ model: 'gpt-5' }, sessionId);
+            await agent1.steer(sessionId, {
+                content: [{ type: 'text', text: 'stale queued follow-up' }],
+            });
+            await agent1.setSessionAutoApproveTools(sessionId, ['allowed_tool']);
+            await agent1.setSessionDisabledTools(sessionId, ['disabled_tool']);
+            await agent1.services.approvalManager.addPattern('bash_exec', 'git *', sessionId);
+            await agent1.services.approvalManager.addApprovedDirectory(
+                approvedDirectory,
+                'session',
                 sessionId
-            )
-        ).toBe(true);
+            );
+
+            const database = sharedStorage.database;
+            const expiredSession = await database.get<SessionData>(`session:${sessionId}`);
+            if (!expiredSession) {
+                throw new Error(`Expected session '${sessionId}' to exist`);
+            }
+
+            expiredSession.lastActivity = Date.now() - 120000;
+            await database.set(`session:${sessionId}`, expiredSession);
+            await agent1.services.sessionManager.cleanup();
+
+            const agent2 = await createAgentWithSharedStorage(
+                'expired-state-agent-2',
+                sharedStorage
+            );
+
+            expect(await database.get(`session:${sessionId}`)).toBeDefined();
+            expect(await database.get(`session-steer-queue:${sessionId}`)).toBeUndefined();
+            expect(await database.get(`session-tool-preferences:${sessionId}`)).toBeDefined();
+            expect(await database.get(`session-approvals:${sessionId}`)).toBeDefined();
+
+            await agent2.getSession(sessionId);
+
+            expect(agent2.hasSessionLLMOverride(sessionId)).toBe(true);
+            expect(agent2.getCurrentLLMConfig(sessionId).model).toBe('gpt-5');
+            expect(await agent2.getSteerMessages(sessionId)).toEqual([]);
+            expect(await agent2.getSessionAutoApproveTools(sessionId)).toEqual(['allowed_tool']);
+
+            const enabledTools = await agent2.getEnabledTools(sessionId);
+            expect(Object.keys(enabledTools)).toContain('allowed_tool');
+            expect(Object.keys(enabledTools)).not.toContain('disabled_tool');
+
+            expect(
+                agent2.services.approvalManager.matchesPattern(
+                    'bash_exec',
+                    'git status *',
+                    sessionId
+                )
+            ).toBe(true);
+            expect(
+                agent2.services.approvalManager.isDirectorySessionApproved(
+                    path.join(approvedDirectory, 'file.ts'),
+                    sessionId
+                )
+            ).toBe(true);
+        } finally {
+            if (originalOpenAiApiKey === undefined) {
+                delete process.env.OPENAI_API_KEY;
+            } else {
+                process.env.OPENAI_API_KEY = originalOpenAiApiKey;
+            }
+        }
     });
 
     test('newly created sessions do not inherit orphaned persisted interaction state', async () => {
