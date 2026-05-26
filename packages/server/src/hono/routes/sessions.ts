@@ -713,7 +713,9 @@ export function createSessionsRouter(
             const agent = await getAgent(ctx);
             const { sessionId } = ctx.req.param();
             const metadata = await agent.getSessionMetadata(sessionId);
-            const history = await agent.getSessionHistory(sessionId);
+            const history = await agent.getSessionHistory(sessionId, {
+                expandBlobReferences: false,
+            });
             return ctx.json(
                 {
                     session: {
@@ -728,7 +730,9 @@ export function createSessionsRouter(
             const agent = await getAgent(ctx);
             const { sessionId } = ctx.req.param();
             const [history, isBusy] = await Promise.all([
-                agent.getSessionHistory(sessionId),
+                agent.getSessionHistory(sessionId, {
+                    expandBlobReferences: false,
+                }),
                 agent.isSessionBusy(sessionId),
             ]);
             // TODO: Improve type alignment between core and server schemas.
