@@ -1,5 +1,26 @@
 # @dexto/image-local
 
+## 1.8.0
+
+### Minor Changes
+
+- 241875a: Rebuild runtime storage, skills, workspace-backed tools, and turn execution architecture.
+
+### Patch Changes
+
+- Updated dependencies [241875a]
+    - @dexto/agent-config@1.8.0
+    - @dexto/agent-management@1.8.0
+    - @dexto/core@1.8.0
+    - @dexto/storage@1.8.0
+    - @dexto/tools-builtins@1.8.0
+    - @dexto/tools-filesystem@1.8.0
+    - @dexto/tools-lifecycle@1.8.0
+    - @dexto/tools-plan@1.8.0
+    - @dexto/tools-process@1.8.0
+    - @dexto/tools-scheduler@1.8.0
+    - @dexto/tools-todo@1.8.0
+
 ## 1.7.2
 
 ### Patch Changes
