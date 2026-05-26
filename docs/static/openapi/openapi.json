@@ -2,7 +2,7 @@
   "openapi": "3.0.0",
   "info": {
     "title": "Dexto API",
-    "version": "1.7.1",
+    "version": "1.7.2",
     "description": "OpenAPI spec for the Dexto REST API server"
   },
   "servers": [
@@ -37174,7 +37174,7 @@
                           },
                           "type": {
                             "type": "string",
-                            "description": "The type of approval (tool_approval, command_confirmation, elicitation, etc.)"
+                            "description": "The type of approval (tool_approval, elicitation, etc.)"
                           },
                           "sessionId": {
                             "type": "string",
