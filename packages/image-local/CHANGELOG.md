@@ -1,5 +1,22 @@
 # @dexto/image-local
 
+## 1.8.1
+
+### Patch Changes
+
+- Updated dependencies [a50dd28]
+    - @dexto/core@1.8.1
+    - @dexto/agent-management@1.8.1
+    - @dexto/agent-config@1.8.1
+    - @dexto/storage@1.8.1
+    - @dexto/tools-builtins@1.8.1
+    - @dexto/tools-filesystem@1.8.1
+    - @dexto/tools-lifecycle@1.8.1
+    - @dexto/tools-plan@1.8.1
+    - @dexto/tools-process@1.8.1
+    - @dexto/tools-scheduler@1.8.1
+    - @dexto/tools-todo@1.8.1
+
 ## 1.8.0
 
 ### Minor Changes

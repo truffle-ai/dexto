@@ -1,5 +1,16 @@
 # @dexto/tui
 
+## 1.8.1
+
+### Patch Changes
+
+- a50dd28: Extract shared LLM catalog and reasoning metadata into @dexto/llm, wire core, CLI, TUI, server, and agent-management to consume it, and use OpenAI-compatible Dexto Nova transport semantics.
+- Updated dependencies [a50dd28]
+    - @dexto/llm@1.8.1
+    - @dexto/core@1.8.1
+    - @dexto/agent-management@1.8.1
+    - @dexto/registry@1.8.1
+
 ## 1.8.0
 
 ### Minor Changes
