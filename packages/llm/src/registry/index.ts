@@ -1290,6 +1290,12 @@ export function isReasoningCapableModel(model: string, provider?: LLMProvider): 
         return true;
     }
 
+    // Gemini 2.5+ and Gemini 3.x expose provider-native thinking controls. Keep this
+    // heuristic so newly released Gemini IDs can use the shared profile before models.dev lands.
+    if (modelLower.includes('gemini-2.5') || modelLower.includes('gemini-3')) {
+        return true;
+    }
+
     return false;
 }
 

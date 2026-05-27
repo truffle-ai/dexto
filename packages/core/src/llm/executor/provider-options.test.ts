@@ -115,15 +115,15 @@ describe('buildProviderOptions', () => {
             expect(
                 buildProviderOptions({
                     provider: 'anthropic',
-                    model: 'claude-opus-4-6',
-                    reasoning: { variant: 'max' },
+                    model: 'claude-opus-4-7',
+                    reasoning: { variant: 'xhigh' },
                 })
             ).toEqual({
                 anthropic: {
                     cacheControl: { type: 'ephemeral' },
                     sendReasoning: true,
                     thinking: { type: 'adaptive' },
-                    effort: 'max',
+                    effort: 'xhigh',
                 },
             });
         });
@@ -164,7 +164,7 @@ describe('buildProviderOptions', () => {
                     reasoning: undefined,
                 })
             ).toEqual({
-                google: { thinkingConfig: { includeThoughts: true, thinkingBudget: 2048 } },
+                google: { thinkingConfig: { includeThoughts: true, thinkingBudget: 16000 } },
             });
         });
     });
@@ -187,7 +187,27 @@ describe('buildProviderOptions', () => {
                 buildProviderOptions({
                     provider: 'google',
                     model: 'gemini-2.5-pro',
-                    reasoning: { variant: 'enabled', budgetTokens: 987 },
+                    reasoning: { variant: 'max' },
+                })
+            ).toEqual({
+                google: { thinkingConfig: { includeThoughts: true, thinkingBudget: 32768 } },
+            });
+
+            expect(
+                buildProviderOptions({
+                    provider: 'google',
+                    model: 'gemini-2.5-flash',
+                    reasoning: { variant: 'max' },
+                })
+            ).toEqual({
+                google: { thinkingConfig: { includeThoughts: true, thinkingBudget: 24576 } },
+            });
+
+            expect(
+                buildProviderOptions({
+                    provider: 'google',
+                    model: 'gemini-2.5-pro',
+                    reasoning: { variant: 'high', budgetTokens: 987 },
                 })
             ).toEqual({
                 google: { thinkingConfig: { includeThoughts: true, thinkingBudget: 987 } },
@@ -357,7 +377,7 @@ describe('buildProviderOptions', () => {
             expect(
                 buildProviderOptions({
                     provider: 'openrouter',
-                    model: 'google/gemini-3-pro-preview',
+                    model: 'google/gemini-3-flash-preview',
                     reasoning: { variant: 'minimal' },
                 })
             ).toEqual({
@@ -401,7 +421,7 @@ describe('buildProviderOptions', () => {
                     reasoning: { variant: 'high' as const },
                 },
                 {
-                    model: 'anthropic/claude-opus-4.6',
+                    model: 'anthropic/claude-opus-4.7',
                     reasoning: { variant: 'max' as const },
                 },
                 {
@@ -409,7 +429,7 @@ describe('buildProviderOptions', () => {
                     reasoning: { variant: 'enabled' as const, budgetTokens: 4321 },
                 },
                 {
-                    model: 'google/gemini-3-pro-preview',
+                    model: 'google/gemini-3-flash-preview',
                     reasoning: { variant: 'minimal' as const },
                 },
             ];

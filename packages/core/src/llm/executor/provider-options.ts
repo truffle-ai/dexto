@@ -5,6 +5,7 @@
 import type { LLMProvider, LLMReasoningConfig } from '@dexto/llm';
 import {
     ANTHROPIC_INTERLEAVED_THINKING_BETA,
+    getGoogleReasoningBudgetTokens,
     getReasoningProfile,
     isAnthropicAdaptiveThinkingModel,
     isOpenRouterGatewayProvider,
@@ -99,6 +100,7 @@ function buildAnthropicProviderOptions(config: {
             reasoningVariant === 'low' ||
             reasoningVariant === 'medium' ||
             reasoningVariant === 'high' ||
+            reasoningVariant === 'xhigh' ||
             reasoningVariant === 'max'
                 ? reasoningVariant
                 : undefined;
@@ -328,8 +330,9 @@ export function buildProviderOptions(
                 reasoningVariant === 'high')
                 ? reasoningVariant
                 : undefined;
+        const modelDefaultBudgetTokens = getGoogleReasoningBudgetTokens(model, reasoningVariant);
         const thinkingBudgetTokens = coerceBudgetTokens(
-            budgetTokens ?? GOOGLE_DEFAULT_BUDGET_TOKENS,
+            budgetTokens ?? modelDefaultBudgetTokens ?? GOOGLE_DEFAULT_BUDGET_TOKENS,
             1
         );
 

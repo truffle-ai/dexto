@@ -4054,26 +4054,6 @@ export const MODELS_BY_PROVIDER = {
             },
         },
         {
-            name: 'arcee-ai/trinity-large-thinking:free',
-            displayName: 'Trinity Large Thinking (free)',
-            maxInputTokens: 262144,
-            supportedFileTypes: [],
-            reasoning: true,
-            supportsTemperature: true,
-            supportsToolCall: true,
-            releaseDate: '2026-04-01',
-            modalities: {
-                input: ['text'],
-                output: ['text'],
-            },
-            pricing: {
-                inputPerM: 0,
-                outputPerM: 0,
-                currency: 'USD',
-                unit: 'per_million_tokens',
-            },
-        },
-        {
             name: 'arcee-ai/trinity-mini',
             displayName: 'Trinity Mini',
             maxInputTokens: 131072,
@@ -8741,7 +8721,7 @@ export const MODELS_BY_PROVIDER = {
         {
             name: 'poolside/laguna-m.1:free',
             displayName: 'Laguna M.1 (free)',
-            maxInputTokens: 131072,
+            maxInputTokens: 262144,
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
@@ -8904,7 +8884,6 @@ export const MODELS_BY_PROVIDER = {
             pricing: {
                 inputPerM: 0.26,
                 outputPerM: 0.78,
-                cacheWritePerM: 0.325,
                 currency: 'USD',
                 unit: 'per_million_tokens',
             },
@@ -9616,7 +9595,6 @@ export const MODELS_BY_PROVIDER = {
             pricing: {
                 inputPerM: 0.065,
                 outputPerM: 0.26,
-                cacheWritePerM: 0.08125,
                 currency: 'USD',
                 unit: 'per_million_tokens',
             },
@@ -9637,7 +9615,6 @@ export const MODELS_BY_PROVIDER = {
             pricing: {
                 inputPerM: 0.26,
                 outputPerM: 1.56,
-                cacheWritePerM: 0.325,
                 currency: 'USD',
                 unit: 'per_million_tokens',
             },
@@ -9658,6 +9635,7 @@ export const MODELS_BY_PROVIDER = {
             pricing: {
                 inputPerM: 0.3,
                 outputPerM: 1.8,
+                cacheWritePerM: 0.375,
                 currency: 'USD',
                 unit: 'per_million_tokens',
             },
@@ -9686,7 +9664,7 @@ export const MODELS_BY_PROVIDER = {
         {
             name: 'qwen/qwen3.6-35b-a3b',
             displayName: 'Qwen3.6 35B A3B',
-            maxInputTokens: 262140,
+            maxInputTokens: 262144,
             supportedFileTypes: ['image', 'video'],
             reasoning: true,
             supportsTemperature: true,
@@ -9699,6 +9677,7 @@ export const MODELS_BY_PROVIDER = {
             pricing: {
                 inputPerM: 0.15,
                 outputPerM: 1,
+                cacheReadPerM: 0.05,
                 currency: 'USD',
                 unit: 'per_million_tokens',
             },
@@ -9780,9 +9759,10 @@ export const MODELS_BY_PROVIDER = {
                 output: ['text'],
             },
             pricing: {
-                inputPerM: 2.5,
-                outputPerM: 7.5,
-                cacheWritePerM: 3.125,
+                inputPerM: 1.25,
+                outputPerM: 3.75,
+                cacheReadPerM: 0.25,
+                cacheWritePerM: 1.5625,
                 currency: 'USD',
                 unit: 'per_million_tokens',
             },
@@ -10373,9 +10353,9 @@ export const MODELS_BY_PROVIDER = {
             },
             supportsInterleaved: true,
             pricing: {
-                inputPerM: 0.4,
-                outputPerM: 2,
-                cacheReadPerM: 0.08,
+                inputPerM: 0.14,
+                outputPerM: 0.28,
+                cacheReadPerM: 0.0028,
                 currency: 'USD',
                 unit: 'per_million_tokens',
             },
@@ -10398,9 +10378,9 @@ export const MODELS_BY_PROVIDER = {
             },
             supportsInterleaved: true,
             pricing: {
-                inputPerM: 1,
-                outputPerM: 3,
-                cacheReadPerM: 0.2,
+                inputPerM: 0.435,
+                outputPerM: 0.87,
+                cacheReadPerM: 0.0036,
                 currency: 'USD',
                 unit: 'per_million_tokens',
             },
@@ -10449,7 +10429,7 @@ export const MODELS_BY_PROVIDER = {
         {
             name: 'z-ai/glm-4.5-air',
             displayName: 'GLM-4.5-Air',
-            maxInputTokens: 131072,
+            maxInputTokens: 131070,
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
@@ -10460,9 +10440,8 @@ export const MODELS_BY_PROVIDER = {
                 output: ['text'],
             },
             pricing: {
-                inputPerM: 0.13,
-                outputPerM: 0.85,
-                cacheReadPerM: 0.025,
+                inputPerM: 0.125,
+                outputPerM: 0.84,
                 currency: 'USD',
                 unit: 'per_million_tokens',
             },
@@ -14531,26 +14510,6 @@ export const MODELS_BY_PROVIDER = {
             },
         },
         {
-            name: 'arcee-ai/trinity-large-thinking:free',
-            displayName: 'Trinity Large Thinking (free)',
-            maxInputTokens: 262144,
-            supportedFileTypes: [],
-            reasoning: true,
-            supportsTemperature: true,
-            supportsToolCall: true,
-            releaseDate: '2026-04-01',
-            modalities: {
-                input: ['text'],
-                output: ['text'],
-            },
-            pricing: {
-                inputPerM: 0,
-                outputPerM: 0,
-                currency: 'USD',
-                unit: 'per_million_tokens',
-            },
-        },
-        {
             name: 'arcee-ai/trinity-mini',
             displayName: 'Trinity Mini',
             maxInputTokens: 131072,
@@ -19218,7 +19177,7 @@ export const MODELS_BY_PROVIDER = {
         {
             name: 'poolside/laguna-m.1:free',
             displayName: 'Laguna M.1 (free)',
-            maxInputTokens: 131072,
+            maxInputTokens: 262144,
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
@@ -19381,7 +19340,6 @@ export const MODELS_BY_PROVIDER = {
             pricing: {
                 inputPerM: 0.26,
                 outputPerM: 0.78,
-                cacheWritePerM: 0.325,
                 currency: 'USD',
                 unit: 'per_million_tokens',
             },
@@ -20093,7 +20051,6 @@ export const MODELS_BY_PROVIDER = {
             pricing: {
                 inputPerM: 0.065,
                 outputPerM: 0.26,
-                cacheWritePerM: 0.08125,
                 currency: 'USD',
                 unit: 'per_million_tokens',
             },
@@ -20114,7 +20071,6 @@ export const MODELS_BY_PROVIDER = {
             pricing: {
                 inputPerM: 0.26,
                 outputPerM: 1.56,
-                cacheWritePerM: 0.325,
                 currency: 'USD',
                 unit: 'per_million_tokens',
             },
@@ -20135,6 +20091,7 @@ export const MODELS_BY_PROVIDER = {
             pricing: {
                 inputPerM: 0.3,
                 outputPerM: 1.8,
+                cacheWritePerM: 0.375,
                 currency: 'USD',
                 unit: 'per_million_tokens',
             },
@@ -20163,7 +20120,7 @@ export const MODELS_BY_PROVIDER = {
         {
             name: 'qwen/qwen3.6-35b-a3b',
             displayName: 'Qwen3.6 35B A3B',
-            maxInputTokens: 262140,
+            maxInputTokens: 262144,
             supportedFileTypes: ['image', 'video'],
             reasoning: true,
             supportsTemperature: true,
@@ -20176,6 +20133,7 @@ export const MODELS_BY_PROVIDER = {
             pricing: {
                 inputPerM: 0.15,
                 outputPerM: 1,
+                cacheReadPerM: 0.05,
                 currency: 'USD',
                 unit: 'per_million_tokens',
             },
@@ -20257,9 +20215,10 @@ export const MODELS_BY_PROVIDER = {
                 output: ['text'],
             },
             pricing: {
-                inputPerM: 2.5,
-                outputPerM: 7.5,
-                cacheWritePerM: 3.125,
+                inputPerM: 1.25,
+                outputPerM: 3.75,
+                cacheReadPerM: 0.25,
+                cacheWritePerM: 1.5625,
                 currency: 'USD',
                 unit: 'per_million_tokens',
             },
@@ -20850,9 +20809,9 @@ export const MODELS_BY_PROVIDER = {
             },
             supportsInterleaved: true,
             pricing: {
-                inputPerM: 0.4,
-                outputPerM: 2,
-                cacheReadPerM: 0.08,
+                inputPerM: 0.14,
+                outputPerM: 0.28,
+                cacheReadPerM: 0.0028,
                 currency: 'USD',
                 unit: 'per_million_tokens',
             },
@@ -20875,9 +20834,9 @@ export const MODELS_BY_PROVIDER = {
             },
             supportsInterleaved: true,
             pricing: {
-                inputPerM: 1,
-                outputPerM: 3,
-                cacheReadPerM: 0.2,
+                inputPerM: 0.435,
+                outputPerM: 0.87,
+                cacheReadPerM: 0.0036,
                 currency: 'USD',
                 unit: 'per_million_tokens',
             },
@@ -20926,7 +20885,7 @@ export const MODELS_BY_PROVIDER = {
         {
             name: 'z-ai/glm-4.5-air',
             displayName: 'GLM-4.5-Air',
-            maxInputTokens: 131072,
+            maxInputTokens: 131070,
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
@@ -20937,9 +20896,8 @@ export const MODELS_BY_PROVIDER = {
                 output: ['text'],
             },
             pricing: {
-                inputPerM: 0.13,
-                outputPerM: 0.85,
-                cacheReadPerM: 0.025,
+                inputPerM: 0.125,
+                outputPerM: 0.84,
                 currency: 'USD',
                 unit: 'per_million_tokens',
             },

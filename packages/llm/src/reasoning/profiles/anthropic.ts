@@ -1,6 +1,7 @@
 import {
     isAnthropicAdaptiveThinkingModel,
     isAnthropicOpusAdaptiveThinkingModel,
+    isAnthropicOpusXhighThinkingModel,
 } from '../anthropic-thinking.js';
 import {
     buildBudgetProfile,
@@ -20,6 +21,10 @@ function buildAnthropicAdaptiveProfile(config: {
         variants.push(option('disabled'));
     }
     variants.push(option('low'), option('medium'), option('high'));
+
+    if (isAnthropicOpusXhighThinkingModel(config.model)) {
+        variants.push(option('xhigh'));
+    }
 
     if (isAnthropicOpusAdaptiveThinkingModel(config.model)) {
         variants.push(option('max'));

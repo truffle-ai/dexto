@@ -11,6 +11,8 @@ const OPENROUTER_REASONING_EXCLUDED_FAMILIES = [
     'k2p5',
 ] as const;
 
+// Reference gateway-specific reasoning quirks against pi-mono and opencode before changing this
+// allowlist. Some families expose reasoning, but need provider-specific payloads we do not send yet.
 type OpenRouterGatewayProvider = 'openrouter' | 'dexto-nova';
 type OpenRouterTargetRule = {
     upstreamProvider: LLMProvider;
