@@ -5,7 +5,7 @@ import fsExtra from 'fs-extra';
 import path from 'node:path';
 import { getPackageManager, getPackageManagerInstallCommand } from '../utils/package-mgmt.js';
 import { executeWithTimeout } from '../utils/execute.js';
-import { type LLMProvider, getDefaultModelForProvider } from '@dexto/core';
+import { type LLMProvider, getDefaultModelForProvider } from '@dexto/llm';
 import { saveProviderApiKey } from '@dexto/agent-management';
 import {
     getProviderDisplayName,

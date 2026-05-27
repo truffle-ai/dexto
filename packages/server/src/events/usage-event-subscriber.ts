@@ -1,13 +1,12 @@
 import { setMaxListeners } from 'events';
 import {
     AgentEventBus,
-    calculateCostBreakdown,
-    getModelPricing,
     hasMeaningfulTokenUsage,
     logger,
     type AgentEventMap,
     type Database,
 } from '@dexto/core';
+import { calculateCostBreakdown, getModelPricing } from '@dexto/llm';
 import type { EventSubscriber } from './types.js';
 import type {
     UsageEvent,

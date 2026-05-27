@@ -8,7 +8,7 @@
 
 import React, { useCallback, useRef, useEffect, useImperativeHandle, forwardRef } from 'react';
 import type { ContentPart, ImagePart, TextPart, QueuedMessage } from '@dexto/core';
-import { getReasoningProfile } from '@dexto/core';
+import { getReasoningProfile } from '@dexto/llm';
 import { InputArea, type OverlayTrigger } from '../components/input/InputArea.js';
 import { InputService, processStream } from '../services/index.js';
 import { useSoundService } from '../contexts/index.js';

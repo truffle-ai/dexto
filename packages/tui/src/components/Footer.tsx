@@ -6,12 +6,8 @@
 import { useEffect, useState } from 'react';
 import path from 'node:path';
 import { Box, Text } from 'ink';
-import {
-    getModelDisplayName,
-    getReasoningProfile,
-    parseCodexBaseURL,
-    type CodexRateLimitSnapshot,
-} from '@dexto/core';
+import { getModelDisplayName, getReasoningProfile } from '@dexto/llm';
+import { parseCodexBaseURL, type CodexRateLimitSnapshot } from '@dexto/core';
 import { getLLMProviderDisplayName } from '../utils/llm-provider-display.js';
 import {
     getChatGPTRateLimitHint,

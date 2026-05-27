@@ -1,5 +1,5 @@
 import { existsSync, readFileSync } from 'fs';
-import type { LLMProvider } from '../llm/types.js';
+import type { LLMProvider } from '@dexto/llm';
 import { getDextoGlobalPath } from './path.js';
 
 /**

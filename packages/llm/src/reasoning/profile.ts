@@ -57,7 +57,10 @@ function getNativeReasoningProfile(provider: LLMProvider, model: string): Reason
             return buildAnthropicReasoningProfile({ model, ...ANTHROPIC_PROFILE_CONFIG });
 
         case 'bedrock':
-            if (!isReasoningCapableModel(model, 'bedrock')) {
+            if (
+                !isReasoningCapableModel(model, 'bedrock') &&
+                !model.toLowerCase().includes('nova')
+            ) {
                 return nonCapableProfile();
             }
             return buildBedrockReasoningProfile(model);

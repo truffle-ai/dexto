@@ -6,7 +6,7 @@
 
 import type { ContentPart } from '../context/types.js';
 import type { LLMTokenUsage } from '../llm/services/types.js';
-import type { LLMProvider, LLMPricingStatus } from '../llm/types.js';
+import type { LLMProvider, LLMPricingStatus } from '@dexto/llm';
 import type { HostRuntimeContext } from '../runtime/index.js';
 
 /**

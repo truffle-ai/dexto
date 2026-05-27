@@ -1,4 +1,5 @@
-import { parseCodexBaseURL, type LLMProvider } from '@dexto/core';
+import { parseCodexBaseURL } from '@dexto/core';
+import type { LLMProvider } from '@dexto/llm';
 
 const LLM_PROVIDER_DISPLAY_NAMES: Record<LLMProvider, string> = {
     openai: 'OpenAI',

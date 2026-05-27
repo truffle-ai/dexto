@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { getSupportedProviders } from '@dexto/core';
+import { getSupportedProviders } from '@dexto/llm';
 import { isDextoAuthEnabled } from '@dexto/agent-management';
 import chalk from 'chalk';
 

@@ -1,4 +1,4 @@
-import type { LLMProvider } from '@dexto/core';
+import type { LLMProvider } from '@dexto/llm';
 import type { TuiAgentBackend } from '../agent-backend.js';
 
 export interface TuiShutdownHandle {

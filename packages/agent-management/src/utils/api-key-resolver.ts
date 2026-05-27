@@ -1,4 +1,4 @@
-import type { LLMProvider } from '@dexto/core';
+import type { LLMProvider } from '@dexto/llm';
 
 /**
  * Utility for resolving API keys from environment variables.

@@ -2,8 +2,8 @@ import {
     getDefaultModelForProvider,
     getModelDisplayName,
     isModelValidForProvider,
-    type CodexRateLimitSnapshot,
-} from '@dexto/core';
+} from '@dexto/llm';
+import { type CodexRateLimitSnapshot } from '@dexto/core';
 
 export const CHATGPT_RATE_LIMIT_WARNING_THRESHOLD = 80;
 

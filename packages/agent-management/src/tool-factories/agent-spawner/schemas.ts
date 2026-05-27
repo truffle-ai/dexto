@@ -4,7 +4,7 @@
  * Zod schemas for the agent spawner tools factory configuration and inputs.
  */
 
-import type { ReasoningVariant } from '@dexto/core';
+import type { ReasoningVariant } from '@dexto/llm';
 import { z } from 'zod';
 
 // ============================================================================

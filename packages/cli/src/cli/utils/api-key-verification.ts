@@ -1,6 +1,6 @@
 // packages/cli/src/cli/utils/api-key-verification.ts
 
-import type { LLMProvider } from '@dexto/core';
+import type { LLMProvider } from '@dexto/llm';
 import { logger } from '@dexto/core';
 
 export interface VerificationResult {

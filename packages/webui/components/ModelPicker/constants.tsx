@@ -1,6 +1,6 @@
 import React from 'react';
 import { Sparkles, FlaskConical, Zap } from 'lucide-react';
-import type { LLMProvider } from '@dexto/core';
+import type { LLMProvider } from '@dexto/llm';
 
 // Provider logo file mapping - single source of truth
 // Empty string means "use Bot icon fallback" in components

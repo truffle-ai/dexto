@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildProviderOptions, getEffectiveReasoningBudgetTokens } from './provider-options.js';
-import { ANTHROPIC_INTERLEAVED_THINKING_BETA } from '../reasoning/anthropic-betas.js';
+import { ANTHROPIC_INTERLEAVED_THINKING_BETA } from '@dexto/llm';
 
 describe('buildProviderOptions', () => {
     it('returns undefined for providers with no special options', () => {
@@ -115,15 +115,15 @@ describe('buildProviderOptions', () => {
             expect(
                 buildProviderOptions({
                     provider: 'anthropic',
-                    model: 'claude-opus-4-6',
-                    reasoning: { variant: 'max' },
+                    model: 'claude-opus-4-7',
+                    reasoning: { variant: 'xhigh' },
                 })
             ).toEqual({
                 anthropic: {
                     cacheControl: { type: 'ephemeral' },
                     sendReasoning: true,
                     thinking: { type: 'adaptive' },
-                    effort: 'max',
+                    effort: 'xhigh',
                 },
             });
         });
@@ -164,7 +164,7 @@ describe('buildProviderOptions', () => {
                     reasoning: undefined,
                 })
             ).toEqual({
-                google: { thinkingConfig: { includeThoughts: true, thinkingBudget: 2048 } },
+                google: { thinkingConfig: { includeThoughts: true, thinkingBudget: 16000 } },
             });
         });
     });
@@ -187,7 +187,27 @@ describe('buildProviderOptions', () => {
                 buildProviderOptions({
                     provider: 'google',
                     model: 'gemini-2.5-pro',
-                    reasoning: { variant: 'enabled', budgetTokens: 987 },
+                    reasoning: { variant: 'max' },
+                })
+            ).toEqual({
+                google: { thinkingConfig: { includeThoughts: true, thinkingBudget: 32768 } },
+            });
+
+            expect(
+                buildProviderOptions({
+                    provider: 'google',
+                    model: 'gemini-2.5-flash',
+                    reasoning: { variant: 'max' },
+                })
+            ).toEqual({
+                google: { thinkingConfig: { includeThoughts: true, thinkingBudget: 24576 } },
+            });
+
+            expect(
+                buildProviderOptions({
+                    provider: 'google',
+                    model: 'gemini-2.5-pro',
+                    reasoning: { variant: 'high', budgetTokens: 987 },
                 })
             ).toEqual({
                 google: { thinkingConfig: { includeThoughts: true, thinkingBudget: 987 } },
@@ -247,7 +267,7 @@ describe('buildProviderOptions', () => {
             expect(
                 buildProviderOptions({
                     provider: 'bedrock',
-                    model: 'amazon.nova-premier-v1:0',
+                    model: 'amazon.nova-pro-v1:0',
                 })
             ).toEqual({
                 bedrock: { reasoningConfig: { type: 'enabled', maxReasoningEffort: 'medium' } },
@@ -256,7 +276,7 @@ describe('buildProviderOptions', () => {
             expect(
                 buildProviderOptions({
                     provider: 'bedrock',
-                    model: 'amazon.nova-premier-v1:0',
+                    model: 'amazon.nova-pro-v1:0',
                     reasoning: { variant: 'high' },
                 })
             ).toEqual({
@@ -288,7 +308,7 @@ describe('buildProviderOptions', () => {
                     reasoning: { variant: 'high' },
                 })
             ).toEqual({
-                openrouter: {
+                'dexto-nova': {
                     include_reasoning: true,
                     reasoning: { enabled: true, effort: 'high' },
                 },
@@ -357,7 +377,7 @@ describe('buildProviderOptions', () => {
             expect(
                 buildProviderOptions({
                     provider: 'openrouter',
-                    model: 'google/gemini-3-pro-preview',
+                    model: 'google/gemini-3-flash-preview',
                     reasoning: { variant: 'minimal' },
                 })
             ).toEqual({
@@ -394,14 +414,14 @@ describe('buildProviderOptions', () => {
             ).toBeUndefined();
         });
 
-        it('keeps openrouter and dexto-nova option mapping aligned', () => {
+        it('keeps openrouter and dexto-nova option payloads aligned under their transport keys', () => {
             const cases = [
                 {
                     model: 'openai/gpt-5.2-codex',
                     reasoning: { variant: 'high' as const },
                 },
                 {
-                    model: 'anthropic/claude-opus-4.6',
+                    model: 'anthropic/claude-opus-4.7',
                     reasoning: { variant: 'max' as const },
                 },
                 {
@@ -409,7 +429,7 @@ describe('buildProviderOptions', () => {
                     reasoning: { variant: 'enabled' as const, budgetTokens: 4321 },
                 },
                 {
-                    model: 'google/gemini-3-pro-preview',
+                    model: 'google/gemini-3-flash-preview',
                     reasoning: { variant: 'minimal' as const },
                 },
             ];
@@ -425,7 +445,7 @@ describe('buildProviderOptions', () => {
                     model: testCase.model,
                     reasoning: testCase.reasoning,
                 });
-                expect(fromDextoNova).toEqual(fromOpenRouter);
+                expect(fromDextoNova?.['dexto-nova']).toEqual(fromOpenRouter?.openrouter);
             }
         });
     });
@@ -486,5 +506,14 @@ describe('getEffectiveReasoningBudgetTokens', () => {
             reasoning: { variant: 'high' },
         });
         expect(getEffectiveReasoningBudgetTokens(providerOptions)).toBeUndefined();
+    });
+
+    it('extracts effective budgets from dexto-nova gateway options', () => {
+        const providerOptions = buildProviderOptions({
+            provider: 'dexto-nova',
+            model: 'openai/gpt-5.2-codex',
+            reasoning: { variant: 'medium', budgetTokens: 1234 },
+        });
+        expect(getEffectiveReasoningBudgetTokens(providerOptions)).toBe(1234);
     });
 });

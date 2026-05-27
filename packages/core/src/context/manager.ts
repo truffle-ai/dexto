@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto';
 import { VercelMessageFormatter } from '../llm/formatters/vercel.js';
-import { LLMContext } from '../llm/types.js';
+import type { LLMContext } from '@dexto/llm';
 import type { InternalMessage, AssistantMessage, ToolCall } from './types.js';
 import { isSystemMessage, isUserMessage, isAssistantMessage, isToolMessage } from './types.js';
 import type { Logger } from '../logger/v2/types.js';
@@ -1006,7 +1006,7 @@ export class ContextManager<TMessage = unknown> {
         if (!allowedMediaTypes) {
             // Fall back to model capabilities from registry
             try {
-                const { getSupportedFileTypesForModel } = await import('../llm/registry/index.js');
+                const { getSupportedFileTypesForModel } = await import('@dexto/llm');
                 const { fileTypesToMimePatterns } = await import('./utils.js');
                 const supportedFileTypes = getSupportedFileTypesForModel(
                     llmContext.provider,

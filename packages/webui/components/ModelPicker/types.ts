@@ -1,4 +1,4 @@
-import type { SupportedFileType, LLMProvider } from '@dexto/core';
+import type { LLMProvider, SupportedFileType } from '@dexto/llm';
 
 export type ModelInfo = {
     name: string;

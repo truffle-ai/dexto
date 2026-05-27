@@ -6,13 +6,9 @@ import {
     type AgentConfig,
     type ValidatedAgentConfig,
 } from '@dexto/agent-config';
-import {
-    getPrimaryApiKeyEnvVar,
-    logger,
-    requiresApiKey,
-    requiresBaseURL,
-    resolveApiKeyForProvider,
-} from '@dexto/core';
+import { getPrimaryApiKeyEnvVar, resolveApiKeyForProvider } from '@dexto/agent-management';
+import { requiresApiKey, requiresBaseURL } from '@dexto/llm';
+import { logger } from '@dexto/core';
 import { getGlobalPreferencesPath } from '@dexto/agent-management';
 import {
     getBundledSyncTargetForAgentPath,

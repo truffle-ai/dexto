@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getSupportedModels, getSupportedProviders } from '../registry/index.js';
+import { getSupportedModels, getSupportedProviders } from '@dexto/llm';
 import { getReasoningProfile, supportsReasoningVariant } from './profile.js';
 
 describe('getReasoningProfile', () => {
@@ -17,8 +17,26 @@ describe('getReasoningProfile', () => {
         const profile = getReasoningProfile('openai', 'gpt-5.2-codex');
         expect(profile.capable).toBe(true);
         expect(profile.paradigm).toBe('effort');
-        expect(profile.supportedVariants).toEqual(['low', 'medium', 'high', 'xhigh']);
+        expect(profile.supportedVariants).toEqual(['none', 'low', 'medium', 'high', 'xhigh']);
         expect(profile.defaultVariant).toBe('medium');
+    });
+
+    it('tracks newer GPT-5.x xhigh reasoning support', () => {
+        expect(getReasoningProfile('openai', 'gpt-5.5').supportedVariants).toEqual([
+            'none',
+            'low',
+            'medium',
+            'high',
+            'xhigh',
+        ]);
+        expect(getReasoningProfile('openai', 'gpt-5.2-pro').supportedVariants).toEqual([
+            'medium',
+            'high',
+            'xhigh',
+        ]);
+        expect(getReasoningProfile('openai', 'gpt-5.2-chat-latest').supportedVariants).toEqual([
+            'medium',
+        ]);
     });
 
     it('returns Anthropic budget profile for pre-adaptive models', () => {
@@ -47,9 +65,15 @@ describe('getReasoningProfile', () => {
             paradigm: 'adaptive-effort',
             supportedVariants: ['disabled', 'low', 'medium', 'high', 'max'],
         });
+
+        expect(getReasoningProfile('anthropic', 'claude-opus-4-7')).toMatchObject({
+            capable: true,
+            paradigm: 'adaptive-effort',
+            supportedVariants: ['disabled', 'low', 'medium', 'high', 'xhigh', 'max'],
+        });
     });
 
-    it('returns Gemini 3 thinking-level profile', () => {
+    it('returns Gemini 3 thinking-level profile by model family', () => {
         expect(getReasoningProfile('google', 'gemini-3-flash-preview')).toMatchObject({
             capable: true,
             paradigm: 'thinking-level',
@@ -57,14 +81,44 @@ describe('getReasoningProfile', () => {
             defaultVariant: 'medium',
             supportsBudgetTokens: false,
         });
+
+        expect(getReasoningProfile('google', 'gemini-3.5-flash')).toMatchObject({
+            capable: true,
+            paradigm: 'thinking-level',
+            supportedVariants: ['disabled', 'minimal', 'low', 'medium', 'high'],
+            defaultVariant: 'medium',
+        });
+
+        expect(getReasoningProfile('google', 'gemini-3-pro-preview')).toMatchObject({
+            capable: true,
+            paradigm: 'thinking-level',
+            supportedVariants: ['disabled', 'low', 'medium', 'high'],
+            defaultVariant: 'medium',
+        });
+
+        expect(
+            getReasoningProfile('openrouter', 'google/gemini-3-pro-image-preview')
+        ).toMatchObject({
+            capable: true,
+            paradigm: 'thinking-level',
+            supportedVariants: ['disabled', 'high'],
+            defaultVariant: 'high',
+        });
+
+        expect(getReasoningProfile('google', 'gemini-3.1-flash-image-preview')).toMatchObject({
+            capable: true,
+            paradigm: 'thinking-level',
+            supportedVariants: ['disabled', 'minimal', 'high'],
+            defaultVariant: 'minimal',
+        });
     });
 
     it('returns Gemini 2.5 budget profile', () => {
         expect(getReasoningProfile('google', 'gemini-2.5-pro')).toMatchObject({
             capable: true,
             paradigm: 'budget',
-            supportedVariants: ['disabled', 'enabled'],
-            defaultVariant: 'enabled',
+            supportedVariants: ['disabled', 'high', 'max'],
+            defaultVariant: 'high',
             supportsBudgetTokens: true,
         });
     });
@@ -73,7 +127,7 @@ describe('getReasoningProfile', () => {
         expect(getReasoningProfile('openrouter', 'openai/gpt-5.2-codex')).toMatchObject({
             capable: true,
             paradigm: 'effort',
-            supportedVariants: ['low', 'medium', 'high', 'xhigh'],
+            supportedVariants: ['none', 'low', 'medium', 'high', 'xhigh'],
             defaultVariant: 'medium',
             supportsBudgetTokens: true,
         });
@@ -101,7 +155,7 @@ describe('getReasoningProfile', () => {
         expect(getReasoningProfile('openrouter', 'google/gemini-3-pro-preview')).toMatchObject({
             capable: true,
             paradigm: 'thinking-level',
-            supportedVariants: ['disabled', 'minimal', 'low', 'medium', 'high'],
+            supportedVariants: ['disabled', 'low', 'medium', 'high'],
             defaultVariant: 'medium',
             supportsBudgetTokens: true,
         });
@@ -116,8 +170,8 @@ describe('getReasoningProfile', () => {
             },
             {
                 nativeProvider: 'anthropic' as const,
-                nativeModel: 'claude-opus-4.6',
-                gatewayModel: 'anthropic/claude-opus-4.6',
+                nativeModel: 'claude-opus-4.7',
+                gatewayModel: 'anthropic/claude-opus-4.7',
             },
             {
                 nativeProvider: 'google' as const,

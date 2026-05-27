@@ -28,7 +28,8 @@ import {
     resolveApiKeyForProvider,
     determineApiKeyStorage,
 } from '@dexto/agent-management';
-import { logger, type LLMProvider } from '@dexto/core';
+import { logger } from '@dexto/core';
+import type { LLMProvider } from '@dexto/llm';
 
 // Import from new modular architecture
 import {

@@ -11,19 +11,27 @@ export function getSupportedOpenAIReasoningEfforts(model: string): OpenAIReasoni
     // OpenAI docs (model pages / API reference) indicate per-model constraints.
     // Keep this conservative and only add cases when we have reliable evidence.
     //
-    // Note: The Vercel AI SDK's OpenAI provider docs mention:
-    // - `none` is only available for GPT-5.1 models
-    // - `xhigh` is only available for GPT-5.1-Codex-Max
-    // Pi-mono indicates `xhigh` is supported by GPT-5.2 and GPT-5.3 model families as well.
+    // Reference this table against pi-mono and opencode before changing hardcoded model facts.
+    // They track provider behavior quickly and currently indicate:
+    // - `none` is supported by GPT-5.1 and newer non-pro/non-chat families
+    // - `xhigh` is supported by GPT-5.2 and newer non-chat families
+    // - GPT-5.2+ pro models support medium/high/xhigh, while base GPT-5 pro remains high-only
+    const version = parseGpt5Version(id);
+
+    if (isGpt5Chat(id)) {
+        return version === undefined ? [] : ['medium'];
+    }
+
     if (id.includes('gpt-5-pro')) {
         return ['high'];
     }
 
-    if (id.startsWith('gpt-5.3')) {
-        return ['low', 'medium', 'high', 'xhigh'];
+    if (isVersionedGpt5Pro(id)) {
+        return ['medium', 'high', 'xhigh'];
     }
-    if (id.startsWith('gpt-5.2')) {
-        return ['low', 'medium', 'high', 'xhigh'];
+
+    if (version !== undefined && version >= 2) {
+        return ['none', 'low', 'medium', 'high', 'xhigh'];
     }
 
     if (id.includes('gpt-5.1-codex-max')) {
@@ -41,6 +49,21 @@ export function getSupportedOpenAIReasoningEfforts(model: string): OpenAIReasoni
     }
 
     return ['low', 'medium', 'high'];
+}
+
+function parseGpt5Version(id: string): number | undefined {
+    const match = /(?:^|\/)gpt-5[.-](\d+)(?:[.-]|$)/.exec(id);
+    if (!match) return undefined;
+    const version = Number(match[1]);
+    return Number.isFinite(version) ? version : undefined;
+}
+
+function isVersionedGpt5Pro(id: string): boolean {
+    return /(?:^|\/)gpt-5[.-]\d+[.-]pro(?:[.-]|$)/.test(id);
+}
+
+function isGpt5Chat(id: string): boolean {
+    return /(?:^|\/)gpt-5(?:[.-]\d+)?[.-]chat(?:[.-]|$)/.test(id);
 }
 
 function getFallbackOrder(requested: OpenAIReasoningEffort): readonly OpenAIReasoningEffort[] {

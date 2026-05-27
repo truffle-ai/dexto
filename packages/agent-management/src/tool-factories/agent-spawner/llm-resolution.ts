@@ -15,7 +15,7 @@
  */
 
 import type { LLMConfig } from '@dexto/core';
-import { hasAllRegistryModelsSupport, transformModelNameForProvider } from '@dexto/core';
+import { hasAllRegistryModelsSupport, transformModelNameForProvider } from '@dexto/llm';
 
 /**
  * Result of resolving a sub-agent's LLM configuration

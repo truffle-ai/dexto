@@ -24,16 +24,16 @@ import type {
     DextoProviderContext,
     LanguageModelFactory,
 } from './types.js';
-import { requiresApiKey } from '../registry/index.js';
+import {
+    ANTHROPIC_BETA_HEADER,
+    ANTHROPIC_INTERLEAVED_THINKING_BETA,
+    requiresApiKey,
+    supportsAnthropicInterleavedThinking,
+} from '@dexto/llm';
 import { getPrimaryApiKeyEnvVar, resolveApiKeyForProvider } from '../../utils/api-key-resolver.js';
 import { createCodexLanguageModel } from '../providers/codex-app-server.js';
 import { isCodexBaseURL } from '../providers/codex-base-url.js';
 import { findDextoProjectRoot } from '../../utils/execution-context.js';
-import {
-    ANTHROPIC_BETA_HEADER,
-    ANTHROPIC_INTERLEAVED_THINKING_BETA,
-} from '../reasoning/anthropic-betas.js';
-import { supportsAnthropicInterleavedThinking } from '../reasoning/anthropic-thinking.js';
 
 function isLanguageModel(value: unknown): value is LanguageModel {
     if (!value || typeof value !== 'object') return false;
@@ -205,15 +205,15 @@ export function createVercelModel(
                 headers[DEXTO_GATEWAY_HEADERS.CLIENT_VERSION] = process.env.DEXTO_CLI_VERSION;
             }
 
-            // Model is already in OpenRouter format - pass through directly
-            const provider = createOpenRouter({
-                apiKey: apiKey ?? '',
+            // Dexto Gateway exposes an OpenAI-compatible /v1/chat/completions surface.
+            // Model IDs remain gateway model IDs, usually OpenRouter-style provider/model IDs.
+            const provider = createOpenAICompatible({
+                name: 'dexto-nova',
                 baseURL: dextoBaseURL,
                 headers,
-                // This is an OpenRouter-compatible gateway; keep strict mode to enable OR features.
-                compatibility: 'strict',
+                ...(apiKey?.trim() ? { apiKey } : {}),
             });
-            const chatModel = provider.chat(model);
+            const chatModel = provider.chatModel(model);
             if (!isLanguageModel(chatModel)) {
                 throw LLMError.generationFailed(
                     'Dexto gateway provider returned an invalid language model instance',

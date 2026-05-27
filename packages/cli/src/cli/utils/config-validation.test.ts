@@ -71,7 +71,14 @@ vi.mock('@dexto/core', () => ({
 }));
 
 vi.mock('@dexto/agent-management', () => ({
+    getPrimaryApiKeyEnvVar: vi.fn((provider: string) => {
+        if (provider === 'openai-compatible') {
+            return 'OPENAI_API_KEY';
+        }
+        return 'TEST_API_KEY';
+    }),
     getGlobalPreferencesPath: vi.fn(() => '/tmp/.dexto/preferences.yml'),
+    resolveApiKeyForProvider: vi.fn(() => undefined),
 }));
 
 describe('validateAgentConfig', () => {

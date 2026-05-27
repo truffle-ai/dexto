@@ -1,7 +1,7 @@
 import { promises as fs } from 'fs';
 import path from 'path';
 import { z } from 'zod';
-import { LLM_PROVIDERS, type LLMProvider } from '@dexto/core';
+import { LLM_PROVIDERS, type LLMProvider } from '@dexto/llm';
 import { getModelPickerStatePath } from './path-resolver.js';
 
 export const MODEL_PICKER_STATE_VERSION = 1;

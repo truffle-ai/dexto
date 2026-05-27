@@ -14,12 +14,8 @@
 import { randomUUID } from 'crypto';
 import type { AgentConfig } from '@dexto/agent-config';
 import type { DextoAgent, Logger, TaskForker } from '@dexto/core';
-import {
-    DextoRuntimeError,
-    ErrorType,
-    getReasoningProfile,
-    supportsReasoningVariant,
-} from '@dexto/core';
+import { DextoRuntimeError, ErrorType } from '@dexto/core';
+import { getReasoningProfile, supportsReasoningVariant } from '@dexto/llm';
 import { AgentRuntime } from '../../runtime/AgentRuntime.js';
 import { createDelegatingApprovalHandler } from '../../runtime/approval-delegation.js';
 import { loadAgentConfig } from '../../config/loader.js';

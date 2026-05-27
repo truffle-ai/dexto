@@ -17,7 +17,9 @@ import {
 import { Box, Text } from 'ink';
 import type { Key } from '../../hooks/useInputOrchestrator.js';
 import { useTerminalSize } from '../../hooks/useTerminalSize.js';
-import type { CodexModelInfo, LLMProvider, ReasoningVariant } from '@dexto/core';
+import type { CodexModelInfo } from '@dexto/core';
+import type { LLMProvider, ReasoningVariant } from '@dexto/llm';
+import { getModelDisplayName, getReasoningProfile } from '@dexto/llm';
 import {
     CodexAppServerClient,
     createCodexBaseURL,
@@ -25,9 +27,7 @@ import {
     DEFAULT_OLLAMA_URL,
     getLocalModelById,
     getCuratedModelRefsForProviders,
-    getModelDisplayName,
     getOpenRouterModelCacheInfo,
-    getReasoningProfile,
     parseCodexBaseURL,
     refreshOpenRouterModelCache,
 } from '@dexto/core';

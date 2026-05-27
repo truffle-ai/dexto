@@ -27,6 +27,7 @@
         { "path": "../agent-config" },
         { "path": "../client-sdk" },
         { "path": "../core" },
+        { "path": "../llm" },
         { "path": "../registry" },
         { "path": "../storage" }
     ]

@@ -17,6 +17,7 @@
   "dependencies": {
     "@dexto/agent-config": "workspace:*",
     "@dexto/core": "workspace:*",
+    "@dexto/llm": "workspace:*",
     "@dexto/orchestration": "workspace:*",
     "@dexto/tools-builtins": "workspace:*",
     "yaml": "^2.8.3",

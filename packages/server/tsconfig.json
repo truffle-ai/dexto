@@ -25,6 +25,7 @@
     { "path": "../agent-management" },
     { "path": "../core" },
     { "path": "../image-local" },
+    { "path": "../llm" },
     { "path": "../storage" }
   ]
 }

@@ -27,6 +27,7 @@
     "dependencies": {
         "@dexto/agent-management": "workspace:*",
         "@dexto/core": "workspace:*",
+        "@dexto/llm": "workspace:*",
         "@dexto/registry": "workspace:*",
         "chalk": "^5.6.0",
         "cli-highlight": "^2.1.11",

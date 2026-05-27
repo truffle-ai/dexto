@@ -1,4 +1,4 @@
-import type { LLMProvider } from './types.js';
+import type { LLMProvider } from '@dexto/llm';
 
 /**
  * Product-level curated model IDs per provider.
@@ -43,7 +43,7 @@ export const CURATED_MODEL_IDS_BY_PROVIDER: Partial<Record<LLMProvider, string[]
         'gemini-2.5-pro',
         'gemini-2.5-flash',
     ],
-    xai: ['grok-4', 'grok-3', 'grok-3-mini'],
+    xai: ['grok-4.3', 'grok-4.20-0309-reasoning', 'grok-4.20-0309-non-reasoning'],
     groq: ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'qwen-qwq-32b'],
     cohere: ['command-a-03-2025', 'command-r-plus-08-2024', 'command-r-08-2024'],
     minimax: ['MiniMax-M2.5', 'MiniMax-M2.1', 'MiniMax-M2'],
@@ -59,10 +59,10 @@ export const CURATED_MODEL_IDS_BY_PROVIDER: Partial<Record<LLMProvider, string[]
         'anthropic/claude-opus-4.5',
         'openai/gpt-5.2',
         'openai/gpt-5.2-codex',
-        'google/gemini-3-pro-preview',
+        'google/gemini-3.1-pro-preview',
         'google/gemini-3-flash-preview',
         'qwen/qwen3-coder:free',
-        'deepseek/deepseek-r1-0528:free',
+        'deepseek/deepseek-r1-0528',
         'z-ai/glm-4.7',
         'minimax/minimax-m2.5',
         'moonshotai/kimi-k2.5',

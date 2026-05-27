@@ -10,9 +10,9 @@ import type {
     InternalMessage,
     Issue,
     SanitizedToolResult,
-    LLMProvider,
     ToolPresentationSnapshotV1,
 } from '@dexto/core';
+import type { LLMProvider } from '@dexto/llm';
 import type {
     TextPart,
     ImagePart,
