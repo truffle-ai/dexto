@@ -44,6 +44,20 @@ function cloneModel(model: ModelInfo): ModelInfo {
                   },
               }
             : {}),
+        ...(model.pricing
+            ? {
+                  pricing: {
+                      ...model.pricing,
+                      ...(model.pricing.contextOver200kPerM
+                          ? { contextOver200kPerM: { ...model.pricing.contextOver200kPerM } }
+                          : {}),
+                  },
+              }
+            : {}),
+        ...(model.providerMetadata ? { providerMetadata: { ...model.providerMetadata } } : {}),
+        ...(model.interleaved && model.interleaved !== true
+            ? { interleaved: { ...model.interleaved } }
+            : {}),
     };
 }
 
@@ -71,7 +85,7 @@ function buildOpenRouterGatewayModelInfo(
     const inferredReasoning = cachedModel.supportedParameters?.includes('reasoning');
     const inferredSupportsTemperature = cachedModel.supportedParameters?.includes('temperature');
 
-    return {
+    return cloneModel({
         name: snapshot?.name ?? cachedModel.id,
         maxInputTokens,
         supportedFileTypes,
@@ -99,7 +113,7 @@ function buildOpenRouterGatewayModelInfo(
         ...(snapshot?.providerMetadata ? { providerMetadata: snapshot.providerMetadata } : {}),
         ...(snapshot?.interleaved ? { interleaved: snapshot.interleaved } : {}),
         ...(snapshot?.pricing ? { pricing: snapshot.pricing } : {}),
-    };
+    });
 }
 
 function getOpenRouterGatewayCatalogModels(): ModelInfo[] {
@@ -148,7 +162,7 @@ export function getAllModelsForProvider(
         const key = model.name.toLowerCase();
         if (seen.has(key)) continue;
         seen.add(key);
-        allModels.push({ ...model, originalProvider: 'openrouter' });
+        allModels.push({ ...cloneModel(model), originalProvider: 'openrouter' });
     }
 
     return allModels;

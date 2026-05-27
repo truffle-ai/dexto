@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import {
+    getAllModelsForProvider,
     getModel,
     getModelCapabilities,
     getProvider,
@@ -41,6 +42,26 @@ describe('@dexto/llm catalog helpers', () => {
         provider!.models.length = 0;
 
         expect(getProvider('openai')!.models.length).toBeGreaterThan(0);
+    });
+
+    it('does not expose mutable nested model metadata', () => {
+        const providerModel = getProvider('openai')!.models[0]!;
+        const originalProviderFileTypes = [...getProvider('openai')!.models[0]!.supportedFileTypes];
+        providerModel.supportedFileTypes.length = 0;
+
+        expect(getProvider('openai')!.models[0]!.supportedFileTypes).toEqual(
+            originalProviderFileTypes
+        );
+
+        const gatewayModel = getAllModelsForProvider('dexto-nova')[0]!;
+        const originalGatewayFileTypes = [
+            ...getAllModelsForProvider('dexto-nova')[0]!.supportedFileTypes,
+        ];
+        gatewayModel.supportedFileTypes.length = 0;
+
+        expect(getAllModelsForProvider('dexto-nova')[0]!.supportedFileTypes).toEqual(
+            originalGatewayFileTypes
+        );
     });
 
     it('lists gateway models and resolves known OpenRouter-format origins', () => {

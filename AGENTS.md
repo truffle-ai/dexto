@@ -143,7 +143,7 @@ Dexto infers its execution environment to enable context-aware defaults and path
 
 ## LLM Registry
 
-Dexto’s supported models live in core and are primarily sourced from `models.dev`.
+Dexto’s supported model catalog lives in `packages/llm` and is primarily sourced from `models.dev`.
 
 - **Registry source of truth:** `packages/llm/src/registry/index.ts` (consumes the generated snapshot + any manual overlays).
 - **Generated snapshot:** `packages/llm/src/registry/models.generated.ts` (generated from `models.dev` via `scripts/sync-llm-registry.ts`).
@@ -153,7 +153,7 @@ Dexto’s supported models live in core and are primarily sourced from `models.d
 - **Manual overlays / missing models:** `packages/llm/src/registry/models.manual.ts` (e.g. models missing capability metadata upstream).
 - **Curation for UI/onboarding:** `packages/core/src/llm/curation-config.ts` (explicit curated model IDs; used by `/llm/catalog?scope=curated` and default pickers).
 - **Runtime auto-update (Node-only):** `packages/core/src/llm/registry/auto-update.ts` caches a fetched registry at `~/.dexto/cache/llm-registry-models.json` (disable with `DEXTO_LLM_REGISTRY_DISABLE_FETCH=1`).
-- **Core compatibility:** `packages/core/src/llm/registry/index.ts` wraps `@dexto/llm` with core-specific typed errors and runtime OpenRouter cache behavior.
+- **Core compatibility:** `packages/core/src/llm/registry/index.ts` wraps the `packages/llm` catalog with core-specific typed errors and runtime OpenRouter cache behavior.
 - **Dexto gateway provider:** `dexto-nova` is generated from the OpenRouter snapshot and exposed through `@dexto/llm`; core may enrich it with the runtime OpenRouter cache.
 
 ## Zod / Schema Design

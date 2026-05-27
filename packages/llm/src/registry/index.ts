@@ -798,11 +798,11 @@ function findOpenRouterSnapshotModelById(modelId: string): ModelInfo | null {
 
 function getOpenRouterGatewayModelById(modelId: string): ModelInfo | null {
     const snapshot = findOpenRouterSnapshotModelById(modelId);
-    return snapshot ? { ...snapshot } : null;
+    return snapshot ? cloneModelInfo(snapshot) : null;
 }
 
 function getOpenRouterGatewayCatalogModels(): ModelInfo[] {
-    return LLM_REGISTRY.openrouter.models.map((m) => ({ ...m }));
+    return LLM_REGISTRY.openrouter.models.map(cloneModelInfo);
 }
 
 /**
@@ -818,14 +818,14 @@ export function getAllModelsForProvider(
 
     if (provider === 'openrouter') {
         return getOpenRouterGatewayCatalogModels().map((m) => ({
-            ...m,
+            ...cloneModelInfo(m),
             originalProvider: 'openrouter',
         }));
     }
 
     // If provider doesn't support all registry models, return its own models
     if (!providerInfo.supportsAllRegistryModels) {
-        return providerInfo.models.map((m) => ({ ...m }));
+        return providerInfo.models.map(cloneModelInfo);
     }
 
     const allModels: Array<ModelInfo & { originalProvider?: LLMProvider }> = [];
@@ -835,7 +835,7 @@ export function getAllModelsForProvider(
         const key = model.name.toLowerCase();
         if (seen.has(key)) continue;
         seen.add(key);
-        allModels.push({ ...model, originalProvider: provider });
+        allModels.push({ ...cloneModelInfo(model), originalProvider: provider });
     }
 
     // Gateway providers inherit the OpenRouter gateway catalog (OpenRouter-format IDs).
@@ -844,7 +844,7 @@ export function getAllModelsForProvider(
         const key = model.name.toLowerCase();
         if (seen.has(key)) continue;
         seen.add(key);
-        allModels.push({ ...model, originalProvider: 'openrouter' });
+        allModels.push({ ...cloneModelInfo(model), originalProvider: 'openrouter' });
     }
 
     return allModels;
