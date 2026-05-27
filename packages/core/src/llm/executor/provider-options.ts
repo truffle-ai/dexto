@@ -3,18 +3,16 @@
  */
 
 import type { LLMProvider, LLMReasoningConfig } from '../types.js';
-import { isReasoningCapableModel } from '@dexto/llm';
 import {
+    ANTHROPIC_INTERLEAVED_THINKING_BETA,
+    getReasoningProfile,
     isAnthropicAdaptiveThinkingModel,
+    isOpenRouterGatewayProvider,
+    isReasoningCapableModel,
     supportsAnthropicInterleavedThinking,
-} from '../reasoning/anthropic-thinking.js';
-import { ANTHROPIC_INTERLEAVED_THINKING_BETA } from '../reasoning/anthropic-betas.js';
-import { getReasoningProfile } from '../reasoning/profile.js';
-import { isOpenRouterGatewayProvider } from '../reasoning/profiles/openrouter.js';
-import {
-    type OpenAIReasoningEffort,
     supportsOpenAIReasoningEffort,
-} from '../reasoning/openai-reasoning-effort.js';
+    type OpenAIReasoningEffort,
+} from '@dexto/llm';
 
 export interface ProviderOptionsConfig {
     provider: LLMProvider;

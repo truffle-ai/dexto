@@ -9,11 +9,12 @@ import {
     supportsCustomModels,
     hasAllRegistryModelsSupport,
     getSupportedModels,
+    getReasoningProfile,
     isValidProviderModel,
+    supportsReasoningVariant,
 } from '@dexto/llm';
 import { getMaxInputTokensForModel } from './registry/index.js';
 import { LLM_PROVIDERS } from './types.js';
-import { getReasoningProfile, supportsReasoningVariant } from './reasoning/profile.js';
 
 /**
  * Default-free field definitions for LLM configuration.

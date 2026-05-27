@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildProviderOptions, getEffectiveReasoningBudgetTokens } from './provider-options.js';
-import { ANTHROPIC_INTERLEAVED_THINKING_BETA } from '../reasoning/anthropic-betas.js';
+import { ANTHROPIC_INTERLEAVED_THINKING_BETA } from '@dexto/llm';
 
 describe('buildProviderOptions', () => {
     it('returns undefined for providers with no special options', () => {
