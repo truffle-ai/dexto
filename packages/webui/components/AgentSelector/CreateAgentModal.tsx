@@ -13,7 +13,7 @@ import { Input } from '../ui/input';
 import { Textarea } from '../ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { AlertCircle, Loader2, Eye, EyeOff, Info } from 'lucide-react';
-import { LLM_PROVIDERS } from '@dexto/core';
+import { LLM_PROVIDERS } from '@dexto/llm';
 
 interface CreateAgentModalProps {
     open: boolean;
