@@ -165,12 +165,12 @@ function buildOpenRouterProviderOptions(config: {
     }
 
     if (reasoningVariant === 'disabled') {
-        return { openrouter: { include_reasoning: false } };
+        return { [provider]: { include_reasoning: false } };
     }
 
     if (budgetTokens !== undefined) {
         return {
-            openrouter: {
+            [provider]: {
                 include_reasoning: true,
                 reasoning: { enabled: true, max_tokens: budgetTokens },
             },
@@ -180,7 +180,7 @@ function buildOpenRouterProviderOptions(config: {
     if (profile.paradigm === 'budget') {
         if (reasoningVariant === undefined || reasoningVariant === 'enabled') {
             return {
-                openrouter: {
+                [provider]: {
                     include_reasoning: true,
                 },
             };
@@ -196,7 +196,7 @@ function buildOpenRouterProviderOptions(config: {
             : undefined);
 
     return {
-        openrouter: {
+        [provider]: {
             include_reasoning: true,
             ...(effort !== undefined ? { reasoning: { enabled: true, effort } } : {}),
         },
@@ -232,7 +232,8 @@ export function getEffectiveReasoningBudgetTokens(
     }
 
     const openrouter = asRecord(providerOptions['openrouter']);
-    const reasoning = asRecord(openrouter?.['reasoning']);
+    const dextoNova = asRecord(providerOptions['dexto-nova']);
+    const reasoning = asRecord(openrouter?.['reasoning'] ?? dextoNova?.['reasoning']);
     if (typeof reasoning?.['max_tokens'] === 'number') {
         return reasoning['max_tokens'];
     }

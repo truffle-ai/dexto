@@ -2,14 +2,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { LLMConfigSchema } from '../schemas.js';
 import { createVercelModel } from './factory.js';
 
-const { createOpenRouterMock } = vi.hoisted(() => {
+const { createOpenAICompatibleMock } = vi.hoisted(() => {
     return {
-        createOpenRouterMock: vi.fn(),
+        createOpenAICompatibleMock: vi.fn(),
     };
 });
 
-vi.mock('@openrouter/ai-sdk-provider', () => ({
-    createOpenRouter: createOpenRouterMock,
+vi.mock('@ai-sdk/openai-compatible', () => ({
+    createOpenAICompatible: createOpenAICompatibleMock,
 }));
 
 function createLanguageModelStub(modelId: string) {
@@ -28,10 +28,10 @@ function buildDextoConfig(overrides: Record<string, unknown> = {}) {
     });
 }
 
-function getLastOpenRouterBaseUrl(): string {
-    const lastCall = createOpenRouterMock.mock.calls.at(-1)?.[0];
+function getLastDextoNovaBaseUrl(): string {
+    const lastCall = createOpenAICompatibleMock.mock.calls.at(-1)?.[0];
     if (!lastCall || typeof lastCall !== 'object' || !('baseURL' in lastCall)) {
-        throw new Error('createOpenRouter call did not capture baseURL');
+        throw new Error('createOpenAICompatible call did not capture baseURL');
     }
 
     const { baseURL } = lastCall;
@@ -47,8 +47,8 @@ describe('createVercelModel dexto-nova base URL resolution', () => {
         vi.clearAllMocks();
         delete process.env.DEXTO_API_URL;
 
-        createOpenRouterMock.mockImplementation(({ baseURL }) => ({
-            chat: (model: string) => createLanguageModelStub(`${baseURL}:${model}`),
+        createOpenAICompatibleMock.mockImplementation(({ baseURL }) => ({
+            chatModel: (model: string) => createLanguageModelStub(`${baseURL}:${model}`),
         }));
     });
 
@@ -59,7 +59,7 @@ describe('createVercelModel dexto-nova base URL resolution', () => {
     it('uses the production gateway by default', () => {
         createVercelModel(buildDextoConfig());
 
-        expect(getLastOpenRouterBaseUrl()).toBe('https://api.dexto.ai/v1');
+        expect(getLastDextoNovaBaseUrl()).toBe('https://api.dexto.ai/v1');
     });
 
     it('uses llm.baseURL when explicitly provided', () => {
@@ -69,7 +69,7 @@ describe('createVercelModel dexto-nova base URL resolution', () => {
             })
         );
 
-        expect(getLastOpenRouterBaseUrl()).toBe('http://localhost:3001/v1');
+        expect(getLastDextoNovaBaseUrl()).toBe('http://localhost:3001/v1');
     });
 
     it('uses DEXTO_API_URL when no explicit baseURL is set', () => {
@@ -77,7 +77,7 @@ describe('createVercelModel dexto-nova base URL resolution', () => {
 
         createVercelModel(buildDextoConfig());
 
-        expect(getLastOpenRouterBaseUrl()).toBe('http://localhost:3001/v1');
+        expect(getLastDextoNovaBaseUrl()).toBe('http://localhost:3001/v1');
     });
 
     it('preserves DEXTO_API_URL when it already includes /v1', () => {
@@ -85,7 +85,7 @@ describe('createVercelModel dexto-nova base URL resolution', () => {
 
         createVercelModel(buildDextoConfig());
 
-        expect(getLastOpenRouterBaseUrl()).toBe('https://api.preview.dexto.ai/v1');
+        expect(getLastDextoNovaBaseUrl()).toBe('https://api.preview.dexto.ai/v1');
     });
 
     it('prefers explicit baseURL over DEXTO_API_URL', () => {
@@ -97,6 +97,28 @@ describe('createVercelModel dexto-nova base URL resolution', () => {
             })
         );
 
-        expect(getLastOpenRouterBaseUrl()).toBe('http://localhost:3001/v1');
+        expect(getLastDextoNovaBaseUrl()).toBe('http://localhost:3001/v1');
+    });
+
+    it('uses an OpenAI-compatible provider named dexto-nova with gateway headers', () => {
+        createVercelModel(
+            buildDextoConfig({
+                baseURL: 'http://localhost:3001/v1',
+            }),
+            {
+                clientSource: 'web',
+                sessionId: 'session-test',
+            }
+        );
+
+        expect(createOpenAICompatibleMock).toHaveBeenCalledWith({
+            apiKey: 'dxt_test_key',
+            baseURL: 'http://localhost:3001/v1',
+            headers: {
+                'X-Dexto-Session-ID': 'session-test',
+                'X-Dexto-Source': 'web',
+            },
+            name: 'dexto-nova',
+        });
     });
 });

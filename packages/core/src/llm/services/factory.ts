@@ -205,15 +205,15 @@ export function createVercelModel(
                 headers[DEXTO_GATEWAY_HEADERS.CLIENT_VERSION] = process.env.DEXTO_CLI_VERSION;
             }
 
-            // Model is already in OpenRouter format - pass through directly
-            const provider = createOpenRouter({
-                apiKey: apiKey ?? '',
+            // Dexto Gateway exposes an OpenAI-compatible /v1/chat/completions surface.
+            // Model IDs remain gateway model IDs, usually OpenRouter-style provider/model IDs.
+            const provider = createOpenAICompatible({
+                name: 'dexto-nova',
                 baseURL: dextoBaseURL,
                 headers,
-                // This is an OpenRouter-compatible gateway; keep strict mode to enable OR features.
-                compatibility: 'strict',
+                ...(apiKey?.trim() ? { apiKey } : {}),
             });
-            const chatModel = provider.chat(model);
+            const chatModel = provider.chatModel(model);
             if (!isLanguageModel(chatModel)) {
                 throw LLMError.generationFailed(
                     'Dexto gateway provider returned an invalid language model instance',

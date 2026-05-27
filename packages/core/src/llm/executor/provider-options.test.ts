@@ -308,7 +308,7 @@ describe('buildProviderOptions', () => {
                     reasoning: { variant: 'high' },
                 })
             ).toEqual({
-                openrouter: {
+                'dexto-nova': {
                     include_reasoning: true,
                     reasoning: { enabled: true, effort: 'high' },
                 },
@@ -414,7 +414,7 @@ describe('buildProviderOptions', () => {
             ).toBeUndefined();
         });
 
-        it('keeps openrouter and dexto-nova option mapping aligned', () => {
+        it('keeps openrouter and dexto-nova option payloads aligned under their transport keys', () => {
             const cases = [
                 {
                     model: 'openai/gpt-5.2-codex',
@@ -445,7 +445,7 @@ describe('buildProviderOptions', () => {
                     model: testCase.model,
                     reasoning: testCase.reasoning,
                 });
-                expect(fromDextoNova).toEqual(fromOpenRouter);
+                expect(fromDextoNova?.['dexto-nova']).toEqual(fromOpenRouter?.openrouter);
             }
         });
     });
@@ -506,5 +506,14 @@ describe('getEffectiveReasoningBudgetTokens', () => {
             reasoning: { variant: 'high' },
         });
         expect(getEffectiveReasoningBudgetTokens(providerOptions)).toBeUndefined();
+    });
+
+    it('extracts effective budgets from dexto-nova gateway options', () => {
+        const providerOptions = buildProviderOptions({
+            provider: 'dexto-nova',
+            model: 'openai/gpt-5.2-codex',
+            reasoning: { variant: 'medium', budgetTokens: 1234 },
+        });
+        expect(getEffectiveReasoningBudgetTokens(providerOptions)).toBe(1234);
     });
 });
