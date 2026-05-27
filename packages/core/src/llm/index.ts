@@ -3,7 +3,6 @@ export * from './error-codes.js';
 export * from './registry/index.js';
 export * from './curation.js';
 export * from './validation.js';
-export * from './types.js';
 export * from './usage-metadata.js';
 export * from './usage-scope.js';
 export * from './usage-summary.js';

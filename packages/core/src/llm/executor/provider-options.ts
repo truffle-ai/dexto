@@ -2,7 +2,7 @@
  * Provider-specific options builder for Vercel AI SDK's streamText/generateText.
  */
 
-import type { LLMProvider, LLMReasoningConfig } from '../types.js';
+import type { LLMProvider, LLMReasoningConfig } from '@dexto/llm';
 import {
     ANTHROPIC_INTERLEAVED_THINKING_BETA,
     getReasoningProfile,

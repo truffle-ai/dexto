@@ -30,7 +30,7 @@ import {
     estimateContextTokens,
 } from './utils.js';
 import { InternalMessage, ContentPart, FilePart } from './types.js';
-import { LLMContext } from '../llm/types.js';
+import type { LLMContext } from '@dexto/llm';
 import * as llm from '@dexto/llm';
 import { createMockLogger } from '../logger/v2/test-utils.js';
 

@@ -1,4 +1,4 @@
-import type { LLMProvider, SupportedFileType } from '../types.js';
+import type { LLMProvider, SupportedFileType } from '@dexto/llm';
 import type { ModelInfo } from '@dexto/llm';
 import { DextoValidationError } from '../../errors/DextoValidationError.js';
 import { DextoRuntimeError } from '../../errors/DextoRuntimeError.js';

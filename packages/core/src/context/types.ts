@@ -1,4 +1,4 @@
-import type { LLMProvider, LLMPricingStatus, TokenUsage } from '../llm/types.js';
+import type { LLMProvider, LLMPricingStatus, TokenUsage } from '@dexto/llm';
 import type { ToolDisplayData } from '../tools/display-types.js';
 import type { ToolPresentationSnapshotV1 } from '../tools/types.js';
 import type { ToolCallMetadata } from '../tools/tool-call-metadata.js';
@@ -168,7 +168,7 @@ export interface SanitizedToolResult {
 // Shared Message Types
 // =============================================================================
 
-// TokenUsage imported from llm/types.ts (used by AssistantMessage)
+// TokenUsage comes from @dexto/llm and is used by AssistantMessage.
 
 /**
  * Tool call request from an assistant message.

@@ -56,7 +56,7 @@ import {
     type ModelInfo,
 } from '@dexto/llm';
 import { getAllModelsForProvider } from '../llm/registry/index.js';
-import type { LLMProvider } from '../llm/types.js';
+import type { LLMProvider } from '@dexto/llm';
 import { createAgentServices } from '../utils/service-initializer.js';
 import { LLMConfigSchema, LLMUpdatesSchema } from '../llm/schemas.js';
 import type { LLMUpdates, ValidatedLLMConfig } from '../llm/schemas.js';

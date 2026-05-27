@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { isOverflow, getCompactionTarget, type ModelLimits } from './overflow.js';
-import type { TokenUsage } from '../../llm/types.js';
+import type { TokenUsage } from '@dexto/llm';
 
 describe('isOverflow', () => {
     describe('basic overflow detection', () => {

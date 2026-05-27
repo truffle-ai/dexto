@@ -1,4 +1,4 @@
-import type { LLMProvider } from './types.js';
+import type { LLMProvider } from '@dexto/llm';
 
 /**
  * Product-level curated model IDs per provider.

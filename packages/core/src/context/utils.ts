@@ -13,7 +13,7 @@ import { clonePromptContentPart } from './content-clone.js';
 import { isValidDisplayData, type ToolDisplayData } from '../tools/display-types.js';
 import type { Logger } from '../logger/v2/types.js';
 import { validateModelFileSupport } from '@dexto/llm';
-import { LLMContext } from '../llm/types.js';
+import type { LLMContext } from '@dexto/llm';
 import { safeStringify } from '../utils/safe-stringify.js';
 import { getFileMediaKind, getResourceKind } from './media-helpers.js';
 

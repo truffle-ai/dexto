@@ -1,4 +1,4 @@
-import type { LLMProvider } from './types.js';
+import type { LLMProvider } from '@dexto/llm';
 import { LLM_REGISTRY, type ModelInfo } from '@dexto/llm';
 import { CURATED_MODEL_IDS_BY_PROVIDER } from './curation-config.js';
 

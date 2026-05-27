@@ -44,8 +44,8 @@ export {
 export { getFileMediaKind, getResourceKind } from './context/media-helpers.js';
 
 // LLM types (used by client packages)
-export type { LLMProvider } from './llm/types.js';
-export { LLM_PROVIDERS } from './llm/types.js';
+export type { LLMProvider } from '@dexto/llm';
+export { LLM_PROVIDERS } from '@dexto/llm';
 
 // MCP types and constants (used by webui)
 export type { McpServerType, McpConnectionMode } from './mcp/schemas.js';
@@ -104,7 +104,7 @@ export type { HostRuntimeContext, HostRuntimeIds } from './runtime/host-runtime.
 
 // LLM registry types (used by client-sdk package)
 export type { ModelInfo, ProviderInfo } from '@dexto/llm';
-export type { SupportedFileType } from './llm/types.js';
+export type { SupportedFileType } from '@dexto/llm';
 
 // Resource types and utilities (used by webui package)
 // Note: Only export browser-safe reference parsing functions, NOT ResourceManager

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { LLM_PROVIDERS } from '../types.js';
+import { LLM_PROVIDERS } from '@dexto/llm';
 import {
     LLM_REGISTRY,
     getSupportedProviders,

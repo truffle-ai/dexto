@@ -1,4 +1,4 @@
-import type { LLMProvider, LLMPricingStatus, ReasoningVariant, TokenUsage } from '../llm/types.js';
+import type { LLMProvider, LLMPricingStatus, ReasoningVariant, TokenUsage } from '@dexto/llm';
 import type { TokenUsageCostBreakdown } from '@dexto/llm';
 import type { AgentRuntimeSettings } from '../agent/runtime-config.js';
 import type { ApprovalRequest, ApprovalResponse } from '../approval/types.js';

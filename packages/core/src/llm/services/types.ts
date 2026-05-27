@@ -2,7 +2,7 @@ import type { CompactionStrategy } from '../../context/compaction/types.js';
 import type { LanguageModel } from 'ai';
 import type { CodexRateLimitSnapshot } from '../providers/codex-app-server.js';
 import type { ValidatedLLMConfig } from '../schemas.js';
-import type { LLMProvider } from '../types.js';
+import type { LLMProvider } from '@dexto/llm';
 import type { MessageQueueService } from '../../session/message-queue.js';
 import type { AgentRunContext } from '../../runtime/run-context.js';
 import type { TurnDriverState } from '../executor/turn-executor.js';

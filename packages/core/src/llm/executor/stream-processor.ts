@@ -8,7 +8,7 @@ import { DextoLogComponent } from '../../logger/v2/types.js';
 import type { ModelToolCall } from './types.js';
 import { getUsagePricingMetadata } from '../usage-metadata.js';
 import type { TokenUsageCostBreakdown } from '@dexto/llm';
-import type { LLMProvider, LLMPricingStatus, ReasoningVariant, TokenUsage } from '../types.js';
+import type { LLMProvider, LLMPricingStatus, ReasoningVariant, TokenUsage } from '@dexto/llm';
 
 type UsageLike = {
     inputTokens?: number | null | undefined;

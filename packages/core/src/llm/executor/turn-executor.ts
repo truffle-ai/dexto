@@ -40,7 +40,7 @@ import type {
     LLMContext,
     LLMProvider,
     ReasoningVariant,
-} from '../types.js';
+} from '@dexto/llm';
 import type { Logger } from '../../logger/v2/types.js';
 import { DextoLogComponent } from '../../logger/v2/types.js';
 import type { SessionEventBus, LLMFinishReason } from '../../events/index.js';

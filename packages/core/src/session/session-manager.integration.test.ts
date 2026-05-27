@@ -6,7 +6,7 @@ import { DextoAgent } from '../agent/DextoAgent.js';
 import type { AgentRuntimeSettings } from '../agent/runtime-config.js';
 import { SystemPromptConfigSchema } from '../systemPrompt/schemas.js';
 import { LLMConfigSchema } from '../llm/schemas.js';
-import type { TokenUsage } from '../llm/types.js';
+import type { TokenUsage } from '@dexto/llm';
 import { LoggerConfigSchema } from '../logger/index.js';
 import { SessionConfigSchema } from './schemas.js';
 import { PermissionsConfigSchema, ElicitationConfigSchema } from '../tools/schemas.js';

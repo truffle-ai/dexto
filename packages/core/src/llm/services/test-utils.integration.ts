@@ -5,7 +5,7 @@ import {
     getPrimaryApiKeyEnvVar,
     PROVIDER_API_KEY_MAP,
 } from '../../utils/api-key-resolver.js';
-import type { LLMProvider } from '../types.js';
+import type { LLMProvider } from '@dexto/llm';
 import type { AgentRuntimeSettings } from '../../agent/runtime-config.js';
 import { SystemPromptConfigSchema } from '../../systemPrompt/schemas.js';
 import { LLMConfigSchema } from '../schemas.js';

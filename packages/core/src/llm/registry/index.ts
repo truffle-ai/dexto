@@ -17,7 +17,7 @@ import { LLMError } from '../errors.js';
 import { LLMErrorCode } from '../error-codes.js';
 import { DextoRuntimeError } from '../../errors/DextoRuntimeError.js';
 import type { Logger } from '../../logger/v2/types.js';
-import type { LLMProvider, SupportedFileType } from '../types.js';
+import type { LLMProvider, SupportedFileType } from '@dexto/llm';
 import {
     getCachedOpenRouterModelsWithInfo,
     getOpenRouterModelContextLength,

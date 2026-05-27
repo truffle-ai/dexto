@@ -1,5 +1,5 @@
 import { getAllowedMimeTypes, validateModelFileSupport } from '@dexto/llm';
-import type { LLMProvider } from './types.js';
+import type { LLMProvider } from '@dexto/llm';
 import type { Logger } from '../logger/v2/types.js';
 import type { ImageData, FileData } from '../context/types.js';
 import { Result, ok, fail } from '../utils/result.js';
