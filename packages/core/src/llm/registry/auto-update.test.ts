@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import type { ModelInfo } from './index.js';
+import type { ModelInfo } from '@dexto/llm';
 import type { LLMProvider } from '../types.js';
 
 const TEST_ROOT = mkdtempSync(path.join(os.tmpdir(), 'dexto-llm-registry-auto-update-'));
@@ -73,7 +73,7 @@ describe('llm registry auto-update', () => {
     });
 
     it('loadLlmRegistryCache ignores malformed model entries (missing name) instead of throwing', async () => {
-        const registry = await import('./index.js');
+        const registry = await import('@dexto/llm');
         const autoUpdate = await import('./auto-update.js');
         const { cachePath } = autoUpdate.getLlmRegistryAutoUpdateStatus();
 
@@ -103,7 +103,7 @@ describe('llm registry auto-update', () => {
     });
 
     it('loadLlmRegistryCache applies cached models and preserves stable merge behavior', async () => {
-        const registry = await import('./index.js');
+        const registry = await import('@dexto/llm');
         const autoUpdate = await import('./auto-update.js');
         const { cachePath } = autoUpdate.getLlmRegistryAutoUpdateStatus();
 
@@ -190,7 +190,7 @@ describe('llm registry auto-update', () => {
     });
 
     it('loadLlmRegistryCache preserves and updates reasoning capability fields', async () => {
-        const registry = await import('./index.js');
+        const registry = await import('@dexto/llm');
         const autoUpdate = await import('./auto-update.js');
         const { cachePath } = autoUpdate.getLlmRegistryAutoUpdateStatus();
 
@@ -246,7 +246,7 @@ describe('llm registry auto-update', () => {
     });
 
     it('refreshLlmRegistryCache updates the registry from remote (mocked) and writes cache', async () => {
-        const registry = await import('./index.js');
+        const registry = await import('@dexto/llm');
         const autoUpdate = await import('./auto-update.js');
         const sync = await import('./sync.js');
 

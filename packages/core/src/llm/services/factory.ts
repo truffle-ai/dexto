@@ -24,7 +24,7 @@ import type {
     DextoProviderContext,
     LanguageModelFactory,
 } from './types.js';
-import { requiresApiKey } from '../registry/index.js';
+import { requiresApiKey } from '@dexto/llm';
 import { getPrimaryApiKeyEnvVar, resolveApiKeyForProvider } from '../../utils/api-key-resolver.js';
 import { createCodexLanguageModel } from '../providers/codex-app-server.js';
 import { isCodexBaseURL } from '../providers/codex-base-url.js';

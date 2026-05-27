@@ -10,8 +10,8 @@ import {
     hasAllRegistryModelsSupport,
     getSupportedModels,
     isValidProviderModel,
-    getMaxInputTokensForModel,
-} from './registry/index.js';
+} from '@dexto/llm';
+import { getMaxInputTokensForModel } from './registry/index.js';
 import { LLM_PROVIDERS } from './types.js';
 import { getReasoningProfile, supportsReasoningVariant } from './reasoning/profile.js';
 

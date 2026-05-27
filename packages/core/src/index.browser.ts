@@ -103,7 +103,7 @@ export type { ToolCallMetadata } from './tools/tool-call-metadata.js';
 export type { HostRuntimeContext, HostRuntimeIds } from './runtime/host-runtime.js';
 
 // LLM registry types (used by client-sdk package)
-export type { ModelInfo, ProviderInfo } from './llm/registry/index.js';
+export type { ModelInfo, ProviderInfo } from '@dexto/llm';
 export type { SupportedFileType } from './llm/types.js';
 
 // Resource types and utilities (used by webui package)

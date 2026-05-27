@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getSupportedModels, getSupportedProviders } from '../registry/index.js';
+import { getSupportedModels, getSupportedProviders } from '@dexto/llm';
 import { getReasoningProfile, supportsReasoningVariant } from './profile.js';
 
 describe('getReasoningProfile', () => {

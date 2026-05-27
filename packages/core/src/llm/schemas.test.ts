@@ -20,12 +20,12 @@ import {
 import { LLM_PROVIDERS } from './types.js';
 import {
     getSupportedModels,
-    getMaxInputTokensForModel,
     requiresBaseURL,
     supportsBaseURL,
     getDefaultModelForProvider,
     acceptsAnyModel,
-} from './registry/index.js';
+} from '@dexto/llm';
+import { getMaxInputTokensForModel } from './registry/index.js';
 import type { LLMProvider } from './types.js';
 
 function getIssueParamCode(issue: z.ZodIssue | undefined): unknown {

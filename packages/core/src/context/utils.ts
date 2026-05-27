@@ -12,7 +12,7 @@ import {
 import { clonePromptContentPart } from './content-clone.js';
 import { isValidDisplayData, type ToolDisplayData } from '../tools/display-types.js';
 import type { Logger } from '../logger/v2/types.js';
-import { validateModelFileSupport } from '../llm/registry/index.js';
+import { validateModelFileSupport } from '@dexto/llm';
 import { LLMContext } from '../llm/types.js';
 import { safeStringify } from '../utils/safe-stringify.js';
 import { getFileMediaKind, getResourceKind } from './media-helpers.js';

@@ -12,7 +12,7 @@ import {
     type ProjectRegistryEntry as WorkspaceProjectRegistryEntry,
     writeConfigFile,
 } from '@dexto/agent-management';
-import type { LLMProvider } from '@dexto/core';
+import type { LLMProvider } from '@dexto/llm';
 import chalk from 'chalk';
 import type { Command } from 'commander';
 import { spawn } from 'node:child_process';

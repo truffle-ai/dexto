@@ -1,8 +1,4 @@
-import {
-    calculateCostBreakdown,
-    getModelPricing,
-    type TokenUsageCostBreakdown,
-} from './registry/index.js';
+import { calculateCostBreakdown, getModelPricing, type TokenUsageCostBreakdown } from '@dexto/llm';
 import type { LLMProvider, LLMPricingStatus, TokenUsage } from './types.js';
 
 export interface LLMUsagePricingMetadata {

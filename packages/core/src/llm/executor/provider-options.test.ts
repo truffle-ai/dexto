@@ -247,7 +247,7 @@ describe('buildProviderOptions', () => {
             expect(
                 buildProviderOptions({
                     provider: 'bedrock',
-                    model: 'amazon.nova-premier-v1:0',
+                    model: 'amazon.nova-pro-v1:0',
                 })
             ).toEqual({
                 bedrock: { reasoningConfig: { type: 'enabled', maxReasoningEffort: 'medium' } },
@@ -256,7 +256,7 @@ describe('buildProviderOptions', () => {
             expect(
                 buildProviderOptions({
                     provider: 'bedrock',
-                    model: 'amazon.nova-premier-v1:0',
+                    model: 'amazon.nova-pro-v1:0',
                     reasoning: { variant: 'high' },
                 })
             ).toEqual({

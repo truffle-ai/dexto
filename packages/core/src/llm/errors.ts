@@ -2,8 +2,7 @@ import { DextoRuntimeError } from '../errors/DextoRuntimeError.js';
 import { ErrorScope } from '../errors/types.js';
 import { ErrorType } from '../errors/types.js';
 import { LLMErrorCode } from './error-codes.js';
-// Use types solely from types.ts to avoid duplication
-import { getSupportedProviders } from './registry/index.js';
+import { getSupportedProviders } from '@dexto/llm';
 import type { LLMProvider } from './types.js';
 
 /**

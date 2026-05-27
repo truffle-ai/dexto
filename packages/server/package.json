@@ -29,6 +29,7 @@
     "@dexto/agent-management": "workspace:*",
     "@dexto/core": "workspace:*",
     "@dexto/image-local": "workspace:*",
+    "@dexto/llm": "workspace:*",
     "@dexto/storage": "workspace:*",
     "@dexto/tools-scheduler": "workspace:*",
     "@hono/node-server": "1.19.13",

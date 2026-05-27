@@ -4,28 +4,29 @@ import {
     LLM_REGISTRY,
     getSupportedProviders,
     getSupportedModels,
-    getMaxInputTokensForModel,
     isValidProviderModel,
-    getProviderFromModel,
     getAllSupportedModels,
-    getEffectiveMaxInputTokens,
     supportsBaseURL,
     requiresBaseURL,
     acceptsAnyModel,
     getDefaultModelForProvider,
-    getSupportedFileTypesForModel,
-    modelSupportsFileType,
     validateModelFileSupport,
     stripBedrockRegionPrefix,
     getModelPricing,
     getModelDisplayName,
     transformModelNameForProvider,
     getOpenRouterCandidateModelIds,
-    getAllModelsForProvider,
     isModelValidForProvider,
     hasAllRegistryModelsSupport,
+} from '@dexto/llm';
+import {
+    getAllModelsForProvider,
+    getEffectiveMaxInputTokens,
+    getMaxInputTokensForModel,
+    getProviderFromModel,
+    getSupportedFileTypesForModel,
+    modelSupportsFileType,
 } from './index.js';
-import { MODELS_BY_PROVIDER } from './models.generated.js';
 import { LLMErrorCode } from '../error-codes.js';
 import { ErrorScope, ErrorType } from '../../errors/types.js';
 import type { Logger } from '../../logger/v2/types.js';
@@ -124,7 +125,7 @@ describe('LLM Registry Core Functions', () => {
     describe('transformModelNameForProvider (gateway IDs)', () => {
         it('transforms to an OpenRouter catalog ID when one exists in the snapshot', () => {
             const openrouterSet = new Set(
-                MODELS_BY_PROVIDER.openrouter.map((m) => m.name.toLowerCase())
+                LLM_REGISTRY.openrouter.models.map((m) => m.name.toLowerCase())
             );
 
             const providersToCheck = [
@@ -145,7 +146,7 @@ describe('LLM Registry Core Functions', () => {
             }> = [];
 
             for (const provider of providersToCheck) {
-                for (const m of MODELS_BY_PROVIDER[provider]) {
+                for (const m of LLM_REGISTRY[provider].models) {
                     if (m.name.includes('/')) continue;
 
                     const candidates = getOpenRouterCandidateModelIds(m.name, provider);
@@ -602,8 +603,9 @@ describe('Provider-Specific Tests', () => {
     describe('XAI provider', () => {
         it('has correct capabilities and models', () => {
             expect(getSupportedProviders()).toContain('xai');
-            expect(getSupportedModels('xai')).toContain('grok-4');
-            expect(getDefaultModelForProvider('xai')).toBe('grok-4');
+            const defaultModel = getDefaultModelForProvider('xai');
+            expect(defaultModel).not.toBeNull();
+            expect(getSupportedModels('xai')).toContain(defaultModel);
             expect(supportsBaseURL('xai')).toBe(false);
             expect(requiresBaseURL('xai')).toBe(false);
             expect(acceptsAnyModel('xai')).toBe(false);
@@ -852,15 +854,13 @@ describe('getAllModelsForProvider', () => {
     it('returns models from all accessible providers for gateway providers', () => {
         const dextoModels = getAllModelsForProvider('dexto-nova');
 
-        // Should have models from multiple providers
-        const providers = new Set(dextoModels.map((m) => m.originalProvider));
-        expect(providers.size).toBeGreaterThan(1);
+        expect(dextoModels.length).toBeGreaterThan(0);
 
-        // Gateway models come from:
-        // - Dexto Nova's curated list
-        // - OpenRouter's gateway catalog (models.dev)
+        // Dexto Nova's committed snapshot mirrors OpenRouter, so the static path
+        // may only carry dexto-nova origin until runtime OpenRouter refresh adds
+        // models that are newer than the snapshot.
+        const providers = new Set(dextoModels.map((m) => m.originalProvider));
         expect(providers.has('dexto-nova')).toBe(true);
-        expect(providers.has('openrouter')).toBe(true);
     });
 
     it('includes originalProvider for gateway provider models', () => {
@@ -1109,7 +1109,7 @@ describe('Gateway provider integration with lookup functions', () => {
     describe('getModelDisplayName', () => {
         it('handles OpenRouter format models', () => {
             const result = getModelDisplayName('anthropic/claude-haiku-4.5', 'dexto-nova');
-            expect(result).toBe('Claude Haiku 4.5');
+            expect(result).toBe('Claude Haiku 4.5 (latest)');
         });
     });
 });

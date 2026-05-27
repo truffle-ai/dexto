@@ -3,7 +3,7 @@
  */
 
 import type { LLMProvider, LLMReasoningConfig } from '../types.js';
-import { isReasoningCapableModel } from '../registry/index.js';
+import { isReasoningCapableModel } from '@dexto/llm';
 import {
     isAnthropicAdaptiveThinkingModel,
     supportsAnthropicInterleavedThinking,
@@ -264,7 +264,7 @@ export function buildProviderOptions(
     }
 
     if (provider === 'bedrock') {
-        const capable = isReasoningCapableModel(model, 'bedrock');
+        const capable = getReasoningProfile('bedrock', model).capable;
         if (!capable) {
             return { bedrock: {} };
         }

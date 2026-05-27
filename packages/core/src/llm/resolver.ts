@@ -7,13 +7,13 @@ import { LLMConfigSchema } from './schemas.js';
 import {
     getDefaultModelForProvider,
     acceptsAnyModel,
-    getProviderFromModel,
     isValidProviderModel,
-    getEffectiveMaxInputTokens,
     supportsBaseURL,
     supportsCustomModels,
     hasAllRegistryModelsSupport,
-} from './registry/index.js';
+    getProviderFromModel,
+} from '@dexto/llm';
+import { getEffectiveMaxInputTokens } from './registry/index.js';
 import {
     lookupOpenRouterModel,
     refreshOpenRouterModelCache,

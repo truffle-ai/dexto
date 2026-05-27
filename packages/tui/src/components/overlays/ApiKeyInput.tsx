@@ -6,7 +6,7 @@
 import React, { useState, useEffect, forwardRef, useImperativeHandle, useCallback } from 'react';
 import { Box, Text } from 'ink';
 import type { Key } from '../../hooks/useInputOrchestrator.js';
-import type { LLMProvider } from '@dexto/core';
+import type { LLMProvider } from '@dexto/llm';
 import { getPrimaryApiKeyEnvVar, saveProviderApiKey } from '@dexto/agent-management';
 import { applyLayeredEnvironmentLoading } from '../../host/index.js';
 import {
