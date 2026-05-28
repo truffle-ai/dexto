@@ -83,6 +83,7 @@ import {
     resolveBundledScript,
     enrichAgentConfig,
     isDextoAuthEnabled,
+    createModelAuthResolver,
 } from '@dexto/agent-management';
 import { validateCliOptions, handleCliOptionsError } from './cli/utils/options.js';
 import { validateAgentConfig } from './cli/utils/config-validation.js';
@@ -107,6 +108,7 @@ import type { MainModeOptions } from './cli/modes/context.js';
 import type { CLIConfigOverrides } from './config/cli-overrides.js';
 import type { CreateAppOptions } from './cli/commands/create-app.js';
 import type { CLISetupOptionsInput } from './cli/commands/setup.js';
+import type { ConnectCommandOptions } from './cli/commands/connect.js';
 import type { UpgradeCommandOptions } from './cli/commands/upgrade.js';
 import type { UninstallCliCommandOptions } from './cli/commands/uninstall.js';
 import { ensureImageImporterConfigured } from './cli/utils/image-importer.js';
@@ -294,6 +296,26 @@ program
         })
     );
 
+program
+    .command('connect')
+    .description('Connect a model provider auth method')
+    .option('--provider <provider>', 'Model provider id')
+    .option('--method <method>', 'Auth method id')
+    .option('--no-interactive', 'Require provider and method flags')
+    .action(
+        withAnalytics('connect', async (options: ConnectCommandOptions) => {
+            try {
+                const { handleConnectCommand } = await import('./cli/commands/connect.js');
+                await handleConnectCommand(options);
+                safeExit('connect', 0);
+            } catch (err) {
+                if (err instanceof ExitSignal) throw err;
+                console.error(`❌ dexto connect command failed: ${err}`);
+                safeExit('connect', 1, 'error');
+            }
+        })
+    );
+
 registerAgentsCommand({ program });
 
 // 7) `upgrade` SUB-COMMAND
@@ -470,6 +492,9 @@ async function bootstrapAgentFromGlobalOpts(options: {
             services,
             image,
             hostContext: { workspaceRoot },
+            overrides: {
+                authResolver: createModelAuthResolver(),
+            },
         })
     );
     await agent.start();
@@ -1105,6 +1130,7 @@ program
                             overrides: {
                                 sessionLoggerFactory,
                                 mcpAuthProviderFactory,
+                                authResolver: createModelAuthResolver(),
                             },
                         })
                     );

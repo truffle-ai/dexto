@@ -248,7 +248,7 @@ describe('DextoAgent Lifecycle Management', () => {
                 expect.any(Object),
                 {
                     languageModelFactory,
-                    providerContext: { sessionId: 'session-123' },
+                    providerContext: { sessionId: 'session-123', authResolver: null },
                 }
             );
         });

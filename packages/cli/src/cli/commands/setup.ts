@@ -28,6 +28,8 @@ import {
     saveCustomModel,
     deleteCustomModel,
     globalPreferencesExist,
+    getDefaultModelAuthProfile,
+    loadModelAuthProfilesSync,
     type CustomModel,
     type CreatePreferencesOptions,
 } from '@dexto/agent-management';
@@ -147,6 +149,19 @@ function getReasoningVariantSelectOptions(
         label: toReasoningVariantLabel(variant, defaultVariant),
         hint: REASONING_VARIANT_HINTS[variant] ?? 'Model/provider-native reasoning variant',
     }));
+}
+
+function hasUsableModelAuthProfile(provider: LLMProvider): boolean {
+    const profile = getDefaultModelAuthProfile(loadModelAuthProfilesSync(), provider);
+    if (!profile) {
+        return false;
+    }
+
+    if (profile.methodId === 'api_key') {
+        return Boolean(process.env[profile.apiKeyEnvVar]?.trim());
+    }
+
+    return true;
 }
 
 // ============================================================================
@@ -482,7 +497,7 @@ async function handleQuickStart(
         let apiKeySkipped = false;
 
         // Check if API key exists
-        const hasKey = hasApiKeyConfigured(provider);
+        const hasKey = hasApiKeyConfigured(provider) || hasUsableModelAuthProfile(provider);
 
         if (!hasKey) {
             const providerName = getProviderDisplayName(provider);
@@ -546,7 +561,7 @@ async function handleQuickStart(
             apiKeyPending: apiKeySkipped,
         };
         // Only include apiKeyVar if not skipped
-        if (!apiKeySkipped) {
+        if (!apiKeySkipped && hasApiKeyConfigured(provider)) {
             preferencesOptions.apiKeyVar = apiKeyVar;
         }
         const preferences = createInitialPreferences(preferencesOptions);
@@ -1022,7 +1037,7 @@ async function wizardStepApiKey(state: SetupWizardState): Promise<SetupWizardSta
     const model = state.model!;
     showStepProgress('apiKey', provider, model);
 
-    const hasKey = hasApiKeyConfigured(provider);
+    const hasKey = hasApiKeyConfigured(provider) || hasUsableModelAuthProfile(provider);
     const needsApiKey = requiresApiKey(provider);
 
     if (needsApiKey && !hasKey) {
@@ -1072,7 +1087,10 @@ async function wizardStepMode(state: SetupWizardState): Promise<SetupWizardState
             };
         }
 
-        const canShowApiKeyStep = requiresApiKey(provider) && !hasApiKeyConfigured(provider);
+        const canShowApiKeyStep =
+            requiresApiKey(provider) &&
+            !hasApiKeyConfigured(provider) &&
+            !hasUsableModelAuthProfile(provider);
         let prevStep: SetupWizardState['step'] = 'model';
         if (canShowApiKeyStep) {
             prevStep = 'apiKey';
@@ -1578,7 +1596,7 @@ async function saveWizardPreferences(state: SetupWizardState): Promise<void> {
         apiKeyPending: apiKeySkipped,
     };
 
-    if (needsApiKey && !apiKeySkipped) {
+    if (needsApiKey && !apiKeySkipped && hasApiKeyConfigured(provider)) {
         preferencesOptions.apiKeyVar = apiKeyVar;
     }
     if (state.baseURL) {
@@ -1937,7 +1955,7 @@ async function changeModel(currentProvider?: LLMProvider): Promise<void> {
 
     const apiKeyVar = getProviderEnvVar(provider);
     const needsApiKey = requiresApiKey(provider);
-    const hasKey = hasApiKeyConfigured(provider);
+    const hasKey = hasApiKeyConfigured(provider) || hasUsableModelAuthProfile(provider);
 
     // Check if API key is needed and missing - prompt for it
     if (needsApiKey && !hasKey) {
@@ -1969,7 +1987,7 @@ async function changeModel(currentProvider?: LLMProvider): Promise<void> {
         model,
     };
     // Only include apiKey for providers that need it
-    if (needsApiKey) {
+    if (needsApiKey && hasApiKeyConfigured(provider)) {
         llmUpdate.apiKey = `$${apiKeyVar}`;
     }
 

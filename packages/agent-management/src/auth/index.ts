@@ -15,3 +15,17 @@ export {
     type ProviderAuthDefinition,
     type RuntimeAuthInput,
 } from './provider-auth-definitions.js';
+
+export {
+    createModelAuthResolver,
+    getDefaultModelAuthProfile,
+    getModelAuthProfilesPath,
+    loadModelAuthProfiles,
+    loadModelAuthProfilesSync,
+    saveApiKeyModelAuthProfile,
+    saveChatGPTLoginModelAuthProfile,
+    type ApiKeyModelAuthProfile,
+    type ExternalAccountModelAuthProfile,
+    type ModelAuthProfile,
+    type ModelAuthProfilesFile,
+} from './model-auth-profiles.js';

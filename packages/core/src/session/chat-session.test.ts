@@ -383,6 +383,33 @@ describe('ChatSession', () => {
             expect(chatSession.getLLMService()).toBe(mockLLMService);
         });
 
+        test('passes a host-provided authResolver through to createLLMService', async () => {
+            const authResolver = {
+                resolveRuntimeAuth: vi.fn().mockReturnValue({ baseURL: 'codex://chatgpt' }),
+            };
+
+            mockServices.authResolver = authResolver;
+            chatSession.dispose();
+            chatSession = new ChatSession(mockServices, sessionId, mockLogger);
+
+            await chatSession.init();
+
+            expect(mockCreateLLMService).toHaveBeenCalledWith(
+                mockLLMConfig,
+                mockServices.toolManager,
+                mockServices.systemPromptManager,
+                expect.any(Object),
+                chatSession.eventBus,
+                sessionId,
+                mockServices.resourceManager,
+                expect.any(Object),
+                expect.objectContaining({
+                    authResolver,
+                }),
+                undefined
+            );
+        });
+
         test('exposes split steer and follow-up queues with structured content intact', async () => {
             mockCreateLLMService.mockImplementation(
                 (

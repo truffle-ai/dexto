@@ -2,6 +2,7 @@ import { randomUUID } from 'crypto';
 import { createLLMService } from '../llm/services/factory.js';
 import type { ContextManager } from '../context/index.js';
 import type { CreateLLMServiceOptions, LanguageModelFactory } from '../llm/services/types.js';
+import type { LlmAuthResolver } from '../llm/auth/index.js';
 import type { SystemPromptManager } from '../systemPrompt/manager.js';
 import type { ToolManager } from '../tools/tool-manager.js';
 import type { ValidatedLLMConfig } from '../llm/schemas.js';
@@ -172,6 +173,7 @@ export class ChatSession {
             steerQueueStore: SessionMessageQueueStore;
             followUpQueueStore: SessionMessageQueueStore;
             languageModelFactory?: LanguageModelFactory;
+            authResolver?: LlmAuthResolver | null;
             workspaceManager?: import('../workspace/manager.js').WorkspaceManager;
             compactionStrategy: CompactionStrategy | null;
         },
@@ -299,6 +301,7 @@ export class ChatSession {
             ...(workspace?.path !== undefined && { cwd: workspace.path }),
             steerQueue: this.steerQueue,
             followUpQueue: this.followUpQueue,
+            authResolver: this.services.authResolver ?? null,
         };
 
         return createLLMService(

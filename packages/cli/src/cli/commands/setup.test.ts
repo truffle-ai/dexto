@@ -139,6 +139,8 @@ vi.mock('@dexto/agent-management', () => {
         getGlobalPreferencesPath: vi.fn(() => '/tmp/preferences.yml'),
         updateGlobalPreferences: vi.fn().mockResolvedValue(undefined),
         globalPreferencesExist: vi.fn(),
+        getDefaultModelAuthProfile: vi.fn(() => null),
+        loadModelAuthProfilesSync: vi.fn(() => ({ version: 1, defaults: {}, profiles: [] })),
         setActiveModel: vi.fn().mockResolvedValue(undefined),
         isDextoAuthEnabled: vi.fn(() => false),
         loadCustomModels: vi.fn().mockResolvedValue([]),
