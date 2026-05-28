@@ -1,5 +1,13 @@
 # @dexto/tools-todo
 
+## 1.8.1
+
+### Patch Changes
+
+- Updated dependencies [a50dd28]
+    - @dexto/core@1.8.1
+    - @dexto/agent-config@1.8.1
+
 ## 1.8.0
 
 ### Minor Changes

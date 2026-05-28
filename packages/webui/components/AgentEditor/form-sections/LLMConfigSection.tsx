@@ -4,7 +4,7 @@ import { LabelWithTooltip } from '../../ui/label-with-tooltip';
 import { Collapsible } from '../../ui/collapsible';
 import { Eye, EyeOff } from 'lucide-react';
 import { useModelCapabilities } from '../../hooks/useLLM';
-import { LLM_PROVIDERS } from '@dexto/core';
+import { LLM_PROVIDERS } from '@dexto/llm';
 import type { AgentConfig } from '@dexto/agent-config';
 import { useDebounce } from 'use-debounce';
 

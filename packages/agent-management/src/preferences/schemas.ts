@@ -10,10 +10,8 @@ import {
     getReasoningProfile,
     supportsReasoningVariant,
     LLM_PROVIDERS,
-    NonEmptyTrimmed,
-    OptionalURL,
-    ErrorType,
-} from '@dexto/core';
+} from '@dexto/llm';
+import { NonEmptyTrimmed, OptionalURL, ErrorType } from '@dexto/core';
 import { PreferenceErrorCode } from './error-codes.js';
 
 export const PreferenceLLMSchema = z

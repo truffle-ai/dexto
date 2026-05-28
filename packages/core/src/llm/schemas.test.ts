@@ -17,16 +17,16 @@ import {
     type LLMConfig,
     type ValidatedLLMConfig,
 } from './schemas.js';
-import { LLM_PROVIDERS } from './types.js';
+import { LLM_PROVIDERS } from '@dexto/llm';
 import {
     getSupportedModels,
-    getMaxInputTokensForModel,
     requiresBaseURL,
     supportsBaseURL,
     getDefaultModelForProvider,
     acceptsAnyModel,
-} from './registry/index.js';
-import type { LLMProvider } from './types.js';
+} from '@dexto/llm';
+import { getMaxInputTokensForModel } from './registry/index.js';
+import type { LLMProvider } from '@dexto/llm';
 
 function getIssueParamCode(issue: z.ZodIssue | undefined): unknown {
     if (!issue) return undefined;

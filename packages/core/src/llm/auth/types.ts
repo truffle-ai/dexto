@@ -1,4 +1,4 @@
-import type { LLMProvider } from '../types.js';
+import type { LLMProvider } from '@dexto/llm';
 
 export type LlmRuntimeAuthOverrides = {
     apiKey?: string | undefined;

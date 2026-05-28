@@ -1,5 +1,5 @@
 import type { ModelMessage, AssistantContent, ToolContent, ToolResultPart } from 'ai';
-import { LLMContext } from '../types.js';
+import type { LLMContext } from '@dexto/llm';
 import type { InternalMessage, AssistantMessage, ToolMessage } from '../../context/types.js';
 import {
     getImageData,

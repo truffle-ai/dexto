@@ -148,21 +148,11 @@ import ConnectOverlay, {
     type ConnectOverlayOutcome,
 } from '../components/overlays/ConnectOverlay.js';
 import type { PromptAddScope } from '../state/types.js';
-import type {
-    PromptInfo,
-    ResourceMetadata,
-    LLMProvider,
-    ReasoningVariant,
-    SearchResult,
-} from '@dexto/core';
+import type { PromptInfo, ResourceMetadata, SearchResult } from '@dexto/core';
+import type { LLMProvider, ReasoningVariant } from '@dexto/llm';
 import type { LogLevel } from '@dexto/core';
-import {
-    DextoValidationError,
-    LLMErrorCode,
-    LLM_PROVIDERS,
-    getModelDisplayName,
-    getReasoningProfile,
-} from '@dexto/core';
+import { LLM_PROVIDERS, getModelDisplayName, getReasoningProfile } from '@dexto/llm';
+import { DextoValidationError, LLMErrorCode } from '@dexto/core';
 import { InputService } from '../services/InputService.js';
 import { createUserMessage, convertHistoryToUIMessages } from '../utils/messageFormatting.js';
 import { generateMessageId } from '../utils/idGenerator.js';

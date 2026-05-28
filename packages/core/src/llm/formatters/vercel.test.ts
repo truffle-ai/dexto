@@ -2,11 +2,10 @@ import { describe, test, expect, vi } from 'vitest';
 import { VercelMessageFormatter } from './vercel.js';
 import { createMockLogger } from '../../logger/v2/test-utils.js';
 import type { InternalMessage } from '../../context/types.js';
-import * as registry from '../registry/index.js';
+import * as llm from '@dexto/llm';
 
-// Mock the registry to allow all file types
-vi.mock('../registry/index.js');
-const mockValidateModelFileSupport = vi.mocked(registry.validateModelFileSupport);
+vi.mock('@dexto/llm');
+const mockValidateModelFileSupport = vi.mocked(llm.validateModelFileSupport);
 mockValidateModelFileSupport.mockReturnValue({ isSupported: true, fileType: 'pdf' });
 
 const mockLogger = createMockLogger();

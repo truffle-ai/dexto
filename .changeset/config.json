@@ -6,6 +6,7 @@
     "dexto",
     "@dexto/core",
     "@dexto/storage",
+    "@dexto/llm",
     "@dexto/agent-config",
     "@dexto/client-sdk",
     "@dexto/agent-management",

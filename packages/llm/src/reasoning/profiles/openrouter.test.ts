@@ -35,6 +35,10 @@ describe('openrouter reasoning profile routing', () => {
                 upstreamProvider: 'google',
                 modelId: 'gemini-3-pro-preview',
             });
+            expect(getOpenRouterReasoningTarget('google/gemini-3.5-flash')).toEqual({
+                upstreamProvider: 'google',
+                modelId: 'gemini-3.5-flash',
+            });
             expect(getOpenRouterReasoningTarget('google/gemini-2.5-pro')).toBeNull();
         });
 
@@ -45,10 +49,12 @@ describe('openrouter reasoning profile routing', () => {
             expect(getOpenRouterReasoningTarget('mistralai/mistral-medium-3.1')).toBeNull();
             expect(getOpenRouterReasoningTarget('moonshotai/kimi-k2.5')).toBeNull();
             expect(getOpenRouterReasoningTarget('moonshotai/kimi-k2p5')).toBeNull();
+            expect(getOpenRouterReasoningTarget('qwen/qwen3.6-flash')).toBeNull();
         });
 
         it('rejects malformed and unknown-prefix IDs', () => {
             expect(getOpenRouterReasoningTarget('gpt-5.2')).toBeNull();
+            expect(getOpenRouterReasoningTarget('x-ai/grok-3-mini')).toBeNull();
             expect(getOpenRouterReasoningTarget('x-ai/grok-4')).toBeNull();
             expect(getOpenRouterReasoningTarget('cohere/command-a')).toBeNull();
         });

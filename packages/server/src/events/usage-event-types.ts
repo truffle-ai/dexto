@@ -1,4 +1,4 @@
-import type { LLMProvider, TokenUsage } from '@dexto/core';
+import type { LLMProvider, TokenUsage } from '@dexto/llm';
 
 export interface UsageEventCostBreakdown {
     inputUsd: number;

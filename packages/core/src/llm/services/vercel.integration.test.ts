@@ -8,7 +8,7 @@ import {
 import { ErrorScope, ErrorType } from '../../errors/index.js';
 import { LLMErrorCode } from '../error-codes.js';
 import { resolveApiKeyForProvider } from '../../utils/api-key-resolver.js';
-import type { LLMProvider } from '../types.js';
+import type { LLMProvider } from '@dexto/llm';
 
 /**
  * Vercel AI SDK LLM Service Integration Tests

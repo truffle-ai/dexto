@@ -52,17 +52,8 @@ const cliVersion = resolveCliVersion();
 // Set CLI version for Dexto Gateway usage tracking
 process.env.DEXTO_CLI_VERSION = cliVersion;
 
-import {
-    logger,
-    getProviderFromModel,
-    getAllSupportedModels,
-    startLlmRegistryAutoUpdate,
-    DextoAgent,
-    type LLMProvider,
-    isPath,
-    resolveApiKeyForProvider,
-    getPrimaryApiKeyEnvVar,
-} from '@dexto/core';
+import { logger, startLlmRegistryAutoUpdate, DextoAgent, isPath } from '@dexto/core';
+import { getAllSupportedModels, getProviderFromModel, type LLMProvider } from '@dexto/llm';
 import {
     applyImageDefaults,
     cleanNullValues,
@@ -84,6 +75,8 @@ import {
     enrichAgentConfig,
     isDextoAuthEnabled,
     createModelAuthResolver,
+    resolveApiKeyForProvider,
+    getPrimaryApiKeyEnvVar,
 } from '@dexto/agent-management';
 import { validateCliOptions, handleCliOptionsError } from './cli/utils/options.js';
 import { validateAgentConfig } from './cli/utils/config-validation.js';

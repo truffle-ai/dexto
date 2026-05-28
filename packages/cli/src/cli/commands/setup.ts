@@ -5,16 +5,27 @@ import { z } from 'zod';
 import {
     acceptsAnyModel,
     getDefaultModelForProvider,
-    getCuratedModelsForProvider,
     getReasoningProfile,
     getSupportedModels,
+    isValidProviderModel,
     LLM_PROVIDERS,
     LLM_REGISTRY,
-    logger,
-    isValidProviderModel,
-    supportsCustomModels,
     requiresApiKey,
+    supportsCustomModels,
+    type LLMProvider,
+    type ReasoningVariant,
+} from '@dexto/llm';
+import {
+    CodexAppServerClient,
+    createCodexBaseURL,
+    getCodexAuthModeLabel,
+    getCodexProviderDisplayName,
+    getCuratedModelsForProvider,
+    isCodexBaseURL,
+    logger,
+    parseCodexBaseURL,
     resolveApiKeyForProvider,
+    type CodexModelInfo,
 } from '@dexto/core';
 import {
     createInitialPreferences,
@@ -54,7 +65,6 @@ import { loadAuth, getBillingBalanceForCurrentLogin, openDextoBillingPage } from
 import { DEXTO_CREDITS_URL } from '../auth/constants.js';
 import * as p from '@clack/prompts';
 import { capture } from '../../analytics/index.js';
-import type { LLMProvider, ReasoningVariant } from '@dexto/core';
 
 // Zod schema for setup command validation
 const SetupCommandSchema = z

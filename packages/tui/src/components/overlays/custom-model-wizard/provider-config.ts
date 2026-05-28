@@ -6,14 +6,12 @@
 import type { CustomModel, CustomModelProvider } from '@dexto/agent-management';
 import { CUSTOM_MODEL_PROVIDERS, isDextoAuthEnabled } from '@dexto/agent-management';
 import {
-    lookupOpenRouterModel,
-    refreshOpenRouterModelCache,
-    getLocalModelById,
     isReasoningCapableModel,
     getReasoningProfile,
     supportsReasoningVariant,
     type LLMProvider,
-} from '@dexto/core';
+} from '@dexto/llm';
+import { lookupOpenRouterModel, refreshOpenRouterModelCache, getLocalModelById } from '@dexto/core';
 import type { ProviderConfig, WizardStep } from './types.js';
 import { validators } from './types.js';
 import * as fs from 'fs';

@@ -21,15 +21,13 @@
 
 import type { AgentConfig } from '@dexto/agent-config';
 import {
-    EnvExpandedString,
     LLM_PROVIDERS,
     getDefaultModelForProvider,
     requiresApiKey,
     requiresBaseURL,
-    resolveApiKeyForProvider,
-    type LLMConfig,
     type LLMProvider,
-} from '@dexto/core';
+} from '@dexto/llm';
+import { EnvExpandedString, resolveApiKeyForProvider, type LLMConfig } from '@dexto/core';
 import type { GlobalPreferences } from '@dexto/agent-management';
 
 /**

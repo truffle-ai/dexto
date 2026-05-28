@@ -8,7 +8,7 @@ import {
     LLM_PROVIDERS,
     LLM_REGISTRY,
     getDefaultModelForProvider,
-} from '@dexto/core';
+} from '@dexto/llm';
 import { getPrimaryApiKeyEnvVar } from '@dexto/agent-management';
 
 /**

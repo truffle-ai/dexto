@@ -9,7 +9,7 @@
  */
 
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
-import { LLM_PROVIDERS } from '@dexto/core';
+import { LLM_PROVIDERS } from '@dexto/llm';
 import { BadRequestErrorResponse, InternalErrorResponse } from '../schemas/responses.js';
 import {
     getProviderKeyStatus,

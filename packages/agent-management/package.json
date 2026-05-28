@@ -1,6 +1,6 @@
 {
   "name": "@dexto/agent-management",
-  "version": "1.8.0",
+  "version": "1.8.1",
   "private": false,
   "type": "module",
   "main": "./dist/index.js",
@@ -17,6 +17,7 @@
   "dependencies": {
     "@dexto/agent-config": "workspace:*",
     "@dexto/core": "workspace:*",
+    "@dexto/llm": "workspace:*",
     "@dexto/orchestration": "workspace:*",
     "@dexto/tools-builtins": "workspace:*",
     "yaml": "^2.8.3",

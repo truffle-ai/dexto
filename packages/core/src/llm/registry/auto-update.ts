@@ -4,10 +4,9 @@ import path from 'node:path';
 import { getDextoGlobalPath } from '../../utils/path.js';
 import { logger as defaultLogger } from '../../logger/logger.js';
 import type { Logger } from '../../logger/v2/types.js';
-import type { LLMProvider } from '../types.js';
-import { LLM_PROVIDERS } from '../types.js';
-import { LLM_REGISTRY } from './index.js';
-import type { ModelInfo } from './index.js';
+import type { LLMProvider } from '@dexto/llm';
+import { LLM_PROVIDERS } from '@dexto/llm';
+import { LLM_REGISTRY, type ModelInfo } from '@dexto/llm';
 import { buildModelsByProviderFromRemote } from './sync.js';
 
 type LogLike = Pick<Logger, 'debug' | 'info' | 'warn' | 'error'>;

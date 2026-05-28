@@ -15,7 +15,7 @@ import { createLogger } from '../../logger/factory.js';
 import { MemoryManager } from '../../memory/index.js';
 import { SystemPromptConfigSchema } from '../../systemPrompt/schemas.js';
 import type { LanguageModel, ModelMessage } from 'ai';
-import type { LLMContext } from '../types.js';
+import type { LLMContext } from '@dexto/llm';
 import type { ValidatedLLMConfig } from '../schemas.js';
 import type { Logger } from '../../logger/v2/types.js';
 import type { CompactionStrategy } from '../../context/compaction/types.js';
