@@ -25,6 +25,14 @@ vi.mock('@dexto/core', async (importOriginal) => {
 describe('model auth profiles', () => {
     let home: string;
     let previousOpenAiApiKey: string | undefined;
+    const chatgptCredential = {
+        type: 'oauth' as const,
+        issuer: 'https://auth.openai.com' as const,
+        refreshToken: 'refresh-token',
+        accessToken: 'access-token',
+        expiresAt: Date.now() + 3600_000,
+        accountId: 'account-1',
+    };
 
     beforeEach(() => {
         home = mkdtempSync(path.join(tmpdir(), 'dexto-model-auth-'));
@@ -59,7 +67,7 @@ describe('model auth profiles', () => {
     });
 
     it('stores ChatGPT Login as an OpenAI external-account default', async () => {
-        await saveChatGPTLoginModelAuthProfile();
+        await saveChatGPTLoginModelAuthProfile(chatgptCredential);
 
         const profiles = await loadModelAuthProfiles();
         const profile = getDefaultModelAuthProfile(profiles, 'openai');
@@ -68,23 +76,23 @@ describe('model auth profiles', () => {
             id: 'openai:chatgpt_login',
             providerId: 'openai',
             methodId: 'chatgpt_login',
-            credential: {
-                type: 'external_account',
-                system: 'codex',
-                authMode: 'chatgpt',
-            },
+            credential: chatgptCredential,
         });
     });
 
-    it('projects the default ChatGPT Login profile to runtime auth', async () => {
-        await saveChatGPTLoginModelAuthProfile();
+    it('projects the default ChatGPT Login profile to native ChatGPT runtime auth', async () => {
+        await saveChatGPTLoginModelAuthProfile(chatgptCredential);
 
-        expect(
-            createModelAuthResolver().resolveRuntimeAuth({
-                provider: 'openai',
-                model: 'gpt-5.4',
-            })
-        ).toEqual({ baseURL: 'codex://chatgpt' });
+        const runtimeAuth = createModelAuthResolver().resolveRuntimeAuth({
+            provider: 'openai',
+            model: 'gpt-5.4',
+        });
+
+        expect(runtimeAuth).toMatchObject({
+            apiKey: 'dexto-chatgpt-oauth',
+            baseURL: 'https://chatgpt.com/backend-api/codex',
+        });
+        expect(runtimeAuth?.fetch).toBeTypeOf('function');
     });
 
     it('projects API-key profiles from the provider environment variable', async () => {

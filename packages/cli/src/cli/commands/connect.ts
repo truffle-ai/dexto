@@ -1,15 +1,17 @@
 import chalk from 'chalk';
 import * as p from '@clack/prompts';
 import open from 'open';
-import { CodexAppServerClient, getDefaultModelForProvider, type LLMProvider } from '@dexto/core';
+import { getDefaultModelForProvider, type LLMProvider } from '@dexto/core';
 import {
     getProviderAuthDefinitions,
-    isExternalAccountAuthMethod,
     saveApiKeyModelAuthProfile,
     saveChatGPTLoginModelAuthProfile,
+    startChatGPTBrowserLogin,
     globalPreferencesExist,
     loadGlobalPreferences,
     updateGlobalPreferences,
+    type AuthMethodDefinition,
+    type ProviderAuthDefinition,
 } from '@dexto/agent-management';
 import { interactiveApiKeySetup } from '../utils/api-key-setup.js';
 import { getProviderDisplayName } from '../utils/provider-setup.js';
@@ -22,14 +24,18 @@ export type ConnectCommandOptions = {
 
 const CHATGPT_LOGIN_TIMEOUT_MS = 5 * 60 * 1000;
 
-function getSelectableProviderDefinitions() {
-    return getProviderAuthDefinitions().filter((provider) => provider.methods.length > 0);
+function getSelectableProviderDefinitions(): readonly ProviderAuthDefinition[] {
+    return getProviderAuthDefinitions().filter(
+        (provider: ProviderAuthDefinition) => provider.methods.length > 0
+    );
 }
 
 async function selectProvider(input: string | undefined): Promise<LLMProvider | null> {
     const providers = getSelectableProviderDefinitions();
     if (input) {
-        const provider = providers.find((candidate) => candidate.providerId === input);
+        const provider = providers.find(
+            (candidate: ProviderAuthDefinition) => candidate.providerId === input
+        );
         if (!provider) {
             throw new Error(`Unsupported model auth provider: ${input}`);
         }
@@ -38,26 +44,30 @@ async function selectProvider(input: string | undefined): Promise<LLMProvider | 
 
     const selected = await p.select({
         message: 'Choose a model provider to connect',
-        options: providers.map((provider) => ({
+        options: providers.map((provider: ProviderAuthDefinition) => ({
             value: provider.providerId,
             label: provider.label,
         })),
     });
 
-    return p.isCancel(selected) ? null : selected;
+    return p.isCancel(selected) ? null : (selected as LLMProvider);
 }
 
 async function selectMethod(
     providerId: LLMProvider,
     input: string | undefined
 ): Promise<string | null> {
-    const provider = getProviderAuthDefinitions().find((item) => item.providerId === providerId);
+    const provider = getProviderAuthDefinitions().find(
+        (item: ProviderAuthDefinition) => item.providerId === providerId
+    );
     if (!provider) {
         throw new Error(`Unsupported model auth provider: ${providerId}`);
     }
 
     if (input) {
-        const method = provider.methods.find((candidate) => candidate.id === input);
+        const method = provider.methods.find(
+            (candidate: AuthMethodDefinition) => candidate.id === input
+        );
         if (!method) {
             throw new Error(`Unsupported auth method for ${providerId}: ${input}`);
         }
@@ -66,14 +76,14 @@ async function selectMethod(
 
     const selected = await p.select({
         message: `How do you want to connect ${provider.label}?`,
-        options: provider.methods.map((method) => ({
+        options: provider.methods.map((method: AuthMethodDefinition) => ({
             value: method.id,
             label: method.label,
             ...(method.hint ? { hint: method.hint } : {}),
         })),
     });
 
-    return p.isCancel(selected) ? null : selected;
+    return p.isCancel(selected) ? null : (selected as string);
 }
 
 async function syncOpenAIConnectionToPreferences(): Promise<void> {
@@ -115,55 +125,38 @@ async function connectApiKey(providerId: LLMProvider): Promise<void> {
 
 async function connectOpenAIChatGPTLogin(): Promise<void> {
     const spinner = p.spinner();
-    let client: CodexAppServerClient | null = null;
+    let login: Awaited<ReturnType<typeof startChatGPTBrowserLogin>> | null = null;
+    let timeout: NodeJS.Timeout | null = null;
 
     try {
         spinner.start('Starting ChatGPT Login');
-        client = await CodexAppServerClient.create();
-
-        const account = await client.readAccount(false);
-        if (account.account?.type === 'chatgpt') {
-            spinner.stop('ChatGPT account already connected');
-            await saveChatGPTLoginModelAuthProfile();
-            await syncOpenAIConnectionToPreferences();
-            p.log.success('OpenAI ChatGPT Login connected');
-            return;
-        }
-
-        const login = await client.startLogin({ type: 'chatgpt' });
-        if (login.type === 'chatgptAuthTokens') {
-            spinner.stop('ChatGPT account connected');
-            await saveChatGPTLoginModelAuthProfile();
-            await syncOpenAIConnectionToPreferences();
-            p.log.success('OpenAI ChatGPT Login connected');
-            return;
-        }
-
-        if (login.type !== 'chatgpt') {
-            throw new Error(`Unexpected Codex login response: ${login.type}`);
-        }
+        login = await startChatGPTBrowserLogin();
 
         spinner.stop('OpenAI authorization ready');
-        p.note(
-            `Complete authorization in your browser.\n\n${chalk.cyan(login.authUrl)}`,
-            'ChatGPT Login'
-        );
-        await open(login.authUrl).catch(() => undefined);
+        const openedBrowser = await open(login.authUrl)
+            .then(() => true)
+            .catch(() => false);
+        if (openedBrowser) {
+            p.note('Complete authorization in your browser.', 'ChatGPT Login');
+        } else {
+            p.note(
+                `Open this URL in your browser:\n\n${chalk.cyan(login.authUrl)}`,
+                'ChatGPT Login'
+            );
+        }
 
         spinner.start('Waiting for authorization');
-        const completed = await client.waitForLoginCompleted(login.loginId, {
-            timeoutMs: CHATGPT_LOGIN_TIMEOUT_MS,
-        });
-        if (!completed.success) {
-            throw new Error(completed.error ?? 'ChatGPT Login failed');
-        }
+        const credential = await Promise.race([
+            login.waitForCredential(),
+            new Promise<never>((_, reject) => {
+                timeout = setTimeout(
+                    () => reject(new Error('ChatGPT Login timed out')),
+                    CHATGPT_LOGIN_TIMEOUT_MS
+                );
+            }),
+        ]);
 
-        const connected = await client.readAccount(true);
-        if (connected.account?.type !== 'chatgpt') {
-            throw new Error('ChatGPT Login completed but no ChatGPT account was found');
-        }
-
-        await saveChatGPTLoginModelAuthProfile();
+        await saveChatGPTLoginModelAuthProfile(credential);
         await syncOpenAIConnectionToPreferences();
         spinner.stop('ChatGPT account connected');
         p.log.success('OpenAI ChatGPT Login connected');
@@ -171,7 +164,10 @@ async function connectOpenAIChatGPTLogin(): Promise<void> {
         spinner.stop('ChatGPT Login failed');
         throw error;
     } finally {
-        await client?.close();
+        if (timeout) {
+            clearTimeout(timeout);
+        }
+        await login?.cancel();
     }
 }
 
@@ -195,8 +191,8 @@ export async function handleConnectCommand(options: ConnectCommandOptions = {}):
     }
 
     const method = getProviderAuthDefinitions()
-        .find((provider) => provider.providerId === providerId)
-        ?.methods.find((candidate) => candidate.id === methodId);
+        .find((provider: ProviderAuthDefinition) => provider.providerId === providerId)
+        ?.methods.find((candidate: AuthMethodDefinition) => candidate.id === methodId);
     if (!method) {
         throw new Error(`Unsupported auth method: ${providerId}/${methodId}`);
     }
@@ -207,11 +203,7 @@ export async function handleConnectCommand(options: ConnectCommandOptions = {}):
         return;
     }
 
-    if (
-        providerId === 'openai' &&
-        method.id === 'chatgpt_login' &&
-        isExternalAccountAuthMethod(method)
-    ) {
+    if (providerId === 'openai' && method.id === 'chatgpt_login' && method.kind === 'oauth') {
         await connectOpenAIChatGPTLogin();
         p.outro(chalk.green('Connection saved'));
         return;

@@ -10,10 +10,10 @@ import {
     type LLMProvider,
 } from '@dexto/core';
 import {
-    getAuthMethodDefinition,
-    isExternalAccountAuthMethod,
-    type ExternalAccountCredential,
-} from './provider-auth-definitions.js';
+    createChatGPTRuntimeAuth,
+    type ChatGPTOAuthCredential,
+    type ChatGPTRuntimeAuth,
+} from './chatgpt-oauth.js';
 
 const MODEL_AUTH_PROFILES_FILE = 'model-auth.yml';
 
@@ -27,20 +27,20 @@ export type ApiKeyModelAuthProfile = {
     updatedAt: string;
 };
 
-export type ExternalAccountModelAuthProfile = {
+export type OAuthModelAuthProfile = {
     id: string;
     providerId: LLMProvider;
     methodId: 'chatgpt_login';
     label: string;
-    credential: ExternalAccountCredential;
+    credential: ChatGPTOAuthCredential;
     createdAt: string;
     updatedAt: string;
 };
 
-export type ModelAuthProfile = ApiKeyModelAuthProfile | ExternalAccountModelAuthProfile;
+export type ModelAuthProfile = ApiKeyModelAuthProfile | OAuthModelAuthProfile;
 type ModelAuthProfileDraft =
     | Omit<ApiKeyModelAuthProfile, 'createdAt' | 'updatedAt'>
-    | Omit<ExternalAccountModelAuthProfile, 'createdAt' | 'updatedAt'>;
+    | Omit<OAuthModelAuthProfile, 'createdAt' | 'updatedAt'>;
 
 export type ModelAuthProfilesFile = {
     version: 1;
@@ -74,15 +74,18 @@ function isProviderId(value: unknown): value is LLMProvider {
     return typeof value === 'string' && LLM_PROVIDERS.some((provider) => provider === value);
 }
 
-function isExternalAccountCredential(value: unknown): value is ExternalAccountCredential {
+function isChatGPTOAuthCredential(value: unknown): value is ChatGPTOAuthCredential {
     if (!isRecord(value)) {
         return false;
     }
 
     return (
-        value.type === 'external_account' &&
-        value.system === 'codex' &&
-        value.authMode === 'chatgpt'
+        value.type === 'oauth' &&
+        value.issuer === 'https://auth.openai.com' &&
+        typeof value.refreshToken === 'string' &&
+        typeof value.accessToken === 'string' &&
+        typeof value.expiresAt === 'number' &&
+        (value.accountId === undefined || typeof value.accountId === 'string')
     );
 }
 
@@ -106,7 +109,7 @@ function isModelAuthProfile(value: unknown): value is ModelAuthProfile {
     }
 
     if (value.methodId === 'chatgpt_login') {
-        return isExternalAccountCredential(value.credential);
+        return isChatGPTOAuthCredential(value.credential);
     }
 
     return false;
@@ -234,18 +237,16 @@ export async function saveApiKeyModelAuthProfile(
     return saved;
 }
 
-export async function saveChatGPTLoginModelAuthProfile(): Promise<ModelAuthProfile> {
+export async function saveChatGPTLoginModelAuthProfile(
+    credential: ChatGPTOAuthCredential
+): Promise<ModelAuthProfile> {
     const existing = await loadModelAuthProfiles();
     const profile: ModelAuthProfileDraft = {
         id: profileId('openai', 'chatgpt_login'),
         providerId: 'openai',
         methodId: 'chatgpt_login',
         label: 'ChatGPT Login',
-        credential: {
-            type: 'external_account',
-            system: 'codex',
-            authMode: 'chatgpt',
-        },
+        credential,
     };
     const next = upsertProfile(existing, profile);
     await saveModelAuthProfiles(next);
@@ -254,6 +255,10 @@ export async function saveChatGPTLoginModelAuthProfile(): Promise<ModelAuthProfi
         throw new Error(`Failed to save model auth profile ${profile.id}`);
     }
     return saved;
+}
+
+async function updateChatGPTLoginCredential(credential: ChatGPTOAuthCredential): Promise<void> {
+    await saveChatGPTLoginModelAuthProfile(credential);
 }
 
 export function getDefaultModelAuthProfile(
@@ -281,12 +286,10 @@ export function createModelAuthResolver(): LlmAuthResolver {
                 return apiKey ? { apiKey } : null;
             }
 
-            const method = getAuthMethodDefinition(profile.providerId, profile.methodId);
-            if (!method || !isExternalAccountAuthMethod(method)) {
-                return null;
-            }
-
-            return method.externalAccount.resolveRuntimeAuth({ credential: profile.credential });
+            return createChatGPTRuntimeAuth({
+                credential: profile.credential,
+                updateCredential: updateChatGPTLoginCredential,
+            }) satisfies ChatGPTRuntimeAuth;
         },
     };
 }

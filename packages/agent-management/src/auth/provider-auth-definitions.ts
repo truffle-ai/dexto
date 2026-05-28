@@ -1,18 +1,7 @@
-import { createCodexBaseURL, type LlmRuntimeAuthOverrides, type LLMProvider } from '@dexto/core';
+import type { LLMProvider } from '@dexto/core';
 
-export const AUTH_METHOD_KINDS = ['api_key', 'external_account'] as const;
+export const AUTH_METHOD_KINDS = ['api_key', 'oauth'] as const;
 export type AuthMethodKind = (typeof AUTH_METHOD_KINDS)[number];
-
-export type ExternalAccountCredential = {
-    type: 'external_account';
-    system: 'codex';
-    authMode: 'chatgpt';
-    metadata?: Record<string, string> | undefined;
-};
-
-export type RuntimeAuthInput = {
-    credential: ExternalAccountCredential;
-};
 
 type AuthMethodDefinitionBase = {
     id: string;
@@ -26,14 +15,11 @@ export type ApiKeyAuthMethodDefinition = AuthMethodDefinitionBase & {
     kind: 'api_key';
 };
 
-export type ExternalAccountAuthMethodDefinition = AuthMethodDefinitionBase & {
-    kind: 'external_account';
-    externalAccount: {
-        resolveRuntimeAuth(input: RuntimeAuthInput): LlmRuntimeAuthOverrides;
-    };
+export type OAuthAuthMethodDefinition = AuthMethodDefinitionBase & {
+    kind: 'oauth';
 };
 
-export type AuthMethodDefinition = ApiKeyAuthMethodDefinition | ExternalAccountAuthMethodDefinition;
+export type AuthMethodDefinition = ApiKeyAuthMethodDefinition | OAuthAuthMethodDefinition;
 
 export type ProviderAuthDefinition = {
     providerId: LLMProvider;
@@ -50,20 +36,9 @@ export const OPENAI_API_KEY_AUTH_METHOD = {
 export const OPENAI_CHATGPT_LOGIN_AUTH_METHOD = {
     id: 'chatgpt_login',
     label: 'ChatGPT Login',
-    kind: 'external_account',
+    kind: 'oauth',
     hint: 'Use your ChatGPT account for OpenAI models',
-    externalAccount: {
-        resolveRuntimeAuth: ({ credential }) => {
-            if (credential.system !== 'codex' || credential.authMode !== 'chatgpt') {
-                throw new Error('ChatGPT Login requires a Codex ChatGPT external account');
-            }
-
-            return {
-                baseURL: createCodexBaseURL('chatgpt'),
-            };
-        },
-    },
-} as const satisfies ExternalAccountAuthMethodDefinition;
+} as const satisfies OAuthAuthMethodDefinition;
 
 export const PROVIDER_AUTH_DEFINITIONS = [
     {
@@ -91,8 +66,8 @@ export function getAuthMethodDefinition(
     );
 }
 
-export function isExternalAccountAuthMethod(
+export function isOAuthAuthMethod(
     method: AuthMethodDefinition
-): method is ExternalAccountAuthMethodDefinition {
-    return method.kind === 'external_account';
+): method is OAuthAuthMethodDefinition {
+    return method.kind === 'oauth';
 }

@@ -3,7 +3,7 @@ import {
     getAuthMethodDefinition,
     getProviderAuthDefinition,
     getProviderAuthDefinitions,
-    isExternalAccountAuthMethod,
+    isOAuthAuthMethod,
 } from './provider-auth-definitions.js';
 
 describe('provider auth definitions', () => {
@@ -16,7 +16,7 @@ describe('provider auth definitions', () => {
         });
         expect(provider?.methods.map((method) => [method.id, method.kind])).toEqual([
             ['api_key', 'api_key'],
-            ['chatgpt_login', 'external_account'],
+            ['chatgpt_login', 'oauth'],
         ]);
         expect(getProviderAuthDefinitions()).toHaveLength(1);
     });
@@ -26,22 +26,12 @@ describe('provider auth definitions', () => {
         expect(getProviderAuthDefinition('openai-codex')).toBeNull();
     });
 
-    it('projects ChatGPT Login credentials to internal Codex runtime auth', () => {
+    it('models ChatGPT Login as an OpenAI OAuth method', () => {
         const method = getAuthMethodDefinition('openai', 'chatgpt_login');
 
         expect(method).not.toBeNull();
-        if (!method || !isExternalAccountAuthMethod(method)) {
-            throw new Error('Expected ChatGPT Login to be an external account auth method');
+        if (!method || !isOAuthAuthMethod(method)) {
+            throw new Error('Expected ChatGPT Login to be an OAuth auth method');
         }
-
-        expect(
-            method.externalAccount.resolveRuntimeAuth({
-                credential: {
-                    type: 'external_account',
-                    system: 'codex',
-                    authMode: 'chatgpt',
-                },
-            })
-        ).toEqual({ baseURL: 'codex://chatgpt' });
     });
 });

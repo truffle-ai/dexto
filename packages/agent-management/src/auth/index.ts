@@ -6,14 +6,12 @@ export {
     getAuthMethodDefinition,
     getProviderAuthDefinition,
     getProviderAuthDefinitions,
-    isExternalAccountAuthMethod,
+    isOAuthAuthMethod,
     type ApiKeyAuthMethodDefinition,
     type AuthMethodDefinition,
     type AuthMethodKind,
-    type ExternalAccountAuthMethodDefinition,
-    type ExternalAccountCredential,
+    type OAuthAuthMethodDefinition,
     type ProviderAuthDefinition,
-    type RuntimeAuthInput,
 } from './provider-auth-definitions.js';
 
 export {
@@ -25,7 +23,16 @@ export {
     saveApiKeyModelAuthProfile,
     saveChatGPTLoginModelAuthProfile,
     type ApiKeyModelAuthProfile,
-    type ExternalAccountModelAuthProfile,
+    type OAuthModelAuthProfile,
     type ModelAuthProfile,
     type ModelAuthProfilesFile,
 } from './model-auth-profiles.js';
+
+export {
+    createChatGPTRuntimeAuth,
+    refreshChatGPTOAuthCredential,
+    startChatGPTBrowserLogin,
+    type ChatGPTOAuthCredential,
+    type ChatGPTRuntimeAuth,
+    type PendingChatGPTLogin,
+} from './chatgpt-oauth.js';
