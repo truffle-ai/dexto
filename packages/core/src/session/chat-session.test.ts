@@ -1098,36 +1098,6 @@ describe('ChatSession', () => {
             expect(mockServices.sessionManager.accumulateTokenUsage).not.toHaveBeenCalled();
         });
 
-        test('marks ChatGPT Login sessions as untracked instead of accumulating zero token usage', async () => {
-            mockServices.stateManager.getLLMConfig = vi.fn().mockReturnValue(
-                LLMConfigSchema.parse({
-                    provider: 'openai-compatible',
-                    model: 'gpt-5.4',
-                    baseURL: 'codex://chatgpt',
-                    apiKey: 'ignored-for-codex',
-                })
-            );
-
-            chatSession.eventBus.emit('llm:response', {
-                content: 'ChatGPT response',
-                tokenUsage: {
-                    inputTokens: 0,
-                    outputTokens: 0,
-                    reasoningTokens: 0,
-                    cacheReadTokens: 0,
-                    cacheWriteTokens: 0,
-                    totalTokens: 0,
-                },
-            });
-
-            await new Promise((resolve) => setTimeout(resolve, 0));
-
-            expect(mockServices.sessionManager.markUntrackedChatGPTLoginUsage).toHaveBeenCalledWith(
-                sessionId
-            );
-            expect(mockServices.sessionManager.accumulateTokenUsage).not.toHaveBeenCalled();
-        });
-
         test('should handle multiple models in same session', async () => {
             // First model: OpenAI GPT-4
             chatSession.eventBus.emit('llm:response', {

@@ -158,6 +158,25 @@ export {
     PROVIDER_API_KEY_MAP,
 } from './utils/api-key-resolver.js';
 
+// Model provider auth method definitions
+export {
+    AUTH_METHOD_KINDS,
+    OPENAI_API_KEY_AUTH_METHOD,
+    OPENAI_CHATGPT_LOGIN_AUTH_METHOD,
+    PROVIDER_AUTH_DEFINITIONS,
+    getAuthMethodDefinition,
+    getProviderAuthDefinition,
+    getProviderAuthDefinitions,
+    isExternalAccountAuthMethod,
+    type ApiKeyAuthMethodDefinition,
+    type AuthMethodDefinition,
+    type AuthMethodKind,
+    type ExternalAccountAuthMethodDefinition,
+    type ExternalAccountCredential,
+    type ProviderAuthDefinition,
+    type RuntimeAuthInput,
+} from './auth/index.js';
+
 // Custom models
 export {
     loadCustomModels,

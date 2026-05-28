@@ -27,11 +27,9 @@ import type { SessionMessageQueueStore } from '../storage/message-queue/types.js
 import type { ContentInput } from '../agent/types.js';
 import {
     getUsagePricingMetadata,
-    hasMeaningfulTokenUsage,
     normalizeTokenUsageForAccounting,
 } from '../llm/usage-metadata.js';
 import type { CompactionStrategy } from '../context/compaction/types.js';
-import { parseCodexBaseURL } from '../llm/providers/codex-base-url.js';
 import type { VercelLLMService } from '../llm/services/vercel.js';
 import type { AgentRunContext } from '../runtime/run-context.js';
 import { SessionError } from './errors.js';
@@ -240,21 +238,6 @@ export class ChatSession {
             if (payload.tokenUsage) {
                 const tokenUsage = normalizeTokenUsageForAccounting(payload.tokenUsage);
                 const llmConfig = this.services.stateManager.getLLMConfig(this.id);
-                const isChatGPTLogin =
-                    llmConfig.provider === 'openai-compatible' &&
-                    parseCodexBaseURL(llmConfig.baseURL)?.authMode === 'chatgpt';
-                const hasMeaningfulUsage = hasMeaningfulTokenUsage(tokenUsage);
-
-                if (isChatGPTLogin && !hasMeaningfulUsage) {
-                    this.services.sessionManager
-                        .markUntrackedChatGPTLoginUsage(this.id)
-                        .catch((err) => {
-                            this.logger.warn(
-                                `Failed to mark ChatGPT Login usage as untracked: ${err instanceof Error ? err.message : String(err)}`
-                            );
-                        });
-                    return;
-                }
 
                 // Extract model info from payload (preferred) or fall back to config
                 const modelInfo = {

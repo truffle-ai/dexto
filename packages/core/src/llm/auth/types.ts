@@ -1,0 +1,19 @@
+import type { LLMProvider } from '../types.js';
+
+export type LlmRuntimeAuthOverrides = {
+    apiKey?: string | undefined;
+    baseURL?: string | undefined;
+    headers?: Record<string, string> | undefined;
+    fetch?: typeof fetch | undefined;
+};
+
+export type ResolveLlmRuntimeAuthInput = {
+    provider: LLMProvider;
+    model: string;
+    apiKey?: string | undefined;
+    baseURL?: string | undefined;
+};
+
+export interface LlmAuthResolver {
+    resolveRuntimeAuth(input: ResolveLlmRuntimeAuthInput): LlmRuntimeAuthOverrides | null;
+}

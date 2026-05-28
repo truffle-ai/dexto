@@ -34,7 +34,7 @@ export const PreferenceLLMSchema = z
             ),
 
         baseURL: OptionalURL.describe(
-            'Custom base URL for providers that support it (openai-compatible, litellm, Codex)'
+            'Custom base URL for providers that support it (openai-compatible, litellm)'
         ),
 
         reasoning: z

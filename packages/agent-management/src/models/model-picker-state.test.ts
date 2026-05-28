@@ -67,7 +67,7 @@ describe('model-picker-state', () => {
         await recordRecentModel({
             provider: 'openai-compatible',
             model: 'gpt-5.4',
-            baseURL: 'codex://chatgpt',
+            baseURL: 'https://api-a.example.com/v1',
         });
         await recordRecentModel({
             provider: 'openai-compatible',
@@ -80,7 +80,7 @@ describe('model-picker-state', () => {
         expect(state.recents).toHaveLength(2);
         expect(state.recents.map((entry) => entry.baseURL)).toEqual([
             'https://api.example.com/v1',
-            'codex://chatgpt',
+            'https://api-a.example.com/v1',
         ]);
     });
 
@@ -106,7 +106,7 @@ describe('model-picker-state', () => {
         await toggleFavoriteModel({
             provider: 'openai-compatible',
             model: 'gpt-5.4',
-            baseURL: 'codex://chatgpt',
+            baseURL: 'https://api-a.example.com/v1',
         });
         const second = await toggleFavoriteModel({
             provider: 'openai-compatible',
@@ -118,7 +118,7 @@ describe('model-picker-state', () => {
         expect(second.state.favorites).toHaveLength(2);
         expect(second.state.favorites.map((entry) => entry.baseURL)).toEqual([
             'https://api.example.com/v1',
-            'codex://chatgpt',
+            'https://api-a.example.com/v1',
         ]);
     });
 
@@ -166,7 +166,7 @@ describe('model-picker-state', () => {
                 {
                     provider: 'openai-compatible',
                     model: 'gpt-5.4',
-                    baseURL: 'codex://chatgpt',
+                    baseURL: 'https://api-a.example.com/v1',
                 },
                 {
                     provider: 'openai-compatible',
@@ -183,13 +183,13 @@ describe('model-picker-state', () => {
                 toModelPickerKey({
                     provider: 'openai-compatible',
                     model: 'gpt-5.4',
-                    baseURL: 'codex://chatgpt',
+                    baseURL: 'https://api-a.example.com/v1',
                 }),
             ]),
         });
 
         expect(pruned.favorites).toHaveLength(1);
-        expect(pruned.favorites[0]?.baseURL).toBe('codex://chatgpt');
+        expect(pruned.favorites[0]?.baseURL).toBe('https://api-a.example.com/v1');
     });
 
     it('caps favorites when setting a large list', async () => {
