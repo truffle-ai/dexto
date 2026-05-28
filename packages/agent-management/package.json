@@ -12,6 +12,11 @@
       "import": "./dist/index.js",
       "require": "./dist/index.cjs"
     },
+    "./auth/provider-auth-definitions": {
+      "types": "./dist/auth/provider-auth-definitions.d.ts",
+      "import": "./dist/auth/provider-auth-definitions.js",
+      "require": "./dist/auth/provider-auth-definitions.cjs"
+    },
     "./package.json": "./package.json"
   },
   "dependencies": {
