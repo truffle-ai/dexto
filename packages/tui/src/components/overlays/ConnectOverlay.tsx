@@ -26,7 +26,7 @@ import {
     type ModelAuthProfile,
     type ProviderAuthDefinition,
 } from '@dexto/agent-management';
-import { LLM_PROVIDERS, type LLMProvider } from '@dexto/core';
+import { LLM_PROVIDERS, type LLMProvider } from '@dexto/llm';
 import { applyLayeredEnvironmentLoading, isValidApiKeyFormat } from '../../host/index.js';
 
 type ConnectStep =

@@ -1,7 +1,7 @@
 import chalk from 'chalk';
 import * as p from '@clack/prompts';
 import open from 'open';
-import { getDefaultModelForProvider, LLM_PROVIDERS, type LLMProvider } from '@dexto/core';
+import { getDefaultModelForProvider, LLM_PROVIDERS, type LLMProvider } from '@dexto/llm';
 import {
     deleteModelAuthProfile,
     getDefaultModelAuthProfileIdForProvider,

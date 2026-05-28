@@ -2,7 +2,8 @@ import { existsSync, readFileSync } from 'node:fs';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
-import { getDextoGlobalPath, getPrimaryApiKeyEnvVar, type LLMProvider } from '@dexto/core';
+import type { LLMProvider } from '@dexto/llm';
+import { getDextoGlobalPath, getPrimaryApiKeyEnvVar } from '@dexto/core';
 
 const MODEL_AUTH_PROFILES_FILE = 'model-auth.yml';
 
