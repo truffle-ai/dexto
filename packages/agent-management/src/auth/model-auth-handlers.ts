@@ -144,16 +144,24 @@ export async function markModelAuthProviderConnected(providerId: string): Promis
 function resolveRuntimeAuthFromProfile(
     profile: ModelAuthProfile
 ): ReturnType<LlmAuthResolver['resolveRuntimeAuth']> {
+    const auth = {
+        source: 'profile' as const,
+        profileId: profile.id,
+        providerId: profile.providerId,
+        methodId: profile.methodId,
+        credentialType: profile.credential.type,
+    };
+
     if (profile.credential.type === 'api_key_env') {
         const apiKey = process.env[profile.credential.envVar]?.trim();
-        return apiKey ? { apiKey } : null;
+        return apiKey ? { apiKey, auth } : null;
     }
 
-    return (
+    const runtimeAuth =
         getModelAuthMethodHandler(profile.providerId, profile.methodId)?.resolveRuntimeAuth?.(
             profile
-        ) ?? null
-    );
+        ) ?? null;
+    return runtimeAuth ? { ...runtimeAuth, auth } : null;
 }
 
 export function createModelAuthResolver(): LlmAuthResolver {

@@ -5,6 +5,15 @@ export type LlmRuntimeAuthOverrides = {
     baseURL?: string | undefined;
     headers?: Record<string, string> | undefined;
     fetch?: typeof fetch | undefined;
+    auth?: LlmRuntimeAuthInfo | undefined;
+};
+
+export type LlmRuntimeAuthInfo = {
+    source: 'profile';
+    profileId: string;
+    providerId: string;
+    methodId: string;
+    credentialType: string;
 };
 
 export type ResolveLlmRuntimeAuthInput = {

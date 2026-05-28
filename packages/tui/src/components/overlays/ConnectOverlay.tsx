@@ -45,7 +45,7 @@ type ConnectOption = {
 };
 
 export type ConnectOverlayOutcome =
-    | { outcome: 'success'; message: string }
+    | { outcome: 'success'; providerId: string; message: string }
     | { outcome: 'cancelled' }
     | { outcome: 'closed' };
 
@@ -241,6 +241,7 @@ const ConnectOverlay = forwardRef<ConnectOverlayHandle, ConnectOverlayProps>(
                 await markModelAuthProviderConnected(provider.providerId);
                 close({
                     outcome: 'success',
+                    providerId: provider.providerId,
                     message: `Connected ${provider.label} (${method.label})`,
                 });
             } catch (err) {
@@ -274,6 +275,7 @@ const ConnectOverlay = forwardRef<ConnectOverlayHandle, ConnectOverlayProps>(
                     await markModelAuthProviderConnected(nextProvider.providerId);
                     close({
                         outcome: 'success',
+                        providerId: nextProvider.providerId,
                         message: `Connected ${nextProvider.label} (${nextMethod.label})`,
                     });
                 } catch (err) {
@@ -356,6 +358,7 @@ const ConnectOverlay = forwardRef<ConnectOverlayHandle, ConnectOverlayProps>(
                         });
                         close({
                             outcome: 'success',
+                            providerId: provider.providerId,
                             message: `Using ${provider.label} ${method.label}`,
                         });
                         return;
@@ -422,6 +425,7 @@ const ConnectOverlay = forwardRef<ConnectOverlayHandle, ConnectOverlayProps>(
                             void deleteModelAuthProfile(currentProfileId).then(() =>
                                 close({
                                     outcome: 'success',
+                                    providerId: provider.providerId,
                                     message: `Deleted ${provider.label} ${method.label}`,
                                 })
                             );

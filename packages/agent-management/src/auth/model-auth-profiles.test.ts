@@ -109,6 +109,13 @@ describe('model auth profiles', () => {
         expect(runtimeAuth).toMatchObject({
             apiKey: 'dexto-chatgpt-oauth',
             baseURL: 'https://chatgpt.com/backend-api/codex',
+            auth: {
+                source: 'profile',
+                profileId: 'openai:chatgpt_login',
+                providerId: 'openai',
+                methodId: 'chatgpt_login',
+                credentialType: 'oauth',
+            },
         });
         expect(runtimeAuth?.fetch).toBeTypeOf('function');
     });
@@ -122,7 +129,16 @@ describe('model auth profiles', () => {
                 provider: 'openai',
                 model: 'gpt-5.4',
             })
-        ).toEqual({ apiKey: 'sk-test' });
+        ).toEqual({
+            apiKey: 'sk-test',
+            auth: {
+                source: 'profile',
+                profileId: 'openai:api_key',
+                providerId: 'openai',
+                methodId: 'api_key',
+                credentialType: 'api_key_env',
+            },
+        });
     });
 
     it('stores, defaults, lists, and deletes generic provider auth profiles', async () => {

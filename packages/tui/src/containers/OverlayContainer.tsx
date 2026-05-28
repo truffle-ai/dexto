@@ -1594,7 +1594,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
         );
 
         const handleConnectDone = useCallback(
-            (outcome: ConnectOverlayOutcome) => {
+            async (outcome: ConnectOverlayOutcome) => {
                 handleClose();
 
                 if (outcome.outcome === 'closed') {
@@ -1613,8 +1613,41 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         timestamp: new Date(),
                     },
                 ]);
+
+                if (outcome.outcome !== 'success') {
+                    return;
+                }
+
+                const currentConfig = agent.getCurrentLLMConfig(session.id || undefined);
+                if (currentConfig.provider !== outcome.providerId) {
+                    return;
+                }
+
+                try {
+                    await agent.switchLLM(
+                        {
+                            provider: currentConfig.provider,
+                            model: currentConfig.model,
+                            ...(currentConfig.baseURL ? { baseURL: currentConfig.baseURL } : {}),
+                            ...(currentConfig.reasoning
+                                ? { reasoning: currentConfig.reasoning }
+                                : {}),
+                        },
+                        session.id || undefined
+                    );
+                } catch (error) {
+                    setMessages((prev) => [
+                        ...prev,
+                        {
+                            id: generateMessageId('error'),
+                            role: 'system',
+                            content: `Failed to apply model provider connection: ${error instanceof Error ? error.message : String(error)}`,
+                            timestamp: new Date(),
+                        },
+                    ]);
+                }
             },
-            [handleClose, setMessages]
+            [agent, handleClose, session.id, setMessages]
         );
 
         // Handle log level selection

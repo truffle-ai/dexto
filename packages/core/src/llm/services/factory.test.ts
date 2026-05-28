@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { createMockLogger } from '../../logger/v2/test-utils.js';
 import { LLMConfigSchema } from '../schemas.js';
 import { createVercelModel } from './factory.js';
 
@@ -162,6 +163,7 @@ describe('createVercelModel dexto-nova base URL resolution', () => {
 
     it('passes runtime auth overrides to OpenAI clients', () => {
         const runtimeFetch = async (): Promise<Response> => new Response(null);
+        const logger = createMockLogger();
 
         createVercelModel(
             LLMConfigSchema.parse({
@@ -174,8 +176,16 @@ describe('createVercelModel dexto-nova base URL resolution', () => {
                     resolveRuntimeAuth: () => ({
                         headers: { authorization: 'Bearer oauth-token' },
                         fetch: runtimeFetch,
+                        auth: {
+                            source: 'profile',
+                            profileId: 'openai:chatgpt_login',
+                            providerId: 'openai',
+                            methodId: 'chatgpt_login',
+                            credentialType: 'oauth',
+                        },
                     }),
                 },
+                logger,
             }
         );
 
@@ -185,6 +195,26 @@ describe('createVercelModel dexto-nova base URL resolution', () => {
             fetch: runtimeFetch,
         });
         expect(sdkMocks.openAIResponsesModel).toHaveBeenCalledWith('gpt-5.4');
+        expect(logger.info).toHaveBeenCalledWith(
+            'LLM runtime auth resolved',
+            expect.objectContaining({
+                provider: 'openai',
+                model: 'gpt-5.4',
+                auth: {
+                    source: 'profile',
+                    profileId: 'openai:chatgpt_login',
+                    providerId: 'openai',
+                    methodId: 'chatgpt_login',
+                    credentialType: 'oauth',
+                },
+                runtime: {
+                    hasRuntimeFetch: true,
+                    hasRuntimeHeaders: true,
+                    hasRuntimeBaseURL: false,
+                    hasEffectiveBaseURL: false,
+                },
+            })
+        );
     });
 
     it('passes runtime auth overrides to OpenAI-compatible clients', () => {

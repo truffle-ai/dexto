@@ -24,6 +24,8 @@ import type {
     DextoProviderContext,
     LanguageModelFactory,
 } from './types.js';
+import type { LLMProvider } from '../types.js';
+import type { LlmRuntimeAuthOverrides } from '../auth/types.js';
 import { requiresApiKey } from '../registry/index.js';
 import { getPrimaryApiKeyEnvVar, resolveApiKeyForProvider } from '../../utils/api-key-resolver.js';
 import { createCodexLanguageModel } from '../providers/codex-app-server.js';
@@ -95,6 +97,49 @@ function mergeHeaders(
     return Object.keys(merged).length > 0 ? merged : undefined;
 }
 
+function logRuntimeAuthResolution(input: {
+    context?: DextoProviderContext | undefined;
+    provider: LLMProvider;
+    model: string;
+    configApiKey?: string | undefined;
+    resolvedApiKey?: string | undefined;
+    runtimeAuth: LlmRuntimeAuthOverrides | null;
+    effectiveBaseURL?: string | undefined;
+}): void {
+    const {
+        context,
+        provider,
+        model,
+        configApiKey,
+        resolvedApiKey,
+        runtimeAuth,
+        effectiveBaseURL,
+    } = input;
+    if (!context?.logger) {
+        return;
+    }
+
+    const auth =
+        runtimeAuth?.auth ??
+        (configApiKey?.trim()
+            ? { source: 'config_api_key' }
+            : resolvedApiKey?.trim()
+              ? { source: 'environment', envVar: getPrimaryApiKeyEnvVar(provider) }
+              : { source: 'none' });
+
+    context.logger.info('LLM runtime auth resolved', {
+        provider,
+        model,
+        auth,
+        runtime: {
+            hasRuntimeFetch: Boolean(runtimeAuth?.fetch),
+            hasRuntimeHeaders: Boolean(runtimeAuth?.headers),
+            hasRuntimeBaseURL: Boolean(runtimeAuth?.baseURL),
+            hasEffectiveBaseURL: Boolean(effectiveBaseURL),
+        },
+    });
+}
+
 /**
  * Create a Vercel AI SDK LanguageModel from config.
  *
@@ -117,12 +162,23 @@ export function createVercelModel(
             apiKey: llmConfig.apiKey,
             baseURL,
         }) ?? null;
-    const apiKey = llmConfig.apiKey || runtimeAuth?.apiKey || resolveApiKeyForProvider(provider);
+    const resolvedProviderApiKey = resolveApiKeyForProvider(provider);
+    const apiKey = llmConfig.apiKey || runtimeAuth?.apiKey || resolvedProviderApiKey;
     const runtimeBaseURL = runtimeAuth?.baseURL;
     const runtimeHeaders = runtimeAuth?.headers;
     const runtimeFetch = runtimeAuth?.fetch;
     const effectiveBaseURL = runtimeBaseURL?.replace(/\/$/, '') || baseURL?.replace(/\/$/, '');
     const usesCodexRuntimeAuth = runtimeBaseURL ? isCodexBaseURL(runtimeBaseURL) : false;
+
+    logRuntimeAuthResolution({
+        context,
+        provider,
+        model,
+        configApiKey: llmConfig.apiKey,
+        resolvedApiKey: resolvedProviderApiKey,
+        runtimeAuth,
+        effectiveBaseURL,
+    });
 
     // Runtime check: if provider requires API key but none is configured, fail with helpful message
     if (requiresApiKey(provider) && !usesCodexRuntimeAuth && !apiKey?.trim()) {
@@ -426,6 +482,7 @@ export function createLLMService(
         sessionId,
         ...(options.cwd !== undefined ? { cwd: options.cwd } : {}),
         authResolver: options.authResolver ?? null,
+        logger,
         onCodexRateLimitStatus: (snapshot) => {
             sessionEventBus.emit('llm:rate-limit-status', {
                 provider: config.provider,
