@@ -1,6 +1,7 @@
 ---
 "@dexto/core": patch
 "@dexto/agent-management": patch
+"@dexto/tui": patch
 "dexto": patch
 ---
 

@@ -26,3 +26,11 @@ export const logoutCommand: CommandDefinition = {
     category: 'General',
     handler: overlayOnlyHandler,
 };
+
+export const connectCommand: CommandDefinition = {
+    name: 'connect',
+    description: 'Connect or switch model provider auth',
+    usage: '/connect',
+    category: 'Model Management',
+    handler: overlayOnlyHandler,
+};

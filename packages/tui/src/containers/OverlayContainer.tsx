@@ -143,6 +143,10 @@ import LogoutOverlay, {
     type LogoutOverlayHandle,
     type LogoutOverlayOutcome,
 } from '../components/overlays/LogoutOverlay.js';
+import ConnectOverlay, {
+    type ConnectOverlayHandle,
+    type ConnectOverlayOutcome,
+} from '../components/overlays/ConnectOverlay.js';
 import type { PromptAddScope } from '../state/types.js';
 import type {
     PromptInfo,
@@ -275,6 +279,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
         const apiKeyInputRef = useRef<ApiKeyInputHandle>(null);
         const loginOverlayRef = useRef<LoginOverlayHandle>(null);
         const logoutOverlayRef = useRef<LogoutOverlayHandle>(null);
+        const connectOverlayRef = useRef<ConnectOverlayHandle>(null);
         const searchOverlayRef = useRef<SearchOverlayHandle>(null);
         const promptListRef = useRef<PromptListHandle>(null);
         const promptAddChoiceRef = useRef<PromptAddChoiceHandle>(null);
@@ -384,6 +389,8 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             return loginOverlayRef.current?.handleInput(inputStr, key) ?? false;
                         case 'logout':
                             return logoutOverlayRef.current?.handleInput(inputStr, key) ?? false;
+                        case 'connect':
+                            return connectOverlayRef.current?.handleInput(inputStr, key) ?? false;
                         case 'search':
                             return searchOverlayRef.current?.handleInput(inputStr, key) ?? false;
                         case 'prompt-list':
@@ -1579,6 +1586,30 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         id: generateMessageId('system'),
                         role: 'system',
                         content: `✅ Successfully logged out${warning}`,
+                        timestamp: new Date(),
+                    },
+                ]);
+            },
+            [handleClose, setMessages]
+        );
+
+        const handleConnectDone = useCallback(
+            (outcome: ConnectOverlayOutcome) => {
+                handleClose();
+
+                if (outcome.outcome === 'closed') {
+                    return;
+                }
+
+                setMessages((prev) => [
+                    ...prev,
+                    {
+                        id: generateMessageId('system'),
+                        role: 'system',
+                        content:
+                            outcome.outcome === 'success'
+                                ? `✅ ${outcome.message}`
+                                : 'Model provider connection cancelled.',
                         timestamp: new Date(),
                     },
                 ]);
@@ -3095,6 +3126,17 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             ref={logoutOverlayRef}
                             isVisible={true}
                             onDone={handleLogoutDone}
+                        />
+                    </Box>
+                )}
+
+                {/* Connect model provider */}
+                {ui.activeOverlay === 'connect' && (
+                    <Box marginTop={1}>
+                        <ConnectOverlay
+                            ref={connectOverlayRef}
+                            isVisible={true}
+                            onDone={handleConnectDone}
                         />
                     </Box>
                 )}

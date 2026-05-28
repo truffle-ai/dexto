@@ -1,5 +1,3 @@
-import type { LLMProvider } from '@dexto/core';
-
 export const AUTH_METHOD_KINDS = ['api_key', 'oauth'] as const;
 export type AuthMethodKind = (typeof AUTH_METHOD_KINDS)[number];
 
@@ -22,7 +20,7 @@ export type OAuthAuthMethodDefinition = AuthMethodDefinitionBase & {
 export type AuthMethodDefinition = ApiKeyAuthMethodDefinition | OAuthAuthMethodDefinition;
 
 export type ProviderAuthDefinition = {
-    providerId: LLMProvider;
+    providerId: string;
     label: string;
     methods: readonly AuthMethodDefinition[];
 };

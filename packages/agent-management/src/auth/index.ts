@@ -16,16 +16,30 @@ export {
 
 export {
     createModelAuthResolver,
+    markModelAuthProviderConnected,
+    saveChatGPTLoginModelAuthProfile,
+    startModelAuthBrowserLogin,
+    type PendingModelAuthBrowserLogin,
+} from './model-auth-handlers.js';
+
+export {
+    deleteModelAuthProfile,
     getDefaultModelAuthProfile,
+    getDefaultModelAuthProfileIdForProvider,
+    getModelAuthProfileId,
     getModelAuthProfilesPath,
+    listModelAuthProfiles,
+    listSavedModelAuthProfiles,
     loadModelAuthProfiles,
     loadModelAuthProfilesSync,
     saveApiKeyModelAuthProfile,
-    saveChatGPTLoginModelAuthProfile,
-    type ApiKeyModelAuthProfile,
-    type OAuthModelAuthProfile,
+    setDefaultModelAuthProfile,
+    upsertModelAuthProfile,
+    type ApiKeyEnvModelAuthCredential,
+    type ModelAuthCredential,
     type ModelAuthProfile,
     type ModelAuthProfilesFile,
+    type OAuthModelAuthCredential,
 } from './model-auth-profiles.js';
 
 export {

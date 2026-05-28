@@ -16,16 +16,17 @@ const mocks = vi.hoisted(() => ({
     open: vi.fn(),
     pendingLogin: {
         authUrl: 'https://auth.openai.com/oauth/authorize',
-        waitForCredential: vi.fn(),
+        waitForProfile: vi.fn(),
         cancel: vi.fn(),
     },
-    startChatGPTBrowserLogin: vi.fn(),
+    startModelAuthBrowserLogin: vi.fn(),
     interactiveApiKeySetup: vi.fn(),
     saveApiKeyProfile: vi.fn(),
-    saveChatGPTProfile: vi.fn(),
-    globalPreferencesExist: vi.fn(),
-    loadGlobalPreferences: vi.fn(),
-    updateGlobalPreferences: vi.fn(),
+    listSavedProfiles: vi.fn(),
+    getDefaultProfileId: vi.fn(),
+    setDefaultProfile: vi.fn(),
+    deleteProfile: vi.fn(),
+    markProviderConnected: vi.fn(),
 }));
 
 vi.mock('@clack/prompts', () => ({
@@ -62,33 +63,42 @@ vi.mock('@dexto/agent-management', async (importOriginal) => {
     const actual = await importOriginal<typeof import('@dexto/agent-management')>();
     return {
         ...actual,
+        deleteModelAuthProfile: mocks.deleteProfile,
+        getDefaultModelAuthProfileIdForProvider: mocks.getDefaultProfileId,
+        listSavedModelAuthProfiles: mocks.listSavedProfiles,
+        markModelAuthProviderConnected: mocks.markProviderConnected,
         saveApiKeyModelAuthProfile: mocks.saveApiKeyProfile,
-        saveChatGPTLoginModelAuthProfile: mocks.saveChatGPTProfile,
-        startChatGPTBrowserLogin: mocks.startChatGPTBrowserLogin,
-        globalPreferencesExist: mocks.globalPreferencesExist,
-        loadGlobalPreferences: mocks.loadGlobalPreferences,
-        updateGlobalPreferences: mocks.updateGlobalPreferences,
+        setDefaultModelAuthProfile: mocks.setDefaultProfile,
+        startModelAuthBrowserLogin: mocks.startModelAuthBrowserLogin,
     };
 });
 
 describe('handleConnectCommand', () => {
     beforeEach(() => {
         vi.clearAllMocks();
-        mocks.startChatGPTBrowserLogin.mockResolvedValue(mocks.pendingLogin);
-        mocks.pendingLogin.waitForCredential.mockResolvedValue({
-            type: 'oauth',
-            issuer: 'https://auth.openai.com',
-            refreshToken: 'refresh-token',
-            accessToken: 'access-token',
-            expiresAt: Date.now() + 3600_000,
-            accountId: 'account-1',
+        mocks.startModelAuthBrowserLogin.mockResolvedValue(mocks.pendingLogin);
+        mocks.pendingLogin.waitForProfile.mockResolvedValue({
+            id: 'openai:chatgpt_login',
+            providerId: 'openai',
+            methodId: 'chatgpt_login',
+            label: 'ChatGPT Login',
+            credential: {
+                type: 'oauth',
+                issuer: 'https://auth.openai.com',
+                refreshToken: 'refresh-token',
+                accessToken: 'access-token',
+                expiresAt: Date.now() + 3600_000,
+            },
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
         });
         mocks.pendingLogin.cancel.mockResolvedValue(undefined);
         mocks.open.mockResolvedValue(undefined);
-        mocks.globalPreferencesExist.mockReturnValue(false);
-        mocks.loadGlobalPreferences.mockResolvedValue({
-            llm: { provider: 'openai', model: 'gpt-5.4' },
-        });
+        mocks.listSavedProfiles.mockResolvedValue([]);
+        mocks.getDefaultProfileId.mockResolvedValue(null);
+        mocks.setDefaultProfile.mockResolvedValue(undefined);
+        mocks.deleteProfile.mockResolvedValue(true);
+        mocks.markProviderConnected.mockResolvedValue(undefined);
     });
 
     it('saves an OpenAI API-key profile after API key setup succeeds', async () => {
@@ -104,7 +114,7 @@ describe('handleConnectCommand', () => {
             model: 'gpt-5.4',
         });
         expect(mocks.saveApiKeyProfile).toHaveBeenCalledWith('openai');
-        expect(mocks.saveChatGPTProfile).not.toHaveBeenCalled();
+        expect(mocks.startModelAuthBrowserLogin).not.toHaveBeenCalled();
     });
 
     it('runs native ChatGPT Login and saves the OAuth-backed OpenAI profile', async () => {
@@ -113,20 +123,16 @@ describe('handleConnectCommand', () => {
             method: 'chatgpt_login',
         });
 
-        expect(mocks.startChatGPTBrowserLogin).toHaveBeenCalled();
+        expect(mocks.startModelAuthBrowserLogin).toHaveBeenCalledWith({
+            providerId: 'openai',
+            methodId: 'chatgpt_login',
+        });
         expect(mocks.open).toHaveBeenCalledWith('https://auth.openai.com/oauth/authorize');
         expect(mocks.note).toHaveBeenCalledWith(
             'Complete authorization in your browser.',
             'ChatGPT Login'
         );
-        expect(mocks.pendingLogin.waitForCredential).toHaveBeenCalled();
-        expect(mocks.saveChatGPTProfile).toHaveBeenCalledWith(
-            expect.objectContaining({
-                type: 'oauth',
-                refreshToken: 'refresh-token',
-                accessToken: 'access-token',
-            })
-        );
+        expect(mocks.pendingLogin.waitForProfile).toHaveBeenCalled();
         expect(mocks.pendingLogin.cancel).toHaveBeenCalled();
     });
 
@@ -155,7 +161,7 @@ describe('handleConnectCommand', () => {
                 ]),
             })
         );
-        expect(mocks.saveChatGPTProfile).toHaveBeenCalled();
+        expect(mocks.pendingLogin.waitForProfile).toHaveBeenCalled();
     });
 
     it('keeps waiting for ChatGPT Login after the browser open helper fails', async () => {
@@ -170,14 +176,11 @@ describe('handleConnectCommand', () => {
             expect.stringContaining('https://auth.openai.com/oauth/authorize'),
             'ChatGPT Login'
         );
-        expect(mocks.pendingLogin.waitForCredential).toHaveBeenCalled();
-        expect(mocks.saveChatGPTProfile).toHaveBeenCalled();
+        expect(mocks.pendingLogin.waitForProfile).toHaveBeenCalled();
     });
 
     it('does not save ChatGPT Login when native authorization fails', async () => {
-        mocks.pendingLogin.waitForCredential.mockRejectedValueOnce(
-            new Error('authorization failed')
-        );
+        mocks.pendingLogin.waitForProfile.mockRejectedValueOnce(new Error('authorization failed'));
 
         await expect(
             handleConnectCommand({
@@ -185,12 +188,10 @@ describe('handleConnectCommand', () => {
                 method: 'chatgpt_login',
             })
         ).rejects.toThrow('authorization failed');
-        expect(mocks.saveChatGPTProfile).not.toHaveBeenCalled();
         expect(mocks.pendingLogin.cancel).toHaveBeenCalled();
     });
 
     it('clears OpenAI apiKeyPending when connected auth satisfies current OpenAI preferences', async () => {
-        mocks.globalPreferencesExist.mockReturnValue(true);
         mocks.interactiveApiKeySetup.mockResolvedValue({ success: true, apiKey: 'sk-test' });
 
         await handleConnectCommand({
@@ -198,8 +199,111 @@ describe('handleConnectCommand', () => {
             method: 'api_key',
         });
 
-        expect(mocks.updateGlobalPreferences).toHaveBeenCalledWith({
-            setup: { apiKeyPending: false },
+        expect(mocks.markProviderConnected).toHaveBeenCalledWith('openai');
+    });
+
+    it('uses an existing profile without reconnecting', async () => {
+        mocks.listSavedProfiles.mockResolvedValue([
+            {
+                id: 'openai:chatgpt_login',
+                providerId: 'openai',
+                methodId: 'chatgpt_login',
+                label: 'ChatGPT Login',
+                credential: {
+                    type: 'oauth',
+                    issuer: 'https://auth.openai.com',
+                    refreshToken: 'refresh-token',
+                    accessToken: 'access-token',
+                    expiresAt: Date.now() + 3600_000,
+                },
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+            },
+        ]);
+
+        await handleConnectCommand({
+            provider: 'openai',
+            method: 'chatgpt_login',
+            action: 'use',
         });
+
+        expect(mocks.setDefaultProfile).toHaveBeenCalledWith({
+            providerId: 'openai',
+            profileId: 'openai:chatgpt_login',
+        });
+        expect(mocks.startModelAuthBrowserLogin).not.toHaveBeenCalled();
+    });
+
+    it('deletes an existing profile without reconnecting', async () => {
+        mocks.listSavedProfiles.mockResolvedValue([
+            {
+                id: 'openai:chatgpt_login',
+                providerId: 'openai',
+                methodId: 'chatgpt_login',
+                label: 'ChatGPT Login',
+                credential: {
+                    type: 'oauth',
+                    issuer: 'https://auth.openai.com',
+                    refreshToken: 'refresh-token',
+                    accessToken: 'access-token',
+                    expiresAt: Date.now() + 3600_000,
+                },
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+            },
+        ]);
+
+        await handleConnectCommand({
+            provider: 'openai',
+            method: 'chatgpt_login',
+            action: 'delete',
+            interactive: false,
+        });
+
+        expect(mocks.deleteProfile).toHaveBeenCalledWith('openai:chatgpt_login');
+        expect(mocks.startModelAuthBrowserLogin).not.toHaveBeenCalled();
+    });
+
+    it('replaces an existing profile when requested', async () => {
+        mocks.listSavedProfiles.mockResolvedValue([
+            {
+                id: 'openai:chatgpt_login',
+                providerId: 'openai',
+                methodId: 'chatgpt_login',
+                label: 'ChatGPT Login',
+                credential: {
+                    type: 'oauth',
+                    issuer: 'https://auth.openai.com',
+                    refreshToken: 'refresh-token',
+                    accessToken: 'access-token',
+                    expiresAt: Date.now() + 3600_000,
+                },
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+            },
+        ]);
+
+        await handleConnectCommand({
+            provider: 'openai',
+            method: 'chatgpt_login',
+            action: 'replace',
+        });
+
+        expect(mocks.startModelAuthBrowserLogin).toHaveBeenCalledWith({
+            providerId: 'openai',
+            methodId: 'chatgpt_login',
+        });
+        expect(mocks.pendingLogin.waitForProfile).toHaveBeenCalled();
+    });
+
+    it('rejects unsupported existing-profile actions', async () => {
+        await expect(
+            handleConnectCommand({
+                provider: 'openai',
+                method: 'chatgpt_login',
+                action: 'nope',
+            })
+        ).rejects.toThrow('Unsupported connect action: nope');
+        expect(mocks.startModelAuthBrowserLogin).not.toHaveBeenCalled();
     });
 });

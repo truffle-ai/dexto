@@ -1,24 +1,31 @@
 import chalk from 'chalk';
 import * as p from '@clack/prompts';
 import open from 'open';
-import { getDefaultModelForProvider, type LLMProvider } from '@dexto/core';
+import { getDefaultModelForProvider, LLM_PROVIDERS, type LLMProvider } from '@dexto/core';
 import {
+    deleteModelAuthProfile,
+    getDefaultModelAuthProfileIdForProvider,
+    getModelAuthProfileId,
+    getProviderAuthDefinition,
     getProviderAuthDefinitions,
+    listSavedModelAuthProfiles,
+    markModelAuthProviderConnected,
     saveApiKeyModelAuthProfile,
-    saveChatGPTLoginModelAuthProfile,
-    startChatGPTBrowserLogin,
-    globalPreferencesExist,
-    loadGlobalPreferences,
-    updateGlobalPreferences,
+    setDefaultModelAuthProfile,
+    startModelAuthBrowserLogin,
     type AuthMethodDefinition,
+    type ModelAuthProfile,
     type ProviderAuthDefinition,
 } from '@dexto/agent-management';
 import { interactiveApiKeySetup } from '../utils/api-key-setup.js';
 import { getProviderDisplayName } from '../utils/provider-setup.js';
 
+export type ConnectCommandAction = 'use' | 'replace' | 'delete';
+
 export type ConnectCommandOptions = {
     provider?: string;
     method?: string;
+    action?: string;
     interactive?: boolean;
 };
 
@@ -30,7 +37,41 @@ function getSelectableProviderDefinitions(): readonly ProviderAuthDefinition[] {
     );
 }
 
-async function selectProvider(input: string | undefined): Promise<LLMProvider | null> {
+function toLlmProvider(providerId: string): LLMProvider {
+    const provider = LLM_PROVIDERS.find((candidate) => candidate === providerId);
+    if (!provider) {
+        throw new Error(`API-key auth is not implemented for provider: ${providerId}`);
+    }
+    return provider;
+}
+
+function parseConnectAction(action: string | undefined): ConnectCommandAction | undefined {
+    if (!action) {
+        return undefined;
+    }
+    if (action === 'use' || action === 'replace' || action === 'delete') {
+        return action;
+    }
+    throw new Error(`Unsupported connect action: ${action}`);
+}
+
+function methodHint(
+    method: AuthMethodDefinition,
+    profile: ModelAuthProfile | undefined,
+    defaultProfileId: string | null
+): string | undefined {
+    const parts = [
+        profile
+            ? profile.id === defaultProfileId
+                ? 'Connected (default)'
+                : 'Connected'
+            : undefined,
+        method.hint,
+    ].filter((part): part is string => Boolean(part));
+    return parts.length ? parts.join(' - ') : undefined;
+}
+
+async function selectProvider(input: string | undefined): Promise<ProviderAuthDefinition | null> {
     const providers = getSelectableProviderDefinitions();
     if (input) {
         const provider = providers.find(
@@ -39,7 +80,7 @@ async function selectProvider(input: string | undefined): Promise<LLMProvider | 
         if (!provider) {
             throw new Error(`Unsupported model auth provider: ${input}`);
         }
-        return provider.providerId;
+        return provider;
     }
 
     const selected = await p.select({
@@ -50,57 +91,86 @@ async function selectProvider(input: string | undefined): Promise<LLMProvider | 
         })),
     });
 
-    return p.isCancel(selected) ? null : (selected as LLMProvider);
+    return p.isCancel(selected) ? null : (getProviderAuthDefinition(selected as string) ?? null);
 }
 
-async function selectMethod(
-    providerId: LLMProvider,
-    input: string | undefined
-): Promise<string | null> {
-    const provider = getProviderAuthDefinitions().find(
-        (item: ProviderAuthDefinition) => item.providerId === providerId
-    );
-    if (!provider) {
-        throw new Error(`Unsupported model auth provider: ${providerId}`);
-    }
-
-    if (input) {
-        const method = provider.methods.find(
-            (candidate: AuthMethodDefinition) => candidate.id === input
+async function selectMethod(input: {
+    provider: ProviderAuthDefinition;
+    methodId?: string | undefined;
+    profiles: ModelAuthProfile[];
+    defaultProfileId: string | null;
+}): Promise<AuthMethodDefinition | null> {
+    if (input.methodId) {
+        const method = input.provider.methods.find(
+            (candidate: AuthMethodDefinition) => candidate.id === input.methodId
         );
         if (!method) {
-            throw new Error(`Unsupported auth method for ${providerId}: ${input}`);
+            throw new Error(
+                `Unsupported auth method for ${input.provider.providerId}: ${input.methodId}`
+            );
         }
-        return method.id;
+        return method;
     }
 
     const selected = await p.select({
-        message: `How do you want to connect ${provider.label}?`,
-        options: provider.methods.map((method: AuthMethodDefinition) => ({
-            value: method.id,
-            label: method.label,
-            ...(method.hint ? { hint: method.hint } : {}),
-        })),
+        message: `How do you want to connect ${input.provider.label}?`,
+        options: input.provider.methods.map((method: AuthMethodDefinition) => {
+            const profile = input.profiles.find(
+                (item) => item.id === getModelAuthProfileId(input.provider.providerId, method.id)
+            );
+            const hint = methodHint(method, profile, input.defaultProfileId);
+            return {
+                value: method.id,
+                label: method.label,
+                ...(hint ? { hint } : {}),
+            };
+        }),
     });
 
-    return p.isCancel(selected) ? null : (selected as string);
+    return p.isCancel(selected)
+        ? null
+        : (input.provider.methods.find((method) => method.id === selected) ?? null);
 }
 
-async function syncOpenAIConnectionToPreferences(): Promise<void> {
-    if (!globalPreferencesExist()) {
-        return;
+async function selectExistingAction(input: {
+    provider: ProviderAuthDefinition;
+    method: AuthMethodDefinition;
+    profile: ModelAuthProfile;
+    defaultProfileId: string | null;
+    action?: ConnectCommandAction | undefined;
+    interactive: boolean;
+}): Promise<ConnectCommandAction | null> {
+    if (input.action) {
+        return input.action;
     }
 
-    const preferences = await loadGlobalPreferences();
-    if (preferences.llm.provider !== 'openai') {
-        return;
+    if (!input.interactive) {
+        return 'use';
     }
 
-    await updateGlobalPreferences({
-        setup: {
-            apiKeyPending: false,
-        },
+    const isDefault = input.profile.id === input.defaultProfileId;
+    const selected = await p.select({
+        message: `${input.provider.label} ${input.method.label} is already connected.`,
+        options: [
+            {
+                value: 'use',
+                label: isDefault ? 'Keep as default' : 'Use existing',
+                hint: isDefault ? 'No changes' : 'Set as provider default',
+            },
+            {
+                value: 'replace',
+                label: 'Replace credentials',
+                hint: 'Reconnect this method',
+            },
+            {
+                value: 'delete',
+                label: 'Delete credentials',
+                ...(isDefault ? { hint: 'Also clears the provider default' } : {}),
+            },
+        ],
     });
+
+    return p.isCancel(selected) ? null : (selected as ConnectCommandAction);
 }
 
 async function connectApiKey(providerId: LLMProvider): Promise<void> {
@@ -116,52 +186,55 @@ async function connectApiKey(providerId: LLMProvider): Promise<void> {
     }
 
     await saveApiKeyModelAuthProfile(providerId);
-    if (providerId === 'openai') {
-        await syncOpenAIConnectionToPreferences();
-    }
+    await markModelAuthProviderConnected(providerId);
 
     p.log.success(`${getProviderDisplayName(providerId)} API key connected`);
 }
 
-async function connectOpenAIChatGPTLogin(): Promise<void> {
+async function connectBrowserOAuth(input: {
+    provider: ProviderAuthDefinition;
+    method: AuthMethodDefinition;
+}): Promise<void> {
     const spinner = p.spinner();
-    let login: Awaited<ReturnType<typeof startChatGPTBrowserLogin>> | null = null;
+    let login: Awaited<ReturnType<typeof startModelAuthBrowserLogin>> | null = null;
     let timeout: NodeJS.Timeout | null = null;
 
     try {
-        spinner.start('Starting ChatGPT Login');
-        login = await startChatGPTBrowserLogin();
+        spinner.start(`Starting ${input.method.label}`);
+        login = await startModelAuthBrowserLogin({
+            providerId: input.provider.providerId,
+            methodId: input.method.id,
+        });
 
-        spinner.stop('OpenAI authorization ready');
+        spinner.stop(`${input.provider.label} authorization ready`);
         const openedBrowser = await open(login.authUrl)
             .then(() => true)
             .catch(() => false);
         if (openedBrowser) {
-            p.note('Complete authorization in your browser.', 'ChatGPT Login');
+            p.note('Complete authorization in your browser.', input.method.label);
         } else {
             p.note(
                 `Open this URL in your browser:\n\n${chalk.cyan(login.authUrl)}`,
-                'ChatGPT Login'
+                input.method.label
             );
         }
 
         spinner.start('Waiting for authorization');
-        const credential = await Promise.race([
-            login.waitForCredential(),
+        await Promise.race([
+            login.waitForProfile(),
             new Promise<never>((_, reject) => {
                 timeout = setTimeout(
-                    () => reject(new Error('ChatGPT Login timed out')),
+                    () => reject(new Error(`${input.method.label} timed out`)),
                     CHATGPT_LOGIN_TIMEOUT_MS
                 );
             }),
         ]);
 
-        await saveChatGPTLoginModelAuthProfile(credential);
-        await syncOpenAIConnectionToPreferences();
-        spinner.stop('ChatGPT account connected');
-        p.log.success('OpenAI ChatGPT Login connected');
+        await markModelAuthProviderConnected(input.provider.providerId);
+        spinner.stop(`${input.method.label} connected`);
+        p.log.success(`${input.provider.label} ${input.method.label} connected`);
     } catch (error) {
-        spinner.stop('ChatGPT Login failed');
+        spinner.stop(`${input.method.label} failed`);
         throw error;
     } finally {
         if (timeout) {
@@ -171,43 +244,91 @@ async function connectOpenAIChatGPTLogin(): Promise<void> {
     }
 }
 
+async function connectProviderMethod(input: {
+    provider: ProviderAuthDefinition;
+    method: AuthMethodDefinition;
+}): Promise<void> {
+    if (input.method.kind === 'api_key') {
+        await connectApiKey(toLlmProvider(input.provider.providerId));
+        return;
+    }
+
+    if (input.method.kind === 'oauth') {
+        await connectBrowserOAuth(input);
+    }
+}
+
 export async function handleConnectCommand(options: ConnectCommandOptions = {}): Promise<void> {
-    if (options.interactive === false && (!options.provider || !options.method)) {
+    const interactive = options.interactive !== false;
+    if (!interactive && (!options.provider || !options.method)) {
         throw new Error('Non-interactive connect requires --provider and --method');
     }
+    const requestedAction = parseConnectAction(options.action);
 
     p.intro(chalk.inverse('Connect Model Provider'));
 
-    const providerId = await selectProvider(options.provider);
-    if (!providerId) {
+    const provider = await selectProvider(options.provider);
+    if (!provider) {
         p.cancel('Connection cancelled');
         return;
     }
 
-    const methodId = await selectMethod(providerId, options.method);
-    if (!methodId) {
-        p.cancel('Connection cancelled');
-        return;
-    }
+    const [profiles, defaultProfileId] = await Promise.all([
+        listSavedModelAuthProfiles(provider.providerId),
+        getDefaultModelAuthProfileIdForProvider(provider.providerId),
+    ]);
 
-    const method = getProviderAuthDefinitions()
-        .find((provider: ProviderAuthDefinition) => provider.providerId === providerId)
-        ?.methods.find((candidate: AuthMethodDefinition) => candidate.id === methodId);
+    const method = await selectMethod({
+        provider,
+        methodId: options.method,
+        profiles,
+        defaultProfileId,
+    });
     if (!method) {
-        throw new Error(`Unsupported auth method: ${providerId}/${methodId}`);
-    }
-
-    if (method.kind === 'api_key') {
-        await connectApiKey(providerId);
-        p.outro(chalk.green('Connection saved'));
+        p.cancel('Connection cancelled');
         return;
     }
 
-    if (providerId === 'openai' && method.id === 'chatgpt_login' && method.kind === 'oauth') {
-        await connectOpenAIChatGPTLogin();
-        p.outro(chalk.green('Connection saved'));
-        return;
+    const profileId = getModelAuthProfileId(provider.providerId, method.id);
+    const existingProfile = profiles.find((profile: ModelAuthProfile) => profile.id === profileId);
+    if (existingProfile) {
+        const action = await selectExistingAction({
+            provider,
+            method,
+            profile: existingProfile,
+            defaultProfileId,
+            action: requestedAction,
+            interactive,
+        });
+
+        if (!action) {
+            p.cancel('Connection cancelled');
+            return;
+        }
+
+        if (action === 'use') {
+            await setDefaultModelAuthProfile({ providerId: provider.providerId, profileId });
+            p.outro(chalk.green(`Using ${provider.label} ${method.label}`));
+            return;
+        }
+
+        if (action === 'delete') {
+            const confirmed = interactive
+                ? await p.confirm({
+                      message: `Delete ${provider.label} ${method.label} credentials?`,
+                      initialValue: false,
+                  })
+                : true;
+            if (p.isCancel(confirmed) || !confirmed) {
+                p.cancel('Connection cancelled');
+                return;
+            }
+            await deleteModelAuthProfile(profileId);
+            p.outro(chalk.green(`Deleted ${provider.label} ${method.label}`));
+            return;
+        }
     }
 
-    throw new Error(`Auth method is not implemented yet: ${providerId}/${method.id}`);
+    await connectProviderMethod({ provider, method });
+    p.outro(chalk.green('Connection saved'));
 }

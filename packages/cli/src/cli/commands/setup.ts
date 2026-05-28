@@ -157,8 +157,8 @@ function hasUsableModelAuthProfile(provider: LLMProvider): boolean {
         return false;
     }
 
-    if (profile.methodId === 'api_key') {
-        return Boolean(process.env[profile.apiKeyEnvVar]?.trim());
+    if (profile.credential.type === 'api_key_env') {
+        return Boolean(process.env[profile.credential.envVar]?.trim());
     }
 
     return true;

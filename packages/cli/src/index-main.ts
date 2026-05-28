@@ -301,6 +301,7 @@ program
     .description('Connect a model provider auth method')
     .option('--provider <provider>', 'Model provider id')
     .option('--method <method>', 'Auth method id')
+    .option('--action <action>', 'Existing profile action: use, replace, or delete')
     .option('--no-interactive', 'Require provider and method flags')
     .action(
         withAnalytics('connect', async (options: ConnectCommandOptions) => {

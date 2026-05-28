@@ -1,15 +1,23 @@
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { tmpdir } from 'node:os';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
-    createModelAuthResolver,
+    deleteModelAuthProfile,
     getDefaultModelAuthProfile,
+    getDefaultModelAuthProfileIdForProvider,
+    getModelAuthProfileId,
     getModelAuthProfilesPath,
+    listModelAuthProfiles,
     loadModelAuthProfiles,
     saveApiKeyModelAuthProfile,
-    saveChatGPTLoginModelAuthProfile,
+    setDefaultModelAuthProfile,
+    upsertModelAuthProfile,
 } from './model-auth-profiles.js';
+import {
+    createModelAuthResolver,
+    saveChatGPTLoginModelAuthProfile,
+} from './model-auth-handlers.js';
 
 vi.mock('@dexto/core', async (importOriginal) => {
     const actual = await importOriginal<typeof import('@dexto/core')>();
@@ -61,7 +69,10 @@ describe('model auth profiles', () => {
             id: 'openai:api_key',
             providerId: 'openai',
             methodId: 'api_key',
-            apiKeyEnvVar: 'OPENAI_API_KEY',
+            credential: {
+                type: 'api_key_env',
+                envVar: 'OPENAI_API_KEY',
+            },
         });
         expect(readFileSync(getModelAuthProfilesPath(), 'utf-8')).not.toContain('sk-test');
     });
@@ -76,7 +87,14 @@ describe('model auth profiles', () => {
             id: 'openai:chatgpt_login',
             providerId: 'openai',
             methodId: 'chatgpt_login',
-            credential: chatgptCredential,
+            credential: {
+                type: 'oauth',
+                issuer: 'https://auth.openai.com',
+                refreshToken: 'refresh-token',
+                accessToken: 'access-token',
+                expiresAt: chatgptCredential.expiresAt,
+                metadata: { accountId: 'account-1' },
+            },
         });
     });
 
@@ -105,5 +123,50 @@ describe('model auth profiles', () => {
                 model: 'gpt-5.4',
             })
         ).toEqual({ apiKey: 'sk-test' });
+    });
+
+    it('stores, defaults, lists, and deletes generic provider auth profiles', async () => {
+        await upsertModelAuthProfile({
+            id: getModelAuthProfileId('minimax', 'portal_login'),
+            providerId: 'minimax',
+            methodId: 'portal_login',
+            label: 'MiniMax Portal',
+            credential: {
+                type: 'oauth',
+                issuer: 'https://example.test',
+                refreshToken: 'refresh-token',
+                accessToken: 'access-token',
+                expiresAt: 1,
+                metadata: { accountId: 'account-1' },
+            },
+        });
+
+        let profiles = await loadModelAuthProfiles();
+        expect(getDefaultModelAuthProfile(profiles, 'minimax')?.id).toBe('minimax:portal_login');
+        expect(listModelAuthProfiles(profiles, 'minimax')).toHaveLength(1);
+
+        await setDefaultModelAuthProfile({ providerId: 'minimax', profileId: null });
+        expect(await getDefaultModelAuthProfileIdForProvider('minimax')).toBeNull();
+
+        expect(await deleteModelAuthProfile('minimax:portal_login')).toBe(true);
+        profiles = await loadModelAuthProfiles();
+        expect(listModelAuthProfiles(profiles, 'minimax')).toHaveLength(0);
+    });
+
+    it('ignores defaults that point to another provider profile', async () => {
+        await saveApiKeyModelAuthProfile('openai');
+        const profilesPath = getModelAuthProfilesPath();
+        mkdirSync(path.dirname(profilesPath), { recursive: true });
+        writeFileSync(
+            profilesPath,
+            readFileSync(profilesPath, 'utf-8').replace(
+                'openai: openai:api_key',
+                'openai: openai:api_key\n  anthropic: openai:api_key'
+            )
+        );
+
+        const profiles = await loadModelAuthProfiles();
+        expect(getDefaultModelAuthProfile(profiles, 'anthropic')).toBeNull();
+        expect(await getDefaultModelAuthProfileIdForProvider('anthropic')).toBeNull();
     });
 });
