@@ -34,6 +34,26 @@ Shows a pattern for implementing a multi-agent coordinator/specialist architectu
 
 A simple HTTP server example demonstrating Dexto's resource authorization flow.
 
+### Deep Research Agent (`research-agent/`)
+
+A powerful research agent that conducts thorough, multi-step investigations on any topic.
+
+**Features:**
+- Semantic web search via Exa AI
+- Deep web scraping via Puppeteer
+- Persistent memory for tracking findings across sessions
+- Research report generation and file saving
+- Multi-source synthesis with citations
+
+**Quick Start:**
+```bash
+cd research-agent
+mkdir -p research-output
+dexto run agent-config.yml
+```
+
+**See:** [`research-agent/README.md`](./research-agent/README.md) for detailed setup and usage instructions.
+
 ## Agent Configuration Examples
 
 See the `/agents/` directory for YAML configuration examples for different use cases.
