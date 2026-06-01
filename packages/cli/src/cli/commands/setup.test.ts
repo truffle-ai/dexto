@@ -2,56 +2,37 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
 import { tmpdir } from 'os';
-import { stripVTControlCharacters } from 'node:util';
 import { handleSetupCommand, type CLISetupOptionsInput } from './setup.js';
 
-const { mockCodexAppServerCreate, mockOpen, mockExecuteCommand, providerModels, llmRegistry } =
-    vi.hoisted(() => {
-        const providerModels = {
-            anthropic: ['claude-haiku-4-5-20251001'],
-            google: ['gemini-2.5-pro'],
-            openai: ['gpt-4', 'gpt-4o', 'gpt-4o-mini', 'gpt-5', 'gpt-5-mini'],
-            'openai-compatible': ['gpt-4', 'gpt-4o', 'gpt-4o-mini'],
-            'dexto-nova': ['openai/gpt-5.2'],
-            openrouter: ['openai/gpt-5.2-codex'],
-            local: ['local-model'],
-            ollama: ['llama3.1'],
-        } as const;
+const { providerModels, llmRegistry } = vi.hoisted(() => {
+    const providerModels = {
+        anthropic: ['claude-haiku-4-5-20251001'],
+        google: ['gemini-2.5-pro'],
+        openai: ['gpt-4', 'gpt-4o', 'gpt-4o-mini', 'gpt-5', 'gpt-5-mini'],
+        'openai-compatible': ['gpt-4', 'gpt-4o', 'gpt-4o-mini'],
+        'dexto-nova': ['openai/gpt-5.2'],
+        openrouter: ['openai/gpt-5.2-codex'],
+        local: ['local-model'],
+        ollama: ['llama3.1'],
+    } as const;
 
-        const llmRegistry = Object.fromEntries(
-            Object.entries(providerModels).map(([provider, models]) => [
-                provider,
-                {
-                    models: models.map((model) => ({
-                        name: model,
-                        model,
-                        displayName: model,
-                        description: `${model} description`,
-                    })),
-                },
-            ])
-        );
-
-        return {
-            mockCodexAppServerCreate: vi.fn(),
-            mockOpen: vi.fn().mockResolvedValue(undefined),
-            mockExecuteCommand: vi.fn(),
-            providerModels,
-            llmRegistry,
-        };
-    });
-
-vi.mock('open', () => ({
-    default: mockOpen,
-}));
-
-vi.mock('../utils/self-management.js', async () => {
-    const actual = await vi.importActual<typeof import('../utils/self-management.js')>(
-        '../utils/self-management.js'
+    const llmRegistry = Object.fromEntries(
+        Object.entries(providerModels).map(([provider, models]) => [
+            provider,
+            {
+                models: models.map((model) => ({
+                    name: model,
+                    model,
+                    displayName: model,
+                    description: `${model} description`,
+                })),
+            },
+        ])
     );
+
     return {
-        ...actual,
-        executeCommand: mockExecuteCommand,
+        providerModels,
+        llmRegistry,
     };
 });
 
@@ -104,40 +85,6 @@ vi.mock('@dexto/core', () => {
             (provider: string) =>
                 !['local', 'ollama', 'dexto-nova', 'openai-compatible'].includes(provider)
         ),
-        createCodexBaseURL: vi.fn((mode: string = 'chatgpt') => `codex://${mode}`),
-        isCodexBaseURL: vi.fn(
-            (value: unknown) => typeof value === 'string' && value.startsWith('codex://')
-        ),
-        parseCodexBaseURL: vi.fn((value: unknown) => {
-            if (value === 'codex://chatgpt') {
-                return { authMode: 'chatgpt' };
-            }
-            if (value === 'codex://apikey') {
-                return { authMode: 'apikey' };
-            }
-            if (value === 'codex://auto' || value === 'codex://') {
-                return { authMode: 'auto' };
-            }
-            return null;
-        }),
-        getCodexProviderDisplayName: vi.fn((mode: string = 'auto') => {
-            if (mode === 'chatgpt') {
-                return 'ChatGPT Login';
-            }
-            if (mode === 'apikey') {
-                return 'ChatGPT Login (API key)';
-            }
-            return 'ChatGPT Login';
-        }),
-        getCodexAuthModeLabel: vi.fn((mode: string) => {
-            if (mode === 'chatgpt') {
-                return 'ChatGPT';
-            }
-            if (mode === 'apikey') {
-                return 'API key';
-            }
-            return 'Auto';
-        }),
         LLM_PROVIDERS: [
             'anthropic',
             'google',
@@ -154,9 +101,6 @@ vi.mock('@dexto/core', () => {
             info: vi.fn(),
             warn: vi.fn(),
             error: vi.fn(),
-        },
-        CodexAppServerClient: {
-            create: mockCodexAppServerCreate,
         },
     };
 });
@@ -195,6 +139,8 @@ vi.mock('@dexto/agent-management', () => {
         getGlobalPreferencesPath: vi.fn(() => '/tmp/preferences.yml'),
         updateGlobalPreferences: vi.fn().mockResolvedValue(undefined),
         globalPreferencesExist: vi.fn(),
+        getDefaultModelAuthProfile: vi.fn(() => null),
+        loadModelAuthProfilesSync: vi.fn(() => ({ version: 1, defaults: {}, profiles: [] })),
         setActiveModel: vi.fn().mockResolvedValue(undefined),
         isDextoAuthEnabled: vi.fn(() => false),
         loadCustomModels: vi.fn().mockResolvedValue([]),
@@ -297,7 +243,6 @@ describe('Setup Command', () => {
     let mockRequiresSetup: any;
     let mockResolveApiKeyForProvider: any;
     let mockGlobalPreferencesExist: any;
-    let mockManagedExecuteCommand: any;
     let mockPrompts: any;
     let consoleSpy: any;
     let consoleErrorSpy: any;
@@ -328,7 +273,6 @@ describe('Setup Command', () => {
         mockResolveApiKeyForProvider = vi.mocked(apiKeyResolver.resolveApiKeyForProvider);
         mockSelectProvider = vi.mocked(providerSetup.selectProvider);
         mockRequiresSetup = vi.mocked(setupUtils.requiresSetup);
-        mockManagedExecuteCommand = mockExecuteCommand;
         mockPrompts = {
             intro: vi.mocked(prompts.intro),
             note: vi.mocked(prompts.note),
@@ -383,15 +327,6 @@ describe('Setup Command', () => {
         mockRequiresSetup.mockResolvedValue(true); // Default: setup is required
         mockPrompts.isCancel.mockReturnValue(false);
         mockPrompts.select.mockResolvedValue('exit'); // Default: exit settings menu
-        mockCodexAppServerCreate.mockReset();
-        mockOpen.mockReset();
-        mockManagedExecuteCommand.mockReset();
-        mockOpen.mockResolvedValue(undefined);
-        mockManagedExecuteCommand.mockResolvedValue({
-            code: 0,
-            stdout: '',
-            stderr: '',
-        });
 
         // Mock console to prevent test output noise
         consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
@@ -501,176 +436,6 @@ describe('Setup Command', () => {
     });
 
     describe('Interactive setup', () => {
-        it('configures ChatGPT Login with ChatGPT auth', async () => {
-            const codexClient = {
-                readAccount: vi.fn(),
-                startLogin: vi.fn(),
-                waitForLoginCompleted: vi.fn(),
-                listModels: vi.fn(),
-                logout: vi.fn(),
-                close: vi.fn().mockResolvedValue(undefined),
-            };
-
-            codexClient.readAccount
-                .mockResolvedValueOnce({ account: null, requiresOpenaiAuth: true })
-                .mockResolvedValueOnce({
-                    account: {
-                        type: 'chatgpt',
-                        email: 'dev@example.com',
-                        planType: 'plus',
-                    },
-                    requiresOpenaiAuth: false,
-                });
-            codexClient.startLogin.mockResolvedValue({
-                type: 'chatgpt',
-                loginId: 'login-1',
-                authUrl: 'https://chatgpt.example/login',
-            });
-            codexClient.waitForLoginCompleted.mockResolvedValue({
-                loginId: 'login-1',
-                success: true,
-                error: null,
-            });
-            codexClient.listModels.mockResolvedValue([
-                {
-                    id: 'model-1',
-                    model: 'gpt-4o-mini',
-                    displayName: 'GPT-4o Mini',
-                    description: 'Fast',
-                    hidden: false,
-                    isDefault: true,
-                    supportedReasoningEfforts: [],
-                    defaultReasoningEffort: 'medium',
-                },
-            ]);
-            mockCodexAppServerCreate.mockResolvedValue(codexClient);
-
-            mockPrompts.select
-                .mockResolvedValueOnce('openai-codex')
-                .mockResolvedValueOnce('gpt-4o-mini')
-                .mockResolvedValueOnce('cli');
-
-            await handleSetupCommand({ interactive: true });
-
-            expect(mockCodexAppServerCreate).toHaveBeenCalled();
-            expect(codexClient.startLogin).toHaveBeenCalledWith({ type: 'chatgpt' });
-            expect(codexClient.waitForLoginCompleted).toHaveBeenCalledWith('login-1', {
-                timeoutMs: 5 * 60 * 1000,
-            });
-            expect(mockOpen).toHaveBeenCalledWith('https://chatgpt.example/login');
-            expect(mockCreateInitialPreferences).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    provider: 'openai-compatible',
-                    model: 'gpt-4o-mini',
-                    baseURL: 'codex://chatgpt',
-                    defaultMode: 'cli',
-                    setupCompleted: true,
-                    apiKeyPending: false,
-                })
-            );
-            expect(mockSaveGlobalPreferences).toHaveBeenCalled();
-            expect(codexClient.close).toHaveBeenCalled();
-        });
-
-        it('installs the Codex CLI automatically when ChatGPT Login setup needs it', async () => {
-            const missingCodexError = new Error('spawn codex ENOENT') as NodeJS.ErrnoException;
-            missingCodexError.code = 'ENOENT';
-            const codexClient = {
-                readAccount: vi.fn(),
-                startLogin: vi.fn(),
-                waitForLoginCompleted: vi.fn(),
-                listModels: vi.fn(),
-                logout: vi.fn(),
-                close: vi.fn().mockResolvedValue(undefined),
-            };
-
-            codexClient.readAccount
-                .mockResolvedValueOnce({ account: null, requiresOpenaiAuth: true })
-                .mockResolvedValueOnce({
-                    account: {
-                        type: 'chatgpt',
-                        email: 'dev@example.com',
-                        planType: 'plus',
-                    },
-                    requiresOpenaiAuth: false,
-                });
-            codexClient.startLogin.mockResolvedValue({
-                type: 'chatgpt',
-                loginId: 'login-1',
-                authUrl: 'https://chatgpt.example/login',
-            });
-            codexClient.waitForLoginCompleted.mockResolvedValue({
-                loginId: 'login-1',
-                success: true,
-                error: null,
-            });
-            codexClient.listModels.mockResolvedValue([
-                {
-                    id: 'model-1',
-                    model: 'gpt-4o-mini',
-                    displayName: 'GPT-4o Mini',
-                    description: 'Fast',
-                    hidden: false,
-                    isDefault: true,
-                    supportedReasoningEfforts: [],
-                    defaultReasoningEffort: 'medium',
-                },
-            ]);
-            mockCodexAppServerCreate
-                .mockRejectedValueOnce(missingCodexError)
-                .mockResolvedValueOnce(codexClient);
-
-            mockPrompts.select
-                .mockResolvedValueOnce('openai-codex')
-                .mockResolvedValueOnce('gpt-4o-mini')
-                .mockResolvedValueOnce('cli');
-
-            await handleSetupCommand({ interactive: true });
-
-            expect(mockManagedExecuteCommand).toHaveBeenNthCalledWith(1, 'npm', ['--version']);
-            expect(mockManagedExecuteCommand).toHaveBeenNthCalledWith(
-                2,
-                'npm',
-                ['install', '@openai/codex', '--no-audit', '--no-fund'],
-                expect.objectContaining({
-                    cwd: expect.stringContaining('.dexto'),
-                })
-            );
-            expect(mockCodexAppServerCreate).toHaveBeenCalledTimes(2);
-            expect(codexClient.close).toHaveBeenCalled();
-        });
-
-        it('surfaces automatic Codex CLI install failures during ChatGPT Login setup', async () => {
-            const missingCodexError = new Error('spawn codex ENOENT') as NodeJS.ErrnoException;
-            missingCodexError.code = 'ENOENT';
-            mockCodexAppServerCreate.mockRejectedValueOnce(missingCodexError);
-            mockManagedExecuteCommand
-                .mockResolvedValueOnce({
-                    code: 0,
-                    stdout: '10.0.0',
-                    stderr: '',
-                })
-                .mockResolvedValueOnce({
-                    code: 1,
-                    stdout: '',
-                    stderr: 'network unreachable',
-                });
-
-            const cancelToken = Symbol.for('cancel');
-            mockPrompts.select
-                .mockResolvedValueOnce('openai-codex')
-                .mockResolvedValueOnce(cancelToken);
-            mockPrompts.isCancel.mockImplementation((value: unknown) => value === cancelToken);
-
-            await expect(handleSetupCommand({ interactive: true })).rejects.toThrow(
-                'Process exit called with code 0'
-            );
-
-            expect(mockPrompts.log.error).toHaveBeenCalledWith(
-                'ChatGPT Login setup failed: Failed to install the OpenAI Codex CLI via npm: network unreachable'
-            );
-        });
-
         it('shows setup type selection when interactive without provider', async () => {
             // User selects 'custom' setup, then provider selection happens
             // Wizard uses selectProvider for provider selection
@@ -1084,40 +849,6 @@ describe('Setup Command', () => {
         });
 
         describe('Interactive re-setup (Settings Menu)', () => {
-            it('shows Codex-specific labels for a saved ChatGPT-backed config', async () => {
-                mockLoadGlobalPreferences.mockResolvedValue({
-                    llm: {
-                        provider: 'openai-compatible',
-                        model: 'gpt-4o-mini',
-                        baseURL: 'codex://chatgpt',
-                    },
-                    defaults: {
-                        defaultMode: 'cli',
-                    },
-                    setup: { completed: true },
-                });
-                mockPrompts.select.mockResolvedValueOnce('exit');
-
-                await handleSetupCommand({ interactive: true });
-
-                const stripAnsi = (value: unknown) =>
-                    typeof value === 'string' ? stripVTControlCharacters(value) : String(value);
-                const [noteText] = mockPrompts.note.mock.calls[0] ?? [];
-                expect(stripAnsi(noteText)).toContain('Provider: ChatGPT Login');
-                expect(stripAnsi(noteText)).toContain('Authentication: ChatGPT');
-
-                const [settingsSelect] = mockPrompts.select.mock.calls[0] ?? [];
-                expect(settingsSelect.options).toEqual(
-                    expect.arrayContaining([
-                        expect.objectContaining({
-                            value: 'auth',
-                            label: 'Manage ChatGPT login',
-                            hint: 'Verify or reconnect your ChatGPT login for Codex',
-                        }),
-                    ])
-                );
-            });
-
             it('shows settings menu when setup is already complete', async () => {
                 // User selects 'exit' from settings menu
                 mockPrompts.select.mockResolvedValueOnce('exit');

@@ -21,6 +21,7 @@ import { AgentError } from '../agent/errors.js';
 import { WorkspaceManager } from '../workspace/index.js';
 import { createAllowedToolsProvider } from '../tools/approval/allowed-tools-provider/factory.js';
 import type { Logger } from '../logger/v2/types.js';
+import type { LlmAuthResolver } from '../llm/auth/index.js';
 import type { AgentRuntimeSettings } from '../agent/runtime-config.js';
 import { AgentEventBus } from '../events/index.js';
 import { ResourceManager } from '../resources/manager.js';
@@ -79,6 +80,7 @@ export type TelemetryBootstrap = (context: TelemetryBootstrapContext) => Promise
 export type InitializeServicesOptions = {
     sessionLoggerFactory?: import('../session/session-manager.js').SessionLoggerFactory;
     languageModelFactory?: LanguageModelFactory;
+    authResolver?: LlmAuthResolver | null;
     mcpAuthProviderFactory?: import('../mcp/types.js').McpAuthProviderFactory | null;
     toolManager?: ToolManager;
     toolManagerFactory?: ToolManagerFactory;
@@ -323,6 +325,9 @@ export async function createAgentServices(
             }),
             ...(overrides?.languageModelFactory !== undefined && {
                 languageModelFactory: overrides.languageModelFactory,
+            }),
+            ...(overrides?.authResolver !== undefined && {
+                authResolver: overrides.authResolver,
             }),
         },
         logger

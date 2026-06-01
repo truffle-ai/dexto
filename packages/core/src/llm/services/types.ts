@@ -2,6 +2,8 @@ import type { CompactionStrategy } from '../../context/compaction/types.js';
 import type { LanguageModel } from 'ai';
 import type { CodexRateLimitSnapshot } from '../providers/codex-app-server.js';
 import type { ValidatedLLMConfig } from '../schemas.js';
+import type { LlmAuthResolver } from '../auth/types.js';
+import type { Logger } from '../../logger/v2/types.js';
 import type { LLMProvider } from '@dexto/llm';
 import type { MessageQueueService } from '../../session/message-queue.js';
 import type { AgentRunContext } from '../../runtime/run-context.js';
@@ -21,6 +23,7 @@ export interface CreateLLMServiceOptions {
     usageScopeId?: string | undefined;
     compactionStrategy?: CompactionStrategy | null | undefined;
     cwd?: string | undefined;
+    authResolver?: LlmAuthResolver | null | undefined;
     steerQueue: MessageQueueService;
     followUpQueue: MessageQueueService;
 }
@@ -42,6 +45,10 @@ export interface DextoProviderContext {
     clientSource?: 'cli' | 'web' | 'sdk';
     /** Working directory for providers that need an explicit workspace root. */
     cwd?: string;
+    /** Runtime auth resolver for profile-backed API keys, OAuth, and external accounts. */
+    authResolver?: LlmAuthResolver | null;
+    /** Logger for non-secret runtime provider/auth observability. */
+    logger?: Logger | undefined;
     /** Optional callback for ChatGPT Login rate-limit status updates from Codex. */
     onCodexRateLimitStatus?: (snapshot: CodexRateLimitSnapshot) => void;
 }

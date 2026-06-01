@@ -13,6 +13,7 @@ import { SessionError } from './errors.js';
 import type { TokenUsage } from '@dexto/llm';
 import { normalizeTokenUsageForAccounting } from '../llm/usage-metadata.js';
 import type { LanguageModelFactory } from '../llm/services/types.js';
+import type { LlmAuthResolver } from '../llm/auth/index.js';
 import type { CompactionStrategy } from '../context/compaction/types.js';
 import { ZodError } from 'zod';
 import {
@@ -81,6 +82,8 @@ export interface SessionManagerConfig {
     sessionLoggerFactory?: SessionLoggerFactory;
     /** Host hook for constructing session-scoped LanguageModel instances */
     languageModelFactory?: LanguageModelFactory;
+    /** Host hook for resolving runtime provider auth from local/cloud profiles */
+    authResolver?: LlmAuthResolver | null;
 }
 
 type PersistedLLMConfig = Omit<ValidatedLLMConfig, 'apiKey'>;
@@ -136,6 +139,7 @@ export class SessionManager {
 
     private readonly sessionLoggerFactory: SessionLoggerFactory;
     private readonly languageModelFactory: LanguageModelFactory | undefined;
+    private readonly authResolver: LlmAuthResolver | null;
 
     constructor(
         private services: {
@@ -161,6 +165,7 @@ export class SessionManager {
         this.sessionTTL = config.sessionTTL ?? 3600000; // 1 hour
         this.sessionLoggerFactory = config.sessionLoggerFactory ?? defaultSessionLoggerFactory;
         this.languageModelFactory = config.languageModelFactory;
+        this.authResolver = config.authResolver ?? null;
         this.logger = logger.createChild(DextoLogComponent.SESSION);
     }
 
@@ -171,6 +176,7 @@ export class SessionManager {
             ...(this.languageModelFactory !== undefined && {
                 languageModelFactory: this.languageModelFactory,
             }),
+            authResolver: this.authResolver,
         };
     }
 

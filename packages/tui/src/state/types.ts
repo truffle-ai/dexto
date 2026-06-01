@@ -362,6 +362,7 @@ export type OverlayType =
     | 'insufficient-credits'
     | 'login'
     | 'logout'
+    | 'connect'
     | 'search'
     | 'approval'
     | 'tool-browser'

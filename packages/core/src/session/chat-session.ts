@@ -2,6 +2,7 @@ import { randomUUID } from 'crypto';
 import { createLLMService } from '../llm/services/factory.js';
 import type { ContextManager } from '../context/index.js';
 import type { CreateLLMServiceOptions, LanguageModelFactory } from '../llm/services/types.js';
+import type { LlmAuthResolver } from '../llm/auth/index.js';
 import type { SystemPromptManager } from '../systemPrompt/manager.js';
 import type { ToolManager } from '../tools/tool-manager.js';
 import type { ValidatedLLMConfig } from '../llm/schemas.js';
@@ -27,11 +28,9 @@ import type { SessionMessageQueueStore } from '../storage/message-queue/types.js
 import type { ContentInput } from '../agent/types.js';
 import {
     getUsagePricingMetadata,
-    hasMeaningfulTokenUsage,
     normalizeTokenUsageForAccounting,
 } from '../llm/usage-metadata.js';
 import type { CompactionStrategy } from '../context/compaction/types.js';
-import { parseCodexBaseURL } from '../llm/providers/codex-base-url.js';
 import type { VercelLLMService } from '../llm/services/vercel.js';
 import type { AgentRunContext } from '../runtime/run-context.js';
 import { SessionError } from './errors.js';
@@ -174,6 +173,7 @@ export class ChatSession {
             steerQueueStore: SessionMessageQueueStore;
             followUpQueueStore: SessionMessageQueueStore;
             languageModelFactory?: LanguageModelFactory;
+            authResolver?: LlmAuthResolver | null;
             workspaceManager?: import('../workspace/manager.js').WorkspaceManager;
             compactionStrategy: CompactionStrategy | null;
         },
@@ -240,21 +240,6 @@ export class ChatSession {
             if (payload.tokenUsage) {
                 const tokenUsage = normalizeTokenUsageForAccounting(payload.tokenUsage);
                 const llmConfig = this.services.stateManager.getLLMConfig(this.id);
-                const isChatGPTLogin =
-                    llmConfig.provider === 'openai-compatible' &&
-                    parseCodexBaseURL(llmConfig.baseURL)?.authMode === 'chatgpt';
-                const hasMeaningfulUsage = hasMeaningfulTokenUsage(tokenUsage);
-
-                if (isChatGPTLogin && !hasMeaningfulUsage) {
-                    this.services.sessionManager
-                        .markUntrackedChatGPTLoginUsage(this.id)
-                        .catch((err) => {
-                            this.logger.warn(
-                                `Failed to mark ChatGPT Login usage as untracked: ${err instanceof Error ? err.message : String(err)}`
-                            );
-                        });
-                    return;
-                }
 
                 // Extract model info from payload (preferred) or fall back to config
                 const modelInfo = {
@@ -316,6 +301,7 @@ export class ChatSession {
             ...(workspace?.path !== undefined && { cwd: workspace.path }),
             steerQueue: this.steerQueue,
             followUpQueue: this.followUpQueue,
+            authResolver: this.services.authResolver ?? null,
         };
 
         return createLLMService(

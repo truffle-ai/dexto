@@ -6,6 +6,11 @@ export * from './validation.js';
 export * from './usage-metadata.js';
 export * from './usage-scope.js';
 export * from './usage-summary.js';
+export type {
+    LlmAuthResolver,
+    LlmRuntimeAuthOverrides,
+    ResolveLlmRuntimeAuthInput,
+} from './auth/index.js';
 export * from './services/index.js';
 export * from './executor/index.js';
 export * from './schemas.js';

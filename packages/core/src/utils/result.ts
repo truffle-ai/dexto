@@ -9,7 +9,7 @@ export const NonEmptyTrimmed = z
     .transform((s) => s.trim())
     .refine((s) => s.length > 0, { message: 'Required' });
 
-const ALLOWED_URL_PROTOCOLS = new Set(['http:', 'https:', 'codex:']);
+const ALLOWED_URL_PROTOCOLS = new Set(['http:', 'https:']);
 
 /** Simple URL check (so we don’t need preprocess JUST to trim before .url()) */
 function isValidUrl(s: string): boolean {

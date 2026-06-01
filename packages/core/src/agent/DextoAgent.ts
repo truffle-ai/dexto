@@ -1859,7 +1859,10 @@ export class DextoAgent {
 
         // Generate title
         const result = await generateSessionTitle(llmConfig, userText, this.logger, {
-            providerContext: { sessionId },
+            providerContext: {
+                sessionId,
+                authResolver: this.overrides.authResolver ?? null,
+            },
             ...(this.overrides.languageModelFactory !== undefined && {
                 languageModelFactory: this.overrides.languageModelFactory,
             }),

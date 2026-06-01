@@ -41,7 +41,7 @@ import { toolCommands } from './tool-commands.js';
 import { promptCommands } from './prompt-commands.js';
 import { skillCommands } from './skill-commands.js';
 import { documentationCommands } from './documentation-commands.js';
-import { loginCommand, logoutCommand } from './auth/index.js';
+import { connectCommand, loginCommand, logoutCommand } from './auth/index.js';
 
 /**
  * Complete list of all available CLI commands.
@@ -99,6 +99,9 @@ const baseCommands: CommandDefinition[] = [
 
     // Auth commands (feature-flagged)
     ...(isDextoAuthEnabled() ? [loginCommand, logoutCommand] : []),
+
+    // Model provider auth
+    connectCommand,
 ];
 
 // Add help command that can see all commands
