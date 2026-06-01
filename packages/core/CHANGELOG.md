@@ -1,5 +1,12 @@
 # @dexto/core
 
+## 1.8.2
+
+### Patch Changes
+
+- a93c02b: Add provider auth profiles and ChatGPT Login connect support
+    - @dexto/llm@1.8.2
+
 ## 1.8.1
 
 ### Patch Changes
