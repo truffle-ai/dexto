@@ -163,7 +163,7 @@ export function createVercelModel(
             baseURL,
         }) ?? null;
     const resolvedProviderApiKey = resolveApiKeyForProvider(provider);
-    const apiKey = llmConfig.apiKey || runtimeAuth?.apiKey || resolvedProviderApiKey;
+    const apiKey = runtimeAuth?.apiKey || llmConfig.apiKey || resolvedProviderApiKey;
     const runtimeBaseURL = runtimeAuth?.baseURL;
     const runtimeHeaders = runtimeAuth?.headers;
     const runtimeFetch = runtimeAuth?.fetch;

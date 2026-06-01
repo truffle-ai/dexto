@@ -173,7 +173,7 @@ async function selectExistingAction(input: {
     return p.isCancel(selected) ? null : (selected as ConnectCommandAction);
 }
 
-async function connectApiKey(providerId: LLMProvider): Promise<void> {
+async function connectApiKey(providerId: LLMProvider): Promise<boolean> {
     const defaultModel = getDefaultModelForProvider(providerId);
     const result = await interactiveApiKeySetup(providerId, {
         exitOnCancel: false,
@@ -182,13 +182,14 @@ async function connectApiKey(providerId: LLMProvider): Promise<void> {
 
     if (result.cancelled || result.skipped || !result.success) {
         p.log.warn('Connection cancelled');
-        return;
+        return false;
     }
 
     await saveApiKeyModelAuthProfile(providerId);
     await markModelAuthProviderConnected(providerId);
 
     p.log.success(`${getProviderDisplayName(providerId)} API key connected`);
+    return true;
 }
 
 async function connectBrowserOAuth(input: {
@@ -247,15 +248,17 @@ async function connectBrowserOAuth(input: {
 async function connectProviderMethod(input: {
     provider: ProviderAuthDefinition;
     method: AuthMethodDefinition;
-}): Promise<void> {
+}): Promise<boolean> {
     if (input.method.kind === 'api_key') {
-        await connectApiKey(toLlmProvider(input.provider.providerId));
-        return;
+        return connectApiKey(toLlmProvider(input.provider.providerId));
     }
 
     if (input.method.kind === 'oauth') {
         await connectBrowserOAuth(input);
+        return true;
     }
+
+    return false;
 }
 
 export async function handleConnectCommand(options: ConnectCommandOptions = {}): Promise<void> {
@@ -329,6 +332,8 @@ export async function handleConnectCommand(options: ConnectCommandOptions = {}):
         }
     }
 
-    await connectProviderMethod({ provider, method });
-    p.outro(chalk.green('Connection saved'));
+    const connected = await connectProviderMethod({ provider, method });
+    if (connected) {
+        p.outro(chalk.green('Connection saved'));
+    }
 }

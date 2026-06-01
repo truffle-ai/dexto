@@ -29,6 +29,15 @@ describe('chatgpt oauth runtime auth', () => {
         await secondLogin.cancel();
     });
 
+    it('rejects a pending credential wait when the browser login is cancelled', async () => {
+        const login = await startChatGPTBrowserLogin();
+        const credential = login.waitForCredential();
+
+        await login.cancel();
+
+        await expect(credential).rejects.toThrow('ChatGPT Login cancelled');
+    });
+
     it('sends native ChatGPT OAuth headers through the Codex endpoint', async () => {
         const response = new Response('{}', { status: 200 });
         const fetchMock = vi.fn().mockResolvedValue(response);

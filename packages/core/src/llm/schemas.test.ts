@@ -291,6 +291,8 @@ describe('LLMConfigSchema', () => {
 
             const result = LLMConfigSchema.safeParse(config);
             expect(result.success).toBe(false);
+            expect(result.error?.issues[0]?.path).toEqual(['baseURL']);
+            expect(result.error?.issues[0]?.message).toBe('Invalid URL');
         });
 
         it('should reject baseURL for providers that do not support it', () => {

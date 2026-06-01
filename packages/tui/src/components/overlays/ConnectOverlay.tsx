@@ -117,6 +117,10 @@ const ConnectOverlay = forwardRef<ConnectOverlayHandle, ConnectOverlayProps>(
             },
             [onDone]
         );
+        const handleActionError = useCallback((err: unknown) => {
+            setError(err instanceof Error ? err.message : String(err));
+            setStep('error');
+        }, []);
 
         useEffect(() => {
             if (!isVisible) {
@@ -400,7 +404,7 @@ const ConnectOverlay = forwardRef<ConnectOverlayHandle, ConnectOverlayProps>(
                             return true;
                         }
                         if (key.return) {
-                            void saveApiKey();
+                            void saveApiKey().catch(handleActionError);
                             return true;
                         }
                         if (key.backspace || key.delete) {
@@ -422,13 +426,15 @@ const ConnectOverlay = forwardRef<ConnectOverlayHandle, ConnectOverlayProps>(
                             return true;
                         }
                         if (key.return && provider && method && currentProfileId) {
-                            void deleteModelAuthProfile(currentProfileId).then(() =>
-                                close({
-                                    outcome: 'success',
-                                    providerId: provider.providerId,
-                                    message: `Deleted ${provider.label} ${method.label}`,
-                                })
-                            );
+                            void deleteModelAuthProfile(currentProfileId)
+                                .then(() =>
+                                    close({
+                                        outcome: 'success',
+                                        providerId: provider.providerId,
+                                        message: `Deleted ${provider.label} ${method.label}`,
+                                    })
+                                )
+                                .catch(handleActionError);
                             return true;
                         }
                         return true;
@@ -451,7 +457,16 @@ const ConnectOverlay = forwardRef<ConnectOverlayHandle, ConnectOverlayProps>(
                     return selectorRef.current?.handleInput(input, key) ?? false;
                 },
             }),
-            [close, currentProfileId, isVisible, method, provider, saveApiKey, step]
+            [
+                close,
+                currentProfileId,
+                handleActionError,
+                isVisible,
+                method,
+                provider,
+                saveApiKey,
+                step,
+            ]
         );
 
         if (!isVisible) return null;
@@ -490,7 +505,7 @@ const ConnectOverlay = forwardRef<ConnectOverlayHandle, ConnectOverlayProps>(
                             isVisible={true}
                             selectedIndex={selectedIndex}
                             onSelectIndex={setSelectedIndex}
-                            onSelect={(item) => void handleSelect(item)}
+                            onSelect={(item) => void handleSelect(item).catch(handleActionError)}
                             onClose={() => close({ outcome: 'cancelled' })}
                             title={
                                 step === 'provider'

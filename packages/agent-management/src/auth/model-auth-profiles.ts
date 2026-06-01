@@ -129,14 +129,21 @@ function parseModelAuthProfiles(raw: unknown): ModelAuthProfilesFile {
     };
 }
 
+function parseModelAuthProfilesContent(content: string): ModelAuthProfilesFile {
+    try {
+        return parseModelAuthProfiles(parseYaml(content));
+    } catch {
+        return EMPTY_MODEL_AUTH_PROFILES;
+    }
+}
+
 export function loadModelAuthProfilesSync(): ModelAuthProfilesFile {
     const profilesPath = getModelAuthProfilesPath();
     if (!existsSync(profilesPath)) {
         return EMPTY_MODEL_AUTH_PROFILES;
     }
 
-    const raw = parseYaml(readFileSync(profilesPath, 'utf-8'));
-    return parseModelAuthProfiles(raw);
+    return parseModelAuthProfilesContent(readFileSync(profilesPath, 'utf-8'));
 }
 
 export async function loadModelAuthProfiles(): Promise<ModelAuthProfilesFile> {
@@ -145,8 +152,7 @@ export async function loadModelAuthProfiles(): Promise<ModelAuthProfilesFile> {
         return EMPTY_MODEL_AUTH_PROFILES;
     }
 
-    const raw = parseYaml(await fs.readFile(profilesPath, 'utf-8'));
-    return parseModelAuthProfiles(raw);
+    return parseModelAuthProfilesContent(await fs.readFile(profilesPath, 'utf-8'));
 }
 
 async function saveModelAuthProfiles(profiles: ModelAuthProfilesFile): Promise<void> {

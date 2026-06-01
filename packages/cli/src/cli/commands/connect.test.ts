@@ -47,8 +47,8 @@ vi.mock('open', () => ({
     default: mocks.open,
 }));
 
-vi.mock('@dexto/core', async (importOriginal) => {
-    const actual = await importOriginal<typeof import('@dexto/core')>();
+vi.mock('@dexto/llm', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('@dexto/llm')>();
     return {
         ...actual,
         getDefaultModelForProvider: vi.fn(() => 'gpt-5.4'),
@@ -200,6 +200,19 @@ describe('handleConnectCommand', () => {
         });
 
         expect(mocks.markProviderConnected).toHaveBeenCalledWith('openai');
+    });
+
+    it('does not report a saved connection when API-key setup is cancelled', async () => {
+        mocks.interactiveApiKeySetup.mockResolvedValue({ success: false, cancelled: true });
+
+        await handleConnectCommand({
+            provider: 'openai',
+            method: 'api_key',
+        });
+
+        expect(mocks.saveApiKeyProfile).not.toHaveBeenCalled();
+        expect(mocks.outro).not.toHaveBeenCalled();
+        expect(mocks.logWarn).toHaveBeenCalledWith('Connection cancelled');
     });
 
     it('uses an existing profile without reconnecting', async () => {

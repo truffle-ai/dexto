@@ -15,18 +15,7 @@ import {
     type LLMProvider,
     type ReasoningVariant,
 } from '@dexto/llm';
-import {
-    CodexAppServerClient,
-    createCodexBaseURL,
-    getCodexAuthModeLabel,
-    getCodexProviderDisplayName,
-    getCuratedModelsForProvider,
-    isCodexBaseURL,
-    logger,
-    parseCodexBaseURL,
-    resolveApiKeyForProvider,
-    type CodexModelInfo,
-} from '@dexto/core';
+import { getCuratedModelsForProvider, logger, resolveApiKeyForProvider } from '@dexto/core';
 import {
     createInitialPreferences,
     saveGlobalPreferences,

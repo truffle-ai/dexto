@@ -196,6 +196,7 @@ describe('createVercelModel dexto-nova base URL resolution', () => {
             {
                 authResolver: {
                     resolveRuntimeAuth: () => ({
+                        apiKey: 'runtime-key',
                         headers: { authorization: 'Bearer oauth-token' },
                         fetch: runtimeFetch,
                         auth: {
@@ -212,7 +213,7 @@ describe('createVercelModel dexto-nova base URL resolution', () => {
         );
 
         expect(sdkMocks.createOpenAI).toHaveBeenCalledWith({
-            apiKey: 'config-key',
+            apiKey: 'runtime-key',
             headers: { authorization: 'Bearer oauth-token' },
             fetch: runtimeFetch,
         });

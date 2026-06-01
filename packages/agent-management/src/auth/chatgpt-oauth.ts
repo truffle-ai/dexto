@@ -191,9 +191,12 @@ export async function startChatGPTBrowserLogin(): Promise<PendingChatGPTLogin> {
     const redirectUri = CHATGPT_OAUTH_REDIRECT_URI;
     const pkce = generatePkce();
     const state = base64Url(randomBytes(32));
+    let settled = false;
+    let rejectCredential: (error: Error) => void = () => undefined;
 
     const server = createServer();
     const credentialPromise = new Promise<ChatGPTOAuthCredential>((resolve, reject) => {
+        rejectCredential = reject;
         server.on('request', async (request, response) => {
             try {
                 const url = new URL(request.url ?? '/', redirectUri);
@@ -219,18 +222,24 @@ export async function startChatGPTBrowserLogin(): Promise<PendingChatGPTLogin> {
                     .end(
                         '<!doctype html><title>Dexto ChatGPT Login</title><p>Authorization complete. You can close this window.</p>'
                     );
+                settled = true;
                 resolve(credentialFromTokens(tokens));
             } catch (error) {
                 response
                     .writeHead(400, { 'Content-Type': 'text/plain; charset=utf-8' })
                     .end(error instanceof Error ? error.message : 'ChatGPT Login failed');
+                settled = true;
                 reject(error);
             } finally {
                 void closeServer(server);
             }
         });
-        server.once('error', reject);
+        server.once('error', (error) => {
+            settled = true;
+            reject(error);
+        });
     });
+    credentialPromise.catch(() => undefined);
 
     await listen(server);
 
@@ -238,6 +247,10 @@ export async function startChatGPTBrowserLogin(): Promise<PendingChatGPTLogin> {
         authUrl: buildAuthorizeUrl(redirectUri, pkce.challenge, state),
         waitForCredential: () => credentialPromise,
         cancel: async () => {
+            if (!settled) {
+                settled = true;
+                rejectCredential(new Error('ChatGPT Login cancelled'));
+            }
             await closeServer(server);
         },
     };

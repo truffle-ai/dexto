@@ -60,6 +60,7 @@ describe('model auth profiles', () => {
     });
 
     it('stores API-key profiles as provider defaults without storing the key', async () => {
+        process.env.OPENAI_API_KEY = 'sk-test';
         await saveApiKeyModelAuthProfile('openai');
 
         const profiles = await loadModelAuthProfiles();
@@ -75,6 +76,18 @@ describe('model auth profiles', () => {
             },
         });
         expect(readFileSync(getModelAuthProfilesPath(), 'utf-8')).not.toContain('sk-test');
+    });
+
+    it('falls back to empty profiles when the profiles file is malformed YAML', async () => {
+        const profilesPath = getModelAuthProfilesPath();
+        mkdirSync(path.dirname(profilesPath), { recursive: true });
+        writeFileSync(profilesPath, 'profiles:\n  - [');
+
+        expect(await loadModelAuthProfiles()).toEqual({
+            version: 1,
+            defaults: {},
+            profiles: [],
+        });
     });
 
     it('stores ChatGPT Login as an OpenAI external-account default', async () => {
