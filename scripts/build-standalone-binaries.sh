@@ -240,7 +240,12 @@ fi
 
 echo "Creating portable CLI package"
 mkdir -p "${runtime_dir}"
-pnpm --filter dexto --config.node-linker=hoisted deploy --prod --legacy "${runtime_dir}" >/dev/null
+deploy_log="${stage_dir}/pnpm-deploy.log"
+if ! pnpm --filter dexto --config.node-linker=hoisted deploy --prod --legacy "${runtime_dir}" >"${deploy_log}" 2>&1; then
+  echo "pnpm deploy failed while creating portable CLI package." >&2
+  cat "${deploy_log}" >&2
+  exit 1
+fi
 
 payload_archive_extension="tar.gz"
 payload_archive_path="${stage_dir}/runtime-payload.tar.gz"
