@@ -1,5 +1,24 @@
 # dexto
 
+## 1.8.2
+
+### Patch Changes
+
+- a93c02b: Add provider auth profiles and ChatGPT Login connect support
+- Updated dependencies [a93c02b]
+    - @dexto/agent-management@1.8.2
+    - @dexto/core@1.8.2
+    - @dexto/tui@1.8.2
+    - @dexto/analytics@1.8.2
+    - @dexto/image-local@1.8.2
+    - @dexto/image-logger-agent@1.8.2
+    - @dexto/server@1.8.2
+    - @dexto/agent-config@1.8.2
+    - @dexto/client-sdk@1.8.2
+    - @dexto/storage@1.8.2
+    - @dexto/llm@1.8.2
+    - @dexto/registry@1.8.2
+
 ## 1.8.1
 
 ### Patch Changes
