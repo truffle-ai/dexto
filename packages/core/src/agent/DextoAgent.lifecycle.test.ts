@@ -700,6 +700,55 @@ describe('DextoAgent Lifecycle Management', () => {
             expect(mockServices.sessionManager).not.toHaveProperty('withExecutionContext');
         });
 
+        test('streams blocked interactions before terminal completion', async () => {
+            const agent = createTestAgent(mockValidatedConfig);
+            const sessionStream = vi.fn().mockImplementation(async () => {
+                agent.emit('interaction:blocked', {
+                    sessionId: 'test-session',
+                    content: 'Error: blocked by policy',
+                    provider: 'openai',
+                    model: 'gpt-4',
+                    messageId: 'blocked-msg',
+                });
+                agent.emit('run:complete', {
+                    sessionId: 'test-session',
+                    finishReason: 'stop',
+                    stepCount: 0,
+                    durationMs: 0,
+                });
+                return { text: 'blocked by policy' };
+            });
+            mockServices.sessionManager.getSession = vi.fn().mockResolvedValue({
+                id: 'test-session',
+                stream: sessionStream,
+            });
+
+            await agent.start();
+
+            const events: StreamingEvent[] = [];
+            for await (const event of await agent.stream('blocked prompt', 'test-session')) {
+                events.push(event);
+            }
+
+            expect(events).toEqual([
+                {
+                    name: 'interaction:blocked',
+                    sessionId: 'test-session',
+                    content: 'Error: blocked by policy',
+                    provider: 'openai',
+                    model: 'gpt-4',
+                    messageId: 'blocked-msg',
+                },
+                {
+                    name: 'run:complete',
+                    sessionId: 'test-session',
+                    finishReason: 'stop',
+                    stepCount: 0,
+                    durationMs: 0,
+                },
+            ]);
+        });
+
         test('generate correlates tool calls and results by required call id', async () => {
             const agent = createTestAgent(mockValidatedConfig);
             const sessionStream = vi.fn().mockImplementation(async () => {

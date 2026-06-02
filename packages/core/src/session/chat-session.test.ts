@@ -760,6 +760,14 @@ describe('ChatSession', () => {
                     messageId: expect.any(String),
                 })
             );
+            expect(mockServices.agentEventBus.emit).toHaveBeenCalledWith(
+                'run:complete',
+                expect.objectContaining({
+                    sessionId,
+                    finishReason: 'stop',
+                    stepCount: 0,
+                })
+            );
             expect(chatSession.isBusy()).toBe(false);
         });
     });
@@ -1132,14 +1140,13 @@ describe('ChatSession', () => {
         });
 
         test('marks ChatGPT Login sessions as untracked instead of accumulating zero token usage', async () => {
-            mockServices.stateManager.getLLMConfig = vi.fn().mockReturnValue(
-                LLMConfigSchema.parse({
-                    provider: 'openai-compatible',
-                    model: 'gpt-5.4',
-                    baseURL: 'codex://chatgpt',
-                    apiKey: 'ignored-for-codex',
-                })
-            );
+            mockServices.stateManager.getLLMConfig = vi.fn().mockReturnValue({
+                ...mockLLMConfig,
+                provider: 'openai-compatible',
+                model: 'gpt-5.4',
+                baseURL: 'codex://chatgpt',
+                apiKey: 'ignored-for-codex',
+            });
 
             chatSession.eventBus.emit(
                 'llm:response',

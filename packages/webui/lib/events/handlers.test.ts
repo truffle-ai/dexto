@@ -275,7 +275,6 @@ describe('Event Handler Registry', () => {
                     content: 'Error: blocked by policy',
                     provider: 'openai',
                     model: 'gpt-4',
-                    tokenUsage: undefined,
                 })
             );
         });

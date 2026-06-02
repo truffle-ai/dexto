@@ -1042,6 +1042,12 @@ export class DextoAgent {
         };
         addStreamingListener('llm:response', responseListener);
 
+        const interactionBlockedListener = (data: AgentEventMap['interaction:blocked']) => {
+            if (data.sessionId !== sessionId) return;
+            eventQueue.push({ name: 'interaction:blocked', ...data });
+        };
+        addStreamingListener('interaction:blocked', interactionBlockedListener);
+
         const toolCallListener = (data: AgentEventMap['llm:tool-call']) => {
             if (data.sessionId !== sessionId) return;
             eventQueue.push({ name: 'llm:tool-call', ...data });

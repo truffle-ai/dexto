@@ -385,6 +385,11 @@ export class ChatSession {
             model: llmConfig.model,
             messageId: assistantMessageId,
         });
+        this.eventBus.emit('run:complete', {
+            finishReason: 'stop',
+            stepCount: 0,
+            durationMs: 0,
+        });
     }
 
     private normalizeContent(content: ContentInput): ContentPart[] {
