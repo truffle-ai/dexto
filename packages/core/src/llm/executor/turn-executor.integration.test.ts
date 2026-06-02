@@ -3269,7 +3269,9 @@ describe('TurnExecutor Integration Tests', () => {
                 );
 
             const retryingHandler = vi.fn();
+            const errorHandler = vi.fn();
             sessionEventBus.on('llm:retrying', retryingHandler);
+            sessionEventBus.on('llm:error', errorHandler);
 
             await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
 
@@ -3278,6 +3280,41 @@ describe('TurnExecutor Integration Tests', () => {
             expect(result.text).toBe('Recovered');
             expect(streamText).toHaveBeenCalledTimes(2);
             expect(retryingHandler).toHaveBeenCalledTimes(1);
+            expect(errorHandler).not.toHaveBeenCalled();
+        });
+
+        it('emits one llm:error for terminal async stream failures', async () => {
+            const streamError = apiCallError({
+                message: 'Bad request',
+                statusCode: 400,
+                isRetryable: false,
+            });
+
+            vi.mocked(streamText).mockImplementation(
+                () =>
+                    ({
+                        fullStream: (async function* () {
+                            yield { type: 'error', error: streamError };
+                        })(),
+                    }) as unknown as ReturnType<typeof streamText>
+            );
+
+            const errorHandler = vi.fn();
+            sessionEventBus.on('llm:error', errorHandler);
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
+
+            await expect(executor.execute({ mcpManager }, true)).rejects.toMatchObject({
+                code: 'llm_generation_failed',
+            });
+
+            expect(errorHandler).toHaveBeenCalledTimes(1);
+            expect(errorHandler).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    context: 'TurnExecutor',
+                    recoverable: false,
+                })
+            );
         });
 
         it('does not retry once a failed stream has changed conversation history', async () => {
@@ -3365,6 +3402,39 @@ describe('TurnExecutor Integration Tests', () => {
             await expect(executor.execute({ mcpManager }, true)).rejects.toMatchObject({
                 code: 'llm_rate_limit_exceeded',
                 type: 'rate_limit',
+            });
+        });
+
+        it('should preserve Dexto billing recovery guidance for 402 provider errors', async () => {
+            const { APICallError } = await import('ai');
+            const billingError = new APICallError({
+                message: 'Insufficient credits',
+                statusCode: 402,
+                responseHeaders: {},
+                responseBody: JSON.stringify({
+                    error: {
+                        message: 'Insufficient credits',
+                        metadata: {
+                            balance: 0.37,
+                        },
+                    },
+                }),
+                url: 'https://api.dexto.ai/v1/chat/completions',
+                requestBodyValues: {},
+                isRetryable: false,
+            });
+
+            vi.mocked(streamText).mockImplementation(() => {
+                throw billingError;
+            });
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
+
+            await expect(executor.execute({ mcpManager }, true)).rejects.toMatchObject({
+                code: 'llm_insufficient_credits',
+                message: 'Insufficient Dexto credits. Balance: $0.37',
+                recovery: 'Run `dexto billing` to check your balance',
+                type: 'payment_required',
             });
         });
     });

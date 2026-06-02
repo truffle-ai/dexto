@@ -1093,11 +1093,50 @@ describe('StreamProcessor', () => {
             ).rejects.toMatchObject({
                 message: 'String error message',
             });
-            expect(mocks.emittedEvents.find((e) => e.name === 'llm:error')).toMatchObject({
+            const errorEvents = mocks.emittedEvents.filter((e) => e.name === 'llm:error');
+            expect(errorEvents).toHaveLength(1);
+            expect(errorEvents[0]).toMatchObject({
                 name: 'llm:error',
                 payload: {
                     context: 'StreamProcessor',
                     recoverable: false,
+                },
+            });
+        });
+
+        test('classifies OpenAI-compatible schema string stream errors', async () => {
+            const mocks = createMocks();
+            const processor = new StreamProcessor(
+                mocks.contextManager,
+                mocks.eventBus,
+                mocks.abortController.signal,
+                mocks.config,
+                mocks.logger,
+                true
+            );
+
+            await expect(
+                processor.process(
+                    () =>
+                        createMockStream([
+                            {
+                                type: 'error',
+                                error: "Invalid schema for function 'dexto_apps': schema must have type 'object'",
+                            },
+                        ]) as never
+                )
+            ).rejects.toMatchObject({
+                code: 'llm_request_invalid_schema',
+                message: expect.stringContaining("Invalid schema for function 'dexto_apps'"),
+            });
+
+            const errorEvents = mocks.emittedEvents.filter((e) => e.name === 'llm:error');
+            expect(errorEvents).toHaveLength(1);
+            expect(errorEvents[0]).toMatchObject({
+                payload: {
+                    error: {
+                        code: 'llm_request_invalid_schema',
+                    },
                 },
             });
         });

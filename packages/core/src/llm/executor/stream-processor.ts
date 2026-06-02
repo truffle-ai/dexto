@@ -94,6 +94,8 @@ export class StreamProcessor {
      * @param config Provider/model configuration
      * @param logger Logger instance
      * @param streaming If true, emits llm:chunk events. Default true.
+     * @param emitFatalErrors If true, emits terminal llm:error events. TurnExecutor owns
+     * terminal run errors and disables this to avoid duplicate events.
      */
     constructor(
         private contextManager: ContextManager,
@@ -101,7 +103,8 @@ export class StreamProcessor {
         private abortSignal: AbortSignal,
         private config: StreamProcessorConfig,
         logger: Logger,
-        private streaming: boolean = true
+        private streaming: boolean = true,
+        private emitFatalErrors: boolean = true
     ) {
         this.logger = logger.createChild(DextoLogComponent.EXECUTOR);
         this.usageScopeId = config.usageScopeId;
@@ -406,17 +409,7 @@ export class StreamProcessor {
                             model: this.config.model,
                         });
                         await this.persistFailedToolResults(err.message);
-                        this.eventBus.emit('llm:error', {
-                            error: err,
-                            context: 'StreamProcessor',
-                            recoverable: false,
-                            details: extractProviderErrorDetails({
-                                error: event.error,
-                                provider: this.config.provider,
-                                model: this.config.model,
-                            }),
-                        });
-                        throw err;
+                        throw event.error;
                     }
 
                     case 'abort': {
@@ -498,16 +491,23 @@ export class StreamProcessor {
                 provider: this.config.provider,
                 model: this.config.model,
             });
-            this.eventBus.emit('llm:error', {
-                error: mappedError,
-                context: 'StreamProcessor',
-                recoverable: false,
-                details: extractProviderErrorDetails({
-                    error,
-                    provider: this.config.provider,
-                    model: this.config.model,
-                }),
-            });
+            if (!this.emitFatalErrors) {
+                this.logger.error('Stream processing failed', { error: mappedError });
+                throw error;
+            }
+
+            if (this.emitFatalErrors) {
+                this.eventBus.emit('llm:error', {
+                    error: mappedError,
+                    context: 'StreamProcessor',
+                    recoverable: false,
+                    details: extractProviderErrorDetails({
+                        error,
+                        provider: this.config.provider,
+                        model: this.config.model,
+                    }),
+                });
+            }
             this.logger.error('Stream processing failed', { error: mappedError });
             throw mappedError;
         }

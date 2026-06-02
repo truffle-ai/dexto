@@ -1262,7 +1262,8 @@ export class TurnExecutor {
             this.stepAbortController.signal,
             this.getStreamProcessorConfig(request.estimatedInputTokens, request.reasoning),
             this.logger,
-            request.streaming
+            request.streaming,
+            false
         );
 
         return streamProcessor.process(() =>

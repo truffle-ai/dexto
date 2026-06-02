@@ -127,6 +127,41 @@ function providerMessage(details: LLMProviderErrorDetails, fallback: string): st
     );
 }
 
+function messageFromUnknown(value: unknown): string {
+    return value instanceof Error ? value.message : String(value);
+}
+
+function isInvalidSchemaMessage(message: string): boolean {
+    return (
+        message.includes('Invalid schema for function') ||
+        message.includes('invalid_function_parameters') ||
+        message.includes('schema must have type')
+    );
+}
+
+function readNumericField(value: unknown, field: string): number | undefined {
+    if (!isRecord(value)) return undefined;
+    const fieldValue = value[field];
+    return typeof fieldValue === 'number' && Number.isFinite(fieldValue) ? fieldValue : undefined;
+}
+
+function extractBalance(value: unknown): number | undefined {
+    if (!isRecord(value)) return undefined;
+
+    const direct =
+        readNumericField(value, 'balance') ??
+        readNumericField(value, 'balanceUsd') ??
+        readNumericField(value, 'creditsUsd');
+    if (direct !== undefined) return direct;
+
+    for (const nested of Object.values(value)) {
+        const balance = extractBalance(nested);
+        if (balance !== undefined) return balance;
+    }
+
+    return undefined;
+}
+
 function errorTypeForStatus(status: number | undefined): ErrorType {
     if (status === 402) return ErrorType.PAYMENT_REQUIRED;
     if (status === 403) return ErrorType.FORBIDDEN;
@@ -190,7 +225,17 @@ export function mapProviderError(input: MapProviderErrorInput): Error {
     if (input.error instanceof DextoRuntimeError) return input.error;
 
     if (!APICallError.isInstance?.(input.error)) {
-        return input.error instanceof Error ? input.error : new Error(String(input.error));
+        const message = messageFromUnknown(input.error);
+        if (isInvalidSchemaMessage(message)) {
+            return new DextoRuntimeError(
+                LLMErrorCode.REQUEST_INVALID_SCHEMA,
+                ErrorScope.LLM,
+                ErrorType.USER,
+                message,
+                buildContext(input, extractProviderErrorDetails(input))
+            );
+        }
+        return input.error instanceof Error ? input.error : new Error(message);
     }
 
     const details = extractProviderErrorDetails(input);
@@ -198,6 +243,23 @@ export function mapProviderError(input: MapProviderErrorInput): Error {
     const message = providerMessage(details, input.error.message);
     const code = errorCodeForStatus(status, details);
     const type = errorTypeForStatus(status);
+
+    if (status === 402) {
+        const balance = extractBalance(parseJsonObject(details.responseBody));
+        return new DextoRuntimeError(
+            code,
+            ErrorScope.LLM,
+            type,
+            `Insufficient Dexto credits. Balance: ${
+                balance === undefined ? 'low' : `$${balance.toFixed(2)}`
+            }`,
+            {
+                ...buildContext(input, details),
+                ...(balance === undefined ? {} : { balance }),
+            },
+            'Run `dexto billing` to check your balance'
+        );
+    }
 
     return new DextoRuntimeError(
         code,
