@@ -52,11 +52,16 @@ const activityMappings: Partial<Record<StreamingEventName | string, ActivityMapp
         category: 'agent',
         getDescription: (e) => {
             if (e.name === 'llm:response') {
-                const tokens = e.tokenUsage?.totalTokens;
+                const tokens = e.tokenUsage.totalTokens;
                 return tokens ? `Response complete (${tokens} tokens)` : 'Response complete';
             }
             return 'Response complete';
         },
+    },
+
+    'interaction:blocked': {
+        category: 'agent',
+        getDescription: () => 'Interaction blocked',
     },
 
     'llm:tool-call': {

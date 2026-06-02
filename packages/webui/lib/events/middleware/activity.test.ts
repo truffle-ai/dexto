@@ -96,6 +96,9 @@ describe('activityMiddleware', () => {
                 name: 'llm:response',
                 content: 'Response content',
                 sessionId: 'session-1',
+                provider: 'openai',
+                model: 'gpt-4',
+                finishReason: 'stop',
                 tokenUsage: {
                     inputTokens: 100,
                     outputTokens: 50,
@@ -111,18 +114,21 @@ describe('activityMiddleware', () => {
             expect(events[0].description).toBe('Response complete (150 tokens)');
         });
 
-        it('should log llm:response without token count', () => {
+        it('should log blocked interactions without token usage', () => {
             const next = vi.fn();
             const event: ClientEvent = {
-                name: 'llm:response',
-                content: 'Response content',
+                name: 'interaction:blocked',
+                content: 'Error: blocked by policy',
                 sessionId: 'session-1',
+                provider: 'openai',
+                model: 'gpt-4',
+                messageId: 'blocked-message',
             };
 
             activityMiddleware(event, next);
 
             const { events } = useEventLogStore.getState();
-            expect(events[0].description).toBe('Response complete');
+            expect(events[0].description).toBe('Interaction blocked');
         });
 
         it('should log llm:tool-call with tool name', () => {

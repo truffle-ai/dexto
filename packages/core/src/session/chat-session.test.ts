@@ -36,6 +36,23 @@ import { createMockLogger } from '../logger/v2/test-utils.js';
 const mockCreateLLMService = vi.mocked(createLLMService);
 const mockGetEffectiveMaxInputTokens = vi.mocked(getEffectiveMaxInputTokens);
 
+type ModelResponseEvent = SessionEventMap['llm:response'];
+
+function createModelResponseEvent(overrides: Partial<ModelResponseEvent>): ModelResponseEvent {
+    return {
+        content: 'Test response',
+        finishReason: 'stop',
+        provider: 'openai',
+        model: 'gpt-4',
+        tokenUsage: {
+            inputTokens: 100,
+            outputTokens: 50,
+            totalTokens: 150,
+        },
+        ...overrides,
+    };
+}
+
 function createDeferred<T>() {
     let resolve!: (value: T | PromiseLike<T>) => void;
     let reject!: (reason?: unknown) => void;
@@ -733,6 +750,24 @@ describe('ChatSession', () => {
                     }),
                 })
             );
+            expect(mockServices.agentEventBus.emit).toHaveBeenCalledWith(
+                'interaction:blocked',
+                expect.objectContaining({
+                    sessionId,
+                    content: 'Error: blocked by policy',
+                    provider: mockLLMConfig.provider,
+                    model: mockLLMConfig.model,
+                    messageId: expect.any(String),
+                })
+            );
+            expect(mockServices.agentEventBus.emit).toHaveBeenCalledWith(
+                'run:complete',
+                expect.objectContaining({
+                    sessionId,
+                    finishReason: 'stop',
+                    stepCount: 0,
+                })
+            );
             expect(chatSession.isBusy()).toBe(false);
         });
     });
@@ -959,16 +994,18 @@ describe('ChatSession', () => {
             const payloadModel = 'claude-4-opus-20250514';
 
             // Emit llm:response with provider/model in payload
-            chatSession.eventBus.emit('llm:response', {
-                content: 'Test response',
-                provider: payloadProvider,
-                model: payloadModel,
-                tokenUsage: {
-                    inputTokens: 100,
-                    outputTokens: 50,
-                    totalTokens: 150,
-                },
-            });
+            chatSession.eventBus.emit(
+                'llm:response',
+                createModelResponseEvent({
+                    provider: payloadProvider,
+                    model: payloadModel,
+                    tokenUsage: {
+                        inputTokens: 100,
+                        outputTokens: 50,
+                        totalTokens: 150,
+                    },
+                })
+            );
 
             // Wait for async handler
             await new Promise((resolve) => setTimeout(resolve, 0));
@@ -989,51 +1026,23 @@ describe('ChatSession', () => {
             );
         });
 
-        test('should fall back to llmConfig when payload lacks provider/model', async () => {
-            // Emit llm:response WITHOUT provider/model in payload
-            chatSession.eventBus.emit('llm:response', {
-                content: 'Test response',
-                tokenUsage: {
-                    inputTokens: 100,
-                    outputTokens: 50,
-                    totalTokens: 150,
-                },
-            });
-
-            // Wait for async handler
-            await new Promise((resolve) => setTimeout(resolve, 0));
-
-            // Should call accumulateTokenUsage with llmConfig provider/model
-            expect(mockServices.sessionManager.accumulateTokenUsage).toHaveBeenCalledWith(
-                sessionId,
-                expect.objectContaining({
-                    inputTokens: 100,
-                    outputTokens: 50,
-                    totalTokens: 150,
-                }),
-                expect.any(Number), // cost
-                expect.objectContaining({
-                    provider: mockLLMConfig.provider,
-                    model: mockLLMConfig.model,
-                })
-            );
-        });
-
         test('should calculate cost using payload model for accurate multi-model tracking', async () => {
             const payloadProvider = 'anthropic';
             const payloadModel = 'claude-4-opus-20250514';
 
             // Emit llm:response with different model than llmConfig
-            chatSession.eventBus.emit('llm:response', {
-                content: 'Test response',
-                provider: payloadProvider,
-                model: payloadModel,
-                tokenUsage: {
-                    inputTokens: 1000,
-                    outputTokens: 500,
-                    totalTokens: 1500,
-                },
-            });
+            chatSession.eventBus.emit(
+                'llm:response',
+                createModelResponseEvent({
+                    provider: payloadProvider,
+                    model: payloadModel,
+                    tokenUsage: {
+                        inputTokens: 1000,
+                        outputTokens: 500,
+                        totalTokens: 1500,
+                    },
+                })
+            );
 
             // Wait for async handler
             await new Promise((resolve) => setTimeout(resolve, 0));
@@ -1058,14 +1067,16 @@ describe('ChatSession', () => {
                 .mockRejectedValue(new Error('Storage error'));
 
             // Emit llm:response
-            chatSession.eventBus.emit('llm:response', {
-                content: 'Test response',
-                tokenUsage: {
-                    inputTokens: 100,
-                    outputTokens: 50,
-                    totalTokens: 150,
-                },
-            });
+            chatSession.eventBus.emit(
+                'llm:response',
+                createModelResponseEvent({
+                    tokenUsage: {
+                        inputTokens: 100,
+                        outputTokens: 50,
+                        totalTokens: 150,
+                    },
+                })
+            );
 
             // Wait for async handler
             await new Promise((resolve) => setTimeout(resolve, 0));
@@ -1079,6 +1090,7 @@ describe('ChatSession', () => {
         test('normalizes provider null token counts before accumulation', async () => {
             const payload = {
                 content: 'Test response',
+                finishReason: 'stop',
                 provider: 'dexto-nova',
                 model: 'openai/gpt-5-mini',
                 tokenUsage: {
@@ -1089,7 +1101,7 @@ describe('ChatSession', () => {
                     cacheWriteTokens: 0,
                     totalTokens: 4560,
                 },
-            } as unknown as SessionEventMap['llm:response'];
+            } as unknown as ModelResponseEvent;
 
             chatSession.eventBus.emit('llm:response', payload);
 
@@ -1112,10 +1124,12 @@ describe('ChatSession', () => {
             );
         });
 
-        test('should not accumulate tokens when tokenUsage is missing', async () => {
-            // Emit llm:response without tokenUsage
-            chatSession.eventBus.emit('llm:response', {
+        test('should not accumulate tokens for blocked interaction events', async () => {
+            chatSession.eventBus.emit('interaction:blocked', {
                 content: 'Test response',
+                provider: mockLLMConfig.provider,
+                model: mockLLMConfig.model,
+                messageId: 'blocked_message_id',
             });
 
             // Wait for async handler
@@ -1125,46 +1139,89 @@ describe('ChatSession', () => {
             expect(mockServices.sessionManager.accumulateTokenUsage).not.toHaveBeenCalled();
         });
 
+        test('marks ChatGPT Login sessions as untracked instead of accumulating zero token usage', async () => {
+            mockServices.stateManager.getLLMConfig = vi.fn().mockReturnValue({
+                ...mockLLMConfig,
+                provider: 'openai-compatible',
+                model: 'gpt-5.4',
+                baseURL: 'codex://chatgpt',
+                apiKey: 'ignored-for-codex',
+            });
+
+            chatSession.eventBus.emit(
+                'llm:response',
+                createModelResponseEvent({
+                    content: 'ChatGPT response',
+                    provider: 'openai-compatible',
+                    model: 'gpt-5.4',
+                    tokenUsage: {
+                        inputTokens: 0,
+                        outputTokens: 0,
+                        reasoningTokens: 0,
+                        cacheReadTokens: 0,
+                        cacheWriteTokens: 0,
+                        totalTokens: 0,
+                    },
+                })
+            );
+
+            await new Promise((resolve) => setTimeout(resolve, 0));
+
+            expect(mockServices.sessionManager.markUntrackedChatGPTLoginUsage).toHaveBeenCalledWith(
+                sessionId
+            );
+            expect(mockServices.sessionManager.accumulateTokenUsage).not.toHaveBeenCalled();
+        });
+
         test('should handle multiple models in same session', async () => {
             // First model: OpenAI GPT-4
-            chatSession.eventBus.emit('llm:response', {
-                content: 'Response from GPT-4',
-                provider: 'openai',
-                model: 'gpt-4',
-                tokenUsage: {
-                    inputTokens: 100,
-                    outputTokens: 50,
-                    totalTokens: 150,
-                },
-            });
+            chatSession.eventBus.emit(
+                'llm:response',
+                createModelResponseEvent({
+                    content: 'Response from GPT-4',
+                    provider: 'openai',
+                    model: 'gpt-4',
+                    tokenUsage: {
+                        inputTokens: 100,
+                        outputTokens: 50,
+                        totalTokens: 150,
+                    },
+                })
+            );
 
             await new Promise((resolve) => setTimeout(resolve, 0));
 
             // Second model: Anthropic Claude
-            chatSession.eventBus.emit('llm:response', {
-                content: 'Response from Claude',
-                provider: 'anthropic',
-                model: 'claude-4-opus-20250514',
-                tokenUsage: {
-                    inputTokens: 200,
-                    outputTokens: 100,
-                    totalTokens: 300,
-                },
-            });
+            chatSession.eventBus.emit(
+                'llm:response',
+                createModelResponseEvent({
+                    content: 'Response from Claude',
+                    provider: 'anthropic',
+                    model: 'claude-4-opus-20250514',
+                    tokenUsage: {
+                        inputTokens: 200,
+                        outputTokens: 100,
+                        totalTokens: 300,
+                    },
+                })
+            );
 
             await new Promise((resolve) => setTimeout(resolve, 0));
 
             // Third model: Back to OpenAI
-            chatSession.eventBus.emit('llm:response', {
-                content: 'Another response from GPT-4',
-                provider: 'openai',
-                model: 'gpt-4',
-                tokenUsage: {
-                    inputTokens: 50,
-                    outputTokens: 25,
-                    totalTokens: 75,
-                },
-            });
+            chatSession.eventBus.emit(
+                'llm:response',
+                createModelResponseEvent({
+                    content: 'Another response from GPT-4',
+                    provider: 'openai',
+                    model: 'gpt-4',
+                    tokenUsage: {
+                        inputTokens: 50,
+                        outputTokens: 25,
+                        totalTokens: 75,
+                    },
+                })
+            );
 
             await new Promise((resolve) => setTimeout(resolve, 0));
 

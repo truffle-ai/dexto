@@ -1232,6 +1232,7 @@ describe('Hono API Integration Tests', () => {
                     usageScopeId: 'cloud-agent-1',
                     estimatedCost: 0.0001,
                     pricingStatus: 'estimated',
+                    finishReason: 'stop',
                     provider: 'openai',
                     model: 'test-model',
                 },

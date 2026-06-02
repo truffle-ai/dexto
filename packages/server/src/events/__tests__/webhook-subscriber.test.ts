@@ -198,8 +198,10 @@ describe('WebhookEventSubscriber', () => {
             agentEventBus.emit('llm:response', {
                 content: 'Hello world',
                 sessionId: 'test-session',
-                tokenUsage: { totalTokens: 2 },
+                finishReason: 'stop',
+                provider: 'openai',
                 model: 'test-model',
+                tokenUsage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
             });
 
             await new Promise((resolve) => setTimeout(resolve, 10));
@@ -215,8 +217,10 @@ describe('WebhookEventSubscriber', () => {
                 data: {
                     content: 'Hello world',
                     sessionId: 'test-session',
-                    tokenUsage: { totalTokens: 2 },
+                    finishReason: 'stop',
+                    provider: 'openai',
                     model: 'test-model',
+                    tokenUsage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
                 },
                 created: expect.any(String),
                 apiVersion: '2025-07-03',

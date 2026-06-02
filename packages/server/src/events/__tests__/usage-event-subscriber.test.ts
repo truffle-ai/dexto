@@ -1,6 +1,24 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { AgentEventBus, type Database } from '@dexto/core';
+import { AgentEventBus, type AgentEventMap, type Database } from '@dexto/core';
 import { UsageEventSubscriber } from '../usage-event-subscriber.js';
+
+function llmResponse(
+    overrides: Partial<AgentEventMap['llm:response']>
+): AgentEventMap['llm:response'] {
+    return {
+        sessionId: 'session-1',
+        content: 'Hello',
+        finishReason: 'stop',
+        provider: 'openai',
+        model: 'gpt-5',
+        tokenUsage: {
+            inputTokens: 10,
+            outputTokens: 5,
+            totalTokens: 15,
+        },
+        ...overrides,
+    };
+}
 
 function createInMemoryDatabase(): Database {
     const store = new Map<string, unknown>();
@@ -78,23 +96,26 @@ describe('UsageEventSubscriber', () => {
     it('persists and delivers usage events for final llm responses', async () => {
         subscriber.subscribe(agentEventBus);
 
-        agentEventBus.emit('llm:response', {
-            sessionId: 'session-1',
-            content: 'Hello',
-            messageId: 'msg-1',
-            usageScopeId: 'cloud-agent-1',
-            provider: 'openai',
-            model: 'gpt-5',
-            tokenUsage: {
-                inputTokens: 10,
-                outputTokens: 5,
-                reasoningTokens: 2,
-                cacheReadTokens: 1,
-                cacheWriteTokens: 0,
-                totalTokens: 18,
-            },
-            estimatedCost: 0.0123,
-        });
+        agentEventBus.emit(
+            'llm:response',
+            llmResponse({
+                sessionId: 'session-1',
+                content: 'Hello',
+                messageId: 'msg-1',
+                usageScopeId: 'cloud-agent-1',
+                provider: 'openai',
+                model: 'gpt-5',
+                tokenUsage: {
+                    inputTokens: 10,
+                    outputTokens: 5,
+                    reasoningTokens: 2,
+                    cacheReadTokens: 1,
+                    cacheWriteTokens: 0,
+                    totalTokens: 18,
+                },
+                estimatedCost: 0.0123,
+            })
+        );
 
         await vi.waitFor(() => {
             expect(mockFetch).toHaveBeenCalledTimes(1);
@@ -151,15 +172,18 @@ describe('UsageEventSubscriber', () => {
     it('skips llm responses without scoped usage metadata', async () => {
         subscriber.subscribe(agentEventBus);
 
-        agentEventBus.emit('llm:response', {
-            sessionId: 'session-1',
-            content: 'Hello',
-            tokenUsage: {
-                inputTokens: 10,
-                outputTokens: 5,
-                totalTokens: 15,
-            },
-        });
+        agentEventBus.emit(
+            'llm:response',
+            llmResponse({
+                sessionId: 'session-1',
+                content: 'Hello',
+                tokenUsage: {
+                    inputTokens: 10,
+                    outputTokens: 5,
+                    totalTokens: 15,
+                },
+            })
+        );
 
         await new Promise((resolve) => {
             setTimeout(resolve, 0);
@@ -177,17 +201,20 @@ describe('UsageEventSubscriber', () => {
 
         subscriber.subscribe(agentEventBus);
 
-        agentEventBus.emit('llm:response', {
-            sessionId: 'session-1',
-            content: 'Hello',
-            messageId: 'msg-1',
-            usageScopeId: 'cloud-agent-1',
-            tokenUsage: {
-                inputTokens: 10,
-                outputTokens: 5,
-                totalTokens: 15,
-            },
-        });
+        agentEventBus.emit(
+            'llm:response',
+            llmResponse({
+                sessionId: 'session-1',
+                content: 'Hello',
+                messageId: 'msg-1',
+                usageScopeId: 'cloud-agent-1',
+                tokenUsage: {
+                    inputTokens: 10,
+                    outputTokens: 5,
+                    totalTokens: 15,
+                },
+            })
+        );
 
         await vi.waitFor(() => {
             expect(mockFetch).toHaveBeenCalledTimes(1);
@@ -252,17 +279,20 @@ describe('UsageEventSubscriber', () => {
 
         subscriber.subscribe(agentEventBus);
 
-        agentEventBus.emit('llm:response', {
-            sessionId: 'session-1',
-            content: 'Hello',
-            messageId: 'msg-1',
-            usageScopeId: 'cloud-agent-1',
-            tokenUsage: {
-                inputTokens: 10,
-                outputTokens: 5,
-                totalTokens: 15,
-            },
-        });
+        agentEventBus.emit(
+            'llm:response',
+            llmResponse({
+                sessionId: 'session-1',
+                content: 'Hello',
+                messageId: 'msg-1',
+                usageScopeId: 'cloud-agent-1',
+                tokenUsage: {
+                    inputTokens: 10,
+                    outputTokens: 5,
+                    totalTokens: 15,
+                },
+            })
+        );
 
         await vi.waitFor(() => {
             expect(capturedSignal).toBeDefined();

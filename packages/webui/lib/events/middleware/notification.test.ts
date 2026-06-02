@@ -82,6 +82,14 @@ describe('notificationMiddleware', () => {
                 name: 'llm:response',
                 content: 'Test response',
                 sessionId: 'background-session',
+                provider: 'openai',
+                model: 'gpt-4',
+                finishReason: 'stop',
+                tokenUsage: {
+                    inputTokens: 1,
+                    outputTokens: 1,
+                    totalTokens: 2,
+                },
             };
 
             notificationMiddleware(event, next);
@@ -152,6 +160,14 @@ describe('notificationMiddleware', () => {
                 name: 'llm:response',
                 content: 'Test response',
                 sessionId: 'current-session',
+                provider: 'openai',
+                model: 'gpt-4',
+                finishReason: 'stop',
+                tokenUsage: {
+                    inputTokens: 1,
+                    outputTokens: 1,
+                    totalTokens: 2,
+                },
             };
 
             notificationMiddleware(event, next);
@@ -167,6 +183,14 @@ describe('notificationMiddleware', () => {
                 name: 'llm:response',
                 content: 'Test response',
                 sessionId: 'background-session',
+                provider: 'openai',
+                model: 'gpt-4',
+                finishReason: 'stop',
+                tokenUsage: {
+                    inputTokens: 1,
+                    outputTokens: 1,
+                    totalTokens: 2,
+                },
             };
 
             notificationMiddleware(event, next);
@@ -186,6 +210,14 @@ describe('notificationMiddleware', () => {
                 name: 'llm:response',
                 content: 'Test response',
                 sessionId: 'some-session',
+                provider: 'openai',
+                model: 'gpt-4',
+                finishReason: 'stop',
+                tokenUsage: {
+                    inputTokens: 1,
+                    outputTokens: 1,
+                    totalTokens: 2,
+                },
             };
 
             notificationMiddleware(event, next);

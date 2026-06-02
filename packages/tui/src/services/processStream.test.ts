@@ -36,6 +36,23 @@ async function* eventStream(events: StreamingEvent[]) {
     }
 }
 
+function llmResponse(overrides: Partial<Extract<StreamingEvent, { name: 'llm:response' }>>) {
+    return {
+        name: 'llm:response',
+        sessionId: 'test-session',
+        content: 'Hello',
+        provider: 'openai',
+        model: 'gpt-4',
+        finishReason: 'stop',
+        tokenUsage: {
+            inputTokens: 1,
+            outputTokens: 1,
+            totalTokens: 2,
+        },
+        ...overrides,
+    } satisfies Extract<StreamingEvent, { name: 'llm:response' }>;
+}
+
 function createSetters({
     steerMessages: initialSteerMessages = [],
     queuedMessages: initialQueuedMessages = [],
@@ -161,6 +178,41 @@ describe('processStream (reasoning)', () => {
         expect(getQueuedMessages()).toEqual([followUp]);
     });
 
+    it('renders blocked interactions as final assistant messages', async () => {
+        const { getMessages, getUi, setters } = createSetters();
+
+        await processStream(
+            eventStream([
+                { name: 'llm:thinking', sessionId: 'test-session' },
+                {
+                    name: 'interaction:blocked',
+                    sessionId: 'test-session',
+                    content: 'Error: blocked by policy',
+                    provider: 'openai',
+                    model: 'gpt-4',
+                    messageId: 'blocked-message',
+                },
+            ]),
+            setters,
+            {
+                useStreaming: true,
+                autoApproveEditsRef: { current: false },
+                bypassPermissionsRef: { current: false },
+                eventBus: { emit: vi.fn() },
+            }
+        );
+
+        expect(getUi().isThinking).toBe(false);
+        expect(getMessages()).toEqual([
+            expect.objectContaining({
+                id: 'blocked-message',
+                role: 'assistant',
+                content: 'Error: blocked by policy',
+                isStreaming: false,
+            }),
+        ]);
+    });
+
     it('attaches streamed reasoning chunks to the assistant message', async () => {
         const { getMessages, getPendingMessages, setters } = createSetters();
 
@@ -184,11 +236,9 @@ describe('processStream (reasoning)', () => {
                 chunkType: 'text',
                 content: 'Hello',
             },
-            {
-                name: 'llm:response',
-                sessionId: 'test-session',
+            llmResponse({
                 content: 'Hello',
-            },
+            }),
             {
                 name: 'run:complete',
                 sessionId: 'test-session',
@@ -234,11 +284,9 @@ describe('processStream (reasoning)', () => {
                 chunkType: 'text',
                 content: longText,
             },
-            {
-                name: 'llm:response',
-                sessionId: 'test-session',
+            llmResponse({
                 content: longText,
-            },
+            }),
             {
                 name: 'run:complete',
                 sessionId: 'test-session',
@@ -284,11 +332,9 @@ describe('processStream (reasoning)', () => {
                 chunkType: 'text',
                 content: 'Hello',
             },
-            {
-                name: 'llm:response',
-                sessionId: 'test-session',
+            llmResponse({
                 content: 'Hello',
-            },
+            }),
             {
                 name: 'run:complete',
                 sessionId: 'test-session',
@@ -331,12 +377,10 @@ describe('processStream (reasoning)', () => {
                 callId: 'call-1',
                 args: {},
             },
-            {
-                name: 'llm:response',
-                sessionId: 'test-session',
+            llmResponse({
                 content: 'Final',
                 reasoning: 'R',
-            },
+            }),
             {
                 name: 'run:complete',
                 sessionId: 'test-session',
@@ -406,9 +450,7 @@ describe('processStream (reasoning)', () => {
 
         const events: StreamingEvent[] = [
             { name: 'llm:thinking', sessionId: 'test-session' },
-            {
-                name: 'llm:response',
-                sessionId: 'test-session',
+            llmResponse({
                 content: 'Priced response',
                 provider: 'openai',
                 model: 'gpt-4',
@@ -426,7 +468,7 @@ describe('processStream (reasoning)', () => {
                     outputTokens: 20,
                     totalTokens: 30,
                 },
-            },
+            }),
             {
                 name: 'run:complete',
                 sessionId: 'test-session',

@@ -17,6 +17,7 @@ import type {
     ApprovalRequest,
     ApprovalResponse,
     AgentEventMap,
+    EventArgs,
     EventListener,
 } from '@dexto/core';
 import { ApprovalStatus, DenialReason } from '@dexto/core';
@@ -29,7 +30,7 @@ type ApprovalEventBus = {
     ) => void;
     emit: <K extends keyof AgentEventMap>(
         event: K,
-        ...args: AgentEventMap[K] extends void ? [] : [AgentEventMap[K]]
+        ...args: EventArgs<AgentEventMap[K]>
     ) => boolean;
 };
 
