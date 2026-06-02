@@ -1,4 +1,5 @@
 import { describe, test, expect, vi, beforeEach, afterEach } from 'vitest';
+import { APICallError } from 'ai';
 import { StreamProcessor } from './stream-processor.js';
 import type { StreamProcessorConfig } from './stream-processor.js';
 import type { ContextManager } from '../../context/manager.js';
@@ -1047,7 +1048,7 @@ describe('StreamProcessor', () => {
     });
 
     describe('Error Event Handling', () => {
-        test('throws Error objects from fatal stream events', async () => {
+        test('throws Error objects from fatal stream events and emits llm:error', async () => {
             const mocks = createMocks();
             const processor = new StreamProcessor(
                 mocks.contextManager,
@@ -1064,10 +1065,17 @@ describe('StreamProcessor', () => {
             await expect(processor.process(() => createMockStream(events) as never)).rejects.toBe(
                 testError
             );
-            expect(mocks.emittedEvents.find((e) => e.name === 'llm:error')).toBeUndefined();
+            expect(mocks.emittedEvents.find((e) => e.name === 'llm:error')).toMatchObject({
+                name: 'llm:error',
+                payload: {
+                    error: testError,
+                    context: 'StreamProcessor',
+                    recoverable: false,
+                },
+            });
         });
 
-        test('wraps non-Error fatal stream events before throwing', async () => {
+        test('wraps non-Error fatal stream events before throwing and emits llm:error', async () => {
             const mocks = createMocks();
             const processor = new StreamProcessor(
                 mocks.contextManager,
@@ -1085,7 +1093,77 @@ describe('StreamProcessor', () => {
             ).rejects.toMatchObject({
                 message: 'String error message',
             });
-            expect(mocks.emittedEvents.find((e) => e.name === 'llm:error')).toBeUndefined();
+            expect(mocks.emittedEvents.find((e) => e.name === 'llm:error')).toMatchObject({
+                name: 'llm:error',
+                payload: {
+                    context: 'StreamProcessor',
+                    recoverable: false,
+                },
+            });
+        });
+
+        test('extracts OpenRouter provider metadata from API stream errors', async () => {
+            const mocks = createMocks();
+            mocks.config.provider = 'openrouter';
+            mocks.config.model = 'openai/gpt-5.4-mini';
+            const processor = new StreamProcessor(
+                mocks.contextManager,
+                mocks.eventBus,
+                mocks.abortController.signal,
+                mocks.config,
+                mocks.logger,
+                true
+            );
+            const responseBody = JSON.stringify({
+                error: {
+                    code: 400,
+                    message: 'Provider returned error',
+                    metadata: {
+                        provider_name: 'OpenAI',
+                        raw: {
+                            error: {
+                                code: 'invalid_function_parameters',
+                                message:
+                                    "Invalid schema for function 'dexto_apps': schema must have type 'object'",
+                                param: 'tools[23].parameters',
+                            },
+                        },
+                        previous_errors: [{}],
+                    },
+                },
+            });
+            const apiError = new APICallError({
+                message: 'Bad Request',
+                statusCode: 400,
+                responseHeaders: {},
+                responseBody,
+                url: 'https://openrouter.ai/api/v1/chat/completions',
+                requestBodyValues: {},
+                isRetryable: false,
+            });
+
+            await expect(
+                processor.process(
+                    () => createMockStream([{ type: 'error', error: apiError }]) as never
+                )
+            ).rejects.toMatchObject({
+                code: 'llm_request_invalid_schema',
+                message: expect.stringContaining("Invalid schema for function 'dexto_apps'"),
+            });
+            expect(mocks.emittedEvents.find((e) => e.name === 'llm:error')).toMatchObject({
+                payload: {
+                    details: {
+                        model: 'openai/gpt-5.4-mini',
+                        openRouterProviderName: 'OpenAI',
+                        openRouterProviderRawCode: 'invalid_function_parameters',
+                        openRouterProviderRawMessage:
+                            "Invalid schema for function 'dexto_apps': schema must have type 'object'",
+                        openRouterProviderRawParam: 'tools[23].parameters',
+                        provider: 'openrouter',
+                        statusCode: 400,
+                    },
+                },
+            });
         });
 
         test('persists failed tool results before throwing fatal stream errors', async () => {
@@ -1133,7 +1211,14 @@ describe('StreamProcessor', () => {
                 }),
                 undefined
             );
-            expect(mocks.emittedEvents.find((e) => e.name === 'llm:error')).toBeUndefined();
+            expect(mocks.emittedEvents.find((e) => e.name === 'llm:error')).toMatchObject({
+                name: 'llm:error',
+                payload: {
+                    error: testError,
+                    context: 'StreamProcessor',
+                    recoverable: false,
+                },
+            });
 
             const toolResultEvent = mocks.emittedEvents.find((e) => e.name === 'llm:tool-result');
             expect(toolResultEvent?.payload).toMatchObject({

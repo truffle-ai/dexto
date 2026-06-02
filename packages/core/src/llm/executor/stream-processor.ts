@@ -9,6 +9,7 @@ import type { ModelToolCall } from './types.js';
 import { getUsagePricingMetadata } from '../usage-metadata.js';
 import type { TokenUsageCostBreakdown } from '@dexto/llm';
 import type { LLMProvider, LLMPricingStatus, ReasoningVariant, TokenUsage } from '@dexto/llm';
+import { extractProviderErrorDetails, mapProviderError } from './provider-error.js';
 
 type UsageLike = {
     inputTokens?: number | null | undefined;
@@ -399,11 +400,22 @@ export class StreamProcessor {
                     }
 
                     case 'error': {
-                        const err =
-                            event.error instanceof Error
-                                ? event.error
-                                : new Error(String(event.error));
+                        const err = mapProviderError({
+                            error: event.error,
+                            provider: this.config.provider,
+                            model: this.config.model,
+                        });
                         await this.persistFailedToolResults(err.message);
+                        this.eventBus.emit('llm:error', {
+                            error: err,
+                            context: 'StreamProcessor',
+                            recoverable: false,
+                            details: extractProviderErrorDetails({
+                                error: event.error,
+                                provider: this.config.provider,
+                                model: this.config.model,
+                            }),
+                        });
                         throw err;
                     }
 
@@ -481,8 +493,23 @@ export class StreamProcessor {
             }
 
             // Non-abort errors are real failures
-            this.logger.error('Stream processing failed', { error });
-            throw error;
+            const mappedError = mapProviderError({
+                error,
+                provider: this.config.provider,
+                model: this.config.model,
+            });
+            this.eventBus.emit('llm:error', {
+                error: mappedError,
+                context: 'StreamProcessor',
+                recoverable: false,
+                details: extractProviderErrorDetails({
+                    error,
+                    provider: this.config.provider,
+                    model: this.config.model,
+                }),
+            });
+            this.logger.error('Stream processing failed', { error: mappedError });
+            throw mappedError;
         }
 
         return {

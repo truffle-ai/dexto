@@ -51,9 +51,10 @@ import type { JSONSchema7 } from 'json-schema';
 import type { MessageQueueService } from '../../session/message-queue.js';
 import type { StreamProcessorConfig } from './stream-processor.js';
 import type { CoalescedMessage } from '../../session/types.js';
-import { DextoRuntimeError } from '../../errors/DextoRuntimeError.js';
-import { ErrorScope, ErrorType } from '../../errors/types.js';
-import { LLMErrorCode } from '../error-codes.js';
+import {
+    extractProviderErrorDetails,
+    mapProviderError as mapCoreProviderError,
+} from './provider-error.js';
 import { toError } from '../../utils/error-conversion.js';
 import type { CompactionStrategy } from '../../context/compaction/types.js';
 import type { ModelLimits } from '../../context/compaction/overflow.js';
@@ -888,6 +889,12 @@ export class TurnExecutor {
             error: mappedError,
             context: 'TurnExecutor',
             recoverable: false,
+            details: extractProviderErrorDetails({
+                error,
+                provider: this.llmContext.provider,
+                model: this.llmContext.model,
+                sessionId: this.sessionId,
+            }),
         });
 
         await this.contextManager.flush();
@@ -2079,92 +2086,12 @@ export class TurnExecutor {
      * Map provider errors to DextoRuntimeError.
      */
     private mapProviderError(err: unknown): Error {
-        if (APICallError.isInstance?.(err)) {
-            const status = err.statusCode;
-            const headers = (err.responseHeaders || {}) as Record<string, string>;
-            const retryAfter = headers['retry-after'] ? Number(headers['retry-after']) : undefined;
-            const body =
-                typeof err.responseBody === 'string'
-                    ? err.responseBody
-                    : JSON.stringify(err.responseBody ?? '');
-
-            if (status === 402) {
-                // Dexto gateway returns 402 with INSUFFICIENT_CREDITS when balance is low
-                // Try to extract balance from response body
-                let balance: number | undefined;
-                try {
-                    const parsed = JSON.parse(body);
-                    // Format: { error: { code: 'INSUFFICIENT_CREDITS', message: '...Balance: $X.XX...' } }
-                    const msg = parsed?.error?.message || '';
-                    const match = msg.match(/Balance:\s*\$?([\d.]+)/i);
-                    if (match) {
-                        balance = parseFloat(match[1]);
-                    }
-                } catch {
-                    // Ignore parse errors
-                }
-                return new DextoRuntimeError(
-                    LLMErrorCode.INSUFFICIENT_CREDITS,
-                    ErrorScope.LLM,
-                    ErrorType.PAYMENT_REQUIRED,
-                    `Insufficient Dexto credits${balance !== undefined ? `. Balance: $${balance.toFixed(2)}` : ''}`,
-                    {
-                        sessionId: this.sessionId,
-                        provider: this.llmContext.provider,
-                        model: this.llmContext.model,
-                        status,
-                        balance,
-                        body,
-                    },
-                    'Run `dexto billing` to check your balance'
-                );
-            }
-            if (status === 429) {
-                return new DextoRuntimeError(
-                    LLMErrorCode.RATE_LIMIT_EXCEEDED,
-                    ErrorScope.LLM,
-                    ErrorType.RATE_LIMIT,
-                    `Rate limit exceeded${body ? ` - ${body}` : ''}`,
-                    {
-                        sessionId: this.sessionId,
-                        provider: this.llmContext.provider,
-                        model: this.llmContext.model,
-                        status,
-                        retryAfter,
-                        body,
-                    }
-                );
-            }
-            if (status === 408) {
-                return new DextoRuntimeError(
-                    LLMErrorCode.GENERATION_FAILED,
-                    ErrorScope.LLM,
-                    ErrorType.TIMEOUT,
-                    `Provider timed out${body ? ` - ${body}` : ''}`,
-                    {
-                        sessionId: this.sessionId,
-                        provider: this.llmContext.provider,
-                        model: this.llmContext.model,
-                        status,
-                        body,
-                    }
-                );
-            }
-            return new DextoRuntimeError(
-                LLMErrorCode.GENERATION_FAILED,
-                ErrorScope.LLM,
-                ErrorType.THIRD_PARTY,
-                `Provider error ${status}${body ? ` - ${body}` : ''}`,
-                {
-                    sessionId: this.sessionId,
-                    provider: this.llmContext.provider,
-                    model: this.llmContext.model,
-                    status,
-                    body,
-                }
-            );
-        }
-
-        return toError(err, this.logger);
+        if (!APICallError.isInstance?.(err)) return toError(err, this.logger);
+        return mapCoreProviderError({
+            error: err,
+            provider: this.llmContext.provider,
+            model: this.llmContext.model,
+            sessionId: this.sessionId,
+        });
     }
 }
