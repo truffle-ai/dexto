@@ -3591,6 +3591,73 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             expect(getDescription).toHaveBeenCalledTimes(1);
         });
 
+        it('exports discriminated-union local tool schemas with an object root', async () => {
+            mockMcpManager.getAllTools = vi.fn().mockResolvedValue({});
+
+            const toolManager = createToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'manual',
+                mockAgentEventBus,
+                { alwaysAllow: [] },
+                [
+                    defineTool({
+                        id: 'multi_action',
+                        description: 'Multi-action tool',
+                        inputSchema: z.discriminatedUnion('action', [
+                            z.object({ action: z.literal('list') }),
+                            z.object({ action: z.literal('open'), id: z.string() }),
+                        ]),
+                        execute: vi.fn(),
+                    }),
+                ],
+                mockLogger
+            );
+
+            const tools = await toolManager.getAllTools();
+
+            expect(tools['multi_action']?.parameters).toMatchObject({
+                type: 'object',
+                oneOf: expect.any(Array),
+            });
+        });
+
+        it('normalizes non-object MCP tool parameters to an object root', async () => {
+            mockMcpManager.getAllTools = vi.fn().mockResolvedValue({
+                legacy: {
+                    name: 'legacy',
+                    description: 'Legacy MCP tool',
+                    parameters: {
+                        oneOf: [
+                            {
+                                type: 'object',
+                                properties: { action: { const: 'open' } },
+                            },
+                        ],
+                    },
+                },
+            });
+
+            const toolManager = createToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'manual',
+                mockAgentEventBus,
+                { alwaysAllow: [] },
+                [],
+                mockLogger
+            );
+
+            const tools = await toolManager.getAllTools();
+
+            expect(tools['mcp--legacy']?.parameters).toMatchObject({
+                type: 'object',
+                oneOf: expect.any(Array),
+            });
+        });
+
         it('should cache tool discovery results', async () => {
             const tools = {
                 test_tool: { name: 'test_tool', description: 'Test', parameters: {} },

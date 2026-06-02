@@ -36,19 +36,50 @@ const META_SCHEMA: JSONSchema7 = {
 
 const META_KEY = '__meta';
 
-export function wrapToolParametersSchema(parameters: JSONSchema7): JSONSchema7 {
-    if (parameters.type !== 'object' || !parameters.properties) {
+function hasObjectAlternative(parameters: JSONSchema7): boolean {
+    const alternatives = parameters.oneOf ?? parameters.anyOf;
+    return (
+        Array.isArray(alternatives) &&
+        alternatives.some(
+            (alternative) =>
+                alternative !== true && alternative !== false && alternative.type === 'object'
+        )
+    );
+}
+
+function normalizeToolParametersSchema(parameters: JSONSchema7): JSONSchema7 {
+    if (parameters.type === 'object') {
         return parameters;
     }
 
-    if (META_KEY in parameters.properties) {
-        return parameters;
+    if (hasObjectAlternative(parameters)) {
+        return {
+            ...parameters,
+            type: 'object',
+        };
     }
 
     return {
-        ...parameters,
+        type: 'object',
+        additionalProperties: true,
+    };
+}
+
+export function wrapToolParametersSchema(parameters: JSONSchema7): JSONSchema7 {
+    const normalized = normalizeToolParametersSchema(parameters);
+
+    if (!normalized.properties) {
+        return normalized;
+    }
+
+    if (META_KEY in normalized.properties) {
+        return normalized;
+    }
+
+    return {
+        ...normalized,
         properties: {
-            ...parameters.properties,
+            ...normalized.properties,
             [META_KEY]: META_SCHEMA,
         },
     };
