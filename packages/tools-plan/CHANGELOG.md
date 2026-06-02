@@ -1,5 +1,13 @@
 # @dexto/tools-plan
 
+## 1.8.2
+
+### Patch Changes
+
+- Updated dependencies [a93c02b]
+    - @dexto/core@1.8.2
+    - @dexto/agent-config@1.8.2
+
 ## 1.8.1
 
 ### Patch Changes
