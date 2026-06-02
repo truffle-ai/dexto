@@ -73,21 +73,25 @@ export type JsonRpcBatchResponse = JsonRpcResponse[];
 /**
  * Standard JSON-RPC 2.0 Error Codes
  */
-export enum JsonRpcErrorCode {
+const JsonRpcErrorCodes = {
     /** Invalid JSON was received by the server */
-    PARSE_ERROR = -32700,
+    PARSE_ERROR: -32700,
     /** The JSON sent is not a valid Request object */
-    INVALID_REQUEST = -32600,
+    INVALID_REQUEST: -32600,
     /** The method does not exist / is not available */
-    METHOD_NOT_FOUND = -32601,
+    METHOD_NOT_FOUND: -32601,
     /** Invalid method parameter(s) */
-    INVALID_PARAMS = -32602,
+    INVALID_PARAMS: -32602,
     /** Internal JSON-RPC error */
-    INTERNAL_ERROR = -32603,
+    INTERNAL_ERROR: -32603,
     /** Reserved for implementation-defined server-errors (-32000 to -32099) */
-    SERVER_ERROR_START = -32099,
-    SERVER_ERROR_END = -32000,
-}
+    SERVER_ERROR_START: -32099,
+    SERVER_ERROR_END: -32000,
+} as const;
+
+export type JsonRpcErrorCode = (typeof JsonRpcErrorCodes)[keyof typeof JsonRpcErrorCodes];
+
+export { JsonRpcErrorCodes as JsonRpcErrorCode };
 
 /**
  * Type guard to check if response is an error
