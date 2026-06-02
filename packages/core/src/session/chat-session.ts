@@ -237,51 +237,48 @@ export class ChatSession {
      */
     private setupTokenAccumulation(): void {
         this.tokenAccumulatorListener = (payload: SessionEventMap['llm:response']) => {
-            if (payload.tokenUsage) {
-                const tokenUsage = normalizeTokenUsageForAccounting(payload.tokenUsage);
-                const llmConfig = this.services.stateManager.getLLMConfig(this.id);
-                const isChatGPTLogin =
-                    llmConfig.provider === 'openai-compatible' &&
-                    parseCodexBaseURL(llmConfig.baseURL)?.authMode === 'chatgpt';
-                const hasMeaningfulUsage = hasMeaningfulTokenUsage(tokenUsage);
+            const tokenUsage = normalizeTokenUsageForAccounting(payload.tokenUsage);
+            const llmConfig = this.services.stateManager.getLLMConfig(this.id);
+            const isChatGPTLogin =
+                llmConfig.provider === 'openai-compatible' &&
+                parseCodexBaseURL(llmConfig.baseURL)?.authMode === 'chatgpt';
+            const hasMeaningfulUsage = hasMeaningfulTokenUsage(tokenUsage);
 
-                if (isChatGPTLogin && !hasMeaningfulUsage) {
-                    this.services.sessionManager
-                        .markUntrackedChatGPTLoginUsage(this.id)
-                        .catch((err) => {
-                            this.logger.warn(
-                                `Failed to mark ChatGPT Login usage as untracked: ${err instanceof Error ? err.message : String(err)}`
-                            );
-                        });
-                    return;
-                }
-
-                // Extract model info from payload (preferred) or fall back to config
-                const modelInfo = {
-                    provider: payload.provider ?? llmConfig.provider,
-                    model: payload.model ?? llmConfig.model,
-                };
-
-                const pricingMetadata = getUsagePricingMetadata({
-                    provider: modelInfo.provider,
-                    model: modelInfo.model,
-                    tokenUsage,
-                });
-
-                // Fire and forget - don't block the event flow
+            if (isChatGPTLogin && !hasMeaningfulUsage) {
                 this.services.sessionManager
-                    .accumulateTokenUsage(
-                        this.id,
-                        tokenUsage,
-                        payload.estimatedCost ?? pricingMetadata.estimatedCost,
-                        modelInfo
-                    )
+                    .markUntrackedChatGPTLoginUsage(this.id)
                     .catch((err) => {
                         this.logger.warn(
-                            `Failed to accumulate token usage: ${err instanceof Error ? err.message : String(err)}`
+                            `Failed to mark ChatGPT Login usage as untracked: ${err instanceof Error ? err.message : String(err)}`
                         );
                     });
+                return;
             }
+
+            const modelInfo = {
+                provider: payload.provider,
+                model: payload.model,
+            };
+
+            const pricingMetadata = getUsagePricingMetadata({
+                provider: modelInfo.provider,
+                model: modelInfo.model,
+                tokenUsage,
+            });
+
+            // Fire and forget - don't block the event flow
+            this.services.sessionManager
+                .accumulateTokenUsage(
+                    this.id,
+                    tokenUsage,
+                    payload.estimatedCost ?? pricingMetadata.estimatedCost,
+                    modelInfo
+                )
+                .catch((err) => {
+                    this.logger.warn(
+                        `Failed to accumulate token usage: ${err instanceof Error ? err.message : String(err)}`
+                    );
+                });
         };
 
         this.eventBus.on('llm:response', this.tokenAccumulatorListener);
@@ -363,8 +360,9 @@ export class ChatSession {
 
         // Create assistant error message
         const errorContent = `Error: ${errorMessage}`;
+        const assistantMessageId = randomUUID();
         const assistantMessage: InternalMessage = {
-            id: randomUUID(),
+            id: assistantMessageId,
             role: 'assistant',
             timestamp: timestamp + 1,
             content: [{ type: 'text', text: errorContent }],
@@ -374,15 +372,15 @@ export class ChatSession {
         await this.conversationStore.saveMessage({ sessionId: this.id, message: userMessage });
         await this.conversationStore.saveMessage({ sessionId: this.id, message: assistantMessage });
 
-        // Emit response event so UI updates immediately on blocked interactions
-        // This ensures listeners relying on llm:response know a response was added
+        // Emit a synthetic interaction event so UIs can render the persisted blocked response
+        // without treating it as a model completion or usage-bearing LLM response.
         // Note: sessionId is automatically added by event forwarding layer
         const llmConfig = this.services.stateManager.getLLMConfig(this.id);
-        this.eventBus.emit('llm:response', {
+        this.eventBus.emit('interaction:blocked', {
             content: errorContent,
             provider: llmConfig.provider,
             model: llmConfig.model,
-            ...(assistantMessage.id && { messageId: assistantMessage.id }),
+            messageId: assistantMessageId,
         });
     }
 

@@ -1,6 +1,7 @@
 import type {
     AgentEventMap,
     DextoAgent,
+    EventArgs,
     EventListener,
     SessionMetadata,
     SkillManager,
@@ -123,7 +124,7 @@ export interface TuiAgentBackend
     ) => void;
     emit: <K extends keyof AgentEventMap>(
         event: K,
-        ...args: AgentEventMap[K] extends void ? [] : [AgentEventMap[K]]
+        ...args: EventArgs<AgentEventMap[K]>
     ) => boolean;
     logger: RootLogger;
     config: {

@@ -75,6 +75,7 @@ import { UsageScopeIdSchema } from '../llm/usage-scope.js';
 import {
     AgentEventBus,
     type AgentEventMap,
+    type EventArgs,
     type EventListener,
     type StreamingEvent,
     type StreamingEventName,
@@ -660,7 +661,7 @@ export class DextoAgent {
 
     public emit<K extends keyof AgentEventMap>(
         event: K,
-        ...args: AgentEventMap[K] extends void ? [] : [AgentEventMap[K]]
+        ...args: EventArgs<AgentEventMap[K]>
     ): boolean {
         return this.agentEventBus.emit(event, ...args);
     }
@@ -860,26 +861,16 @@ export class DextoAgent {
             };
         });
 
-        // Ensure usage matches LLMTokenUsage type with all required fields
-        const defaultUsage: import('./types.js').TokenUsage = {
-            inputTokens: 0,
-            outputTokens: 0,
-            totalTokens: 0,
-            cacheReadTokens: 0,
-            cacheWriteTokens: 0,
-        };
-        const usage = responseEvent.tokenUsage ?? defaultUsage;
-
         return {
             content: responseEvent.content,
             reasoning: responseEvent.reasoning,
-            usage: usage as import('./types.js').TokenUsage,
+            usage: responseEvent.tokenUsage as import('./types.js').TokenUsage,
             toolCalls,
             sessionId,
             ...(responseEvent.messageId && { messageId: responseEvent.messageId }),
             ...(responseEvent.usageScopeId && { usageScopeId: responseEvent.usageScopeId }),
-            ...(responseEvent.provider && { provider: responseEvent.provider }),
-            ...(responseEvent.model && { model: responseEvent.model }),
+            provider: responseEvent.provider,
+            model: responseEvent.model,
             ...(responseEvent.estimatedCost !== undefined && {
                 estimatedCost: responseEvent.estimatedCost,
             }),

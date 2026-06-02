@@ -159,6 +159,25 @@ export class A2ASseEventSubscriber {
         );
 
         eventBus.on(
+            'interaction:blocked',
+            (payload) => {
+                this.broadcastToTask(payload.sessionId, 'task.message', {
+                    taskId: payload.sessionId,
+                    message: {
+                        role: 'agent',
+                        content: [{ type: 'text', text: payload.content }],
+                        timestamp: new Date().toISOString(),
+                        messageId: payload.messageId,
+                    },
+                    provider: payload.provider,
+                    model: payload.model,
+                    messageId: payload.messageId,
+                });
+            },
+            { signal }
+        );
+
+        eventBus.on(
             'llm:error',
             (payload) => {
                 this.broadcastToTask(payload.sessionId, 'task.error', {

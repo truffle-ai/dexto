@@ -170,10 +170,6 @@ function hasMeaningfulTokenUsageForAnalytics(
         return true;
     }
 
-    if (!tokenUsage) {
-        return false;
-    }
-
     return (
         (tokenUsage.inputTokens ?? 0) > 0 ||
         (tokenUsage.outputTokens ?? 0) > 0 ||
@@ -622,16 +618,14 @@ export async function processStream(
 
                     // Track token usage: replace input (last context), accumulate output
                     // Subtract cacheWriteTokens to exclude system prompt on first call
-                    if (event.tokenUsage) {
-                        const rawInputTokens = event.tokenUsage.inputTokens ?? 0;
-                        const cacheWriteTokens = event.tokenUsage.cacheWriteTokens ?? 0;
-                        const inputTokens = Math.max(0, rawInputTokens - cacheWriteTokens);
-                        if (inputTokens > 0) {
-                            state.lastInputTokens = inputTokens;
-                        }
-                        if (event.tokenUsage.outputTokens) {
-                            state.cumulativeOutputTokens += event.tokenUsage.outputTokens;
-                        }
+                    const rawInputTokens = event.tokenUsage.inputTokens ?? 0;
+                    const cacheWriteTokens = event.tokenUsage.cacheWriteTokens ?? 0;
+                    const inputTokens = Math.max(0, rawInputTokens - cacheWriteTokens);
+                    if (inputTokens > 0) {
+                        state.lastInputTokens = inputTokens;
+                    }
+                    if (event.tokenUsage.outputTokens) {
+                        state.cumulativeOutputTokens += event.tokenUsage.outputTokens;
                     }
 
                     // Track token usage analytics
@@ -640,7 +634,7 @@ export async function processStream(
                     ) {
                         // Calculate estimate accuracy if both estimate and actual are available
                         let estimateAccuracyPercent: number | undefined;
-                        const actualInputTokens = event.tokenUsage?.inputTokens;
+                        const actualInputTokens = event.tokenUsage.inputTokens;
                         if (event.estimatedInputTokens !== undefined && actualInputTokens) {
                             const diff = event.estimatedInputTokens - actualInputTokens;
                             estimateAccuracyPercent = Math.round((diff / actualInputTokens) * 100);
@@ -653,12 +647,12 @@ export async function processStream(
                             model: event.model,
                             reasoningVariant: event.reasoningVariant ?? undefined,
                             reasoningBudgetTokens: event.reasoningBudgetTokens ?? undefined,
-                            inputTokens: event.tokenUsage?.inputTokens,
-                            outputTokens: event.tokenUsage?.outputTokens,
-                            reasoningTokens: event.tokenUsage?.reasoningTokens,
-                            totalTokens: event.tokenUsage?.totalTokens,
-                            cacheReadTokens: event.tokenUsage?.cacheReadTokens,
-                            cacheWriteTokens: event.tokenUsage?.cacheWriteTokens,
+                            inputTokens: event.tokenUsage.inputTokens,
+                            outputTokens: event.tokenUsage.outputTokens,
+                            reasoningTokens: event.tokenUsage.reasoningTokens,
+                            totalTokens: event.tokenUsage.totalTokens,
+                            cacheReadTokens: event.tokenUsage.cacheReadTokens,
+                            cacheWriteTokens: event.tokenUsage.cacheWriteTokens,
                             estimatedCostUsd: event.estimatedCost,
                             inputCostUsd: event.costBreakdown?.inputUsd,
                             outputCostUsd: event.costBreakdown?.outputUsd,
@@ -720,6 +714,22 @@ export async function processStream(
                     }
                     // Reset the flag for this response (new text after tools will create new message)
                     state.textFinalizedBeforeTool = false;
+                    break;
+                }
+
+                case 'interaction:blocked': {
+                    setUi((prev) => ({ ...prev, isThinking: false }));
+
+                    setMessages((prev) => [
+                        ...prev,
+                        {
+                            id: event.messageId,
+                            role: 'assistant',
+                            content: event.content,
+                            timestamp: new Date(),
+                            isStreaming: false,
+                        },
+                    ]);
                     break;
                 }
 

@@ -351,6 +351,28 @@ function handleLLMResponse(event: EventByName<'llm:response'>): void {
 }
 
 /**
+ * interaction:blocked - User interaction was blocked before an LLM call.
+ * Creates the persisted assistant message without usage metadata.
+ */
+function handleInteractionBlocked(event: EventByName<'interaction:blocked'>): void {
+    const { sessionId, content, provider, model, messageId } = event;
+    const chatStore = useChatStore.getState();
+
+    finalizeStreamingIfNeeded(sessionId);
+    chatStore.addMessage(sessionId, {
+        id: messageId,
+        role: 'assistant',
+        content,
+        provider,
+        model,
+        createdAt: Date.now(),
+        sessionId,
+    });
+    chatStore.setProcessing(sessionId, false);
+    useAgentStore.getState().setIdle();
+}
+
+/**
  * llm:tool-call - LLM requested a tool call
  * Adds a tool message to the chat
  *
@@ -844,6 +866,7 @@ export function registerHandlers(): void {
     registerHandler('llm:thinking', handleLLMThinking);
     registerHandler('llm:chunk', handleLLMChunk);
     registerHandler('llm:response', handleLLMResponse);
+    registerHandler('interaction:blocked', handleInteractionBlocked);
     registerHandler('llm:tool-call', handleToolCall);
     registerHandler('llm:tool-result', handleToolResult);
     registerHandler('llm:error', handleLLMError);
@@ -908,6 +931,7 @@ export {
     handleLLMThinking,
     handleLLMChunk,
     handleLLMResponse,
+    handleInteractionBlocked,
     handleToolCall,
     handleToolResult,
     handleLLMError,

@@ -14,6 +14,7 @@ import {
     handleLLMThinking,
     handleLLMChunk,
     handleLLMResponse,
+    handleInteractionBlocked,
     handleToolCall,
     handleToolResult,
     handleLLMError,
@@ -75,6 +76,7 @@ describe('Event Handler Registry', () => {
             expect(getHandler('llm:thinking')).toBeDefined();
             expect(getHandler('llm:chunk')).toBeDefined();
             expect(getHandler('llm:response')).toBeDefined();
+            expect(getHandler('interaction:blocked')).toBeDefined();
             expect(getHandler('llm:tool-call')).toBeDefined();
             expect(getHandler('llm:tool-result')).toBeDefined();
             expect(getHandler('llm:error')).toBeDefined();
@@ -182,6 +184,7 @@ describe('Event Handler Registry', () => {
                 content: 'Response content',
                 provider: 'openai',
                 model: 'gpt-4',
+                finishReason: 'stop',
                 tokenUsage: {
                     inputTokens: 10,
                     outputTokens: 20,
@@ -213,6 +216,7 @@ describe('Event Handler Registry', () => {
                 content: 'Response content',
                 provider: 'openai',
                 model: 'gpt-4',
+                finishReason: 'stop',
                 estimatedCost: 0.0015,
                 costBreakdown: {
                     inputUsd: 0.001,
@@ -240,6 +244,38 @@ describe('Event Handler Registry', () => {
                     reasoningCostUsd: 0,
                     cacheReadCostUsd: 0,
                     cacheWriteCostUsd: 0,
+                })
+            );
+        });
+
+        it('should render blocked interactions without usage metadata', () => {
+            useChatStore.getState().setStreamingMessage(TEST_SESSION_ID, {
+                id: 'streaming-msg',
+                role: 'assistant',
+                content: 'partial',
+                createdAt: Date.now(),
+            });
+
+            handleInteractionBlocked({
+                name: 'interaction:blocked',
+                sessionId: TEST_SESSION_ID,
+                content: 'Error: blocked by policy',
+                provider: 'openai',
+                model: 'gpt-4',
+                messageId: 'blocked-msg',
+            });
+
+            const chatState = useChatStore.getState().getSessionState(TEST_SESSION_ID);
+            expect(chatState.streamingMessage).toBeNull();
+            expect(chatState.processing).toBe(false);
+            expect(chatState.messages.at(-1)).toEqual(
+                expect.objectContaining({
+                    id: 'blocked-msg',
+                    role: 'assistant',
+                    content: 'Error: blocked by policy',
+                    provider: 'openai',
+                    model: 'gpt-4',
+                    tokenUsage: undefined,
                 })
             );
         });

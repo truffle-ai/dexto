@@ -63,6 +63,7 @@ export const FORWARDED_SESSION_EVENT_NAMES = [
     'llm:thinking',
     'llm:chunk',
     'llm:response',
+    'interaction:blocked',
     'llm:rate-limit-status',
     'llm:tool-call',
     'llm:tool-call-partial',
@@ -118,6 +119,7 @@ export const STREAMING_EVENTS = [
     'llm:thinking',
     'llm:chunk',
     'llm:response',
+    'interaction:blocked',
     'llm:tool-call',
     'llm:tool-call-partial',
     'llm:tool-result',
@@ -243,13 +245,17 @@ export type HostRuntimeEventContext = {
     hostRuntime?: HostRuntimeContext | undefined;
 };
 
-export type EventArgs<TEvent> = TEvent extends void ? [] : [TEvent];
+export type EventArgs<TEvent> = [TEvent] extends [void] ? [] : [TEvent];
 export type EventListener<TEvent> = (...args: EventArgs<TEvent>) => void;
 
 type WithHostRuntime<TEventMap extends object> = {
     [K in keyof TEventMap]: TEventMap[K] extends void
         ? void
-        : TEventMap[K] & HostRuntimeEventContext;
+        : TEventMap[K] extends infer TEvent
+          ? TEvent extends object
+              ? TEvent & HostRuntimeEventContext
+              : TEvent
+          : never;
 };
 
 interface AgentOwnEventMapBase {
@@ -475,17 +481,17 @@ interface SessionEventMapBase {
         isComplete?: boolean;
     };
 
-    /** LLM service final response */
+    /** LLM service final model response. */
     'llm:response': {
         content: string;
         reasoning?: string;
-        provider?: LLMProvider;
-        model?: string;
-        /** Reasoning tuning variant used for this call, when the provider exposes it. */
+        provider: LLMProvider;
+        model: string;
+        /** Reasoning tuning variant requested for this call. */
         reasoningVariant?: ReasoningVariant;
-        /** Reasoning budget tokens used for this call, when the provider exposes it. */
+        /** Reasoning budget tokens requested for this call. */
         reasoningBudgetTokens?: number;
-        tokenUsage?: TokenUsage;
+        tokenUsage: TokenUsage;
         /** Stable assistant message ID for this response. */
         messageId?: string;
         /** Optional usage scope identifier for runtime-scoped metering. */
@@ -499,7 +505,16 @@ interface SessionEventMapBase {
         /** Estimated input tokens before LLM call (for analytics/calibration) */
         estimatedInputTokens?: number;
         /** Finish reason: 'tool-calls' means more steps coming, others indicate completion */
-        finishReason?: LLMFinishReason;
+        finishReason: LLMFinishReason;
+    };
+
+    /** User interaction was blocked before an LLM call and persisted as an assistant response. */
+    'interaction:blocked': {
+        content: string;
+        provider: LLMProvider;
+        model: string;
+        /** Stable assistant message ID for this synthetic response. */
+        messageId: string;
     };
 
     /** Best-effort provider rate-limit status update for the active session. */
@@ -936,6 +951,12 @@ export function forwardSessionEventsToAgentBus({
     on('llm:response', (payload) => {
         agentEventBus.emit(
             'llm:response',
+            withForwardedSessionContext(payload, sessionId, hostRuntime)
+        );
+    });
+    on('interaction:blocked', (payload) => {
+        agentEventBus.emit(
+            'interaction:blocked',
             withForwardedSessionContext(payload, sessionId, hostRuntime)
         );
     });

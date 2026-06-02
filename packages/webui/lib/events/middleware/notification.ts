@@ -34,7 +34,8 @@ function eventToToast(
         }
 
         // Only notify for background sessions (not current session)
-        case 'llm:response': {
+        case 'llm:response':
+        case 'interaction:blocked': {
             const sessionId = 'sessionId' in event ? event.sessionId : undefined;
             if (isCurrentSession) {
                 return null; // Don't notify for current session

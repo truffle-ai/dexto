@@ -117,20 +117,18 @@ export function useTokenCounter({ agent, isActive }: TokenCounterOptions): Token
             'llm:response',
             (payload) => {
                 const usage = payload.tokenUsage;
-                if (usage) {
-                    // Replace input tokens (most recent call's context)
-                    // Subtract cacheWriteTokens to exclude system prompt on first call
-                    const rawInputTokens = usage.inputTokens ?? 0;
-                    const cacheWriteTokens = usage.cacheWriteTokens ?? 0;
-                    const inputTokens = Math.max(0, rawInputTokens - cacheWriteTokens);
-                    if (inputTokens > 0) {
-                        setLastInputTokens(inputTokens);
-                    }
-                    // Accumulate output tokens (additive across calls)
-                    const outputTokens = usage.outputTokens ?? 0;
-                    if (outputTokens > 0) {
-                        setCumulativeOutputTokens((prev) => prev + outputTokens);
-                    }
+                // Replace input tokens (most recent call's context)
+                // Subtract cacheWriteTokens to exclude system prompt on first call
+                const rawInputTokens = usage.inputTokens ?? 0;
+                const cacheWriteTokens = usage.cacheWriteTokens ?? 0;
+                const inputTokens = Math.max(0, rawInputTokens - cacheWriteTokens);
+                if (inputTokens > 0) {
+                    setLastInputTokens(inputTokens);
+                }
+                // Accumulate output tokens (additive across calls)
+                const outputTokens = usage.outputTokens ?? 0;
+                if (outputTokens > 0) {
+                    setCumulativeOutputTokens((prev) => prev + outputTokens);
                 }
                 // Reset current segment for next streaming segment
                 currentCharCountRef.current = 0;

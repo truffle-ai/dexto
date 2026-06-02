@@ -726,6 +726,9 @@ describe('DextoAgent Lifecycle Management', () => {
                 agent.emit('llm:response', {
                     sessionId: 'test-session',
                     content: 'Done',
+                    provider: 'openai',
+                    model: 'gpt-4',
+                    finishReason: 'stop',
                     tokenUsage: {
                         inputTokens: 1,
                         outputTokens: 1,

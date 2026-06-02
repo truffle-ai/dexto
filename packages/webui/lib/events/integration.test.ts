@@ -130,6 +130,7 @@ describe('EventBus Integration', () => {
                 content: 'Complete response',
                 model: 'gpt-4',
                 provider: 'openai',
+                finishReason: 'stop',
                 tokenUsage: {
                     inputTokens: 10,
                     outputTokens: 20,

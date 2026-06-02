@@ -17,7 +17,14 @@ function createTestEvent(
         name: 'llm:response',
         sessionId,
         content: 'test response',
-        tokenUsage: { totalTokens: 100 },
+        provider: 'openai',
+        model: 'gpt-4',
+        finishReason: 'stop',
+        tokenUsage: {
+            inputTokens: 40,
+            outputTokens: 60,
+            totalTokens: 100,
+        },
     };
 }
 

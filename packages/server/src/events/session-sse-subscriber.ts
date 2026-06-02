@@ -8,6 +8,7 @@ const SESSION_EVENT_NAMES = [
     'llm:thinking',
     'llm:chunk',
     'llm:response',
+    'interaction:blocked',
     'llm:tool-call',
     'llm:tool-call-partial',
     'llm:tool-result',
@@ -28,6 +29,7 @@ const SESSION_EVENT_NAMES = [
 
 type SessionEventName = (typeof SESSION_EVENT_NAMES)[number];
 type SessionEventPayload = AgentEventMap[SessionEventName];
+type SessionScopedPayload = SessionEventPayload & { sessionId: string };
 
 interface SessionSseConnection {
     sessionId: string;
@@ -57,6 +59,15 @@ function serializeEventPayload(
     return { ...payload };
 }
 
+function isSessionScopedPayload(payload: unknown): payload is SessionScopedPayload {
+    return (
+        typeof payload === 'object' &&
+        payload !== null &&
+        'sessionId' in payload &&
+        typeof payload.sessionId === 'string'
+    );
+}
+
 export class SessionSseEventSubscriber {
     private connections = new Map<string, SessionSseConnection>();
     private globalAbortController: AbortController | undefined;
@@ -73,12 +84,7 @@ export class SessionSseEventSubscriber {
                 ...args: EventArgs<AgentEventMap[K]>
             ) => {
                 const [payload] = args;
-                if (
-                    !payload ||
-                    typeof payload !== 'object' ||
-                    !('sessionId' in payload) ||
-                    typeof payload.sessionId !== 'string'
-                ) {
+                if (!isSessionScopedPayload(payload)) {
                     return;
                 }
 

@@ -148,7 +148,7 @@ describe('DextoAgent.stream() API', () => {
                 expect(responseEvent).toBeDefined();
                 if (responseEvent && responseEvent.name === 'llm:response') {
                     expect(responseEvent.content).toBeTruthy();
-                    expect(responseEvent.tokenUsage?.totalTokens).toBeGreaterThan(0);
+                    expect(responseEvent.tokenUsage.totalTokens).toBeGreaterThan(0);
                 }
             } finally {
                 await cleanupTestEnvironment(env);
