@@ -24,7 +24,8 @@ export const TOOL_ERROR_CODES = [
 
 export type ToolErrorCode = (typeof TOOL_ERROR_CODES)[number];
 
-const ToolErrorCodeValues = {
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const ToolErrorCode = {
     // Execution
     EXECUTION_DENIED: 'tools_execution_denied',
     EXECUTION_TIMEOUT: 'tools_execution_timeout',
@@ -52,6 +53,4 @@ const ToolErrorCodeValues = {
     // Custom tool factory registry
     CUSTOM_TOOL_FACTORY_UNKNOWN: 'tools_custom_factory_unknown',
     CUSTOM_TOOL_FACTORY_ALREADY_REGISTERED: 'tools_custom_factory_already_registered',
-} as const satisfies Record<string, ToolErrorCode>;
-
-export { ToolErrorCodeValues as ToolErrorCode };
+} as const;

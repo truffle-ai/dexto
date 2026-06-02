@@ -26,7 +26,8 @@ export const PROCESS_ERROR_CODES = [
 
 export type ProcessErrorCode = (typeof PROCESS_ERROR_CODES)[number];
 
-const ProcessErrorCodeValues = {
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const ProcessErrorCode = {
     // Command validation errors
     INVALID_COMMAND: 'PROCESS_INVALID_COMMAND',
     COMMAND_BLOCKED: 'PROCESS_COMMAND_BLOCKED',
@@ -51,6 +52,4 @@ const ProcessErrorCodeValues = {
     // Configuration errors
     INVALID_CONFIG: 'PROCESS_INVALID_CONFIG',
     SERVICE_NOT_INITIALIZED: 'PROCESS_SERVICE_NOT_INITIALIZED',
-} as const satisfies Record<string, ProcessErrorCode>;
-
-export { ProcessErrorCodeValues as ProcessErrorCode };
+} as const;

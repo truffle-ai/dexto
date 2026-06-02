@@ -14,7 +14,8 @@ export const SESSION_ERROR_CODES = [
 
 export type SessionErrorCode = (typeof SESSION_ERROR_CODES)[number];
 
-const SessionErrorCodeValues = {
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const SessionErrorCode = {
     // Session lifecycle
     SESSION_NOT_FOUND: 'session_not_found',
     SESSION_INITIALIZATION_FAILED: 'session_initialization_failed',
@@ -26,6 +27,4 @@ const SessionErrorCodeValues = {
     // Session operations
     SESSION_RESET_FAILED: 'session_reset_failed',
     SESSION_BUSY: 'session_busy',
-} as const satisfies Record<string, SessionErrorCode>;
-
-export { SessionErrorCodeValues as SessionErrorCode };
+} as const;

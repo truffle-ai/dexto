@@ -73,7 +73,7 @@ export type JsonRpcBatchResponse = JsonRpcResponse[];
 /**
  * Standard JSON-RPC 2.0 Error Codes
  */
-const JsonRpcErrorCodes = {
+export const JsonRpcErrorCode = {
     /** Invalid JSON was received by the server */
     PARSE_ERROR: -32700,
     /** The JSON sent is not a valid Request object */
@@ -89,9 +89,8 @@ const JsonRpcErrorCodes = {
     SERVER_ERROR_END: -32000,
 } as const;
 
-export type JsonRpcErrorCode = (typeof JsonRpcErrorCodes)[keyof typeof JsonRpcErrorCodes];
-
-export { JsonRpcErrorCodes as JsonRpcErrorCode };
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export type JsonRpcErrorCode = (typeof JsonRpcErrorCode)[keyof typeof JsonRpcErrorCode];
 
 /**
  * Type guard to check if response is an error

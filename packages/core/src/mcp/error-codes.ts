@@ -19,7 +19,8 @@ export const MCP_ERROR_CODES = [
 
 export type MCPErrorCode = (typeof MCP_ERROR_CODES)[number];
 
-const MCPErrorCodeValues = {
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const MCPErrorCode = {
     // Configuration validation (used in schemas/resolver)
     SCHEMA_VALIDATION: 'mcp_schema_validation',
     COMMAND_MISSING: 'mcp_command_missing',
@@ -38,6 +39,4 @@ const MCPErrorCodeValues = {
     TOOL_NOT_FOUND: 'mcp_tool_not_found',
     PROMPT_NOT_FOUND: 'mcp_prompt_not_found',
     RESOURCE_NOT_FOUND: 'mcp_resource_not_found',
-} as const satisfies Record<string, MCPErrorCode>;
-
-export { MCPErrorCodeValues as MCPErrorCode };
+} as const;

@@ -11,7 +11,8 @@ export const TODO_ERROR_CODES = [
 
 export type TodoErrorCode = (typeof TODO_ERROR_CODES)[number];
 
-const TodoErrorCodeValues = {
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const TodoErrorCode = {
     // Service lifecycle errors
     SERVICE_NOT_INITIALIZED: 'TODO_SERVICE_NOT_INITIALIZED',
 
@@ -21,6 +22,4 @@ const TodoErrorCodeValues = {
 
     // Database errors
     DATABASE_ERROR: 'TODO_DATABASE_ERROR',
-} as const satisfies Record<string, TodoErrorCode>;
-
-export { TodoErrorCodeValues as TodoErrorCode };
+} as const;

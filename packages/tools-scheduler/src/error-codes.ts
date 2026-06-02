@@ -21,7 +21,8 @@ export const SCHEDULER_ERROR_CODES = [
 
 export type SchedulerErrorCode = (typeof SCHEDULER_ERROR_CODES)[number];
 
-const SchedulerErrorCodeValues = {
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const SchedulerErrorCode = {
     // Configuration errors
     SCHEDULER_NOT_ENABLED: 'SCHEDULER_NOT_ENABLED',
     SCHEDULER_INVALID_CONFIG: 'SCHEDULER_INVALID_CONFIG',
@@ -45,6 +46,4 @@ const SchedulerErrorCodeValues = {
     // Storage errors
     STORAGE_READ_FAILED: 'STORAGE_READ_FAILED',
     STORAGE_WRITE_FAILED: 'STORAGE_WRITE_FAILED',
-} as const satisfies Record<string, SchedulerErrorCode>;
-
-export { SchedulerErrorCodeValues as SchedulerErrorCode };
+} as const;

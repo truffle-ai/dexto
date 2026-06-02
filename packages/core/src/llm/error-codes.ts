@@ -27,7 +27,8 @@ export const LLM_ERROR_CODES = [
 
 export type LLMErrorCode = (typeof LLM_ERROR_CODES)[number];
 
-const LLMErrorCodeValues = {
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const LLMErrorCode = {
     // Configuration errors
     API_KEY_MISSING: 'llm_api_key_missing',
     API_KEY_INVALID: 'llm_api_key_invalid', // Too short, wrong format
@@ -60,6 +61,4 @@ const LLMErrorCodeValues = {
 
     // Schema validation
     REQUEST_INVALID_SCHEMA: 'llm_request_invalid_schema',
-} as const satisfies Record<string, LLMErrorCode>;
-
-export { LLMErrorCodeValues as LLMErrorCode };
+} as const;

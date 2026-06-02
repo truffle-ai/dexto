@@ -16,7 +16,8 @@ export const MEMORY_ERROR_CODES = [
 
 export type MemoryErrorCode = (typeof MEMORY_ERROR_CODES)[number];
 
-const MemoryErrorCodeValues = {
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const MemoryErrorCode = {
     // General errors
     MEMORY_NOT_FOUND: 'MEMORY_NOT_FOUND',
     MEMORY_ALREADY_EXISTS: 'MEMORY_ALREADY_EXISTS',
@@ -31,6 +32,4 @@ const MemoryErrorCodeValues = {
     MEMORY_STORAGE_ERROR: 'MEMORY_STORAGE_ERROR',
     MEMORY_RETRIEVAL_ERROR: 'MEMORY_RETRIEVAL_ERROR',
     MEMORY_DELETE_ERROR: 'MEMORY_DELETE_ERROR',
-} as const satisfies Record<string, MemoryErrorCode>;
-
-export { MemoryErrorCodeValues as MemoryErrorCode };
+} as const;

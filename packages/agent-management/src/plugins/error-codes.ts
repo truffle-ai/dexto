@@ -25,7 +25,8 @@ export const PLUGIN_ERROR_CODES = [
 
 export type PluginErrorCode = (typeof PLUGIN_ERROR_CODES)[number];
 
-const PluginErrorCodeValues = {
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const PluginErrorCode = {
     // Manifest errors
     MANIFEST_NOT_FOUND: 'plugin_manifest_not_found',
     MANIFEST_INVALID: 'plugin_manifest_invalid',
@@ -56,6 +57,4 @@ const PluginErrorCodeValues = {
     // Validation errors
     VALIDATION_INVALID_STRUCTURE: 'plugin_validation_invalid_structure',
     VALIDATION_MISSING_REQUIRED: 'plugin_validation_missing_required',
-} as const satisfies Record<string, PluginErrorCode>;
-
-export { PluginErrorCodeValues as PluginErrorCode };
+} as const;

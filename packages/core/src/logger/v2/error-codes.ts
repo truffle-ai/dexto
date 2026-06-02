@@ -14,7 +14,8 @@ export const LOGGER_ERROR_CODES = [
 
 export type LoggerErrorCode = (typeof LOGGER_ERROR_CODES)[number];
 
-const LoggerErrorCodeValues = {
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const LoggerErrorCode = {
     // Transport errors
     TRANSPORT_NOT_IMPLEMENTED: 'logger_transport_not_implemented',
     TRANSPORT_UNKNOWN_TYPE: 'logger_transport_unknown_type',
@@ -24,6 +25,4 @@ const LoggerErrorCodeValues = {
     // Configuration errors
     INVALID_CONFIG: 'logger_invalid_config',
     INVALID_LOG_LEVEL: 'logger_invalid_log_level',
-} as const satisfies Record<string, LoggerErrorCode>;
-
-export { LoggerErrorCodeValues as LoggerErrorCode };
+} as const;

@@ -22,7 +22,8 @@ export const MARKETPLACE_ERROR_CODES = [
 
 export type MarketplaceErrorCode = (typeof MARKETPLACE_ERROR_CODES)[number];
 
-const MarketplaceErrorCodeValues = {
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const MarketplaceErrorCode = {
     // Registry errors
     REGISTRY_READ_FAILED: 'marketplace_registry_read_failed',
     REGISTRY_WRITE_FAILED: 'marketplace_registry_write_failed',
@@ -49,6 +50,4 @@ const MarketplaceErrorCodeValues = {
 
     // Scan errors
     SCAN_FAILED: 'marketplace_scan_failed',
-} as const satisfies Record<string, MarketplaceErrorCode>;
-
-export { MarketplaceErrorCodeValues as MarketplaceErrorCode };
+} as const;

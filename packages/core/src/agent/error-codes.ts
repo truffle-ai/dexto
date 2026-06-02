@@ -19,7 +19,8 @@ export const AGENT_ERROR_CODES = [
 
 export type AgentErrorCode = (typeof AGENT_ERROR_CODES)[number];
 
-const AgentErrorCodeValues = {
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const AgentErrorCode = {
     // Lifecycle
     NOT_STARTED: 'agent_not_started',
     ALREADY_STARTED: 'agent_already_started',
@@ -37,6 +38,4 @@ const AgentErrorCodeValues = {
 
     // Runtime
     STREAM_FAILED: 'agent_stream_failed',
-} as const satisfies Record<string, AgentErrorCode>;
-
-export { AgentErrorCodeValues as AgentErrorCode };
+} as const;

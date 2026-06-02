@@ -21,7 +21,8 @@ export const HOOK_ERROR_CODES = [
 
 export type HookErrorCode = (typeof HOOK_ERROR_CODES)[number];
 
-const HookErrorCodeValues = {
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const HookErrorCode = {
     /** Hook file not found or cannot be loaded */
     HOOK_LOAD_FAILED: 'HOOK_LOAD_FAILED',
 
@@ -60,8 +61,6 @@ const HookErrorCodeValues = {
 
     /** Hook provider configuration validation failed */
     HOOK_PROVIDER_VALIDATION_FAILED: 'HOOK_PROVIDER_VALIDATION_FAILED',
-} as const satisfies Record<string, HookErrorCode>;
-
-export { HookErrorCodeValues as HookErrorCode };
+} as const;
 
 export type { HookErrorCode as default };

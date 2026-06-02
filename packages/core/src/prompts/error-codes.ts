@@ -17,7 +17,8 @@ export const PROMPT_ERROR_CODES = [
 
 export type PromptErrorCode = (typeof PROMPT_ERROR_CODES)[number];
 
-const PromptErrorCodeValues = {
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const PromptErrorCode = {
     // Prompt resolution errors
     PROMPT_NOT_FOUND: 'prompt_not_found',
     PROMPT_EMPTY_CONTENT: 'prompt_empty_content',
@@ -30,6 +31,4 @@ const PromptErrorCodeValues = {
     PROMPT_MISSING_REQUIRED_ARGUMENTS: 'prompt_missing_required_arguments',
     PROMPT_ALREADY_EXISTS: 'prompt_already_exists',
     PROMPT_CONFIG_INVALID: 'prompt_config_invalid',
-} as const satisfies Record<string, PromptErrorCode>;
-
-export { PromptErrorCodeValues as PromptErrorCode };
+} as const;

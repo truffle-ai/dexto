@@ -18,7 +18,8 @@ export const CONFIG_ERROR_CODES = [
 
 export type ConfigErrorCode = (typeof CONFIG_ERROR_CODES)[number];
 
-const ConfigErrorCodeValues = {
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const ConfigErrorCode = {
     // File operations
     FILE_NOT_FOUND: 'config_file_not_found',
     FILE_READ_ERROR: 'config_file_read_error',
@@ -34,6 +35,4 @@ const ConfigErrorCodeValues = {
     SETUP_INCOMPLETE: 'config_setup_incomplete',
     BUNDLED_NOT_FOUND: 'config_bundled_not_found',
     UNKNOWN_CONTEXT: 'config_unknown_context',
-} as const satisfies Record<string, ConfigErrorCode>;
-
-export { ConfigErrorCodeValues as ConfigErrorCode };
+} as const;

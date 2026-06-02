@@ -18,7 +18,8 @@ export const RUNTIME_ERROR_CODES = [
 
 export type RuntimeErrorCode = (typeof RUNTIME_ERROR_CODES)[number];
 
-const RuntimeErrorCodeValues = {
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const RuntimeErrorCode = {
     // Limit errors
     MAX_AGENTS_EXCEEDED: 'runtime_max_agents_exceeded',
 
@@ -36,6 +37,4 @@ const RuntimeErrorCodeValues = {
     TASK_TIMEOUT: 'runtime_task_timeout',
     TASK_FAILED: 'runtime_task_failed',
     TASK_CANCELLED: 'runtime_task_cancelled',
-} as const satisfies Record<string, RuntimeErrorCode>;
-
-export { RuntimeErrorCodeValues as RuntimeErrorCode };
+} as const;

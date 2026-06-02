@@ -36,7 +36,8 @@ export const FILESYSTEM_ERROR_CODES = [
 
 export type FileSystemErrorCode = (typeof FILESYSTEM_ERROR_CODES)[number];
 
-const FileSystemErrorCodeValues = {
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const FileSystemErrorCode = {
     // File not found errors
     FILE_NOT_FOUND: 'FILESYSTEM_FILE_NOT_FOUND',
     DIRECTORY_NOT_FOUND: 'FILESYSTEM_DIRECTORY_NOT_FOUND',
@@ -77,6 +78,4 @@ const FileSystemErrorCodeValues = {
     // Configuration errors
     INVALID_CONFIG: 'FILESYSTEM_INVALID_CONFIG',
     SERVICE_NOT_INITIALIZED: 'FILESYSTEM_SERVICE_NOT_INITIALIZED',
-} as const satisfies Record<string, FileSystemErrorCode>;
-
-export { FileSystemErrorCodeValues as FileSystemErrorCode };
+} as const;

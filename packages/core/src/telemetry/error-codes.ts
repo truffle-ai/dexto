@@ -14,7 +14,8 @@ export const TELEMETRY_ERROR_CODES = [
 
 export type TelemetryErrorCode = (typeof TELEMETRY_ERROR_CODES)[number];
 
-const TelemetryErrorCodeValues = {
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const TelemetryErrorCode = {
     // Initialization errors
     INITIALIZATION_FAILED: 'telemetry_initialization_failed',
     NOT_INITIALIZED: 'telemetry_not_initialized',
@@ -28,6 +29,4 @@ const TelemetryErrorCodeValues = {
 
     // Shutdown errors
     SHUTDOWN_FAILED: 'telemetry_shutdown_failed',
-} as const satisfies Record<string, TelemetryErrorCode>;
-
-export { TelemetryErrorCodeValues as TelemetryErrorCode };
+} as const;

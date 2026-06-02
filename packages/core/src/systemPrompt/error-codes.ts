@@ -13,7 +13,8 @@ export const SYSTEM_PROMPT_ERROR_CODES = [
 
 export type SystemPromptErrorCode = (typeof SYSTEM_PROMPT_ERROR_CODES)[number];
 
-const SystemPromptErrorCodeValues = {
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const SystemPromptErrorCode = {
     // File processing
     FILE_INVALID_TYPE: 'systemprompt_file_invalid_type',
     FILE_TOO_LARGE: 'systemprompt_file_too_large',
@@ -22,6 +23,4 @@ const SystemPromptErrorCodeValues = {
     // Configuration
     CONTRIBUTOR_SOURCE_UNKNOWN: 'systemprompt_contributor_source_unknown',
     CONTRIBUTOR_CONFIG_INVALID: 'systemprompt_contributor_config_invalid',
-} as const satisfies Record<string, SystemPromptErrorCode>;
-
-export { SystemPromptErrorCodeValues as SystemPromptErrorCode };
+} as const;

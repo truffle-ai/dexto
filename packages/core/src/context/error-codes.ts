@@ -26,7 +26,8 @@ export const CONTEXT_ERROR_CODES = [
 
 export type ContextErrorCode = (typeof CONTEXT_ERROR_CODES)[number];
 
-const ContextErrorCodeValues = {
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const ContextErrorCode = {
     // Message validation
     MESSAGE_ROLE_MISSING: 'context_message_role_missing',
     MESSAGE_CONTENT_EMPTY: 'context_message_content_empty',
@@ -60,6 +61,4 @@ const ContextErrorCodeValues = {
     MESSAGE_NOT_FOUND: 'context_message_not_found',
     MESSAGE_NOT_ASSISTANT: 'context_message_not_assistant',
     ASSISTANT_CONTENT_NOT_STRING: 'context_assistant_content_not_string',
-} as const satisfies Record<string, ContextErrorCode>;
-
-export { ContextErrorCodeValues as ContextErrorCode };
+} as const;

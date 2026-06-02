@@ -40,7 +40,8 @@ export const DEXTO_LOG_COMPONENTS = [
 
 export type DextoLogComponent = (typeof DEXTO_LOG_COMPONENTS)[number];
 
-const DextoLogComponentValues = {
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const DextoLogComponent = {
     // Core functional domains (matches ErrorScope)
     AGENT: 'agent',
     LLM: 'llm',
@@ -64,9 +65,7 @@ const DextoLogComponentValues = {
     CLI: 'cli',
     TELEMETRY: 'telemetry',
     EXECUTOR: 'executor',
-} as const satisfies Record<string, DextoLogComponent>;
-
-export { DextoLogComponentValues as DextoLogComponent };
+} as const;
 
 /**
  * Structured log entry

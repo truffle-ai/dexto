@@ -22,7 +22,8 @@ export const REGISTRY_ERROR_CODES = [
 
 export type RegistryErrorCode = (typeof REGISTRY_ERROR_CODES)[number];
 
-const RegistryErrorCodeValues = {
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const RegistryErrorCode = {
     // Agent lookup errors
     AGENT_NOT_FOUND: 'registry_agent_not_found',
     AGENT_INVALID_ENTRY: 'registry_agent_invalid_entry',
@@ -48,6 +49,4 @@ const RegistryErrorCodeValues = {
 
     // Auto-install control
     AGENT_NOT_INSTALLED_AUTO_INSTALL_DISABLED: 'registry_agent_not_installed_auto_install_disabled',
-} as const satisfies Record<string, RegistryErrorCode>;
-
-export { RegistryErrorCodeValues as RegistryErrorCode };
+} as const;

@@ -40,7 +40,8 @@ export const LOCAL_MODEL_ERROR_CODES = [
 
 export type LocalModelErrorCode = (typeof LOCAL_MODEL_ERROR_CODES)[number];
 
-const LocalModelErrorCodeValues = {
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const LocalModelErrorCode = {
     // Installation errors (001-009)
     /** node-llama-cpp package is not installed */
     NODE_LLAMA_NOT_INSTALLED: 'LOCAL_001',
@@ -104,6 +105,4 @@ const LocalModelErrorCodeValues = {
     OLLAMA_API_ERROR: 'LOCAL_043',
     /** Ollama version incompatible */
     OLLAMA_VERSION_INCOMPATIBLE: 'LOCAL_044',
-} as const satisfies Record<string, LocalModelErrorCode>;
-
-export { LocalModelErrorCodeValues as LocalModelErrorCode };
+} as const;

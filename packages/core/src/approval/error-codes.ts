@@ -22,7 +22,8 @@ export const APPROVAL_ERROR_CODES = [
 
 export type ApprovalErrorCode = (typeof APPROVAL_ERROR_CODES)[number];
 
-const ApprovalErrorCodeValues = {
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const ApprovalErrorCode = {
     // Validation errors
     APPROVAL_INVALID_REQUEST: 'approval_invalid_request',
     APPROVAL_INVALID_RESPONSE: 'approval_invalid_response',
@@ -48,6 +49,4 @@ const ApprovalErrorCodeValues = {
 
     // Configuration errors
     APPROVAL_CONFIG_INVALID: 'approval_config_invalid',
-} as const satisfies Record<string, ApprovalErrorCode>;
-
-export { ApprovalErrorCodeValues as ApprovalErrorCode };
+} as const;
