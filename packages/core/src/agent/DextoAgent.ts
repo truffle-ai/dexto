@@ -87,7 +87,11 @@ import type { CompactionStrategy } from '../context/compaction/types.js';
 import { SearchService } from '../search/index.js';
 import type { SearchOptions, SearchResponse, SessionSearchResponse } from '../search/index.js';
 import { safeStringify } from '../utils/safe-stringify.js';
-import { deriveHeuristicTitle, generateSessionTitle } from '../session/title-generator.js';
+import {
+    deriveHeuristicTitle,
+    generateSessionTitle,
+    type GenerateSessionTitleTokenUsage,
+} from '../session/title-generator.js';
 import type { ApprovalHandler } from '../approval/types.js';
 import type { DextoAgentOptions } from './agent-options.js';
 import type { WorkspaceManager } from '../workspace/manager.js';
@@ -121,6 +125,7 @@ export interface SessionTitleGenerationDetails {
     source: SessionTitleSource;
     reason?: string;
     timedOut?: boolean;
+    tokenUsage?: GenerateSessionTitleTokenUsage;
 }
 
 /**
@@ -1874,6 +1879,7 @@ export class DextoAgent {
                 const details = {
                     ...(result.error !== undefined && { reason: result.error }),
                     ...(result.timedOut !== undefined && { timedOut: result.timedOut }),
+                    ...(result.usage !== undefined && { tokenUsage: result.usage }),
                     source: 'heuristic',
                     title,
                 } satisfies SessionTitleGenerationDetails;
@@ -1893,6 +1899,7 @@ export class DextoAgent {
         return {
             source: 'llm',
             title,
+            ...(result.usage !== undefined && { tokenUsage: result.usage }),
         };
     }
 

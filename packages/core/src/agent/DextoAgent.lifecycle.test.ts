@@ -232,11 +232,24 @@ describe('DextoAgent Lifecycle Management', () => {
                     },
                 ]),
             });
+            mockGenerateSessionTitle.mockResolvedValueOnce({
+                title: 'Generated title',
+                usage: {
+                    inputTokens: 9,
+                    outputTokens: 2,
+                    totalTokens: 11,
+                },
+            });
 
             await agent.start();
 
             await expect(agent.generateSessionTitleDetails('session-123')).resolves.toEqual({
                 source: 'llm',
+                tokenUsage: {
+                    inputTokens: 9,
+                    outputTokens: 2,
+                    totalTokens: 11,
+                },
                 title: 'Generated title',
             });
             await expect(agent.generateSessionTitle('session-123')).resolves.toBe(
