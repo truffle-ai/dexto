@@ -3,7 +3,7 @@
  * Syncs Dexto's built-in LLM model registry from models.dev.
  *
  * Why:
- * - `packages/core/src/llm/registry/index.ts` used to hardcode many models (tokens/pricing/modalities),
+ * - `packages/llm/src/registry/index.ts` used to hardcode many models (tokens/pricing/modalities),
  *   which is painful to maintain.
  * - models.dev provides a maintained, cross-provider model catalog.
  * - models.dev provides gateway catalogs (e.g. OpenRouter) including pricing and modalities.
@@ -26,7 +26,7 @@ const __dirname = path.dirname(__filename);
 
 const CHECK_MODE = process.argv.includes('--check');
 
-const OUTPUT_PATH = path.join(__dirname, '../packages/core/src/llm/registry/models.generated.ts');
+const OUTPUT_PATH = path.join(__dirname, '../packages/llm/src/registry/models.generated.ts');
 
 const MODELS_DEV_URL = 'https://models.dev/api.json';
 
@@ -658,6 +658,11 @@ async function syncLlmRegistry() {
         ollama: [],
         'dexto-nova': [],
     };
+
+    modelsByProvider['dexto-nova'] = modelsByProvider.openrouter.map((model) => ({
+        ...model,
+        ...(model.default ? { default: true } : {}),
+    }));
 
     const modelsDevMetadataByProvider: Partial<Record<DextoProvider, GeneratedProviderMetadata>> = {
         openai: getProviderMetadata(modelsDevJson.openai, 'openai'),

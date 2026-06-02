@@ -39,7 +39,20 @@ vi.mock('@dexto/agent-config', () => ({
                 .object({
                     provider: z.string(),
                     model: z.string(),
-                    baseURL: z.string().optional(),
+                    baseURL: z
+                        .string()
+                        .refine(
+                            (value) => {
+                                try {
+                                    const url = new URL(value);
+                                    return url.protocol === 'http:' || url.protocol === 'https:';
+                                } catch {
+                                    return false;
+                                }
+                            },
+                            { message: 'Invalid URL' }
+                        )
+                        .optional(),
                     apiKey: z.string().optional(),
                 })
                 .strict(),
@@ -71,7 +84,14 @@ vi.mock('@dexto/core', () => ({
 }));
 
 vi.mock('@dexto/agent-management', () => ({
+    getPrimaryApiKeyEnvVar: vi.fn((provider: string) => {
+        if (provider === 'openai-compatible') {
+            return 'OPENAI_API_KEY';
+        }
+        return 'TEST_API_KEY';
+    }),
     getGlobalPreferencesPath: vi.fn(() => '/tmp/.dexto/preferences.yml'),
+    resolveApiKeyForProvider: vi.fn(() => undefined),
 }));
 
 describe('validateAgentConfig', () => {
@@ -87,11 +107,11 @@ describe('validateAgentConfig', () => {
         mockGetBundledSyncTargetForAgentPath.mockReturnValue(null);
     });
 
-    it('accepts ChatGPT Login codex base URLs during preflight validation', async () => {
+    it('rejects ChatGPT Login codex base URLs in public agent config', async () => {
         const config: AgentConfig = {
             systemPrompt: 'test agent',
             llm: {
-                provider: 'openai-compatible',
+                provider: 'openai',
                 model: 'gpt-5',
                 baseURL: 'codex://chatgpt',
             },
@@ -105,17 +125,8 @@ describe('validateAgentConfig', () => {
             credentialPolicy: 'error',
         });
 
-        expect(result).toEqual({
-            success: true,
-            config: expect.objectContaining({
-                llm: expect.objectContaining({
-                    provider: 'openai-compatible',
-                    model: 'gpt-5',
-                    baseURL: 'codex://chatgpt',
-                }),
-            }),
-            warnings: [],
-        });
+        expect(result.success).toBe(false);
+        expect(result.errors?.join('\n')).toContain('Invalid URL');
     }, 15_000);
 
     it('does not offer sync when the active agent path is not a bundled installed agent', async () => {

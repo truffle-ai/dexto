@@ -17,16 +17,16 @@ import {
     type LLMConfig,
     type ValidatedLLMConfig,
 } from './schemas.js';
-import { LLM_PROVIDERS } from './types.js';
+import { LLM_PROVIDERS } from '@dexto/llm';
 import {
     getSupportedModels,
-    getMaxInputTokensForModel,
     requiresBaseURL,
     supportsBaseURL,
     getDefaultModelForProvider,
     acceptsAnyModel,
-} from './registry/index.js';
-import type { LLMProvider } from './types.js';
+} from '@dexto/llm';
+import { getMaxInputTokensForModel } from './registry/index.js';
+import type { LLMProvider } from '@dexto/llm';
 
 function getIssueParamCode(issue: z.ZodIssue | undefined): unknown {
     if (!issue) return undefined;
@@ -282,18 +282,17 @@ describe('LLMConfigSchema', () => {
             expect(result.success).toBe(true);
         });
 
-        it('should accept Codex baseURL for openai-compatible provider', () => {
+        it('should reject Codex baseURL in public LLM config', () => {
             const config: LLMConfig = {
-                provider: 'openai-compatible',
+                provider: 'openai',
                 model: 'gpt-5.4',
                 baseURL: 'codex://chatgpt',
             };
 
             const result = LLMConfigSchema.safeParse(config);
-            expect(result.success).toBe(true);
-            if (result.success) {
-                expect(result.data.baseURL).toBe('codex://chatgpt');
-            }
+            expect(result.success).toBe(false);
+            expect(result.error?.issues[0]?.path).toEqual(['baseURL']);
+            expect(result.error?.issues[0]?.message).toBe('Invalid URL');
         });
 
         it('should reject baseURL for providers that do not support it', () => {

@@ -1,30 +1,21 @@
 // packages/cli/src/cli/commands/setup.ts
 
-import { promises as fs } from 'node:fs';
-import path from 'node:path';
 import chalk from 'chalk';
 import { z } from 'zod';
-import open from 'open';
 import {
     acceptsAnyModel,
-    CodexAppServerClient,
-    createCodexBaseURL,
     getDefaultModelForProvider,
-    getCodexAuthModeLabel,
-    getCodexProviderDisplayName,
-    getCuratedModelsForProvider,
     getReasoningProfile,
     getSupportedModels,
-    isCodexBaseURL,
+    isValidProviderModel,
     LLM_PROVIDERS,
     LLM_REGISTRY,
-    logger,
-    parseCodexBaseURL,
-    isValidProviderModel,
-    supportsCustomModels,
     requiresApiKey,
-    resolveApiKeyForProvider,
-} from '@dexto/core';
+    supportsCustomModels,
+    type LLMProvider,
+    type ReasoningVariant,
+} from '@dexto/llm';
+import { getCuratedModelsForProvider, logger, resolveApiKeyForProvider } from '@dexto/core';
 import {
     createInitialPreferences,
     saveGlobalPreferences,
@@ -37,7 +28,8 @@ import {
     saveCustomModel,
     deleteCustomModel,
     globalPreferencesExist,
-    getDextoGlobalPath,
+    getDefaultModelAuthProfile,
+    loadModelAuthProfilesSync,
     type CustomModel,
     type CreatePreferencesOptions,
 } from '@dexto/agent-management';
@@ -55,7 +47,6 @@ import {
     hasSelectedModel,
     getModelFromResult,
 } from '../utils/local-model-setup.js';
-import { executeCommand } from '../utils/self-management.js';
 import { requiresSetup } from '../utils/setup-utils.js';
 import { canUseDextoProvider } from '../utils/dexto-setup.js';
 import { handleAutoLogin } from './auth/login.js';
@@ -63,7 +54,6 @@ import { loadAuth, getBillingBalanceForCurrentLogin, openDextoBillingPage } from
 import { DEXTO_CREDITS_URL } from '../auth/constants.js';
 import * as p from '@clack/prompts';
 import { capture } from '../../analytics/index.js';
-import type { CodexModelInfo, LLMProvider, ReasoningVariant } from '@dexto/core';
 
 // Zod schema for setup command validation
 const SetupCommandSchema = z
@@ -129,14 +119,6 @@ const REASONING_VARIANT_HINTS: Readonly<Record<string, string>> = {
     xhigh: 'Extra high reasoning',
 };
 
-const OPENAI_CODEX_PACKAGE = '@openai/codex';
-const DEXTO_DEPS_PACKAGE_JSON = {
-    name: 'dexto-deps',
-    version: '1.0.0',
-    private: true,
-    description: 'Managed dependencies for Dexto',
-};
-
 function toReasoningVariantLabel(variant: string, defaultVariant: string | undefined): string {
     const normalized = variant.toLowerCase();
     const withKnownCasing =
@@ -166,6 +148,19 @@ function getReasoningVariantSelectOptions(
         label: toReasoningVariantLabel(variant, defaultVariant),
         hint: REASONING_VARIANT_HINTS[variant] ?? 'Model/provider-native reasoning variant',
     }));
+}
+
+function hasUsableModelAuthProfile(provider: LLMProvider): boolean {
+    const profile = getDefaultModelAuthProfile(loadModelAuthProfilesSync(), provider);
+    if (!profile) {
+        return false;
+    }
+
+    if (profile.credential.type === 'api_key_env') {
+        return Boolean(process.env[profile.credential.envVar]?.trim());
+    }
+
+    return true;
 }
 
 // ============================================================================
@@ -501,7 +496,7 @@ async function handleQuickStart(
         let apiKeySkipped = false;
 
         // Check if API key exists
-        const hasKey = hasApiKeyConfigured(provider);
+        const hasKey = hasApiKeyConfigured(provider) || hasUsableModelAuthProfile(provider);
 
         if (!hasKey) {
             const providerName = getProviderDisplayName(provider);
@@ -565,7 +560,7 @@ async function handleQuickStart(
             apiKeyPending: apiKeySkipped,
         };
         // Only include apiKeyVar if not skipped
-        if (!apiKeySkipped) {
+        if (!apiKeySkipped && hasApiKeyConfigured(provider)) {
             preferencesOptions.apiKeyVar = apiKeyVar;
         }
         const preferences = createInitialPreferences(preferencesOptions);
@@ -583,405 +578,6 @@ async function handleQuickStart(
 
         await showSetupComplete(provider, model, defaultMode, apiKeySkipped);
         return 'completed';
-    }
-}
-
-type CodexAccountState = Awaited<ReturnType<CodexAppServerClient['readAccount']>>;
-
-function getConfiguredProviderDisplayName(provider: LLMProvider, baseURL?: string): string {
-    if (provider === 'openai-compatible') {
-        const codex = parseCodexBaseURL(baseURL);
-        if (codex) {
-            return getCodexProviderDisplayName(codex.authMode);
-        }
-    }
-
-    return getProviderDisplayName(provider);
-}
-
-function isCodexConfigured(provider: LLMProvider | undefined, baseURL?: string): boolean {
-    return provider === 'openai-compatible' && isCodexBaseURL(baseURL);
-}
-
-async function ensureDextoDepsPackageJson(): Promise<string> {
-    const depsDir = getDextoGlobalPath('deps');
-    await fs.mkdir(depsDir, { recursive: true });
-
-    const packageJsonPath = path.join(depsDir, 'package.json');
-    try {
-        await fs.access(packageJsonPath);
-    } catch (error) {
-        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
-            throw error;
-        }
-
-        await fs.writeFile(
-            packageJsonPath,
-            JSON.stringify(DEXTO_DEPS_PACKAGE_JSON, null, 2),
-            'utf-8'
-        );
-    }
-
-    return depsDir;
-}
-
-function isMissingCodexCliError(error: unknown): boolean {
-    if (!(error instanceof Error)) {
-        return false;
-    }
-
-    const code = (error as NodeJS.ErrnoException).code;
-    return (
-        error.message.includes('Codex CLI not found on PATH') ||
-        error.message.includes('spawn codex ENOENT') ||
-        (code === 'ENOENT' && error.message.includes('spawn'))
-    );
-}
-
-function getCodexSetupErrorMessage(error: unknown): string {
-    if (isMissingCodexCliError(error)) {
-        return 'Codex CLI not found on PATH. Install Codex to use ChatGPT Login in Dexto.';
-    }
-
-    return error instanceof Error ? error.message : String(error);
-}
-
-type CodexInstaller = {
-    command: string;
-    args: string[];
-    label: string;
-};
-
-async function resolveCodexInstaller(): Promise<CodexInstaller | null> {
-    const candidates: CodexInstaller[] = [
-        {
-            command: 'npm',
-            args: ['install', OPENAI_CODEX_PACKAGE, '--no-audit', '--no-fund'],
-            label: 'npm',
-        },
-        {
-            command: 'pnpm',
-            args: ['add', OPENAI_CODEX_PACKAGE],
-            label: 'pnpm',
-        },
-        {
-            command: 'bun',
-            args: ['add', OPENAI_CODEX_PACKAGE],
-            label: 'bun',
-        },
-    ];
-
-    for (const candidate of candidates) {
-        const probe = await executeCommand(candidate.command, ['--version']);
-        if (probe.code === 0) {
-            return candidate;
-        }
-    }
-
-    return null;
-}
-
-function getCodexInstallerFailureMessage(
-    installer: CodexInstaller,
-    result: { stdout: string; stderr: string }
-): string {
-    const details = `${result.stderr}\n${result.stdout}`
-        .split(/\r?\n/)
-        .map((line) => line.trim())
-        .filter((line) => line.length > 0);
-    const lastLine = details.at(-1);
-
-    return lastLine
-        ? `Failed to install the OpenAI Codex CLI via ${installer.label}: ${lastLine}`
-        : `Failed to install the OpenAI Codex CLI via ${installer.label}.`;
-}
-
-async function installManagedCodexCli(): Promise<void> {
-    const depsDir = await ensureDextoDepsPackageJson();
-    const installer = await resolveCodexInstaller();
-    if (!installer) {
-        throw new Error(
-            'Could not find npm, pnpm, or bun to install the OpenAI Codex CLI automatically.'
-        );
-    }
-
-    const result = await executeCommand(installer.command, installer.args, { cwd: depsDir });
-    if (result.code !== 0) {
-        throw new Error(getCodexInstallerFailureMessage(installer, result));
-    }
-}
-
-async function createCodexClientForSetup(): Promise<CodexAppServerClient> {
-    try {
-        return await CodexAppServerClient.create();
-    } catch (error) {
-        if (!isMissingCodexCliError(error)) {
-            throw error;
-        }
-
-        const spinner = p.spinner();
-        spinner.start('Installing OpenAI Codex CLI...');
-
-        try {
-            await installManagedCodexCli();
-            spinner.stop('OpenAI Codex CLI installed');
-        } catch (installError) {
-            spinner.stop('OpenAI Codex CLI installation failed');
-            throw installError;
-        }
-
-        return await CodexAppServerClient.create();
-    }
-}
-
-async function ensureCodexChatGPTLogin(client: CodexAppServerClient): Promise<CodexAccountState> {
-    const spinner = p.spinner();
-    spinner.start('Starting ChatGPT login with Codex...');
-
-    const login = await client.startLogin({ type: 'chatgpt' });
-    if (login.type !== 'chatgpt') {
-        spinner.stop('ChatGPT login failed');
-        throw new Error('Codex did not return a ChatGPT login URL');
-    }
-
-    spinner.stop('ChatGPT login ready');
-
-    try {
-        await open(login.authUrl);
-        p.log.success('Opened your browser for ChatGPT login');
-    } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        p.log.warn(`Could not open browser automatically: ${errorMessage}`);
-    }
-
-    p.note(
-        `Finish the ChatGPT login in your browser.\n\n${chalk.dim(login.authUrl)}`,
-        'ChatGPT Login'
-    );
-
-    const waitSpinner = p.spinner();
-    waitSpinner.start('Waiting for ChatGPT login to complete...');
-    const completed = await client.waitForLoginCompleted(login.loginId, {
-        timeoutMs: 5 * 60 * 1000,
-    });
-
-    if (!completed.success) {
-        waitSpinner.stop('ChatGPT login failed');
-        throw new Error(completed.error ?? 'Codex ChatGPT login failed');
-    }
-
-    waitSpinner.stop('ChatGPT login complete');
-    return await client.readAccount(true);
-}
-
-async function ensureCodexChatGPTSession(
-    client: CodexAppServerClient
-): Promise<CodexAccountState | null> {
-    const current = await client.readAccount(false);
-    if (current.account?.type === 'chatgpt') {
-        return current;
-    }
-
-    if (current.account) {
-        const currentLabel = 'OpenAI API key';
-        const shouldSwitch = await p.confirm({
-            message: `Codex is currently using ${currentLabel}. Switch to ChatGPT login?`,
-            initialValue: true,
-        });
-
-        if (p.isCancel(shouldSwitch) || !shouldSwitch) {
-            return null;
-        }
-
-        await client.logout();
-    }
-
-    return await ensureCodexChatGPTLogin(client);
-}
-
-function getCodexModelOptions(
-    models: CodexModelInfo[]
-): Array<{ value: string; label: string; hint: string }> {
-    const visibleModels = models.filter((model) => !model.hidden);
-    const defaultModel = visibleModels.find((model) => model.isDefault) ?? visibleModels[0] ?? null;
-
-    if (!defaultModel) {
-        return [];
-    }
-
-    const secondaryModels = visibleModels
-        .filter((model) => model.model !== defaultModel.model)
-        .slice(0, 9);
-
-    return [
-        {
-            value: defaultModel.model,
-            label: defaultModel.displayName,
-            hint: `${defaultModel.description || 'Recommended'} (recommended)`,
-        },
-        ...secondaryModels.map((model) => ({
-            value: model.model,
-            label: model.displayName,
-            hint: model.description || model.model,
-        })),
-    ];
-}
-
-/**
- * ChatGPT Login setup flow - authenticate with ChatGPT through Codex, choose a model, save preferences
- *
- * Config storage:
- * - provider: 'openai-compatible'
- * - baseURL: special 'codex://chatgpt' URI resolved at runtime to Codex app-server
- * - model: model ID returned by Codex model/list
- */
-async function handleCodexProviderSetup(
-    options: { exitOnCancel?: boolean } = {}
-): Promise<boolean> {
-    const exitOnCancel = options.exitOnCancel ?? true;
-    const abort = (message: string, exitCode: number = 0): false => {
-        p.cancel(message);
-        if (exitOnCancel) {
-            process.exit(exitCode);
-        }
-        return false;
-    };
-
-    console.log(chalk.cyan('\nChatGPT Login Setup\n'));
-
-    let client: CodexAppServerClient | null = null;
-
-    try {
-        client = await createCodexClientForSetup();
-        const account = await ensureCodexChatGPTSession(client);
-        if (!account || account.account?.type !== 'chatgpt') {
-            return abort('Setup cancelled');
-        }
-
-        p.log.success(
-            `Codex authenticated with ChatGPT as ${account.account.email} (${account.account.planType})`
-        );
-
-        const models = await client.listModels();
-        const modelOptions = getCodexModelOptions(models);
-        if (modelOptions.length === 0) {
-            p.log.error('Codex did not return any available models.');
-            return abort('Setup cancelled', 1);
-        }
-
-        const model = await p.select({
-            message: 'Select a model to start with',
-            options: modelOptions,
-        });
-
-        if (p.isCancel(model)) {
-            return abort('Setup cancelled');
-        }
-
-        const selectedModel = model as string;
-        const provider: LLMProvider = 'openai-compatible';
-        const baseURL = createCodexBaseURL('chatgpt');
-        const codexReasoningProfile = getReasoningProfile(provider, selectedModel);
-        let reasoningPreset: ReasoningVariant | undefined;
-        if (codexReasoningProfile.capable) {
-            const selectedReasoning = await p.select({
-                message: 'Select reasoning variant',
-                options: getReasoningVariantSelectOptions(
-                    codexReasoningProfile.supportedVariants,
-                    codexReasoningProfile.defaultVariant
-                ),
-                ...(codexReasoningProfile.defaultVariant
-                    ? { initialValue: codexReasoningProfile.defaultVariant }
-                    : {}),
-            });
-
-            if (p.isCancel(selectedReasoning)) {
-                return abort('Setup cancelled');
-            }
-
-            if (selectedReasoning !== codexReasoningProfile.defaultVariant) {
-                reasoningPreset = selectedReasoning as ReasoningVariant;
-            }
-        }
-
-        const defaultMode = await selectDefaultMode();
-        if (defaultMode === null) {
-            return abort('Setup cancelled');
-        }
-
-        const preferences = createInitialPreferences({
-            provider,
-            model: selectedModel,
-            baseURL,
-            defaultMode,
-            setupCompleted: true,
-            apiKeyPending: false,
-            ...(reasoningPreset ? { reasoning: { variant: reasoningPreset } } : {}),
-        });
-
-        await saveGlobalPreferences(preferences);
-
-        capture('dexto_setup', {
-            provider,
-            model: selectedModel,
-            setupMode: 'interactive',
-            setupVariant: 'codex-chatgpt',
-            defaultMode,
-            hasBaseURL: true,
-        });
-
-        await showSetupComplete(provider, selectedModel, defaultMode, false, {
-            providerLabel: getCodexProviderDisplayName('chatgpt'),
-            authLabel: getCodexAuthModeLabel('chatgpt'),
-            baseURL,
-        });
-        return true;
-    } catch (error) {
-        const errorMessage = getCodexSetupErrorMessage(error);
-        p.log.error(`ChatGPT Login setup failed: ${errorMessage}`);
-        return abort('Setup cancelled', 1);
-    } finally {
-        if (client) {
-            await client.close().catch(() => undefined);
-        }
-    }
-}
-
-async function handleCodexChatGPTLoginRefresh(
-    options: { exitOnCancel?: boolean } = {}
-): Promise<boolean> {
-    const exitOnCancel = options.exitOnCancel ?? true;
-    const abort = (message: string, exitCode: number = 0): false => {
-        p.cancel(message);
-        if (exitOnCancel) {
-            process.exit(exitCode);
-        }
-        return false;
-    };
-
-    console.log(chalk.cyan('\nChatGPT Login\n'));
-
-    let client: CodexAppServerClient | null = null;
-
-    try {
-        client = await createCodexClientForSetup();
-        const account = await ensureCodexChatGPTSession(client);
-        if (!account || account.account?.type !== 'chatgpt') {
-            return abort('ChatGPT login cancelled');
-        }
-
-        p.log.success(
-            `Codex authenticated with ChatGPT as ${account.account.email} (${account.account.planType})`
-        );
-        return true;
-    } catch (error) {
-        const errorMessage = getCodexSetupErrorMessage(error);
-        p.log.error(`ChatGPT Login failed: ${errorMessage}`);
-        return abort('ChatGPT login cancelled', 1);
-    } finally {
-        if (client) {
-            await client.close().catch(() => undefined);
-        }
     }
 }
 
@@ -1274,11 +870,6 @@ async function wizardStepSetupType(state: SetupWizardState): Promise<SetupWizard
 
     options.push(
         {
-            value: 'openai-codex',
-            label: `${chalk.green('●')} ChatGPT Login`,
-            hint: 'Use your ChatGPT account through Codex',
-        },
-        {
             value: 'quick',
             label: `${chalk.blue('●')} Quick Start`,
             hint: 'Google Gemini (free) - no account needed',
@@ -1303,14 +894,6 @@ async function wizardStepSetupType(state: SetupWizardState): Promise<SetupWizard
     if (setupType === 'dexto-nova') {
         // Handle Dexto Nova flow - login if needed, then proceed to model selection
         await handleDextoProviderSetup();
-        return { ...state, step: 'complete', quickStartHandled: true };
-    }
-
-    if (setupType === 'openai-codex') {
-        const completed = await handleCodexProviderSetup({ exitOnCancel: false });
-        if (!completed) {
-            return { ...state, step: 'setupType' };
-        }
         return { ...state, step: 'complete', quickStartHandled: true };
     }
 
@@ -1453,7 +1036,7 @@ async function wizardStepApiKey(state: SetupWizardState): Promise<SetupWizardSta
     const model = state.model!;
     showStepProgress('apiKey', provider, model);
 
-    const hasKey = hasApiKeyConfigured(provider);
+    const hasKey = hasApiKeyConfigured(provider) || hasUsableModelAuthProfile(provider);
     const needsApiKey = requiresApiKey(provider);
 
     if (needsApiKey && !hasKey) {
@@ -1503,7 +1086,10 @@ async function wizardStepMode(state: SetupWizardState): Promise<SetupWizardState
             };
         }
 
-        const canShowApiKeyStep = requiresApiKey(provider) && !hasApiKeyConfigured(provider);
+        const canShowApiKeyStep =
+            requiresApiKey(provider) &&
+            !hasApiKeyConfigured(provider) &&
+            !hasUsableModelAuthProfile(provider);
         let prevStep: SetupWizardState['step'] = 'model';
         if (canShowApiKeyStep) {
             prevStep = 'apiKey';
@@ -2009,7 +1595,7 @@ async function saveWizardPreferences(state: SetupWizardState): Promise<void> {
         apiKeyPending: apiKeySkipped,
     };
 
-    if (needsApiKey && !apiKeySkipped) {
+    if (needsApiKey && !apiKeySkipped && hasApiKeyConfigured(provider)) {
         preferencesOptions.apiKeyVar = apiKeyVar;
     }
     if (state.baseURL) {
@@ -2033,18 +1619,7 @@ async function saveWizardPreferences(state: SetupWizardState): Promise<void> {
         apiKeySkipped,
     });
 
-    const codex = parseCodexBaseURL(state.baseURL);
-    const codexSetupOptions =
-        codex && typeof state.baseURL === 'string'
-            ? {
-                  providerLabel: getCodexProviderDisplayName(codex.authMode),
-                  authLabel: getCodexAuthModeLabel(codex.authMode),
-                  baseURL: state.baseURL,
-              }
-            : {};
-    await showSetupComplete(provider, model, defaultMode, apiKeySkipped, {
-        ...codexSetupOptions,
-    });
+    await showSetupComplete(provider, model, defaultMode, apiKeySkipped);
 }
 
 /**
@@ -2130,14 +1705,10 @@ async function showSettingsMenu(): Promise<void> {
 
         // Show current configuration
         if (currentPrefs) {
-            const codex = parseCodexBaseURL(currentPrefs.llm.baseURL);
             const currentConfig = [
-                `Provider: ${chalk.cyan(getConfiguredProviderDisplayName(currentPrefs.llm.provider, currentPrefs.llm.baseURL))}`,
+                `Provider: ${chalk.cyan(getProviderDisplayName(currentPrefs.llm.provider))}`,
                 `Model: ${chalk.cyan(currentPrefs.llm.model)}`,
                 `Default Mode: ${chalk.cyan(currentPrefs.defaults.defaultMode)}`,
-                ...(codex
-                    ? [`Authentication: ${chalk.cyan(getCodexAuthModeLabel(codex.authMode))}`]
-                    : []),
                 ...(currentPrefs.llm.baseURL
                     ? [`Base URL: ${chalk.cyan(currentPrefs.llm.baseURL)}`]
                     : []),
@@ -2155,14 +1726,9 @@ async function showSettingsMenu(): Promise<void> {
         }
 
         const currentProviderLabel = currentPrefs
-            ? getConfiguredProviderDisplayName(currentPrefs.llm.provider, currentPrefs.llm.baseURL)
+            ? getProviderDisplayName(currentPrefs.llm.provider)
             : 'not set';
         const currentModelLabel = currentPrefs?.llm.model || 'not set';
-        const currentCodex = currentPrefs ? parseCodexBaseURL(currentPrefs.llm.baseURL) : null;
-        const authActionLabel = currentCodex ? 'Manage ChatGPT login' : 'Update API key';
-        const authActionHint = currentCodex
-            ? 'Verify or reconnect your ChatGPT login for Codex'
-            : 'Re-enter your API key';
 
         const options: Array<{ value: string; label: string; hint: string }> = [
             {
@@ -2177,8 +1743,8 @@ async function showSettingsMenu(): Promise<void> {
             },
             {
                 value: 'auth',
-                label: authActionLabel,
-                hint: authActionHint,
+                label: 'Update API key',
+                hint: 'Re-enter your API key',
             },
             {
                 value: 'reset',
@@ -2228,7 +1794,7 @@ async function showSettingsMenu(): Promise<void> {
                 await openCreditsPage();
                 break;
             case 'auth':
-                await updateApiKey(currentPrefs?.llm.provider, currentPrefs?.llm.baseURL);
+                await updateApiKey(currentPrefs?.llm.provider);
                 break;
             case 'reset': {
                 // Reset exits the menu after completion, but returns to menu if cancelled
@@ -2251,16 +1817,8 @@ async function showSettingsMenu(): Promise<void> {
 /**
  * Change model setting (includes provider selection)
  */
-async function changeModel(currentProvider?: LLMProvider, currentBaseURL?: string): Promise<void> {
+async function changeModel(currentProvider?: LLMProvider): Promise<void> {
     let provider: LLMProvider | null | '_back' = currentProvider ?? null;
-
-    if (isCodexConfigured(provider ?? undefined, currentBaseURL)) {
-        const completed = await handleCodexProviderSetup({ exitOnCancel: false });
-        if (!completed) {
-            p.log.warn('Model change cancelled');
-        }
-        return;
-    }
 
     // If no provider specified, show selection
     if (!provider) {
@@ -2274,18 +1832,11 @@ async function changeModel(currentProvider?: LLMProvider, currentBaseURL?: strin
             });
         }
 
-        sourceOptions.push(
-            {
-                value: 'openai-codex',
-                label: `${chalk.green('●')} ChatGPT Login`,
-                hint: 'Use your ChatGPT account through Codex',
-            },
-            {
-                value: 'other',
-                label: `${chalk.blue('●')} Other providers`,
-                hint: 'OpenAI, Anthropic, Gemini, Ollama, etc.',
-            }
-        );
+        sourceOptions.push({
+            value: 'other',
+            label: `${chalk.blue('●')} Other providers`,
+            hint: 'OpenAI, Anthropic, Gemini, Ollama, etc.',
+        });
 
         const providerChoice = await p.select({
             message: 'Choose your model source',
@@ -2300,14 +1851,6 @@ async function changeModel(currentProvider?: LLMProvider, currentBaseURL?: strin
         if (providerChoice === 'dexto-nova') {
             // Use the same Dexto setup flow as first-time setup
             const completed = await handleDextoProviderSetup({ exitOnCancel: false });
-            if (!completed) {
-                return;
-            }
-            return;
-        }
-
-        if (providerChoice === 'openai-codex') {
-            const completed = await handleCodexProviderSetup({ exitOnCancel: false });
             if (!completed) {
                 return;
             }
@@ -2411,7 +1954,7 @@ async function changeModel(currentProvider?: LLMProvider, currentBaseURL?: strin
 
     const apiKeyVar = getProviderEnvVar(provider);
     const needsApiKey = requiresApiKey(provider);
-    const hasKey = hasApiKeyConfigured(provider);
+    const hasKey = hasApiKeyConfigured(provider) || hasUsableModelAuthProfile(provider);
 
     // Check if API key is needed and missing - prompt for it
     if (needsApiKey && !hasKey) {
@@ -2443,7 +1986,7 @@ async function changeModel(currentProvider?: LLMProvider, currentBaseURL?: strin
         model,
     };
     // Only include apiKey for providers that need it
-    if (needsApiKey) {
+    if (needsApiKey && hasApiKeyConfigured(provider)) {
         llmUpdate.apiKey = `$${apiKeyVar}`;
     }
 
@@ -2487,20 +2030,12 @@ async function changeDefaultMode(): Promise<void> {
 /**
  * Update authentication for current provider
  */
-async function updateApiKey(currentProvider?: LLMProvider, currentBaseURL?: string): Promise<void> {
+async function updateApiKey(currentProvider?: LLMProvider): Promise<void> {
     const provider = currentProvider || (await selectProvider());
 
     // Handle cancellation or back from selectProvider
     if (provider === null || provider === '_back') {
         p.log.warn('API key update cancelled');
-        return;
-    }
-
-    if (isCodexConfigured(provider, currentBaseURL)) {
-        const completed = await handleCodexChatGPTLoginRefresh({ exitOnCancel: false });
-        if (!completed) {
-            p.log.warn('ChatGPT login update cancelled');
-        }
         return;
     }
 
@@ -2862,8 +2397,7 @@ async function showSetupComplete(
 ): Promise<void> {
     const modeCommand = defaultMode === 'web' ? 'dexto' : `dexto --mode ${defaultMode}`;
     const isLocalProvider = provider === 'local' || provider === 'ollama';
-    const providerLabel =
-        options.providerLabel ?? getConfiguredProviderDisplayName(provider, options.baseURL);
+    const providerLabel = options.providerLabel ?? getProviderDisplayName(provider);
 
     if (apiKeySkipped) {
         console.log(chalk.rgb(255, 165, 0)('\n⚠️  Setup complete (API key pending)\n'));

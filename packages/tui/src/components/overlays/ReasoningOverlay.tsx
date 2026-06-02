@@ -18,7 +18,7 @@ import React, {
 } from 'react';
 import { Box, Text } from 'ink';
 import type { Key } from '../../hooks/useInputOrchestrator.js';
-import { getModelDisplayName, getReasoningProfile } from '@dexto/core';
+import { getModelDisplayName, getReasoningProfile } from '@dexto/llm';
 import { getLLMProviderDisplayName } from '../../utils/llm-provider-display.js';
 import type { TuiAgentBackend } from '../../agent-backend.js';
 

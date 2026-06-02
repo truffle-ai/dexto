@@ -9,11 +9,12 @@ import {
     supportsCustomModels,
     hasAllRegistryModelsSupport,
     getSupportedModels,
+    getReasoningProfile,
     isValidProviderModel,
-    getMaxInputTokensForModel,
-} from './registry/index.js';
-import { LLM_PROVIDERS } from './types.js';
-import { getReasoningProfile, supportsReasoningVariant } from './reasoning/profile.js';
+    supportsReasoningVariant,
+} from '@dexto/llm';
+import { getMaxInputTokensForModel } from './registry/index.js';
+import { LLM_PROVIDERS } from '@dexto/llm';
 
 /**
  * Default-free field definitions for LLM configuration.
@@ -341,5 +342,4 @@ export const LLMUpdatesSchema = z
         }
     });
 export type LLMUpdates = z.input<typeof LLMUpdatesSchema>;
-// Re-export context type from llm module
-export type { LLMUpdateContext } from '../llm/types.js';
+export type { LLMUpdateContext } from '@dexto/llm';

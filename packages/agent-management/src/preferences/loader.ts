@@ -7,7 +7,7 @@ import path from 'path';
 import { getDextoGlobalPath } from '../utils/path.js';
 import { logger } from '@dexto/core';
 import { DextoValidationError, DextoRuntimeError } from '@dexto/core';
-import type { LLMProvider, LLMReasoningConfig } from '@dexto/core';
+import type { LLMProvider, LLMReasoningConfig } from '@dexto/llm';
 import {
     AgentPreferencesSchema,
     GlobalPreferencesSchema,

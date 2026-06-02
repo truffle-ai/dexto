@@ -12,7 +12,8 @@ vi.mock('@dexto/core', async () => {
     };
 });
 
-import { getDefaultModelForProvider, LLM_PROVIDERS, PROVIDER_API_KEY_MAP } from '@dexto/core';
+import { PROVIDER_API_KEY_MAP } from '@dexto/core';
+import { getDefaultModelForProvider, LLM_PROVIDERS } from '@dexto/llm';
 import {
     applyCLIOverrides,
     applyStartupLLMFallback,

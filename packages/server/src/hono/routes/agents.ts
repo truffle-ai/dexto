@@ -1,6 +1,7 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import { AgentConfigSchema } from '@dexto/agent-config';
-import { AgentError, logger, safeStringify, type LLMProvider, zodToIssues } from '@dexto/core';
+import { AgentError, logger, safeStringify, zodToIssues } from '@dexto/core';
+import type { LLMProvider } from '@dexto/llm';
 import {
     getPrimaryApiKeyEnvVar,
     saveProviderApiKey,

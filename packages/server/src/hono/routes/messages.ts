@@ -1,7 +1,8 @@
 import { OpenAPIHono, createRoute, type RouteConfigToTypedResponse, z } from '@hono/zod-openapi';
 import { streamSSE } from 'hono/streaming';
 import type { ToSchema } from 'hono/types';
-import { HostRuntimeContextSchema, LLM_PROVIDERS, type StreamingEvent } from '@dexto/core';
+import { HostRuntimeContextSchema, type StreamingEvent } from '@dexto/core';
+import { LLM_PROVIDERS } from '@dexto/llm';
 import {
     ApiErrorResponseSchema,
     BadRequestErrorResponse,

@@ -7,7 +7,8 @@
 
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useStdout } from 'ink';
-import { getModelDisplayName, isUserMessage, type QueuedMessage } from '@dexto/core';
+import { getModelDisplayName } from '@dexto/llm';
+import { isUserMessage, type QueuedMessage } from '@dexto/core';
 import type {
     Message,
     StartupInfo,

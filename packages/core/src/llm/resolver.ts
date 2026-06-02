@@ -7,18 +7,18 @@ import { LLMConfigSchema } from './schemas.js';
 import {
     getDefaultModelForProvider,
     acceptsAnyModel,
-    getProviderFromModel,
     isValidProviderModel,
-    getEffectiveMaxInputTokens,
     supportsBaseURL,
     supportsCustomModels,
     hasAllRegistryModelsSupport,
-} from './registry/index.js';
+    getProviderFromModel,
+} from '@dexto/llm';
+import { getEffectiveMaxInputTokens } from './registry/index.js';
 import {
     lookupOpenRouterModel,
     refreshOpenRouterModelCache,
 } from './providers/openrouter-model-registry.js';
-import type { LLMUpdateContext } from './types.js';
+import type { LLMUpdateContext } from '@dexto/llm';
 import { resolveApiKeyForProvider } from '../utils/api-key-resolver.js';
 import type { Logger } from '../logger/v2/types.js';
 

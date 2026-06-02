@@ -22,12 +22,8 @@
 import type React from 'react';
 import { useEffect, useRef } from 'react';
 import { setMaxListeners } from 'events';
-import {
-    getModelDisplayName,
-    parseCodexBaseURL,
-    type QueuedMessage,
-    type ContentPart,
-} from '@dexto/core';
+import { parseCodexBaseURL, type QueuedMessage, type ContentPart } from '@dexto/core';
+import { getModelDisplayName } from '@dexto/llm';
 import type { Message, UIState, SessionState, InputState } from '../state/types.js';
 import type { ApprovalRequest } from '../components/ApprovalPrompt.js';
 import { generateMessageId } from '../utils/idGenerator.js';

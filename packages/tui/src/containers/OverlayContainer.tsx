@@ -143,22 +143,16 @@ import LogoutOverlay, {
     type LogoutOverlayHandle,
     type LogoutOverlayOutcome,
 } from '../components/overlays/LogoutOverlay.js';
+import ConnectOverlay, {
+    type ConnectOverlayHandle,
+    type ConnectOverlayOutcome,
+} from '../components/overlays/ConnectOverlay.js';
 import type { PromptAddScope } from '../state/types.js';
-import type {
-    PromptInfo,
-    ResourceMetadata,
-    LLMProvider,
-    ReasoningVariant,
-    SearchResult,
-} from '@dexto/core';
+import type { PromptInfo, ResourceMetadata, SearchResult } from '@dexto/core';
+import type { LLMProvider, ReasoningVariant } from '@dexto/llm';
 import type { LogLevel } from '@dexto/core';
-import {
-    DextoValidationError,
-    LLMErrorCode,
-    LLM_PROVIDERS,
-    getModelDisplayName,
-    getReasoningProfile,
-} from '@dexto/core';
+import { LLM_PROVIDERS, getModelDisplayName, getReasoningProfile } from '@dexto/llm';
+import { DextoValidationError, LLMErrorCode } from '@dexto/core';
 import { InputService } from '../services/InputService.js';
 import { createUserMessage, convertHistoryToUIMessages } from '../utils/messageFormatting.js';
 import { generateMessageId } from '../utils/idGenerator.js';
@@ -275,6 +269,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
         const apiKeyInputRef = useRef<ApiKeyInputHandle>(null);
         const loginOverlayRef = useRef<LoginOverlayHandle>(null);
         const logoutOverlayRef = useRef<LogoutOverlayHandle>(null);
+        const connectOverlayRef = useRef<ConnectOverlayHandle>(null);
         const searchOverlayRef = useRef<SearchOverlayHandle>(null);
         const promptListRef = useRef<PromptListHandle>(null);
         const promptAddChoiceRef = useRef<PromptAddChoiceHandle>(null);
@@ -384,6 +379,8 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             return loginOverlayRef.current?.handleInput(inputStr, key) ?? false;
                         case 'logout':
                             return logoutOverlayRef.current?.handleInput(inputStr, key) ?? false;
+                        case 'connect':
+                            return connectOverlayRef.current?.handleInput(inputStr, key) ?? false;
                         case 'search':
                             return searchOverlayRef.current?.handleInput(inputStr, key) ?? false;
                         case 'prompt-list':
@@ -1584,6 +1581,63 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                 ]);
             },
             [handleClose, setMessages]
+        );
+
+        const handleConnectDone = useCallback(
+            async (outcome: ConnectOverlayOutcome) => {
+                handleClose();
+
+                if (outcome.outcome === 'closed') {
+                    return;
+                }
+
+                setMessages((prev) => [
+                    ...prev,
+                    {
+                        id: generateMessageId('system'),
+                        role: 'system',
+                        content:
+                            outcome.outcome === 'success'
+                                ? `✅ ${outcome.message}`
+                                : 'Model provider connection cancelled.',
+                        timestamp: new Date(),
+                    },
+                ]);
+
+                if (outcome.outcome !== 'success') {
+                    return;
+                }
+
+                const currentConfig = agent.getCurrentLLMConfig(session.id || undefined);
+                if (currentConfig.provider !== outcome.providerId) {
+                    return;
+                }
+
+                try {
+                    await agent.switchLLM(
+                        {
+                            provider: currentConfig.provider,
+                            model: currentConfig.model,
+                            ...(currentConfig.baseURL ? { baseURL: currentConfig.baseURL } : {}),
+                            ...(currentConfig.reasoning
+                                ? { reasoning: currentConfig.reasoning }
+                                : {}),
+                        },
+                        session.id || undefined
+                    );
+                } catch (error) {
+                    setMessages((prev) => [
+                        ...prev,
+                        {
+                            id: generateMessageId('error'),
+                            role: 'system',
+                            content: `Failed to apply model provider connection: ${error instanceof Error ? error.message : String(error)}`,
+                            timestamp: new Date(),
+                        },
+                    ]);
+                }
+            },
+            [agent, handleClose, session.id, setMessages]
         );
 
         // Handle log level selection
@@ -3095,6 +3149,17 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             ref={logoutOverlayRef}
                             isVisible={true}
                             onDone={handleLogoutDone}
+                        />
+                    </Box>
+                )}
+
+                {/* Connect model provider */}
+                {ui.activeOverlay === 'connect' && (
+                    <Box marginTop={1}>
+                        <ConnectOverlay
+                            ref={connectOverlayRef}
+                            isVisible={true}
+                            onDone={handleConnectDone}
                         />
                     </Box>
                 )}

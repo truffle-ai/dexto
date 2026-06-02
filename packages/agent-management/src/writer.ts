@@ -4,7 +4,7 @@ import { promises as fs } from 'fs';
 import { parseDocument, stringify as stringifyYaml } from 'yaml';
 import * as path from 'path';
 import type { AgentConfig } from '@dexto/agent-config';
-import type { LLMProvider } from '@dexto/core';
+import type { LLMProvider } from '@dexto/llm';
 import { type GlobalPreferences } from './preferences/schemas.js';
 import { logger } from '@dexto/core';
 import { ConfigError } from './config/index.js';

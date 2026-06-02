@@ -42,7 +42,7 @@
  * @module effective-llm
  */
 
-import type { LLMProvider } from '@dexto/core';
+import type { LLMProvider } from '@dexto/llm';
 import {
     loadGlobalPreferences,
     globalPreferencesExist,

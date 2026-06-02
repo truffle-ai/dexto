@@ -1,4 +1,4 @@
-import { TokenUsage } from '../types.js';
+import type { TokenUsage } from '@dexto/llm';
 import { LLMFinishReason } from '../../events/index.js';
 
 export type ModelToolCall = {

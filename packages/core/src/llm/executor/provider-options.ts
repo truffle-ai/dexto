@@ -2,19 +2,18 @@
  * Provider-specific options builder for Vercel AI SDK's streamText/generateText.
  */
 
-import type { LLMProvider, LLMReasoningConfig } from '../types.js';
-import { isReasoningCapableModel } from '../registry/index.js';
+import type { LLMProvider, LLMReasoningConfig } from '@dexto/llm';
 import {
+    ANTHROPIC_INTERLEAVED_THINKING_BETA,
+    getGoogleReasoningBudgetTokens,
+    getReasoningProfile,
     isAnthropicAdaptiveThinkingModel,
+    isOpenRouterGatewayProvider,
+    isReasoningCapableModel,
     supportsAnthropicInterleavedThinking,
-} from '../reasoning/anthropic-thinking.js';
-import { ANTHROPIC_INTERLEAVED_THINKING_BETA } from '../reasoning/anthropic-betas.js';
-import { getReasoningProfile } from '../reasoning/profile.js';
-import { isOpenRouterGatewayProvider } from '../reasoning/profiles/openrouter.js';
-import {
-    type OpenAIReasoningEffort,
     supportsOpenAIReasoningEffort,
-} from '../reasoning/openai-reasoning-effort.js';
+    type OpenAIReasoningEffort,
+} from '@dexto/llm';
 
 export interface ProviderOptionsConfig {
     provider: LLMProvider;
@@ -101,6 +100,7 @@ function buildAnthropicProviderOptions(config: {
             reasoningVariant === 'low' ||
             reasoningVariant === 'medium' ||
             reasoningVariant === 'high' ||
+            reasoningVariant === 'xhigh' ||
             reasoningVariant === 'max'
                 ? reasoningVariant
                 : undefined;
@@ -165,12 +165,12 @@ function buildOpenRouterProviderOptions(config: {
     }
 
     if (reasoningVariant === 'disabled') {
-        return { openrouter: { include_reasoning: false } };
+        return { [provider]: { include_reasoning: false } };
     }
 
     if (budgetTokens !== undefined) {
         return {
-            openrouter: {
+            [provider]: {
                 include_reasoning: true,
                 reasoning: { enabled: true, max_tokens: budgetTokens },
             },
@@ -180,7 +180,7 @@ function buildOpenRouterProviderOptions(config: {
     if (profile.paradigm === 'budget') {
         if (reasoningVariant === undefined || reasoningVariant === 'enabled') {
             return {
-                openrouter: {
+                [provider]: {
                     include_reasoning: true,
                 },
             };
@@ -196,7 +196,7 @@ function buildOpenRouterProviderOptions(config: {
             : undefined);
 
     return {
-        openrouter: {
+        [provider]: {
             include_reasoning: true,
             ...(effort !== undefined ? { reasoning: { enabled: true, effort } } : {}),
         },
@@ -232,7 +232,8 @@ export function getEffectiveReasoningBudgetTokens(
     }
 
     const openrouter = asRecord(providerOptions['openrouter']);
-    const reasoning = asRecord(openrouter?.['reasoning']);
+    const dextoNova = asRecord(providerOptions['dexto-nova']);
+    const reasoning = asRecord(openrouter?.['reasoning'] ?? dextoNova?.['reasoning']);
     if (typeof reasoning?.['max_tokens'] === 'number') {
         return reasoning['max_tokens'];
     }
@@ -264,7 +265,7 @@ export function buildProviderOptions(
     }
 
     if (provider === 'bedrock') {
-        const capable = isReasoningCapableModel(model, 'bedrock');
+        const capable = getReasoningProfile('bedrock', model).capable;
         if (!capable) {
             return { bedrock: {} };
         }
@@ -330,8 +331,9 @@ export function buildProviderOptions(
                 reasoningVariant === 'high')
                 ? reasoningVariant
                 : undefined;
+        const modelDefaultBudgetTokens = getGoogleReasoningBudgetTokens(model, reasoningVariant);
         const thinkingBudgetTokens = coerceBudgetTokens(
-            budgetTokens ?? GOOGLE_DEFAULT_BUDGET_TOKENS,
+            budgetTokens ?? modelDefaultBudgetTokens ?? GOOGLE_DEFAULT_BUDGET_TOKENS,
             1
         );
 

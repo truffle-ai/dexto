@@ -1,6 +1,6 @@
 {
   "name": "@dexto/agent-management",
-  "version": "1.8.0",
+  "version": "1.8.1",
   "private": false,
   "type": "module",
   "main": "./dist/index.js",
@@ -12,11 +12,17 @@
       "import": "./dist/index.js",
       "require": "./dist/index.cjs"
     },
+    "./auth/provider-auth-definitions": {
+      "types": "./dist/auth/provider-auth-definitions.d.ts",
+      "import": "./dist/auth/provider-auth-definitions.js",
+      "require": "./dist/auth/provider-auth-definitions.cjs"
+    },
     "./package.json": "./package.json"
   },
   "dependencies": {
     "@dexto/agent-config": "workspace:*",
     "@dexto/core": "workspace:*",
+    "@dexto/llm": "workspace:*",
     "@dexto/orchestration": "workspace:*",
     "@dexto/tools-builtins": "workspace:*",
     "yaml": "^2.8.3",

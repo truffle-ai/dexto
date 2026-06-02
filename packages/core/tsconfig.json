@@ -19,5 +19,6 @@
         "src/test-utils/**/*",
         "dist",
         "node_modules"
-    ]
+    ],
+    "references": [{ "path": "../llm" }]
 }

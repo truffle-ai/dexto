@@ -29,13 +29,11 @@
 
 import { z } from '@hono/zod-openapi';
 import {
-    LLM_PRICING_STATUSES,
     LLMConfigBaseSchema as CoreLLMConfigBaseSchema,
-    LLM_PROVIDERS,
-    SUPPORTED_FILE_TYPES,
     type ContentPart as CoreContentPart,
     type InternalMessage as CoreInternalMessage,
 } from '@dexto/core';
+import { LLM_PRICING_STATUSES, LLM_PROVIDERS, SUPPORTED_FILE_TYPES } from '@dexto/llm';
 
 type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
 

@@ -13,5 +13,10 @@
     },
     "include": ["src/**/*"],
     "exclude": ["dist", "node_modules"],
-    "references": [{ "path": "../agent-management" }, { "path": "../core" }, { "path": "../registry" }]
+    "references": [
+        { "path": "../agent-management" },
+        { "path": "../core" },
+        { "path": "../llm" },
+        { "path": "../registry" }
+    ]
 }

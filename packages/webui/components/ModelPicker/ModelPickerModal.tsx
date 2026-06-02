@@ -55,8 +55,7 @@ import {
     validateBaseURL,
 } from './types';
 import { cn } from '../../lib/utils';
-import type { LLMProvider } from '@dexto/core';
-import { LLM_PROVIDERS } from '@dexto/core';
+import { LLM_PROVIDERS, type LLMProvider } from '@dexto/llm';
 import { PROVIDER_LOGOS, needsDarkModeInversion, hasLogo } from './constants';
 import { useAnalytics } from '@/lib/analytics/index.js';
 

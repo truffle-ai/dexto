@@ -21,6 +21,7 @@
     { "path": "../core" },
     { "path": "../image-local" },
     { "path": "../image-logger-agent" },
+    { "path": "../llm" },
     { "path": "../registry" },
     { "path": "../server" },
     { "path": "../storage" },

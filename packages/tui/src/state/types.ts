@@ -10,9 +10,8 @@ import type {
     ContentPart,
     McpConnectionStatus,
     McpServerType,
-    LLMProvider,
-    ReasoningVariant,
 } from '@dexto/core';
+import type { LLMProvider, ReasoningVariant } from '@dexto/llm';
 
 /**
  * Update information for version check
@@ -363,6 +362,7 @@ export type OverlayType =
     | 'insufficient-credits'
     | 'login'
     | 'logout'
+    | 'connect'
     | 'search'
     | 'approval'
     | 'tool-browser'

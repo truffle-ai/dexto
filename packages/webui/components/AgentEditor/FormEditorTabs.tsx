@@ -29,7 +29,8 @@ import {
 } from 'lucide-react';
 import type { AgentConfig, ToolFactoryEntry } from '@dexto/agent-config';
 import type { ContributorConfig } from '@dexto/core';
-import { LLM_PROVIDERS, MCP_SERVER_TYPES } from '@dexto/core';
+import { MCP_SERVER_TYPES } from '@dexto/core';
+import { LLM_PROVIDERS } from '@dexto/llm';
 import { cn } from '@/lib/utils';
 import { useDiscovery } from '../hooks/useDiscovery';
 import { useLLMCatalog, type LLMProvider } from '../hooks/useLLM';

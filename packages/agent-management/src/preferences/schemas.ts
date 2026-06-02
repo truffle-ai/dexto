@@ -10,10 +10,8 @@ import {
     getReasoningProfile,
     supportsReasoningVariant,
     LLM_PROVIDERS,
-    NonEmptyTrimmed,
-    OptionalURL,
-    ErrorType,
-} from '@dexto/core';
+} from '@dexto/llm';
+import { NonEmptyTrimmed, OptionalURL, ErrorType } from '@dexto/core';
 import { PreferenceErrorCode } from './error-codes.js';
 
 export const PreferenceLLMSchema = z
@@ -34,7 +32,7 @@ export const PreferenceLLMSchema = z
             ),
 
         baseURL: OptionalURL.describe(
-            'Custom base URL for providers that support it (openai-compatible, litellm, Codex)'
+            'Custom base URL for providers that support it (openai-compatible, litellm)'
         ),
 
         reasoning: z

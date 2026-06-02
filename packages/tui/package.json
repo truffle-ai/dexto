@@ -1,6 +1,6 @@
 {
     "name": "@dexto/tui",
-    "version": "1.8.0",
+    "version": "1.8.1",
     "description": "Interactive terminal UI for Dexto CLI",
     "type": "module",
     "main": "./dist/index.js",
@@ -27,6 +27,7 @@
     "dependencies": {
         "@dexto/agent-management": "workspace:*",
         "@dexto/core": "workspace:*",
+        "@dexto/llm": "workspace:*",
         "@dexto/registry": "workspace:*",
         "chalk": "^5.6.0",
         "cli-highlight": "^2.1.11",

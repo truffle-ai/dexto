@@ -6,7 +6,7 @@
 import React from 'react';
 import { Box, Text } from 'ink';
 import { getProviderKeyStatus } from '@dexto/agent-management';
-import type { LLMProvider } from '@dexto/core';
+import type { LLMProvider } from '@dexto/llm';
 import type { CustomModelProvider } from '@dexto/agent-management';
 
 interface ApiKeyStepProps {

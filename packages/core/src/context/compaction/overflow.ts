@@ -1,4 +1,4 @@
-import type { TokenUsage } from '../../llm/types.js';
+import type { TokenUsage } from '@dexto/llm';
 
 /**
  * Model limits configuration for overflow detection.
