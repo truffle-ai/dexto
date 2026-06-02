@@ -1,5 +1,16 @@
 # @dexto/tui
 
+## 1.8.3
+
+### Patch Changes
+
+- 03e8fa9: Split blocked interactions from LLM response events and update event consumers.
+- Updated dependencies [03e8fa9]
+    - @dexto/core@1.8.3
+    - @dexto/agent-management@1.8.3
+    - @dexto/llm@1.8.3
+    - @dexto/registry@1.8.3
+
 ## 1.8.2
 
 ### Patch Changes

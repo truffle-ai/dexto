@@ -1,5 +1,12 @@
 # @dexto/core
 
+## 1.8.3
+
+### Patch Changes
+
+- 03e8fa9: Split blocked interactions from LLM response events and update event consumers.
+    - @dexto/llm@1.8.3
+
 ## 1.8.2
 
 ### Patch Changes
