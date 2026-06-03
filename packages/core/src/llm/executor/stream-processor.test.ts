@@ -1062,13 +1062,23 @@ describe('StreamProcessor', () => {
             const testError = new Error('Test error');
             const events = [{ type: 'error', error: testError }];
 
-            await expect(processor.process(() => createMockStream(events) as never)).rejects.toBe(
-                testError
-            );
+            await expect(
+                processor.process(() => createMockStream(events) as never)
+            ).rejects.toMatchObject({
+                code: 'llm_generation_failed',
+                message: 'Test error',
+                context: expect.objectContaining({
+                    model: 'gpt-4',
+                    provider: 'openai',
+                }),
+            });
             expect(mocks.emittedEvents.find((e) => e.name === 'llm:error')).toMatchObject({
                 name: 'llm:error',
                 payload: {
-                    error: testError,
+                    error: {
+                        code: 'llm_generation_failed',
+                        message: 'Test error',
+                    },
                     context: 'StreamProcessor',
                     recoverable: false,
                 },
@@ -1227,9 +1237,16 @@ describe('StreamProcessor', () => {
                 { type: 'error', error: testError },
             ];
 
-            await expect(processor.process(() => createMockStream(events) as never)).rejects.toBe(
-                testError
-            );
+            await expect(
+                processor.process(() => createMockStream(events) as never)
+            ).rejects.toMatchObject({
+                code: 'llm_generation_failed',
+                message: 'Test error',
+                context: expect.objectContaining({
+                    model: 'gpt-4',
+                    provider: 'openai',
+                }),
+            });
 
             expect(mocks.contextManager.addToolCall).toHaveBeenCalledWith(expect.any(String), {
                 id: 'call-1',
@@ -1253,7 +1270,10 @@ describe('StreamProcessor', () => {
             expect(mocks.emittedEvents.find((e) => e.name === 'llm:error')).toMatchObject({
                 name: 'llm:error',
                 payload: {
-                    error: testError,
+                    error: {
+                        code: 'llm_generation_failed',
+                        message: 'Test error',
+                    },
                     context: 'StreamProcessor',
                     recoverable: false,
                 },
@@ -1296,9 +1316,16 @@ describe('StreamProcessor', () => {
                 { type: 'error', error: testError },
             ];
 
-            await expect(processor.process(() => createMockStream(events) as never)).rejects.toBe(
-                testError
-            );
+            await expect(
+                processor.process(() => createMockStream(events) as never)
+            ).rejects.toMatchObject({
+                code: 'llm_generation_failed',
+                message: 'Model stream failed',
+                context: expect.objectContaining({
+                    model: 'gpt-4',
+                    provider: 'openai',
+                }),
+            });
 
             expect(mocks.contextManager.addToolResult).toHaveBeenCalledTimes(2);
             expect(mocks.contextManager.addToolResult).toHaveBeenNthCalledWith(
