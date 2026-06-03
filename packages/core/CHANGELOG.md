@@ -1,5 +1,12 @@
 # @dexto/core
 
+## 1.8.4
+
+### Patch Changes
+
+- d29369b: Add OpenTelemetry spans around core turn preparation so hosted runtimes can diagnose agent-loop latency.
+    - @dexto/llm@1.8.4
+
 ## 1.8.3
 
 ### Patch Changes
