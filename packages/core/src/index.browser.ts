@@ -102,6 +102,9 @@ export type { AgentEventMap, SessionEventMap } from './events/index.js';
 export type { ToolCallMetadata } from './tools/tool-call-metadata.js';
 export type { HostRuntimeContext, HostRuntimeIds } from './runtime/host-runtime.js';
 
+// Telemetry utilities (used by Cloudflare Worker-hosted runtimes)
+export { Telemetry, recordOperationSpan } from './telemetry/index.js';
+
 // LLM registry types (used by client-sdk package)
 export type { ModelInfo, ProviderInfo } from '@dexto/llm';
 export type { SupportedFileType } from '@dexto/llm';
