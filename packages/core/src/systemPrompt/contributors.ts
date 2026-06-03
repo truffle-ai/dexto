@@ -6,6 +6,7 @@ import { SystemPromptError } from './errors.js';
 import { DextoRuntimeError } from '../errors/DextoRuntimeError.js';
 import type { MemoryManager } from '../memory/index.js';
 import type { SkillManager } from '../skills/index.js';
+import { recordOperationSpan } from '../telemetry/operation-span.js';
 
 export class StaticContributor implements SystemPromptContributor {
     constructor(
@@ -256,7 +257,15 @@ export class SkillsContributor implements SystemPromptContributor {
 
     async getContent(_context: DynamicContributorContext): Promise<string> {
         try {
-            const skills = await this.skillManager.list();
+            const skills = await recordOperationSpan(
+                {
+                    name: 'skills.list',
+                    componentName: 'SkillsContributor',
+                    resultAttributes: (skills) => ({ 'skills.count': skills.length }),
+                },
+                () => this.skillManager.list(),
+                this.logger
+            );
             if (skills.length === 0) {
                 return '';
             }
