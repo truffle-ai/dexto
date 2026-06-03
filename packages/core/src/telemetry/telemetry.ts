@@ -1,7 +1,6 @@
 import { context as otlpContext, trace, propagation } from '@opentelemetry/api';
 import type { Tracer, Context, BaggageEntry } from '@opentelemetry/api';
 import type { OtelConfiguration } from './schemas.js';
-import { logger } from '../logger/logger.js';
 import { TelemetryError } from './errors.js';
 import { DextoRuntimeError } from '../errors/DextoRuntimeError.js';
 
@@ -395,7 +394,7 @@ export class Telemetry {
             // Don't throw - log warning and continue with cleanup
             // Telemetry is observability infrastructure, not core functionality
             const errorMsg = error instanceof Error ? error.message : String(error);
-            logger.warn(`Telemetry shutdown failed to flush spans (non-blocking): ${errorMsg}`);
+            console.warn(`Telemetry shutdown failed to flush spans (non-blocking): ${errorMsg}`);
         } finally {
             this.cleanupAfterShutdown();
         }
@@ -407,7 +406,7 @@ export class Telemetry {
         globalThis.__TELEMETRY__ = undefined;
 
         // Cleanup signal handlers to prevent leaks
-        if (Telemetry._signalHandlers) {
+        if (Telemetry._signalHandlers && typeof process !== 'undefined') {
             process.off('SIGTERM', Telemetry._signalHandlers.sigterm);
             process.off('SIGINT', Telemetry._signalHandlers.sigint);
             Telemetry._signalHandlers = undefined;

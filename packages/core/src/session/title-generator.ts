@@ -2,12 +2,21 @@ import type { ValidatedLLMConfig } from '../llm/schemas.js';
 import type { Logger } from '../logger/v2/types.js';
 import type { DextoProviderContext, LanguageModelFactory } from '../llm/services/types.js';
 import { createVercelModel } from '../llm/services/factory.js';
-import { generateText } from 'ai';
+import { generateText, type LanguageModelUsage } from 'ai';
+
+export interface GenerateSessionTitleTokenUsage {
+    cachedInputTokens?: number;
+    inputTokens?: number;
+    outputTokens?: number;
+    reasoningTokens?: number;
+    totalTokens?: number;
+}
 
 export interface GenerateSessionTitleResult {
     title?: string;
     error?: string;
     timedOut?: boolean;
+    usage?: GenerateSessionTitleTokenUsage;
 }
 
 /**
@@ -57,9 +66,12 @@ export async function generateSessionTitle(
 
         const processed = postProcessTitle(result.text);
         if (!processed) {
-            return { error: 'LLM returned empty title' };
+            return {
+                error: 'LLM returned empty title',
+                usage: toSessionTitleTokenUsage(result.totalUsage),
+            };
         }
-        return { title: processed };
+        return { title: processed, usage: toSessionTitleTokenUsage(result.totalUsage) };
     } catch (error) {
         if (controller?.signal.aborted) {
             return { timedOut: true, error: 'Timed out while waiting for LLM response' };
@@ -70,6 +82,26 @@ export async function generateSessionTitle(
         if (timer) {
             clearTimeout(timer);
         }
+    }
+}
+
+function toSessionTitleTokenUsage(usage: LanguageModelUsage): GenerateSessionTitleTokenUsage {
+    const tokenUsage: GenerateSessionTitleTokenUsage = {};
+    copyTokenUsageNumber(tokenUsage, 'cachedInputTokens', usage.cachedInputTokens);
+    copyTokenUsageNumber(tokenUsage, 'inputTokens', usage.inputTokens);
+    copyTokenUsageNumber(tokenUsage, 'outputTokens', usage.outputTokens);
+    copyTokenUsageNumber(tokenUsage, 'reasoningTokens', usage.reasoningTokens);
+    copyTokenUsageNumber(tokenUsage, 'totalTokens', usage.totalTokens);
+    return tokenUsage;
+}
+
+function copyTokenUsageNumber(
+    target: GenerateSessionTitleTokenUsage,
+    key: keyof GenerateSessionTitleTokenUsage,
+    value: number | undefined
+): void {
+    if (typeof value === 'number' && Number.isFinite(value)) {
+        target[key] = value;
     }
 }
 

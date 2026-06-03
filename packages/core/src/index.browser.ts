@@ -102,6 +102,10 @@ export type { AgentEventMap, SessionEventMap } from './events/index.js';
 export type { ToolCallMetadata } from './tools/tool-call-metadata.js';
 export type { HostRuntimeContext, HostRuntimeIds } from './runtime/host-runtime.js';
 
+// Telemetry utilities (used by browser and Worker-hosted runtimes)
+export { Telemetry } from './telemetry/browser.js';
+export { recordOperationSpan, type OperationSpanOptions } from './telemetry/operation-span.js';
+
 // LLM registry types (used by client-sdk package)
 export type { ModelInfo, ProviderInfo } from '@dexto/llm';
 export type { SupportedFileType } from '@dexto/llm';

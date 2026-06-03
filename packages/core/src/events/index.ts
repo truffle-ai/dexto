@@ -8,6 +8,7 @@ import type { WorkspaceContext } from '../workspace/types.js';
 import type { ToolPresentationSnapshotV1 } from '../tools/types.js';
 import type { ToolCallMetadata } from '../tools/tool-call-metadata.js';
 import type { HostRuntimeContext } from '../runtime/index.js';
+import type { LLMProviderErrorDetails } from '../llm/executor/provider-error.js';
 
 /**
  * LLM finish reason - why the LLM stopped generating
@@ -578,6 +579,8 @@ interface SessionEventMapBase {
         error: Error;
         context?: string;
         recoverable?: boolean;
+        /** Structured provider/API error details when the error came from the model transport. */
+        details?: LLMProviderErrorDetails;
         /** Tool call ID if error occurred during tool execution */
         toolCallId?: string;
     };
