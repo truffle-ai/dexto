@@ -39,28 +39,39 @@ describe('MiniMax provider registry', () => {
         expect(LLM_REGISTRY).toHaveProperty('minimax');
     });
 
-    it('includes M2.7 and M2.7-highspeed models', () => {
+    it('includes M3, M2.7, and M2.7-highspeed models', () => {
         const modelNames = LLM_REGISTRY.minimax.models.map((m) => m.name);
+        expect(modelNames).toContain('MiniMax-M3');
         expect(modelNames).toContain('MiniMax-M2.7');
         expect(modelNames).toContain('MiniMax-M2.7-highspeed');
     });
 
-    it('includes legacy models M2, M2.1, M2.5, M2.5-highspeed', () => {
+    it('does not include legacy models (M2, M2.1, M2.5, M2.5-highspeed)', () => {
         const modelNames = LLM_REGISTRY.minimax.models.map((m) => m.name);
-        expect(modelNames).toContain('MiniMax-M2');
-        expect(modelNames).toContain('MiniMax-M2.1');
-        expect(modelNames).toContain('MiniMax-M2.5');
-        expect(modelNames).toContain('MiniMax-M2.5-highspeed');
+        expect(modelNames).not.toContain('MiniMax-M2');
+        expect(modelNames).not.toContain('MiniMax-M2.1');
+        expect(modelNames).not.toContain('MiniMax-M2.5');
+        expect(modelNames).not.toContain('MiniMax-M2.5-highspeed');
     });
 
-    it('defaults to MiniMax-M2.7', () => {
+    it('defaults to MiniMax-M3', () => {
         const defaultModel = getDefaultModelForProvider('minimax');
-        expect(defaultModel).toBe('MiniMax-M2.7');
+        expect(defaultModel).toBe('MiniMax-M3');
     });
 
-    it('validates M2.7 as a valid minimax model', () => {
+    it('lists M3 first in the model list', () => {
+        const firstModel = LLM_REGISTRY.minimax.models[0];
+        expect(firstModel?.name).toBe('MiniMax-M3');
+    });
+
+    it('validates M3 and M2.7 as valid minimax models', () => {
+        expect(isValidProviderModel('minimax', 'MiniMax-M3')).toBe(true);
         expect(isValidProviderModel('minimax', 'MiniMax-M2.7')).toBe(true);
         expect(isValidProviderModel('minimax', 'MiniMax-M2.7-highspeed')).toBe(true);
+    });
+
+    it('M3 has 512K input token limit', () => {
+        expect(getMaxInputTokensForModel('minimax', 'MiniMax-M3', mockLogger)).toBe(524288);
     });
 
     it('M2.7 has 204K input token limit', () => {
@@ -70,6 +81,14 @@ describe('MiniMax provider registry', () => {
         );
     });
 
+    it('M3 has correct pricing', () => {
+        const pricing = getModelPricing('minimax', 'MiniMax-M3');
+        expect(pricing).toBeDefined();
+        expect(pricing!.inputPerM).toBe(0.6);
+        expect(pricing!.outputPerM).toBe(2.4);
+        expect(pricing!.cacheReadPerM).toBe(0.12);
+    });
+
     it('M2.7 has correct pricing', () => {
         const pricing = getModelPricing('minimax', 'MiniMax-M2.7');
         expect(pricing).toBeDefined();
@@ -77,18 +96,34 @@ describe('MiniMax provider registry', () => {
         expect(pricing!.outputPerM).toBe(1.2);
     });
 
-    it('M2.7-highspeed has higher pricing', () => {
+    it('M2.7-highspeed has higher pricing than M2.7', () => {
         const pricing = getModelPricing('minimax', 'MiniMax-M2.7-highspeed');
         expect(pricing).toBeDefined();
         expect(pricing!.inputPerM).toBe(0.6);
         expect(pricing!.outputPerM).toBe(2.4);
     });
 
-    it('M2.7 models have correct display names', () => {
+    it('models have correct display names', () => {
+        expect(getModelDisplayName('MiniMax-M3', 'minimax')).toBe('MiniMax-M3');
         expect(getModelDisplayName('MiniMax-M2.7', 'minimax')).toBe('MiniMax-M2.7');
         expect(getModelDisplayName('MiniMax-M2.7-highspeed', 'minimax')).toBe(
             'MiniMax-M2.7-highspeed'
         );
+    });
+
+    it('M3 supports image input', () => {
+        const m3 = LLM_REGISTRY.minimax.models.find((m) => m.name === 'MiniMax-M3');
+        expect(m3).toBeDefined();
+        expect(m3!.supportedFileTypes).toContain('image');
+        expect(m3!.modalities?.input).toContain('image');
+    });
+
+    it('M3 supports reasoning and tool calls', () => {
+        const m3 = LLM_REGISTRY.minimax.models.find((m) => m.name === 'MiniMax-M3');
+        expect(m3).toBeDefined();
+        expect(m3!.reasoning).toBe(true);
+        expect(m3!.supportsToolCall).toBe(true);
+        expect(m3!.supportsTemperature).toBe(true);
     });
 
     it('M2.7 models support reasoning and tool calls', () => {
@@ -104,7 +139,7 @@ describe('MiniMax provider registry', () => {
     });
 
     it('transforms to OpenRouter format with minimax prefix', () => {
-        const result = transformModelNameForProvider('MiniMax-M2.7', 'minimax', 'openrouter');
-        expect(result).toBe('minimax/MiniMax-M2.7');
+        const result = transformModelNameForProvider('MiniMax-M3', 'minimax', 'openrouter');
+        expect(result).toBe('minimax/MiniMax-M3');
     });
 });

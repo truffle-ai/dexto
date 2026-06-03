@@ -119,7 +119,7 @@ export const PROVIDER_REGISTRY: Partial<Record<LLMProvider, ProviderOption>> = {
     minimax: {
         value: 'minimax',
         label: 'MiniMax',
-        hint: 'M2.1 coding-focused models',
+        hint: 'M3 reasoning model with 512k context and image input',
         category: 'cloud',
         apiKeyUrl: 'https://platform.minimax.io/docs/faq/about-apis',
         envVar: 'MINIMAX_API_KEY',

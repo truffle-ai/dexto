@@ -8,14 +8,14 @@ import {
 import { resolveApiKeyForProvider } from '../../utils/api-key-resolver.js';
 
 /**
- * MiniMax M2.7 Integration Tests
+ * MiniMax M3 Integration Tests
  *
  * These tests verify the MiniMax provider works correctly with real API calls
- * using the latest M2.7 model through the OpenAI-compatible endpoint.
+ * using the latest M3 model through the OpenAI-compatible endpoint.
  *
  * Requires: MINIMAX_API_KEY env var and DEXTO_RUN_EXTERNAL_LLM_TESTS=true
  */
-describe('MiniMax M2.7 Integration', () => {
+describe('MiniMax M3 Integration', () => {
     const RUN_EXTERNAL_LLM_TESTS =
         process.env.DEXTO_RUN_EXTERNAL_LLM_TESTS === 'true' ||
         process.env.DEXTO_RUN_EXTERNAL_LLM_TESTS === '1';
@@ -25,6 +25,30 @@ describe('MiniMax M2.7 Integration', () => {
         (!providerRequiresApiKey('minimax') || Boolean(resolveApiKeyForProvider('minimax')));
 
     const t = canRunMinimax ? test : test.skip;
+
+    t(
+        'M3 generates a response',
+        async () => {
+            const env = await createTestEnvironment(
+                TestConfigs.createVercelConfig('minimax', 'MiniMax-M3')
+            );
+            try {
+                const response = await env.agent.run(
+                    'Reply with exactly: Hello from MiniMax',
+                    undefined,
+                    undefined,
+                    env.sessionId
+                );
+
+                expect(response).toBeTruthy();
+                expect(typeof response).toBe('string');
+                expect(response.length).toBeGreaterThan(0);
+            } finally {
+                await cleanupTestEnvironment(env);
+            }
+        },
+        60000
+    );
 
     t(
         'M2.7 generates a response',
@@ -75,10 +99,10 @@ describe('MiniMax M2.7 Integration', () => {
     );
 
     t(
-        'M2.7 handles multi-turn conversation',
+        'M3 handles multi-turn conversation',
         async () => {
             const env = await createTestEnvironment(
-                TestConfigs.createVercelConfig('minimax', 'MiniMax-M2.7')
+                TestConfigs.createVercelConfig('minimax', 'MiniMax-M3')
             );
             try {
                 const response1 = await env.agent.run(

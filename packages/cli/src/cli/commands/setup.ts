@@ -1138,9 +1138,9 @@ async function handleDextoProviderSetup(
                 hint: 'Zhipu AI flagship model',
             },
             {
-                value: 'minimax/minimax-m2.1',
-                label: 'Minimax M2.1',
-                hint: 'Fast model with 196k context',
+                value: 'minimax/minimax-m3',
+                label: 'MiniMax M3',
+                hint: 'Reasoning model with 512k context and image input',
             },
             {
                 value: 'moonshotai/kimi-k2.5',

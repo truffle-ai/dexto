@@ -40,7 +40,7 @@ describe('openrouter reasoning profile routing', () => {
 
         it('rejects excluded model families', () => {
             expect(getOpenRouterReasoningTarget('deepseek/deepseek-r1:free')).toBeNull();
-            expect(getOpenRouterReasoningTarget('minimax/minimax-m2.1')).toBeNull();
+            expect(getOpenRouterReasoningTarget('minimax/minimax-m3')).toBeNull();
             expect(getOpenRouterReasoningTarget('z-ai/glm-4.7')).toBeNull();
             expect(getOpenRouterReasoningTarget('mistralai/mistral-medium-3.1')).toBeNull();
             expect(getOpenRouterReasoningTarget('moonshotai/kimi-k2.5')).toBeNull();

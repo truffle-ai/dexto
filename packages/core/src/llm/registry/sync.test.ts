@@ -142,7 +142,7 @@ function buildFixtureApi(overrides?: {
             npm: '@ai-sdk/openai-compatible',
             doc: 'https://platform.minimax.io',
             models: {
-                'MiniMax-M2.1': buildFixtureModel('MiniMax-M2.1', 'MiniMax M2.1'),
+                'MiniMax-M3': buildFixtureModel('MiniMax-M3', 'MiniMax M3'),
             },
         },
         zhipuai: {

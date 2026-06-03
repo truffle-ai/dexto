@@ -140,17 +140,16 @@ llm:
 ```yaml
 llm:
   provider: minimax
-  model: MiniMax-M2.7
+  model: MiniMax-M3
   apiKey: $MINIMAX_API_KEY
 ```
 
 **Supported models:**
-- `MiniMax-M2.7` (default, 204K context window)
+- `MiniMax-M3` (default, 512K context window, 128K max output, image input)
+- `MiniMax-M2.7` (204K context window)
 - `MiniMax-M2.7-highspeed` (204K context window, faster inference)
-- `MiniMax-M2.5`, `MiniMax-M2.5-highspeed`
-- `MiniMax-M2.1`, `MiniMax-M2`
 
-**Features:** Reasoning, tool calling, streaming, OpenAI-compatible API, competitive pricing
+**Features:** Reasoning, tool calling, streaming, image input (M3), OpenAI-compatible API, competitive pricing
 
 ---
 

@@ -748,11 +748,11 @@ describe('filterMessagesByLLMCapabilities', () => {
     });
 
     test('should filter out images for minimax model which does not support vision', () => {
-        // Mock validation to reject images for minimax-m2.1 which has supportedFileTypes: []
+        // Mock validation to reject images for minimax-m2.7 which has supportedFileTypes: []
         mockValidateModelFileSupport.mockReturnValue({
             isSupported: false,
             fileType: 'image',
-            error: 'Model minimax-m2.1 (dexto-nova) does not support image files',
+            error: 'Model minimax-m2.7 (dexto-nova) does not support image files',
         });
 
         const messages: InternalMessage[] = [
@@ -765,7 +765,7 @@ describe('filterMessagesByLLMCapabilities', () => {
             },
         ];
 
-        const config: LLMContext = { provider: 'dexto-nova', model: 'minimax/minimax-m2.1' };
+        const config: LLMContext = { provider: 'dexto-nova', model: 'minimax/minimax-m2.7' };
 
         const result = filterMessagesByLLMCapabilities(messages, config, mockLogger);
 
@@ -778,12 +778,12 @@ describe('filterMessagesByLLMCapabilities', () => {
         ]);
         expect(mockValidateModelFileSupport).toHaveBeenCalledWith(
             'dexto-nova',
-            'minimax/minimax-m2.1',
+            'minimax/minimax-m2.7',
             'image/png'
         );
         // Verify logging
         expect(mockLogger.info).toHaveBeenCalledWith(
-            "Filtered 1 image for minimax/minimax-m2.1 since it doesn't support images"
+            "Filtered 1 image for minimax/minimax-m2.7 since it doesn't support images"
         );
     });
 
@@ -873,7 +873,7 @@ describe('filterMessagesByLLMCapabilities', () => {
         // Some image parts may not have mimeType set
         mockValidateModelFileSupport.mockReturnValue({
             isSupported: false,
-            error: "Model 'minimax/minimax-m2.1' (dexto-nova) does not support image files",
+            error: "Model 'minimax/minimax-m2.7' (dexto-nova) does not support image files",
         });
 
         const messages: InternalMessage[] = [
@@ -887,7 +887,7 @@ describe('filterMessagesByLLMCapabilities', () => {
             },
         ];
 
-        const config: LLMContext = { provider: 'dexto-nova', model: 'minimax/minimax-m2.1' };
+        const config: LLMContext = { provider: 'dexto-nova', model: 'minimax/minimax-m2.7' };
 
         const result = filterMessagesByLLMCapabilities(messages, config, mockLogger);
 
@@ -901,12 +901,12 @@ describe('filterMessagesByLLMCapabilities', () => {
         ]);
         expect(mockValidateModelFileSupport).toHaveBeenCalledWith(
             'dexto-nova',
-            'minimax/minimax-m2.1',
+            'minimax/minimax-m2.7',
             'image/jpeg'
         );
         // Verify logging
         expect(mockLogger.info).toHaveBeenCalledWith(
-            "Filtered 1 image for minimax/minimax-m2.1 since it doesn't support images"
+            "Filtered 1 image for minimax/minimax-m2.7 since it doesn't support images"
         );
     });
 });

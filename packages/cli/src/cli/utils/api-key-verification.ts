@@ -232,7 +232,7 @@ async function verifyGlama(apiKey: string): Promise<VerificationResult> {
  * Verify MiniMax API key using the OpenAI-compatible models endpoint
  */
 async function verifyMiniMax(apiKey: string): Promise<VerificationResult> {
-    const response = await fetch('https://api.minimax.chat/v1/models', {
+    const response = await fetch('https://api.minimax.io/v1/models', {
         method: 'GET',
         headers: {
             Authorization: `Bearer ${apiKey}`,

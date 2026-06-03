@@ -3,7 +3,7 @@ import { createVercelModel } from './factory.js';
 import type { ValidatedLLMConfig } from '../schemas.js';
 
 // Mock @ai-sdk/openai to capture createOpenAI calls
-const mockChat = vi.fn(() => ({ modelId: 'MiniMax-M2.7', doGenerate: vi.fn() }));
+const mockChat = vi.fn(() => ({ modelId: 'MiniMax-M3', doGenerate: vi.fn() }));
 vi.mock('@ai-sdk/openai', () => ({
     createOpenAI: vi.fn(() => ({
         chat: mockChat,
@@ -48,12 +48,12 @@ vi.mock('../providers/openrouter-model-registry.js', () => ({
 describe('createVercelModel — MiniMax provider', () => {
     beforeEach(() => {
         vi.clearAllMocks();
-        mockChat.mockReturnValue({ modelId: 'MiniMax-M2.7', doGenerate: vi.fn() });
+        mockChat.mockReturnValue({ modelId: 'MiniMax-M3', doGenerate: vi.fn() });
     });
 
     const baseConfig: ValidatedLLMConfig = {
         provider: 'minimax',
-        model: 'MiniMax-M2.7',
+        model: 'MiniMax-M3',
         apiKey: 'test-minimax-key',
         maxIterations: 10,
         temperature: 0.7,
@@ -68,7 +68,7 @@ describe('createVercelModel — MiniMax provider', () => {
             apiKey: 'test-minimax-key',
             baseURL: 'https://api.minimax.io/v1',
         });
-        expect(mockChat).toHaveBeenCalledWith('MiniMax-M2.7');
+        expect(mockChat).toHaveBeenCalledWith('MiniMax-M3');
     });
 
     it('uses api.minimax.io, not api.minimax.chat', async () => {
@@ -97,5 +97,10 @@ describe('createVercelModel — MiniMax provider', () => {
     it('works with M2.7-highspeed model', async () => {
         createVercelModel({ ...baseConfig, model: 'MiniMax-M2.7-highspeed' });
         expect(mockChat).toHaveBeenCalledWith('MiniMax-M2.7-highspeed');
+    });
+
+    it('works with M2.7 model', async () => {
+        createVercelModel({ ...baseConfig, model: 'MiniMax-M2.7' });
+        expect(mockChat).toHaveBeenCalledWith('MiniMax-M2.7');
     });
 });
