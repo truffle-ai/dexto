@@ -1,6 +1,8 @@
 import { context as otlpContext, trace, propagation } from '@opentelemetry/api';
 import type { Tracer, Context, BaggageEntry } from '@opentelemetry/api';
 import type { OtelConfiguration } from './schemas.js';
+import { TelemetryError } from './errors.js';
+import { DextoRuntimeError } from '../errors/DextoRuntimeError.js';
 
 // Type definitions for dynamically imported modules
 type NodeSDKType = import('@opentelemetry/sdk-node').NodeSDK;
@@ -20,14 +22,6 @@ type TelemetryInstanceOptions = {
     sdk?: NodeSDKType | undefined;
     shutdown?: TelemetryShutdownHandler | undefined;
 };
-
-async function getTelemetryErrorFactory(): Promise<typeof import('./errors.js').TelemetryError> {
-    return (await import('./errors.js')).TelemetryError;
-}
-
-function isDextoRuntimeError(error: unknown): boolean {
-    return error instanceof Error && error.name === 'DextoRuntimeError';
-}
 
 // Add type declaration for global namespace
 declare global {
@@ -80,7 +74,6 @@ export class Telemetry {
                 } catch (err) {
                     const error = err as NodeJS.ErrnoException;
                     if (error.code === 'ERR_MODULE_NOT_FOUND') {
-                        const TelemetryError = await getTelemetryErrorFactory();
                         throw TelemetryError.exporterDependencyNotInstalled(
                             'grpc',
                             '@opentelemetry/exporter-trace-otlp-grpc'
@@ -102,7 +95,6 @@ export class Telemetry {
             } catch (err) {
                 const error = err as NodeJS.ErrnoException;
                 if (error.code === 'ERR_MODULE_NOT_FOUND') {
-                    const TelemetryError = await getTelemetryErrorFactory();
                     throw TelemetryError.exporterDependencyNotInstalled(
                         'http',
                         '@opentelemetry/exporter-trace-otlp-http'
@@ -181,7 +173,6 @@ export class Telemetry {
                         } catch (importError) {
                             const err = importError as NodeJS.ErrnoException;
                             if (err.code === 'ERR_MODULE_NOT_FOUND') {
-                                const TelemetryError = await getTelemetryErrorFactory();
                                 throw TelemetryError.dependencyNotInstalled([
                                     '@opentelemetry/sdk-node',
                                     '@opentelemetry/instrumentation-http',
@@ -252,10 +243,9 @@ export class Telemetry {
             // Clear init promise so subsequent calls can retry
             Telemetry._initPromise = undefined;
             // Re-throw typed errors as-is, wrap unknown errors
-            if (isDextoRuntimeError(error)) {
+            if (error instanceof DextoRuntimeError) {
                 throw error;
             }
-            const TelemetryError = await getTelemetryErrorFactory();
             throw TelemetryError.initializationFailed(
                 error instanceof Error ? error.message : String(error),
                 error
@@ -291,10 +281,9 @@ export class Telemetry {
             return await Telemetry._initPromise;
         } catch (error) {
             Telemetry._initPromise = undefined;
-            if (isDextoRuntimeError(error)) {
+            if (error instanceof DextoRuntimeError) {
                 throw error;
             }
-            const TelemetryError = await getTelemetryErrorFactory();
             throw TelemetryError.initializationFailed(
                 error instanceof Error ? error.message : String(error),
                 error
@@ -314,9 +303,7 @@ export class Telemetry {
      */
     static get(): Telemetry {
         if (!globalThis.__TELEMETRY__) {
-            throw new Error(
-                'Telemetry not initialized. Call Telemetry.init() or Telemetry.registerGlobal() first.'
-            );
+            throw TelemetryError.notInitialized();
         }
         return globalThis.__TELEMETRY__;
     }

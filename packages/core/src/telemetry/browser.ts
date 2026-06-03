@@ -15,12 +15,31 @@ type TelemetryInstanceOptions = {
     shutdown?: TelemetryShutdownHandler | undefined;
 };
 
+export type BrowserTelemetryInstance = Pick<
+    Telemetry,
+    'forceFlush' | 'isInitialized' | 'name' | 'shutdown' | 'tracer'
+>;
+
+function isGlobalTelemetryLike(value: unknown): value is BrowserTelemetryInstance {
+    if (typeof value !== 'object' || value === null) {
+        return false;
+    }
+
+    return (
+        typeof Reflect.get(value, 'forceFlush') === 'function' &&
+        typeof Reflect.get(value, 'isInitialized') === 'function' &&
+        typeof Reflect.get(value, 'name') === 'string' &&
+        typeof Reflect.get(value, 'shutdown') === 'function' &&
+        Reflect.get(value, 'tracer') !== undefined
+    );
+}
+
 export class Telemetry {
     public tracer: Tracer;
     name: string;
     private _isInitialized: boolean;
     private _shutdownHandler?: TelemetryShutdownHandler | undefined;
-    private static _initPromise?: Promise<Telemetry> | undefined;
+    private static _initPromise?: Promise<BrowserTelemetryInstance> | undefined;
 
     private constructor(config: OtelConfiguration, options: TelemetryInstanceOptions) {
         const serviceName = config.serviceName ?? 'dexto-service';
@@ -32,7 +51,9 @@ export class Telemetry {
         this._isInitialized = options.initialized;
     }
 
-    static async registerGlobal(options: TelemetryRegistrationOptions = {}): Promise<Telemetry> {
+    static async registerGlobal(
+        options: TelemetryRegistrationOptions = {}
+    ): Promise<BrowserTelemetryInstance> {
         const existing = Telemetry.getGlobalInstance();
         if (existing !== undefined) {
             return existing;
@@ -63,7 +84,7 @@ export class Telemetry {
         return trace.getActiveSpan();
     }
 
-    static get(): Telemetry {
+    static get(): BrowserTelemetryInstance {
         const telemetry = Telemetry.getGlobalInstance();
         if (telemetry === undefined) {
             throw new Error('Telemetry not initialized. Call Telemetry.registerGlobal() first.');
@@ -124,9 +145,9 @@ export class Telemetry {
         }
     }
 
-    private static getGlobalInstance(): Telemetry | undefined {
+    private static getGlobalInstance(): BrowserTelemetryInstance | undefined {
         const telemetry = Reflect.get(globalThis, '__TELEMETRY__');
-        return telemetry instanceof Telemetry ? telemetry : undefined;
+        return isGlobalTelemetryLike(telemetry) ? telemetry : undefined;
     }
 
     private static setGlobalInstance(telemetry: Telemetry | undefined): void {

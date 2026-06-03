@@ -43,13 +43,6 @@ function parseJsonObject(value: unknown): Record<string, unknown> | null {
     }
 }
 
-function readScalar(value: unknown): string | number | boolean | undefined {
-    if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
-        return value;
-    }
-    return undefined;
-}
-
 function readStringOrNumber(value: unknown): string | number | undefined {
     return typeof value === 'string' || typeof value === 'number' ? value : undefined;
 }
@@ -180,7 +173,7 @@ function errorCodeForStatus(
     if (
         status === 400 &&
         (details.openRouterProviderRawCode === 'invalid_function_parameters' ||
-            details.openRouterErrorCode === 400)
+            isInvalidSchemaMessage(providerMessage(details, '')))
     ) {
         return LLMErrorCode.REQUEST_INVALID_SCHEMA;
     }
@@ -235,7 +228,13 @@ export function mapProviderError(input: MapProviderErrorInput): Error {
                 buildContext(input, extractProviderErrorDetails(input))
             );
         }
-        return input.error instanceof Error ? input.error : new Error(message);
+        return new DextoRuntimeError(
+            LLMErrorCode.GENERATION_FAILED,
+            ErrorScope.LLM,
+            ErrorType.THIRD_PARTY,
+            message,
+            buildContext(input, extractProviderErrorDetails(input))
+        );
     }
 
     const details = extractProviderErrorDetails(input);

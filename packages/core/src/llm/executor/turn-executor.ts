@@ -2225,7 +2225,6 @@ export class TurnExecutor {
      * Map provider errors to DextoRuntimeError.
      */
     private mapProviderError(err: unknown): Error {
-        if (!APICallError.isInstance?.(err)) return toError(err, this.logger);
         return mapCoreProviderError({
             error: err,
             provider: this.llmContext.provider,
