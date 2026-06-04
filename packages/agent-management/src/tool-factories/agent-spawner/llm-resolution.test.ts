@@ -75,7 +75,7 @@ describe('resolveSubAgentLLM', () => {
 
             expect(result.resolution).toBe('gateway-transform');
             expect(result.llm.provider).toBe('dexto-nova');
-            expect(result.llm.model).toBe('google/gemini-2.0-flash-001'); // Transformed
+            expect(result.llm.model).toBe('google/gemini-2.0-flash'); // Transformed
             expect(result.llm.apiKey).toBe('$DEXTO_API_KEY');
         });
     });
