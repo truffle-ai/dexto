@@ -47,13 +47,15 @@ import type { SessionEventBus, LLMFinishReason } from '../../events/index.js';
 import type { ResourceManager } from '../../resources/index.js';
 import { DynamicContributorContext } from '../../systemPrompt/types.js';
 import type { JSONSchema7 } from 'json-schema';
+import { recordOperationSpan } from '../../telemetry/operation-span.js';
 
 import type { MessageQueueService } from '../../session/message-queue.js';
 import type { StreamProcessorConfig } from './stream-processor.js';
 import type { CoalescedMessage } from '../../session/types.js';
-import { DextoRuntimeError } from '../../errors/DextoRuntimeError.js';
-import { ErrorScope, ErrorType } from '../../errors/types.js';
-import { LLMErrorCode } from '../error-codes.js';
+import {
+    extractProviderErrorDetails,
+    mapProviderError as mapCoreProviderError,
+} from './provider-error.js';
 import { toError } from '../../utils/error-conversion.js';
 import type { CompactionStrategy } from '../../context/compaction/types.js';
 import type { ModelLimits } from '../../context/compaction/overflow.js';
@@ -638,11 +640,20 @@ export class TurnExecutor {
                 this.currentModelStepId = `in-memory-model-step-${stepCount}`;
                 modelStepPreparing = true;
                 try {
-                    preparedModelRequest = await this.prepareNextModelRequest({
-                        contributorContext,
-                        supportsTools: turn.supportsTools,
-                        streaming: options.streaming,
-                    });
+                    preparedModelRequest = await recordOperationSpan(
+                        {
+                            name: 'turn.prepare_model_step',
+                            componentName: 'TurnExecutor',
+                            attributes: { 'turn.step_count': stepCount },
+                        },
+                        () =>
+                            this.prepareNextModelRequest({
+                                contributorContext,
+                                supportsTools: turn.supportsTools,
+                                streaming: options.streaming,
+                            }),
+                        this.logger
+                    );
                 } catch (error) {
                     currentStepScope[Symbol.dispose]();
                     currentStepScope = null;
@@ -669,11 +680,20 @@ export class TurnExecutor {
                         }
                         currentStepScope = this.startModelStepScope();
                         this.currentModelStepId = `in-memory-model-step-${stepCount}`;
-                        preparedModelRequest = await this.prepareNextModelRequest({
-                            contributorContext,
-                            supportsTools: turn.supportsTools,
-                            streaming: options.streaming,
-                        });
+                        preparedModelRequest = await recordOperationSpan(
+                            {
+                                name: 'turn.prepare_model_step',
+                                componentName: 'TurnExecutor',
+                                attributes: { 'turn.step_count': stepCount },
+                            },
+                            () =>
+                                this.prepareNextModelRequest({
+                                    contributorContext,
+                                    supportsTools: turn.supportsTools,
+                                    streaming: options.streaming,
+                                }),
+                            this.logger
+                        );
                     }
                     const modelStepRequest = preparedModelRequest;
                     if (currentStepScope === null || modelStepRequest === null) {
@@ -888,6 +908,12 @@ export class TurnExecutor {
             error: mappedError,
             context: 'TurnExecutor',
             recoverable: false,
+            details: extractProviderErrorDetails({
+                error,
+                provider: this.llmContext.provider,
+                model: this.llmContext.model,
+                sessionId: this.sessionId,
+            }),
         });
 
         await this.contextManager.flush();
@@ -1138,43 +1164,150 @@ export class TurnExecutor {
         // Prune old tool outputs before compaction, so pruning can avoid unnecessary compaction.
         await this.pruneOldToolOutputs();
 
-        let prepared = await this.contextManager.getFormattedMessagesForLLM(
-            input.contributorContext,
-            this.llmContext
+        let systemPrompt = await recordOperationSpan(
+            {
+                name: 'system_prompt.build',
+                componentName: 'TurnExecutor',
+                attributes: {
+                    'llm.model': this.llmContext.model,
+                    'llm.provider': this.llmContext.provider,
+                },
+            },
+            () => this.contextManager.getSystemPrompt(input.contributorContext),
+            this.logger
+        );
+
+        let { preparedHistory, formattedMessages } = await recordOperationSpan(
+            {
+                name: 'context.build_messages',
+                componentName: 'TurnExecutor',
+                attributes: {
+                    'llm.model': this.llmContext.model,
+                    'llm.provider': this.llmContext.provider,
+                },
+            },
+            async () => {
+                const preparedHistory = (await this.contextManager.prepareHistory())
+                    .preparedHistory;
+                const formattedMessages = await this.contextManager.getFormattedMessages(
+                    input.contributorContext,
+                    this.llmContext,
+                    systemPrompt,
+                    preparedHistory
+                );
+                return { preparedHistory, formattedMessages };
+            },
+            this.logger
         );
 
         const toolDefinitions = input.supportsTools
-            ? this.toolManager.filterToolsForSession(
-                  await this.toolManager.getAllTools(),
-                  this.sessionId
+            ? await recordOperationSpan(
+                  {
+                      name: 'tools.list',
+                      componentName: 'TurnExecutor',
+                      attributes: { 'tools.supports': input.supportsTools },
+                      resultAttributes: (tools) => ({ 'tools.count': Object.keys(tools).length }),
+                  },
+                  async () =>
+                      this.toolManager.filterToolsForSession(
+                          await this.toolManager.getAllTools(),
+                          this.sessionId
+                      ),
+                  this.logger
               )
             : {};
 
-        let estimatedInputTokens = await this.contextManager.getEstimatedNextInputTokens(
-            prepared.systemPrompt,
-            prepared.preparedHistory,
-            toolDefinitions
+        let estimatedInputTokens = await recordOperationSpan(
+            {
+                name: 'context.token_estimate',
+                componentName: 'TurnExecutor',
+                attributes: { 'tools.count': Object.keys(toolDefinitions).length },
+                resultAttributes: (tokens) => ({ 'context.estimated_input_tokens': tokens }),
+            },
+            () =>
+                this.contextManager.getEstimatedNextInputTokens(
+                    systemPrompt,
+                    preparedHistory,
+                    toolDefinitions
+                ),
+            this.logger
         );
 
         if (this.shouldCompact(estimatedInputTokens)) {
             this.logger.debug(
                 `Pre-check: estimated ${estimatedInputTokens} tokens exceeds threshold, compacting`
             );
-            const didCompact = await this.compactContext(
-                estimatedInputTokens,
-                input.contributorContext,
-                toolDefinitions
+            const didCompact = await recordOperationSpan(
+                {
+                    name: 'context.compact',
+                    componentName: 'TurnExecutor',
+                    attributes: { 'context.estimated_input_tokens': estimatedInputTokens },
+                },
+                () =>
+                    this.compactContext(
+                        estimatedInputTokens,
+                        input.contributorContext,
+                        toolDefinitions
+                    ),
+                this.logger
             );
 
             if (didCompact) {
-                prepared = await this.contextManager.getFormattedMessagesForLLM(
-                    input.contributorContext,
-                    this.llmContext
+                systemPrompt = await recordOperationSpan(
+                    {
+                        name: 'system_prompt.build',
+                        componentName: 'TurnExecutor',
+                        attributes: {
+                            'context.after_compaction': true,
+                            'llm.model': this.llmContext.model,
+                            'llm.provider': this.llmContext.provider,
+                        },
+                    },
+                    () => this.contextManager.getSystemPrompt(input.contributorContext),
+                    this.logger
                 );
-                estimatedInputTokens = await this.contextManager.getEstimatedNextInputTokens(
-                    prepared.systemPrompt,
-                    prepared.preparedHistory,
-                    toolDefinitions
+                ({ preparedHistory, formattedMessages } = await recordOperationSpan(
+                    {
+                        name: 'context.build_messages',
+                        componentName: 'TurnExecutor',
+                        attributes: {
+                            'context.after_compaction': true,
+                            'llm.model': this.llmContext.model,
+                            'llm.provider': this.llmContext.provider,
+                        },
+                    },
+                    async () => {
+                        const preparedHistory = (await this.contextManager.prepareHistory())
+                            .preparedHistory;
+                        const formattedMessages = await this.contextManager.getFormattedMessages(
+                            input.contributorContext,
+                            this.llmContext,
+                            systemPrompt,
+                            preparedHistory
+                        );
+                        return { preparedHistory, formattedMessages };
+                    },
+                    this.logger
+                ));
+                estimatedInputTokens = await recordOperationSpan(
+                    {
+                        name: 'context.token_estimate',
+                        componentName: 'TurnExecutor',
+                        attributes: {
+                            'context.after_compaction': true,
+                            'tools.count': Object.keys(toolDefinitions).length,
+                        },
+                        resultAttributes: (tokens) => ({
+                            'context.estimated_input_tokens': tokens,
+                        }),
+                    },
+                    () =>
+                        this.contextManager.getEstimatedNextInputTokens(
+                            systemPrompt,
+                            preparedHistory,
+                            toolDefinitions
+                        ),
+                    this.logger
                 );
                 this.logger.debug(
                     `Post-compaction: recomputed estimate is ${estimatedInputTokens} tokens`
@@ -1182,11 +1315,23 @@ export class TurnExecutor {
             }
         }
 
-        const providerOptions = buildProviderOptions({
-            provider: this.llmContext.provider,
-            model: this.llmContext.model,
-            reasoning: this.config.reasoning,
-        });
+        const providerOptions = await recordOperationSpan(
+            {
+                name: 'llm.request_setup',
+                componentName: 'TurnExecutor',
+                attributes: {
+                    'llm.model': this.llmContext.model,
+                    'llm.provider': this.llmContext.provider,
+                },
+            },
+            () =>
+                buildProviderOptions({
+                    provider: this.llmContext.provider,
+                    model: this.llmContext.model,
+                    reasoning: this.config.reasoning,
+                }),
+            this.logger
+        );
 
         // Debug log for verifying reasoning + provider options are actually being sent.
         // (Avoids logging headers/body; providerOptions captures the effective request knobs.)
@@ -1211,7 +1356,7 @@ export class TurnExecutor {
                 : undefined;
 
         return {
-            messages: prepared.formattedMessages,
+            messages: formattedMessages,
             tools: input.supportsTools ? createModelToolDefinitions(toolDefinitions) : {},
             toolDefinitions,
             estimatedInputTokens,
@@ -1255,7 +1400,8 @@ export class TurnExecutor {
             this.stepAbortController.signal,
             this.getStreamProcessorConfig(request.estimatedInputTokens, request.reasoning),
             this.logger,
-            request.streaming
+            request.streaming,
+            false
         );
 
         return streamProcessor.process(() =>
@@ -2079,92 +2225,11 @@ export class TurnExecutor {
      * Map provider errors to DextoRuntimeError.
      */
     private mapProviderError(err: unknown): Error {
-        if (APICallError.isInstance?.(err)) {
-            const status = err.statusCode;
-            const headers = (err.responseHeaders || {}) as Record<string, string>;
-            const retryAfter = headers['retry-after'] ? Number(headers['retry-after']) : undefined;
-            const body =
-                typeof err.responseBody === 'string'
-                    ? err.responseBody
-                    : JSON.stringify(err.responseBody ?? '');
-
-            if (status === 402) {
-                // Dexto gateway returns 402 with INSUFFICIENT_CREDITS when balance is low
-                // Try to extract balance from response body
-                let balance: number | undefined;
-                try {
-                    const parsed = JSON.parse(body);
-                    // Format: { error: { code: 'INSUFFICIENT_CREDITS', message: '...Balance: $X.XX...' } }
-                    const msg = parsed?.error?.message || '';
-                    const match = msg.match(/Balance:\s*\$?([\d.]+)/i);
-                    if (match) {
-                        balance = parseFloat(match[1]);
-                    }
-                } catch {
-                    // Ignore parse errors
-                }
-                return new DextoRuntimeError(
-                    LLMErrorCode.INSUFFICIENT_CREDITS,
-                    ErrorScope.LLM,
-                    ErrorType.PAYMENT_REQUIRED,
-                    `Insufficient Dexto credits${balance !== undefined ? `. Balance: $${balance.toFixed(2)}` : ''}`,
-                    {
-                        sessionId: this.sessionId,
-                        provider: this.llmContext.provider,
-                        model: this.llmContext.model,
-                        status,
-                        balance,
-                        body,
-                    },
-                    'Run `dexto billing` to check your balance'
-                );
-            }
-            if (status === 429) {
-                return new DextoRuntimeError(
-                    LLMErrorCode.RATE_LIMIT_EXCEEDED,
-                    ErrorScope.LLM,
-                    ErrorType.RATE_LIMIT,
-                    `Rate limit exceeded${body ? ` - ${body}` : ''}`,
-                    {
-                        sessionId: this.sessionId,
-                        provider: this.llmContext.provider,
-                        model: this.llmContext.model,
-                        status,
-                        retryAfter,
-                        body,
-                    }
-                );
-            }
-            if (status === 408) {
-                return new DextoRuntimeError(
-                    LLMErrorCode.GENERATION_FAILED,
-                    ErrorScope.LLM,
-                    ErrorType.TIMEOUT,
-                    `Provider timed out${body ? ` - ${body}` : ''}`,
-                    {
-                        sessionId: this.sessionId,
-                        provider: this.llmContext.provider,
-                        model: this.llmContext.model,
-                        status,
-                        body,
-                    }
-                );
-            }
-            return new DextoRuntimeError(
-                LLMErrorCode.GENERATION_FAILED,
-                ErrorScope.LLM,
-                ErrorType.THIRD_PARTY,
-                `Provider error ${status}${body ? ` - ${body}` : ''}`,
-                {
-                    sessionId: this.sessionId,
-                    provider: this.llmContext.provider,
-                    model: this.llmContext.model,
-                    status,
-                    body,
-                }
-            );
-        }
-
-        return toError(err, this.logger);
+        return mapCoreProviderError({
+            error: err,
+            provider: this.llmContext.provider,
+            model: this.llmContext.model,
+            sessionId: this.sessionId,
+        });
     }
 }

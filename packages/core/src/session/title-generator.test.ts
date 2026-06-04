@@ -28,6 +28,12 @@ vi.mock('../llm/services/factory.js', () => ({
     createVercelModel: mocks.createVercelModel,
 }));
 
+const defaultUsage = {
+    inputTokens: 11,
+    outputTokens: 3,
+    totalTokens: 14,
+};
+
 describe('generateSessionTitle', () => {
     const logger = createMockLogger();
     const llmConfig = LLMConfigSchema.parse({
@@ -41,20 +47,38 @@ describe('generateSessionTitle', () => {
     beforeEach(() => {
         vi.resetAllMocks();
         mocks.createVercelModel.mockReturnValue(createMockModel('default-model'));
-        mocks.generateText.mockResolvedValue({ text: 'Default title' });
+        mocks.generateText.mockResolvedValue({ text: 'Default title', totalUsage: defaultUsage });
     });
 
     test('passes a host-provided languageModelFactory through to direct text generation', async () => {
         const hostedModel = createMockModel('hosted-model');
         const languageModelFactory = vi.fn(() => hostedModel);
-        mocks.generateText.mockResolvedValue({ text: 'Hosted transport title' });
+        mocks.generateText.mockResolvedValue({
+            text: 'Hosted transport title',
+            totalUsage: {
+                cachedInputTokens: 4,
+                inputTokens: 22,
+                outputTokens: 5,
+                reasoningTokens: 1,
+                totalTokens: 28,
+            },
+        });
 
         const result = await generateSessionTitle(llmConfig, 'help me debug this session', logger, {
             languageModelFactory,
             providerContext: { sessionId: 'session-123', clientSource: 'web' },
         });
 
-        expect(result).toEqual({ title: 'Hosted transport title' });
+        expect(result).toEqual({
+            title: 'Hosted transport title',
+            usage: {
+                cachedInputTokens: 4,
+                inputTokens: 22,
+                outputTokens: 5,
+                reasoningTokens: 1,
+                totalTokens: 28,
+            },
+        });
         expect(languageModelFactory).toHaveBeenCalledWith({
             config: llmConfig,
             context: { sessionId: 'session-123', clientSource: 'web' },
@@ -75,7 +99,10 @@ describe('generateSessionTitle', () => {
 
         const result = await generateSessionTitle(llmConfig, 'generate a title', logger);
 
-        expect(result).toEqual({ title: 'Default title' });
+        expect(result).toEqual({
+            title: 'Default title',
+            usage: defaultUsage,
+        });
         expect(mocks.createVercelModel).toHaveBeenCalledWith(llmConfig, {});
         expect(mocks.generateText).toHaveBeenCalledWith(
             expect.objectContaining({
@@ -83,5 +110,27 @@ describe('generateSessionTitle', () => {
                 prompt: expect.stringContaining('generate a title'),
             })
         );
+    });
+
+    test('returns usage details when the LLM output cannot be used as a title', async () => {
+        mocks.generateText.mockResolvedValue({
+            text: ' ',
+            totalUsage: {
+                inputTokens: 7,
+                outputTokens: 0,
+                totalTokens: 7,
+            },
+        });
+
+        const result = await generateSessionTitle(llmConfig, 'generate a title', logger);
+
+        expect(result).toEqual({
+            error: 'LLM returned empty title',
+            usage: {
+                inputTokens: 7,
+                outputTokens: 0,
+                totalTokens: 7,
+            },
+        });
     });
 });

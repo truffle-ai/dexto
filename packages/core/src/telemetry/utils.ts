@@ -1,23 +1,26 @@
 import { propagation } from '@opentelemetry/api';
 import type { Context, Span } from '@opentelemetry/api';
-import { Telemetry } from './telemetry.js';
 import type { Logger } from '../logger/v2/types.js';
 import { getHostRuntimeAttributes, getHostRuntimeContextFromBaggage } from '../runtime/index.js';
+
+function getGlobalTelemetryInitialized(): boolean {
+    const telemetry = Reflect.get(globalThis, '__TELEMETRY__');
+    if (typeof telemetry !== 'object' || telemetry === null) {
+        return false;
+    }
+
+    const isInitialized = Reflect.get(telemetry, 'isInitialized');
+    return (
+        typeof isInitialized === 'function' && Reflect.apply(isInitialized, telemetry, []) === true
+    );
+}
 
 // Helper function to check if telemetry is active
 export function hasActiveTelemetry(logger?: Logger): boolean {
     logger?.silly('hasActiveTelemetry called.');
-    try {
-        const telemetryInstance = Telemetry.get();
-        const isActive = telemetryInstance.isInitialized();
-        logger?.silly(`hasActiveTelemetry: Telemetry is initialized: ${isActive}`);
-        return isActive;
-    } catch (error) {
-        logger?.silly(
-            `hasActiveTelemetry: Telemetry not active or initialized. Error: ${error instanceof Error ? error.message : String(error)}`
-        );
-        return false;
-    }
+    const isActive = getGlobalTelemetryInitialized();
+    logger?.silly(`hasActiveTelemetry: Telemetry is initialized: ${isActive}`);
+    return isActive;
 }
 
 /**

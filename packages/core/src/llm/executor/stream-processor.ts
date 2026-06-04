@@ -9,6 +9,7 @@ import type { ModelToolCall } from './types.js';
 import { getUsagePricingMetadata } from '../usage-metadata.js';
 import type { TokenUsageCostBreakdown } from '@dexto/llm';
 import type { LLMProvider, LLMPricingStatus, ReasoningVariant, TokenUsage } from '@dexto/llm';
+import { extractProviderErrorDetails, mapProviderError } from './provider-error.js';
 
 type UsageLike = {
     inputTokens?: number | null | undefined;
@@ -93,6 +94,8 @@ export class StreamProcessor {
      * @param config Provider/model configuration
      * @param logger Logger instance
      * @param streaming If true, emits llm:chunk events. Default true.
+     * @param emitFatalErrors If true, emits terminal llm:error events. TurnExecutor owns
+     * terminal run errors and disables this to avoid duplicate events.
      */
     constructor(
         private contextManager: ContextManager,
@@ -100,7 +103,8 @@ export class StreamProcessor {
         private abortSignal: AbortSignal,
         private config: StreamProcessorConfig,
         logger: Logger,
-        private streaming: boolean = true
+        private streaming: boolean = true,
+        private emitFatalErrors: boolean = true
     ) {
         this.logger = logger.createChild(DextoLogComponent.EXECUTOR);
         this.usageScopeId = config.usageScopeId;
@@ -399,12 +403,13 @@ export class StreamProcessor {
                     }
 
                     case 'error': {
-                        const err =
-                            event.error instanceof Error
-                                ? event.error
-                                : new Error(String(event.error));
+                        const err = mapProviderError({
+                            error: event.error,
+                            provider: this.config.provider,
+                            model: this.config.model,
+                        });
                         await this.persistFailedToolResults(err.message);
-                        throw err;
+                        throw event.error;
                     }
 
                     case 'abort': {
@@ -481,8 +486,30 @@ export class StreamProcessor {
             }
 
             // Non-abort errors are real failures
-            this.logger.error('Stream processing failed', { error });
-            throw error;
+            const mappedError = mapProviderError({
+                error,
+                provider: this.config.provider,
+                model: this.config.model,
+            });
+            if (!this.emitFatalErrors) {
+                this.logger.error('Stream processing failed', { error: mappedError });
+                throw error;
+            }
+
+            if (this.emitFatalErrors) {
+                this.eventBus.emit('llm:error', {
+                    error: mappedError,
+                    context: 'StreamProcessor',
+                    recoverable: false,
+                    details: extractProviderErrorDetails({
+                        error,
+                        provider: this.config.provider,
+                        model: this.config.model,
+                    }),
+                });
+            }
+            this.logger.error('Stream processing failed', { error: mappedError });
+            throw mappedError;
         }
 
         return {
