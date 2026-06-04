@@ -1015,13 +1015,13 @@ describe('transformModelNameForProvider', () => {
             expect(result).toBe('google/gemini-3-flash-preview');
         });
 
-        it('transforms Google stable models with -001 suffix', () => {
+        it('transforms Google stable models to the current OpenRouter catalog ID', () => {
             const result = transformModelNameForProvider(
                 'gemini-2.0-flash',
                 'google',
                 'openrouter'
             );
-            expect(result).toBe('google/gemini-2.0-flash-001');
+            expect(result).toBe('google/gemini-2.0-flash');
         });
 
         it('transforms xAI models with x-ai prefix', () => {
