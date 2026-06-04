@@ -6,6 +6,7 @@ import {
     propagation,
     SpanOptions,
     type BaggageEntry,
+    type Span,
 } from '@opentelemetry/api';
 import type { Logger } from '../logger/v2/types.js';
 import { hasActiveTelemetry, getBaggageValues } from './utils.js';
@@ -56,18 +57,11 @@ export function withSpan(options: {
                 }
             }
 
-            // Start the span with optional kind
             const spanOptions: SpanOptions = {};
             if (spanKind !== undefined) {
                 spanOptions.kind = spanKind;
             }
-            const span = tracer.startSpan(spanName, spanOptions);
-            let ctx = trace.setSpan(context.active(), span);
-
-            // Record input arguments as span attributes (sanitized and truncated)
-            args.forEach((arg, index) => {
-                span.setAttribute(`${spanName}.argument.${index}`, safeStringify(arg, 8192));
-            });
+            let ctx = context.active();
 
             // Extract baggage values from the current context (may include values set by parent spans)
             const {
@@ -80,58 +74,65 @@ export function withSpan(options: {
                 hostRuntime,
             } = getBaggageValues(ctx);
 
-            // Add all baggage values to span attributes
-            // Set both direct attributes and baggage-prefixed versions for storage schema fallback
-            if (sessionId) {
-                span.setAttribute('sessionId', sessionId);
-                span.setAttribute('baggage.sessionId', sessionId); // Fallback for storage
-            }
-
-            if (requestId) {
-                span.setAttribute('http.request_id', requestId);
-                span.setAttribute('baggage.http.request_id', requestId);
-            }
-
-            if (threadId) {
-                span.setAttribute('threadId', threadId);
-                span.setAttribute('baggage.threadId', threadId);
-            }
-
-            if (resourceId) {
-                span.setAttribute('resourceId', resourceId);
-                span.setAttribute('baggage.resourceId', resourceId);
-            }
-
-            if (runId !== undefined) {
-                span.setAttribute('runId', String(runId));
-                span.setAttribute('baggage.runId', String(runId));
-            }
-
-            for (const [key, value] of Object.entries(getHostRuntimeAttributes(hostRuntime))) {
-                span.setAttribute(key, value);
-            }
-
             const inferredComponentName = options?.componentName;
             const effectiveHostRuntime = hostRuntime;
             const effectiveRunId = effectiveHostRuntime?.ids?.runId ?? runId;
 
-            if (componentName) {
-                span.setAttribute('componentName', componentName);
-                span.setAttribute('baggage.componentName', componentName);
-            } else if (inferredComponentName) {
-                span.setAttribute('componentName', inferredComponentName);
-            }
+            const applySpanAttributes = (span: Span) => {
+                // Record input arguments as span attributes (sanitized and truncated)
+                args.forEach((arg, index) => {
+                    span.setAttribute(`${spanName}.argument.${index}`, safeStringify(arg, 8192));
+                });
 
-            if (effectiveRunId !== undefined) {
-                span.setAttribute('runId', String(effectiveRunId));
-                span.setAttribute('baggage.runId', String(effectiveRunId));
-            }
+                // Add all baggage values to span attributes
+                // Set both direct attributes and baggage-prefixed versions for storage schema fallback
+                if (sessionId) {
+                    span.setAttribute('sessionId', sessionId);
+                    span.setAttribute('baggage.sessionId', sessionId); // Fallback for storage
+                }
 
-            for (const [key, value] of Object.entries(
-                getHostRuntimeAttributes(effectiveHostRuntime)
-            )) {
-                span.setAttribute(key, value);
-            }
+                if (requestId) {
+                    span.setAttribute('http.request_id', requestId);
+                    span.setAttribute('baggage.http.request_id', requestId);
+                }
+
+                if (threadId) {
+                    span.setAttribute('threadId', threadId);
+                    span.setAttribute('baggage.threadId', threadId);
+                }
+
+                if (resourceId) {
+                    span.setAttribute('resourceId', resourceId);
+                    span.setAttribute('baggage.resourceId', resourceId);
+                }
+
+                if (runId !== undefined) {
+                    span.setAttribute('runId', String(runId));
+                    span.setAttribute('baggage.runId', String(runId));
+                }
+
+                for (const [key, value] of Object.entries(getHostRuntimeAttributes(hostRuntime))) {
+                    span.setAttribute(key, value);
+                }
+
+                if (componentName) {
+                    span.setAttribute('componentName', componentName);
+                    span.setAttribute('baggage.componentName', componentName);
+                } else if (inferredComponentName) {
+                    span.setAttribute('componentName', inferredComponentName);
+                }
+
+                if (effectiveRunId !== undefined) {
+                    span.setAttribute('runId', String(effectiveRunId));
+                    span.setAttribute('baggage.runId', String(effectiveRunId));
+                }
+
+                for (const [key, value] of Object.entries(
+                    getHostRuntimeAttributes(effectiveHostRuntime)
+                )) {
+                    span.setAttribute(key, value);
+                }
+            };
 
             // Merge with existing baggage to preserve parent context values.
             const existingBaggage = propagation.getBaggage(ctx);
@@ -186,59 +187,62 @@ export function withSpan(options: {
                 ctx = propagation.setBaggage(ctx, propagation.createBaggage(baggageEntries));
             }
 
-            let result: unknown;
-            try {
-                // Call the original method within the context
-                result = context.with(ctx, () => originalMethod.apply(this, args));
+            return tracer.startActiveSpan(spanName, spanOptions, ctx, (span) => {
+                applySpanAttributes(span);
 
-                // Handle promises
-                if (result instanceof Promise) {
-                    return result
-                        .then((resolvedValue) => {
-                            span.setAttribute(
-                                `${spanName}.result`,
-                                safeStringify(resolvedValue, 8192)
-                            );
-                            return resolvedValue;
-                        })
-                        .catch((error) => {
-                            span.recordException(error);
-                            span.setStatus({
-                                code: SpanStatusCode.ERROR,
-                                message: error?.toString(),
+                let result: unknown;
+                try {
+                    result = originalMethod.apply(this, args);
+
+                    // Handle promises
+                    if (result instanceof Promise) {
+                        return result
+                            .then((resolvedValue) => {
+                                span.setAttribute(
+                                    `${spanName}.result`,
+                                    safeStringify(resolvedValue, 8192)
+                                );
+                                return resolvedValue;
+                            })
+                            .catch((error) => {
+                                span.recordException(error);
+                                span.setStatus({
+                                    code: SpanStatusCode.ERROR,
+                                    message: error?.toString(),
+                                });
+                                throw error;
+                            })
+                            .finally(() => {
+                                span.end();
                             });
-                            throw error;
-                        })
-                        .finally(() => {
-                            span.end();
-                        });
-                }
+                    }
 
-                // Record result for non-promise returns (sanitized and truncated)
-                span.setAttribute(`${spanName}.result`, safeStringify(result, 8192));
-                // Return regular results
-                return result;
-            } catch (error) {
-                // Try to use instance logger if available (DI pattern)
-                const logger = (this as any)?.logger as Logger | undefined;
-                logger?.error(
-                    `withSpan: Error in method '${methodName}': ${error instanceof Error ? error.message : String(error)}`,
-                    { error }
-                );
-                span.setStatus({
-                    code: SpanStatusCode.ERROR,
-                    message: error instanceof Error ? error.message : 'Unknown error',
-                });
-                if (error instanceof Error) {
-                    span.recordException(error);
+                    // Record result for non-promise returns (sanitized and truncated)
+                    span.setAttribute(`${spanName}.result`, safeStringify(result, 8192));
+                    // Return regular results
+                    return result;
+                } catch (error) {
+                    // Try to use instance logger if available (DI pattern)
+                    const logger = (this as any)?.logger as Logger | undefined;
+                    logger?.error(
+                        `withSpan: Error in method '${methodName}': ${error instanceof Error ? error.message : String(error)}`,
+                        { error }
+                    );
+                    span.setStatus({
+                        code: SpanStatusCode.ERROR,
+                        message: error instanceof Error ? error.message : 'Unknown error',
+                    });
+                    if (error instanceof Error) {
+                        span.recordException(error);
+                    }
+                    throw error;
+                } finally {
+                    // End span for non-promise returns
+                    if (!(result instanceof Promise)) {
+                        span.end();
+                    }
                 }
-                throw error;
-            } finally {
-                // End span for non-promise returns
-                if (!(result instanceof Promise)) {
-                    span.end();
-                }
-            }
+            });
         };
 
         return descriptor;
