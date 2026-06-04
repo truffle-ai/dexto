@@ -167,6 +167,14 @@ function buildFixtureApi(overrides?: {
                     'gemini-3-flash-preview',
                     'Gemini 3 Flash Preview'
                 ),
+                'claude-opus-4-8@default': buildFixtureModel(
+                    'claude-opus-4-8@default',
+                    'Claude Opus 4.8',
+                    {
+                        provider: { npm: '@ai-sdk/google-vertex/anthropic' },
+                        modalities: { input: ['text', 'image'], output: ['text'] },
+                    }
+                ),
             },
         },
         'google-vertex-anthropic': {
@@ -179,6 +187,10 @@ function buildFixtureApi(overrides?: {
                 'claude-sonnet-4-5-20250929': buildFixtureModel(
                     'claude-sonnet-4-5-20250929',
                     'Claude Sonnet 4.5'
+                ),
+                'claude-opus-4-8@default': buildFixtureModel(
+                    'claude-opus-4-8@default',
+                    'Claude Opus 4.8'
                 ),
             },
         },
@@ -279,5 +291,19 @@ describe('models.dev sync mapping', () => {
                 modelsDevApi: parsed,
             })
         ).toThrowError(DextoValidationError);
+    });
+
+    it('deduplicates merged Vertex models and keeps provider metadata', () => {
+        const parsed = parseModelsDevApi(buildFixtureApi());
+
+        const modelsByProvider = buildModelsByProviderFromParsedSources({ modelsDevApi: parsed });
+        const opusModels = modelsByProvider.vertex.filter(
+            (entry) => entry.name === 'claude-opus-4-8@default'
+        );
+
+        expect(opusModels).toHaveLength(1);
+        expect(opusModels[0]?.providerMetadata).toEqual({
+            npm: '@ai-sdk/google-vertex/anthropic',
+        });
     });
 });
