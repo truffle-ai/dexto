@@ -1,5 +1,24 @@
 # dexto
 
+## 1.8.5
+
+### Patch Changes
+
+- Updated dependencies [a4a9d36]
+- Updated dependencies [ee05731]
+    - @dexto/llm@1.8.5
+    - @dexto/core@1.8.5
+    - @dexto/agent-management@1.8.5
+    - @dexto/server@1.8.5
+    - @dexto/tui@1.8.5
+    - @dexto/agent-config@1.8.5
+    - @dexto/analytics@1.8.5
+    - @dexto/client-sdk@1.8.5
+    - @dexto/image-local@1.8.5
+    - @dexto/image-logger-agent@1.8.5
+    - @dexto/storage@1.8.5
+    - @dexto/registry@1.8.5
+
 ## 1.8.4
 
 ### Patch Changes
