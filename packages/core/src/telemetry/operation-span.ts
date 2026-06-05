@@ -25,40 +25,41 @@ export async function recordOperationSpan<T>(
         return operation();
     }
 
-    const span = trace
+    return trace
         .getTracer(options.tracerName ?? 'dexto')
-        .startSpan(options.name, { kind: SpanKind.INTERNAL });
-    const spanContext = trace.setSpan(context.active(), span);
+        .startActiveSpan(options.name, { kind: SpanKind.INTERNAL }, async (span) => {
+            const spanContext = trace.setSpan(context.active(), span);
 
-    addBaggageAttributesToSpan(span, spanContext, logger);
-    if (options.componentName !== undefined) {
-        span.setAttribute('componentName', options.componentName);
-    }
-    setOperationSpanAttributes(span, options.attributes);
+            addBaggageAttributesToSpan(span, spanContext, logger);
+            if (options.componentName !== undefined) {
+                span.setAttribute('componentName', options.componentName);
+            }
+            setOperationSpanAttributes(span, options.attributes);
 
-    try {
-        const result = await context.with(spanContext, operation);
-        try {
-            setOperationSpanAttributes(span, options.resultAttributes?.(result));
-        } catch (error) {
-            logger?.debug('Failed to set OpenTelemetry result attributes', {
-                error: error instanceof Error ? error.message : String(error),
-                span: options.name,
-            });
-        }
-        span.setStatus({ code: SpanStatusCode.OK });
-        return result;
-    } catch (error) {
-        if (error instanceof Error) {
-            span.recordException(error);
-            span.setStatus({ code: SpanStatusCode.ERROR, message: error.message });
-        } else {
-            span.setStatus({ code: SpanStatusCode.ERROR, message: String(error) });
-        }
-        throw error;
-    } finally {
-        span.end();
-    }
+            try {
+                const result = await operation();
+                try {
+                    setOperationSpanAttributes(span, options.resultAttributes?.(result));
+                } catch (error) {
+                    logger?.debug('Failed to set OpenTelemetry result attributes', {
+                        error: error instanceof Error ? error.message : String(error),
+                        span: options.name,
+                    });
+                }
+                span.setStatus({ code: SpanStatusCode.OK });
+                return result;
+            } catch (error) {
+                if (error instanceof Error) {
+                    span.recordException(error);
+                    span.setStatus({ code: SpanStatusCode.ERROR, message: error.message });
+                } else {
+                    span.setStatus({ code: SpanStatusCode.ERROR, message: String(error) });
+                }
+                throw error;
+            } finally {
+                span.end();
+            }
+        });
 }
 
 function setOperationSpanAttributes(

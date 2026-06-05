@@ -1,4 +1,11 @@
 import { describe, test, expect, vi, beforeEach, afterEach } from 'vitest';
+import { context as otelContext, trace } from '@opentelemetry/api';
+import { AsyncHooksContextManager } from '@opentelemetry/context-async-hooks';
+import {
+    BasicTracerProvider,
+    InMemorySpanExporter,
+    SimpleSpanProcessor,
+} from '@opentelemetry/sdk-trace-base';
 import { ChatSession } from './chat-session.js';
 import { type ValidatedLLMConfig } from '../llm/schemas.js';
 import { LLMConfigSchema } from '../llm/schemas.js';
@@ -317,6 +324,8 @@ describe('ChatSession', () => {
         if (chatSession) {
             chatSession.dispose();
         }
+        Reflect.deleteProperty(globalThis, '__TELEMETRY__');
+        trace.disable();
     });
 
     describe('Session Identity and Lifecycle', () => {
@@ -650,6 +659,59 @@ describe('ChatSession', () => {
             mockServices.agentEventBus.emit.mockClear();
             chatSession.eventBus.emit('llm:thinking', {});
             expect(mockServices.agentEventBus.emit).not.toHaveBeenCalled();
+        });
+
+        test('records setup spans under the active trace parent', async () => {
+            const exporter = new InMemorySpanExporter();
+            const provider = new BasicTracerProvider();
+            const contextManager = new AsyncHooksContextManager().enable();
+            provider.addSpanProcessor(new SimpleSpanProcessor(exporter));
+            provider.register({ contextManager });
+            Reflect.set(globalThis, '__TELEMETRY__', { isInitialized: () => true });
+
+            await chatSession.init();
+            mockLLMService.createTurnDriver.mockResolvedValue(createMockTurnDriver());
+
+            const parentSpan = trace.getTracer('test').startSpan('cloud.parent_turn');
+            try {
+                await otelContext.with(trace.setSpan(otelContext.active(), parentSpan), () =>
+                    chatSession.createTurnDriver({
+                        kind: 'start',
+                        content: 'hello',
+                    })
+                );
+
+                const spans = exporter.getFinishedSpans();
+                const parentContext = parentSpan.spanContext();
+                const setupSpans = spans.filter((span) =>
+                    [
+                        'chat_session.prepare_turn_input',
+                        'chat_session.add_user_message',
+                        'chat_session.create_llm_turn_driver',
+                    ].includes(span.name)
+                );
+
+                expect(setupSpans.map((span) => span.name)).toEqual([
+                    'chat_session.prepare_turn_input',
+                    'chat_session.add_user_message',
+                    'chat_session.create_llm_turn_driver',
+                ]);
+                expect(setupSpans).toHaveLength(3);
+                for (const span of setupSpans) {
+                    expect(span.spanContext().traceId).toBe(parentContext.traceId);
+                    expect(span).toHaveProperty('parentSpanId', parentContext.spanId);
+                    expect(span.attributes).toEqual(
+                        expect.objectContaining({
+                            'session.id': sessionId,
+                            'turn.kind': 'start',
+                        })
+                    );
+                }
+            } finally {
+                parentSpan.end();
+                await provider.shutdown();
+                contextManager.disable();
+            }
         });
 
         test('checkpoints through the session driver and resumes that state without a new user message', async () => {

@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { SpanStatusCode, trace } from '@opentelemetry/api';
+import { AsyncHooksContextManager } from '@opentelemetry/context-async-hooks';
 import {
     BasicTracerProvider,
     InMemorySpanExporter,
@@ -8,14 +9,16 @@ import {
 import { recordOperationSpan } from './operation-span.js';
 
 describe('recordOperationSpan', () => {
+    let contextManager: AsyncHooksContextManager | undefined;
     let exporter: InMemorySpanExporter;
     let provider: BasicTracerProvider | undefined;
 
     beforeEach(() => {
+        contextManager = new AsyncHooksContextManager().enable();
         exporter = new InMemorySpanExporter();
         provider = new BasicTracerProvider();
         provider.addSpanProcessor(new SimpleSpanProcessor(exporter));
-        provider.register();
+        provider.register({ contextManager });
     });
 
     afterEach(async () => {
@@ -23,6 +26,8 @@ describe('recordOperationSpan', () => {
             await provider.shutdown();
             provider = undefined;
         }
+        contextManager?.disable();
+        contextManager = undefined;
         trace.disable();
     });
 
@@ -70,5 +75,30 @@ describe('recordOperationSpan', () => {
             .find((span) => span.name === 'context.token_estimate');
 
         expect(span?.status.code).toBe(SpanStatusCode.OK);
+    });
+
+    it('keeps spans created inside the operation under the operation span', async () => {
+        await recordOperationSpan(
+            {
+                name: 'operation.parent',
+                skipIfNoTelemetry: false,
+            },
+            () =>
+                trace.getTracer('test').startActiveSpan('operation.child', (span) => {
+                    span.end();
+                    return 'ok';
+                })
+        );
+
+        const parent = exporter.getFinishedSpans().find((span) => span.name === 'operation.parent');
+        const child = exporter.getFinishedSpans().find((span) => span.name === 'operation.child');
+
+        expect(parent).toBeDefined();
+        expect(child).toBeDefined();
+        if (parent === undefined || child === undefined) {
+            throw new Error('Expected parent and child spans to be recorded.');
+        }
+        expect(child.spanContext().traceId).toBe(parent.spanContext().traceId);
+        expect(child).toHaveProperty('parentSpanId', parent.spanContext().spanId);
     });
 });
