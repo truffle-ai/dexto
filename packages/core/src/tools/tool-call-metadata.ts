@@ -125,10 +125,14 @@ function mergePropertySchema(
         return current;
     }
 
-    const currentEnum = readEnumValues(current);
-    const nextEnum = readEnumValues(next);
-    if (currentEnum !== undefined && nextEnum !== undefined) {
-        return { enum: mergeEnumValues([...currentEnum, ...nextEnum]) };
+    const currentEnumValues = readEnumValues(current);
+    const nextEnumValues = readEnumValues(next);
+    if (currentEnumValues !== undefined && nextEnumValues !== undefined) {
+        return { enum: mergeEnumValues([...currentEnumValues, ...nextEnumValues]) };
+    }
+
+    if (currentEnumValues !== undefined || nextEnumValues !== undefined) {
+        return {};
     }
 
     if (current.type !== undefined && valuesEqual(current.type, next.type)) {
