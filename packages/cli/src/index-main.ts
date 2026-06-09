@@ -95,6 +95,8 @@ import { registerImageCommand } from './cli/commands/image/register.js';
 import { registerPluginCommand } from './cli/commands/plugin/register.js';
 import { registerAgentsCommand } from './cli/commands/agents/register.js';
 import { registerDeployCommand } from './cli/commands/deploy/register.js';
+import { registerSpanCommand } from './cli/commands/span/register.js';
+import { registerTraceCommand } from './cli/commands/trace/register.js';
 import { registerInitCommand } from './cli/commands/init.js';
 import type { BootstrapAgentMode } from './cli/commands/register-context.js';
 import type { MainModeOptions } from './cli/modes/context.js';
@@ -209,6 +211,8 @@ program
 
 registerImageCommand({ program });
 registerDeployCommand({ program });
+registerSpanCommand({ program });
+registerTraceCommand({ program });
 registerInitCommand({ program });
 
 // 4) `init-app` SUB-COMMAND
