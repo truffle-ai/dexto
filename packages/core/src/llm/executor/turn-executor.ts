@@ -64,6 +64,10 @@ import type { AgentRunContext } from '../../runtime/run-context.js';
 import { createModelToolDefinitions } from './tool-definitions.js';
 import { ApprovalStatus, type ApprovalResponse } from '../../approval/types.js';
 import type { ApprovalDecisionInput } from '../../approval/manager.js';
+import {
+    describeContentPartsForAudit,
+    describeInternalMessageTailForAudit,
+} from '../../context/content-audit.js';
 
 const MCP_TOOL_PREFIX = 'mcp--';
 const MODEL_REQUEST_MAX_RETRIES = 2;
@@ -1057,10 +1061,12 @@ export class TurnExecutor {
             },
         });
 
-        this.logger.info(`Injected ${coalesced.messages.length} queued message(s) into context`, {
+        this.logger.info('Queued turn input injected into context', {
             count: coalesced.messages.length,
             firstQueued: coalesced.firstQueuedAt,
             lastQueued: coalesced.lastQueuedAt,
+            originalMessageIds: coalesced.messages.map((message) => message.id),
+            content: await describeContentPartsForAudit(coalesced.combinedContent),
         });
     }
 
@@ -1241,6 +1247,7 @@ export class TurnExecutor {
             this.logger
         );
 
+        let compacted = false;
         if (this.shouldCompact(estimatedInputTokens)) {
             this.logger.debug(
                 `Pre-check: estimated ${estimatedInputTokens} tokens exceeds threshold, compacting`
@@ -1261,6 +1268,7 @@ export class TurnExecutor {
             );
 
             if (didCompact) {
+                compacted = true;
                 systemPrompt = await recordOperationSpan(
                     {
                         name: 'system_prompt.build',
@@ -1362,6 +1370,22 @@ export class TurnExecutor {
                       ...(reasoningBudgetTokens !== undefined && { reasoningBudgetTokens }),
                   }
                 : undefined;
+
+        this.logger.info('Model request context prepared', {
+            sessionId: this.sessionId,
+            provider: this.llmContext.provider,
+            model: this.llmContext.model,
+            streaming: input.streaming,
+            estimatedInputTokens,
+            toolCount: Object.keys(toolDefinitions).length,
+            formattedMessageCount: formattedMessages.length,
+            preparedHistoryCount: preparedHistory.length,
+            compacted,
+            ...(this.runContext?.hostRuntime?.ids !== undefined && {
+                hostRuntimeIds: this.runContext.hostRuntime.ids,
+            }),
+            historyTail: await describeInternalMessageTailForAudit(preparedHistory, 8),
+        });
 
         return {
             messages: formattedMessages,

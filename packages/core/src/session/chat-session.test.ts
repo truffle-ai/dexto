@@ -616,6 +616,36 @@ describe('ChatSession', () => {
             expect(mockContextManager.addUserMessage).toHaveBeenCalledWith([
                 { type: 'text', text: 'modified prompt' },
             ]);
+            expect(mockLogger.info).toHaveBeenCalledWith(
+                'ChatSession turn input received',
+                expect.objectContaining({
+                    sessionId,
+                    turnKind: 'start',
+                    streaming: true,
+                    hostRuntimeIds: runContext.hostRuntime.ids,
+                    content: expect.objectContaining({
+                        totalParts: 1,
+                        textParts: 1,
+                        textLength: 5,
+                        textSha256:
+                            '2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824',
+                    }),
+                })
+            );
+            expect(mockLogger.info).toHaveBeenCalledWith(
+                'ChatSession turn input persisted',
+                expect.objectContaining({
+                    sessionId,
+                    turnKind: 'start',
+                    hostRuntimeIds: runContext.hostRuntime.ids,
+                    content: expect.objectContaining({
+                        totalParts: 1,
+                        textParts: 1,
+                        textLength: 15,
+                        textSha256: expect.any(String),
+                    }),
+                })
+            );
             expect(mockLLMService.createTurnDriver).toHaveBeenCalledWith(
                 expect.objectContaining({
                     signal: expect.any(AbortSignal),

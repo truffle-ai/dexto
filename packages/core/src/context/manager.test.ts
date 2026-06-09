@@ -95,6 +95,16 @@ describe('ContextManager', () => {
             expect(history).toHaveLength(1);
             expect(history[0]?.role).toBe('user');
             expect(history[0]?.content).toEqual([{ type: 'text', text: 'Hello, world!' }]);
+            expect(mockLogger.info).toHaveBeenCalledWith('User message received', {
+                totalParts: 1,
+                textParts: 1,
+                imageParts: 0,
+                fileParts: 0,
+                resourceParts: 0,
+                uiResourceParts: 0,
+                textLength: 13,
+                textSha256: '315f5bdb76d078c43b8ac0064e4a0164612b1fce77c869345bfc94c75894edd3',
+            });
         });
 
         it('should add a user message with multiple text parts', async () => {

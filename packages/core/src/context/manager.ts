@@ -22,6 +22,7 @@ import { ValidatedLLMConfig } from '../llm/schemas.js';
 import type { ToolPresentationSnapshotV1 } from '../tools/types.js';
 import type { ToolCallMetadata } from '../tools/tool-call-metadata.js';
 import { getResourceKind } from './media-helpers.js';
+import { describeContentPartsForAudit } from './content-audit.js';
 
 /**
  * Manages conversation history and provides message formatting capabilities for the LLM context.
@@ -839,18 +840,8 @@ export class ContextManager<TMessage = unknown> {
             }
         }
 
-        // Count parts for logging
-        const textParts = processedParts.filter((p) => p.type === 'text');
-        const imageParts = processedParts.filter((p) => p.type === 'image');
-        const fileParts = processedParts.filter((p) => p.type === 'file');
-        const resourceParts = processedParts.filter((p) => p.type === 'resource');
-
         this.logger.info('User message received', {
-            textParts: textParts.length,
-            imageParts: imageParts.length,
-            fileParts: fileParts.length,
-            resourceParts: resourceParts.length,
-            totalParts: processedParts.length,
+            ...(await describeContentPartsForAudit(processedParts)),
         });
 
         await this.addMessage({ role: 'user', content: processedParts });
