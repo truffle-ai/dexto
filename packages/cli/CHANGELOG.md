@@ -1,5 +1,23 @@
 # dexto
 
+## 1.8.6
+
+### Patch Changes
+
+- e55c586: Add hosted trace and span inspection commands for debugging cloud agent runs.
+    - @dexto/core@1.8.6
+    - @dexto/storage@1.8.6
+    - @dexto/llm@1.8.6
+    - @dexto/agent-config@1.8.6
+    - @dexto/client-sdk@1.8.6
+    - @dexto/agent-management@1.8.6
+    - @dexto/analytics@1.8.6
+    - @dexto/registry@1.8.6
+    - @dexto/server@1.8.6
+    - @dexto/image-local@1.8.6
+    - @dexto/image-logger-agent@1.8.6
+    - @dexto/tui@1.8.6
+
 ## 1.8.5
 
 ### Patch Changes

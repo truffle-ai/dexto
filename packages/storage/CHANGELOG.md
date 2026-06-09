@@ -1,5 +1,11 @@
 # @dexto/storage
 
+## 1.8.6
+
+### Patch Changes
+
+- @dexto/core@1.8.6
+
 ## 1.8.5
 
 ### Patch Changes
