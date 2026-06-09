@@ -283,6 +283,7 @@ type ModelStepRequestState = z.output<typeof ModelStepRequestStateSchema>;
 type ModelStepPreparationInput = {
     contributorContext: DynamicContributorContext;
     supportsTools: boolean;
+    stepCount: number;
     streaming: boolean;
 };
 
@@ -650,6 +651,7 @@ export class TurnExecutor {
                             this.prepareNextModelRequest({
                                 contributorContext,
                                 supportsTools: turn.supportsTools,
+                                stepCount,
                                 streaming: options.streaming,
                             }),
                         this.logger
@@ -690,6 +692,7 @@ export class TurnExecutor {
                                 this.prepareNextModelRequest({
                                     contributorContext,
                                     supportsTools: turn.supportsTools,
+                                    stepCount,
                                     streaming: options.streaming,
                                 }),
                             this.logger
@@ -1156,9 +1159,14 @@ export class TurnExecutor {
         input: ModelStepPreparationInput
     ): Promise<ModelStepRequest> {
         // Check for queued messages before preparing context for the next model request.
-        const coalesced = await this.steerQueue.dequeueAll();
-        if (coalesced) {
-            await this.injectQueuedMessages(coalesced);
+        //
+        // Step 0 already has the submitted turn input. Holding steer until a later boundary keeps
+        // immediately submitted guidance from being folded into the first visible assistant answer.
+        if (input.stepCount > 0) {
+            const coalesced = await this.steerQueue.dequeueAll();
+            if (coalesced) {
+                await this.injectQueuedMessages(coalesced);
+            }
         }
 
         // Prune old tool outputs before compaction, so pruning can avoid unnecessary compaction.
