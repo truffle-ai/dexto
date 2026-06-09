@@ -2270,6 +2270,43 @@ describe('TurnExecutor Integration Tests', () => {
     });
 
     describe('Message Queue Injection', () => {
+        it('prepares steer queued before the first model request with the initial user input', async () => {
+            const queued = await steerQueue.enqueue({
+                content: [{ type: 'text', text: 'Then tell me about Messi' }],
+            });
+            await contextManager.addUserMessage([
+                { type: 'text', text: 'Tell me a story about Neymar' },
+            ]);
+            const driver = await executor.createDriver({ mcpManager }, { streaming: true });
+
+            try {
+                await driver.prepareNextModelStep();
+                const state = driver.getState();
+                if (state.phase !== 'model-step-prepared') {
+                    throw new Error(`Expected prepared model step, received ${state.phase}`);
+                }
+
+                const requestJson = JSON.stringify(state.request.messages);
+                expect(requestJson).toContain('Tell me a story about Neymar');
+                expect(requestJson).toContain('Then tell me about Messi');
+
+                const history = await contextManager.getHistory();
+                const userMessages = history.filter((message) => message.role === 'user');
+                expect(userMessages).toHaveLength(2);
+                expect(userMessages[1]).toEqual(
+                    expect.objectContaining({
+                        metadata: expect.objectContaining({
+                            coalesced: false,
+                            messageCount: 1,
+                            originalMessageIds: [queued.id],
+                        }),
+                    })
+                );
+            } finally {
+                driver.dispose();
+            }
+        });
+
         it('should inject queued messages into context', async () => {
             await steerQueue.enqueue({
                 content: [{ type: 'text', text: 'User guidance: focus on performance' }],
