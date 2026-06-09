@@ -1,7 +1,7 @@
 import { z } from 'zod';
+import { DEXTO_PLATFORM_URL } from '../../auth/constants.js';
 import { getDextoApiKey } from '../../auth/service.js';
 
-const DEFAULT_TRACE_PLATFORM_URL = 'https://dexto-cloudflare.rahul-630.workers.dev';
 const TRACE_REQUEST_TIMEOUT_MS = 10_000;
 
 const RunTraceSpanStatusSchema = z.enum(['running', 'completed', 'failed', 'cancelled']);
@@ -106,8 +106,7 @@ export interface ListRunSpansOptions extends RequestOptions {
 }
 
 export function resolveTracePlatformUrl(platformUrl?: string): string {
-    const rawUrl =
-        platformUrl?.trim() || process.env.DEXTO_PLATFORM_URL || DEFAULT_TRACE_PLATFORM_URL;
+    const rawUrl = platformUrl?.trim() || DEXTO_PLATFORM_URL;
     if (rawUrl.trim().length === 0) {
         throw new Error('Dexto platform URL is empty.');
     }

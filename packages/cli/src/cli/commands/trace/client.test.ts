@@ -207,10 +207,10 @@ describe('createTraceClient', () => {
         );
     });
 
-    it('defaults trace reads to the hosted Cloudflare app', async () => {
+    it('defaults trace reads to the hosted Dexto platform', async () => {
         const { resolveTracePlatformUrl } = await import('./client.js');
 
-        expect(resolveTracePlatformUrl()).toBe('https://dexto-cloudflare.rahul-630.workers.dev');
+        expect(resolveTracePlatformUrl()).toBe('https://platform.dexto.ai');
     });
 
     it('honors DEXTO_PLATFORM_URL for trace reads', async () => {
