@@ -507,6 +507,25 @@ function buildModelsFromModelsDevProvider(params: {
     return results;
 }
 
+function hasProviderMetadata(model: GeneratedModelInfo): boolean {
+    return model.providerMetadata != null && Object.keys(model.providerMetadata).length > 0;
+}
+
+function dedupeModelsByNamePreferProviderMetadata(
+    models: GeneratedModelInfo[]
+): GeneratedModelInfo[] {
+    const byName = new Map<string, GeneratedModelInfo>();
+
+    for (const model of models) {
+        const existing = byName.get(model.name);
+        if (!existing || (!hasProviderMetadata(existing) && hasProviderMetadata(model))) {
+            byName.set(model.name, model);
+        }
+    }
+
+    return [...byName.values()].sort((a, b) => a.name.localeCompare(b.name));
+}
+
 async function loadModelsDevApiJsonText(): Promise<string> {
     const localPath = process.env.DEXTO_MODELS_DEV_API_JSON;
     if (localPath) {
@@ -626,7 +645,7 @@ async function syncLlmRegistry() {
         }),
         litellm: [],
         glama: [],
-        vertex: [
+        vertex: dedupeModelsByNamePreferProviderMetadata([
             ...buildModelsFromModelsDevProvider({
                 provider: 'vertex',
                 modelsDevApi: modelsDevJson,
@@ -641,7 +660,7 @@ async function syncLlmRegistry() {
                 defaultModelId: undefined,
                 includeModelId: include.vertex,
             }),
-        ].sort((a, b) => a.name.localeCompare(b.name)),
+        ]),
         bedrock: buildModelsFromModelsDevProvider({
             provider: 'bedrock',
             modelsDevApi: modelsDevJson,

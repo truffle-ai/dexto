@@ -1,5 +1,11 @@
 # @dexto/llm
 
+## 1.8.5
+
+### Patch Changes
+
+- a4a9d36: Refresh the generated model catalog from models.dev.
+
 ## 1.8.4
 
 ## 1.8.3

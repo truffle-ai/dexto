@@ -131,6 +131,10 @@ function mergePropertySchema(
         return { enum: mergeEnumValues([...currentEnumValues, ...nextEnumValues]) };
     }
 
+    if (currentEnumValues !== undefined || nextEnumValues !== undefined) {
+        return {};
+    }
+
     if (current.type !== undefined && valuesEqual(current.type, next.type)) {
         return { type: current.type };
     }

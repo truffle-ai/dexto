@@ -37,6 +37,7 @@ import type { VercelLLMService } from '../llm/services/vercel.js';
 import type { AgentRunContext } from '../runtime/run-context.js';
 import { SessionError } from './errors.js';
 import type { TurnDriver, TurnDriverState } from '../llm/executor/turn-executor.js';
+import { recordOperationSpan } from '../telemetry/operation-span.js';
 
 export type ChatSessionTurnDriverInput =
     | {
@@ -638,20 +639,50 @@ export class ChatSession {
 
         try {
             if (input.kind === 'start') {
-                const modifiedParts = await this.prepareTurnInput(
-                    input.content,
-                    signal,
-                    input.runContext
+                const modifiedParts = await recordOperationSpan(
+                    {
+                        name: 'chat_session.prepare_turn_input',
+                        attributes: {
+                            'session.id': this.id,
+                            'turn.kind': input.kind,
+                        },
+                    },
+                    () => this.prepareTurnInput(input.content, signal, input.runContext),
+                    this.logger
                 );
-                await this.llmService.getContextManager().addUserMessage(modifiedParts);
+                await recordOperationSpan(
+                    {
+                        name: 'chat_session.add_user_message',
+                        attributes: {
+                            'session.id': this.id,
+                            'turn.kind': input.kind,
+                            'message.parts': modifiedParts.length,
+                        },
+                    },
+                    () => this.llmService.getContextManager().addUserMessage(modifiedParts),
+                    this.logger
+                );
             }
 
-            const driver = await this.llmService.createTurnDriver({
-                signal,
-                streaming: input.streaming ?? true,
-                ...(input.runContext !== undefined && { runContext: input.runContext }),
-                ...(input.kind === 'resume' ? { state: input.state } : {}),
-            });
+            const streaming = input.streaming ?? true;
+            const driver = await recordOperationSpan(
+                {
+                    name: 'chat_session.create_llm_turn_driver',
+                    attributes: {
+                        'session.id': this.id,
+                        'turn.kind': input.kind,
+                        'turn.streaming': streaming,
+                    },
+                },
+                () =>
+                    this.llmService.createTurnDriver({
+                        signal,
+                        streaming,
+                        ...(input.runContext !== undefined && { runContext: input.runContext }),
+                        ...(input.kind === 'resume' ? { state: input.state } : {}),
+                    }),
+                this.logger
+            );
 
             return this.wrapTurnDriver(driver, signal, input.runContext, detachForwarders);
         } catch (error) {

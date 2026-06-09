@@ -1,4 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import {
+    BasicTracerProvider,
+    InMemorySpanExporter,
+    SimpleSpanProcessor,
+} from '@opentelemetry/sdk-trace-base';
 import { z } from 'zod';
 import { parseTurnDriverState, TurnExecutor, type TurnDriverState } from './turn-executor.js';
 import { ContextManager } from '../../context/manager.js';
@@ -132,6 +137,7 @@ vi.mock('@opentelemetry/api', async (importOriginal) => {
         ...actual,
         trace: {
             ...actual.trace,
+            getTracer: actual.trace.getTracer.bind(actual.trace),
             getActiveSpan: vi.fn(() => null),
         },
     };
@@ -427,6 +433,7 @@ describe('TurnExecutor Integration Tests', () => {
     });
 
     afterEach(async () => {
+        Reflect.deleteProperty(globalThis, '__TELEMETRY__');
         vi.restoreAllMocks();
         await stores.disconnect();
         logger.destroy();
@@ -1001,6 +1008,122 @@ describe('TurnExecutor Integration Tests', () => {
                 ]);
             } finally {
                 driver.dispose();
+            }
+        });
+
+        it('records turn loop spans for model steps and tool execution', async () => {
+            const exporter = new InMemorySpanExporter();
+            const provider = new BasicTracerProvider();
+            provider.addSpanProcessor(new SimpleSpanProcessor(exporter));
+            provider.register();
+            Reflect.set(globalThis, '__TELEMETRY__', { isInitialized: () => true });
+
+            const executeTool = vi.fn(async () => 'telemetry result');
+            toolManager.addTools([
+                defineTool({
+                    id: 'telemetry_tool',
+                    description: 'Telemetry tool',
+                    inputSchema: z.object({ value: z.string() }).strict(),
+                    execute: executeTool,
+                }),
+            ]);
+
+            vi.mocked(streamText)
+                .mockImplementationOnce(
+                    () =>
+                        createMockStream({
+                            finishReason: 'tool-calls',
+                            toolCalls: [
+                                {
+                                    toolCallId: 'call-telemetry',
+                                    toolName: 'telemetry_tool',
+                                    args: { value: 'one' },
+                                },
+                            ],
+                        }) as unknown as ReturnType<typeof streamText>
+                )
+                .mockImplementationOnce(
+                    () =>
+                        createMockStream({
+                            text: 'done',
+                            finishReason: 'stop',
+                        }) as unknown as ReturnType<typeof streamText>
+                );
+
+            try {
+                await contextManager.addUserMessage([{ type: 'text', text: 'Use tools' }]);
+                await expect(executor.execute({ mcpManager }, true)).resolves.toMatchObject({
+                    finishReason: 'stop',
+                    text: 'done',
+                });
+
+                const spans = exporter.getFinishedSpans();
+                const names = spans.map((span) => span.name);
+
+                expect(names).toEqual(
+                    expect.arrayContaining([
+                        'turn.run_model_step',
+                        'llm.stream',
+                        'turn.execute_tool_calls',
+                        'tool.prepare',
+                        'tool.execute',
+                        'tool.persist_result',
+                        'turn.decide_next_step',
+                    ])
+                );
+
+                const firstModelStep = spans.find(
+                    (span) =>
+                        span.name === 'turn.run_model_step' &&
+                        span.attributes['turn.step_count'] === 0
+                );
+                const stream = spans.find((span) => span.name === 'llm.stream');
+                const executeTools = spans.find((span) => span.name === 'turn.execute_tool_calls');
+                const toolExecute = spans.find((span) => span.name === 'tool.execute');
+
+                expect(firstModelStep?.attributes).toEqual(
+                    expect.objectContaining({
+                        'llm.finish_reason': 'tool-calls',
+                        'llm.model': 'gpt-4',
+                        'llm.provider': 'openai',
+                        'tool.count': 1,
+                        'turn.step_count': 0,
+                    })
+                );
+                expect(stream?.attributes).toEqual(
+                    expect.objectContaining({
+                        'llm.finish_reason': 'tool-calls',
+                        'tool.count': 1,
+                    })
+                );
+                expect(executeTools?.attributes).toEqual(
+                    expect.objectContaining({
+                        'tool.count': 1,
+                        'turn.step_count': 0,
+                    })
+                );
+                expect(toolExecute?.attributes).toEqual(
+                    expect.objectContaining({
+                        'tool.call_id': 'call-telemetry',
+                        'tool.name': 'telemetry_tool',
+                        'tool.success': true,
+                    })
+                );
+                expect(stream).toBeDefined();
+                expect(firstModelStep).toBeDefined();
+                expect(executeTools).toBeDefined();
+                expect(toolExecute).toBeDefined();
+                if (
+                    stream === undefined ||
+                    firstModelStep === undefined ||
+                    executeTools === undefined ||
+                    toolExecute === undefined
+                ) {
+                    throw new Error('Expected telemetry spans to be recorded.');
+                }
+            } finally {
+                Reflect.deleteProperty(globalThis, '__TELEMETRY__');
+                await provider.shutdown();
             }
         });
 

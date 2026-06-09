@@ -23,6 +23,7 @@ import { ErrorScope, ErrorType } from '../../errors/types.js';
 import { LLMErrorCode } from '../error-codes.js';
 import type { ContentInput } from '../../agent/types.js';
 import type { AgentRunContext } from '../../runtime/run-context.js';
+import { recordOperationSpan } from '../../telemetry/operation-span.js';
 
 export function ensureRunContextMatchesServiceSession(
     serviceSessionId: string,
@@ -152,11 +153,39 @@ export class VercelLLMService {
     async createTurnDriver(options: CreateTurnDriverOptions = {}): Promise<TurnDriver> {
         const sessionId = ensureRunContextMatchesServiceSession(this.sessionId, options.runContext);
         const executor = this.createTurnExecutor(options.signal, options.runContext);
-        const contributorContext = await this.toolManager.buildContributorContext({ sessionId });
-        return executor.createDriver(contributorContext, {
-            streaming: options.streaming ?? true,
-            ...(options.state !== undefined ? { state: options.state } : {}),
-        });
+        const contributorContext = await recordOperationSpan(
+            {
+                name: 'llm.vercel.build_contributor_context',
+                attributes: {
+                    'session.id': sessionId,
+                },
+                resultAttributes: (context) => ({
+                    'tool.has_workspace_context': context.workspace !== null,
+                    'tool.has_environment_context': context.environment !== undefined,
+                    'tool.session_prompt_contributors':
+                        context.session?.systemPromptContributors?.length ?? 0,
+                }),
+            },
+            () => this.toolManager.buildContributorContext({ sessionId }),
+            this.logger
+        );
+        const streaming = options.streaming ?? true;
+        return recordOperationSpan(
+            {
+                name: 'llm.vercel.create_turn_executor_driver',
+                attributes: {
+                    'session.id': sessionId,
+                    'turn.streaming': streaming,
+                    'turn.resume': options.state !== undefined,
+                },
+            },
+            () =>
+                executor.createDriver(contributorContext, {
+                    streaming,
+                    ...(options.state !== undefined ? { state: options.state } : {}),
+                }),
+            this.logger
+        );
     }
 
     /**
