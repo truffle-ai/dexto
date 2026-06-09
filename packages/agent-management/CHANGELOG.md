@@ -1,5 +1,15 @@
 # @dexto/agent-management
 
+## 1.8.6
+
+### Patch Changes
+
+- @dexto/core@1.8.6
+- @dexto/llm@1.8.6
+- @dexto/agent-config@1.8.6
+- @dexto/tools-builtins@1.8.6
+- @dexto/orchestration@1.8.6
+
 ## 1.8.5
 
 ### Patch Changes
