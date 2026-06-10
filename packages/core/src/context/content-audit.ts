@@ -117,7 +117,11 @@ async function sha256Hex(input: string): Promise<string | undefined> {
         return undefined;
     }
 
-    const digest = await subtle.digest('SHA-256', new TextEncoder().encode(input));
+    const bytes = new TextEncoder().encode(input);
+    const buffer = new ArrayBuffer(bytes.byteLength);
+    new Uint8Array(buffer).set(bytes);
+
+    const digest = await subtle.digest('SHA-256', buffer);
     return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join(
         ''
     );
