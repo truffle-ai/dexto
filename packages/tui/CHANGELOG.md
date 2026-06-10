@@ -1,5 +1,15 @@
 # @dexto/tui
 
+## 1.8.9
+
+### Patch Changes
+
+- Updated dependencies [c3bd5fd]
+    - @dexto/llm@1.8.9
+    - @dexto/agent-management@1.8.9
+    - @dexto/core@1.8.9
+    - @dexto/registry@1.8.9
+
 ## 1.8.8
 
 ### Patch Changes

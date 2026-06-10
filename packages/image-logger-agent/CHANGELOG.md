@@ -1,5 +1,14 @@
 # @dexto/image-logger-agent
 
+## 1.8.9
+
+### Patch Changes
+
+- @dexto/agent-management@1.8.9
+- @dexto/core@1.8.9
+- @dexto/image-local@1.8.9
+- @dexto/agent-config@1.8.9
+
 ## 1.8.8
 
 ### Patch Changes

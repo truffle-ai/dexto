@@ -1,5 +1,12 @@
 # @dexto/tools-builtins
 
+## 1.8.9
+
+### Patch Changes
+
+- @dexto/core@1.8.9
+- @dexto/agent-config@1.8.9
+
 ## 1.8.8
 
 ### Patch Changes
