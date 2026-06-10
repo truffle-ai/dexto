@@ -59,6 +59,16 @@ describe('getReasoningProfile', () => {
         });
     });
 
+    it('returns always-on adaptive effort profile for Claude Fable 5', () => {
+        expect(getReasoningProfile('anthropic', 'claude-fable-5')).toMatchObject({
+            capable: true,
+            paradigm: 'adaptive-effort',
+            supportedVariants: ['low', 'medium', 'high', 'xhigh', 'max'],
+            defaultVariant: 'high',
+            supportsBudgetTokens: false,
+        });
+    });
+
     it('includes max for Anthropic Opus adaptive models', () => {
         expect(getReasoningProfile('anthropic', 'claude-opus-4-6')).toMatchObject({
             capable: true,
@@ -147,6 +157,14 @@ describe('getReasoningProfile', () => {
             paradigm: 'adaptive-effort',
             supportedVariants: ['disabled', 'low', 'medium', 'high'],
             defaultVariant: 'medium',
+            supportsBudgetTokens: true,
+        });
+
+        expect(getReasoningProfile('openrouter', 'anthropic/claude-fable-5')).toMatchObject({
+            capable: true,
+            paradigm: 'adaptive-effort',
+            supportedVariants: ['low', 'medium', 'high', 'xhigh', 'max'],
+            defaultVariant: 'high',
             supportsBudgetTokens: true,
         });
     });

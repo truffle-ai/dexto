@@ -7,7 +7,9 @@ import {
     ANTHROPIC_INTERLEAVED_THINKING_BETA,
     getGoogleReasoningBudgetTokens,
     getReasoningProfile,
+    isAnthropicAlwaysAdaptiveThinkingModel,
     isAnthropicAdaptiveThinkingModel,
+    isAnthropicOpusXhighThinkingModel,
     isOpenRouterGatewayProvider,
     isReasoningCapableModel,
     supportsAnthropicInterleavedThinking,
@@ -84,6 +86,8 @@ function buildAnthropicProviderOptions(config: {
 }): Record<string, Record<string, unknown>> {
     const { model, reasoningVariant, budgetTokens, capable } = config;
     const adaptiveThinking = isAnthropicAdaptiveThinkingModel(model);
+    const summarizedAdaptiveThinking =
+        isAnthropicAlwaysAdaptiveThinkingModel(model) || isAnthropicOpusXhighThinkingModel(model);
 
     if (adaptiveThinking) {
         if (reasoningVariant === 'disabled') {
@@ -109,7 +113,10 @@ function buildAnthropicProviderOptions(config: {
             anthropic: {
                 cacheControl: ANTHROPIC_CACHE_CONTROL,
                 sendReasoning: true,
-                thinking: { type: 'adaptive' },
+                thinking: {
+                    type: 'adaptive',
+                    ...(summarizedAdaptiveThinking ? { display: 'summarized' } : {}),
+                },
                 ...(effort !== undefined && { effort }),
             },
         };

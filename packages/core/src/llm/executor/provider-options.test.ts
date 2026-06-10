@@ -122,10 +122,49 @@ describe('buildProviderOptions', () => {
                 anthropic: {
                     cacheControl: { type: 'ephemeral' },
                     sendReasoning: true,
-                    thinking: { type: 'adaptive' },
+                    thinking: { type: 'adaptive', display: 'summarized' },
                     effort: 'xhigh',
                 },
             });
+        });
+
+        it('uses high effort adaptive thinking for Claude Fable 5 by default', () => {
+            expect(
+                buildProviderOptions({
+                    provider: 'anthropic',
+                    model: 'claude-fable-5',
+                })
+            ).toEqual({
+                anthropic: {
+                    cacheControl: { type: 'ephemeral' },
+                    sendReasoning: true,
+                    thinking: { type: 'adaptive', display: 'summarized' },
+                    effort: 'high',
+                },
+            });
+
+            expect(
+                buildProviderOptions({
+                    provider: 'anthropic',
+                    model: 'claude-fable-5',
+                    reasoning: { variant: 'max' },
+                })
+            ).toEqual({
+                anthropic: {
+                    cacheControl: { type: 'ephemeral' },
+                    sendReasoning: true,
+                    thinking: { type: 'adaptive', display: 'summarized' },
+                    effort: 'max',
+                },
+            });
+
+            expect(
+                buildProviderOptions({
+                    provider: 'anthropic',
+                    model: 'claude-fable-5',
+                    reasoning: { variant: 'disabled' },
+                })
+            ).toBeUndefined();
         });
     });
 
@@ -306,6 +345,20 @@ describe('buildProviderOptions', () => {
                     provider: 'dexto-nova',
                     model: 'openai/gpt-5.2-codex',
                     reasoning: { variant: 'high' },
+                })
+            ).toEqual({
+                'dexto-nova': {
+                    include_reasoning: true,
+                    reasoning: { enabled: true, effort: 'high' },
+                },
+            });
+        });
+
+        it('uses high effort by default for Claude Fable 5 on gateway providers', () => {
+            expect(
+                buildProviderOptions({
+                    provider: 'dexto-nova',
+                    model: 'anthropic/claude-fable-5',
                 })
             ).toEqual({
                 'dexto-nova': {
