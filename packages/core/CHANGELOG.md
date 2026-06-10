@@ -1,5 +1,12 @@
 # @dexto/core
 
+## 1.8.11
+
+### Patch Changes
+
+- 1704a08: Hold steer messages queued before the first model request until the next model boundary and add redacted context audit logs for turn debugging.
+    - @dexto/llm@1.8.11
+
 ## 1.8.10
 
 ### Patch Changes
