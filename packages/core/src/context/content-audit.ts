@@ -1,3 +1,4 @@
+import { TextEncoder } from 'node:util';
 import type { ContentPart, InternalMessage } from './types.js';
 
 export type ContentAuditSummary = {
