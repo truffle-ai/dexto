@@ -368,6 +368,12 @@ export type TurnDriver = {
     dispose(): void;
 };
 
+type TurnStepSpanAttributes = {
+    'turn.step_count': number;
+    'llm.model': string;
+    'llm.provider': string;
+};
+
 /**
  * Static cache for tool support validation.
  * Persists across TurnExecutor instances to avoid repeated validation calls.
@@ -649,7 +655,7 @@ export class TurnExecutor {
                         {
                             name: 'turn.prepare_model_step',
                             componentName: 'TurnExecutor',
-                            attributes: { 'turn.step_count': stepCount },
+                            attributes: this.createTurnStepSpanAttributes(stepCount),
                         },
                         () =>
                             this.prepareNextModelRequest({
@@ -690,7 +696,7 @@ export class TurnExecutor {
                             {
                                 name: 'turn.prepare_model_step',
                                 componentName: 'TurnExecutor',
-                                attributes: { 'turn.step_count': stepCount },
+                                attributes: this.createTurnStepSpanAttributes(stepCount),
                             },
                             () =>
                                 this.prepareNextModelRequest({
@@ -708,7 +714,20 @@ export class TurnExecutor {
                     }
                     this.logger.debug(`Step ${stepCount}: Starting`);
 
-                    const result = await this.runModelStepWithRetry(modelStepRequest);
+                    const result = await recordOperationSpan(
+                        {
+                            name: 'turn.run_model_step',
+                            componentName: 'TurnExecutor',
+                            attributes: this.createTurnStepSpanAttributes(stepCount),
+                            resultAttributes: (stepResult) => ({
+                                'llm.finish_reason': stepResult.finishReason,
+                                'llm.output_text_length': stepResult.text.length,
+                                'tool.count': stepResult.toolCalls.length,
+                            }),
+                        },
+                        () => this.runModelStepWithRetry(modelStepRequest),
+                        this.logger
+                    );
                     currentResult = result;
                     currentToolCallsExecuted = result.finishReason !== 'tool-calls';
                     preparedModelRequest = null;
@@ -752,7 +771,18 @@ export class TurnExecutor {
                     toolCallsRunning = true;
                     currentToolCallsExecuted = true;
                     try {
-                        await this.executeModelToolCalls(result.toolCalls);
+                        await recordOperationSpan(
+                            {
+                                name: 'turn.execute_tool_calls',
+                                componentName: 'TurnExecutor',
+                                attributes: {
+                                    ...this.createTurnStepSpanAttributes(stepCount),
+                                    'tool.count': result.toolCalls.length,
+                                },
+                            },
+                            () => this.executeModelToolCalls(result.toolCalls),
+                            this.logger
+                        );
                     } catch (error) {
                         currentToolCallsExecuted = false;
                         throw error;
@@ -773,7 +803,23 @@ export class TurnExecutor {
                 if (result.finishReason === 'tool-calls' && !currentToolCallsExecuted) {
                     throw new Error('Tool calls must finish before deciding the next model step');
                 }
-                const nextStep = await this.decideNextStep(result, stepCount);
+                const nextStep = await recordOperationSpan(
+                    {
+                        name: 'turn.decide_next_step',
+                        componentName: 'TurnExecutor',
+                        attributes: {
+                            ...this.createTurnStepSpanAttributes(stepCount),
+                            'llm.finish_reason': result.finishReason,
+                            'tool.calls_executed': currentToolCallsExecuted,
+                        },
+                        resultAttributes: (decision) => ({
+                            'turn.next_action': decision.kind,
+                            'turn.next_step_count': decision.stepCount,
+                        }),
+                    },
+                    () => this.decideNextStep(result, stepCount),
+                    this.logger
+                );
                 stepCount = nextStep.stepCount;
                 currentResult = null;
                 currentToolCallsExecuted = false;
@@ -885,6 +931,14 @@ export class TurnExecutor {
             [Symbol.dispose]: () => {
                 this.externalSignal?.removeEventListener('abort', abortHandler);
             },
+        };
+    }
+
+    private createTurnStepSpanAttributes(stepCount: number): TurnStepSpanAttributes {
+        return {
+            'turn.step_count': stepCount,
+            'llm.model': this.llmContext.model,
+            'llm.provider': this.llmContext.provider,
         };
     }
 
@@ -1436,29 +1490,47 @@ export class TurnExecutor {
             false
         );
 
-        return streamProcessor.process(() =>
-            streamText({
-                model: this.model,
-                stopWhen: stepCountIs(1),
-                maxRetries: 0,
-                tools: request.tools,
-                abortSignal: this.stepAbortController.signal,
-                messages: request.messages,
-                ...(this.config.maxOutputTokens !== undefined && {
-                    maxOutputTokens: this.config.maxOutputTokens,
-                }),
-                ...(this.config.temperature !== undefined && {
-                    temperature: this.config.temperature,
-                }),
-                // Provider-specific options (caching, reasoning, etc.)
-                ...(request.providerOptions !== undefined && {
-                    providerOptions: request.providerOptions,
-                }),
-                // Log stream-level errors (tool errors, API errors during streaming)
-                onError: (error) => {
-                    this.logger.error('Stream error', { error });
+        return recordOperationSpan(
+            {
+                name: 'llm.stream',
+                componentName: 'TurnExecutor',
+                attributes: {
+                    'llm.model': this.llmContext.model,
+                    'llm.provider': this.llmContext.provider,
+                    'tools.count': Object.keys(request.toolDefinitions).length,
                 },
-            })
+                resultAttributes: (result) => ({
+                    'llm.finish_reason': result.finishReason,
+                    'llm.output_text_length': result.text.length,
+                    'tool.count': result.toolCalls.length,
+                }),
+            },
+            () =>
+                streamProcessor.process(() =>
+                    streamText({
+                        model: this.model,
+                        stopWhen: stepCountIs(1),
+                        maxRetries: 0,
+                        tools: request.tools,
+                        abortSignal: this.stepAbortController.signal,
+                        messages: request.messages,
+                        ...(this.config.maxOutputTokens !== undefined && {
+                            maxOutputTokens: this.config.maxOutputTokens,
+                        }),
+                        ...(this.config.temperature !== undefined && {
+                            temperature: this.config.temperature,
+                        }),
+                        // Provider-specific options (caching, reasoning, etc.)
+                        ...(request.providerOptions !== undefined && {
+                            providerOptions: request.providerOptions,
+                        }),
+                        // Log stream-level errors (tool errors, API errors during streaming)
+                        onError: (error) => {
+                            this.logger.error('Stream error', { error });
+                        },
+                    })
+                ),
+            this.logger
         );
     }
 
@@ -1562,11 +1634,42 @@ export class TurnExecutor {
         const preparedCalls: PreparedModelToolCall[] = [];
 
         for (const toolCall of toolCalls) {
-            preparedCalls.push(await this.prepareModelToolCall(toolCall));
+            preparedCalls.push(
+                await recordOperationSpan(
+                    {
+                        name: 'tool.prepare',
+                        componentName: 'TurnExecutor',
+                        attributes: {
+                            'tool.call_id': toolCall.toolCallId,
+                            'tool.name': toolCall.toolName,
+                        },
+                        resultAttributes: (prepared) => ({ 'tool.prepare_kind': prepared.kind }),
+                    },
+                    () => this.prepareModelToolCall(toolCall),
+                    this.logger
+                )
+            );
         }
 
         const executionResults = await Promise.all(
-            preparedCalls.map((prepared) => this.executePreparedModelToolCall(prepared))
+            preparedCalls.map((prepared) =>
+                recordOperationSpan(
+                    {
+                        name: 'tool.execute',
+                        componentName: 'TurnExecutor',
+                        attributes: {
+                            'tool.call_id': prepared.toolCall.toolCallId,
+                            'tool.name': prepared.toolCall.toolName,
+                            'tool.prepare_kind': prepared.kind,
+                        },
+                        resultAttributes: (result) => ({
+                            'tool.success': this.isToolExecutionSuccessful(result),
+                        }),
+                    },
+                    () => this.executePreparedModelToolCall(prepared),
+                    this.logger
+                )
+            )
         );
         for (let index = 0; index < toolCalls.length; index += 1) {
             const toolCall = toolCalls[index];
@@ -1574,7 +1677,19 @@ export class TurnExecutor {
             if (toolCall === undefined || executionResult === undefined) {
                 throw new Error('Tool call result count must match emitted tool call count');
             }
-            await this.persistModelToolResult(toolCall, executionResult);
+            await recordOperationSpan(
+                {
+                    name: 'tool.persist_result',
+                    componentName: 'TurnExecutor',
+                    attributes: {
+                        'tool.call_id': toolCall.toolCallId,
+                        'tool.name': toolCall.toolName,
+                        'tool.success': this.isToolExecutionSuccessful(executionResult),
+                    },
+                },
+                () => this.persistModelToolResult(toolCall, executionResult),
+                this.logger
+            );
         }
     }
 

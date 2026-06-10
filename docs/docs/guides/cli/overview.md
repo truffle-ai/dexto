@@ -223,6 +223,39 @@ Workspace agent:
 - `dexto deploy list` shows account deployments and highlights the one linked to the current folder
 - Dashboard links are printed after deploy and status so you can inspect the cloud workspace directly
 
+### `trace` / `span` - Inspect Hosted Run Traces
+
+Discover and inspect first-party trace timelines for hosted runs.
+
+```bash
+# List recent traces
+dexto trace list --period 3h
+
+# Print a readable span summary for one run
+dexto trace <run-id>
+
+# Equivalent explicit form
+dexto trace view <run-id>
+
+# List spans for one run
+dexto span list <run-id> --name llm.stream --sort duration
+
+# Print the raw API response for scripts and agents
+dexto trace list --period 3h --json
+
+# Query a preview or local control-plane origin
+DEXTO_PLATFORM_URL=https://dexto-cloud-pr-123.example.workers.dev dexto trace list
+```
+
+**Authentication:**
+- Authenticate with `dexto login` or set `DEXTO_API_KEY`
+
+**Notes:**
+- Trace commands read from Dexto Cloud's `/api/runs/traces` and `/api/runs/:runId/trace`
+  endpoints.
+- Span commands read from Dexto Cloud's `/api/runs/:runId/spans` endpoint.
+- `DEXTO_PLATFORM_URL` overrides the hosted control-plane origin for preview and local testing.
+
 ### `agents install` - Install Agents
 
 Install agents from the registry or custom YAML files/directories.

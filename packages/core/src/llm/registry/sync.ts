@@ -419,6 +419,23 @@ function buildModelsFromModelsDevProvider(params: {
     return results;
 }
 
+function hasProviderMetadata(model: ModelInfo): boolean {
+    return model.providerMetadata != null && Object.keys(model.providerMetadata).length > 0;
+}
+
+function dedupeModelsByNamePreferProviderMetadata(models: ModelInfo[]): ModelInfo[] {
+    const byName = new Map<string, ModelInfo>();
+
+    for (const model of models) {
+        const existing = byName.get(model.name);
+        if (!existing || (!hasProviderMetadata(existing) && hasProviderMetadata(model))) {
+            byName.set(model.name, model);
+        }
+    }
+
+    return [...byName.values()].sort((a, b) => a.name.localeCompare(b.name));
+}
+
 export function buildModelsByProviderFromParsedSources(params: {
     modelsDevApi: ModelsDevApi;
 }): Record<LLMProvider, ModelInfo[]> {
@@ -535,7 +552,7 @@ export function buildModelsByProviderFromParsedSources(params: {
         }),
         litellm: [],
         glama: [],
-        vertex: [
+        vertex: dedupeModelsByNamePreferProviderMetadata([
             ...buildModelsFromModelsDevProvider({
                 spec: {
                     provider: 'vertex',
@@ -553,7 +570,7 @@ export function buildModelsByProviderFromParsedSources(params: {
                 },
                 modelsDevApi,
             }),
-        ].sort((a, b) => a.name.localeCompare(b.name)),
+        ]),
         bedrock: buildModelsFromModelsDevProvider({
             spec: {
                 provider: 'bedrock',

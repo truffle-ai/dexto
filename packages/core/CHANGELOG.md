@@ -1,5 +1,26 @@
 # @dexto/core
 
+## 1.8.7
+
+### Patch Changes
+
+- Updated dependencies [5e2aaea]
+    - @dexto/llm@1.8.7
+
+## 1.8.6
+
+### Patch Changes
+
+- @dexto/llm@1.8.6
+
+## 1.8.5
+
+### Patch Changes
+
+- ee05731: Add turn-loop tracing spans around setup, model steps, tool calls, and next-step decisions.
+- Updated dependencies [a4a9d36]
+    - @dexto/llm@1.8.5
+
 ## 1.8.4
 
 ### Patch Changes
