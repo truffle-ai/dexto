@@ -368,19 +368,14 @@ describe('buildProviderOptions', () => {
             });
         });
 
-        it('maps Anthropic adaptive max to OpenRouter xhigh effort', () => {
+        it('does not map Anthropic-only adaptive max on gateway providers', () => {
             expect(
                 buildProviderOptions({
                     provider: 'openrouter',
                     model: 'anthropic/claude-opus-4.6',
                     reasoning: { variant: 'max' },
                 })
-            ).toEqual({
-                openrouter: {
-                    include_reasoning: true,
-                    reasoning: { enabled: true, effort: 'xhigh' },
-                },
-            });
+            ).toBeUndefined();
         });
 
         it('uses max_tokens when budgetTokens is provided', () => {
@@ -475,7 +470,7 @@ describe('buildProviderOptions', () => {
                 },
                 {
                     model: 'anthropic/claude-opus-4.7',
-                    reasoning: { variant: 'max' as const },
+                    reasoning: { variant: 'xhigh' as const },
                 },
                 {
                     model: 'anthropic/claude-sonnet-4.5',
