@@ -1,4 +1,5 @@
 import {
+    isAnthropicAlwaysAdaptiveThinkingModel,
     isAnthropicAdaptiveThinkingModel,
     isAnthropicOpusAdaptiveThinkingModel,
     isAnthropicOpusXhighThinkingModel,
@@ -17,16 +18,18 @@ function buildAnthropicAdaptiveProfile(config: {
     supportsBudgetTokens: boolean;
 }): ReasoningProfile {
     const variants: ReasoningVariantOption[] = [];
-    if (config.includeDisabled) {
+    const alwaysAdaptive = isAnthropicAlwaysAdaptiveThinkingModel(config.model);
+
+    if (config.includeDisabled && !alwaysAdaptive) {
         variants.push(option('disabled'));
     }
     variants.push(option('low'), option('medium'), option('high'));
 
-    if (isAnthropicOpusXhighThinkingModel(config.model)) {
+    if (alwaysAdaptive || isAnthropicOpusXhighThinkingModel(config.model)) {
         variants.push(option('xhigh'));
     }
 
-    if (isAnthropicOpusAdaptiveThinkingModel(config.model)) {
+    if (alwaysAdaptive || isAnthropicOpusAdaptiveThinkingModel(config.model)) {
         variants.push(option('max'));
     }
 
@@ -37,7 +40,7 @@ function buildAnthropicAdaptiveProfile(config: {
             variants,
             supportsBudgetTokens: config.supportsBudgetTokens,
         },
-        'medium'
+        alwaysAdaptive ? 'high' : 'medium'
     );
 }
 
