@@ -1,5 +1,7 @@
 # @dexto/llm
 
+## 1.8.10
+
 ## 1.8.9
 
 ### Patch Changes

@@ -1,5 +1,13 @@
 # @dexto/tools-filesystem
 
+## 1.8.10
+
+### Patch Changes
+
+- Updated dependencies [e316b08]
+    - @dexto/core@1.8.10
+    - @dexto/agent-config@1.8.10
+
 ## 1.8.9
 
 ### Patch Changes
