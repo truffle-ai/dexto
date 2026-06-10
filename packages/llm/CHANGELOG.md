@@ -1,5 +1,11 @@
 # @dexto/llm
 
+## 1.8.7
+
+### Patch Changes
+
+- 5e2aaea: Refresh the generated LLM model registry.
+
 ## 1.8.6
 
 ## 1.8.5

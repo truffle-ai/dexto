@@ -1,5 +1,12 @@
 # @dexto/tools-scheduler
 
+## 1.8.7
+
+### Patch Changes
+
+- @dexto/core@1.8.7
+- @dexto/agent-config@1.8.7
+
 ## 1.8.6
 
 ### Patch Changes
