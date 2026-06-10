@@ -1030,9 +1030,8 @@ export class ContextManager<TMessage = unknown> {
         }
 
         // Resolve blob references using resource manager with filtering.
-        // Only recent user media is rehydrated into model-visible binary parts.
-        // Tool media stays as compact resource text so large tool outputs cannot
-        // balloon the prompt on later turns.
+        // Recent user and tool media is rehydrated into binary parts. Older media
+        // stays compact so large attachments cannot balloon later prompts.
         this.logger.debug('Resolving blob references in message history before formatting');
         const retainedMediaMessageIndexes = new Set<number>();
         let retainedMediaMessages = 0;
@@ -1042,7 +1041,10 @@ export class ContextManager<TMessage = unknown> {
             }
 
             const message = messageHistory[index]!;
-            if (isUserMessage(message) && ContextManager.hasRetainableMedia(message)) {
+            if (
+                (isUserMessage(message) || isToolMessage(message)) &&
+                ContextManager.hasRetainableMedia(message)
+            ) {
                 retainedMediaMessageIndexes.add(index);
                 retainedMediaMessages += 1;
             }
@@ -1066,12 +1068,13 @@ export class ContextManager<TMessage = unknown> {
                     return { ...message, content: expandedContent };
                 }
                 if (isToolMessage(message)) {
+                    const expandToolMedia = retainedMediaMessageIndexes.has(index);
                     const expandedContent = await expandBlobReferences(
                         message.content,
                         this.resourceManager,
                         this.logger,
                         allowedMediaTypes,
-                        false
+                        expandToolMedia
                     );
                     return { ...message, content: expandedContent };
                 }
