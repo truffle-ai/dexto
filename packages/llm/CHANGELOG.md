@@ -1,5 +1,11 @@
 # @dexto/llm
 
+## 1.8.8
+
+### Patch Changes
+
+- 649b0a2: Fix Claude Fable 5 registry and adaptive reasoning handling
+
 ## 1.8.7
 
 ### Patch Changes

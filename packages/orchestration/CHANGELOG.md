@@ -1,5 +1,12 @@
 # @dexto/orchestration
 
+## 1.8.8
+
+### Patch Changes
+
+- Updated dependencies [649b0a2]
+    - @dexto/core@1.8.8
+
 ## 1.8.7
 
 ### Patch Changes
