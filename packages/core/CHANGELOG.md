@@ -1,5 +1,12 @@
 # @dexto/core
 
+## 1.8.10
+
+### Patch Changes
+
+- e316b08: Retain recent tool-returned media in LLM context so model-visible tool outputs are rehydrated like user attachments.
+    - @dexto/llm@1.8.10
+
 ## 1.8.9
 
 ### Patch Changes
