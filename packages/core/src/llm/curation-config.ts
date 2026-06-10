@@ -38,7 +38,7 @@ export const CURATED_MODEL_IDS_BY_PROVIDER: Partial<Record<LLMProvider, string[]
         'gemini-2.5-flash',
     ],
     vertex: [
-        'gemini-3-pro-preview',
+        'gemini-3.1-pro-preview',
         'gemini-3-flash-preview',
         'gemini-2.5-pro',
         'gemini-2.5-flash',
