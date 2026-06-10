@@ -1,5 +1,27 @@
 # @dexto/core
 
+## 1.8.10
+
+### Patch Changes
+
+- e316b08: Retain recent tool-returned media in LLM context so model-visible tool outputs are rehydrated like user attachments.
+    - @dexto/llm@1.8.10
+
+## 1.8.9
+
+### Patch Changes
+
+- Updated dependencies [c3bd5fd]
+    - @dexto/llm@1.8.9
+
+## 1.8.8
+
+### Patch Changes
+
+- 649b0a2: Fix Claude Fable 5 registry and adaptive reasoning handling
+- Updated dependencies [649b0a2]
+    - @dexto/llm@1.8.8
+
 ## 1.8.7
 
 ### Patch Changes

@@ -1,5 +1,19 @@
 # @dexto/llm
 
+## 1.8.10
+
+## 1.8.9
+
+### Patch Changes
+
+- c3bd5fd: Remove unsupported max reasoning from OpenRouter and Dexto Nova adaptive profiles
+
+## 1.8.8
+
+### Patch Changes
+
+- 649b0a2: Fix Claude Fable 5 registry and adaptive reasoning handling
+
 ## 1.8.7
 
 ### Patch Changes

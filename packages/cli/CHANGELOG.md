@@ -1,5 +1,59 @@
 # dexto
 
+## 1.8.10
+
+### Patch Changes
+
+- Updated dependencies [e316b08]
+    - @dexto/core@1.8.10
+    - @dexto/agent-config@1.8.10
+    - @dexto/agent-management@1.8.10
+    - @dexto/analytics@1.8.10
+    - @dexto/client-sdk@1.8.10
+    - @dexto/image-local@1.8.10
+    - @dexto/image-logger-agent@1.8.10
+    - @dexto/server@1.8.10
+    - @dexto/storage@1.8.10
+    - @dexto/tui@1.8.10
+    - @dexto/llm@1.8.10
+    - @dexto/registry@1.8.10
+
+## 1.8.9
+
+### Patch Changes
+
+- Updated dependencies [c3bd5fd]
+    - @dexto/llm@1.8.9
+    - @dexto/agent-management@1.8.9
+    - @dexto/core@1.8.9
+    - @dexto/server@1.8.9
+    - @dexto/tui@1.8.9
+    - @dexto/analytics@1.8.9
+    - @dexto/image-local@1.8.9
+    - @dexto/image-logger-agent@1.8.9
+    - @dexto/agent-config@1.8.9
+    - @dexto/client-sdk@1.8.9
+    - @dexto/storage@1.8.9
+    - @dexto/registry@1.8.9
+
+## 1.8.8
+
+### Patch Changes
+
+- Updated dependencies [649b0a2]
+    - @dexto/core@1.8.8
+    - @dexto/llm@1.8.8
+    - @dexto/agent-config@1.8.8
+    - @dexto/agent-management@1.8.8
+    - @dexto/analytics@1.8.8
+    - @dexto/client-sdk@1.8.8
+    - @dexto/image-local@1.8.8
+    - @dexto/image-logger-agent@1.8.8
+    - @dexto/server@1.8.8
+    - @dexto/storage@1.8.8
+    - @dexto/tui@1.8.8
+    - @dexto/registry@1.8.8
+
 ## 1.8.7
 
 ### Patch Changes

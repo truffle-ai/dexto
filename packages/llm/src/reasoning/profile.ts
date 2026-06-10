@@ -93,11 +93,20 @@ function toGatewayReasoningProfile(nativeProfile: ReasoningProfile): ReasoningPr
         return nonCapableProfile();
     }
 
+    const variants =
+        nativeProfile.paradigm === 'adaptive-effort'
+            ? nativeProfile.variants.filter((variant) => variant.id !== 'max')
+            : nativeProfile.variants.map((variant) => ({ ...variant }));
+    const defaultVariant =
+        // Variants are ordered lowest to highest effort, so this picks the strongest gateway-safe fallback.
+        nativeProfile.defaultVariant === 'max' ? variants.at(-1)?.id : nativeProfile.defaultVariant;
+
     return {
         ...nativeProfile,
-        variants: nativeProfile.variants.map((variant) => ({ ...variant })),
-        supportedVariants: [...nativeProfile.supportedVariants],
+        variants,
+        supportedVariants: variants.map((variant) => variant.id),
         supportsBudgetTokens: true,
+        ...(defaultVariant !== undefined && { defaultVariant }),
     };
 }
 

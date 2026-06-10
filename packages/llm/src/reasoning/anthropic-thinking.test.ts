@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+    isAnthropicAlwaysAdaptiveThinkingModel,
     isAnthropicAdaptiveThinkingModel,
     isAnthropicOpusAdaptiveThinkingModel,
     isClaudeVersionAtLeast,
@@ -38,6 +39,8 @@ describe('anthropic-thinking', () => {
         const adaptiveCases = [
             'claude-opus-4-6',
             'anthropic/claude-sonnet-4.6',
+            'anthropic/claude-fable-5',
+            'claude-mythos-5',
             'anthropic/claude-4.6-opus',
             'claude-4-6-sonnet@20250219',
             'anthropic.claude-haiku-5-0-20260101-v1:0',
@@ -60,6 +63,13 @@ describe('anthropic-thinking', () => {
         for (const model of nonAdaptiveCases) {
             expect(isAnthropicAdaptiveThinkingModel(model)).toBe(false);
         }
+    });
+
+    it('detects always-on adaptive thinking for Fable and Mythos', () => {
+        expect(isAnthropicAlwaysAdaptiveThinkingModel('claude-fable-5')).toBe(true);
+        expect(isAnthropicAlwaysAdaptiveThinkingModel('anthropic/claude-fable-5')).toBe(true);
+        expect(isAnthropicAlwaysAdaptiveThinkingModel('claude-mythos-5')).toBe(true);
+        expect(isAnthropicAlwaysAdaptiveThinkingModel('claude-opus-4-8')).toBe(false);
     });
 
     it('detects Opus max-effort support only for Opus >= 4.6', () => {
@@ -91,6 +101,7 @@ describe('anthropic-thinking', () => {
     it('detects interleaved thinking for Claude 4+ and rejects older/invalid models', () => {
         const interleavedCases = [
             'claude-opus-4-20250514',
+            'anthropic/claude-fable-5',
             'anthropic/claude-sonnet-4.6',
             'anthropic/claude-4.5-opus',
             'anthropic.claude-haiku-5-0-20260101-v1:0',
