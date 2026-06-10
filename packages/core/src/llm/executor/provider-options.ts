@@ -195,12 +195,7 @@ function buildOpenRouterProviderOptions(config: {
         return undefined;
     }
 
-    const explicitEffort = toOpenAIReasoningEffort(reasoningVariant);
-    const effort =
-        explicitEffort ??
-        (profile.paradigm === 'adaptive-effort' && reasoningVariant === 'max'
-            ? 'xhigh'
-            : undefined);
+    const effort = toOpenAIReasoningEffort(reasoningVariant);
 
     return {
         [provider]: {
