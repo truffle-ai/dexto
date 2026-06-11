@@ -2501,20 +2501,18 @@ describe('TurnExecutor Integration Tests', () => {
                     });
                     return {
                         fullStream: (async function* () {
-                            await steerQueueStore.save({
+                            await steerQueueStore.append({
                                 sessionId,
-                                queue: [
-                                    {
-                                        content: [
-                                            {
-                                                type: 'text',
-                                                text: 'Persisted route steer',
-                                            },
-                                        ],
-                                        id: 'route-steer-1',
-                                        queuedAt: Date.now(),
-                                    },
-                                ],
+                                message: {
+                                    content: [
+                                        {
+                                            type: 'text',
+                                            text: 'Persisted route steer',
+                                        },
+                                    ],
+                                    id: 'route-steer-1',
+                                    queuedAt: Date.now(),
+                                },
                             });
                             for await (const event of firstStream.fullStream) {
                                 yield event;
@@ -2544,7 +2542,7 @@ describe('TurnExecutor Integration Tests', () => {
                     }),
                 ])
             );
-            await expect(steerQueueStore.load({ sessionId })).resolves.toEqual([]);
+            await expect(steerQueueStore.list({ sessionId })).resolves.toEqual([]);
         });
 
         it('should process structured steer content before structured follow-up content', async () => {
@@ -3365,6 +3363,43 @@ describe('TurnExecutor Integration Tests', () => {
 
             expect(streamText).toHaveBeenCalledTimes(1);
             expect(retryingHandler).not.toHaveBeenCalled();
+        });
+
+        it('does not clear unprocessed persisted steers during cleanup', async () => {
+            const steerQueueStore = createInMemoryMessageQueueStore();
+            const clearSpy = vi.spyOn(steerQueueStore, 'clear');
+            steerQueue = new MessageQueueService(
+                sessionEventBus,
+                logger,
+                sessionId,
+                steerQueueStore
+            );
+            executor = createExecutorWithContext(contextManager);
+            const nonRetryableError = apiCallError({
+                message: 'Bad request',
+                statusCode: 400,
+                isRetryable: false,
+            });
+            const queuedSteer = {
+                content: [{ type: 'text' as const, text: 'Do not drop this steer' }],
+                id: 'persisted-steer-before-failure',
+                queuedAt: Date.now(),
+            };
+
+            vi.mocked(streamText).mockImplementation(() => {
+                void steerQueueStore.append({
+                    message: queuedSteer,
+                    sessionId,
+                });
+                throw nonRetryableError;
+            });
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
+
+            await expect(executor.execute({ mcpManager }, true)).rejects.toThrow();
+
+            expect(clearSpy).not.toHaveBeenCalled();
+            await expect(steerQueueStore.list({ sessionId })).resolves.toEqual([queuedSteer]);
         });
 
         it('retries an async stream failure before conversation history changes', async () => {

@@ -43,13 +43,11 @@ describe('BackendDextoStores', () => {
                 toolState: new DatabaseBackedToolStateStore(database),
                 steerQueue: new DatabaseBackedSessionMessageQueueStore(
                     database,
-                    cache,
                     logger,
                     SESSION_STEER_QUEUE_KEY_PREFIX
                 ),
                 followUpQueue: new DatabaseBackedSessionMessageQueueStore(
                     database,
-                    cache,
                     logger,
                     SESSION_FOLLOW_UP_QUEUE_KEY_PREFIX
                 ),
@@ -89,25 +87,21 @@ describe('BackendDextoStores', () => {
                 timestamp: 1,
             },
         });
-        await stores.getStore('steerQueue').save({
+        await stores.getStore('steerQueue').append({
             sessionId: 'session-1',
-            queue: [
-                {
-                    id: 'queued-1',
-                    content: [{ type: 'text', text: 'next' }],
-                    queuedAt: 2,
-                },
-            ],
+            message: {
+                id: 'queued-1',
+                content: [{ type: 'text', text: 'next' }],
+                queuedAt: 2,
+            },
         });
-        await stores.getStore('followUpQueue').save({
+        await stores.getStore('followUpQueue').append({
             sessionId: 'session-1',
-            queue: [
-                {
-                    id: 'follow-up-1',
-                    content: [{ type: 'text', text: 'later' }],
-                    queuedAt: 3,
-                },
-            ],
+            message: {
+                id: 'follow-up-1',
+                content: [{ type: 'text', text: 'later' }],
+                queuedAt: 3,
+            },
         });
         await stores.getStore('toolPreferences').allowTool({
             sessionId: 'session-1',
@@ -119,14 +113,14 @@ describe('BackendDextoStores', () => {
         });
 
         expect(await database.getRange('messages:session-1', 0, 10)).toHaveLength(1);
-        expect(await stores.getStore('steerQueue').load({ sessionId: 'session-1' })).toEqual([
+        expect(await stores.getStore('steerQueue').list({ sessionId: 'session-1' })).toEqual([
             {
                 id: 'queued-1',
                 content: [{ type: 'text', text: 'next' }],
                 queuedAt: 2,
             },
         ]);
-        expect(await stores.getStore('followUpQueue').load({ sessionId: 'session-1' })).toEqual([
+        expect(await stores.getStore('followUpQueue').list({ sessionId: 'session-1' })).toEqual([
             {
                 id: 'follow-up-1',
                 content: [{ type: 'text', text: 'later' }],
@@ -143,6 +137,39 @@ describe('BackendDextoStores', () => {
 
         await stores.disconnect();
         expect(stores.isConnected()).toBe(false);
+    });
+
+    it('preserves message queue append order instead of sorting by queuedAt', async () => {
+        const database = createInMemoryDatabase();
+        const logger = createMockLogger();
+        const steerQueue = new DatabaseBackedSessionMessageQueueStore(
+            database,
+            logger,
+            SESSION_STEER_QUEUE_KEY_PREFIX
+        );
+
+        await steerQueue.append({
+            sessionId: 'session-append-order',
+            message: {
+                id: 'queued-later-timestamp',
+                content: [{ type: 'text', text: 'first append' }],
+                queuedAt: 2,
+            },
+        });
+        await steerQueue.append({
+            sessionId: 'session-append-order',
+            message: {
+                id: 'queued-earlier-timestamp',
+                content: [{ type: 'text', text: 'second append' }],
+                queuedAt: 1,
+            },
+        });
+
+        expect(
+            (await steerQueue.list({ sessionId: 'session-append-order' })).map(
+                (message) => message.id
+            )
+        ).toEqual(['queued-later-timestamp', 'queued-earlier-timestamp']);
     });
 });
 

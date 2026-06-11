@@ -189,8 +189,6 @@ export class SessionManager {
             return;
         }
 
-        await this.clearPersistedQueuedMessages('startup');
-
         // Restore any existing sessions from storage
         await this.restoreSessionsFromStorage();
 
@@ -245,38 +243,6 @@ export class SessionManager {
                 `Failed to restore sessions from storage: ${error instanceof Error ? error.message : String(error)}`
             );
             // Continue without restored sessions
-        }
-    }
-
-    private async clearPersistedQueuedMessages(reason: 'startup' | 'shutdown'): Promise<void> {
-        try {
-            const steerSessionIds = await this.services.steerQueueStore.listSessionIds();
-            const followUpSessionIds = await this.services.followUpQueueStore.listSessionIds();
-            const sessionIds = Array.from(new Set([...steerSessionIds, ...followUpSessionIds]));
-            if (sessionIds.length === 0) {
-                return;
-            }
-
-            await Promise.all(
-                sessionIds.flatMap((sessionId) => [
-                    this.services.steerQueueStore.delete({ sessionId }),
-                    this.services.followUpQueueStore.delete({ sessionId }),
-                ])
-            );
-
-            const message = `${reason === 'startup' ? 'Cleared stale pending input state from previous agent run' : 'Cleared pending input state during agent shutdown'} (${sessionIds.length} session bucket(s))`;
-            if (reason === 'startup') {
-                // TODO(issue-743): Replace startup purge with explicit resume semantics for interrupted queued follow-ups.
-                this.logger.info(message);
-            } else {
-                this.logger.debug(message);
-            }
-        } catch (error) {
-            this.logger.warn(
-                `Failed to clear persisted queued follow-up state during ${reason}: ${
-                    error instanceof Error ? error.message : String(error)
-                }`
-            );
         }
     }
 
@@ -1300,8 +1266,8 @@ export class SessionManager {
         await Promise.all([
             this.services.toolManager.deleteSessionState(sessionId),
             this.services.approvalManager.deleteSessionState(sessionId),
-            this.services.steerQueueStore.delete({ sessionId }),
-            this.services.followUpQueueStore.delete({ sessionId }),
+            this.services.steerQueueStore.clear({ sessionId }),
+            this.services.followUpQueueStore.clear({ sessionId }),
         ]);
     }
 
@@ -1386,8 +1352,6 @@ export class SessionManager {
             delete this.cleanupInterval;
             this.logger.debug('Periodic session cleanup stopped');
         }
-
-        await this.clearPersistedQueuedMessages('shutdown');
 
         // End all in-memory sessions (preserve conversation history)
         const sessionIds = Array.from(this.sessions.keys());

@@ -649,8 +649,8 @@ interface SessionEventMapBase {
         coalesced: boolean;
         /** Combined content of all dequeued messages (for UI display) */
         content: import('../context/types.js').ContentPart[];
-        /** Raw dequeued messages (optional) */
-        messages?: import('../session/types.js').QueuedMessage[];
+        /** Raw dequeued messages */
+        messages: import('../session/types.js').QueuedMessage[];
     };
 
     /** Queued message was removed from queue */

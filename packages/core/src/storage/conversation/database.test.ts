@@ -81,6 +81,9 @@ describe('DatabaseConversationStore', () => {
                 delete: async () => {},
                 list: async () => [],
                 append: async () => {},
+                updateList: async () => {
+                    throw new Error('not implemented');
+                },
                 getRange: async () => {
                     throw new Error('read failed');
                 },

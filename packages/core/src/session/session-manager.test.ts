@@ -40,15 +40,11 @@ describe('SessionManager', () => {
         messageCount: 5,
     };
 
-    const mockDatabaseLists = (options: { sessionKeys?: string[]; queueKeys?: string[] } = {}) => {
-        const { sessionKeys = [], queueKeys = [] } = options;
+    const mockDatabaseLists = (options: { sessionKeys?: string[] } = {}) => {
+        const { sessionKeys = [] } = options;
         mockStorageManager.database.list.mockImplementation(async (prefix: string) => {
             if (prefix === 'session:') {
                 return sessionKeys;
-            }
-
-            if (prefix === 'session-steer-queue:') {
-                return queueKeys;
             }
 
             return [];
@@ -78,6 +74,7 @@ describe('SessionManager', () => {
             list: vi.fn(),
             clear: vi.fn().mockResolvedValue(undefined),
             append: vi.fn().mockResolvedValue(undefined),
+            updateList: vi.fn().mockImplementation(async (_key, updater) => updater([]).result),
             getRange: vi.fn().mockResolvedValue([]),
             getLength: vi.fn().mockResolvedValue(0),
             connect: vi.fn().mockResolvedValue(undefined),
@@ -189,19 +186,18 @@ describe('SessionManager', () => {
                 cleanup: vi.fn(),
             },
             steerQueueStore: {
-                listSessionIds: vi.fn(async () => {
-                    const keys = await mockDatabase.list('session-steer-queue:');
-                    return keys.map((key: string) => key.slice('session-steer-queue:'.length));
-                }),
-                load: vi.fn().mockResolvedValue([]),
-                save: vi.fn().mockResolvedValue(undefined),
-                delete: vi.fn().mockResolvedValue(undefined),
+                list: vi.fn().mockResolvedValue([]),
+                append: vi.fn().mockResolvedValue({ position: 1 }),
+                takeAll: vi.fn().mockResolvedValue([]),
+                remove: vi.fn().mockResolvedValue(false),
+                clear: vi.fn().mockResolvedValue(undefined),
             },
             followUpQueueStore: {
-                listSessionIds: vi.fn(async () => []),
-                load: vi.fn().mockResolvedValue([]),
-                save: vi.fn().mockResolvedValue(undefined),
-                delete: vi.fn().mockResolvedValue(undefined),
+                list: vi.fn().mockResolvedValue([]),
+                append: vi.fn().mockResolvedValue({ position: 1 }),
+                takeAll: vi.fn().mockResolvedValue([]),
+                remove: vi.fn().mockResolvedValue(false),
+                clear: vi.fn().mockResolvedValue(undefined),
             },
         };
 
@@ -304,33 +300,21 @@ describe('SessionManager', () => {
         test('should initialize storage layer on first use', async () => {
             await sessionManager.init();
 
-            expect(mockStorageManager.database.list).toHaveBeenNthCalledWith(
-                1,
-                'session-steer-queue:'
-            );
-            expect(mockStorageManager.database.list).toHaveBeenNthCalledWith(2, 'session:');
+            expect(mockStorageManager.database.list).toHaveBeenNthCalledWith(1, 'session:');
         });
 
         test('should prevent duplicate initialization', async () => {
             await sessionManager.init();
             await sessionManager.init(); // Second call
 
-            expect(mockStorageManager.database.list).toHaveBeenCalledTimes(2);
+            expect(mockStorageManager.database.list).toHaveBeenCalledTimes(1);
         });
 
-        test('clears persisted queued messages on startup', async () => {
-            mockDatabaseLists({
-                queueKeys: ['session-steer-queue:session-1', 'session-steer-queue:session-2'],
-            });
-
+        test('preserves persisted queued messages on startup', async () => {
             await sessionManager.init();
 
-            expect(mockServices.steerQueueStore.delete).toHaveBeenCalledWith({
-                sessionId: 'session-1',
-            });
-            expect(mockServices.steerQueueStore.delete).toHaveBeenCalledWith({
-                sessionId: 'session-2',
-            });
+            expect(mockServices.steerQueueStore.clear).not.toHaveBeenCalled();
+            expect(mockServices.followUpQueueStore.clear).not.toHaveBeenCalled();
         });
 
         test('should restore valid sessions from persistent storage on startup', async () => {
@@ -374,7 +358,7 @@ describe('SessionManager', () => {
             expect(mockServices.approvalManager.evictSessionState).toHaveBeenCalledWith(
                 'expired-session'
             );
-            expect(mockServices.steerQueueStore.delete).not.toHaveBeenCalledWith({
+            expect(mockServices.steerQueueStore.clear).not.toHaveBeenCalledWith({
                 sessionId: 'expired-session',
             });
             expect(mockServices.stateManager.clearSessionOverride).not.toHaveBeenCalledWith(
@@ -1237,19 +1221,14 @@ describe('SessionManager', () => {
             }
         });
 
-        test('clears persisted queued messages during shutdown', async () => {
-            mockDatabaseLists({
-                queueKeys: ['session-steer-queue:session-1'],
-            });
-
+        test('preserves persisted queued messages during shutdown', async () => {
             await sessionManager.init();
-            mockServices.steerQueueStore.delete.mockClear();
+            mockServices.steerQueueStore.clear.mockClear();
 
             await sessionManager.cleanup();
 
-            expect(mockServices.steerQueueStore.delete).toHaveBeenCalledWith({
-                sessionId: 'session-1',
-            });
+            expect(mockServices.steerQueueStore.clear).not.toHaveBeenCalled();
+            expect(mockServices.followUpQueueStore.clear).not.toHaveBeenCalled();
         });
 
         test('should handle cleanup errors gracefully', async () => {

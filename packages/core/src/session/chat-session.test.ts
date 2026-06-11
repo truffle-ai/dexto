@@ -290,14 +290,20 @@ describe('ChatSession', () => {
                 getAllTools: vi.fn().mockReturnValue([]),
             },
             steerQueueStore: {
-                load: vi.fn().mockResolvedValue([]),
-                save: vi.fn().mockResolvedValue(undefined),
-                delete: vi.fn().mockResolvedValue(undefined),
+                listSessionIds: vi.fn().mockResolvedValue([]),
+                list: vi.fn().mockResolvedValue([]),
+                append: vi.fn().mockResolvedValue({ position: 1 }),
+                takeAll: vi.fn().mockResolvedValue([]),
+                remove: vi.fn().mockResolvedValue(false),
+                clear: vi.fn().mockResolvedValue(undefined),
             },
             followUpQueueStore: {
-                load: vi.fn().mockResolvedValue([]),
-                save: vi.fn().mockResolvedValue(undefined),
-                delete: vi.fn().mockResolvedValue(undefined),
+                listSessionIds: vi.fn().mockResolvedValue([]),
+                list: vi.fn().mockResolvedValue([]),
+                append: vi.fn().mockResolvedValue({ position: 1 }),
+                takeAll: vi.fn().mockResolvedValue([]),
+                remove: vi.fn().mockResolvedValue(false),
+                clear: vi.fn().mockResolvedValue(undefined),
             },
             hookManager: {
                 executeHooks: vi.fn().mockImplementation(async (_point, payload) => payload),
@@ -923,7 +929,7 @@ describe('ChatSession', () => {
 
     describe('Error Handling and Resilience', () => {
         test('should handle storage initialization failures gracefully', async () => {
-            mockServices.steerQueueStore.load.mockRejectedValue(
+            mockServices.steerQueueStore.list.mockRejectedValue(
                 new Error('Storage initialization failed')
             );
 

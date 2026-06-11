@@ -47,6 +47,19 @@ function createInMemoryDatabase(): Database {
             const current = (store.get(key) as T[] | undefined) ?? [];
             store.set(key, [...current, item]);
         },
+        async updateList<T, R>(
+            key: string,
+            updater: (items: T[]) => { items: T[]; result: R }
+        ): Promise<R> {
+            const current = (store.get(key) as T[] | undefined) ?? [];
+            const mutation = updater([...current]);
+            if (mutation.items.length === 0) {
+                store.delete(key);
+            } else {
+                store.set(key, [...mutation.items]);
+            }
+            return mutation.result;
+        },
         async getRange<T>(key: string, start: number, count: number): Promise<T[]> {
             const current = (store.get(key) as T[] | undefined) ?? [];
             return current.slice(start, start + count);

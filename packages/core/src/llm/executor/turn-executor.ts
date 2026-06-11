@@ -2169,15 +2169,6 @@ export class TurnExecutor {
         if (!this.stepAbortController.signal.aborted) {
             this.stepAbortController.abort();
         }
-
-        // Clear any pending queued messages
-        void this.steerQueue.clear().catch((error) => {
-            this.logger.warn(
-                `Failed to clear queued steer messages during cleanup: ${
-                    error instanceof Error ? error.message : String(error)
-                }`
-            );
-        });
     }
 
     /**

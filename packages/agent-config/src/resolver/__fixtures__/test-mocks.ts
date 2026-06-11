@@ -69,6 +69,10 @@ export function createMockDatabase(storeType: string): Database {
         delete: vi.fn(async () => {}),
         list: vi.fn(async () => []),
         append: vi.fn(async () => {}),
+        updateList: vi.fn(
+            async <T, R>(_key: string, updater: (items: T[]) => { items: T[]; result: R }) =>
+                updater([]).result
+        ),
         getRange: vi.fn(async () => []),
         connect: vi.fn(async () => {}),
         disconnect: vi.fn(async () => {}),
