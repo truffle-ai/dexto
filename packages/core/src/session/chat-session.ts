@@ -1,7 +1,11 @@
 import { randomUUID } from 'crypto';
 import { createLLMService } from '../llm/services/factory.js';
 import type { ContextManager } from '../context/index.js';
-import type { CreateLLMServiceOptions, LanguageModelFactory } from '../llm/services/types.js';
+import type {
+    CreateLLMServiceOptions,
+    LLMExecutionControl,
+    LanguageModelFactory,
+} from '../llm/services/types.js';
 import type { LlmAuthResolver } from '../llm/auth/index.js';
 import type { SystemPromptManager } from '../systemPrompt/manager.js';
 import type { ToolManager } from '../tools/tool-manager.js';
@@ -179,6 +183,7 @@ export class ChatSession {
             authResolver?: LlmAuthResolver | null;
             workspaceManager?: import('../workspace/manager.js').WorkspaceManager;
             compactionStrategy: CompactionStrategy | null;
+            executionControl?: LLMExecutionControl | undefined;
         },
         public readonly id: string,
         logger: Logger
@@ -313,6 +318,9 @@ export class ChatSession {
         const options: CreateLLMServiceOptions = {
             usageScopeId,
             compactionStrategy: this.services.compactionStrategy,
+            ...(this.services.executionControl !== undefined && {
+                executionControl: this.services.executionControl,
+            }),
             ...(workspace?.path !== undefined && { cwd: workspace.path }),
             steerQueue: this.steerQueue,
             followUpQueue: this.followUpQueue,

@@ -12,7 +12,7 @@ import type { ApprovalManager } from '../approval/manager.js';
 import { SessionError } from './errors.js';
 import type { TokenUsage } from '@dexto/llm';
 import { normalizeTokenUsageForAccounting } from '../llm/usage-metadata.js';
-import type { LanguageModelFactory } from '../llm/services/types.js';
+import type { LLMExecutionControl, LanguageModelFactory } from '../llm/services/types.js';
 import type { LlmAuthResolver } from '../llm/auth/index.js';
 import type { CompactionStrategy } from '../context/compaction/types.js';
 import { ZodError } from 'zod';
@@ -84,6 +84,8 @@ export interface SessionManagerConfig {
     languageModelFactory?: LanguageModelFactory;
     /** Host hook for resolving runtime provider auth from local/cloud profiles */
     authResolver?: LlmAuthResolver | null;
+    /** Host control for queue continuation behavior. CLI defaults preserve core-owned follow-ups. */
+    executionControl?: LLMExecutionControl | undefined;
 }
 
 type PersistedLLMConfig = Omit<ValidatedLLMConfig, 'apiKey'>;
@@ -140,6 +142,7 @@ export class SessionManager {
     private readonly sessionLoggerFactory: SessionLoggerFactory;
     private readonly languageModelFactory: LanguageModelFactory | undefined;
     private readonly authResolver: LlmAuthResolver | null;
+    private readonly executionControl: LLMExecutionControl | undefined;
 
     constructor(
         private services: {
@@ -166,6 +169,7 @@ export class SessionManager {
         this.sessionLoggerFactory = config.sessionLoggerFactory ?? defaultSessionLoggerFactory;
         this.languageModelFactory = config.languageModelFactory;
         this.authResolver = config.authResolver ?? null;
+        this.executionControl = config.executionControl;
         this.logger = logger.createChild(DextoLogComponent.SESSION);
     }
 
@@ -177,6 +181,9 @@ export class SessionManager {
                 languageModelFactory: this.languageModelFactory,
             }),
             authResolver: this.authResolver,
+            ...(this.executionControl !== undefined && {
+                executionControl: this.executionControl,
+            }),
         };
     }
 

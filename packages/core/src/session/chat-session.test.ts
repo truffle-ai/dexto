@@ -7,6 +7,7 @@ import {
     SimpleSpanProcessor,
 } from '@opentelemetry/sdk-trace-base';
 import { ChatSession } from './chat-session.js';
+import type { QueuedMessage } from './types.js';
 import { type ValidatedLLMConfig } from '../llm/schemas.js';
 import { LLMConfigSchema } from '../llm/schemas.js';
 import { SessionErrorCode } from './error-codes.js';
@@ -442,7 +443,61 @@ describe('ChatSession', () => {
             );
         });
 
+        test('passes host execution control through to createLLMService', async () => {
+            const executionControl = { followUpQueueMode: 'host-run' as const };
+
+            mockServices.executionControl = executionControl;
+            chatSession.dispose();
+            chatSession = new ChatSession(mockServices, sessionId, mockLogger);
+
+            await chatSession.init();
+
+            expect(mockCreateLLMService).toHaveBeenCalledWith(
+                mockLLMConfig,
+                mockServices.toolManager,
+                mockServices.systemPromptManager,
+                expect.any(Object),
+                chatSession.eventBus,
+                sessionId,
+                mockServices.resourceManager,
+                expect.any(Object),
+                expect.objectContaining({
+                    executionControl,
+                }),
+                undefined
+            );
+        });
+
         test('exposes split steer and follow-up queues with structured content intact', async () => {
+            const steerMessages: QueuedMessage[] = [];
+            const followUpMessages: QueuedMessage[] = [];
+            mockServices.steerQueueStore.list.mockImplementation(async () => steerMessages);
+            mockServices.steerQueueStore.append.mockImplementation(
+                async ({ message }: { message: QueuedMessage }) => {
+                    steerMessages.push(message);
+                    return { position: steerMessages.length };
+                }
+            );
+            mockServices.steerQueueStore.remove.mockImplementation(
+                async ({ id }: { id: string }) => {
+                    const index = steerMessages.findIndex((message) => message.id === id);
+                    if (index === -1) {
+                        return false;
+                    }
+                    steerMessages.splice(index, 1);
+                    return true;
+                }
+            );
+            mockServices.followUpQueueStore.list.mockImplementation(async () => followUpMessages);
+            mockServices.followUpQueueStore.append.mockImplementation(
+                async ({ message }: { message: QueuedMessage }) => {
+                    followUpMessages.push(message);
+                    return { position: followUpMessages.length };
+                }
+            );
+            mockServices.followUpQueueStore.clear.mockImplementation(async () => {
+                followUpMessages.length = 0;
+            });
             mockCreateLLMService.mockImplementation(
                 (
                     _llmConfig,

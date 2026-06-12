@@ -476,7 +476,8 @@ export function createLLMService(
     options: CreateLLMServiceOptions,
     languageModelFactory?: LanguageModelFactory
 ): VercelLLMService {
-    const { usageScopeId, compactionStrategy, steerQueue, followUpQueue } = options;
+    const { usageScopeId, compactionStrategy, executionControl, steerQueue, followUpQueue } =
+        options;
 
     const providerContext: DextoProviderContext = {
         sessionId,
@@ -512,6 +513,7 @@ export function createLLMService(
         steerQueue,
         followUpQueue,
         usageScopeId,
+        executionControl,
         compactionStrategy
     );
 }

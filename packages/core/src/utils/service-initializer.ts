@@ -31,7 +31,7 @@ import { HookManager } from '../hooks/manager.js';
 import type { Hook } from '../hooks/types.js';
 import type { CompactionStrategy } from '../context/compaction/types.js';
 import { SessionToolPreferencesStore } from '../tools/session-tool-preferences-store.js';
-import type { LanguageModelFactory } from '../llm/services/types.js';
+import type { LLMExecutionControl, LanguageModelFactory } from '../llm/services/types.js';
 import type { WorkspaceHandleProvider } from '../workspace/types.js';
 
 /**
@@ -88,6 +88,7 @@ export type InitializeServicesOptions = {
     hooks?: Hook[] | undefined;
     workspaceHandleProvider?: WorkspaceHandleProvider | undefined;
     telemetryBootstrap?: TelemetryBootstrap | undefined;
+    executionControl?: LLMExecutionControl | undefined;
 };
 
 export async function initializeAgentTelemetry(
@@ -328,6 +329,9 @@ export async function createAgentServices(
             }),
             ...(overrides?.authResolver !== undefined && {
                 authResolver: overrides.authResolver,
+            }),
+            ...(overrides?.executionControl !== undefined && {
+                executionControl: overrides.executionControl,
             }),
         },
         logger

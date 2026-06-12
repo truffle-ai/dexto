@@ -3042,6 +3042,56 @@ describe('TurnExecutor Integration Tests', () => {
             expect(callCount).toBe(1);
             expect(result.finishReason).toBe('max-steps');
         });
+
+        it('leaves follow-up messages queued when hosted runtimes own follow-up promotion', async () => {
+            let callCount = 0;
+            vi.mocked(streamText).mockImplementation(() => {
+                callCount++;
+                const queuedFollowUp = followUpQueue.enqueue({
+                    content: [{ type: 'text', text: 'Run as the next hosted turn' }],
+                });
+                const stream = createMockStream({
+                    text: `Response ${callCount}`,
+                    finishReason: 'stop',
+                });
+                return {
+                    fullStream: (async function* () {
+                        await queuedFollowUp;
+                        for await (const event of stream.fullStream) {
+                            yield event;
+                        }
+                    })(),
+                } as unknown as ReturnType<typeof streamText>;
+            });
+
+            const hostedExecutor = new TurnExecutor(
+                createMockModel(),
+                toolManager,
+                contextManager,
+                sessionEventBus,
+                resourceManager,
+                sessionId,
+                {
+                    maxSteps: 10,
+                    executionControl: { followUpQueueMode: 'host-run' },
+                },
+                llmContext,
+                logger,
+                steerQueue,
+                followUpQueue
+            );
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Initial' }]);
+            const result = await hostedExecutor.execute({ mcpManager }, true);
+
+            expect(callCount).toBe(1);
+            expect(result.finishReason).toBe('stop');
+            expect(followUpQueue.getAll()).toEqual([
+                expect.objectContaining({
+                    content: [{ type: 'text', text: 'Run as the next hosted turn' }],
+                }),
+            ]);
+        });
     });
 
     describe('Tool Support Validation', () => {

@@ -64,6 +64,7 @@ import type { AgentRunContext } from '../../runtime/run-context.js';
 import { createModelToolDefinitions } from './tool-definitions.js';
 import { ApprovalStatus, type ApprovalResponse } from '../../approval/types.js';
 import type { ApprovalDecisionInput } from '../../approval/manager.js';
+import type { LLMExecutionControl } from '../services/types.js';
 
 const MCP_TOOL_PREFIX = 'mcp--';
 const MODEL_REQUEST_MAX_RETRIES = 2;
@@ -417,6 +418,7 @@ export class TurnExecutor {
             temperature?: number | undefined;
             baseURL?: string | undefined;
             usageScopeId?: string | undefined;
+            executionControl?: LLMExecutionControl | undefined;
             // Provider-specific options
             reasoning?: LLMReasoningConfig | undefined;
         },
@@ -1073,15 +1075,17 @@ export class TurnExecutor {
             );
         }
 
-        // Follow-ups run only after the active turn naturally reaches a stop point.
-        await this.followUpQueue.refresh();
-        if (this.followUpQueue.hasPending()) {
-            return this.continueWithQueuedInput(
-                'follow-up',
-                this.followUpQueue,
-                stepCount,
-                result.finishReason
-            );
+        if (this.config.executionControl?.followUpQueueMode !== 'host-run') {
+            // Follow-ups run only after the active turn naturally reaches a stop point.
+            await this.followUpQueue.refresh();
+            if (this.followUpQueue.hasPending()) {
+                return this.continueWithQueuedInput(
+                    'follow-up',
+                    this.followUpQueue,
+                    stepCount,
+                    result.finishReason
+                );
+            }
         }
 
         this.logger.debug(`Terminating: finishReason is "${result.finishReason}"`);
