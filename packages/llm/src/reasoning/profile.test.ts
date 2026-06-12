@@ -59,6 +59,16 @@ describe('getReasoningProfile', () => {
         });
     });
 
+    it('returns always-on adaptive effort profile for Claude Fable 5', () => {
+        expect(getReasoningProfile('anthropic', 'claude-fable-5')).toMatchObject({
+            capable: true,
+            paradigm: 'adaptive-effort',
+            supportedVariants: ['low', 'medium', 'high', 'xhigh', 'max'],
+            defaultVariant: 'high',
+            supportsBudgetTokens: false,
+        });
+    });
+
     it('includes max for Anthropic Opus adaptive models', () => {
         expect(getReasoningProfile('anthropic', 'claude-opus-4-6')).toMatchObject({
             capable: true,
@@ -149,6 +159,14 @@ describe('getReasoningProfile', () => {
             defaultVariant: 'medium',
             supportsBudgetTokens: true,
         });
+
+        expect(getReasoningProfile('openrouter', 'anthropic/claude-fable-5')).toMatchObject({
+            capable: true,
+            paradigm: 'adaptive-effort',
+            supportedVariants: ['low', 'medium', 'high', 'xhigh'],
+            defaultVariant: 'high',
+            supportsBudgetTokens: true,
+        });
     });
 
     it('returns OpenRouter Gemini-3 thinking-level profile', () => {
@@ -187,9 +205,13 @@ describe('getReasoningProfile', () => {
             const gateways = ['openrouter', 'dexto-nova'] as const;
             for (const gateway of gateways) {
                 const gatewayProfile = getReasoningProfile(gateway, entry.gatewayModel);
+                const expectedVariants =
+                    native.paradigm === 'adaptive-effort'
+                        ? native.supportedVariants.filter((variant) => variant !== 'max')
+                        : native.supportedVariants;
                 expect(gatewayProfile.capable).toBe(native.capable);
                 expect(gatewayProfile.paradigm).toBe(native.paradigm);
-                expect(gatewayProfile.supportedVariants).toEqual(native.supportedVariants);
+                expect(gatewayProfile.supportedVariants).toEqual(expectedVariants);
                 expect(gatewayProfile.defaultVariant).toBe(native.defaultVariant);
             }
         }

@@ -1,5 +1,82 @@
 # @dexto/webui
 
+## 1.8.11
+
+### Patch Changes
+
+- Updated dependencies [1704a08]
+    - @dexto/core@1.8.11
+    - @dexto/agent-config@1.8.11
+    - @dexto/analytics@1.8.11
+    - @dexto/client-sdk@1.8.11
+    - @dexto/storage@1.8.11
+    - @dexto/llm@1.8.11
+    - @dexto/registry@1.8.11
+
+## 1.8.10
+
+### Patch Changes
+
+- Updated dependencies [e316b08]
+    - @dexto/core@1.8.10
+    - @dexto/agent-config@1.8.10
+    - @dexto/analytics@1.8.10
+    - @dexto/client-sdk@1.8.10
+    - @dexto/storage@1.8.10
+    - @dexto/llm@1.8.10
+    - @dexto/registry@1.8.10
+
+## 1.8.9
+
+### Patch Changes
+
+- Updated dependencies [c3bd5fd]
+    - @dexto/llm@1.8.9
+    - @dexto/core@1.8.9
+    - @dexto/analytics@1.8.9
+    - @dexto/agent-config@1.8.9
+    - @dexto/client-sdk@1.8.9
+    - @dexto/storage@1.8.9
+    - @dexto/registry@1.8.9
+
+## 1.8.8
+
+### Patch Changes
+
+- Updated dependencies [649b0a2]
+    - @dexto/core@1.8.8
+    - @dexto/llm@1.8.8
+    - @dexto/agent-config@1.8.8
+    - @dexto/analytics@1.8.8
+    - @dexto/client-sdk@1.8.8
+    - @dexto/storage@1.8.8
+    - @dexto/registry@1.8.8
+
+## 1.8.7
+
+### Patch Changes
+
+- Updated dependencies [5e2aaea]
+    - @dexto/llm@1.8.7
+    - @dexto/core@1.8.7
+    - @dexto/analytics@1.8.7
+    - @dexto/agent-config@1.8.7
+    - @dexto/client-sdk@1.8.7
+    - @dexto/storage@1.8.7
+    - @dexto/registry@1.8.7
+
+## 1.8.6
+
+### Patch Changes
+
+- @dexto/core@1.8.6
+- @dexto/storage@1.8.6
+- @dexto/llm@1.8.6
+- @dexto/agent-config@1.8.6
+- @dexto/client-sdk@1.8.6
+- @dexto/analytics@1.8.6
+- @dexto/registry@1.8.6
+
 ## 1.8.5
 
 ### Patch Changes

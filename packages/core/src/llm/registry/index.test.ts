@@ -374,7 +374,7 @@ describe('File Support Functions', () => {
         });
 
         it('returns empty array for models without file support', () => {
-            expect(getSupportedFileTypesForModel('groq', 'gemma2-9b-it')).toEqual([]);
+            expect(getSupportedFileTypesForModel('groq', 'llama-3.1-8b-instant')).toEqual([]);
         });
 
         it('returns provider supportedFileTypes for openai-compatible with any model', () => {

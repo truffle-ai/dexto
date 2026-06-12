@@ -95,6 +95,16 @@ describe('ContextManager', () => {
             expect(history).toHaveLength(1);
             expect(history[0]?.role).toBe('user');
             expect(history[0]?.content).toEqual([{ type: 'text', text: 'Hello, world!' }]);
+            expect(mockLogger.info).toHaveBeenCalledWith('User message received', {
+                totalParts: 1,
+                textParts: 1,
+                imageParts: 0,
+                fileParts: 0,
+                resourceParts: 0,
+                uiResourceParts: 0,
+                textLength: 13,
+                textSha256: '315f5bdb76d078c43b8ac0064e4a0164612b1fce77c869345bfc94c75894edd3',
+            });
         });
 
         it('should add a user message with multiple text parts', async () => {
@@ -260,7 +270,7 @@ describe('ContextManager', () => {
             ]);
         });
 
-        it('should not rehydrate tool media for the LLM', async () => {
+        it('should rehydrate recent tool media for the LLM', async () => {
             const formatter = createMockFormatter();
             const stores = new InMemoryDextoStores();
             const resourceManager = {
@@ -293,7 +303,7 @@ describe('ContextManager', () => {
                     {
                         role: 'tool',
                         toolCallId: 'call-tool-image',
-                        name: 'read_media_file',
+                        name: 'media_tool',
                         success: true,
                         content: [
                             {
@@ -309,7 +319,90 @@ describe('ContextManager', () => {
             const formattedHistory = vi.mocked(formatter.format).mock
                 .calls[0]?.[0] as InternalMessage[];
             expect(formattedHistory[0]?.content).toEqual([
+                { type: 'image', image: 'tool-image-data', mimeType: 'image/png' },
+            ]);
+        });
+
+        it('should keep older tool media compact after the media retention limit', async () => {
+            const formatter = createMockFormatter();
+            const stores = new InMemoryDextoStores();
+            const resourceManager = {
+                read: vi.fn(async (uri: string) => {
+                    if (uri === 'blob:tool-image') {
+                        return {
+                            contents: [{ blob: 'tool-image-data', mimeType: 'image/png' }],
+                            _meta: { size: 4096, originalName: 'tool-image.png' },
+                        };
+                    }
+                    if (uri === 'blob:middle-image') {
+                        return {
+                            contents: [{ blob: 'middle-image-data', mimeType: 'image/png' }],
+                            _meta: { size: 2048, originalName: 'middle-image.png' },
+                        };
+                    }
+                    if (uri === 'blob:new-image') {
+                        return {
+                            contents: [{ blob: 'new-image-data', mimeType: 'image/png' }],
+                            _meta: { size: 3072, originalName: 'new-image.png' },
+                        };
+                    }
+                    throw new Error(`Unexpected blob URI: ${uri}`);
+                }),
+                getArtifactStore: vi.fn().mockReturnValue(stores.getStore('artifacts')),
+            } as unknown as ResourceManager;
+
+            const contextManager = createContextManager({
+                formatter,
+                resourceManager,
+                llmConfig: {
+                    ...createMockLLMConfig(),
+                    allowedMediaTypes: ['image/*'],
+                } as ValidatedLLMConfig,
+            });
+
+            await contextManager.getFormattedMessages(
+                createMockContributorContext(),
+                { provider: 'openai', model: 'gpt-4' },
+                'System prompt',
+                [
+                    {
+                        role: 'tool',
+                        toolCallId: 'call-tool-image',
+                        name: 'media_tool',
+                        success: true,
+                        content: [
+                            {
+                                type: 'image',
+                                image: '@blob:tool-image',
+                                mimeType: 'image/png',
+                            },
+                        ],
+                    } as InternalMessage,
+                    {
+                        role: 'user',
+                        content: [
+                            { type: 'image', image: '@blob:middle-image', mimeType: 'image/png' },
+                        ],
+                    } as InternalMessage,
+                    {
+                        role: 'user',
+                        content: [
+                            { type: 'image', image: '@blob:new-image', mimeType: 'image/png' },
+                        ],
+                    } as InternalMessage,
+                ]
+            );
+
+            const formattedHistory = vi.mocked(formatter.format).mock
+                .calls[0]?.[0] as InternalMessage[];
+            expect(formattedHistory[0]?.content).toEqual([
                 { type: 'text', text: '[Image: tool-image.png (4 KB)]' },
+            ]);
+            expect(formattedHistory[1]?.content).toEqual([
+                { type: 'image', image: 'middle-image-data', mimeType: 'image/png' },
+            ]);
+            expect(formattedHistory[2]?.content).toEqual([
+                { type: 'image', image: 'new-image-data', mimeType: 'image/png' },
             ]);
         });
     });
@@ -516,17 +609,13 @@ describe('ContextManager', () => {
                     },
                 ],
                 meta: {
-                    toolName: 'read_media_file',
+                    toolName: 'media_tool',
                     toolCallId: 'call-existing-blob',
                     success: true,
                 },
             };
 
-            await contextManager.addToolResult(
-                'call-existing-blob',
-                'read_media_file',
-                sanitizedResult
-            );
+            await contextManager.addToolResult('call-existing-blob', 'media_tool', sanitizedResult);
 
             const history = await contextManager.getHistory();
             expect(history[0]?.content).toEqual([

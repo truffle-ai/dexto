@@ -1,5 +1,6 @@
 export * from './manager.js';
 export * from './schemas.js';
 export * from './types.js';
+export * from './content-audit.js';
 export { getFileMediaKind, getResourceKind } from './media-helpers.js';
 export * from './compaction/index.js';

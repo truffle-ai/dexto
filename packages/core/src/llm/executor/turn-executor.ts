@@ -64,6 +64,10 @@ import type { AgentRunContext } from '../../runtime/run-context.js';
 import { createModelToolDefinitions } from './tool-definitions.js';
 import { ApprovalStatus, type ApprovalResponse } from '../../approval/types.js';
 import type { ApprovalDecisionInput } from '../../approval/manager.js';
+import {
+    describeContentPartsForAudit,
+    describeInternalMessageTailForAudit,
+} from '../../context/content-audit.js';
 
 const MCP_TOOL_PREFIX = 'mcp--';
 const MODEL_REQUEST_MAX_RETRIES = 2;
@@ -283,6 +287,7 @@ type ModelStepRequestState = z.output<typeof ModelStepRequestStateSchema>;
 type ModelStepPreparationInput = {
     contributorContext: DynamicContributorContext;
     supportsTools: boolean;
+    stepCount: number;
     streaming: boolean;
 };
 
@@ -656,6 +661,7 @@ export class TurnExecutor {
                             this.prepareNextModelRequest({
                                 contributorContext,
                                 supportsTools: turn.supportsTools,
+                                stepCount,
                                 streaming: options.streaming,
                             }),
                         this.logger
@@ -696,6 +702,7 @@ export class TurnExecutor {
                                 this.prepareNextModelRequest({
                                     contributorContext,
                                     supportsTools: turn.supportsTools,
+                                    stepCount,
                                     streaming: options.streaming,
                                 }),
                             this.logger
@@ -1108,10 +1115,12 @@ export class TurnExecutor {
             },
         });
 
-        this.logger.info(`Injected ${coalesced.messages.length} queued message(s) into context`, {
+        this.logger.info('Queued turn input injected into context', {
             count: coalesced.messages.length,
             firstQueued: coalesced.firstQueuedAt,
             lastQueued: coalesced.lastQueuedAt,
+            originalMessageIds: coalesced.messages.map((message) => message.id),
+            content: await describeContentPartsForAudit(coalesced.combinedContent),
         });
     }
 
@@ -1210,9 +1219,14 @@ export class TurnExecutor {
         input: ModelStepPreparationInput
     ): Promise<ModelStepRequest> {
         // Check for queued messages before preparing context for the next model request.
-        const coalesced = await this.steerQueue.dequeueAll();
-        if (coalesced) {
-            await this.injectQueuedMessages(coalesced);
+        //
+        // Step 0 already has the submitted turn input. Holding steer until a later boundary keeps
+        // immediately submitted guidance from being folded into the first visible assistant answer.
+        if (input.stepCount > 0) {
+            const coalesced = await this.steerQueue.dequeueAll();
+            if (coalesced) {
+                await this.injectQueuedMessages(coalesced);
+            }
         }
 
         // Prune old tool outputs before compaction, so pruning can avoid unnecessary compaction.
@@ -1287,6 +1301,7 @@ export class TurnExecutor {
             this.logger
         );
 
+        let compacted = false;
         if (this.shouldCompact(estimatedInputTokens)) {
             this.logger.debug(
                 `Pre-check: estimated ${estimatedInputTokens} tokens exceeds threshold, compacting`
@@ -1307,6 +1322,7 @@ export class TurnExecutor {
             );
 
             if (didCompact) {
+                compacted = true;
                 systemPrompt = await recordOperationSpan(
                     {
                         name: 'system_prompt.build',
@@ -1408,6 +1424,22 @@ export class TurnExecutor {
                       ...(reasoningBudgetTokens !== undefined && { reasoningBudgetTokens }),
                   }
                 : undefined;
+
+        this.logger.info('Model request context prepared', {
+            sessionId: this.sessionId,
+            provider: this.llmContext.provider,
+            model: this.llmContext.model,
+            streaming: input.streaming,
+            estimatedInputTokens,
+            toolCount: Object.keys(toolDefinitions).length,
+            formattedMessageCount: formattedMessages.length,
+            preparedHistoryCount: preparedHistory.length,
+            compacted,
+            ...(this.runContext?.hostRuntime?.ids !== undefined && {
+                hostRuntimeIds: this.runContext.hostRuntime.ids,
+            }),
+            historyTail: await describeInternalMessageTailForAudit(preparedHistory, 8),
+        });
 
         return {
             messages: formattedMessages,

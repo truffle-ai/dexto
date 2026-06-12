@@ -122,10 +122,49 @@ describe('buildProviderOptions', () => {
                 anthropic: {
                     cacheControl: { type: 'ephemeral' },
                     sendReasoning: true,
-                    thinking: { type: 'adaptive' },
+                    thinking: { type: 'adaptive', display: 'summarized' },
                     effort: 'xhigh',
                 },
             });
+        });
+
+        it('uses high effort adaptive thinking for Claude Fable 5 by default', () => {
+            expect(
+                buildProviderOptions({
+                    provider: 'anthropic',
+                    model: 'claude-fable-5',
+                })
+            ).toEqual({
+                anthropic: {
+                    cacheControl: { type: 'ephemeral' },
+                    sendReasoning: true,
+                    thinking: { type: 'adaptive', display: 'summarized' },
+                    effort: 'high',
+                },
+            });
+
+            expect(
+                buildProviderOptions({
+                    provider: 'anthropic',
+                    model: 'claude-fable-5',
+                    reasoning: { variant: 'max' },
+                })
+            ).toEqual({
+                anthropic: {
+                    cacheControl: { type: 'ephemeral' },
+                    sendReasoning: true,
+                    thinking: { type: 'adaptive', display: 'summarized' },
+                    effort: 'max',
+                },
+            });
+
+            expect(
+                buildProviderOptions({
+                    provider: 'anthropic',
+                    model: 'claude-fable-5',
+                    reasoning: { variant: 'disabled' },
+                })
+            ).toBeUndefined();
         });
     });
 
@@ -134,7 +173,7 @@ describe('buildProviderOptions', () => {
             expect(
                 buildProviderOptions({
                     provider: 'vertex',
-                    model: 'claude-3-7-sonnet@20250219',
+                    model: 'claude-opus-4-5@20251101',
                     reasoning: { variant: 'enabled' },
                 })
             ).toEqual({
@@ -315,19 +354,28 @@ describe('buildProviderOptions', () => {
             });
         });
 
-        it('maps Anthropic adaptive max to OpenRouter xhigh effort', () => {
+        it('uses high effort by default for Claude Fable 5 on gateway providers', () => {
+            expect(
+                buildProviderOptions({
+                    provider: 'dexto-nova',
+                    model: 'anthropic/claude-fable-5',
+                })
+            ).toEqual({
+                'dexto-nova': {
+                    include_reasoning: true,
+                    reasoning: { enabled: true, effort: 'high' },
+                },
+            });
+        });
+
+        it('does not map Anthropic-only adaptive max on gateway providers', () => {
             expect(
                 buildProviderOptions({
                     provider: 'openrouter',
                     model: 'anthropic/claude-opus-4.6',
                     reasoning: { variant: 'max' },
                 })
-            ).toEqual({
-                openrouter: {
-                    include_reasoning: true,
-                    reasoning: { enabled: true, effort: 'xhigh' },
-                },
-            });
+            ).toBeUndefined();
         });
 
         it('uses max_tokens when budgetTokens is provided', () => {
@@ -422,7 +470,7 @@ describe('buildProviderOptions', () => {
                 },
                 {
                     model: 'anthropic/claude-opus-4.7',
-                    reasoning: { variant: 'max' as const },
+                    reasoning: { variant: 'xhigh' as const },
                 },
                 {
                     model: 'anthropic/claude-sonnet-4.5',

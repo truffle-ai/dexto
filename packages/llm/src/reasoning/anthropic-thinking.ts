@@ -51,12 +51,18 @@ export function isClaudeVersionAtLeast(
 }
 
 export function isAnthropicAdaptiveThinkingModel(model: string): boolean {
+    if (isAnthropicAlwaysAdaptiveThinkingModel(model)) return true;
+
     const version = parseClaudeVersion(model);
     if (!version) return false;
 
     // Reference hardcoded Claude thinking facts against pi-mono and opencode before changing them.
     // Claude 4.6 introduced adaptive thinking; assume it continues for subsequent versions.
     return isClaudeVersionAtLeast(version, { major: 4, minor: 6 });
+}
+
+export function isAnthropicAlwaysAdaptiveThinkingModel(model: string): boolean {
+    return /claude-(fable|mythos)-5\b/i.test(model);
 }
 
 export function isAnthropicOpusAdaptiveThinkingModel(model: string): boolean {
@@ -72,6 +78,8 @@ export function isAnthropicOpusXhighThinkingModel(model: string): boolean {
 }
 
 export function supportsAnthropicInterleavedThinking(model: string): boolean {
+    if (isAnthropicAlwaysAdaptiveThinkingModel(model)) return true;
+
     const version = parseClaudeVersion(model);
     if (!version) return false;
 
