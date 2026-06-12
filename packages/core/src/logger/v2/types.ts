@@ -14,31 +14,58 @@ export type LogLevel = 'debug' | 'info' | 'warn' | 'error' | 'silly';
  * Component identifiers for structured logging
  * Mirrors ErrorScope for consistency, with additional execution context components
  */
-export enum DextoLogComponent {
+
+export const DEXTO_LOG_COMPONENTS = [
+    'agent',
+    'llm',
+    'config',
+    'context',
+    'session',
+    'mcp',
+    'tools',
+    'storage',
+    'system_prompt',
+    'resource',
+    'prompt',
+    'memory',
+    'hook',
+    'filesystem',
+    'process',
+    'approval',
+    'api',
+    'cli',
+    'telemetry',
+    'executor',
+] as const;
+
+export type DextoLogComponent = (typeof DEXTO_LOG_COMPONENTS)[number];
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const DextoLogComponent = {
     // Core functional domains (matches ErrorScope)
-    AGENT = 'agent',
-    LLM = 'llm',
-    CONFIG = 'config',
-    CONTEXT = 'context',
-    SESSION = 'session',
-    MCP = 'mcp',
-    TOOLS = 'tools',
-    STORAGE = 'storage',
-    SYSTEM_PROMPT = 'system_prompt',
-    RESOURCE = 'resource',
-    PROMPT = 'prompt',
-    MEMORY = 'memory',
-    HOOK = 'hook',
-    FILESYSTEM = 'filesystem',
-    PROCESS = 'process',
-    APPROVAL = 'approval',
+    AGENT: 'agent',
+    LLM: 'llm',
+    CONFIG: 'config',
+    CONTEXT: 'context',
+    SESSION: 'session',
+    MCP: 'mcp',
+    TOOLS: 'tools',
+    STORAGE: 'storage',
+    SYSTEM_PROMPT: 'system_prompt',
+    RESOURCE: 'resource',
+    PROMPT: 'prompt',
+    MEMORY: 'memory',
+    HOOK: 'hook',
+    FILESYSTEM: 'filesystem',
+    PROCESS: 'process',
+    APPROVAL: 'approval',
 
     // Additional execution context components
-    API = 'api',
-    CLI = 'cli',
-    TELEMETRY = 'telemetry',
-    EXECUTOR = 'executor',
-}
+    API: 'api',
+    CLI: 'cli',
+    TELEMETRY: 'telemetry',
+    EXECUTOR: 'executor',
+} as const;
 
 /**
  * Structured log entry
