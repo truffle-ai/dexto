@@ -461,6 +461,17 @@ describe('SessionManager', () => {
             );
         });
 
+        test('does not clear durable pending input when creating a new session identity', async () => {
+            const sessionId = 'accepted-input-session';
+            mockServices.steerQueueStore.clear.mockClear();
+            mockServices.followUpQueueStore.clear.mockClear();
+
+            await sessionManager.createSession(sessionId);
+
+            expect(mockServices.steerQueueStore.clear).not.toHaveBeenCalled();
+            expect(mockServices.followUpQueueStore.clear).not.toHaveBeenCalled();
+        });
+
         test('should return existing session instance for duplicate creation requests', async () => {
             const sessionId = 'existing-session';
 
@@ -1202,6 +1213,18 @@ describe('SessionManager', () => {
         test('should handle deleting non-existent sessions gracefully', async () => {
             await expect(sessionManager.deleteSession('non-existent')).resolves.not.toThrow();
             expect(mockStorageManager.database.delete).toHaveBeenCalledWith('session:non-existent');
+        });
+
+        test('clears pending input when permanently deleting a session', async () => {
+            const sessionId = 'deleted-session';
+            await sessionManager.createSession(sessionId);
+            mockServices.steerQueueStore.clear.mockClear();
+            mockServices.followUpQueueStore.clear.mockClear();
+
+            await sessionManager.deleteSession(sessionId);
+
+            expect(mockServices.steerQueueStore.clear).toHaveBeenCalledWith({ sessionId });
+            expect(mockServices.followUpQueueStore.clear).toHaveBeenCalledWith({ sessionId });
         });
 
         test('should cleanup all sessions during shutdown', async () => {

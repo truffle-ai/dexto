@@ -667,6 +667,7 @@ export class SessionManager {
         // Remove session metadata from storage
         await this.services.sessionStore.deleteSession({ sessionId });
         await this.deleteSessionInteractionState(sessionId);
+        await this.deleteSessionPendingInput(sessionId);
         await this.services.conversationStore.clearMessages({ sessionId });
 
         this.logger.debug(`Deleted session and conversation history: ${sessionId}`);
@@ -1266,6 +1267,11 @@ export class SessionManager {
         await Promise.all([
             this.services.toolManager.deleteSessionState(sessionId),
             this.services.approvalManager.deleteSessionState(sessionId),
+        ]);
+    }
+
+    private async deleteSessionPendingInput(sessionId: string): Promise<void> {
+        await Promise.all([
             this.services.steerQueueStore.clear({ sessionId }),
             this.services.followUpQueueStore.clear({ sessionId }),
         ]);
