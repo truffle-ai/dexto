@@ -2,26 +2,6 @@
  * Error codes for scheduler operations
  */
 
-export const SCHEDULER_ERROR_CODES = [
-    'SCHEDULER_NOT_ENABLED',
-    'SCHEDULER_INVALID_CONFIG',
-    'SCHEDULER_MISSING_STORAGE',
-    'SCHEDULE_INVALID_CRON',
-    'SCHEDULE_INVALID_INPUT',
-    'SCHEDULE_LIMIT_REACHED',
-    'SCHEDULE_NOT_FOUND',
-    'SCHEDULE_CREATE_FAILED',
-    'SCHEDULE_UPDATE_FAILED',
-    'SCHEDULE_DELETE_FAILED',
-    'SCHEDULE_EXECUTION_FAILED',
-    'SCHEDULE_EXECUTION_TIMEOUT',
-    'STORAGE_READ_FAILED',
-    'STORAGE_WRITE_FAILED',
-] as const;
-
-export type SchedulerErrorCode = (typeof SCHEDULER_ERROR_CODES)[number];
-
-// eslint-disable-next-line @typescript-eslint/no-redeclare
 export const SchedulerErrorCode = {
     // Configuration errors
     SCHEDULER_NOT_ENABLED: 'SCHEDULER_NOT_ENABLED',
@@ -47,3 +27,10 @@ export const SchedulerErrorCode = {
     STORAGE_READ_FAILED: 'STORAGE_READ_FAILED',
     STORAGE_WRITE_FAILED: 'STORAGE_WRITE_FAILED',
 } as const;
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export type SchedulerErrorCode = (typeof SchedulerErrorCode)[keyof typeof SchedulerErrorCode];
+
+export const SCHEDULER_ERROR_CODES = Object.values(
+    SchedulerErrorCode
+) as readonly SchedulerErrorCode[];

@@ -3,30 +3,6 @@
  * Includes initialization, message validation, token processing, and formatting errors
  */
 
-export const CONTEXT_ERROR_CODES = [
-    'context_message_role_missing',
-    'context_message_content_empty',
-    'context_user_message_content_invalid',
-    'context_assistant_message_content_or_tools_required',
-    'context_assistant_message_tool_calls_invalid',
-    'context_tool_message_fields_missing',
-    'context_tool_call_id_name_required',
-    'context_system_message_content_invalid',
-    'context_token_count_failed',
-    'context_preserve_values_negative',
-    'context_min_messages_negative',
-    'context_compaction_invalid_type',
-    'context_compaction_validation',
-    'context_compaction_missing_llm',
-    'context_compaction_provider_already_registered',
-    'context_message_not_found',
-    'context_message_not_assistant',
-    'context_assistant_content_not_string',
-] as const;
-
-export type ContextErrorCode = (typeof CONTEXT_ERROR_CODES)[number];
-
-// eslint-disable-next-line @typescript-eslint/no-redeclare
 export const ContextErrorCode = {
     // Message validation
     MESSAGE_ROLE_MISSING: 'context_message_role_missing',
@@ -62,3 +38,8 @@ export const ContextErrorCode = {
     MESSAGE_NOT_ASSISTANT: 'context_message_not_assistant',
     ASSISTANT_CONTENT_NOT_STRING: 'context_assistant_content_not_string',
 } as const;
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export type ContextErrorCode = (typeof ContextErrorCode)[keyof typeof ContextErrorCode];
+
+export const CONTEXT_ERROR_CODES = Object.values(ContextErrorCode) as readonly ContextErrorCode[];

@@ -3,21 +3,6 @@
  * Includes prompt resolution, validation, and provider errors
  */
 
-export const PROMPT_ERROR_CODES = [
-    'prompt_not_found',
-    'prompt_empty_content',
-    'prompt_provider_not_found',
-    'prompt_name_required',
-    'prompt_invalid_name',
-    'prompt_missing_text',
-    'prompt_missing_required_arguments',
-    'prompt_already_exists',
-    'prompt_config_invalid',
-] as const;
-
-export type PromptErrorCode = (typeof PROMPT_ERROR_CODES)[number];
-
-// eslint-disable-next-line @typescript-eslint/no-redeclare
 export const PromptErrorCode = {
     // Prompt resolution errors
     PROMPT_NOT_FOUND: 'prompt_not_found',
@@ -32,3 +17,8 @@ export const PromptErrorCode = {
     PROMPT_ALREADY_EXISTS: 'prompt_already_exists',
     PROMPT_CONFIG_INVALID: 'prompt_config_invalid',
 } as const;
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export type PromptErrorCode = (typeof PromptErrorCode)[keyof typeof PromptErrorCode];
+
+export const PROMPT_ERROR_CODES = Object.values(PromptErrorCode) as readonly PromptErrorCode[];

@@ -3,31 +3,6 @@
  * Includes configuration, validation, and runtime errors for LLM operations
  */
 
-export const LLM_ERROR_CODES = [
-    'llm_api_key_missing',
-    'llm_api_key_invalid',
-    'llm_api_key_candidate_missing',
-    'llm_base_url_missing',
-    'llm_base_url_invalid',
-    'llm_config_missing',
-    'llm_model_incompatible',
-    'llm_model_unknown',
-    'llm_provider_unsupported',
-    'llm_input_file_unsupported',
-    'llm_input_image_unsupported',
-    'llm_input_text_invalid',
-    'llm_tokens_exceeded',
-    'llm_rate_limit_exceeded',
-    'llm_insufficient_credits',
-    'llm_switch_failed',
-    'llm_generation_failed',
-    'llm_switch_input_missing',
-    'llm_request_invalid_schema',
-] as const;
-
-export type LLMErrorCode = (typeof LLM_ERROR_CODES)[number];
-
-// eslint-disable-next-line @typescript-eslint/no-redeclare
 export const LLMErrorCode = {
     // Configuration errors
     API_KEY_MISSING: 'llm_api_key_missing',
@@ -62,3 +37,8 @@ export const LLMErrorCode = {
     // Schema validation
     REQUEST_INVALID_SCHEMA: 'llm_request_invalid_schema',
 } as const;
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export type LLMErrorCode = (typeof LLMErrorCode)[keyof typeof LLMErrorCode];
+
+export const LLM_ERROR_CODES = Object.values(LLMErrorCode) as readonly LLMErrorCode[];

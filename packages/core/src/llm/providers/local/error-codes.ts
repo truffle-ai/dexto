@@ -8,39 +8,6 @@
  * - 040-049: Ollama errors
  */
 
-export const LOCAL_MODEL_ERROR_CODES = [
-    'LOCAL_001',
-    'LOCAL_002',
-    'LOCAL_003',
-    'LOCAL_004',
-    'LOCAL_010',
-    'LOCAL_011',
-    'LOCAL_012',
-    'LOCAL_013',
-    'LOCAL_014',
-    'LOCAL_015',
-    'LOCAL_020',
-    'LOCAL_021',
-    'LOCAL_022',
-    'LOCAL_023',
-    'LOCAL_024',
-    'LOCAL_025',
-    'LOCAL_030',
-    'LOCAL_031',
-    'LOCAL_032',
-    'LOCAL_033',
-    'LOCAL_034',
-    'LOCAL_035',
-    'LOCAL_040',
-    'LOCAL_041',
-    'LOCAL_042',
-    'LOCAL_043',
-    'LOCAL_044',
-] as const;
-
-export type LocalModelErrorCode = (typeof LOCAL_MODEL_ERROR_CODES)[number];
-
-// eslint-disable-next-line @typescript-eslint/no-redeclare
 export const LocalModelErrorCode = {
     // Installation errors (001-009)
     /** node-llama-cpp package is not installed */
@@ -106,3 +73,10 @@ export const LocalModelErrorCode = {
     /** Ollama version incompatible */
     OLLAMA_VERSION_INCOMPATIBLE: 'LOCAL_044',
 } as const;
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export type LocalModelErrorCode = (typeof LocalModelErrorCode)[keyof typeof LocalModelErrorCode];
+
+export const LOCAL_MODEL_ERROR_CODES = Object.values(
+    LocalModelErrorCode
+) as readonly LocalModelErrorCode[];

@@ -2,27 +2,6 @@
  * Plugin Marketplace Error Codes
  */
 
-export const MARKETPLACE_ERROR_CODES = [
-    'marketplace_registry_read_failed',
-    'marketplace_registry_write_failed',
-    'marketplace_add_already_exists',
-    'marketplace_add_clone_failed',
-    'marketplace_add_invalid_source',
-    'marketplace_add_local_not_found',
-    'marketplace_remove_not_found',
-    'marketplace_remove_delete_failed',
-    'marketplace_update_not_found',
-    'marketplace_update_pull_failed',
-    'marketplace_update_local_not_supported',
-    'marketplace_install_marketplace_not_found',
-    'marketplace_install_plugin_not_found',
-    'marketplace_install_copy_failed',
-    'marketplace_scan_failed',
-] as const;
-
-export type MarketplaceErrorCode = (typeof MARKETPLACE_ERROR_CODES)[number];
-
-// eslint-disable-next-line @typescript-eslint/no-redeclare
 export const MarketplaceErrorCode = {
     // Registry errors
     REGISTRY_READ_FAILED: 'marketplace_registry_read_failed',
@@ -51,3 +30,10 @@ export const MarketplaceErrorCode = {
     // Scan errors
     SCAN_FAILED: 'marketplace_scan_failed',
 } as const;
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export type MarketplaceErrorCode = (typeof MarketplaceErrorCode)[keyof typeof MarketplaceErrorCode];
+
+export const MARKETPLACE_ERROR_CODES = Object.values(
+    MarketplaceErrorCode
+) as readonly MarketplaceErrorCode[];

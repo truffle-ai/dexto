@@ -15,32 +15,6 @@ export type LogLevel = 'debug' | 'info' | 'warn' | 'error' | 'silly';
  * Mirrors ErrorScope for consistency, with additional execution context components
  */
 
-export const DEXTO_LOG_COMPONENTS = [
-    'agent',
-    'llm',
-    'config',
-    'context',
-    'session',
-    'mcp',
-    'tools',
-    'storage',
-    'system_prompt',
-    'resource',
-    'prompt',
-    'memory',
-    'hook',
-    'filesystem',
-    'process',
-    'approval',
-    'api',
-    'cli',
-    'telemetry',
-    'executor',
-] as const;
-
-export type DextoLogComponent = (typeof DEXTO_LOG_COMPONENTS)[number];
-
-// eslint-disable-next-line @typescript-eslint/no-redeclare
 export const DextoLogComponent = {
     // Core functional domains (matches ErrorScope)
     AGENT: 'agent',
@@ -66,6 +40,13 @@ export const DextoLogComponent = {
     TELEMETRY: 'telemetry',
     EXECUTOR: 'executor',
 } as const;
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export type DextoLogComponent = (typeof DextoLogComponent)[keyof typeof DextoLogComponent];
+
+export const DEXTO_LOG_COMPONENTS = Object.values(
+    DextoLogComponent
+) as readonly DextoLogComponent[];
 
 /**
  * Structured log entry

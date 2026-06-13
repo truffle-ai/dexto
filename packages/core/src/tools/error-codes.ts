@@ -3,28 +3,6 @@
  * Includes tool execution, approval, and authorization errors
  */
 
-export const TOOL_ERROR_CODES = [
-    'tools_execution_denied',
-    'tools_execution_timeout',
-    'tools_execution_failed',
-    'tools_directory_access_denied',
-    'tools_validation_failed',
-    'tools_file_modified_since_preview',
-    'tools_approval_handler_missing',
-    'tools_approval_timeout',
-    'tools_approval_cancelled',
-    'tools_tool_not_found',
-    'tools_invalid_args',
-    'tools_unauthorized',
-    'tools_config_invalid',
-    'tools_feature_disabled',
-    'tools_custom_factory_unknown',
-    'tools_custom_factory_already_registered',
-] as const;
-
-export type ToolErrorCode = (typeof TOOL_ERROR_CODES)[number];
-
-// eslint-disable-next-line @typescript-eslint/no-redeclare
 export const ToolErrorCode = {
     // Execution
     EXECUTION_DENIED: 'tools_execution_denied',
@@ -54,3 +32,8 @@ export const ToolErrorCode = {
     CUSTOM_TOOL_FACTORY_UNKNOWN: 'tools_custom_factory_unknown',
     CUSTOM_TOOL_FACTORY_ALREADY_REGISTERED: 'tools_custom_factory_already_registered',
 } as const;
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export type ToolErrorCode = (typeof ToolErrorCode)[keyof typeof ToolErrorCode];
+
+export const TOOL_ERROR_CODES = Object.values(ToolErrorCode) as readonly ToolErrorCode[];

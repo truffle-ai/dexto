@@ -3,23 +3,6 @@
  * Includes server configuration, connection, and protocol errors
  */
 
-export const MCP_ERROR_CODES = [
-    'mcp_schema_validation',
-    'mcp_command_missing',
-    'mcp_duplicate_name',
-    'mcp_connection_failed',
-    'mcp_disconnection_failed',
-    'mcp_auth_required',
-    'mcp_protocol_error',
-    'mcp_server_not_found',
-    'mcp_tool_not_found',
-    'mcp_prompt_not_found',
-    'mcp_resource_not_found',
-] as const;
-
-export type MCPErrorCode = (typeof MCP_ERROR_CODES)[number];
-
-// eslint-disable-next-line @typescript-eslint/no-redeclare
 export const MCPErrorCode = {
     // Configuration validation (used in schemas/resolver)
     SCHEMA_VALIDATION: 'mcp_schema_validation',
@@ -40,3 +23,8 @@ export const MCPErrorCode = {
     PROMPT_NOT_FOUND: 'mcp_prompt_not_found',
     RESOURCE_NOT_FOUND: 'mcp_resource_not_found',
 } as const;
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export type MCPErrorCode = (typeof MCPErrorCode)[keyof typeof MCPErrorCode];
+
+export const MCP_ERROR_CODES = Object.values(MCPErrorCode) as readonly MCPErrorCode[];

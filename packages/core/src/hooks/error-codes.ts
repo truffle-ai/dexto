@@ -3,25 +3,6 @@
  * Used for hook loading, validation, and execution errors.
  */
 
-export const HOOK_ERROR_CODES = [
-    'HOOK_LOAD_FAILED',
-    'HOOK_INVALID_SHAPE',
-    'HOOK_INSTANTIATION_FAILED',
-    'HOOK_INITIALIZATION_FAILED',
-    'HOOK_CONFIGURATION_INVALID',
-    'HOOK_EXECUTION_FAILED',
-    'HOOK_EXECUTION_TIMEOUT',
-    'HOOK_BLOCKED_EXECUTION',
-    'HOOK_DUPLICATE_PRIORITY',
-    'HOOK_DEPENDENCY_NOT_INSTALLED',
-    'HOOK_PROVIDER_ALREADY_REGISTERED',
-    'HOOK_PROVIDER_NOT_FOUND',
-    'HOOK_PROVIDER_VALIDATION_FAILED',
-] as const;
-
-export type HookErrorCode = (typeof HOOK_ERROR_CODES)[number];
-
-// eslint-disable-next-line @typescript-eslint/no-redeclare
 export const HookErrorCode = {
     /** Hook file not found or cannot be loaded */
     HOOK_LOAD_FAILED: 'HOOK_LOAD_FAILED',
@@ -62,5 +43,10 @@ export const HookErrorCode = {
     /** Hook provider configuration validation failed */
     HOOK_PROVIDER_VALIDATION_FAILED: 'HOOK_PROVIDER_VALIDATION_FAILED',
 } as const;
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export type HookErrorCode = (typeof HookErrorCode)[keyof typeof HookErrorCode];
+
+export const HOOK_ERROR_CODES = Object.values(HookErrorCode) as readonly HookErrorCode[];
 
 export type { HookErrorCode as default };

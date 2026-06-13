@@ -3,29 +3,6 @@
  * Includes discovery, validation, installation, and loading errors
  */
 
-export const PLUGIN_ERROR_CODES = [
-    'plugin_manifest_not_found',
-    'plugin_manifest_invalid',
-    'plugin_manifest_parse_error',
-    'plugin_directory_read_error',
-    'plugin_mcp_config_invalid',
-    'plugin_duplicate',
-    'plugin_install_source_not_found',
-    'plugin_install_already_exists',
-    'plugin_install_copy_failed',
-    'plugin_install_manifest_write_failed',
-    'plugin_install_invalid_scope',
-    'plugin_import_not_found',
-    'plugin_uninstall_not_found',
-    'plugin_uninstall_delete_failed',
-    'plugin_uninstall_manifest_update_failed',
-    'plugin_validation_invalid_structure',
-    'plugin_validation_missing_required',
-] as const;
-
-export type PluginErrorCode = (typeof PLUGIN_ERROR_CODES)[number];
-
-// eslint-disable-next-line @typescript-eslint/no-redeclare
 export const PluginErrorCode = {
     // Manifest errors
     MANIFEST_NOT_FOUND: 'plugin_manifest_not_found',
@@ -58,3 +35,8 @@ export const PluginErrorCode = {
     VALIDATION_INVALID_STRUCTURE: 'plugin_validation_invalid_structure',
     VALIDATION_MISSING_REQUIRED: 'plugin_validation_missing_required',
 } as const;
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export type PluginErrorCode = (typeof PluginErrorCode)[keyof typeof PluginErrorCode];
+
+export const PLUGIN_ERROR_CODES = Object.values(PluginErrorCode) as readonly PluginErrorCode[];

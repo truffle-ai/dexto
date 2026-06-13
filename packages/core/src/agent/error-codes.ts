@@ -4,22 +4,6 @@
  * Domain-specific errors (LLM, Session, MCP, etc.) belong in their respective modules
  */
 
-export const AGENT_ERROR_CODES = [
-    'agent_not_started',
-    'agent_already_started',
-    'agent_stopped',
-    'agent_initialization_failed',
-    'agent_switch_in_progress',
-    'agent_session_busy',
-    'agent_no_config_path',
-    'agent_invalid_config',
-    'agent_api_validation_error',
-    'agent_stream_failed',
-] as const;
-
-export type AgentErrorCode = (typeof AGENT_ERROR_CODES)[number];
-
-// eslint-disable-next-line @typescript-eslint/no-redeclare
 export const AgentErrorCode = {
     // Lifecycle
     NOT_STARTED: 'agent_not_started',
@@ -39,3 +23,8 @@ export const AgentErrorCode = {
     // Runtime
     STREAM_FAILED: 'agent_stream_failed',
 } as const;
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export type AgentErrorCode = (typeof AgentErrorCode)[keyof typeof AgentErrorCode];
+
+export const AGENT_ERROR_CODES = Object.values(AgentErrorCode) as readonly AgentErrorCode[];

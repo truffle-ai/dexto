@@ -2,21 +2,6 @@
  * Error codes for memory operations
  */
 
-export const MEMORY_ERROR_CODES = [
-    'MEMORY_NOT_FOUND',
-    'MEMORY_ALREADY_EXISTS',
-    'MEMORY_CONTENT_REQUIRED',
-    'MEMORY_CONTENT_TOO_LONG',
-    'MEMORY_INVALID_ID',
-    'MEMORY_INVALID_TAGS',
-    'MEMORY_STORAGE_ERROR',
-    'MEMORY_RETRIEVAL_ERROR',
-    'MEMORY_DELETE_ERROR',
-] as const;
-
-export type MemoryErrorCode = (typeof MEMORY_ERROR_CODES)[number];
-
-// eslint-disable-next-line @typescript-eslint/no-redeclare
 export const MemoryErrorCode = {
     // General errors
     MEMORY_NOT_FOUND: 'MEMORY_NOT_FOUND',
@@ -33,3 +18,8 @@ export const MemoryErrorCode = {
     MEMORY_RETRIEVAL_ERROR: 'MEMORY_RETRIEVAL_ERROR',
     MEMORY_DELETE_ERROR: 'MEMORY_DELETE_ERROR',
 } as const;
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export type MemoryErrorCode = (typeof MemoryErrorCode)[keyof typeof MemoryErrorCode];
+
+export const MEMORY_ERROR_CODES = Object.values(MemoryErrorCode) as readonly MemoryErrorCode[];

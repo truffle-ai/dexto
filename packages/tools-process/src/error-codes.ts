@@ -4,29 +4,6 @@
  * Standardized error codes for process execution and management
  */
 
-export const PROCESS_ERROR_CODES = [
-    'PROCESS_INVALID_COMMAND',
-    'PROCESS_COMMAND_BLOCKED',
-    'PROCESS_COMMAND_TOO_LONG',
-    'PROCESS_INJECTION_DETECTED',
-    'PROCESS_APPROVAL_REQUIRED',
-    'PROCESS_APPROVAL_DENIED',
-    'PROCESS_EXECUTION_FAILED',
-    'PROCESS_TIMEOUT',
-    'PROCESS_PERMISSION_DENIED',
-    'PROCESS_COMMAND_NOT_FOUND',
-    'PROCESS_WORKING_DIRECTORY_INVALID',
-    'PROCESS_NOT_FOUND',
-    'PROCESS_TOO_MANY_PROCESSES',
-    'PROCESS_KILL_FAILED',
-    'PROCESS_OUTPUT_BUFFER_FULL',
-    'PROCESS_INVALID_CONFIG',
-    'PROCESS_SERVICE_NOT_INITIALIZED',
-] as const;
-
-export type ProcessErrorCode = (typeof PROCESS_ERROR_CODES)[number];
-
-// eslint-disable-next-line @typescript-eslint/no-redeclare
 export const ProcessErrorCode = {
     // Command validation errors
     INVALID_COMMAND: 'PROCESS_INVALID_COMMAND',
@@ -53,3 +30,8 @@ export const ProcessErrorCode = {
     INVALID_CONFIG: 'PROCESS_INVALID_CONFIG',
     SERVICE_NOT_INITIALIZED: 'PROCESS_SERVICE_NOT_INITIALIZED',
 } as const;
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export type ProcessErrorCode = (typeof ProcessErrorCode)[keyof typeof ProcessErrorCode];
+
+export const PROCESS_ERROR_CODES = Object.values(ProcessErrorCode) as readonly ProcessErrorCode[];

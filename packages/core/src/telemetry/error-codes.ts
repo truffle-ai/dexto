@@ -3,18 +3,6 @@
  * Covers initialization, dependencies, and export operations
  */
 
-export const TELEMETRY_ERROR_CODES = [
-    'telemetry_initialization_failed',
-    'telemetry_not_initialized',
-    'telemetry_dependency_not_installed',
-    'telemetry_exporter_dependency_not_installed',
-    'telemetry_invalid_config',
-    'telemetry_shutdown_failed',
-] as const;
-
-export type TelemetryErrorCode = (typeof TELEMETRY_ERROR_CODES)[number];
-
-// eslint-disable-next-line @typescript-eslint/no-redeclare
 export const TelemetryErrorCode = {
     // Initialization errors
     INITIALIZATION_FAILED: 'telemetry_initialization_failed',
@@ -30,3 +18,10 @@ export const TelemetryErrorCode = {
     // Shutdown errors
     SHUTDOWN_FAILED: 'telemetry_shutdown_failed',
 } as const;
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export type TelemetryErrorCode = (typeof TelemetryErrorCode)[keyof typeof TelemetryErrorCode];
+
+export const TELEMETRY_ERROR_CODES = Object.values(
+    TelemetryErrorCode
+) as readonly TelemetryErrorCode[];

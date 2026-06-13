@@ -3,22 +3,6 @@
  * Includes errors for agent spawning, lifecycle management, and task execution
  */
 
-export const RUNTIME_ERROR_CODES = [
-    'runtime_max_agents_exceeded',
-    'runtime_agent_not_found',
-    'runtime_agent_already_exists',
-    'runtime_agent_not_started',
-    'runtime_agent_already_stopped',
-    'runtime_spawn_failed',
-    'runtime_invalid_config',
-    'runtime_task_timeout',
-    'runtime_task_failed',
-    'runtime_task_cancelled',
-] as const;
-
-export type RuntimeErrorCode = (typeof RUNTIME_ERROR_CODES)[number];
-
-// eslint-disable-next-line @typescript-eslint/no-redeclare
 export const RuntimeErrorCode = {
     // Limit errors
     MAX_AGENTS_EXCEEDED: 'runtime_max_agents_exceeded',
@@ -38,3 +22,8 @@ export const RuntimeErrorCode = {
     TASK_FAILED: 'runtime_task_failed',
     TASK_CANCELLED: 'runtime_task_cancelled',
 } as const;
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export type RuntimeErrorCode = (typeof RuntimeErrorCode)[keyof typeof RuntimeErrorCode];
+
+export const RUNTIME_ERROR_CODES = Object.values(RuntimeErrorCode) as readonly RuntimeErrorCode[];

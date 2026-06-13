@@ -3,26 +3,6 @@
  * Covers validation, timeout, cancellation, and provider errors
  */
 
-export const APPROVAL_ERROR_CODES = [
-    'approval_invalid_request',
-    'approval_invalid_response',
-    'approval_invalid_metadata',
-    'approval_invalid_schema',
-    'approval_timeout',
-    'approval_cancelled',
-    'approval_cancelled_all',
-    'approval_provider_not_configured',
-    'approval_provider_error',
-    'approval_not_found',
-    'approval_tool_approval_denied',
-    'approval_elicitation_denied',
-    'approval_elicitation_validation_failed',
-    'approval_config_invalid',
-] as const;
-
-export type ApprovalErrorCode = (typeof APPROVAL_ERROR_CODES)[number];
-
-// eslint-disable-next-line @typescript-eslint/no-redeclare
 export const ApprovalErrorCode = {
     // Validation errors
     APPROVAL_INVALID_REQUEST: 'approval_invalid_request',
@@ -50,3 +30,10 @@ export const ApprovalErrorCode = {
     // Configuration errors
     APPROVAL_CONFIG_INVALID: 'approval_config_invalid',
 } as const;
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export type ApprovalErrorCode = (typeof ApprovalErrorCode)[keyof typeof ApprovalErrorCode];
+
+export const APPROVAL_ERROR_CODES = Object.values(
+    ApprovalErrorCode
+) as readonly ApprovalErrorCode[];

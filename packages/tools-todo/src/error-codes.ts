@@ -2,16 +2,6 @@
  * Todo Service Error Codes
  */
 
-export const TODO_ERROR_CODES = [
-    'TODO_SERVICE_NOT_INITIALIZED',
-    'TODO_LIMIT_EXCEEDED',
-    'TODO_INVALID_TODO_STATUS',
-    'TODO_DATABASE_ERROR',
-] as const;
-
-export type TodoErrorCode = (typeof TODO_ERROR_CODES)[number];
-
-// eslint-disable-next-line @typescript-eslint/no-redeclare
 export const TodoErrorCode = {
     // Service lifecycle errors
     SERVICE_NOT_INITIALIZED: 'TODO_SERVICE_NOT_INITIALIZED',
@@ -23,3 +13,8 @@ export const TodoErrorCode = {
     // Database errors
     DATABASE_ERROR: 'TODO_DATABASE_ERROR',
 } as const;
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export type TodoErrorCode = (typeof TodoErrorCode)[keyof typeof TodoErrorCode];
+
+export const TODO_ERROR_CODES = Object.values(TodoErrorCode) as readonly TodoErrorCode[];

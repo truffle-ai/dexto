@@ -3,18 +3,6 @@
  * Includes session lifecycle, management, and state errors
  */
 
-export const SESSION_ERROR_CODES = [
-    'session_not_found',
-    'session_initialization_failed',
-    'session_max_sessions_exceeded',
-    'session_storage_failed',
-    'session_reset_failed',
-    'session_busy',
-] as const;
-
-export type SessionErrorCode = (typeof SESSION_ERROR_CODES)[number];
-
-// eslint-disable-next-line @typescript-eslint/no-redeclare
 export const SessionErrorCode = {
     // Session lifecycle
     SESSION_NOT_FOUND: 'session_not_found',
@@ -28,3 +16,8 @@ export const SessionErrorCode = {
     SESSION_RESET_FAILED: 'session_reset_failed',
     SESSION_BUSY: 'session_busy',
 } as const;
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export type SessionErrorCode = (typeof SessionErrorCode)[keyof typeof SessionErrorCode];
+
+export const SESSION_ERROR_CODES = Object.values(SessionErrorCode) as readonly SessionErrorCode[];

@@ -3,26 +3,6 @@
  * Includes agent resolution, installation, and registry management errors
  */
 
-export const REGISTRY_ERROR_CODES = [
-    'registry_agent_not_found',
-    'registry_agent_invalid_entry',
-    'registry_agent_already_exists',
-    'registry_installation_failed',
-    'registry_installation_validation_failed',
-    'registry_file_not_found',
-    'registry_parse_error',
-    'registry_write_error',
-    'registry_config_not_found',
-    'registry_main_config_missing',
-    'registry_agent_not_installed',
-    'registry_agent_protected',
-    'registry_uninstallation_failed',
-    'registry_agent_not_installed_auto_install_disabled',
-] as const;
-
-export type RegistryErrorCode = (typeof REGISTRY_ERROR_CODES)[number];
-
-// eslint-disable-next-line @typescript-eslint/no-redeclare
 export const RegistryErrorCode = {
     // Agent lookup errors
     AGENT_NOT_FOUND: 'registry_agent_not_found',
@@ -50,3 +30,10 @@ export const RegistryErrorCode = {
     // Auto-install control
     AGENT_NOT_INSTALLED_AUTO_INSTALL_DISABLED: 'registry_agent_not_installed_auto_install_disabled',
 } as const;
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export type RegistryErrorCode = (typeof RegistryErrorCode)[keyof typeof RegistryErrorCode];
+
+export const REGISTRY_ERROR_CODES = Object.values(
+    RegistryErrorCode
+) as readonly RegistryErrorCode[];

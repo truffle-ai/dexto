@@ -4,39 +4,6 @@
  * Standardized error codes for file system operations
  */
 
-export const FILESYSTEM_ERROR_CODES = [
-    'FILESYSTEM_FILE_NOT_FOUND',
-    'FILESYSTEM_DIRECTORY_NOT_FOUND',
-    'FILESYSTEM_PERMISSION_DENIED',
-    'FILESYSTEM_PATH_NOT_ALLOWED',
-    'FILESYSTEM_PATH_BLOCKED',
-    'FILESYSTEM_INVALID_PATH',
-    'FILESYSTEM_PATH_TRAVERSAL_DETECTED',
-    'FILESYSTEM_INVALID_FILE_EXTENSION',
-    'FILESYSTEM_INVALID_ENCODING',
-    'FILESYSTEM_FILE_TOO_LARGE',
-    'FILESYSTEM_TOO_MANY_RESULTS',
-    'FILESYSTEM_READ_FAILED',
-    'FILESYSTEM_LIST_FAILED',
-    'FILESYSTEM_WRITE_FAILED',
-    'FILESYSTEM_CREATE_DIR_FAILED',
-    'FILESYSTEM_DELETE_FAILED',
-    'FILESYSTEM_RENAME_FAILED',
-    'FILESYSTEM_BACKUP_FAILED',
-    'FILESYSTEM_EDIT_FAILED',
-    'FILESYSTEM_STRING_NOT_UNIQUE',
-    'FILESYSTEM_STRING_NOT_FOUND',
-    'FILESYSTEM_GLOB_FAILED',
-    'FILESYSTEM_SEARCH_FAILED',
-    'FILESYSTEM_INVALID_PATTERN',
-    'FILESYSTEM_REGEX_TIMEOUT',
-    'FILESYSTEM_INVALID_CONFIG',
-    'FILESYSTEM_SERVICE_NOT_INITIALIZED',
-] as const;
-
-export type FileSystemErrorCode = (typeof FILESYSTEM_ERROR_CODES)[number];
-
-// eslint-disable-next-line @typescript-eslint/no-redeclare
 export const FileSystemErrorCode = {
     // File not found errors
     FILE_NOT_FOUND: 'FILESYSTEM_FILE_NOT_FOUND',
@@ -79,3 +46,10 @@ export const FileSystemErrorCode = {
     INVALID_CONFIG: 'FILESYSTEM_INVALID_CONFIG',
     SERVICE_NOT_INITIALIZED: 'FILESYSTEM_SERVICE_NOT_INITIALIZED',
 } as const;
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export type FileSystemErrorCode = (typeof FileSystemErrorCode)[keyof typeof FileSystemErrorCode];
+
+export const FILESYSTEM_ERROR_CODES = Object.values(
+    FileSystemErrorCode
+) as readonly FileSystemErrorCode[];
