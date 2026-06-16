@@ -47,7 +47,7 @@ function isLanguageModel(value: unknown): value is LanguageModel {
     );
 }
 
-const DEFAULT_DEXTO_GATEWAY_BASE_URL = 'https://api.dexto.ai/v1';
+const DEFAULT_DEXTO_GATEWAY_BASE_URL = 'https://app.dexto.ai/v1';
 
 function trimTrailingSlash(value: string): string {
     return value.trim().replace(/\/$/, '');
@@ -291,7 +291,7 @@ export function createVercelModel(
         }
         case 'dexto-nova': {
             // Dexto Gateway - OpenAI-compatible proxy with per-request billing
-            // Routes through api.dexto.ai to OpenRouter, deducts from user balance
+            // Routes through app.dexto.ai/v1 to OpenRouter, deducts from user balance
             // Requires DEXTO_API_KEY from `dexto login`
             //
             // Model IDs are in OpenRouter format (e.g., 'anthropic/claude-sonnet-4-5-20250929')

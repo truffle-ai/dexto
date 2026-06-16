@@ -90,7 +90,7 @@ describe('createVercelModel dexto-nova base URL resolution', () => {
     it('uses the production gateway by default', () => {
         createVercelModel(buildDextoConfig());
 
-        expect(getLastDextoNovaBaseUrl()).toBe('https://api.dexto.ai/v1');
+        expect(getLastDextoNovaBaseUrl()).toBe('https://app.dexto.ai/v1');
     });
 
     it('uses llm.baseURL when explicitly provided', () => {
