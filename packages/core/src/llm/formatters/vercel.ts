@@ -1,6 +1,11 @@
 import type { ModelMessage, AssistantContent, ToolContent, ToolResultPart } from 'ai';
 import type { LLMContext } from '@dexto/llm';
-import type { InternalMessage, AssistantMessage, ToolMessage } from '../../context/types.js';
+import type {
+    InternalMessage,
+    AssistantMessage,
+    ToolMessage,
+    FilePart,
+} from '../../context/types.js';
 import {
     getImageData,
     getFileData,
@@ -35,6 +40,93 @@ function normalizeToolMediaData(data: string): string | null {
     }
 
     return data;
+}
+
+function isTextLikeMimeType(mimeType: string): boolean {
+    const normalized = mimeType.toLowerCase().split(';', 1)[0]?.trim() ?? '';
+    if (normalized.startsWith('text/')) return true;
+    if (normalized.endsWith('+json') || normalized.endsWith('+xml')) return true;
+
+    return [
+        'application/json',
+        'application/ld+json',
+        'application/xml',
+        'application/yaml',
+        'application/x-yaml',
+        'application/toml',
+        'application/x-toml',
+        'application/javascript',
+        'application/typescript',
+        'application/x-sh',
+        'application/sql',
+    ].includes(normalized);
+}
+
+function isRemoteFileData(data: FilePart['data']): boolean {
+    return (
+        data instanceof URL ||
+        (typeof data === 'string' &&
+            (/^https?:\/\//i.test(data) || data.startsWith('blob:') || data.startsWith('@blob:')))
+    );
+}
+
+function decodeLikelyBase64Text(value: string): string | null {
+    const normalized = value.replace(/\s/g, '');
+    if (
+        normalized.length === 0 ||
+        normalized.length % 4 !== 0 ||
+        !/^[A-Za-z0-9+/]+={0,2}$/.test(normalized)
+    ) {
+        return null;
+    }
+
+    const decoded = Buffer.from(normalized, 'base64');
+    const canonical = decoded.toString('base64').replace(/=+$/, '');
+    if (canonical !== normalized.replace(/=+$/, '')) return null;
+
+    const text = decoded.toString('utf8');
+    const hasInvalidControlCharacter = [...text].some((char) => {
+        const code = char.charCodeAt(0);
+        return code < 32 && code !== 9 && code !== 10 && code !== 13;
+    });
+    if (text.includes('\uFFFD') || hasInvalidControlCharacter) {
+        return null;
+    }
+
+    return text;
+}
+
+function decodeBase64Text(value: string): string {
+    return Buffer.from(value.replace(/\s/g, ''), 'base64').toString('utf8');
+}
+
+function decodeTextFileData(data: FilePart['data']): string | null {
+    if (data instanceof URL) return null;
+
+    if (typeof data === 'string') {
+        const dataUri = parseDataUri(data);
+        if (dataUri) return decodeBase64Text(dataUri.base64);
+        if (isRemoteFileData(data)) return null;
+
+        // Bare strings can be valid plain text and valid base64 at the same time; explicit data
+        // URIs avoid that ambiguity. For bare strings, decode only when the bytes look like text.
+        return decodeLikelyBase64Text(data) ?? data;
+    }
+
+    return Buffer.from(data instanceof ArrayBuffer ? new Uint8Array(data) : data).toString('utf8');
+}
+
+function filePartToText(part: FilePart): { type: 'text'; text: string } | null {
+    if (!isTextLikeMimeType(part.mimeType) || isRemoteFileData(part.data)) return null;
+
+    const text = decodeTextFileData(part.data);
+    if (text === null) return null;
+
+    const filename = part.filename ?? 'attachment';
+    return {
+        type: 'text',
+        text: `Attached file "${filename}" (${part.mimeType}):\n\n${text}`,
+    };
 }
 
 /**
@@ -128,6 +220,9 @@ export class VercelMessageFormatter {
                                       )
                                       .map((part) => {
                                           if (part.type === 'file') {
+                                              const textPart = filePartToText(part);
+                                              if (textPart) return textPart;
+
                                               return {
                                                   type: 'file' as const,
                                                   data: toUrlIfString(part.data),
