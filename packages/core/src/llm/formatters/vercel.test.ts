@@ -12,6 +12,44 @@ const mockLogger = createMockLogger();
 
 describe('VercelMessageFormatter', () => {
     describe('URL string auto-detection', () => {
+        test('should inline markdown file content as text for model messages', () => {
+            const formatter = new VercelMessageFormatter(mockLogger);
+            const markdown = '# Project notes\n\n- keep this as markdown';
+            const messages: InternalMessage[] = [
+                {
+                    role: 'user',
+                    content: [
+                        { type: 'text', text: 'Summarize this file' },
+                        {
+                            type: 'file',
+                            data: Buffer.from(markdown, 'utf8').toString('base64'),
+                            mimeType: 'text/markdown',
+                            filename: 'notes.md',
+                        },
+                    ],
+                },
+            ];
+
+            const result = formatter.format(
+                messages,
+                { provider: 'openai', model: 'gpt-5.4-mini' },
+                'You are helpful'
+            );
+
+            const userMessage = result.find((m) => m.role === 'user');
+            expect(userMessage).toBeDefined();
+            if (!userMessage) throw new Error('Expected user message');
+
+            const content = userMessage.content as Array<{ type: string; text?: string }>;
+            expect(content).toHaveLength(2);
+            expect(content.some((p) => p.type === 'file')).toBe(false);
+            expect(content[0]).toEqual({ type: 'text', text: 'Summarize this file' });
+            expect(content[1]).toEqual({
+                type: 'text',
+                text: `Attached file "notes.md" (text/markdown):\n\n${markdown}`,
+            });
+        });
+
         test('should convert image URL string to URL object', () => {
             const formatter = new VercelMessageFormatter(mockLogger);
             const messages: InternalMessage[] = [
