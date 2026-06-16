@@ -50,6 +50,41 @@ describe('VercelMessageFormatter', () => {
             });
         });
 
+        test('should inline plain string markdown file content verbatim', () => {
+            const formatter = new VercelMessageFormatter(mockLogger);
+            const markdown = '# Project notes\n\nTEST\n\nAAAA';
+            const messages: InternalMessage[] = [
+                {
+                    role: 'user',
+                    content: [
+                        {
+                            type: 'file',
+                            data: markdown,
+                            mimeType: 'text/markdown',
+                            filename: 'notes.md',
+                        },
+                    ],
+                },
+            ];
+
+            const result = formatter.format(
+                messages,
+                { provider: 'openai', model: 'gpt-5.4-mini' },
+                'You are helpful'
+            );
+
+            const userMessage = result.find((m) => m.role === 'user');
+            expect(userMessage).toBeDefined();
+            if (!userMessage) throw new Error('Expected user message');
+
+            expect(userMessage.content).toEqual([
+                {
+                    type: 'text',
+                    text: `Attached file "notes.md" (text/markdown):\n\n${markdown}`,
+                },
+            ]);
+        });
+
         test('should convert image URL string to URL object', () => {
             const formatter = new VercelMessageFormatter(mockLogger);
             const messages: InternalMessage[] = [

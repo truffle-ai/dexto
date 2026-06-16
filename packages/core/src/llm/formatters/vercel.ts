@@ -70,13 +70,30 @@ function isRemoteFileData(data: FilePart['data']): boolean {
     );
 }
 
-function looksLikeBase64(value: string): boolean {
+function decodeLikelyBase64Text(value: string): string | null {
     const normalized = value.replace(/\s/g, '');
-    return (
-        normalized.length > 0 &&
-        normalized.length % 4 === 0 &&
-        /^[A-Za-z0-9+/]+={0,2}$/.test(normalized)
-    );
+    if (
+        normalized.length === 0 ||
+        normalized.length % 4 !== 0 ||
+        !/^[A-Za-z0-9+/]+={0,2}$/.test(normalized)
+    ) {
+        return null;
+    }
+
+    const decoded = Buffer.from(normalized, 'base64');
+    const canonical = decoded.toString('base64').replace(/=+$/, '');
+    if (canonical !== normalized.replace(/=+$/, '')) return null;
+
+    const text = decoded.toString('utf8');
+    const hasInvalidControlCharacter = [...text].some((char) => {
+        const code = char.charCodeAt(0);
+        return code < 32 && code !== 9 && code !== 10 && code !== 13;
+    });
+    if (text.includes('\uFFFD') || hasInvalidControlCharacter) {
+        return null;
+    }
+
+    return text;
 }
 
 function decodeBase64Text(value: string): string {
@@ -90,7 +107,10 @@ function decodeTextFileData(data: FilePart['data']): string | null {
         const dataUri = parseDataUri(data);
         if (dataUri) return decodeBase64Text(dataUri.base64);
         if (isRemoteFileData(data)) return null;
-        return looksLikeBase64(data) ? decodeBase64Text(data) : data;
+
+        // Bare strings can be valid plain text and valid base64 at the same time; explicit data
+        // URIs avoid that ambiguity. For bare strings, decode only when the bytes look like text.
+        return decodeLikelyBase64Text(data) ?? data;
     }
 
     return Buffer.from(data instanceof ArrayBuffer ? new Uint8Array(data) : data).toString('utf8');
