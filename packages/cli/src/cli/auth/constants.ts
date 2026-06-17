@@ -15,7 +15,7 @@
  * - SUPABASE_URL: Override Supabase URL (e.g., http://localhost:54321)
  * - SUPABASE_ANON_KEY: Override anon key (from `supabase start` output)
  * - DEXTO_API_URL: Override Dexto gateway URL for data-plane calls (e.g., http://localhost:3001)
- * - DEXTO_PLATFORM_URL: Override Dexto platform URL for auth/key/account control-plane calls (e.g., http://localhost:3002)
+ * - DEXTO_PLATFORM_URL: Override Dexto app URL for auth/key/account control-plane calls (e.g., http://localhost:3002)
  */
 export const SUPABASE_URL = process.env.SUPABASE_URL || 'https://gdfbxznhnnsamvsrtwjq.supabase.co';
 export const SUPABASE_ANON_KEY =
@@ -25,12 +25,12 @@ export const SUPABASE_ANON_KEY =
 /**
  * Dexto gateway URL for retained data-plane endpoints.
  */
-export const DEXTO_API_URL = process.env.DEXTO_API_URL || 'https://api.dexto.ai';
+export const DEXTO_API_URL = process.env.DEXTO_API_URL || 'https://app.dexto.ai';
 
 /**
- * Dexto platform URL for auth/key/account control-plane endpoints.
+ * Dexto app URL for auth/key/account control-plane endpoints.
  */
-export const DEXTO_PLATFORM_URL = process.env.DEXTO_PLATFORM_URL || 'https://platform.dexto.ai';
+export const DEXTO_PLATFORM_URL = process.env.DEXTO_PLATFORM_URL || 'https://app.dexto.ai';
 
 /**
  * Dexto Nova credits purchase URL

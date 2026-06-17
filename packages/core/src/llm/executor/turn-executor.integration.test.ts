@@ -3608,7 +3608,7 @@ describe('TurnExecutor Integration Tests', () => {
                         },
                     },
                 }),
-                url: 'https://api.dexto.ai/v1/chat/completions',
+                url: 'https://app.dexto.ai/v1/chat/completions',
                 requestBodyValues: {},
                 isRetryable: false,
             });

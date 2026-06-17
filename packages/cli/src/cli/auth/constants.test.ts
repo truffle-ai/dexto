@@ -6,12 +6,20 @@ describe('auth constants', () => {
         vi.resetModules();
     });
 
-    it('defaults the platform control-plane host to platform.dexto.ai', async () => {
+    it('defaults the app control-plane host to app.dexto.ai', async () => {
         delete process.env.DEXTO_PLATFORM_URL;
 
         const { DEXTO_PLATFORM_URL } = await import('./constants.js');
 
-        expect(DEXTO_PLATFORM_URL).toBe('https://platform.dexto.ai');
+        expect(DEXTO_PLATFORM_URL).toBe('https://app.dexto.ai');
+    });
+
+    it('defaults the gateway host to app.dexto.ai', async () => {
+        delete process.env.DEXTO_API_URL;
+
+        const { DEXTO_API_URL } = await import('./constants.js');
+
+        expect(DEXTO_API_URL).toBe('https://app.dexto.ai');
     });
 
     it('honors DEXTO_PLATFORM_URL overrides', async () => {
