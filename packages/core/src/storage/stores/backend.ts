@@ -71,8 +71,7 @@ type SessionMessageQueueKeyPrefix =
     | typeof SESSION_FOLLOW_UP_QUEUE_KEY_PREFIX;
 
 const DEFAULT_APPROVAL_STATE: SessionApprovalState = {
-    toolPatterns: {},
-    approvedDirectories: [],
+    approvedKeys: {},
 };
 
 const DEFAULT_TOOL_PREFERENCES: SessionToolPreferences = {

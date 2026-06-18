@@ -20,8 +20,7 @@ describe('persisted storage schemas', () => {
             metadata: { title: 'Hello' },
         });
         expect(SessionApprovalStateSchema.parse({})).toEqual({
-            approvedDirectories: [],
-            toolPatterns: {},
+            approvedKeys: {},
         });
         expect(SessionToolPreferencesSchema.parse({})).toEqual({
             disabledTools: [],

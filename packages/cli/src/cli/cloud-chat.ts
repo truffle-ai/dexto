@@ -259,8 +259,6 @@ export function buildCloudApprovalDecision(
         typeof approval.data === 'object' && approval.data !== null
             ? (approval.data as {
                   rememberChoice?: boolean;
-                  rememberPattern?: string;
-                  rememberDirectory?: boolean;
                   formData?: Record<string, unknown>;
               })
             : undefined;
@@ -270,12 +268,6 @@ export function buildCloudApprovalDecision(
         ...(approvalData?.formData !== undefined ? { formData: approvalData.formData } : {}),
         ...(approvalData?.rememberChoice !== undefined
             ? { rememberChoice: approvalData.rememberChoice }
-            : {}),
-        ...(approvalData?.rememberPattern !== undefined
-            ? { rememberPattern: approvalData.rememberPattern }
-            : {}),
-        ...(approvalData?.rememberDirectory !== undefined
-            ? { rememberDirectory: approvalData.rememberDirectory }
             : {}),
         ...(approval.reason !== undefined ? { reason: approval.reason } : {}),
         ...(approval.message !== undefined ? { message: approval.message } : {}),

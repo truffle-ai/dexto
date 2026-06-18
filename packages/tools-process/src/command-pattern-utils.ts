@@ -59,6 +59,18 @@ export function generateCommandPatternKey(command: string): string | null {
 }
 
 /**
+ * Generate an opaque approval key for a shell command.
+ *
+ * Non-dangerous commands keep the existing coarse command-pattern behavior.
+ * Dangerous commands fall back to the exact command so remembering one command
+ * does not approve the entire bash tool.
+ */
+export function generateCommandApprovalKey(command: string): string {
+    const patternKey = generateCommandPatternKey(command);
+    return patternKey ? `bash:${patternKey}` : `bash:exact:${command.trim()}`;
+}
+
+/**
  * Generate suggested patterns for UI selection.
  * Returns progressively broader patterns from specific to general.
  *

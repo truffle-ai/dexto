@@ -1339,14 +1339,14 @@ describe('Hono API Integration Tests', () => {
                 name: 'approval:request',
                 approvalId: 'approval-live-1',
                 sessionId,
-                type: ApprovalType.DIRECTORY_ACCESS,
+                type: ApprovalType.TOOL_APPROVAL,
                 timestamp: new Date(),
                 timeout: 120000,
                 metadata: {
                     toolName: 'read_media_file',
-                    path: '/tmp/test.png',
-                    parentDir: '/tmp',
-                    operation: 'read',
+                    approvalKey: 'directory:/tmp',
+                    toolCallId: 'call-live-1',
+                    args: { file_path: '/tmp/test.png' },
                 },
             };
 

@@ -45,8 +45,7 @@ import type { DextoStoreMap, DextoStoreName, DextoStores } from './types.js';
 const GLOBAL_SCOPE = 'global';
 
 const DEFAULT_APPROVAL_STATE: SessionApprovalState = {
-    toolPatterns: {},
-    approvedDirectories: [],
+    approvedKeys: {},
 };
 
 const DEFAULT_TOOL_PREFERENCES: SessionToolPreferences = {

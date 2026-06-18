@@ -128,8 +128,8 @@ export class ProcessService {
 
         const normalizedCommand = validation.normalizedCommand;
 
-        // Note: Command-level approval removed - approval is now handled at the tool level
-        // in ToolManager with pattern-based approval for bash commands.
+        // Note: Command-level approval removed; the bash tool now provides its own
+        // approval key before execution reaches ProcessService.
         // CommandValidator still validates for dangerous patterns (blocks truly dangerous commands)
         // but no longer triggers a second approval prompt.
 

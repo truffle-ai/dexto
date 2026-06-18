@@ -9,6 +9,7 @@ import { createWriteFileTool } from './write-file-tool.js';
 import { createEditFileTool } from './edit-file-tool.js';
 import { createGlobFilesTool } from './glob-files-tool.js';
 import { createGrepContentTool } from './grep-content-tool.js';
+import { isPathApprovedByDirectoryKey } from './directory-approval.js';
 import {
     FILESYSTEM_TOOL_NAMES,
     FileSystemToolsConfigSchema,
@@ -59,7 +60,10 @@ export const fileSystemToolsFactory: ToolFactory<FileSystemToolsConfig> = {
                 context.logger
             );
             service.setDirectoryApprovalChecker((filePath: string) =>
-                approvalManager.isDirectoryApproved(filePath, context.sessionId)
+                isPathApprovedByDirectoryKey(
+                    filePath,
+                    approvalManager.getApprovedKeys(context.sessionId)
+                )
             );
             return service;
         };

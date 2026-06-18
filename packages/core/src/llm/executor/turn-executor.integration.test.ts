@@ -2254,10 +2254,7 @@ describe('TurnExecutor Integration Tests', () => {
                         id: 'bash_exec',
                         description: 'Bash',
                         inputSchema: z.object({ command: z.string() }).strict(),
-                        approval: {
-                            patternKey: (input) => `${input.command} *`,
-                            suggestPatterns: () => ['git *'],
-                        },
+                        needsApproval: () => 'bash:git *',
                         execute: executeTool,
                     }),
                 ],
@@ -2324,7 +2321,7 @@ describe('TurnExecutor Integration Tests', () => {
             approvalHandler.resolveApproval(firstApprovalId, {
                 status: ApprovalStatus.APPROVED,
                 sessionId,
-                data: { rememberPattern: 'git *' },
+                data: { rememberChoice: true },
             });
             await execution;
 

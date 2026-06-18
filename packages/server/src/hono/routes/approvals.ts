@@ -21,14 +21,6 @@ const ApprovalBodySchema = z
             .boolean()
             .optional()
             .describe('Whether to remember this choice for future requests'),
-        rememberPattern: z
-            .string()
-            .optional()
-            .describe('Optional approval pattern to remember for future requests'),
-        rememberDirectory: z
-            .boolean()
-            .optional()
-            .describe('Whether to remember the approved directory for future requests'),
         reason: z
             .nativeEnum(DenialReason)
             .optional()
@@ -68,18 +60,6 @@ const ApprovalBodySchema = z
             addFieldIssue(
                 'rememberChoice',
                 'rememberChoice is only allowed when status is approved'
-            );
-        }
-        if (value.rememberPattern !== undefined) {
-            addFieldIssue(
-                'rememberPattern',
-                'rememberPattern is only allowed when status is approved'
-            );
-        }
-        if (value.rememberDirectory !== undefined) {
-            addFieldIssue(
-                'rememberDirectory',
-                'rememberDirectory is only allowed when status is approved'
             );
         }
 
@@ -125,8 +105,6 @@ type ApprovalResponse = z.output<typeof ApprovalResponseSchema>;
 type ApprovalData = {
     formData?: z.output<typeof JsonObjectSchema>;
     rememberChoice?: boolean;
-    rememberPattern?: string;
-    rememberDirectory?: boolean;
 };
 
 const PendingApprovalSchema = z
@@ -285,15 +263,7 @@ export function createApprovalsRouter(
     submitApprovalRouter.openapi(submitApprovalRoute, async (ctx) => {
         const agent = await getAgent(ctx);
         const { approvalId } = ctx.req.valid('param');
-        const {
-            status,
-            formData,
-            rememberChoice,
-            rememberPattern,
-            rememberDirectory,
-            reason,
-            message,
-        } = ctx.req.valid('json');
+        const { status, formData, rememberChoice, reason, message } = ctx.req.valid('json');
 
         agent.logger.info(`Received approval decision for ${approvalId}: ${status}`);
 
@@ -318,12 +288,6 @@ export function createApprovalsRouter(
                 }
                 if (rememberChoice !== undefined) {
                     data.rememberChoice = rememberChoice;
-                }
-                if (rememberPattern !== undefined) {
-                    data.rememberPattern = rememberPattern;
-                }
-                if (rememberDirectory !== undefined) {
-                    data.rememberDirectory = rememberDirectory;
                 }
             }
 

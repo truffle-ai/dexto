@@ -1735,11 +1735,7 @@ export class TurnExecutor {
                 return approval.modelVisibleResult;
             }
             const decision = this.toApprovalDecisionInput(approval.response);
-            const applied = await this.toolManager.applyApprovalDecision(
-                recorded,
-                decision,
-                this.runContext
-            );
+            const applied = await this.toolManager.applyApprovalDecision(recorded, decision);
             if (applied.kind === 'terminal') {
                 return applied.modelVisibleResult;
             }
