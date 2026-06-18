@@ -10,7 +10,10 @@ export * from './types.js';
 
 // Tool definition helper (schema-driven typing)
 export { defineTool } from './define-tool.js';
-export { SessionToolPreferencesSchema } from './session-tool-preferences-store.js';
+export {
+    SessionToolPreferencesSchema,
+    SessionToolPreferencesStore,
+} from './session-tool-preferences-store.js';
 export type { SessionToolPreferences } from './session-tool-preferences-store.js';
 
 // Display types for tool result rendering
