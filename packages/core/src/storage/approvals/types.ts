@@ -1,21 +1,12 @@
 import { z } from 'zod';
 import type { ApprovalRequest, ApprovalResponse } from '../../approval/types.js';
 
-export const PersistedApprovedDirectorySchema = z
-    .object({
-        path: z.string(),
-        type: z.enum(['session', 'once']),
-    })
-    .strict();
-
 export const SessionApprovalStateSchema = z
     .object({
-        toolPatterns: z.record(z.string(), z.array(z.string())).default({}),
-        approvedDirectories: z.array(PersistedApprovedDirectorySchema).default([]),
+        approvedKeys: z.record(z.string(), z.enum(['session', 'once'])).default({}),
     })
-    .strict();
+    .strip();
 
-export type PersistedApprovedDirectory = z.output<typeof PersistedApprovedDirectorySchema>;
 export type SessionApprovalState = z.output<typeof SessionApprovalStateSchema>;
 
 export interface ApprovalStore {

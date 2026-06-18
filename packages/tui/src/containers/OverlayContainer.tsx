@@ -447,10 +447,8 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
         const handleApprove = useCallback(
             (options: {
                 rememberChoice?: boolean;
-                rememberPattern?: string;
                 formData?: Record<string, unknown>;
                 enableAcceptEditsMode?: boolean;
-                rememberDirectory?: boolean;
             }) => {
                 if (!approval) return;
 
@@ -477,9 +475,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                     hostRuntime: approval.hostRuntime,
                     data: {
                         rememberChoice: options.rememberChoice,
-                        rememberPattern: options.rememberPattern,
                         formData: options.formData,
-                        rememberDirectory: options.rememberDirectory,
                     },
                 });
 

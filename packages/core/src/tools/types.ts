@@ -6,7 +6,6 @@ import type { JSONSchema7 } from 'json-schema';
 import type { z, ZodTypeAny } from 'zod';
 import type { ToolDisplayData } from './display-types.js';
 import type { WorkspaceContext } from '../workspace/types.js';
-import type { ApprovalRequestDetails, ApprovalResponse } from '../approval/types.js';
 import type { ApprovalManager } from '../approval/manager.js';
 import type { DextoAgent } from '../agent/DextoAgent.js';
 import type { ToolStateStore } from '../storage/index.js';
@@ -256,9 +255,15 @@ export interface Tool<TSchema extends ZodTypeAny = ZodTypeAny> {
     execute(input: z.output<TSchema>, context: ToolExecutionContext): Promise<unknown> | unknown;
 
     /**
-     * Optional grouped approval-related behavior.
+     * Optional per-call approval policy.
+     *
+     * - `false` / `null`: this tool call does not need approval.
+     * - `true`: this tool call needs approval without a reusable key.
+     * - `string`: this tool call needs approval scoped to an opaque key owned by the tool.
+     *
+     * Core stores and checks keys opaquely; tool packages decide what keys mean.
      */
-    approval?: ToolApproval<TSchema> | undefined;
+    needsApproval?: ToolNeedsApproval<TSchema> | undefined;
 
     /**
      * Optional grouped UI/presentation-related behavior.
@@ -274,26 +279,18 @@ export interface Tool<TSchema extends ZodTypeAny = ZodTypeAny> {
      */
     aliases?: string[] | undefined;
 
-    // NOTE: Legacy top-level approval/presentation hooks were removed.
-    // All approval and UI behavior must be expressed via `tool.approval` and `tool.presentation`.
+    // NOTE: Approval policy is intentionally a simple function/bool/string.
+    // Presentation-specific behavior belongs in `tool.presentation`.
 }
 
-export interface ToolApproval<TSchema extends ZodTypeAny = ZodTypeAny> {
-    override?(
-        input: z.output<TSchema>,
-        context: ToolExecutionContext
-    ): Promise<ApprovalRequestDetails | null> | ApprovalRequestDetails | null;
+export type ToolApprovalDecision = boolean | string | null;
 
-    onGranted?(
-        response: ApprovalResponse,
-        context: ToolExecutionContext,
-        approvalRequest: ApprovalRequestDetails
-    ): Promise<void> | void;
-
-    patternKey?(input: z.output<TSchema>): string | null;
-
-    suggestPatterns?(input: z.output<TSchema>): string[];
-}
+export type ToolNeedsApproval<TSchema extends ZodTypeAny = ZodTypeAny> =
+    | ToolApprovalDecision
+    | ((
+          input: z.output<TSchema>,
+          context: ToolExecutionContext
+      ) => Promise<ToolApprovalDecision> | ToolApprovalDecision);
 
 export interface ToolPresentation<TSchema extends ZodTypeAny = ZodTypeAny> {
     /**

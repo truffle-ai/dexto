@@ -10,10 +10,7 @@ import { z } from 'zod';
 import { createLocalToolCallHeader, defineTool, truncateForHeader } from '@dexto/core/tools';
 import type { ShellDisplayData, Tool, ToolExecutionContext } from '@dexto/core/tools';
 import { ProcessError } from './errors.js';
-import {
-    generateCommandPatternKey,
-    generateCommandPatternSuggestions,
-} from './command-pattern-utils.js';
+import { generateCommandApprovalKey } from './command-pattern-utils.js';
 import type {
     ExecuteOptions,
     ProcessConfig,
@@ -116,13 +113,10 @@ Try to maintain your working directory throughout the session by using absolute 
 
 Each command runs in a fresh shell, so cd does not persist between calls.
 
-Security: Dangerous commands are blocked. Injection attempts are detected. Requires approval with pattern-based session memory.`,
+Security: Dangerous commands are blocked. Injection attempts are detected. Requires approval with command-scoped session memory.`,
         inputSchema: BashExecInputSchema,
 
-        approval: {
-            patternKey: (input): string | null => generateCommandPatternKey(input.command),
-            suggestPatterns: (input): string[] => generateCommandPatternSuggestions(input.command),
-        },
+        needsApproval: (input): string => generateCommandApprovalKey(input.command),
 
         presentation: {
             describeHeader: (input) =>
@@ -180,8 +174,6 @@ Security: Dangerous commands are blocked. Injection attempts are detected. Requi
                 validatedCwd = candidatePath;
             }
 
-            // Execute command using ProcessService
-            // Note: Approval is handled at ToolManager level with pattern-based approval
             const result = await resolvedProcessService.executeCommand(command, {
                 description,
                 timeout,
