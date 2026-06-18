@@ -134,6 +134,19 @@ Yes! You can:
 - Use different providers per agent (configure in agent YAML)
 - Override the model for a single session: `dexto -m gpt-5`
 
+## Logging
+
+Dexto writes logs to a `.saiki` directory:
+
+- **Project-level:** `.saiki/` in your project root
+- **Global:** `~/.saiki/` when no project-level directory is found
+
+To redirect logs to the console instead (useful when debugging):
+
+```bash
+SAIKI_LOG_TO_CONSOLE=true dexto
+```
+
 ## Getting Help
 
 If your issue isn't covered here:
