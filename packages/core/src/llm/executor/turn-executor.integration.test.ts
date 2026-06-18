@@ -4,6 +4,7 @@ import {
     InMemorySpanExporter,
     SimpleSpanProcessor,
 } from '@opentelemetry/sdk-trace-base';
+import { trace } from '@opentelemetry/api';
 import { z } from 'zod';
 import { parseTurnDriverState, TurnExecutor, type TurnDriverState } from './turn-executor.js';
 import { ContextManager } from '../../context/manager.js';
@@ -138,6 +139,8 @@ vi.mock('@opentelemetry/api', async (importOriginal) => {
         trace: {
             ...actual.trace,
             getTracer: actual.trace.getTracer.bind(actual.trace),
+            setGlobalTracerProvider: actual.trace.setGlobalTracerProvider.bind(actual.trace),
+            disable: actual.trace.disable.bind(actual.trace),
             getActiveSpan: vi.fn(() => null),
         },
     };
@@ -1124,6 +1127,7 @@ describe('TurnExecutor Integration Tests', () => {
             } finally {
                 Reflect.deleteProperty(globalThis, '__TELEMETRY__');
                 await provider.shutdown();
+                trace.disable();
             }
         });
 
@@ -3149,6 +3153,140 @@ describe('TurnExecutor Integration Tests', () => {
 
             await executor2.execute({ mcpManager }, true);
             expect(generateText).toHaveBeenCalledTimes(1);
+        });
+
+        it('should skip validation for dexto-nova managed gateway even with baseURL', async () => {
+            const exporter = new InMemorySpanExporter();
+            const provider = new BasicTracerProvider();
+            provider.addSpanProcessor(new SimpleSpanProcessor(exporter));
+            provider.register();
+            Reflect.set(globalThis, '__TELEMETRY__', { isInitialized: () => true });
+
+            try {
+                const gatewayExecutor = new TurnExecutor(
+                    createMockModel(),
+                    toolManager,
+                    contextManager,
+                    sessionEventBus,
+                    resourceManager,
+                    sessionId,
+                    { maxSteps: 10, baseURL: 'https://api.dexto.ai/v1' },
+                    { provider: 'dexto-nova', model: 'openai/gpt-5.4-mini' },
+                    logger,
+                    steerQueue,
+                    followUpQueue
+                );
+
+                await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
+                await gatewayExecutor.execute({ mcpManager }, true);
+
+                const validationSpan = exporter
+                    .getFinishedSpans()
+                    .find((span) => span.name === 'llm.tool_support_validation');
+
+                expect(generateText).not.toHaveBeenCalled();
+                expect(streamText).toHaveBeenCalledWith(
+                    expect.objectContaining({
+                        tools: expect.any(Object),
+                    })
+                );
+                expect(validationSpan?.attributes).toEqual(
+                    expect.objectContaining({
+                        'llm.base_url_present': true,
+                        'llm.provider': 'dexto-nova',
+                        'llm.tool_support.cache_hit': false,
+                        'llm.tool_support.validation_mode': 'managed_gateway_assumed',
+                        'llm.tools_supported': true,
+                    })
+                );
+            } finally {
+                Reflect.deleteProperty(globalThis, '__TELEMETRY__');
+                await provider.shutdown();
+                trace.disable();
+            }
+        });
+
+        it('records whether tool support validation probed or used the cache', async () => {
+            const exporter = new InMemorySpanExporter();
+            const provider = new BasicTracerProvider();
+            provider.addSpanProcessor(new SimpleSpanProcessor(exporter));
+            provider.register();
+            Reflect.set(globalThis, '__TELEMETRY__', { isInitialized: () => true });
+
+            try {
+                vi.mocked(generateText).mockResolvedValue(
+                    {} as Awaited<ReturnType<typeof generateText>>
+                );
+
+                const baseURL = 'https://tool-support-diagnostics.example.test';
+                const executor1 = new TurnExecutor(
+                    createMockModel(),
+                    toolManager,
+                    contextManager,
+                    sessionEventBus,
+                    resourceManager,
+                    sessionId,
+                    { maxSteps: 10, baseURL },
+                    llmContext,
+                    logger,
+                    steerQueue,
+                    followUpQueue
+                );
+
+                await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
+                await executor1.execute({ mcpManager }, true);
+
+                const newMessageQueue = new MessageQueueService(
+                    sessionEventBus,
+                    logger,
+                    'session-tool-cache',
+                    createInMemoryMessageQueueStore()
+                );
+                const executor2 = new TurnExecutor(
+                    createMockModel(),
+                    toolManager,
+                    contextManager,
+                    sessionEventBus,
+                    resourceManager,
+                    'session-tool-cache',
+                    { maxSteps: 10, baseURL },
+                    llmContext,
+                    logger,
+                    newMessageQueue,
+                    followUpQueue
+                );
+
+                await executor2.execute({ mcpManager }, true);
+
+                const validationSpans = exporter
+                    .getFinishedSpans()
+                    .filter((span) => span.name === 'llm.tool_support_validation');
+
+                expect(generateText).toHaveBeenCalledTimes(1);
+                expect(validationSpans).toHaveLength(2);
+                expect(validationSpans[0]?.attributes).toEqual(
+                    expect.objectContaining({
+                        'llm.base_url_present': true,
+                        'llm.model': 'gpt-4',
+                        'llm.provider': 'openai',
+                        'llm.tool_support.cache_hit': false,
+                        'llm.tool_support.probe_outcome': 'supported',
+                        'llm.tool_support.probe_timeout_ms': 5000,
+                        'llm.tool_support.validation_mode': 'probe',
+                        'llm.tools_supported': true,
+                    })
+                );
+                expect(validationSpans[1]?.attributes).toEqual(
+                    expect.objectContaining({
+                        'llm.tool_support.cache_hit': true,
+                        'llm.tool_support.validation_mode': 'cache',
+                        'llm.tools_supported': true,
+                    })
+                );
+            } finally {
+                Reflect.deleteProperty(globalThis, '__TELEMETRY__');
+                await provider.shutdown();
+            }
         });
 
         it('should use empty tools when model does not support them', async () => {
