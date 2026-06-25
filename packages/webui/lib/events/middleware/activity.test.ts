@@ -314,6 +314,18 @@ describe('activityMiddleware', () => {
                 queue: 'steer',
                 coalesced: true,
                 content: [{ type: 'text', text: 'Hello' }],
+                messages: [
+                    {
+                        id: 'msg-1',
+                        content: [{ type: 'text', text: 'Hello' }],
+                        queuedAt: 1,
+                    },
+                    {
+                        id: 'msg-2',
+                        content: [{ type: 'text', text: 'World' }],
+                        queuedAt: 2,
+                    },
+                ],
                 sessionId: 'session-1',
             };
 

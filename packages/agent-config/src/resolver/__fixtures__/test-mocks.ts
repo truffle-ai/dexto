@@ -59,6 +59,11 @@ export function createMockBlobStore(storeType: string): BlobStore {
 }
 
 export function createMockDatabase(storeType: string): Database {
+    const updateList: Database['updateList'] = async <T, R>(
+        _key: string,
+        updater: (items: T[]) => { items: T[]; result: R }
+    ): Promise<R> => updater([]).result;
+
     return {
         get: vi.fn(async () => undefined),
         set: vi.fn(async () => {}),
@@ -69,10 +74,7 @@ export function createMockDatabase(storeType: string): Database {
         delete: vi.fn(async () => {}),
         list: vi.fn(async () => []),
         append: vi.fn(async () => {}),
-        updateList: vi.fn(
-            async <T, R>(_key: string, updater: (items: T[]) => { items: T[]; result: R }) =>
-                updater([]).result
-        ),
+        updateList,
         getRange: vi.fn(async () => []),
         connect: vi.fn(async () => {}),
         disconnect: vi.fn(async () => {}),
