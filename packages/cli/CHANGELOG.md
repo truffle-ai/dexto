@@ -1,5 +1,41 @@
 # dexto
 
+## 1.8.12
+
+### Patch Changes
+
+- Updated dependencies [da13bd1]
+    - @dexto/core@1.8.12
+    - @dexto/agent-config@1.8.12
+    - @dexto/agent-management@1.8.12
+    - @dexto/analytics@1.8.12
+    - @dexto/client-sdk@1.8.12
+    - @dexto/image-local@1.8.12
+    - @dexto/image-logger-agent@1.8.12
+    - @dexto/server@1.8.12
+    - @dexto/storage@1.8.12
+    - @dexto/tui@1.8.12
+    - @dexto/llm@1.8.12
+    - @dexto/registry@1.8.12
+
+## 1.8.11
+
+### Patch Changes
+
+- Updated dependencies [1704a08]
+    - @dexto/core@1.8.11
+    - @dexto/agent-config@1.8.11
+    - @dexto/agent-management@1.8.11
+    - @dexto/analytics@1.8.11
+    - @dexto/client-sdk@1.8.11
+    - @dexto/image-local@1.8.11
+    - @dexto/image-logger-agent@1.8.11
+    - @dexto/server@1.8.11
+    - @dexto/storage@1.8.11
+    - @dexto/tui@1.8.11
+    - @dexto/llm@1.8.11
+    - @dexto/registry@1.8.11
+
 ## 1.8.10
 
 ### Patch Changes

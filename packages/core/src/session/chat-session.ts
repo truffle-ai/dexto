@@ -1,6 +1,10 @@
 import { randomUUID } from 'crypto';
 import { createLLMService } from '../llm/services/factory.js';
 import type { ContextManager } from '../context/index.js';
+import {
+    describeContentInputForAudit,
+    describeContentPartsForAudit,
+} from '../context/content-audit.js';
 import type {
     CreateLLMServiceOptions,
     LLMExecutionControl,
@@ -647,6 +651,15 @@ export class ChatSession {
 
         try {
             if (input.kind === 'start') {
+                this.logger.info('ChatSession turn input received', {
+                    sessionId: this.id,
+                    turnKind: input.kind,
+                    streaming: input.streaming ?? true,
+                    ...(input.runContext?.hostRuntime?.ids !== undefined && {
+                        hostRuntimeIds: input.runContext.hostRuntime.ids,
+                    }),
+                    content: await describeContentInputForAudit(input.content),
+                });
                 const modifiedParts = await recordOperationSpan(
                     {
                         name: 'chat_session.prepare_turn_input',
@@ -670,6 +683,25 @@ export class ChatSession {
                     () => this.llmService.getContextManager().addUserMessage(modifiedParts),
                     this.logger
                 );
+                this.logger.info('ChatSession turn input persisted', {
+                    sessionId: this.id,
+                    turnKind: input.kind,
+                    ...(input.runContext?.hostRuntime?.ids !== undefined && {
+                        hostRuntimeIds: input.runContext.hostRuntime.ids,
+                    }),
+                    content: await describeContentPartsForAudit(modifiedParts),
+                });
+            } else {
+                this.logger.info('ChatSession turn resume requested', {
+                    sessionId: this.id,
+                    turnKind: input.kind,
+                    streaming: input.streaming ?? true,
+                    phase: input.state.phase,
+                    stepCount: input.state.stepCount,
+                    ...(input.runContext?.hostRuntime?.ids !== undefined && {
+                        hostRuntimeIds: input.runContext.hostRuntime.ids,
+                    }),
+                });
             }
 
             const streaming = input.streaming ?? true;

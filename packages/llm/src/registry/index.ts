@@ -409,7 +409,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
         supportedFileTypes: ['image'],
         supportsCustomModels: true,
     },
-    // Dexto Gateway - OpenAI-compatible proxy through api.dexto.ai
+    // Dexto Gateway - OpenAI-compatible proxy through app.dexto.ai/v1
     // Routes to OpenRouter with per-request billing (balance decrement)
     // Requires DEXTO_API_KEY from dexto login
     //

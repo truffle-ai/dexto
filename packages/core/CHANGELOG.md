@@ -1,5 +1,19 @@
 # @dexto/core
 
+## 1.8.12
+
+### Patch Changes
+
+- da13bd1: Inline text-like file uploads as text in Vercel model messages so markdown attachments are understood by providers that do not accept them as native file parts.
+    - @dexto/llm@1.8.12
+
+## 1.8.11
+
+### Patch Changes
+
+- 1704a08: Hold steer messages queued before the first model request until the next model boundary and add redacted context audit logs for turn debugging.
+    - @dexto/llm@1.8.11
+
 ## 1.8.10
 
 ### Patch Changes

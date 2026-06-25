@@ -2394,6 +2394,72 @@ describe('TurnExecutor Integration Tests', () => {
     });
 
     describe('Message Queue Injection', () => {
+        it('holds steer queued before the first model request until after the initial model step', async () => {
+            const queued = await steerQueue.enqueue({
+                content: [{ type: 'text', text: 'Then tell me about Messi' }],
+            });
+            await contextManager.addUserMessage([
+                { type: 'text', text: 'Tell me a story about Neymar' },
+            ]);
+            vi.mocked(streamText)
+                .mockImplementationOnce((options) => {
+                    const requestJson = JSON.stringify(options.messages);
+                    expect(requestJson).toContain('Tell me a story about Neymar');
+                    expect(requestJson).not.toContain('Then tell me about Messi');
+                    return createMockStream({
+                        text: 'Neymar response',
+                        finishReason: 'stop',
+                    }) as unknown as ReturnType<typeof streamText>;
+                })
+                .mockImplementationOnce((options) => {
+                    const requestJson = JSON.stringify(options.messages);
+                    expect(requestJson).toContain('Tell me a story about Neymar');
+                    expect(requestJson).toContain('Neymar response');
+                    expect(requestJson).toContain('Then tell me about Messi');
+                    return createMockStream({
+                        text: 'Messi response',
+                        finishReason: 'stop',
+                    }) as unknown as ReturnType<typeof streamText>;
+                });
+
+            const driver = await executor.createDriver({ mcpManager }, { streaming: true });
+
+            try {
+                const firstStep = await driver.runNextModelStep();
+                expect(firstStep.result.text).toBe('Neymar response');
+
+                await expect(driver.decideNextStep()).resolves.toEqual({
+                    kind: 'continue',
+                    stepCount: 1,
+                });
+
+                const secondStep = await driver.runNextModelStep();
+                expect(secondStep.result.text).toBe('Messi response');
+
+                await expect(driver.decideNextStep()).resolves.toEqual({
+                    finishReason: 'stop',
+                    kind: 'stop',
+                    stepCount: 1,
+                });
+                expect(streamText).toHaveBeenCalledTimes(2);
+
+                const history = await contextManager.getHistory();
+                const userMessages = history.filter((message) => message.role === 'user');
+                expect(userMessages).toHaveLength(2);
+                expect(userMessages[1]).toEqual(
+                    expect.objectContaining({
+                        metadata: expect.objectContaining({
+                            coalesced: false,
+                            messageCount: 1,
+                            originalMessageIds: [queued.id],
+                        }),
+                    })
+                );
+            } finally {
+                driver.dispose();
+            }
+        });
+
         it('should inject queued messages into context', async () => {
             await steerQueue.enqueue({
                 content: [{ type: 'text', text: 'User guidance: focus on performance' }],
@@ -3762,7 +3828,7 @@ describe('TurnExecutor Integration Tests', () => {
                         },
                     },
                 }),
-                url: 'https://api.dexto.ai/v1/chat/completions',
+                url: 'https://app.dexto.ai/v1/chat/completions',
                 requestBodyValues: {},
                 isRetryable: false,
             });
@@ -3792,7 +3858,7 @@ describe('TurnExecutor Integration Tests', () => {
             await expect(steerQueue.dequeueAll()).resolves.toBeNull();
         });
 
-        it('should clear steer queue on error', async () => {
+        it('should preserve unprocessed steer queue on error', async () => {
             await steerQueue.enqueue({ content: [{ type: 'text', text: 'Pending' }] });
 
             vi.mocked(streamText).mockImplementation(() => {
@@ -3802,7 +3868,11 @@ describe('TurnExecutor Integration Tests', () => {
             await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
             await expect(executor.execute({ mcpManager }, true)).rejects.toThrow();
 
-            await expect(steerQueue.dequeueAll()).resolves.toBeNull();
+            await expect(steerQueue.getAll()).toEqual([
+                expect.objectContaining({
+                    content: [{ type: 'text', text: 'Pending' }],
+                }),
+            ]);
         });
 
         it('should preserve follow-up queue on error', async () => {
