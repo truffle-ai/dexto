@@ -219,7 +219,7 @@ describe('Directory Approval Integration Tests', () => {
             );
 
             expect(decision).toBe(
-                createDirectoryApprovalKey(path.dirname(path.resolve(externalPath)))
+                createDirectoryApprovalKey(path.dirname(path.resolve(externalPath)), 'read')
             );
         });
 
@@ -258,7 +258,7 @@ describe('Directory Approval Integration Tests', () => {
                 tool.inputSchema.parse({ file_path: externalPath }),
                 toolContext
             );
-            expect(decision).toBe(createDirectoryApprovalKey('/external/project'));
+            expect(decision).toBe(createDirectoryApprovalKey('/external/project', 'read'));
         });
 
         it('should remember directory approvals only for the granting session', async () => {
@@ -275,7 +275,7 @@ describe('Directory Approval Integration Tests', () => {
                 tool.inputSchema.parse({ file_path: externalPath }),
                 sessionAContext
             );
-            expect(approvalKey).toBe(createDirectoryApprovalKey('/external/project'));
+            expect(approvalKey).toBe(createDirectoryApprovalKey('/external/project', 'read'));
 
             await approvalManager.addApprovedKey(approvalKey as string, 'session', 'session-a');
 
@@ -292,7 +292,7 @@ describe('Directory Approval Integration Tests', () => {
                     tool.inputSchema.parse({ file_path: externalPath }),
                     sessionBContext
                 )
-            ).toBe(createDirectoryApprovalKey('/external/project'));
+            ).toBe(createDirectoryApprovalKey('/external/project', 'read'));
         });
     });
 
@@ -310,7 +310,7 @@ describe('Directory Approval Integration Tests', () => {
             );
 
             expect(decision).toBe(
-                createDirectoryApprovalKey(path.dirname(path.resolve(externalPath)))
+                createDirectoryApprovalKey(path.dirname(path.resolve(externalPath)), 'write')
             );
         });
 
@@ -331,7 +331,7 @@ describe('Directory Approval Integration Tests', () => {
             );
 
             expect(decision).toBe(
-                createDirectoryApprovalKey(path.dirname(path.resolve(externalPath)))
+                createDirectoryApprovalKey(path.dirname(path.resolve(externalPath)), 'edit')
             );
         });
     });
@@ -382,7 +382,29 @@ describe('Directory Approval Integration Tests', () => {
                 tool.inputSchema.parse({ file_path: '/external/other/file.ts' }),
                 toolContext
             );
-            expect(decision2).toBe(createDirectoryApprovalKey('/external/other'));
+            expect(decision2).toBe(createDirectoryApprovalKey('/external/other', 'read'));
+        });
+
+        it('should not use a read directory approval for write operations', async () => {
+            await approvalManager.addApprovedKey(
+                createDirectoryApprovalKey('/external/project', 'read'),
+                'session'
+            );
+
+            const writeTool = createWriteFileTool(getFileSystemService);
+            const needsApproval = writeTool.needsApproval;
+            expect(needsApproval).toBeDefined();
+
+            await expect(
+                callNeedsApproval(
+                    needsApproval,
+                    writeTool.inputSchema.parse({
+                        file_path: '/external/project/new.ts',
+                        content: 'test',
+                    }),
+                    toolContext
+                )
+            ).resolves.toBe(createDirectoryApprovalKey('/external/project', 'write'));
         });
     });
 
@@ -406,7 +428,7 @@ describe('Directory Approval Integration Tests', () => {
                 const externalFile = path.join(externalDir, 'approved.txt');
 
                 await approvalManager.addApprovedKey(
-                    createDirectoryApprovalKey(externalDir),
+                    createDirectoryApprovalKey(externalDir, 'write'),
                     'once',
                     'session-a'
                 );
@@ -440,7 +462,7 @@ describe('Directory Approval Integration Tests', () => {
                         blockedInput,
                         createToolContext(mockLogger, approvalManager, 'session-b')
                     )
-                ).resolves.toBe(createDirectoryApprovalKey(externalDir));
+                ).resolves.toBe(createDirectoryApprovalKey(externalDir, 'write'));
             } finally {
                 await fs.rm(externalDir, { recursive: true, force: true });
             }

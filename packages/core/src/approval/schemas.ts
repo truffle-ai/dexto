@@ -49,6 +49,7 @@ export const ToolApprovalMetadataSchema = z
         toolName: z.string().describe('Name of the tool to approve'),
         approvalKey: z
             .string()
+            .min(1)
             .optional()
             .describe(
                 'Optional opaque key identifying the approval scope. Core stores keys exactly and does not interpret them.'
@@ -173,7 +174,9 @@ export const ToolApprovalResponseDataSchema = z
         rememberChoice: z
             .boolean()
             .optional()
-            .describe('Remember this tool for the session (approves ALL uses of this tool)'),
+            .describe(
+                'Remember this approval scope for the session. If an approval key is present, only matching keys are remembered; otherwise all uses of this tool are approved.'
+            ),
     })
     .strict()
     .describe('Tool approval response data');

@@ -9,6 +9,7 @@ import { createMockLogger } from '../logger/v2/test-utils.js';
 import type { Logger } from '../logger/v2/types.js';
 import type { ApprovalStore, SessionApprovalState } from '../storage/approvals/types.js';
 import { createInMemorySessionApprovalStore } from '../test-utils/session-state-stores.js';
+import { ToolApprovalMetadataSchema } from './schemas.js';
 
 function createDeferred<T>() {
     let resolve!: (value: T | PromiseLike<T>) => void;
@@ -1265,5 +1266,18 @@ describe('ApprovalManager', () => {
                 false
             );
         });
+    });
+});
+
+describe('approval schemas', () => {
+    it('rejects empty tool approval keys', () => {
+        expect(
+            ToolApprovalMetadataSchema.safeParse({
+                toolName: 'write_file',
+                approvalKey: '',
+                toolCallId: 'call-1',
+                args: {},
+            }).success
+        ).toBe(false);
     });
 });

@@ -132,6 +132,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     status: decision.status,
                     ...(decision.reason !== undefined ? { reason: decision.reason } : {}),
                     ...(decision.message !== undefined ? { message: decision.message } : {}),
+                    ...(decision.timeoutMs !== undefined ? { timeoutMs: decision.timeoutMs } : {}),
                     ...(decision.data !== undefined ? { data: decision.data } : {}),
                 },
             })),
@@ -2681,7 +2682,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
 
         it('should skip approval when a needsApproval key is already session-approved', async () => {
             mockMcpManager.getAllTools = vi.fn().mockResolvedValue({});
-            (mockApprovalManager.isApprovalKeySessionApproved as any).mockImplementation(
+            vi.mocked(mockApprovalManager.isApprovalKeySessionApproved).mockImplementation(
                 (key: string) => key === 'keyed:alpha'
             );
 
@@ -2717,7 +2718,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
 
         it('should fail closed when a needsApproval key is whitespace-padded', async () => {
             mockMcpManager.getAllTools = vi.fn().mockResolvedValue({});
-            (mockApprovalManager.isApprovalKeySessionApproved as any).mockImplementation(
+            vi.mocked(mockApprovalManager.isApprovalKeySessionApproved).mockImplementation(
                 (key: string) => key === 'keyed:alpha'
             );
 

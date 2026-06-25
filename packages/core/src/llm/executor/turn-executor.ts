@@ -72,6 +72,7 @@ import {
 
 const MCP_TOOL_PREFIX = 'mcp--';
 const MODEL_REQUEST_MAX_RETRIES = 2;
+const TOOL_SUPPORT_PROBE_TIMEOUT_MS = 5000;
 type ToolSupportValidationResult =
     | {
           supported: boolean;
@@ -91,7 +92,7 @@ type ToolSupportValidationResult =
           cacheHit: false;
           validationMode: 'probe';
           probeOutcome: 'supported' | 'unsupported' | 'error_assumed_supported';
-          probeTimeoutMs: 5000;
+          probeTimeoutMs: typeof TOOL_SUPPORT_PROBE_TIMEOUT_MS;
       };
 const LLMFinishReasonStateSchema = z.enum([
     'stop',
@@ -1264,7 +1265,7 @@ export class TurnExecutor {
 
         // Add timeout protection to fail fast if endpoint is unresponsive
         const testAbort = new AbortController();
-        const testTimeout = setTimeout(() => testAbort.abort(), 5000); // 5s timeout
+        const testTimeout = setTimeout(() => testAbort.abort(), TOOL_SUPPORT_PROBE_TIMEOUT_MS);
 
         try {
             // Make a minimal generateText call with tools to test support
@@ -1285,7 +1286,7 @@ export class TurnExecutor {
                 cacheHit: false,
                 validationMode: 'probe',
                 probeOutcome: 'supported',
-                probeTimeoutMs: 5000,
+                probeTimeoutMs: TOOL_SUPPORT_PROBE_TIMEOUT_MS,
             };
         } catch (error: unknown) {
             clearTimeout(testTimeout);
@@ -1300,7 +1301,7 @@ export class TurnExecutor {
                     cacheHit: false,
                     validationMode: 'probe',
                     probeOutcome: 'unsupported',
-                    probeTimeoutMs: 5000,
+                    probeTimeoutMs: TOOL_SUPPORT_PROBE_TIMEOUT_MS,
                 };
             }
             // Other errors (including timeout) - assume tools are supported and let the actual call handle it
@@ -1313,7 +1314,7 @@ export class TurnExecutor {
                 cacheHit: false,
                 validationMode: 'probe',
                 probeOutcome: 'error_assumed_supported',
-                probeTimeoutMs: 5000,
+                probeTimeoutMs: TOOL_SUPPORT_PROBE_TIMEOUT_MS,
             };
         }
     }

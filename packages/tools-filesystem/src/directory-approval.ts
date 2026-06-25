@@ -14,15 +14,23 @@ type DirectoryApprovalPaths = {
 };
 
 const DIRECTORY_APPROVAL_KEY_PREFIX = 'directory:';
+const DIRECTORY_APPROVAL_OPERATION_SEPARATOR = ':operation:';
 
-export function createDirectoryApprovalKey(directoryPath: string): string {
-    return `${DIRECTORY_APPROVAL_KEY_PREFIX}${path.resolve(directoryPath)}`;
+export function createDirectoryApprovalKey(
+    directoryPath: string,
+    operation?: DirectoryApprovalOperation
+): string {
+    const directoryKey = `${DIRECTORY_APPROVAL_KEY_PREFIX}${path.resolve(directoryPath)}`;
+    return operation === undefined
+        ? directoryKey
+        : `${directoryKey}${DIRECTORY_APPROVAL_OPERATION_SEPARATOR}${operation}`;
 }
 
 export function isPathApprovedByDirectoryKey(
     filePath: string,
     approvedKeys: ReadonlyMap<string, 'session' | 'once'>,
-    approvedTypes: ReadonlySet<'session' | 'once'> = new Set(['session', 'once'])
+    approvedTypes: ReadonlySet<'session' | 'once'> = new Set(['session', 'once']),
+    operation?: DirectoryApprovalOperation
 ): boolean {
     const resolvedFilePath = path.resolve(filePath);
     for (const [key, type] of approvedKeys) {
@@ -33,7 +41,17 @@ export function isPathApprovedByDirectoryKey(
             continue;
         }
 
-        const approvedDir = key.slice(DIRECTORY_APPROVAL_KEY_PREFIX.length);
+        const keyParts = key
+            .slice(DIRECTORY_APPROVAL_KEY_PREFIX.length)
+            .split(DIRECTORY_APPROVAL_OPERATION_SEPARATOR);
+        const approvedDir = keyParts[0];
+        const approvedOperation = keyParts[1];
+        if (approvedDir === undefined) {
+            continue;
+        }
+        if (approvedOperation !== undefined && approvedOperation !== operation) {
+            continue;
+        }
         const relative = path.relative(approvedDir, resolvedFilePath);
         if (!relative.startsWith('..') && !path.isAbsolute(relative)) {
             return true;
@@ -86,11 +104,12 @@ export function createDirectoryAccessApprovalHandlers<const TSchema extends ZodT
                 );
             }
 
-            const approvalKey = createDirectoryApprovalKey(paths.parentDir);
+            const approvalKey = createDirectoryApprovalKey(paths.parentDir, options.operation);
             return isPathApprovedByDirectoryKey(
                 paths.path,
                 approvalManager.getApprovedKeys(context.sessionId),
-                new Set(['session'])
+                new Set(['session']),
+                options.operation
             )
                 ? false
                 : approvalKey;

@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 /**
  * Utility functions for generating approval patterns for shell commands.
  *
@@ -67,7 +69,12 @@ export function generateCommandPatternKey(command: string): string | null {
  */
 export function generateCommandApprovalKey(command: string): string {
     const patternKey = generateCommandPatternKey(command);
-    return patternKey ? `bash:${patternKey}` : `bash:exact:${command.trim()}`;
+    if (patternKey) {
+        return `bash:${patternKey}`;
+    }
+
+    const commandHash = createHash('sha256').update(command).digest('hex');
+    return `bash:exact:${commandHash}`;
 }
 
 /**

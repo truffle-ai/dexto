@@ -59,10 +59,12 @@ export const fileSystemToolsFactory: ToolFactory<FileSystemToolsConfig> = {
                 },
                 context.logger
             );
-            service.setDirectoryApprovalChecker((filePath: string) =>
+            service.setDirectoryApprovalChecker((filePath: string, operation) =>
                 isPathApprovedByDirectoryKey(
                     filePath,
-                    approvalManager.getApprovedKeys(context.sessionId)
+                    approvalManager.getApprovedKeys(context.sessionId),
+                    new Set(['session', 'once']),
+                    operation
                 )
             );
             return service;

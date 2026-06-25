@@ -3868,7 +3868,7 @@ describe('TurnExecutor Integration Tests', () => {
             await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
             await expect(executor.execute({ mcpManager }, true)).rejects.toThrow();
 
-            await expect(steerQueue.getAll()).toEqual([
+            expect(steerQueue.getAll()).toEqual([
                 expect.objectContaining({
                     content: [{ type: 'text', text: 'Pending' }],
                 }),

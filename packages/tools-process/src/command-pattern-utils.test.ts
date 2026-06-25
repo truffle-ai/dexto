@@ -1,4 +1,5 @@
 import {
+    generateCommandApprovalKey,
     generateCommandPatternKey,
     generateCommandPatternSuggestions,
     isDangerousCommand,
@@ -93,6 +94,22 @@ describe('command-pattern-utils', () => {
 
             expect(patternKey).toBe('git push *');
             expect(suggestions[0]).toBe(patternKey);
+        });
+    });
+
+    describe('generateCommandApprovalKey', () => {
+        it('should preserve pattern-based keys for non-dangerous commands', () => {
+            expect(generateCommandApprovalKey('git push origin main')).toBe('bash:git push *');
+        });
+
+        it('should hash exact dangerous command approvals', () => {
+            expect(generateCommandApprovalKey('rm -rf /')).toMatch(/^bash:exact:[a-f0-9]{64}$/);
+        });
+
+        it('should hash the exact command without trimming', () => {
+            expect(generateCommandApprovalKey('rm -rf /')).not.toBe(
+                generateCommandApprovalKey(' rm -rf / ')
+            );
         });
     });
 });

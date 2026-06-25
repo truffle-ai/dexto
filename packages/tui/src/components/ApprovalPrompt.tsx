@@ -38,7 +38,7 @@ export interface ApprovalPromptHandle {
  * Options passed when approving a request
  */
 export interface ApprovalOptions {
-    /** Remember this tool for the entire session (approves ALL uses) */
+    /** Remember this approval scope for the session */
     rememberChoice?: boolean;
     /** Form data for elicitation requests */
     formData?: Record<string, unknown>;

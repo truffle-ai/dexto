@@ -594,11 +594,24 @@ export class DatabaseBackedSessionMessageQueueStore implements SessionMessageQue
 
     private async loadQueue(sessionId: string): Promise<QueuedMessage[]> {
         const key = this.key(sessionId);
-        const stored = await this.database.getRange<unknown>(
-            key,
-            0,
-            SESSION_MESSAGE_QUEUE_READ_LIMIT
-        );
+        const stored: unknown[] = [];
+        let offset = 0;
+
+        while (true) {
+            const page = await this.database.getRange<unknown>(
+                key,
+                offset,
+                SESSION_MESSAGE_QUEUE_READ_LIMIT
+            );
+            stored.push(...page);
+
+            if (page.length < SESSION_MESSAGE_QUEUE_READ_LIMIT) {
+                break;
+            }
+
+            offset += SESSION_MESSAGE_QUEUE_READ_LIMIT;
+        }
+
         return this.parseQueue(key, stored);
     }
 

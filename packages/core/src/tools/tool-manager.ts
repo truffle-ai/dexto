@@ -709,7 +709,6 @@ export class ToolManager {
                 'Auto-approved parallel request(s) after approval key was remembered',
                 {
                     count,
-                    approvalKey,
                 }
             );
         }
@@ -1457,6 +1456,7 @@ export class ToolManager {
                 status: response.status,
                 ...(response.reason !== undefined ? { reason: response.reason } : {}),
                 ...(response.message !== undefined ? { message: response.message } : {}),
+                ...(response.timeoutMs !== undefined ? { timeoutMs: response.timeoutMs } : {}),
                 ...(response.data !== undefined ? { data: response.data } : {}),
             });
         } catch (error) {

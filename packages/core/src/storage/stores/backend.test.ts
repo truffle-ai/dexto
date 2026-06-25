@@ -171,6 +171,24 @@ describe('BackendDextoStores', () => {
             )
         ).toEqual(['queued-later-timestamp', 'queued-earlier-timestamp']);
     });
+
+    it('reads persisted message queues beyond one backend page', async () => {
+        const database = createInMemoryDatabase();
+        const logger = createMockLogger();
+        const steerQueue = new DatabaseBackedSessionMessageQueueStore(
+            database,
+            logger,
+            SESSION_STEER_QUEUE_KEY_PREFIX
+        );
+        const queuedMessages = Array.from({ length: 10001 }, (_, index) => ({
+            id: `queued-${index}`,
+            content: [{ type: 'text' as const, text: `message ${index}` }],
+            queuedAt: index,
+        }));
+        await database.set('session-steer-queue:session-paged', queuedMessages);
+
+        await expect(steerQueue.list({ sessionId: 'session-paged' })).resolves.toHaveLength(10001);
+    });
 });
 
 describe('DatabaseBackedApprovalStore', () => {

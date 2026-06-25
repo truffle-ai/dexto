@@ -37,7 +37,7 @@ import {
     RenamePathResult,
     BufferEncoding,
 } from './types.js';
-import { PathValidator } from './path-validator.js';
+import { PathValidator, type DirectoryApprovalOperation } from './path-validator.js';
 import { FileSystemError } from './errors.js';
 import { detectMimeType, getMediaFileKind, isLikelyBinary, isTextMimeType } from './mime-utils.js';
 import { resolveUserPath } from './path-utils.js';
@@ -63,7 +63,9 @@ export class FileSystemService {
     private initialized: boolean = false;
     private initPromise: Promise<void> | null = null;
     private logger: Logger;
-    private directoryApprovalChecker?: (filePath: string) => boolean;
+    private directoryApprovalChecker?:
+        | ((filePath: string, operation: DirectoryApprovalOperation) => boolean)
+        | undefined;
 
     /**
      * Create a new FileSystemService with validated configuration.
@@ -156,7 +158,9 @@ export class FileSystemService {
      *
      * @param checker Function that returns true if path is in an approved directory
      */
-    setDirectoryApprovalChecker(checker: (filePath: string) => boolean): void {
+    setDirectoryApprovalChecker(
+        checker: (filePath: string, operation: DirectoryApprovalOperation) => boolean
+    ): void {
         this.directoryApprovalChecker = checker;
         this.pathValidator.setDirectoryApprovalChecker(checker);
     }
@@ -196,7 +200,7 @@ export class FileSystemService {
         const validation =
             mode === 'toolPreview'
                 ? await this.pathValidator.validatePathForPreview(filePath)
-                : await this.pathValidator.validatePath(filePath);
+                : await this.pathValidator.validatePath(filePath, 'read');
         if (!validation.isValid || !validation.normalizedPath) {
             throw FileSystemError.invalidPath(filePath, validation.error || 'Unknown error');
         }
@@ -407,7 +411,7 @@ export class FileSystemService {
 
             for (const file of files) {
                 // Validate path (async for non-blocking symlink resolution)
-                const validation = await this.pathValidator.validatePath(file);
+                const validation = await this.pathValidator.validatePath(file, 'read');
                 if (!validation.isValid || !validation.normalizedPath) {
                     this.logger.debug(`Skipping invalid path: ${file}`);
                     continue;
@@ -466,7 +470,7 @@ export class FileSystemService {
     ): Promise<ListDirectoryResult> {
         await this.ensureInitialized();
 
-        const validation = await this.pathValidator.validatePath(dirPath);
+        const validation = await this.pathValidator.validatePath(dirPath, 'read');
         if (!validation.isValid || !validation.normalizedPath) {
             throw FileSystemError.invalidPath(dirPath, validation.error || 'Unknown error');
         }
@@ -510,7 +514,10 @@ export class FileSystemService {
                 concurrency,
                 async (entry) => {
                     const entryPath = path.join(normalizedPath, entry.name);
-                    const entryValidation = await this.pathValidator.validatePath(entryPath);
+                    const entryValidation = await this.pathValidator.validatePath(
+                        entryPath,
+                        'read'
+                    );
                     if (!entryValidation.isValid || !entryValidation.normalizedPath) {
                         return null;
                     }
@@ -654,7 +661,7 @@ export class FileSystemService {
     ): Promise<CreateDirectoryResult> {
         await this.ensureInitialized();
 
-        const validation = await this.pathValidator.validatePath(dirPath);
+        const validation = await this.pathValidator.validatePath(dirPath, 'write');
         if (!validation.isValid || !validation.normalizedPath) {
             throw FileSystemError.invalidPath(dirPath, validation.error || 'Unknown error');
         }
@@ -697,7 +704,7 @@ export class FileSystemService {
     ): Promise<DeletePathResult> {
         await this.ensureInitialized();
 
-        const validation = await this.pathValidator.validatePath(targetPath);
+        const validation = await this.pathValidator.validatePath(targetPath, 'write');
         if (!validation.isValid || !validation.normalizedPath) {
             throw FileSystemError.invalidPath(targetPath, validation.error || 'Unknown error');
         }
@@ -728,12 +735,12 @@ export class FileSystemService {
     async renamePath(fromPath: string, toPath: string): Promise<RenamePathResult> {
         await this.ensureInitialized();
 
-        const fromValidation = await this.pathValidator.validatePath(fromPath);
+        const fromValidation = await this.pathValidator.validatePath(fromPath, 'write');
         if (!fromValidation.isValid || !fromValidation.normalizedPath) {
             throw FileSystemError.invalidPath(fromPath, fromValidation.error || 'Unknown error');
         }
 
-        const toValidation = await this.pathValidator.validatePath(toPath);
+        const toValidation = await this.pathValidator.validatePath(toPath, 'write');
         if (!toValidation.isValid || !toValidation.normalizedPath) {
             throw FileSystemError.invalidPath(toPath, toValidation.error || 'Unknown error');
         }
@@ -796,7 +803,7 @@ export class FileSystemService {
         let searchPath: string;
         let globPattern: string;
 
-        const baseValidation = await this.pathValidator.validatePath(basePath);
+        const baseValidation = await this.pathValidator.validatePath(basePath, 'read');
         if (!baseValidation.isValid || !baseValidation.normalizedPath) {
             throw FileSystemError.invalidPath(basePath, baseValidation.error || 'Unknown error');
         }
@@ -937,7 +944,7 @@ export class FileSystemService {
         await this.ensureInitialized();
 
         // Validate path (async for non-blocking symlink resolution)
-        const validation = await this.pathValidator.validatePath(filePath);
+        const validation = await this.pathValidator.validatePath(filePath, 'write');
         if (!validation.isValid || !validation.normalizedPath) {
             throw FileSystemError.invalidPath(filePath, validation.error || 'Unknown error');
         }
@@ -997,7 +1004,7 @@ export class FileSystemService {
         await this.ensureInitialized();
 
         // Validate path (async for non-blocking symlink resolution)
-        const validation = await this.pathValidator.validatePath(filePath);
+        const validation = await this.pathValidator.validatePath(filePath, 'edit');
         if (!validation.isValid || !validation.normalizedPath) {
             throw FileSystemError.invalidPath(filePath, validation.error || 'Unknown error');
         }
@@ -1166,7 +1173,7 @@ export class FileSystemService {
      * Check if a path is allowed (async for non-blocking symlink resolution)
      */
     async isPathAllowed(filePath: string): Promise<boolean> {
-        const validation = await this.pathValidator.validatePath(filePath);
+        const validation = await this.pathValidator.validatePath(filePath, 'read');
         return validation.isValid;
     }
 }
