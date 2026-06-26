@@ -83,7 +83,7 @@ export class PathValidator {
      */
     async validatePath(
         filePath: string,
-        operation: DirectoryApprovalOperation = 'read'
+        operation: DirectoryApprovalOperation
     ): Promise<PathValidation> {
         return this.validatePathInternal(filePath, { skipAllowedCheck: false, operation });
     }
@@ -254,9 +254,9 @@ export class PathValidator {
      * Quick check if a path is allowed (for internal use)
      * Note: This assumes the path is already normalized/canonicalized
      */
-    isPathAllowedQuick(normalizedPath: string): boolean {
+    isPathAllowedQuick(normalizedPath: string, operation: DirectoryApprovalOperation): boolean {
         return (
-            this.isPathAllowedSync(normalizedPath, 'read') && !this.isPathBlocked(normalizedPath)
+            this.isPathAllowedSync(normalizedPath, operation) && !this.isPathBlocked(normalizedPath)
         );
     }
 

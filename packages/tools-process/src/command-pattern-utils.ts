@@ -73,7 +73,7 @@ export function generateCommandApprovalKey(command: string): string {
         return `bash:${patternKey}`;
     }
 
-    const commandHash = createHash('sha256').update(command).digest('hex');
+    const commandHash = createHash('sha256').update(command.trim()).digest('hex');
     return `bash:exact:${commandHash}`;
 }
 

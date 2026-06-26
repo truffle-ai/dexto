@@ -106,8 +106,8 @@ describe('command-pattern-utils', () => {
             expect(generateCommandApprovalKey('rm -rf /')).toMatch(/^bash:exact:[a-f0-9]{64}$/);
         });
 
-        it('should hash the exact command without trimming', () => {
-            expect(generateCommandApprovalKey('rm -rf /')).not.toBe(
+        it('should trim exact commands before hashing', () => {
+            expect(generateCommandApprovalKey('rm -rf /')).toBe(
                 generateCommandApprovalKey(' rm -rf / ')
             );
         });

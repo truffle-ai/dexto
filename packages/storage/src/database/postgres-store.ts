@@ -274,7 +274,7 @@ export class PostgresStore implements Database {
         updater: (items: T[]) => { items: T[]; result: R }
     ): Promise<R> {
         try {
-            return await this.transaction(async (client) => {
+            return await this.transactionOnce(async (client) => {
                 await client.query('SELECT pg_advisory_xact_lock(hashtext($1::text)::bigint)', [
                     key,
                 ]);
@@ -436,6 +436,25 @@ export class PostgresStore implements Database {
                 throw error;
             }
         });
+    }
+
+    private async transactionOnce<T>(callback: (client: PoolClient) => Promise<T>): Promise<T> {
+        this.checkConnection();
+
+        const client = await this.pool!.connect();
+        try {
+            await client.query('BEGIN');
+            try {
+                const result = await callback(client);
+                await client.query('COMMIT');
+                return result;
+            } catch (error) {
+                await client.query('ROLLBACK');
+                throw error;
+            }
+        } finally {
+            client.release();
+        }
     }
 
     async getStats(): Promise<{

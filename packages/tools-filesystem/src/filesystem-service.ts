@@ -1012,7 +1012,7 @@ export class FileSystemService {
         const normalizedPath = validation.normalizedPath;
 
         // Read current file content
-        const fileContent = await this.readFile(normalizedPath);
+        const fileContent = await this.readNormalizedFile(normalizedPath);
         const originalContent = fileContent.content;
 
         // Count occurrences of old string
