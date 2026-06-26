@@ -4,6 +4,7 @@ import {
     InMemorySpanExporter,
     SimpleSpanProcessor,
 } from '@opentelemetry/sdk-trace-base';
+import { trace } from '@opentelemetry/api';
 import { z } from 'zod';
 import { parseTurnDriverState, TurnExecutor, type TurnDriverState } from './turn-executor.js';
 import { ContextManager } from '../../context/manager.js';
@@ -138,6 +139,8 @@ vi.mock('@opentelemetry/api', async (importOriginal) => {
         trace: {
             ...actual.trace,
             getTracer: actual.trace.getTracer.bind(actual.trace),
+            setGlobalTracerProvider: actual.trace.setGlobalTracerProvider.bind(actual.trace),
+            disable: actual.trace.disable.bind(actual.trace),
             getActiveSpan: vi.fn(() => null),
         },
     };
@@ -1124,6 +1127,7 @@ describe('TurnExecutor Integration Tests', () => {
             } finally {
                 Reflect.deleteProperty(globalThis, '__TELEMETRY__');
                 await provider.shutdown();
+                trace.disable();
             }
         });
 
@@ -2254,10 +2258,7 @@ describe('TurnExecutor Integration Tests', () => {
                         id: 'bash_exec',
                         description: 'Bash',
                         inputSchema: z.object({ command: z.string() }).strict(),
-                        approval: {
-                            patternKey: (input) => `${input.command} *`,
-                            suggestPatterns: () => ['git *'],
-                        },
+                        needsApproval: () => 'bash:git *',
                         execute: executeTool,
                     }),
                 ],
@@ -2324,7 +2325,7 @@ describe('TurnExecutor Integration Tests', () => {
             approvalHandler.resolveApproval(firstApprovalId, {
                 status: ApprovalStatus.APPROVED,
                 sessionId,
-                data: { rememberPattern: 'git *' },
+                data: { rememberChoice: true },
             });
             await execution;
 
@@ -2567,20 +2568,18 @@ describe('TurnExecutor Integration Tests', () => {
                     });
                     return {
                         fullStream: (async function* () {
-                            await steerQueueStore.save({
+                            await steerQueueStore.append({
                                 sessionId,
-                                queue: [
-                                    {
-                                        content: [
-                                            {
-                                                type: 'text',
-                                                text: 'Persisted route steer',
-                                            },
-                                        ],
-                                        id: 'route-steer-1',
-                                        queuedAt: Date.now(),
-                                    },
-                                ],
+                                message: {
+                                    content: [
+                                        {
+                                            type: 'text',
+                                            text: 'Persisted route steer',
+                                        },
+                                    ],
+                                    id: 'route-steer-1',
+                                    queuedAt: Date.now(),
+                                },
                             });
                             for await (const event of firstStream.fullStream) {
                                 yield event;
@@ -2610,7 +2609,7 @@ describe('TurnExecutor Integration Tests', () => {
                     }),
                 ])
             );
-            await expect(steerQueueStore.load({ sessionId })).resolves.toEqual([]);
+            await expect(steerQueueStore.list({ sessionId })).resolves.toEqual([]);
         });
 
         it('should process structured steer content before structured follow-up content', async () => {
@@ -3110,6 +3109,56 @@ describe('TurnExecutor Integration Tests', () => {
             expect(callCount).toBe(1);
             expect(result.finishReason).toBe('max-steps');
         });
+
+        it('leaves follow-up messages queued when hosted runtimes own follow-up promotion', async () => {
+            let callCount = 0;
+            vi.mocked(streamText).mockImplementation(() => {
+                callCount++;
+                const queuedFollowUp = followUpQueue.enqueue({
+                    content: [{ type: 'text', text: 'Run as the next hosted turn' }],
+                });
+                const stream = createMockStream({
+                    text: `Response ${callCount}`,
+                    finishReason: 'stop',
+                });
+                return {
+                    fullStream: (async function* () {
+                        await queuedFollowUp;
+                        for await (const event of stream.fullStream) {
+                            yield event;
+                        }
+                    })(),
+                } as unknown as ReturnType<typeof streamText>;
+            });
+
+            const hostedExecutor = new TurnExecutor(
+                createMockModel(),
+                toolManager,
+                contextManager,
+                sessionEventBus,
+                resourceManager,
+                sessionId,
+                {
+                    maxSteps: 10,
+                    executionControl: { followUpQueueMode: 'host-run' },
+                },
+                llmContext,
+                logger,
+                steerQueue,
+                followUpQueue
+            );
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Initial' }]);
+            const result = await hostedExecutor.execute({ mcpManager }, true);
+
+            expect(callCount).toBe(1);
+            expect(result.finishReason).toBe('stop');
+            expect(followUpQueue.getAll()).toEqual([
+                expect.objectContaining({
+                    content: [{ type: 'text', text: 'Run as the next hosted turn' }],
+                }),
+            ]);
+        });
     });
 
     describe('Tool Support Validation', () => {
@@ -3167,6 +3216,140 @@ describe('TurnExecutor Integration Tests', () => {
 
             await executor2.execute({ mcpManager }, true);
             expect(generateText).toHaveBeenCalledTimes(1);
+        });
+
+        it('should skip validation for dexto-nova managed gateway even with baseURL', async () => {
+            const exporter = new InMemorySpanExporter();
+            const provider = new BasicTracerProvider();
+            provider.addSpanProcessor(new SimpleSpanProcessor(exporter));
+            provider.register();
+            Reflect.set(globalThis, '__TELEMETRY__', { isInitialized: () => true });
+
+            try {
+                const gatewayExecutor = new TurnExecutor(
+                    createMockModel(),
+                    toolManager,
+                    contextManager,
+                    sessionEventBus,
+                    resourceManager,
+                    sessionId,
+                    { maxSteps: 10, baseURL: 'https://api.dexto.ai/v1' },
+                    { provider: 'dexto-nova', model: 'openai/gpt-5.4-mini' },
+                    logger,
+                    steerQueue,
+                    followUpQueue
+                );
+
+                await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
+                await gatewayExecutor.execute({ mcpManager }, true);
+
+                const validationSpan = exporter
+                    .getFinishedSpans()
+                    .find((span) => span.name === 'llm.tool_support_validation');
+
+                expect(generateText).not.toHaveBeenCalled();
+                expect(streamText).toHaveBeenCalledWith(
+                    expect.objectContaining({
+                        tools: expect.any(Object),
+                    })
+                );
+                expect(validationSpan?.attributes).toEqual(
+                    expect.objectContaining({
+                        'llm.base_url_present': true,
+                        'llm.provider': 'dexto-nova',
+                        'llm.tool_support.cache_hit': false,
+                        'llm.tool_support.validation_mode': 'managed_gateway_assumed',
+                        'llm.tools_supported': true,
+                    })
+                );
+            } finally {
+                Reflect.deleteProperty(globalThis, '__TELEMETRY__');
+                await provider.shutdown();
+                trace.disable();
+            }
+        });
+
+        it('records whether tool support validation probed or used the cache', async () => {
+            const exporter = new InMemorySpanExporter();
+            const provider = new BasicTracerProvider();
+            provider.addSpanProcessor(new SimpleSpanProcessor(exporter));
+            provider.register();
+            Reflect.set(globalThis, '__TELEMETRY__', { isInitialized: () => true });
+
+            try {
+                vi.mocked(generateText).mockResolvedValue(
+                    {} as Awaited<ReturnType<typeof generateText>>
+                );
+
+                const baseURL = 'https://tool-support-diagnostics.example.test';
+                const executor1 = new TurnExecutor(
+                    createMockModel(),
+                    toolManager,
+                    contextManager,
+                    sessionEventBus,
+                    resourceManager,
+                    sessionId,
+                    { maxSteps: 10, baseURL },
+                    llmContext,
+                    logger,
+                    steerQueue,
+                    followUpQueue
+                );
+
+                await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
+                await executor1.execute({ mcpManager }, true);
+
+                const newMessageQueue = new MessageQueueService(
+                    sessionEventBus,
+                    logger,
+                    'session-tool-cache',
+                    createInMemoryMessageQueueStore()
+                );
+                const executor2 = new TurnExecutor(
+                    createMockModel(),
+                    toolManager,
+                    contextManager,
+                    sessionEventBus,
+                    resourceManager,
+                    'session-tool-cache',
+                    { maxSteps: 10, baseURL },
+                    llmContext,
+                    logger,
+                    newMessageQueue,
+                    followUpQueue
+                );
+
+                await executor2.execute({ mcpManager }, true);
+
+                const validationSpans = exporter
+                    .getFinishedSpans()
+                    .filter((span) => span.name === 'llm.tool_support_validation');
+
+                expect(generateText).toHaveBeenCalledTimes(1);
+                expect(validationSpans).toHaveLength(2);
+                expect(validationSpans[0]?.attributes).toEqual(
+                    expect.objectContaining({
+                        'llm.base_url_present': true,
+                        'llm.model': 'gpt-4',
+                        'llm.provider': 'openai',
+                        'llm.tool_support.cache_hit': false,
+                        'llm.tool_support.probe_outcome': 'supported',
+                        'llm.tool_support.probe_timeout_ms': 5000,
+                        'llm.tool_support.validation_mode': 'probe',
+                        'llm.tools_supported': true,
+                    })
+                );
+                expect(validationSpans[1]?.attributes).toEqual(
+                    expect.objectContaining({
+                        'llm.tool_support.cache_hit': true,
+                        'llm.tool_support.validation_mode': 'cache',
+                        'llm.tools_supported': true,
+                    })
+                );
+            } finally {
+                Reflect.deleteProperty(globalThis, '__TELEMETRY__');
+                await provider.shutdown();
+            }
         });
 
         it('should use empty tools when model does not support them', async () => {
@@ -3433,6 +3616,43 @@ describe('TurnExecutor Integration Tests', () => {
             expect(retryingHandler).not.toHaveBeenCalled();
         });
 
+        it('does not clear unprocessed persisted steers during cleanup', async () => {
+            const steerQueueStore = createInMemoryMessageQueueStore();
+            const clearSpy = vi.spyOn(steerQueueStore, 'clear');
+            steerQueue = new MessageQueueService(
+                sessionEventBus,
+                logger,
+                sessionId,
+                steerQueueStore
+            );
+            executor = createExecutorWithContext(contextManager);
+            const nonRetryableError = apiCallError({
+                message: 'Bad request',
+                statusCode: 400,
+                isRetryable: false,
+            });
+            const queuedSteer = {
+                content: [{ type: 'text' as const, text: 'Do not drop this steer' }],
+                id: 'persisted-steer-before-failure',
+                queuedAt: Date.now(),
+            };
+
+            vi.mocked(streamText).mockImplementation(() => {
+                void steerQueueStore.append({
+                    message: queuedSteer,
+                    sessionId,
+                });
+                throw nonRetryableError;
+            });
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
+
+            await expect(executor.execute({ mcpManager }, true)).rejects.toThrow();
+
+            expect(clearSpy).not.toHaveBeenCalled();
+            await expect(steerQueueStore.list({ sessionId })).resolves.toEqual([queuedSteer]);
+        });
+
         it('retries an async stream failure before conversation history changes', async () => {
             const retryableError = apiCallError({
                 message: 'Provider connection dropped',
@@ -3638,7 +3858,7 @@ describe('TurnExecutor Integration Tests', () => {
             await expect(steerQueue.dequeueAll()).resolves.toBeNull();
         });
 
-        it('should clear steer queue on error', async () => {
+        it('should preserve unprocessed steer queue on error', async () => {
             await steerQueue.enqueue({ content: [{ type: 'text', text: 'Pending' }] });
 
             vi.mocked(streamText).mockImplementation(() => {
@@ -3648,7 +3868,11 @@ describe('TurnExecutor Integration Tests', () => {
             await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
             await expect(executor.execute({ mcpManager }, true)).rejects.toThrow();
 
-            await expect(steerQueue.dequeueAll()).resolves.toBeNull();
+            expect(steerQueue.getAll()).toEqual([
+                expect.objectContaining({
+                    content: [{ type: 'text', text: 'Pending' }],
+                }),
+            ]);
         });
 
         it('should preserve follow-up queue on error', async () => {

@@ -438,13 +438,11 @@ describe('Session Integration: Core-owned Interaction State Persistence', () => 
                     toolState: new DatabaseBackedToolStateStore(storage.database),
                     steerQueue: new DatabaseBackedSessionMessageQueueStore(
                         storage.database,
-                        storage.cache,
                         logger,
                         SESSION_STEER_QUEUE_KEY_PREFIX
                     ),
                     followUpQueue: new DatabaseBackedSessionMessageQueueStore(
                         storage.database,
-                        storage.cache,
                         logger,
                         SESSION_FOLLOW_UP_QUEUE_KEY_PREFIX
                     ),
@@ -505,7 +503,7 @@ describe('Session Integration: Core-owned Interaction State Persistence', () => 
         agents = [];
     });
 
-    test('drops queued messages during shutdown cleanup but restores other interaction state on next startup', async () => {
+    test('preserves queued messages and other interaction state on next startup', async () => {
         const originalOpenAiApiKey = process.env.OPENAI_API_KEY;
         process.env.OPENAI_API_KEY = 'test-key-123';
 
@@ -516,8 +514,8 @@ describe('Session Integration: Core-owned Interaction State Persistence', () => 
                 database: createInMemoryDatabase(),
             };
             const sessionId = 'persisted-interaction-session';
-            const approvedDirectory = path.join(os.tmpdir(), 'dexto-persisted-approval');
-            const queueKey = `session-steer-queue:${sessionId}`;
+            const directoryApprovalKey = `directory:${path.join(os.tmpdir(), 'dexto-persisted-approval')}`;
+            const queueKey = `${SESSION_STEER_QUEUE_KEY_PREFIX}:${sessionId}`;
 
             const agent1 = await createAgentWithSharedStorage(
                 'interaction-state-agent-1',
@@ -531,9 +529,13 @@ describe('Session Integration: Core-owned Interaction State Persistence', () => 
             });
             await agent1.setSessionAutoApproveTools(sessionId, ['allowed_tool']);
             await agent1.setSessionDisabledTools(sessionId, ['disabled_tool']);
-            await agent1.services.approvalManager.addPattern('bash_exec', 'git *', sessionId);
-            await agent1.services.approvalManager.addApprovedDirectory(
-                approvedDirectory,
+            await agent1.services.approvalManager.addApprovedKey(
+                'bash:git *',
+                'session',
+                sessionId
+            );
+            await agent1.services.approvalManager.addApprovedKey(
+                directoryApprovalKey,
                 'session',
                 sessionId
             );
@@ -548,12 +550,11 @@ describe('Session Integration: Core-owned Interaction State Persistence', () => 
                 })
             );
 
-            const persistedQueue =
-                await sharedStorage.database.get<
-                    Array<{ content: Array<{ type: string; text?: string }> }>
-                >(queueKey);
+            const persistedQueue = await sharedStorage.database.getRange<{
+                content: Array<{ type: string; text?: string }>;
+            }>(queueKey, 0, 10);
             expect(persistedQueue).toHaveLength(1);
-            expect(persistedQueue?.[0]?.content).toEqual([
+            expect(persistedQueue[0]?.content).toEqual([
                 { type: 'text', text: 'resume with plan B' },
             ]);
 
@@ -565,24 +566,17 @@ describe('Session Integration: Core-owned Interaction State Persistence', () => 
             });
 
             const persistedApprovals = await sharedStorage.database.get<{
-                toolPatterns?: Record<string, string[]>;
-                approvedDirectories?: Array<{ path: string; type: string }>;
+                approvedKeys?: Record<string, 'session' | 'once'>;
             }>(`session-approvals:${sessionId}`);
-            expect(persistedApprovals?.toolPatterns).toEqual({
-                bash_exec: ['git *'],
+            expect(persistedApprovals?.approvedKeys).toEqual({
+                'bash:git *': 'session',
+                [directoryApprovalKey]: 'session',
             });
-            expect(
-                persistedApprovals?.approvedDirectories?.some(
-                    (entry) =>
-                        entry.type === 'session' &&
-                        entry.path.endsWith(path.normalize('dexto-persisted-approval'))
-                )
-            ).toBe(true);
 
             await agent1.sessionManager.cleanup();
 
             expect(await sharedStorage.database.get(`session:${sessionId}`)).toBeDefined();
-            expect(await sharedStorage.database.get(queueKey)).toBeUndefined();
+            await expect(sharedStorage.database.getRange(queueKey, 0, 10)).resolves.toHaveLength(1);
             expect(await sharedStorage.cache.get(queueKey)).toBeUndefined();
 
             const agent2 = await createAgentWithSharedStorage(
@@ -597,7 +591,10 @@ describe('Session Integration: Core-owned Interaction State Persistence', () => 
             expect(agent2.services.stateManager.getLLMConfig(sessionId).model).toBe('gpt-5');
 
             const queuedMessages = await agent2.getSteerMessages(sessionId);
-            expect(queuedMessages).toEqual([]);
+            expect(queuedMessages).toHaveLength(1);
+            expect(queuedMessages[0]?.content).toEqual([
+                { type: 'text', text: 'resume with plan B' },
+            ]);
 
             expect(await agent2.getSessionAutoApproveTools(sessionId)).toEqual(['allowed_tool']);
 
@@ -606,15 +603,14 @@ describe('Session Integration: Core-owned Interaction State Persistence', () => 
             expect(Object.keys(enabledTools)).not.toContain('disabled_tool');
 
             expect(
-                agent2.services.approvalManager.matchesPattern(
-                    'bash_exec',
-                    'git status *',
+                agent2.services.approvalManager.isApprovalKeySessionApproved(
+                    'bash:git *',
                     sessionId
                 )
             ).toBe(true);
             expect(
-                agent2.services.approvalManager.isDirectorySessionApproved(
-                    path.join(approvedDirectory, 'file.ts'),
+                agent2.services.approvalManager.isApprovalKeySessionApproved(
+                    directoryApprovalKey,
                     sessionId
                 )
             ).toBe(true);
@@ -627,18 +623,20 @@ describe('Session Integration: Core-owned Interaction State Persistence', () => 
         }
     });
 
-    test('purges persisted queued messages on startup after an unclean shutdown', async () => {
+    test('preserves persisted queued messages on startup after an unclean shutdown', async () => {
         const sharedStorage = {
             blob: createInMemoryBlobStore(),
             cache: createInMemoryCache(),
             database: createInMemoryDatabase(),
         };
         const sessionId = 'stale-queued-session';
-        const queueKey = `session-steer-queue:${sessionId}`;
+        const queueKey = `${SESSION_STEER_QUEUE_KEY_PREFIX}:${sessionId}`;
         const queuedMessages = [
             {
+                id: 'msg_stale_queued_input',
                 content: [{ type: 'text' as const, text: 'stale queued follow-up' }],
                 metadata: { source: 'unclean-shutdown' },
+                queuedAt: Date.now(),
             },
         ];
 
@@ -648,10 +646,10 @@ describe('Session Integration: Core-owned Interaction State Persistence', () => 
             lastActivity: Date.now(),
             messageCount: 0,
         });
-        await sharedStorage.database.set(queueKey, queuedMessages);
+        await sharedStorage.database.append(queueKey, queuedMessages[0]);
         await sharedStorage.cache.set(queueKey, queuedMessages, 60);
 
-        expect(await sharedStorage.database.get(queueKey)).toEqual(queuedMessages);
+        expect(await sharedStorage.database.getRange(queueKey, 0, 10)).toEqual(queuedMessages);
         expect(await sharedStorage.cache.get(queueKey)).toEqual(queuedMessages);
 
         const restoredAgent = await createAgentWithSharedStorage(
@@ -660,12 +658,11 @@ describe('Session Integration: Core-owned Interaction State Persistence', () => 
         );
 
         expect(await sharedStorage.database.get(`session:${sessionId}`)).toBeDefined();
-        expect(await sharedStorage.database.get(queueKey)).toBeUndefined();
-        expect(await sharedStorage.cache.get(queueKey)).toBeUndefined();
+        expect(await sharedStorage.database.getRange(queueKey, 0, 10)).toEqual(queuedMessages);
 
         const restoredSession = await restoredAgent.getSession(sessionId);
         expect(restoredSession).toBeDefined();
-        expect(await restoredAgent.getSteerMessages(sessionId)).toEqual([]);
+        expect(await restoredAgent.getSteerMessages(sessionId)).toEqual(queuedMessages);
     });
 
     test('preserves durable expired sessions when startup cleanup evicts runtime state', async () => {
@@ -679,7 +676,7 @@ describe('Session Integration: Core-owned Interaction State Persistence', () => 
                 database: createInMemoryDatabase(),
             };
             const sessionId = 'expired-persisted-interaction-session';
-            const approvedDirectory = path.join(os.tmpdir(), 'dexto-expired-persisted-approval');
+            const directoryApprovalKey = `directory:${path.join(os.tmpdir(), 'dexto-expired-persisted-approval')}`;
 
             const agent1 = await createAgentWithSharedStorage(
                 'expired-state-agent-1',
@@ -692,9 +689,13 @@ describe('Session Integration: Core-owned Interaction State Persistence', () => 
             });
             await agent1.setSessionAutoApproveTools(sessionId, ['allowed_tool']);
             await agent1.setSessionDisabledTools(sessionId, ['disabled_tool']);
-            await agent1.services.approvalManager.addPattern('bash_exec', 'git *', sessionId);
-            await agent1.services.approvalManager.addApprovedDirectory(
-                approvedDirectory,
+            await agent1.services.approvalManager.addApprovedKey(
+                'bash:git *',
+                'session',
+                sessionId
+            );
+            await agent1.services.approvalManager.addApprovedKey(
+                directoryApprovalKey,
                 'session',
                 sessionId
             );
@@ -715,7 +716,9 @@ describe('Session Integration: Core-owned Interaction State Persistence', () => 
             );
 
             expect(await database.get(`session:${sessionId}`)).toBeDefined();
-            expect(await database.get(`session-steer-queue:${sessionId}`)).toBeUndefined();
+            await expect(
+                database.getRange(`${SESSION_STEER_QUEUE_KEY_PREFIX}:${sessionId}`, 0, 10)
+            ).resolves.toHaveLength(1);
             expect(await database.get(`session-tool-preferences:${sessionId}`)).toBeDefined();
             expect(await database.get(`session-approvals:${sessionId}`)).toBeDefined();
 
@@ -723,7 +726,11 @@ describe('Session Integration: Core-owned Interaction State Persistence', () => 
 
             expect(agent2.hasSessionLLMOverride(sessionId)).toBe(true);
             expect(agent2.getCurrentLLMConfig(sessionId).model).toBe('gpt-5');
-            expect(await agent2.getSteerMessages(sessionId)).toEqual([]);
+            const queuedMessages = await agent2.getSteerMessages(sessionId);
+            expect(queuedMessages).toHaveLength(1);
+            expect(queuedMessages[0]?.content).toEqual([
+                { type: 'text', text: 'stale queued follow-up' },
+            ]);
             expect(await agent2.getSessionAutoApproveTools(sessionId)).toEqual(['allowed_tool']);
 
             const enabledTools = await agent2.getEnabledTools(sessionId);
@@ -731,15 +738,14 @@ describe('Session Integration: Core-owned Interaction State Persistence', () => 
             expect(Object.keys(enabledTools)).not.toContain('disabled_tool');
 
             expect(
-                agent2.services.approvalManager.matchesPattern(
-                    'bash_exec',
-                    'git status *',
+                agent2.services.approvalManager.isApprovalKeySessionApproved(
+                    'bash:git *',
                     sessionId
                 )
             ).toBe(true);
             expect(
-                agent2.services.approvalManager.isDirectorySessionApproved(
-                    path.join(approvedDirectory, 'file.ts'),
+                agent2.services.approvalManager.isApprovalKeySessionApproved(
+                    directoryApprovalKey,
                     sessionId
                 )
             ).toBe(true);
@@ -759,7 +765,7 @@ describe('Session Integration: Core-owned Interaction State Persistence', () => 
             database: createInMemoryDatabase(),
         };
         const sessionId = 'orphaned-interaction-session';
-        const approvedDirectory = path.join(os.tmpdir(), 'dexto-orphaned-persisted-approval');
+        const directoryApprovalKey = `directory:${path.join(os.tmpdir(), 'dexto-orphaned-persisted-approval')}`;
 
         const agent1 = await createAgentWithSharedStorage('orphaned-state-agent-1', sharedStorage);
         await agent1.createSession(sessionId);
@@ -769,9 +775,9 @@ describe('Session Integration: Core-owned Interaction State Persistence', () => 
         });
         await agent1.setSessionAutoApproveTools(sessionId, ['allowed_tool']);
         await agent1.setSessionDisabledTools(sessionId, ['disabled_tool']);
-        await agent1.services.approvalManager.addPattern('bash_exec', 'git *', sessionId);
-        await agent1.services.approvalManager.addApprovedDirectory(
-            approvedDirectory,
+        await agent1.services.approvalManager.addApprovedKey('bash:git *', 'session', sessionId);
+        await agent1.services.approvalManager.addApprovedKey(
+            directoryApprovalKey,
             'session',
             sessionId
         );
@@ -792,17 +798,17 @@ describe('Session Integration: Core-owned Interaction State Persistence', () => 
         expect(Object.keys(enabledTools)).toContain('disabled_tool');
 
         expect(
-            agent2.services.approvalManager.matchesPattern('bash_exec', 'git status *', sessionId)
+            agent2.services.approvalManager.isApprovalKeySessionApproved('bash:git *', sessionId)
         ).toBe(false);
         expect(
-            agent2.services.approvalManager.isDirectorySessionApproved(
-                path.join(approvedDirectory, 'file.ts'),
+            agent2.services.approvalManager.isApprovalKeySessionApproved(
+                directoryApprovalKey,
                 sessionId
             )
         ).toBe(false);
 
         expect(
-            await sharedStorage.database.get(`session-steer-queue:${sessionId}`)
+            await sharedStorage.database.get(`${SESSION_STEER_QUEUE_KEY_PREFIX}:${sessionId}`)
         ).toBeUndefined();
         expect(
             await sharedStorage.database.get(`session-tool-preferences:${sessionId}`)

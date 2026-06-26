@@ -18,7 +18,7 @@ import type { Key } from '../hooks/useInputOrchestrator.js';
 import { ElicitationForm, type ElicitationFormHandle } from './ElicitationForm.js';
 import { DiffPreview, CreateFilePreview } from './renderers/index.js';
 import { isEditWriteTool } from '../utils/toolUtils.js';
-import { formatPathForDisplay, formatToolHeader } from '../utils/messageFormatting.js';
+import { formatToolHeader } from '../utils/messageFormatting.js';
 
 export interface ApprovalRequest {
     approvalId: string;
@@ -38,16 +38,12 @@ export interface ApprovalPromptHandle {
  * Options passed when approving a request
  */
 export interface ApprovalOptions {
-    /** Remember this tool for the entire session (approves ALL uses) */
+    /** Remember this approval scope for the session */
     rememberChoice?: boolean;
-    /** Remember an approval pattern (e.g., "git *") */
-    rememberPattern?: string;
     /** Form data for elicitation requests */
     formData?: Record<string, unknown>;
     /** Enable "accept all edits" mode (auto-approve future edit_file/write_file) */
     enableAcceptEditsMode?: boolean;
-    /** Remember directory access for the session */
-    rememberDirectory?: boolean;
 }
 
 interface ApprovalPromptProps {
@@ -57,16 +53,11 @@ interface ApprovalPromptProps {
     onCancel: () => void;
 }
 
-/**
- * Selection option type - supports both simple yes/no and pattern-based options
- */
 type SelectionOption =
     | 'yes'
     | 'yes-session'
     | 'yes-accept-edits'
-    | 'yes-directory-session'
     | 'no'
-    | `pattern-${number}`
     // Plan review specific options
     | 'plan-approve'
     | 'plan-approve-accept-edits'
@@ -83,25 +74,15 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
     ({ approval, onApprove, onDeny, onCancel }, ref) => {
         const isCommandApproval = approval.type === ApprovalType.COMMAND_APPROVAL;
         const isElicitation = approval.type === 'elicitation';
-        const isDirectoryAccess = approval.type === 'directory_access';
-        const directoryAccess = approval.metadata.directoryAccess as
-            | {
-                  parentDir?: unknown;
-              }
-            | undefined;
-        const hasToolDirectoryAccess =
-            approval.type === ApprovalType.TOOL_APPROVAL &&
-            directoryAccess !== undefined &&
-            typeof directoryAccess === 'object' &&
-            directoryAccess !== null;
-        const directoryAccessParentDir =
-            hasToolDirectoryAccess && typeof directoryAccess.parentDir === 'string'
-                ? directoryAccess.parentDir
-                : null;
 
         // Extract tool metadata
         const toolName = approval.metadata.toolName as string | undefined;
         const toolArgs = (approval.metadata.args as Record<string, unknown>) || {};
+        const approvalKey =
+            typeof approval.metadata.approvalKey === 'string'
+                ? approval.metadata.approvalKey
+                : undefined;
+        const hasApprovalKey = approvalKey !== undefined;
         const callDescriptionRaw =
             typeof approval.metadata.description === 'string'
                 ? approval.metadata.description
@@ -117,11 +98,6 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
 
         // Check if this is a plan_review tool (shows custom approval options)
         const isPlanReview = toolName === 'plan_review';
-
-        // Extract suggested patterns for tools that support pattern-based approvals
-        const suggestedPatterns =
-            (approval.metadata.suggestedPatterns as string[] | undefined) ?? [];
-        const hasSuggestedPatterns = suggestedPatterns.length > 0;
 
         // Check if this is an edit/write file tool
         const isEditOrWriteTool = isEditWriteTool(toolName);
@@ -168,35 +144,13 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
             options.push({ id: 'plan-approve', label: 'Approve' });
             options.push({ id: 'plan-approve-accept-edits', label: 'Approve + Accept All Edits' });
             // Third "option" is the feedback input (handled specially in render)
-        } else if (hasToolDirectoryAccess) {
-            // Tool approval that includes directory access - offer session-scoped dir allow
-            const dirLabel = directoryAccessParentDir
-                ? ` ${formatPathForDisplay(directoryAccessParentDir)}`
-                : '';
-            options.push({ id: 'yes', label: 'Yes (once)' });
-            options.push({ id: 'yes-directory-session', label: `Yes, allow${dirLabel} (session)` });
-            options.push({ id: 'no', label: 'No' });
-        } else if (hasSuggestedPatterns) {
-            // Tool with pattern suggestions
-            options.push({ id: 'yes', label: 'Yes (once)' });
-            suggestedPatterns.forEach((pattern, i) => {
-                options.push({
-                    id: `pattern-${i}` as SelectionOption,
-                    label: `Yes, allow "${pattern}"`,
-                });
-            });
-            options.push({ id: 'yes-session', label: 'Yes, allow this tool (session)' });
-            options.push({ id: 'no', label: 'No' });
         } else if (isCommandApproval) {
             // Command approval (no session option)
             options.push({ id: 'yes', label: 'Yes' });
             options.push({ id: 'no', label: 'No' });
-        } else if (isDirectoryAccess) {
-            // Directory access - offer session-scoped access
-            const parentDir = approval.metadata.parentDir as string | undefined;
-            const dirLabel = parentDir ? ` ${formatPathForDisplay(parentDir)}` : '';
+        } else if (hasApprovalKey) {
             options.push({ id: 'yes', label: 'Yes (once)' });
-            options.push({ id: 'yes-session', label: `Yes, allow${dirLabel} (session)` });
+            options.push({ id: 'yes-session', label: 'Yes, remember this approval' });
             options.push({ id: 'no', label: 'No' });
         } else if (isEditOrWriteTool) {
             // Edit/write file tools - offer "accept all edits" mode instead of session
@@ -283,28 +237,12 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
                         } else if (option.id === 'yes') {
                             onApprove({});
                         } else if (option.id === 'yes-session') {
-                            // For directory access, remember the directory; otherwise remember the tool
-                            if (isDirectoryAccess) {
-                                onApprove({ rememberDirectory: true });
-                            } else {
-                                onApprove({ rememberChoice: true });
-                            }
-                        } else if (option.id === 'yes-directory-session') {
-                            onApprove({ rememberDirectory: true });
+                            onApprove({ rememberChoice: true });
                         } else if (option.id === 'yes-accept-edits') {
                             // Approve and enable "accept all edits" mode
                             onApprove({ enableAcceptEditsMode: true });
                         } else if (option.id === 'no') {
                             onDeny();
-                        } else if (option.id.startsWith('pattern-')) {
-                            // Extract pattern index and get the pattern string
-                            const patternIndex = parseInt(option.id.replace('pattern-', ''), 10);
-                            const pattern = suggestedPatterns[patternIndex];
-                            if (pattern) {
-                                onApprove({ rememberPattern: pattern });
-                            } else {
-                                onApprove({});
-                            }
                         }
                         return true;
                     } else if (key.shift && key.tab && isEditOrWriteTool) {
@@ -321,11 +259,8 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
             [
                 isElicitation,
                 isEditOrWriteTool,
-                isDirectoryAccess,
-                hasToolDirectoryAccess,
                 isPlanReview,
                 options,
-                suggestedPatterns,
                 onApprove,
                 onDeny,
                 onCancel,
@@ -412,52 +347,14 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
             }
         };
 
-        // Extract directory access metadata
-        const directoryPath = approval.metadata.path as string | undefined;
-        const parentDir = approval.metadata.parentDir as string | undefined;
-        const operation = approval.metadata.operation as string | undefined;
-
-        const directoryAccessTitle = !isDirectoryAccess
-            ? null
-            : operation === 'read'
-              ? 'Read file'
-              : operation === 'write'
-                ? 'Write file'
-                : operation === 'edit'
-                  ? 'Edit file'
-                  : 'Directory access';
-
-        const directoryAccessToolHeader =
-            !isDirectoryAccess || !toolName
-                ? null
-                : formatToolHeader({
-                      toolName,
-                      args:
-                          (directoryPath ?? parentDir) ? { path: directoryPath ?? parentDir } : {},
-                      ...(presentationSnapshot !== undefined && { presentationSnapshot }),
-                  }).header;
-
-        const showHeaderBlock = isDirectoryAccess || isCommandApproval || !displayPreview;
+        const showHeaderBlock = isCommandApproval || !displayPreview;
 
         return (
             <Box paddingX={0} paddingY={0} flexDirection="column">
                 {/* Compact header with context (only when we don't have a rich preview) */}
                 {showHeaderBlock && (
                     <Box flexDirection="column" marginBottom={0}>
-                        {isDirectoryAccess ? (
-                            <>
-                                <Box marginBottom={0}>
-                                    <Text color="cyan" bold>
-                                        {directoryAccessTitle ?? 'Directory access'}
-                                    </Text>
-                                </Box>
-                                {directoryAccessToolHeader && (
-                                    <Box marginBottom={0}>
-                                        <Text wrap="wrap">{directoryAccessToolHeader}</Text>
-                                    </Box>
-                                )}
-                            </>
-                        ) : isCommandApproval ? (
+                        {isCommandApproval ? (
                             <>
                                 <Box flexDirection="row">
                                     <Text color="yellowBright" bold>

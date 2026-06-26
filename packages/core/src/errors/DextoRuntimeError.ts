@@ -1,7 +1,7 @@
 import { DextoBaseError } from './DextoBaseError.js';
 import { ErrorScope } from './types.js';
 import { ErrorType } from './types.js';
-import type { DextoErrorCode } from './types.js';
+import type { DextoErrorCode, ErrorRetryDisposition } from './types.js';
 
 /**
  * Runtime error class for single-issue errors
@@ -15,7 +15,8 @@ export class DextoRuntimeError<C = unknown> extends DextoBaseError {
         message: string,
         public readonly context?: C,
         public readonly recovery?: string | string[],
-        traceId?: string
+        traceId?: string,
+        public readonly retryDisposition: ErrorRetryDisposition = 'unknown'
     ) {
         super(message, traceId);
         this.name = 'DextoRuntimeError';
@@ -29,6 +30,9 @@ export class DextoRuntimeError<C = unknown> extends DextoBaseError {
             type: this.type,
             context: this.context,
             recovery: this.recovery,
+            ...(this.retryDisposition === 'unknown'
+                ? {}
+                : { retryDisposition: this.retryDisposition }),
             traceId: this.traceId,
         };
     }

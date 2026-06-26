@@ -114,6 +114,21 @@ class InMemoryDatabase implements Database {
         this.data.set(key, next);
     }
 
+    async updateList<T, R>(
+        key: string,
+        updater: (items: T[]) => { items: T[]; result: R }
+    ): Promise<R> {
+        const existing = this.data.get(key);
+        const current = Array.isArray(existing) ? (existing as T[]) : [];
+        const mutation = updater([...current]);
+        if (mutation.items.length === 0) {
+            this.data.delete(key);
+        } else {
+            this.data.set(key, [...mutation.items]);
+        }
+        return mutation.result;
+    }
+
     async getRange<T>(key: string, start: number, count: number): Promise<T[]> {
         const existing = this.data.get(key);
         if (!Array.isArray(existing)) return [];

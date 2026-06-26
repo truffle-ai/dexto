@@ -1,6 +1,6 @@
 import { LanguageModel, type ModelMessage } from 'ai';
 import { ToolManager } from '../../tools/tool-manager.js';
-import type { CreateTurnDriverOptions, LLMServiceConfig } from './types.js';
+import type { CreateTurnDriverOptions, LLMExecutionControl, LLMServiceConfig } from './types.js';
 import type { Logger } from '../../logger/v2/types.js';
 import { DextoLogComponent } from '../../logger/v2/types.js';
 import { ToolSet } from '../../tools/types.js';
@@ -79,6 +79,7 @@ export class VercelLLMService {
         | null;
     private modelLimits?: ModelLimits;
     private readonly usageScopeId: string | undefined;
+    private readonly executionControl: LLMExecutionControl | undefined;
 
     /**
      * Helper to extract model ID from LanguageModel union type (string | LanguageModelV2)
@@ -100,6 +101,7 @@ export class VercelLLMService {
         steerQueue: MessageQueueService,
         followUpQueue: MessageQueueService,
         usageScopeId?: string,
+        executionControl?: LLMExecutionControl,
         compactionStrategy?: import('../../context/compaction/types.js').CompactionStrategy | null
     ) {
         this.logger = logger.createChild(DextoLogComponent.LLM);
@@ -110,6 +112,7 @@ export class VercelLLMService {
         this.sessionId = sessionId;
         this.resourceManager = resourceManager;
         this.usageScopeId = usageScopeId;
+        this.executionControl = executionControl;
         this.compactionStrategy = compactionStrategy ?? null;
 
         this.steerQueue = steerQueue;
@@ -208,6 +211,9 @@ export class VercelLLMService {
                 temperature: this.config.temperature,
                 baseURL: this.config.baseURL,
                 usageScopeId: this.usageScopeId,
+                ...(this.executionControl !== undefined && {
+                    executionControl: this.executionControl,
+                }),
                 // Provider-specific options
                 reasoning: this.config.reasoning,
             },

@@ -269,10 +269,44 @@ export class PostgresStore implements Database {
         }
     }
 
+    async updateList<T, R>(
+        key: string,
+        updater: (items: T[]) => { items: T[]; result: R }
+    ): Promise<R> {
+        try {
+            return await this.transactionOnce(async (client) => {
+                await client.query('SELECT pg_advisory_xact_lock(hashtext($1::text)::bigint)', [
+                    key,
+                ]);
+                const result = await client.query(
+                    'SELECT item FROM lists WHERE key = $1 ORDER BY created_at ASC, id ASC',
+                    [key]
+                );
+                const mutation = updater(result.rows.map((row) => row.item) as T[]);
+
+                await client.query('DELETE FROM lists WHERE key = $1', [key]);
+                for (const item of mutation.items) {
+                    await client.query(
+                        'INSERT INTO lists (key, item, created_at) VALUES ($1, $2::jsonb, $3)',
+                        [key, JSON.stringify(item), new Date()]
+                    );
+                }
+
+                return mutation.result;
+            });
+        } catch (error) {
+            throw StorageError.writeFailed(
+                'updateList',
+                error instanceof Error ? error.message : String(error),
+                { key }
+            );
+        }
+    }
+
     async getRange<T>(key: string, start: number, count: number): Promise<T[]> {
         return await this.withRetry('getRange', async (client) => {
             const result = await client.query(
-                'SELECT item FROM lists WHERE key = $1 ORDER BY created_at ASC LIMIT $2 OFFSET $3',
+                'SELECT item FROM lists WHERE key = $1 ORDER BY created_at ASC, id ASC LIMIT $2 OFFSET $3',
                 [key, count, start]
             );
             return result.rows.map((row) => row.item);
@@ -402,6 +436,33 @@ export class PostgresStore implements Database {
                 throw error;
             }
         });
+    }
+
+    private async transactionOnce<T>(callback: (client: PoolClient) => Promise<T>): Promise<T> {
+        this.checkConnection();
+
+        const client = await this.pool!.connect();
+        let began = false;
+        let releaseWithError = false;
+        try {
+            await client.query('BEGIN');
+            began = true;
+            const result = await callback(client);
+            await client.query('COMMIT');
+            return result;
+        } catch (error) {
+            releaseWithError = this.isConnectionError(error);
+            if (began && !releaseWithError) {
+                try {
+                    await client.query('ROLLBACK');
+                } catch {
+                    releaseWithError = true;
+                }
+            }
+            throw error;
+        } finally {
+            client.release(releaseWithError);
+        }
     }
 
     async getStats(): Promise<{

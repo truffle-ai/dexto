@@ -7,6 +7,7 @@ import {
     SimpleSpanProcessor,
 } from '@opentelemetry/sdk-trace-base';
 import { ChatSession } from './chat-session.js';
+import type { QueuedMessage } from './types.js';
 import { type ValidatedLLMConfig } from '../llm/schemas.js';
 import { LLMConfigSchema } from '../llm/schemas.js';
 import { SessionErrorCode } from './error-codes.js';
@@ -290,14 +291,20 @@ describe('ChatSession', () => {
                 getAllTools: vi.fn().mockReturnValue([]),
             },
             steerQueueStore: {
-                load: vi.fn().mockResolvedValue([]),
-                save: vi.fn().mockResolvedValue(undefined),
-                delete: vi.fn().mockResolvedValue(undefined),
+                listSessionIds: vi.fn().mockResolvedValue([]),
+                list: vi.fn().mockResolvedValue([]),
+                append: vi.fn().mockResolvedValue({ position: 1 }),
+                takeAll: vi.fn().mockResolvedValue([]),
+                remove: vi.fn().mockResolvedValue(false),
+                clear: vi.fn().mockResolvedValue(undefined),
             },
             followUpQueueStore: {
-                load: vi.fn().mockResolvedValue([]),
-                save: vi.fn().mockResolvedValue(undefined),
-                delete: vi.fn().mockResolvedValue(undefined),
+                listSessionIds: vi.fn().mockResolvedValue([]),
+                list: vi.fn().mockResolvedValue([]),
+                append: vi.fn().mockResolvedValue({ position: 1 }),
+                takeAll: vi.fn().mockResolvedValue([]),
+                remove: vi.fn().mockResolvedValue(false),
+                clear: vi.fn().mockResolvedValue(undefined),
             },
             hookManager: {
                 executeHooks: vi.fn().mockImplementation(async (_point, payload) => payload),
@@ -436,7 +443,61 @@ describe('ChatSession', () => {
             );
         });
 
+        test('passes host execution control through to createLLMService', async () => {
+            const executionControl = { followUpQueueMode: 'host-run' as const };
+
+            mockServices.executionControl = executionControl;
+            chatSession.dispose();
+            chatSession = new ChatSession(mockServices, sessionId, mockLogger);
+
+            await chatSession.init();
+
+            expect(mockCreateLLMService).toHaveBeenCalledWith(
+                mockLLMConfig,
+                mockServices.toolManager,
+                mockServices.systemPromptManager,
+                expect.any(Object),
+                chatSession.eventBus,
+                sessionId,
+                mockServices.resourceManager,
+                expect.any(Object),
+                expect.objectContaining({
+                    executionControl,
+                }),
+                undefined
+            );
+        });
+
         test('exposes split steer and follow-up queues with structured content intact', async () => {
+            const steerMessages: QueuedMessage[] = [];
+            const followUpMessages: QueuedMessage[] = [];
+            mockServices.steerQueueStore.list.mockImplementation(async () => steerMessages);
+            mockServices.steerQueueStore.append.mockImplementation(
+                async ({ message }: { message: QueuedMessage }) => {
+                    steerMessages.push(message);
+                    return { position: steerMessages.length };
+                }
+            );
+            mockServices.steerQueueStore.remove.mockImplementation(
+                async ({ id }: { id: string }) => {
+                    const index = steerMessages.findIndex((message) => message.id === id);
+                    if (index === -1) {
+                        return false;
+                    }
+                    steerMessages.splice(index, 1);
+                    return true;
+                }
+            );
+            mockServices.followUpQueueStore.list.mockImplementation(async () => followUpMessages);
+            mockServices.followUpQueueStore.append.mockImplementation(
+                async ({ message }: { message: QueuedMessage }) => {
+                    followUpMessages.push(message);
+                    return { position: followUpMessages.length };
+                }
+            );
+            mockServices.followUpQueueStore.clear.mockImplementation(async () => {
+                followUpMessages.length = 0;
+            });
             mockCreateLLMService.mockImplementation(
                 (
                     _llmConfig,
@@ -953,7 +1014,7 @@ describe('ChatSession', () => {
 
     describe('Error Handling and Resilience', () => {
         test('should handle storage initialization failures gracefully', async () => {
-            mockServices.steerQueueStore.load.mockRejectedValue(
+            mockServices.steerQueueStore.list.mockRejectedValue(
                 new Error('Storage initialization failed')
             );
 

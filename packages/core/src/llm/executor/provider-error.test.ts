@@ -5,6 +5,61 @@ import { LLMErrorCode } from '../error-codes.js';
 import { mapProviderError } from './provider-error.js';
 
 describe('mapProviderError', () => {
+    it('marks insufficient credits provider failures as non-retryable', () => {
+        const error = new APICallError({
+            message: 'Payment Required',
+            statusCode: 402,
+            responseHeaders: {},
+            responseBody: JSON.stringify({
+                error: {
+                    message: 'Insufficient credits. Balance: $-57.26.',
+                },
+            }),
+            url: 'https://openrouter.ai/api/v1/chat/completions',
+            requestBodyValues: {},
+            isRetryable: false,
+        });
+
+        const mapped = mapProviderError({
+            error,
+            provider: 'openrouter',
+            model: 'openai/gpt-5.4-mini',
+            sessionId: 'session-credits',
+        });
+
+        expect(mapped).toBeInstanceOf(DextoRuntimeError);
+        expect(mapped.message).toBe('Insufficient Dexto credits. Balance: $-57.26');
+        expect(mapped).toMatchObject({
+            code: LLMErrorCode.INSUFFICIENT_CREDITS,
+            retryDisposition: 'non_retryable',
+        });
+    });
+
+    it('marks retryable provider failures as retryable', () => {
+        const error = new APICallError({
+            message: 'Rate limited',
+            statusCode: 429,
+            responseHeaders: {},
+            responseBody: 'Rate limited',
+            url: 'https://api.openai.com/v1/responses',
+            requestBodyValues: {},
+            isRetryable: true,
+        });
+
+        const mapped = mapProviderError({
+            error,
+            provider: 'openai',
+            model: 'gpt-5-mini',
+            sessionId: 'session-rate-limit',
+        });
+
+        expect(mapped).toBeInstanceOf(DextoRuntimeError);
+        expect(mapped).toMatchObject({
+            code: LLMErrorCode.RATE_LIMIT_EXCEEDED,
+            retryDisposition: 'retryable',
+        });
+    });
+
     it('does not classify generic OpenRouter 400 responses as invalid schema errors', () => {
         const error = new APICallError({
             message: 'Bad Request',
@@ -31,6 +86,7 @@ describe('mapProviderError', () => {
         expect(mapped).toBeInstanceOf(DextoRuntimeError);
         expect(mapped).toMatchObject({
             code: LLMErrorCode.GENERATION_FAILED,
+            retryDisposition: 'non_retryable',
             context: expect.objectContaining({
                 model: 'openai/gpt-5.4-mini',
                 openRouterErrorCode: 400,
@@ -50,9 +106,9 @@ describe('mapProviderError', () => {
         });
 
         expect(mapped).toBeInstanceOf(DextoRuntimeError);
+        expect(mapped.message).toBe('Plain provider failure');
         expect(mapped).toMatchObject({
             code: LLMErrorCode.GENERATION_FAILED,
-            message: 'Plain provider failure',
             context: expect.objectContaining({
                 model: 'gpt-4.1',
                 provider: 'openai',

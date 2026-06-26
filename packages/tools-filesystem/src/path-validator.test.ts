@@ -42,7 +42,7 @@ describe('PathValidator', () => {
                     mockLogger as any
                 );
 
-                const result = await validator.validatePath('');
+                const result = await validator.validatePath('', 'read');
                 expect(result.isValid).toBe(false);
                 expect(result.error).toBe('Path cannot be empty');
             });
@@ -61,7 +61,7 @@ describe('PathValidator', () => {
                     mockLogger as any
                 );
 
-                const result = await validator.validatePath('   ');
+                const result = await validator.validatePath('   ', 'read');
                 expect(result.isValid).toBe(false);
                 expect(result.error).toBe('Path cannot be empty');
             });
@@ -82,7 +82,10 @@ describe('PathValidator', () => {
                     mockLogger as any
                 );
 
-                const result = await validator.validatePath('/home/user/project/src/file.ts');
+                const result = await validator.validatePath(
+                    '/home/user/project/src/file.ts',
+                    'read'
+                );
                 expect(result.isValid).toBe(true);
                 expect(result.normalizedPath).toBeDefined();
             });
@@ -101,7 +104,7 @@ describe('PathValidator', () => {
                     mockLogger as any
                 );
 
-                const result = await validator.validatePath('src/file.ts');
+                const result = await validator.validatePath('src/file.ts', 'read');
                 expect(result.isValid).toBe(true);
             });
 
@@ -119,7 +122,7 @@ describe('PathValidator', () => {
                     mockLogger as any
                 );
 
-                const result = await validator.validatePath('~/notes/file.ts');
+                const result = await validator.validatePath('~/notes/file.ts', 'read');
                 expect(result.isValid).toBe(true);
                 expect(result.normalizedPath).toBe(path.join(os.homedir(), 'notes', 'file.ts'));
             });
@@ -138,7 +141,7 @@ describe('PathValidator', () => {
                     mockLogger as any
                 );
 
-                const result = await validator.validatePath('/external/project/file.ts');
+                const result = await validator.validatePath('/external/project/file.ts', 'read');
                 expect(result.isValid).toBe(false);
                 expect(result.error).toContain('not within allowed paths');
             });
@@ -157,7 +160,7 @@ describe('PathValidator', () => {
                     mockLogger as any
                 );
 
-                const result = await validator.validatePath('/anywhere/file.ts');
+                const result = await validator.validatePath('/anywhere/file.ts', 'read');
                 expect(result.isValid).toBe(true);
             });
         });
@@ -178,7 +181,8 @@ describe('PathValidator', () => {
                 );
 
                 const result = await validator.validatePath(
-                    '/home/user/project/../../../etc/passwd'
+                    '/home/user/project/../../../etc/passwd',
+                    'read'
                 );
                 expect(result.isValid).toBe(false);
                 expect(result.error).toBe('Path traversal detected');
@@ -200,7 +204,10 @@ describe('PathValidator', () => {
                     mockLogger as any
                 );
 
-                const result = await validator.validatePath('/home/user/project/.git/config');
+                const result = await validator.validatePath(
+                    '/home/user/project/.git/config',
+                    'read'
+                );
                 expect(result.isValid).toBe(false);
                 expect(result.error).toContain('blocked');
             });
@@ -220,7 +227,8 @@ describe('PathValidator', () => {
                 );
 
                 const result = await validator.validatePath(
-                    '/home/user/project/node_modules/lodash/index.js'
+                    '/home/user/project/node_modules/lodash/index.js',
+                    'read'
                 );
                 expect(result.isValid).toBe(false);
                 expect(result.error).toContain('blocked');
@@ -242,7 +250,10 @@ describe('PathValidator', () => {
                     mockLogger as any
                 );
 
-                const result = await validator.validatePath('/home/user/project/malware.exe');
+                const result = await validator.validatePath(
+                    '/home/user/project/malware.exe',
+                    'read'
+                );
                 expect(result.isValid).toBe(false);
                 expect(result.error).toContain('.exe is not allowed');
             });
@@ -261,7 +272,7 @@ describe('PathValidator', () => {
                     mockLogger as any
                 );
 
-                const result = await validator.validatePath('/home/user/project/file.exe');
+                const result = await validator.validatePath('/home/user/project/file.exe', 'read');
                 expect(result.isValid).toBe(false);
             });
 
@@ -279,7 +290,7 @@ describe('PathValidator', () => {
                     mockLogger as any
                 );
 
-                const result = await validator.validatePath('/home/user/project/file.EXE');
+                const result = await validator.validatePath('/home/user/project/file.EXE', 'read');
                 expect(result.isValid).toBe(false);
             });
         });
@@ -300,7 +311,7 @@ describe('PathValidator', () => {
                 );
 
                 // Without approval checker, external path should fail
-                let result = await validator.validatePath('/external/project/file.ts');
+                let result = await validator.validatePath('/external/project/file.ts', 'read');
                 expect(result.isValid).toBe(false);
 
                 // Set approval checker that approves external path
@@ -310,7 +321,7 @@ describe('PathValidator', () => {
                 validator.setDirectoryApprovalChecker(approvalChecker);
 
                 // Now external path should succeed
-                result = await validator.validatePath('/external/project/file.ts');
+                result = await validator.validatePath('/external/project/file.ts', 'read');
                 expect(result.isValid).toBe(true);
             });
 
@@ -331,7 +342,10 @@ describe('PathValidator', () => {
                 validator.setDirectoryApprovalChecker(approvalChecker);
 
                 // Config-allowed path should not invoke checker
-                const result = await validator.validatePath('/home/user/project/src/file.ts');
+                const result = await validator.validatePath(
+                    '/home/user/project/src/file.ts',
+                    'read'
+                );
                 expect(result.isValid).toBe(true);
                 expect(approvalChecker).not.toHaveBeenCalled();
             });

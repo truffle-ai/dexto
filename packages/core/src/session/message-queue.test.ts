@@ -176,12 +176,12 @@ describe('MessageQueueService', () => {
             );
 
             await persistedQueue.initialize();
-            await store.save({ sessionId: 'session-external', queue: [persistedMessage] });
+            await store.append({ sessionId: 'session-external', message: persistedMessage });
 
             const coalesced = await persistedQueue.dequeueAll();
 
             expect(coalesced?.messages).toEqual([persistedMessage]);
-            await expect(store.load({ sessionId: 'session-external' })).resolves.toEqual([]);
+            await expect(store.list({ sessionId: 'session-external' })).resolves.toEqual([]);
         });
 
         it('preserves in-memory and externally appended queue order without duplicating ids', async () => {
@@ -197,20 +197,13 @@ describe('MessageQueueService', () => {
             const enqueued = await persistedQueue.enqueue({
                 content: [{ type: 'text', text: 'from live queue' }],
             });
-            await store.save({
+            await store.append({
                 sessionId: 'session-merged',
-                queue: [
-                    {
-                        content: [{ type: 'text', text: 'from live queue' }],
-                        id: enqueued.id,
-                        queuedAt: 100,
-                    },
-                    {
-                        content: [{ type: 'text', text: 'from external route' }],
-                        id: 'external-2',
-                        queuedAt: Date.now() + 1000,
-                    },
-                ],
+                message: {
+                    content: [{ type: 'text', text: 'from external route' }],
+                    id: 'external-2',
+                    queuedAt: Date.now() + 1000,
+                },
             });
 
             const coalesced = await persistedQueue.dequeueAll();
@@ -219,6 +212,40 @@ describe('MessageQueueService', () => {
                 enqueued.id,
                 'external-2',
             ]);
+        });
+
+        it('leaves messages appended after an atomic take for the next dequeue', async () => {
+            const lateMessage: QueuedMessage = {
+                content: [{ type: 'text', text: 'late steer' }],
+                id: 'late-steer',
+                queuedAt: 2,
+            };
+            let takeCount = 0;
+            const store = createInMemoryMessageQueueStore();
+            const queueWithLateAppend = new MessageQueueService(eventBus, logger, 'session-late', {
+                ...store,
+                async takeAll(input) {
+                    takeCount += 1;
+                    if (takeCount === 1) {
+                        await store.clear(input);
+                        await store.append({ sessionId: input.sessionId, message: lateMessage });
+                        return [
+                            {
+                                content: [{ type: 'text', text: 'first steer' }],
+                                id: 'first-steer',
+                                queuedAt: 1,
+                            },
+                        ];
+                    }
+                    return await store.takeAll(input);
+                },
+            });
+
+            const first = await queueWithLateAppend.dequeueAll();
+            const second = await queueWithLateAppend.dequeueAll();
+
+            expect(first?.messages.map((message) => message.id)).toEqual(['first-steer']);
+            expect(second?.messages.map((message) => message.id)).toEqual(['late-steer']);
         });
 
         it('should return null when queue is empty', async () => {
@@ -547,19 +574,27 @@ describe('MessageQueueService', () => {
             const loadStarted = createDeferred<void>();
             const releaseLoad =
                 createDeferred<Array<{ id: string; content: ContentPart[]; queuedAt: number }>>();
-            const savedQueues: Array<
-                Array<{ id: string; content: ContentPart[]; queuedAt: number }>
-            > = [];
+            const appendedIds: string[] = [];
+            const queuedMessages: Array<{ id: string; content: ContentPart[]; queuedAt: number }> =
+                [];
             const serializedQueue = new MessageQueueService(eventBus, logger, 'session-2', {
-                load: vi.fn().mockImplementation(async () => {
+                list: vi.fn().mockImplementation(async () => {
                     loadStarted.resolve();
-                    return await releaseLoad.promise;
+                    if (queuedMessages.length > 0) {
+                        return structuredClone(queuedMessages);
+                    }
+                    const restoredMessages = await releaseLoad.promise;
+                    queuedMessages.push(...structuredClone(restoredMessages));
+                    return structuredClone(queuedMessages);
                 }),
-                save: vi.fn().mockImplementation(async (input) => {
-                    savedQueues.push(structuredClone(input.queue));
+                append: vi.fn().mockImplementation(async (input) => {
+                    appendedIds.push(input.message.id);
+                    queuedMessages.push(structuredClone(input.message));
+                    return { position: queuedMessages.length };
                 }),
-                delete: vi.fn().mockResolvedValue(undefined),
-                listSessionIds: vi.fn().mockResolvedValue([]),
+                takeAll: vi.fn().mockResolvedValue([]),
+                remove: vi.fn().mockResolvedValue(false),
+                clear: vi.fn().mockResolvedValue(undefined),
             });
 
             const initializePromise = serializedQueue.initialize();
@@ -584,10 +619,7 @@ describe('MessageQueueService', () => {
                 'restored-message',
                 enqueued.id,
             ]);
-            expect(savedQueues.at(-1)?.map((message) => message.id)).toEqual([
-                'restored-message',
-                enqueued.id,
-            ]);
+            expect(appendedIds).toEqual([enqueued.id]);
         });
     });
 

@@ -12,7 +12,7 @@ import type { ApprovalManager } from '../approval/manager.js';
 import { SessionError } from './errors.js';
 import type { TokenUsage } from '@dexto/llm';
 import { normalizeTokenUsageForAccounting } from '../llm/usage-metadata.js';
-import type { LanguageModelFactory } from '../llm/services/types.js';
+import type { LLMExecutionControl, LanguageModelFactory } from '../llm/services/types.js';
 import type { LlmAuthResolver } from '../llm/auth/index.js';
 import type { CompactionStrategy } from '../context/compaction/types.js';
 import { ZodError } from 'zod';
@@ -84,6 +84,8 @@ export interface SessionManagerConfig {
     languageModelFactory?: LanguageModelFactory;
     /** Host hook for resolving runtime provider auth from local/cloud profiles */
     authResolver?: LlmAuthResolver | null;
+    /** Host control for queue continuation behavior. CLI defaults preserve core-owned follow-ups. */
+    executionControl?: LLMExecutionControl | undefined;
 }
 
 type PersistedLLMConfig = Omit<ValidatedLLMConfig, 'apiKey'>;
@@ -140,6 +142,7 @@ export class SessionManager {
     private readonly sessionLoggerFactory: SessionLoggerFactory;
     private readonly languageModelFactory: LanguageModelFactory | undefined;
     private readonly authResolver: LlmAuthResolver | null;
+    private readonly executionControl: LLMExecutionControl | undefined;
 
     constructor(
         private services: {
@@ -166,6 +169,7 @@ export class SessionManager {
         this.sessionLoggerFactory = config.sessionLoggerFactory ?? defaultSessionLoggerFactory;
         this.languageModelFactory = config.languageModelFactory;
         this.authResolver = config.authResolver ?? null;
+        this.executionControl = config.executionControl;
         this.logger = logger.createChild(DextoLogComponent.SESSION);
     }
 
@@ -177,6 +181,9 @@ export class SessionManager {
                 languageModelFactory: this.languageModelFactory,
             }),
             authResolver: this.authResolver,
+            ...(this.executionControl !== undefined && {
+                executionControl: this.executionControl,
+            }),
         };
     }
 
@@ -188,8 +195,6 @@ export class SessionManager {
         if (this.initialized) {
             return;
         }
-
-        await this.clearPersistedQueuedMessages('startup');
 
         // Restore any existing sessions from storage
         await this.restoreSessionsFromStorage();
@@ -245,38 +250,6 @@ export class SessionManager {
                 `Failed to restore sessions from storage: ${error instanceof Error ? error.message : String(error)}`
             );
             // Continue without restored sessions
-        }
-    }
-
-    private async clearPersistedQueuedMessages(reason: 'startup' | 'shutdown'): Promise<void> {
-        try {
-            const steerSessionIds = await this.services.steerQueueStore.listSessionIds();
-            const followUpSessionIds = await this.services.followUpQueueStore.listSessionIds();
-            const sessionIds = Array.from(new Set([...steerSessionIds, ...followUpSessionIds]));
-            if (sessionIds.length === 0) {
-                return;
-            }
-
-            await Promise.all(
-                sessionIds.flatMap((sessionId) => [
-                    this.services.steerQueueStore.delete({ sessionId }),
-                    this.services.followUpQueueStore.delete({ sessionId }),
-                ])
-            );
-
-            const message = `${reason === 'startup' ? 'Cleared stale pending input state from previous agent run' : 'Cleared pending input state during agent shutdown'} (${sessionIds.length} session bucket(s))`;
-            if (reason === 'startup') {
-                // TODO(issue-743): Replace startup purge with explicit resume semantics for interrupted queued follow-ups.
-                this.logger.info(message);
-            } else {
-                this.logger.debug(message);
-            }
-        } catch (error) {
-            this.logger.warn(
-                `Failed to clear persisted queued follow-up state during ${reason}: ${
-                    error instanceof Error ? error.message : String(error)
-                }`
-            );
         }
     }
 
@@ -701,6 +674,7 @@ export class SessionManager {
         // Remove session metadata from storage
         await this.services.sessionStore.deleteSession({ sessionId });
         await this.deleteSessionInteractionState(sessionId);
+        await this.deleteSessionPendingInput(sessionId);
         await this.services.conversationStore.clearMessages({ sessionId });
 
         this.logger.debug(`Deleted session and conversation history: ${sessionId}`);
@@ -1300,8 +1274,13 @@ export class SessionManager {
         await Promise.all([
             this.services.toolManager.deleteSessionState(sessionId),
             this.services.approvalManager.deleteSessionState(sessionId),
-            this.services.steerQueueStore.delete({ sessionId }),
-            this.services.followUpQueueStore.delete({ sessionId }),
+        ]);
+    }
+
+    private async deleteSessionPendingInput(sessionId: string): Promise<void> {
+        await Promise.all([
+            this.services.steerQueueStore.clear({ sessionId }),
+            this.services.followUpQueueStore.clear({ sessionId }),
         ]);
     }
 
@@ -1386,8 +1365,6 @@ export class SessionManager {
             delete this.cleanupInterval;
             this.logger.debug('Periodic session cleanup stopped');
         }
-
-        await this.clearPersistedQueuedMessages('shutdown');
 
         // End all in-memory sessions (preserve conversation history)
         const sessionIds = Array.from(this.sessions.keys());

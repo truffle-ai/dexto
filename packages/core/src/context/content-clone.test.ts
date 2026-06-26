@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { ContentPart, ResourcePart, UIResourcePart } from './types.js';
-import { cloneContentPart, cloneContentParts } from './content-clone.js';
+import type { ContentPart, ResourcePart, UIResourcePart, UserMessage } from './types.js';
+import { cloneContentPart, cloneContentParts, cloneInternalMessage } from './content-clone.js';
 
 describe('content clone utilities', () => {
     it('preserves URL payloads without sharing mutable URL objects', () => {
@@ -102,5 +102,42 @@ describe('content clone utilities', () => {
                 extra: { nested: true },
             })
         );
+    });
+
+    it('clones internal messages with URL content payloads', () => {
+        const sourceUrl = new URL('https://example.com/screenshot.png');
+        const source: UserMessage = {
+            role: 'user',
+            id: 'message-1',
+            timestamp: 1,
+            metadata: { nested: { value: 'original' } },
+            content: [
+                { type: 'text', text: 'Inspect this screenshot' },
+                { type: 'image', image: sourceUrl, mimeType: 'image/png' },
+            ],
+        };
+
+        const cloned = cloneInternalMessage(source);
+        sourceUrl.pathname = '/mutated.png';
+        (source.metadata?.nested as { value: string }).value = 'mutated';
+
+        expect(cloned).toEqual({
+            role: 'user',
+            id: 'message-1',
+            timestamp: 1,
+            metadata: { nested: { value: 'original' } },
+            content: [
+                { type: 'text', text: 'Inspect this screenshot' },
+                {
+                    type: 'image',
+                    image: new URL('https://example.com/screenshot.png'),
+                    mimeType: 'image/png',
+                },
+            ],
+        });
+        if (cloned.role !== 'user') throw new Error('Expected user message');
+        const clonedImage = cloned.content[1];
+        if (clonedImage?.type !== 'image') throw new Error('Expected image part');
+        expect(clonedImage.image).toBeInstanceOf(URL);
     });
 });

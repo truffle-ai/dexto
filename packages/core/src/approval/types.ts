@@ -8,26 +8,22 @@ import type {
     CommandApprovalMetadataSchema,
     ElicitationMetadataSchema,
     CustomApprovalMetadataSchema,
-    DirectoryAccessMetadataSchema,
     BaseApprovalRequestSchema,
     ToolApprovalRequestSchema,
     CommandApprovalRequestSchema,
     ElicitationRequestSchema,
     CustomApprovalRequestSchema,
-    DirectoryAccessRequestSchema,
     ApprovalRequestSchema,
     ApprovalRequestDetailsSchema,
     ToolApprovalResponseDataSchema,
     CommandApprovalResponseDataSchema,
     ElicitationResponseDataSchema,
     CustomApprovalResponseDataSchema,
-    DirectoryAccessResponseDataSchema,
     BaseApprovalResponseSchema,
     ToolApprovalResponseSchema,
     CommandApprovalResponseSchema,
     ElicitationResponseSchema,
     CustomApprovalResponseSchema,
-    DirectoryAccessResponseSchema,
     ApprovalResponseSchema,
 } from './schemas.js';
 
@@ -38,7 +34,6 @@ export const APPROVAL_TYPES = [
     'tool_approval',
     'command_approval',
     'elicitation',
-    'directory_access',
     'custom',
 ] as const;
 
@@ -63,12 +58,6 @@ const ApprovalTypeValues = {
      * Metadata contains: schema, prompt, serverName, context
      */
     ELICITATION: 'elicitation',
-
-    /**
-     * Approval for accessing files outside the working directory
-     * Metadata contains: path, parentDir, operation, toolName
-     */
-    DIRECTORY_ACCESS: 'directory_access',
 
     /**
      * Custom approval types for extensibility
@@ -157,12 +146,6 @@ export type ElicitationMetadata = z.output<typeof ElicitationMetadataSchema>;
  */
 export type CustomApprovalMetadata = z.output<typeof CustomApprovalMetadataSchema>;
 
-/**
- * Directory access metadata
- * Derived from DirectoryAccessMetadataSchema
- */
-export type DirectoryAccessMetadata = z.output<typeof DirectoryAccessMetadataSchema>;
-
 // ============================================================================
 // Request Types - Derived from Zod schemas
 // ============================================================================
@@ -198,12 +181,6 @@ export type ElicitationRequest = z.output<typeof ElicitationRequestSchema>;
 export type CustomApprovalRequest = z.output<typeof CustomApprovalRequestSchema>;
 
 /**
- * Directory access request
- * Derived from DirectoryAccessRequestSchema
- */
-export type DirectoryAccessRequest = z.output<typeof DirectoryAccessRequestSchema>;
-
-/**
  * Union of all approval request types
  * Derived from ApprovalRequestSchema
  */
@@ -236,12 +213,6 @@ export type ElicitationResponseData = z.output<typeof ElicitationResponseDataSch
  * Derived from CustomApprovalResponseDataSchema
  */
 export type CustomApprovalResponseData = z.output<typeof CustomApprovalResponseDataSchema>;
-
-/**
- * Directory access response data
- * Derived from DirectoryAccessResponseDataSchema
- */
-export type DirectoryAccessResponseData = z.output<typeof DirectoryAccessResponseDataSchema>;
 
 // ============================================================================
 // Response Types - Derived from Zod schemas
@@ -276,12 +247,6 @@ export type ElicitationResponse = z.output<typeof ElicitationResponseSchema>;
  * Derived from CustomApprovalResponseSchema
  */
 export type CustomApprovalResponse = z.output<typeof CustomApprovalResponseSchema>;
-
-/**
- * Directory access response
- * Derived from DirectoryAccessResponseSchema
- */
-export type DirectoryAccessResponse = z.output<typeof DirectoryAccessResponseSchema>;
 
 /**
  * Union of all approval response types

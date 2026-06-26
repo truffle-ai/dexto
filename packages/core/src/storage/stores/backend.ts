@@ -2,7 +2,7 @@ import type { ApprovalRequest, ApprovalResponse } from '../../approval/types.js'
 import { ApprovalRequestSchema, ApprovalResponseSchema } from '../../approval/schemas.js';
 import type { Memory } from '../../memory/types.js';
 import type { StoredCustomPrompt } from '../../prompts/providers/custom-prompt-provider.js';
-import { cloneQueuedMessages } from '../../session/queue-clone.js';
+import { cloneQueuedMessage, cloneQueuedMessages } from '../../session/queue-clone.js';
 import type { SessionData } from '../../session/session-manager.js';
 import { QueuedMessagesSchema } from '../../session/types.js';
 import type { QueuedMessage } from '../../session/types.js';
@@ -59,6 +59,7 @@ const MEMORY_KEY_PREFIX = 'memory:item:';
 const CUSTOM_PROMPT_KEY_PREFIX = 'prompt:custom:';
 const RUNTIME_EVENTS_KEY = 'runtime-events';
 const RUNTIME_EVENTS_LIMIT = 10000;
+const SESSION_MESSAGE_QUEUE_READ_LIMIT = 10000;
 const TOOL_EXECUTION_KEY_PREFIX = 'tool-execution:';
 const TOOL_STATE_KEY_PREFIX = 'tool-state:';
 const WORKSPACE_KEY_PREFIX = 'workspace:item:';
@@ -71,8 +72,7 @@ type SessionMessageQueueKeyPrefix =
     | typeof SESSION_FOLLOW_UP_QUEUE_KEY_PREFIX;
 
 const DEFAULT_APPROVAL_STATE: SessionApprovalState = {
-    toolPatterns: {},
-    approvedDirectories: [],
+    approvedKeys: {},
 };
 
 const DEFAULT_TOOL_PREFERENCES: SessionToolPreferences = {
@@ -533,29 +533,92 @@ export class DatabaseBackedToolPreferenceStore implements ToolPreferenceStore {
 export class DatabaseBackedSessionMessageQueueStore implements SessionMessageQueueStore {
     constructor(
         private readonly database: Database,
-        private readonly cache: Cache,
         private readonly logger: Logger,
         private readonly keyPrefix: SessionMessageQueueKeyPrefix
     ) {}
 
-    async listSessionIds(): Promise<string[]> {
-        const prefix = `${this.keyPrefix}:`;
-        const keys = await this.database.list(prefix);
-        return keys.map((key) => key.replace(prefix, ''));
+    async list(input: { sessionId: string }): Promise<QueuedMessage[]> {
+        return await this.loadQueue(input.sessionId);
     }
 
-    async load(input: { sessionId: string }): Promise<QueuedMessage[]> {
+    async append(input: {
+        sessionId: string;
+        message: QueuedMessage;
+    }): Promise<{ position: number }> {
         const key = this.key(input.sessionId);
-        const cached = await this.cache.get<unknown>(key);
-        const cachedQueue = QueuedMessagesSchema.safeParse(cached);
-        if (cachedQueue.success) {
-            return cloneQueuedMessages(cachedQueue.data);
+        const result = await this.database.updateList<unknown, { position: number }>(
+            key,
+            (stored) => {
+                const queue = this.parseQueue(key, stored);
+                const nextQueue = [...queue, cloneQueuedMessage(input.message)];
+                return {
+                    items: nextQueue,
+                    result: {
+                        position: nextQueue.length,
+                    },
+                };
+            }
+        );
+        return result;
+    }
+
+    async takeAll(input: { sessionId: string }): Promise<QueuedMessage[]> {
+        const key = this.key(input.sessionId);
+        const queue = await this.database.updateList<unknown, QueuedMessage[]>(key, (stored) => ({
+            items: [],
+            result: this.parseQueue(key, stored),
+        }));
+        return queue;
+    }
+
+    async remove(input: { sessionId: string; id: string }): Promise<boolean> {
+        const key = this.key(input.sessionId);
+        const removed = await this.database.updateList<unknown, boolean>(key, (stored) => {
+            const queue = this.parseQueue(key, stored);
+            const updatedQueue = queue.filter((message) => message.id !== input.id);
+            return {
+                items: updatedQueue,
+                result: updatedQueue.length !== queue.length,
+            };
+        });
+        return removed;
+    }
+
+    async clear(input: { sessionId: string }): Promise<void> {
+        const key = this.key(input.sessionId);
+        await this.database.updateList<unknown, void>(key, () => ({
+            items: [],
+            result: undefined,
+        }));
+    }
+
+    private async loadQueue(sessionId: string): Promise<QueuedMessage[]> {
+        const key = this.key(sessionId);
+        const stored: unknown[] = [];
+        let offset = 0;
+
+        while (true) {
+            const page = await this.database.getRange<unknown>(
+                key,
+                offset,
+                SESSION_MESSAGE_QUEUE_READ_LIMIT
+            );
+            stored.push(...page);
+
+            if (page.length < SESSION_MESSAGE_QUEUE_READ_LIMIT) {
+                break;
+            }
+
+            offset += SESSION_MESSAGE_QUEUE_READ_LIMIT;
         }
 
-        const stored = await this.database.get<unknown>(key);
+        return this.parseQueue(key, stored);
+    }
+
+    private parseQueue(key: string, stored: unknown[]): QueuedMessage[] {
         const storedQueue = QueuedMessagesSchema.safeParse(stored);
         if (!storedQueue.success) {
-            if (stored !== undefined) {
+            if (stored.length > 0) {
                 this.logger.warn('Invalid persisted message queue encountered; ignoring state', {
                     key,
                 });
@@ -563,26 +626,7 @@ export class DatabaseBackedSessionMessageQueueStore implements SessionMessageQue
             return [];
         }
 
-        const queue = cloneQueuedMessages(storedQueue.data);
-        await this.cache.set(key, queue, 3600);
-        return cloneQueuedMessages(queue);
-    }
-
-    async save(input: { sessionId: string; queue: QueuedMessage[] }): Promise<void> {
-        const key = this.key(input.sessionId);
-        if (input.queue.length === 0) {
-            await this.delete({ sessionId: input.sessionId });
-            return;
-        }
-
-        const queue = cloneQueuedMessages(input.queue);
-        await this.database.set(key, queue);
-        await this.cache.set(key, queue, 3600);
-    }
-
-    async delete(input: { sessionId: string }): Promise<void> {
-        const key = this.key(input.sessionId);
-        await Promise.all([this.database.delete(key), this.cache.delete(key)]);
+        return cloneQueuedMessages(storedQueue.data);
     }
 
     private key(sessionId: string): string {

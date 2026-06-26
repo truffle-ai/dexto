@@ -87,23 +87,27 @@ export function clonePromptContentPart(
 export function cloneInternalMessage(message: InternalMessage): InternalMessage {
     switch (message.role) {
         case 'assistant': {
-            const cloned = structuredClone(message);
+            const { content, ...messageWithoutContent } = message;
+            const cloned = structuredClone(messageWithoutContent);
             return {
                 ...cloned,
-                content: message.content === null ? null : cloneContentParts(message.content),
+                content: content === null ? null : cloneContentParts(content),
             };
         }
         case 'system': {
-            const cloned = structuredClone(message);
-            return { ...cloned, content: cloneContentParts(message.content) };
+            const { content, ...messageWithoutContent } = message;
+            const cloned = structuredClone(messageWithoutContent);
+            return { ...cloned, content: cloneContentParts(content) };
         }
         case 'user': {
-            const cloned = structuredClone(message);
-            return { ...cloned, content: cloneContentParts(message.content) };
+            const { content, ...messageWithoutContent } = message;
+            const cloned = structuredClone(messageWithoutContent);
+            return { ...cloned, content: cloneContentParts(content) };
         }
         case 'tool': {
-            const cloned = structuredClone(message);
-            return { ...cloned, content: cloneContentParts(message.content) };
+            const { content, ...messageWithoutContent } = message;
+            const cloned = structuredClone(messageWithoutContent);
+            return { ...cloned, content: cloneContentParts(content) };
         }
     }
 }

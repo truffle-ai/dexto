@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 /**
  * Utility functions for generating approval patterns for shell commands.
  *
@@ -56,6 +58,23 @@ export function generateCommandPatternKey(command: string): string | null {
 
     const subcommand = tokens.slice(1).find((arg) => !arg.startsWith('-'));
     return subcommand ? `${head} ${subcommand.toLowerCase()} *` : `${head} *`;
+}
+
+/**
+ * Generate an opaque approval key for a shell command.
+ *
+ * Non-dangerous commands keep the existing coarse command-pattern behavior.
+ * Dangerous commands fall back to the exact command so remembering one command
+ * does not approve the entire bash tool.
+ */
+export function generateCommandApprovalKey(command: string): string {
+    const patternKey = generateCommandPatternKey(command);
+    if (patternKey) {
+        return `bash:${patternKey}`;
+    }
+
+    const commandHash = createHash('sha256').update(command.trim()).digest('hex');
+    return `bash:exact:${commandHash}`;
 }
 
 /**
