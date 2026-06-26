@@ -442,18 +442,26 @@ export class PostgresStore implements Database {
         this.checkConnection();
 
         const client = await this.pool!.connect();
+        let began = false;
+        let releaseWithError = false;
         try {
             await client.query('BEGIN');
-            try {
-                const result = await callback(client);
-                await client.query('COMMIT');
-                return result;
-            } catch (error) {
-                await client.query('ROLLBACK');
-                throw error;
+            began = true;
+            const result = await callback(client);
+            await client.query('COMMIT');
+            return result;
+        } catch (error) {
+            releaseWithError = this.isConnectionError(error);
+            if (began && !releaseWithError) {
+                try {
+                    await client.query('ROLLBACK');
+                } catch {
+                    releaseWithError = true;
+                }
             }
+            throw error;
         } finally {
-            client.release();
+            client.release(releaseWithError);
         }
     }
 
