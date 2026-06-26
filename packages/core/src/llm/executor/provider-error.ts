@@ -1,7 +1,11 @@
 import { APICallError } from 'ai';
 import { DextoRuntimeError } from '../../errors/DextoRuntimeError.js';
 import { ErrorScope, ErrorType } from '../../errors/types.js';
+import type { ErrorRetryDisposition } from '../../errors/types.js';
 import { LLMErrorCode } from '../error-codes.js';
+
+const INSUFFICIENT_CREDITS_BALANCE_PATTERN =
+    /Insufficient credits\. Balance: \$(-?\d+(?:\.\d+)?)\./;
 
 export type LLMProviderErrorDetails = {
     provider?: string;
@@ -155,6 +159,14 @@ function extractBalance(value: unknown): number | undefined {
     return undefined;
 }
 
+function extractBalanceFromMessage(message: string): number | undefined {
+    const match = INSUFFICIENT_CREDITS_BALANCE_PATTERN.exec(message);
+    if (match === null) return undefined;
+
+    const balance = Number(match[1]);
+    return Number.isFinite(balance) ? balance : undefined;
+}
+
 function errorTypeForStatus(status: number | undefined): ErrorType {
     if (status === 402) return ErrorType.PAYMENT_REQUIRED;
     if (status === 403) return ErrorType.FORBIDDEN;
@@ -187,6 +199,12 @@ function buildContext(input: MapProviderErrorInput, details: LLMProviderErrorDet
         model: input.model,
         ...details,
     };
+}
+
+function retryDispositionForProviderError(details: LLMProviderErrorDetails): ErrorRetryDisposition {
+    if (details.isRetryable === true) return 'retryable';
+    if (details.isRetryable === false) return 'non_retryable';
+    return 'unknown';
 }
 
 export function extractProviderErrorDetails(input: MapProviderErrorInput): LLMProviderErrorDetails {
@@ -225,7 +243,10 @@ export function mapProviderError(input: MapProviderErrorInput): Error {
                 ErrorScope.LLM,
                 ErrorType.USER,
                 message,
-                buildContext(input, extractProviderErrorDetails(input))
+                buildContext(input, extractProviderErrorDetails(input)),
+                undefined,
+                undefined,
+                'non_retryable'
             );
         }
         return new DextoRuntimeError(
@@ -242,9 +263,12 @@ export function mapProviderError(input: MapProviderErrorInput): Error {
     const message = providerMessage(details, input.error.message);
     const code = errorCodeForStatus(status, details);
     const type = errorTypeForStatus(status);
+    const retryDisposition = retryDispositionForProviderError(details);
 
     if (status === 402) {
-        const balance = extractBalance(parseJsonObject(details.responseBody));
+        const balance =
+            extractBalance(parseJsonObject(details.responseBody)) ??
+            extractBalanceFromMessage(message);
         return new DextoRuntimeError(
             code,
             ErrorScope.LLM,
@@ -256,7 +280,9 @@ export function mapProviderError(input: MapProviderErrorInput): Error {
                 ...buildContext(input, details),
                 ...(balance === undefined ? {} : { balance }),
             },
-            'Run `dexto billing` to check your balance'
+            'Run `dexto billing` to check your balance',
+            undefined,
+            retryDisposition
         );
     }
 
@@ -265,6 +291,9 @@ export function mapProviderError(input: MapProviderErrorInput): Error {
         ErrorScope.LLM,
         type,
         status === undefined ? message : `Provider error ${status}: ${message}`,
-        buildContext(input, details)
+        buildContext(input, details),
+        undefined,
+        undefined,
+        retryDisposition
     );
 }

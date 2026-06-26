@@ -54,6 +54,8 @@ export enum ErrorType {
     UNKNOWN = 'unknown', // 500 - unclassified errors, fallback
 }
 
+export type ErrorRetryDisposition = 'retryable' | 'non_retryable' | 'unknown';
+
 /**
  * Union type for all error codes across domains
  * Provides type safety for error handling
