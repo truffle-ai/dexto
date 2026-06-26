@@ -1,5 +1,14 @@
 # @dexto/storage
 
+## 1.9.0
+
+### Patch Changes
+
+- d0a8aa5: Refine agent loop approval, queue, and session persistence behavior.
+- Updated dependencies [5500bad]
+- Updated dependencies [d0a8aa5]
+    - @dexto/core@1.9.0
+
 ## 1.8.12
 
 ### Patch Changes
