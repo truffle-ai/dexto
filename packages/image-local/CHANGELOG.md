@@ -1,5 +1,24 @@
 # @dexto/image-local
 
+## 1.9.0
+
+### Patch Changes
+
+- d0a8aa5: Refine agent loop approval, queue, and session persistence behavior.
+- Updated dependencies [5500bad]
+- Updated dependencies [d0a8aa5]
+    - @dexto/core@1.9.0
+    - @dexto/storage@1.9.0
+    - @dexto/agent-config@1.9.0
+    - @dexto/tools-filesystem@1.9.0
+    - @dexto/tools-process@1.9.0
+    - @dexto/agent-management@1.9.0
+    - @dexto/tools-builtins@1.9.0
+    - @dexto/tools-lifecycle@1.9.0
+    - @dexto/tools-plan@1.9.0
+    - @dexto/tools-scheduler@1.9.0
+    - @dexto/tools-todo@1.9.0
+
 ## 1.8.12
 
 ### Patch Changes

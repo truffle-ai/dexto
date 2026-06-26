@@ -1,5 +1,17 @@
 # @dexto/core
 
+## 1.9.0
+
+### Minor Changes
+
+- 5500bad: Update hosted Dexto defaults to use the app.dexto.ai domain for login, control-plane requests, and the Nova gateway.
+
+### Patch Changes
+
+- d0a8aa5: Refine agent loop approval, queue, and session persistence behavior.
+- Updated dependencies [5500bad]
+    - @dexto/llm@1.9.0
+
 ## 1.8.12
 
 ### Patch Changes

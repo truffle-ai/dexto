@@ -1,5 +1,14 @@
 # @dexto/tools-scheduler
 
+## 1.9.0
+
+### Patch Changes
+
+- Updated dependencies [5500bad]
+- Updated dependencies [d0a8aa5]
+    - @dexto/core@1.9.0
+    - @dexto/agent-config@1.9.0
+
 ## 1.8.12
 
 ### Patch Changes
