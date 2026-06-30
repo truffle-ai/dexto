@@ -11,10 +11,10 @@ function cloneBinaryData(
 }
 
 export function cloneStructuredValuePreservingUrls<T>(value: T): T {
-    return cloneValueWithUrlSupport(value) as T;
+    return cloneValueWithUrlSupport(value, new WeakMap<object, unknown>()) as T;
 }
 
-function cloneValueWithUrlSupport(value: unknown): unknown {
+function cloneValueWithUrlSupport(value: unknown, seen: WeakMap<object, unknown>): unknown {
     if (value instanceof URL) {
         return new URL(value.href);
     }
@@ -27,11 +27,19 @@ function cloneValueWithUrlSupport(value: unknown): unknown {
     if (ArrayBuffer.isView(value)) {
         return structuredClone(value);
     }
-    if (Array.isArray(value)) {
-        return value.map((item) => cloneValueWithUrlSupport(item));
-    }
     if (value === null || typeof value !== 'object') {
         return value;
+    }
+
+    if (seen.has(value)) {
+        return seen.get(value);
+    }
+
+    if (Array.isArray(value)) {
+        const cloned: unknown[] = [];
+        seen.set(value, cloned);
+        cloned.push(...value.map((item) => cloneValueWithUrlSupport(item, seen)));
+        return cloned;
     }
 
     const prototype = Object.getPrototypeOf(value);
@@ -39,9 +47,12 @@ function cloneValueWithUrlSupport(value: unknown): unknown {
         return structuredClone(value);
     }
 
-    return Object.fromEntries(
-        Object.entries(value).map(([key, entry]) => [key, cloneValueWithUrlSupport(entry)])
-    );
+    const cloned: Record<string, unknown> = {};
+    seen.set(value, cloned);
+    for (const [key, entry] of Object.entries(value)) {
+        cloned[key] = cloneValueWithUrlSupport(entry, seen);
+    }
+    return cloned;
 }
 
 function cloneImagePart(part: ImagePart): ImagePart {
