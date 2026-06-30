@@ -10,6 +10,40 @@ function cloneBinaryData(
     return new Uint8Array(data);
 }
 
+export function cloneStructuredValuePreservingUrls<T>(value: T): T {
+    return cloneValueWithUrlSupport(value) as T;
+}
+
+function cloneValueWithUrlSupport(value: unknown): unknown {
+    if (value instanceof URL) {
+        return new URL(value.href);
+    }
+    if (typeof Buffer !== 'undefined' && Buffer.isBuffer(value)) {
+        return Buffer.from(value);
+    }
+    if (value instanceof ArrayBuffer) {
+        return value.slice(0);
+    }
+    if (ArrayBuffer.isView(value)) {
+        return structuredClone(value);
+    }
+    if (Array.isArray(value)) {
+        return value.map((item) => cloneValueWithUrlSupport(item));
+    }
+    if (value === null || typeof value !== 'object') {
+        return value;
+    }
+
+    const prototype = Object.getPrototypeOf(value);
+    if (prototype !== Object.prototype && prototype !== null) {
+        return structuredClone(value);
+    }
+
+    return Object.fromEntries(
+        Object.entries(value).map(([key, entry]) => [key, cloneValueWithUrlSupport(entry)])
+    );
+}
+
 function cloneImagePart(part: ImagePart): ImagePart {
     const cloned: ImagePart = {
         type: 'image',
@@ -87,23 +121,27 @@ export function clonePromptContentPart(
 export function cloneInternalMessage(message: InternalMessage): InternalMessage {
     switch (message.role) {
         case 'assistant': {
-            const cloned = structuredClone(message);
+            const { content, ...messageWithoutContent } = message;
+            const cloned = cloneStructuredValuePreservingUrls(messageWithoutContent);
             return {
                 ...cloned,
-                content: message.content === null ? null : cloneContentParts(message.content),
+                content: content === null ? null : cloneContentParts(content),
             };
         }
         case 'system': {
-            const cloned = structuredClone(message);
-            return { ...cloned, content: cloneContentParts(message.content) };
+            const { content, ...messageWithoutContent } = message;
+            const cloned = cloneStructuredValuePreservingUrls(messageWithoutContent);
+            return { ...cloned, content: cloneContentParts(content) };
         }
         case 'user': {
-            const cloned = structuredClone(message);
-            return { ...cloned, content: cloneContentParts(message.content) };
+            const { content, ...messageWithoutContent } = message;
+            const cloned = cloneStructuredValuePreservingUrls(messageWithoutContent);
+            return { ...cloned, content: cloneContentParts(content) };
         }
         case 'tool': {
-            const cloned = structuredClone(message);
-            return { ...cloned, content: cloneContentParts(message.content) };
+            const { content, ...messageWithoutContent } = message;
+            const cloned = cloneStructuredValuePreservingUrls(messageWithoutContent);
+            return { ...cloned, content: cloneContentParts(content) };
         }
     }
 }
