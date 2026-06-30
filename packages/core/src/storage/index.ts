@@ -44,12 +44,8 @@ export type { SessionStore } from './sessions/types.js';
 export type { MemoryStore } from './memories/types.js';
 export type { WorkspaceStore } from './workspaces/types.js';
 export type { CustomPromptStore } from './prompts/types.js';
-export { PersistedApprovedDirectorySchema, SessionApprovalStateSchema } from './approvals/types.js';
-export type {
-    ApprovalStore,
-    PersistedApprovedDirectory,
-    SessionApprovalState,
-} from './approvals/types.js';
+export { SessionApprovalStateSchema } from './approvals/types.js';
+export type { ApprovalStore, SessionApprovalState } from './approvals/types.js';
 export type { ToolPreferenceStore } from './tool-preferences/types.js';
 export type { ToolStateStore } from './tool-state/types.js';
 export type { SessionMessageQueueStore } from './message-queue/types.js';

@@ -20,15 +20,13 @@ describe('InMemoryDextoStores', () => {
             },
         });
 
-        await storage.getStore('steerQueue').save({
+        await storage.getStore('steerQueue').append({
             sessionId: 'session-1',
-            queue: [
-                {
-                    id: 'queued-1',
-                    content: [{ type: 'text', text: 'next' }],
-                    queuedAt: 2,
-                },
-            ],
+            message: {
+                id: 'queued-1',
+                content: [{ type: 'text', text: 'next' }],
+                queuedAt: 2,
+            },
         });
 
         await storage.getStore('toolPreferences').allowTool({
@@ -44,7 +42,7 @@ describe('InMemoryDextoStores', () => {
                 timestamp: 1,
             },
         ]);
-        expect(await storage.getStore('steerQueue').load({ sessionId: 'session-1' })).toEqual([
+        expect(await storage.getStore('steerQueue').list({ sessionId: 'session-1' })).toEqual([
             {
                 id: 'queued-1',
                 content: [{ type: 'text', text: 'next' }],
@@ -60,5 +58,33 @@ describe('InMemoryDextoStores', () => {
 
         await storage.disconnect();
         expect(storage.isConnected()).toBe(false);
+    });
+
+    it('preserves message queue append order instead of sorting by queuedAt', async () => {
+        const storage = new InMemoryDextoStores();
+        const steerQueue = storage.getStore('steerQueue');
+
+        await steerQueue.append({
+            sessionId: 'session-append-order',
+            message: {
+                id: 'queued-later-timestamp',
+                content: [{ type: 'text', text: 'first append' }],
+                queuedAt: 2,
+            },
+        });
+        await steerQueue.append({
+            sessionId: 'session-append-order',
+            message: {
+                id: 'queued-earlier-timestamp',
+                content: [{ type: 'text', text: 'second append' }],
+                queuedAt: 1,
+            },
+        });
+
+        expect(
+            (await steerQueue.list({ sessionId: 'session-append-order' })).map(
+                (message) => message.id
+            )
+        ).toEqual(['queued-later-timestamp', 'queued-earlier-timestamp']);
     });
 });

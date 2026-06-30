@@ -224,13 +224,11 @@ async function createLocalStores(config: ValidatedStorageConfig, logger: Logger)
             toolState: new DatabaseBackedToolStateStore(database),
             steerQueue: new DatabaseBackedSessionMessageQueueStore(
                 database,
-                cache,
                 logger,
                 SESSION_STEER_QUEUE_KEY_PREFIX
             ),
             followUpQueue: new DatabaseBackedSessionMessageQueueStore(
                 database,
-                cache,
                 logger,
                 SESSION_FOLLOW_UP_QUEUE_KEY_PREFIX
             ),

@@ -8,21 +8,39 @@ import type { SessionMessageQueueStore } from '../storage/message-queue/types.js
 type MessageQueueBackingStore = SessionMessageQueueStore;
 
 class EphemeralMessageQueueStore implements MessageQueueBackingStore {
-    async listSessionIds(): Promise<string[]> {
-        return [];
+    private queue: QueuedMessage[] = [];
+
+    async list(input: { sessionId: string }): Promise<QueuedMessage[]> {
+        void input;
+        return cloneQueuedMessages(this.queue);
     }
 
-    async load(input: { sessionId: string }): Promise<QueuedMessage[]> {
-        void input;
-        return [];
+    async append(input: {
+        sessionId: string;
+        message: QueuedMessage;
+    }): Promise<{ position: number }> {
+        void input.sessionId;
+        this.queue = [...this.queue, cloneQueuedMessage(input.message)];
+        return { position: this.queue.length };
     }
 
-    async save(input: { sessionId: string; queue: QueuedMessage[] }): Promise<void> {
-        void input;
+    async takeAll(input: { sessionId: string }): Promise<QueuedMessage[]> {
+        void input.sessionId;
+        const messages = cloneQueuedMessages(this.queue);
+        this.queue = [];
+        return messages;
     }
 
-    async delete(input: { sessionId: string }): Promise<void> {
-        void input;
+    async remove(input: { sessionId: string; id: string }): Promise<boolean> {
+        void input.sessionId;
+        const previousLength = this.queue.length;
+        this.queue = this.queue.filter((message) => message.id !== input.id);
+        return this.queue.length !== previousLength;
+    }
+
+    async clear(input: { sessionId: string }): Promise<void> {
+        void input.sessionId;
+        this.queue = [];
     }
 }
 
@@ -76,7 +94,7 @@ export interface UserMessageInput {
  * ```
  */
 export class MessageQueueService {
-    private queue: QueuedMessage[] = [];
+    private queueSnapshot: QueuedMessage[] = [];
     private mutationLock: Promise<void> = Promise.resolve();
     private initialized = false;
     private initializationPromise: Promise<void> | null = null;
@@ -110,10 +128,10 @@ export class MessageQueueService {
                 return;
             }
 
-            this.queue = await this.store.load({ sessionId: this.sessionId });
-            if (this.queue.length > 0) {
+            this.queueSnapshot = await this.store.list({ sessionId: this.sessionId });
+            if (this.queueSnapshot.length > 0) {
                 this.logger.debug(
-                    `Restored ${this.queue.length} queued message(s) for session ${this.sessionId}`
+                    `Restored ${this.queueSnapshot.length} queued message(s) for session ${this.sessionId}`
                 );
             }
 
@@ -126,25 +144,8 @@ export class MessageQueueService {
         await this.initializationPromise;
     }
 
-    private async persistQueue(): Promise<void> {
-        await this.store.save({ sessionId: this.sessionId, queue: this.queue });
-    }
-
     private async refreshFromStore(): Promise<void> {
-        const storedQueue = await this.store.load({ sessionId: this.sessionId });
-        const existingIds = new Set(this.queue.map((message) => message.id));
-        const externalMessages = storedQueue.filter((message) => !existingIds.has(message.id));
-
-        if (externalMessages.length === 0) {
-            return;
-        }
-
-        this.queue = [...this.queue, ...cloneQueuedMessages(externalMessages)].sort(
-            (left, right) => left.queuedAt - right.queuedAt
-        );
-        this.logger.debug(
-            `Loaded ${externalMessages.length} externally queued message(s) for session ${this.sessionId}`
-        );
+        this.queueSnapshot = await this.store.list({ sessionId: this.sessionId });
     }
 
     private runWithMutationLock<T>(fn: () => Promise<T>): Promise<T> {
@@ -178,26 +179,23 @@ export class MessageQueueService {
             };
             const copiedQueuedMsg = cloneQueuedMessage(queuedMsg);
 
-            this.queue.push(copiedQueuedMsg);
+            const { position } = await this.store.append({
+                sessionId: this.sessionId,
+                message: copiedQueuedMsg,
+            });
+            await this.refreshFromStore();
 
-            try {
-                await this.persistQueue();
-            } catch (error) {
-                this.queue.pop();
-                throw error;
-            }
-
-            this.logger.debug(`Message queued: ${queuedMsg.id}, position: ${this.queue.length}`);
+            this.logger.debug(`Message queued: ${queuedMsg.id}, position: ${position}`);
 
             this.eventBus.emit('message:queued', {
-                position: this.queue.length,
+                position,
                 id: queuedMsg.id,
                 queue: this.queueKind,
             });
 
             return {
                 queued: true,
-                position: this.queue.length,
+                position,
                 id: queuedMsg.id,
             };
         });
@@ -226,18 +224,9 @@ export class MessageQueueService {
      */
     async dequeueAll(): Promise<CoalescedMessage | null> {
         return await this.runWithMutationLock(async () => {
-            await this.refreshFromStore();
-            if (this.queue.length === 0) return null;
-
-            const messages = cloneQueuedMessages(this.queue);
-            this.queue = [];
-
-            try {
-                await this.persistQueue();
-            } catch (error) {
-                this.queue = messages;
-                throw error;
-            }
+            const messages = await this.store.takeAll({ sessionId: this.sessionId });
+            this.queueSnapshot = [];
+            if (messages.length === 0) return null;
 
             const combined = this.coalesce(messages);
 
@@ -350,7 +339,7 @@ export class MessageQueueService {
      * Check if there are pending messages in the queue.
      */
     hasPending(): boolean {
-        return this.queue.length > 0;
+        return this.queueSnapshot.length > 0;
     }
 
     async refresh(): Promise<void> {
@@ -363,7 +352,7 @@ export class MessageQueueService {
      * Get the number of pending messages.
      */
     pendingCount(): number {
-        return this.queue.length;
+        return this.queueSnapshot.length;
     }
 
     /**
@@ -372,19 +361,8 @@ export class MessageQueueService {
      */
     async clear(): Promise<void> {
         await this.runWithMutationLock(async () => {
-            if (this.queue.length === 0) {
-                return;
-            }
-
-            const previousQueue = [...this.queue];
-            this.queue = [];
-
-            try {
-                await this.persistQueue();
-            } catch (error) {
-                this.queue = previousQueue;
-                throw error;
-            }
+            await this.store.clear({ sessionId: this.sessionId });
+            this.queueSnapshot = [];
         });
     }
 
@@ -393,14 +371,14 @@ export class MessageQueueService {
      * Returns defensive copies to prevent external mutation.
      */
     getAll(): QueuedMessage[] {
-        return cloneQueuedMessages(this.queue);
+        return cloneQueuedMessages(this.queueSnapshot);
     }
 
     /**
      * Get a single queued message by ID.
      */
     get(id: string): QueuedMessage | undefined {
-        const message = this.queue.find((m) => m.id === id);
+        const message = this.queueSnapshot.find((m) => m.id === id);
         return message ? cloneQueuedMessage(message) : undefined;
     }
 
@@ -410,24 +388,15 @@ export class MessageQueueService {
      */
     async remove(id: string): Promise<boolean> {
         return await this.runWithMutationLock(async () => {
-            const index = this.queue.findIndex((m) => m.id === id);
-            if (index === -1) {
+            const removed = await this.store.remove({ sessionId: this.sessionId, id });
+            if (!removed) {
                 this.logger.debug(`Remove failed: message ${id} not found in queue`);
                 return false;
             }
 
-            const [removed] = this.queue.splice(index, 1);
+            await this.refreshFromStore();
 
-            try {
-                await this.persistQueue();
-            } catch (error) {
-                if (removed) {
-                    this.queue.splice(index, 0, removed);
-                }
-                throw error;
-            }
-
-            this.logger.debug(`Message removed: ${id}, remaining: ${this.queue.length}`);
+            this.logger.debug(`Message removed: ${id}, remaining: ${this.queueSnapshot.length}`);
             this.eventBus.emit('message:removed', { id, queue: this.queueKind });
             return true;
         });

@@ -64,6 +64,7 @@ import type { AgentRunContext } from '../../runtime/run-context.js';
 import { createModelToolDefinitions } from './tool-definitions.js';
 import { ApprovalStatus, type ApprovalResponse } from '../../approval/types.js';
 import type { ApprovalDecisionInput } from '../../approval/manager.js';
+import type { LLMExecutionControl } from '../services/types.js';
 import {
     describeContentPartsForAudit,
     describeInternalMessageTailForAudit,
@@ -72,6 +73,28 @@ import { cloneStructuredValuePreservingUrls } from '../../context/content-clone.
 
 const MCP_TOOL_PREFIX = 'mcp--';
 const MODEL_REQUEST_MAX_RETRIES = 2;
+const TOOL_SUPPORT_PROBE_TIMEOUT_MS = 5000;
+type ToolSupportValidationResult =
+    | {
+          supported: boolean;
+          cacheHit: true;
+          validationMode: 'cache';
+      }
+    | {
+          supported: true;
+          cacheHit: false;
+          validationMode:
+              | 'codex_base_url_skip'
+              | 'cloud_provider_assumed'
+              | 'managed_gateway_assumed';
+      }
+    | {
+          supported: boolean;
+          cacheHit: false;
+          validationMode: 'probe';
+          probeOutcome: 'supported' | 'unsupported' | 'error_assumed_supported';
+          probeTimeoutMs: typeof TOOL_SUPPORT_PROBE_TIMEOUT_MS;
+      };
 const LLMFinishReasonStateSchema = z.enum([
     'stop',
     'tool-calls',
@@ -387,6 +410,28 @@ const toolSupportCache = new Map<string, boolean>();
  */
 const LOCAL_PROVIDERS: readonly LLMProvider[] = ['ollama', 'local'] as const;
 
+function isManagedGatewayProvider(provider: LLMProvider): boolean {
+    return provider === 'dexto-nova';
+}
+
+function toolSupportValidationAttributes(result: ToolSupportValidationResult) {
+    const attributes = {
+        'llm.tool_support.cache_hit': result.cacheHit,
+        'llm.tool_support.validation_mode': result.validationMode,
+        'llm.tools_supported': result.supported,
+    };
+
+    if (result.validationMode !== 'probe') {
+        return attributes;
+    }
+
+    return {
+        ...attributes,
+        'llm.tool_support.probe_outcome': result.probeOutcome,
+        'llm.tool_support.probe_timeout_ms': result.probeTimeoutMs,
+    };
+}
+
 /**
  * TurnExecutor orchestrates the agent loop using `stopWhen: stepCountIs(1)`.
  *
@@ -423,6 +468,7 @@ export class TurnExecutor {
             temperature?: number | undefined;
             baseURL?: string | undefined;
             usageScopeId?: string | undefined;
+            executionControl?: LLMExecutionControl | undefined;
             // Provider-specific options
             reasoning?: LLMReasoningConfig | undefined;
         },
@@ -893,7 +939,21 @@ export class TurnExecutor {
     private async startTurn(): Promise<TurnStart> {
         this.eventBus.emit('llm:thinking', {});
 
-        const supportsTools = await this.validateToolSupport();
+        const toolSupportValidation = await recordOperationSpan(
+            {
+                name: 'llm.tool_support_validation',
+                componentName: 'TurnExecutor',
+                attributes: {
+                    'llm.model': this.llmContext.model,
+                    'llm.provider': this.llmContext.provider,
+                    'llm.base_url_present': this.config.baseURL !== undefined,
+                },
+                resultAttributes: toolSupportValidationAttributes,
+            },
+            () => this.validateToolSupport(),
+            this.logger
+        );
+        const supportsTools = toolSupportValidation.supported;
         if (!supportsTools) {
             const modelKey = `${this.llmContext.provider}:${this.llmContext.model}`;
             this.eventBus.emit('llm:unsupported-input', {
@@ -1081,15 +1141,17 @@ export class TurnExecutor {
             );
         }
 
-        // Follow-ups run only after the active turn naturally reaches a stop point.
-        await this.followUpQueue.refresh();
-        if (this.followUpQueue.hasPending()) {
-            return this.continueWithQueuedInput(
-                'follow-up',
-                this.followUpQueue,
-                stepCount,
-                result.finishReason
-            );
+        if (this.config.executionControl?.followUpQueueMode !== 'host-run') {
+            // Follow-ups run only after the active turn naturally reaches a stop point.
+            await this.followUpQueue.refresh();
+            if (this.followUpQueue.hasPending()) {
+                return this.continueWithQueuedInput(
+                    'follow-up',
+                    this.followUpQueue,
+                    stepCount,
+                    result.finishReason
+                );
+            }
         }
 
         this.logger.debug(`Terminating: finishReason is "${result.finishReason}"`);
@@ -1134,12 +1196,16 @@ export class TurnExecutor {
      * so it is treated as tool-capable without HTTP probing.
      * Known cloud providers without baseURL are assumed to support tools.
      */
-    private async validateToolSupport(): Promise<boolean> {
+    private async validateToolSupport(): Promise<ToolSupportValidationResult> {
         const modelKey = `${this.llmContext.provider}:${this.llmContext.model}:${this.config.baseURL ?? ''}`;
 
         // Check cache first
         if (toolSupportCache.has(modelKey)) {
-            return toolSupportCache.get(modelKey)!;
+            return {
+                supported: toolSupportCache.get(modelKey)!,
+                cacheHit: true,
+                validationMode: 'cache',
+            };
         }
 
         if (isCodexBaseURL(this.config.baseURL)) {
@@ -1147,7 +1213,23 @@ export class TurnExecutor {
                 `Skipping tool validation for ${modelKey} - Codex app-server integration manages tool support internally`
             );
             toolSupportCache.set(modelKey, true);
-            return true;
+            return {
+                supported: true,
+                cacheHit: false,
+                validationMode: 'codex_base_url_skip',
+            };
+        }
+
+        if (isManagedGatewayProvider(this.llmContext.provider)) {
+            this.logger.debug(
+                `Skipping tool validation for ${modelKey} - managed gateway provider controls tool support`
+            );
+            toolSupportCache.set(modelKey, true);
+            return {
+                supported: true,
+                cacheHit: false,
+                validationMode: 'managed_gateway_assumed',
+            };
         }
 
         // Local providers need validation regardless of baseURL (models have varying support)
@@ -1159,7 +1241,11 @@ export class TurnExecutor {
                 `Skipping tool validation for ${modelKey} - known cloud provider without custom baseURL`
             );
             toolSupportCache.set(modelKey, true);
-            return true;
+            return {
+                supported: true,
+                cacheHit: false,
+                validationMode: 'cloud_provider_assumed',
+            };
         }
 
         this.logger.debug(
@@ -1180,7 +1266,7 @@ export class TurnExecutor {
 
         // Add timeout protection to fail fast if endpoint is unresponsive
         const testAbort = new AbortController();
-        const testTimeout = setTimeout(() => testAbort.abort(), 5000); // 5s timeout
+        const testTimeout = setTimeout(() => testAbort.abort(), TOOL_SUPPORT_PROBE_TIMEOUT_MS);
 
         try {
             // Make a minimal generateText call with tools to test support
@@ -1196,7 +1282,13 @@ export class TurnExecutor {
             // If we get here, tools are supported
             toolSupportCache.set(modelKey, true);
             this.logger.debug(`Model ${modelKey} supports tools`);
-            return true;
+            return {
+                supported: true,
+                cacheHit: false,
+                validationMode: 'probe',
+                probeOutcome: 'supported',
+                probeTimeoutMs: TOOL_SUPPORT_PROBE_TIMEOUT_MS,
+            };
         } catch (error: unknown) {
             clearTimeout(testTimeout);
             const errorMessage = error instanceof Error ? error.message : String(error);
@@ -1205,14 +1297,26 @@ export class TurnExecutor {
                 this.logger.debug(
                     `Detected that model ${modelKey} does not support tool calling - tool functionality will be disabled`
                 );
-                return false;
+                return {
+                    supported: false,
+                    cacheHit: false,
+                    validationMode: 'probe',
+                    probeOutcome: 'unsupported',
+                    probeTimeoutMs: TOOL_SUPPORT_PROBE_TIMEOUT_MS,
+                };
             }
             // Other errors (including timeout) - assume tools are supported and let the actual call handle it
             this.logger.debug(
                 `Tool validation error for ${modelKey}, assuming supported: ${errorMessage}`
             );
             toolSupportCache.set(modelKey, true);
-            return true;
+            return {
+                supported: true,
+                cacheHit: false,
+                validationMode: 'probe',
+                probeOutcome: 'error_assumed_supported',
+                probeTimeoutMs: TOOL_SUPPORT_PROBE_TIMEOUT_MS,
+            };
         }
     }
 
@@ -1768,11 +1872,7 @@ export class TurnExecutor {
                 return approval.modelVisibleResult;
             }
             const decision = this.toApprovalDecisionInput(approval.response);
-            const applied = await this.toolManager.applyApprovalDecision(
-                recorded,
-                decision,
-                this.runContext
-            );
+            const applied = await this.toolManager.applyApprovalDecision(recorded, decision);
             if (applied.kind === 'terminal') {
                 return applied.modelVisibleResult;
             }
@@ -2202,15 +2302,6 @@ export class TurnExecutor {
         if (!this.stepAbortController.signal.aborted) {
             this.stepAbortController.abort();
         }
-
-        // Clear any pending queued messages
-        void this.steerQueue.clear().catch((error) => {
-            this.logger.warn(
-                `Failed to clear queued steer messages during cleanup: ${
-                    error instanceof Error ? error.message : String(error)
-                }`
-            );
-        });
     }
 
     /**

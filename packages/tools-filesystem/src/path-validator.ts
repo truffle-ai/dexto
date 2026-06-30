@@ -14,7 +14,11 @@ import { expandHomeShorthand, resolveUserPath } from './path-utils.js';
  * Callback type for checking if a path is in an approved directory.
  * Used to consult ApprovalManager without creating a direct dependency.
  */
-export type DirectoryApprovalChecker = (filePath: string) => boolean;
+export type DirectoryApprovalOperation = 'read' | 'write' | 'edit';
+export type DirectoryApprovalChecker = (
+    filePath: string,
+    operation: DirectoryApprovalOperation
+) => boolean;
 
 /**
  * PathValidator - Validates file paths for security and policy compliance
@@ -77,8 +81,11 @@ export class PathValidator {
     /**
      * Validate a file path for security and policy compliance
      */
-    async validatePath(filePath: string): Promise<PathValidation> {
-        return this.validatePathInternal(filePath, { skipAllowedCheck: false });
+    async validatePath(
+        filePath: string,
+        operation: DirectoryApprovalOperation
+    ): Promise<PathValidation> {
+        return this.validatePathInternal(filePath, { skipAllowedCheck: false, operation });
     }
 
     /**
@@ -94,12 +101,12 @@ export class PathValidator {
      * Used for generating UI-only previews (e.g., diffs) before the user approves directory access.
      */
     async validatePathForPreview(filePath: string): Promise<PathValidation> {
-        return this.validatePathInternal(filePath, { skipAllowedCheck: true });
+        return this.validatePathInternal(filePath, { skipAllowedCheck: true, operation: 'read' });
     }
 
     private async validatePathInternal(
         filePath: string,
-        options: { skipAllowedCheck: boolean }
+        options: { skipAllowedCheck: boolean; operation: DirectoryApprovalOperation }
     ): Promise<PathValidation> {
         // 1. Check for empty path
         if (!filePath || filePath.trim() === '') {
@@ -156,7 +163,7 @@ export class PathValidator {
         }
 
         // 4. Check if path is within allowed paths
-        if (!options.skipAllowedCheck && !this.isPathAllowed(normalizedPath)) {
+        if (!options.skipAllowedCheck && !this.isPathAllowed(normalizedPath, options.operation)) {
             return {
                 isValid: false,
                 error: `Path is not within allowed paths. Allowed: ${this.normalizedAllowedPaths.join(', ')}`,
@@ -211,8 +218,8 @@ export class PathValidator {
      * Also consults the directory approval checker if configured.
      * Uses the sync version since the path is already normalized at this point.
      */
-    private isPathAllowed(normalizedPath: string): boolean {
-        return this.isPathAllowedSync(normalizedPath);
+    private isPathAllowed(normalizedPath: string, operation: DirectoryApprovalOperation): boolean {
+        return this.isPathAllowedSync(normalizedPath, operation);
     }
 
     /**
@@ -247,15 +254,20 @@ export class PathValidator {
      * Quick check if a path is allowed (for internal use)
      * Note: This assumes the path is already normalized/canonicalized
      */
-    isPathAllowedQuick(normalizedPath: string): boolean {
-        return this.isPathAllowedSync(normalizedPath) && !this.isPathBlocked(normalizedPath);
+    isPathAllowedQuick(normalizedPath: string, operation: DirectoryApprovalOperation): boolean {
+        return (
+            this.isPathAllowedSync(normalizedPath, operation) && !this.isPathBlocked(normalizedPath)
+        );
     }
 
     /**
      * Synchronous path allowed check (for already-normalized paths)
      * This is used internally when we already have a canonicalized path
      */
-    private isPathAllowedSync(normalizedPath: string): boolean {
+    private isPathAllowedSync(
+        normalizedPath: string,
+        operation: DirectoryApprovalOperation
+    ): boolean {
         // Empty allowedPaths means all paths are allowed
         if (this.normalizedAllowedPaths.length === 0) {
             return true;
@@ -274,7 +286,7 @@ export class PathValidator {
 
         // Fallback: check ApprovalManager via callback (includes working dir + approved dirs)
         if (this.directoryApprovalChecker) {
-            return this.directoryApprovalChecker(normalizedPath);
+            return this.directoryApprovalChecker(normalizedPath, operation);
         }
 
         return false;

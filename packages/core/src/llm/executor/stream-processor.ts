@@ -1,4 +1,5 @@
 import { StreamTextResult, ToolSet as VercelToolSet } from 'ai';
+import { trace } from '@opentelemetry/api';
 import { ContextManager } from '../../context/manager.js';
 import { SessionEventBus, LLMFinishReason } from '../../events/index.js';
 import { StreamProcessorResult } from './types.js';
@@ -113,7 +114,21 @@ export class StreamProcessor {
     async process(
         streamFn: () => StreamTextResult<VercelToolSet, unknown>
     ): Promise<StreamProcessorResult> {
+        const startedAtMs = Date.now();
+        const setStreamAttribute = (name: string, value: number | string): void => {
+            trace.getActiveSpan()?.setAttribute(`llm.stream.${name}`, value);
+        };
+        const markTiming = (name: string): number => {
+            const elapsedMs = Date.now() - startedAtMs;
+            setStreamAttribute(`${name}_ms`, elapsedMs);
+            return elapsedMs;
+        };
         const stream = streamFn();
+        let lastDeltaReceivedAtMs: number | null = null;
+        let lastReasoningDeltaReceivedAtMs: number | null = null;
+        let lastTextDeltaReceivedAtMs: number | null = null;
+        let reasoningDeltaCount = 0;
+        let textDeltaCount = 0;
 
         const handleToolInputStart = (evt: ToolInputStartEvent) => {
             const toolCallId = evt.toolCallId ?? evt.id ?? undefined;
@@ -168,6 +183,15 @@ export class StreamProcessor {
 
                 switch (event.type) {
                     case 'text-delta':
+                        if (textDeltaCount === 0) {
+                            markTiming('first_text_delta_received');
+                        }
+                        textDeltaCount += 1;
+                        setStreamAttribute('text_delta_count', textDeltaCount);
+                        lastTextDeltaReceivedAtMs = markTiming('last_text_delta_received');
+                        lastDeltaReceivedAtMs = lastTextDeltaReceivedAtMs;
+                        setStreamAttribute('last_delta_received_ms', lastDeltaReceivedAtMs);
+                        setStreamAttribute('last_delta_kind', 'text');
                         if (!this.assistantMessageId) {
                             // Create assistant message on first text delta if not exists
                             this.assistantMessageId = await this.contextManager
@@ -192,9 +216,21 @@ export class StreamProcessor {
                                 content: event.text,
                             });
                         }
+                        markTiming('last_text_delta_emitted');
                         break;
 
                     case 'reasoning-delta':
+                        if (reasoningDeltaCount === 0) {
+                            markTiming('first_reasoning_delta_received');
+                        }
+                        reasoningDeltaCount += 1;
+                        setStreamAttribute('reasoning_delta_count', reasoningDeltaCount);
+                        lastReasoningDeltaReceivedAtMs = markTiming(
+                            'last_reasoning_delta_received'
+                        );
+                        lastDeltaReceivedAtMs = lastReasoningDeltaReceivedAtMs;
+                        setStreamAttribute('last_delta_received_ms', lastDeltaReceivedAtMs);
+                        setStreamAttribute('last_delta_kind', 'reasoning');
                         // Handle reasoning delta (extended thinking from Claude, etc.)
                         this.reasoningText += event.text;
 
@@ -211,6 +247,7 @@ export class StreamProcessor {
                                 content: event.text,
                             });
                         }
+                        markTiming('last_reasoning_delta_emitted');
                         break;
 
                     case 'tool-input-start': {
@@ -314,6 +351,25 @@ export class StreamProcessor {
                         break;
 
                     case 'finish': {
+                        const finishEventReceivedAtMs = markTiming('finish_event_received');
+                        if (lastTextDeltaReceivedAtMs !== null) {
+                            setStreamAttribute(
+                                'finish_after_last_text_delta_ms',
+                                finishEventReceivedAtMs - lastTextDeltaReceivedAtMs
+                            );
+                        }
+                        if (lastReasoningDeltaReceivedAtMs !== null) {
+                            setStreamAttribute(
+                                'finish_after_last_reasoning_delta_ms',
+                                finishEventReceivedAtMs - lastReasoningDeltaReceivedAtMs
+                            );
+                        }
+                        if (lastDeltaReceivedAtMs !== null) {
+                            setStreamAttribute(
+                                'finish_after_last_delta_ms',
+                                finishEventReceivedAtMs - lastDeltaReceivedAtMs
+                            );
+                        }
                         this.finishReason = event.finishReason;
 
                         const providerMetadata = this.getProviderMetadata(event);
@@ -387,17 +443,21 @@ export class StreamProcessor {
                             model: this.config.model,
                         });
 
+                        markTiming('metadata_persist_started');
                         await this.persistAssistantResponseMetadata(usage, pricingMetadata);
+                        markTiming('metadata_persist_finished');
 
                         // Skip empty responses when tools are being called
                         // The meaningful response will come after tool execution completes
                         const hasContent = this.accumulatedText || this.reasoningText;
                         if (this.finishReason !== 'tool-calls' || hasContent) {
+                            markTiming('llm_response_emit_started');
                             this.emitLLMResponse({
                                 tokenUsage: usage,
                                 finishReason: this.finishReason,
                                 ...pricingMetadata,
                             });
+                            markTiming('llm_response_emitted');
                         }
                         break;
                     }
@@ -512,6 +572,7 @@ export class StreamProcessor {
             throw mappedError;
         }
 
+        markTiming('full_stream_iterator_completed');
         return {
             text: this.accumulatedText,
             finishReason: this.finishReason,

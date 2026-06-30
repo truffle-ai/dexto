@@ -1,6 +1,6 @@
 {
     "name": "@dexto/tools-builtins",
-    "version": "1.8.12",
+    "version": "1.9.0",
     "description": "Built-in tools factory for Dexto agents",
     "type": "module",
     "main": "./dist/index.js",

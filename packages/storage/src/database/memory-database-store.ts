@@ -109,6 +109,29 @@ export class MemoryDatabaseStore implements Database {
         this.lists.get(key)!.push(item);
     }
 
+    async updateList<T, R>(
+        key: string,
+        updater: (items: T[]) => { items: T[]; result: R }
+    ): Promise<R> {
+        this.checkConnection();
+        try {
+            const current = (this.lists.get(key) ?? []) as T[];
+            const mutation = updater([...current]);
+            if (mutation.items.length === 0) {
+                this.lists.delete(key);
+            } else {
+                this.lists.set(key, [...mutation.items]);
+            }
+            return mutation.result;
+        } catch (error) {
+            throw StorageError.writeFailed(
+                'updateList',
+                error instanceof Error ? error.message : String(error),
+                { key }
+            );
+        }
+    }
+
     async getRange<T>(key: string, start: number, count: number): Promise<T[]> {
         this.checkConnection();
         const list = this.lists.get(key) || [];

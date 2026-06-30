@@ -42,25 +42,18 @@ const ToolPresentationSnapshotV1Schema = z.custom<ToolPresentationSnapshotV1>(
 );
 
 /**
- * Directory access metadata schema
- * Used when a tool tries to access files outside the working directory
- */
-export const DirectoryAccessMetadataSchema = z
-    .object({
-        path: z.string().describe('Full path being accessed'),
-        parentDir: z.string().describe('Parent directory (what gets approved for session)'),
-        operation: z.enum(['read', 'write', 'edit']).describe('Type of file operation'),
-        toolName: z.string().describe('Name of the tool requesting access'),
-    })
-    .strict()
-    .describe('Directory access metadata');
-
-/**
  * Tool approval metadata schema
  */
 export const ToolApprovalMetadataSchema = z
     .object({
         toolName: z.string().describe('Name of the tool to approve'),
+        approvalKey: z
+            .string()
+            .min(1)
+            .optional()
+            .describe(
+                'Optional opaque key identifying the approval scope. Core stores keys exactly and does not interpret them.'
+            ),
         presentationSnapshot: ToolPresentationSnapshotV1Schema.optional().describe(
             'Optional UI-agnostic presentation snapshot for the tool call. Clients MUST ignore unknown fields.'
         ),
@@ -70,16 +63,6 @@ export const ToolApprovalMetadataSchema = z
         displayPreview: ToolDisplayDataSchema.optional().describe(
             'Preview display data for approval UI (e.g., diff preview)'
         ),
-        directoryAccess: DirectoryAccessMetadataSchema.optional().describe(
-            'Optional directory access metadata when the tool targets a path outside config-allowed roots'
-        ),
-        suggestedPatterns: z
-            .array(z.string())
-            .optional()
-            .describe(
-                'Suggested patterns for session approval. ' +
-                    'Tools may provide patterns to allow approving a broader subset of future calls (e.g., ["git push *", "git *"]).'
-            ),
     })
     .strict()
     .describe('Tool approval metadata');
@@ -174,14 +157,6 @@ export const CustomApprovalRequestSchema = BaseApprovalRequestSchema.extend({
 }).strict();
 
 /**
- * Directory access request schema
- */
-export const DirectoryAccessRequestSchema = BaseApprovalRequestSchema.extend({
-    type: z.literal(ApprovalType.DIRECTORY_ACCESS),
-    metadata: DirectoryAccessMetadataSchema,
-}).strict();
-
-/**
  * Discriminated union for all approval requests
  */
 export const ApprovalRequestSchema = z.discriminatedUnion('type', [
@@ -189,7 +164,6 @@ export const ApprovalRequestSchema = z.discriminatedUnion('type', [
     CommandApprovalRequestSchema,
     ElicitationRequestSchema,
     CustomApprovalRequestSchema,
-    DirectoryAccessRequestSchema,
 ]);
 
 /**
@@ -200,19 +174,8 @@ export const ToolApprovalResponseDataSchema = z
         rememberChoice: z
             .boolean()
             .optional()
-            .describe('Remember this tool for the session (approves ALL uses of this tool)'),
-        rememberPattern: z
-            .string()
-            .optional()
             .describe(
-                'Remember an approval pattern (e.g., "git *"). ' +
-                    'Only applicable when the tool provides pattern-based approval support.'
-            ),
-        rememberDirectory: z
-            .boolean()
-            .optional()
-            .describe(
-                'Remember this directory for the session (allows future access without prompting again)'
+                'Remember this approval scope for the session. If an approval key is present, only matching keys are remembered; otherwise all uses of this tool are approved.'
             ),
     })
     .strict()
@@ -245,19 +208,6 @@ export const ElicitationResponseDataSchema = z
 export const CustomApprovalResponseDataSchema = z
     .record(z.string(), z.unknown())
     .describe('Custom response data');
-
-/**
- * Directory access response data schema
- */
-export const DirectoryAccessResponseDataSchema = z
-    .object({
-        rememberDirectory: z
-            .boolean()
-            .optional()
-            .describe('Remember this directory for the session (allows all file access within it)'),
-    })
-    .strict()
-    .describe('Directory access response data');
 
 /**
  * Base approval response schema
@@ -315,13 +265,6 @@ export const CustomApprovalResponseSchema = BaseApprovalResponseSchema.extend({
 }).strict();
 
 /**
- * Directory access response schema
- */
-export const DirectoryAccessResponseSchema = BaseApprovalResponseSchema.extend({
-    data: DirectoryAccessResponseDataSchema.optional(),
-}).strict();
-
-/**
  * Union of all approval responses
  */
 export const ApprovalResponseSchema = z.union([
@@ -329,7 +272,6 @@ export const ApprovalResponseSchema = z.union([
     CommandApprovalResponseSchema,
     ElicitationResponseSchema,
     CustomApprovalResponseSchema,
-    DirectoryAccessResponseSchema,
 ]);
 
 /**
@@ -353,7 +295,6 @@ export const ApprovalRequestDetailsSchema = z
             CommandApprovalMetadataSchema,
             ElicitationMetadataSchema,
             CustomApprovalMetadataSchema,
-            DirectoryAccessMetadataSchema,
         ]),
     })
     .superRefine((data, ctx) => {
@@ -384,16 +325,6 @@ export const ApprovalRequestDetailsSchema = z
                 ctx.addIssue({
                     code: z.ZodIssueCode.custom,
                     message: 'Metadata must match ElicitationMetadataSchema for ELICITATION type',
-                    path: ['metadata'],
-                });
-            }
-        } else if (data.type === ApprovalType.DIRECTORY_ACCESS) {
-            const result = DirectoryAccessMetadataSchema.safeParse(data.metadata);
-            if (!result.success) {
-                ctx.addIssue({
-                    code: z.ZodIssueCode.custom,
-                    message:
-                        'Metadata must match DirectoryAccessMetadataSchema for DIRECTORY_ACCESS type',
                     path: ['metadata'],
                 });
             }

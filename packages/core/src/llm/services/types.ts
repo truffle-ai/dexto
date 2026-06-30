@@ -22,11 +22,20 @@ export type LLMServiceConfig = {
 export interface CreateLLMServiceOptions {
     usageScopeId?: string | undefined;
     compactionStrategy?: CompactionStrategy | null | undefined;
+    executionControl?: LLMExecutionControl | undefined;
     cwd?: string | undefined;
     authResolver?: LlmAuthResolver | null | undefined;
     steerQueue: MessageQueueService;
     followUpQueue: MessageQueueService;
 }
+
+export type LLMExecutionControl = {
+    /**
+     * Local/CLI sessions can let core continue the same executor turn with queued follow-ups.
+     * Hosted runtimes should keep follow-ups durable and promote them as separate runs.
+     */
+    followUpQueueMode?: 'core-continuation' | 'host-run' | undefined;
+};
 
 export type CreateTurnDriverOptions = {
     streaming?: boolean;

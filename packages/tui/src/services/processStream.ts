@@ -1161,8 +1161,7 @@ export async function processStream(
                     if (
                         bypassPermissions &&
                         (event.type === ApprovalTypeEnum.TOOL_APPROVAL ||
-                            event.type === ApprovalTypeEnum.COMMAND_APPROVAL ||
-                            event.type === ApprovalTypeEnum.DIRECTORY_ACCESS)
+                            event.type === ApprovalTypeEnum.COMMAND_APPROVAL)
                     ) {
                         if (event.type === ApprovalTypeEnum.TOOL_APPROVAL) {
                             const { toolName } = event.metadata;
@@ -1187,12 +1186,9 @@ export async function processStream(
 
                     if (autoApproveEdits && event.type === ApprovalTypeEnum.TOOL_APPROVAL) {
                         // Type is narrowed - metadata is now ToolApprovalMetadata
-                        const { toolName, directoryAccess } = event.metadata;
+                        const { toolName, approvalKey } = event.metadata;
 
-                        const hasDirectoryAccess =
-                            typeof directoryAccess === 'object' && directoryAccess !== null;
-
-                        if (!hasDirectoryAccess && isAutoApprovableInEditMode(toolName)) {
+                        if (approvalKey === undefined && isAutoApprovableInEditMode(toolName)) {
                             // Auto-approve immediately - emit response and let tool:running handle status
                             eventBus.emit('approval:response', {
                                 approvalId: event.approvalId,
@@ -1220,8 +1216,7 @@ export async function processStream(
                     if (
                         event.type === ApprovalTypeEnum.TOOL_APPROVAL ||
                         event.type === ApprovalTypeEnum.COMMAND_APPROVAL ||
-                        event.type === ApprovalTypeEnum.ELICITATION ||
-                        event.type === ApprovalTypeEnum.DIRECTORY_ACCESS
+                        event.type === ApprovalTypeEnum.ELICITATION
                     ) {
                         const newApproval: ApprovalRequest = {
                             approvalId: event.approvalId,

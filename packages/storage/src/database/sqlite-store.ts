@@ -282,6 +282,42 @@ export class SQLiteStore implements Database {
         }
     }
 
+    async updateList<T, R>(
+        key: string,
+        updater: (items: T[]) => { items: T[]; result: R }
+    ): Promise<R> {
+        this.checkConnection();
+        try {
+            const transaction = this.db.transaction(() => {
+                const rows = this.db
+                    .prepare('SELECT value FROM list_store WHERE key = ? ORDER BY sequence ASC')
+                    .all(key) as { value: string }[];
+                const current = rows.map((row) => JSON.parse(row.value)) as T[];
+                const mutation = updater(current);
+
+                this.db.prepare('DELETE FROM list_store WHERE key = ?').run(key);
+                if (mutation.items.length > 0) {
+                    const insert = this.db.prepare(
+                        'INSERT INTO list_store (key, value, sequence) VALUES (?, ?, ?)'
+                    );
+                    for (const [index, item] of mutation.items.entries()) {
+                        insert.run(key, JSON.stringify(item), index + 1);
+                    }
+                }
+
+                return mutation.result;
+            });
+
+            return transaction();
+        } catch (error) {
+            throw StorageError.writeFailed(
+                'updateList',
+                error instanceof Error ? error.message : String(error),
+                { key }
+            );
+        }
+    }
+
     async getRange<T>(key: string, start: number, count: number): Promise<T[]> {
         this.checkConnection();
         try {

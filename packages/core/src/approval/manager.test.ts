@@ -1,7 +1,4 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import * as path from 'node:path';
-import * as os from 'node:os';
-import { mkdtempSync, mkdirSync, rmSync, symlinkSync } from 'node:fs';
 import { ApprovalManager } from './manager.js';
 import { createApprovalRequest } from './factory.js';
 import { ApprovalStatus, ApprovalType, DenialReason } from './types.js';
@@ -12,6 +9,7 @@ import { createMockLogger } from '../logger/v2/test-utils.js';
 import type { Logger } from '../logger/v2/types.js';
 import type { ApprovalStore, SessionApprovalState } from '../storage/approvals/types.js';
 import { createInMemorySessionApprovalStore } from '../test-utils/session-state-stores.js';
+import { ToolApprovalMetadataSchema } from './schemas.js';
 
 function createDeferred<T>() {
     let resolve!: (value: T | PromiseLike<T>) => void;
@@ -278,14 +276,12 @@ describe('ApprovalManager', () => {
                 status: ApprovalStatus.APPROVED,
                 data: {
                     rememberChoice: true,
-                    rememberPattern: 'write_file *',
                 },
             };
             const replayedDecision = {
                 approvalId: request.approvalId,
                 status: ApprovalStatus.APPROVED,
                 data: {
-                    rememberPattern: 'write_file *',
                     rememberChoice: true,
                 },
             };
@@ -1154,9 +1150,8 @@ describe('ApprovalManager', () => {
         });
     });
 
-    describe('Tool Pattern Approval', () => {
+    describe('Generic Approval Keys', () => {
         let manager: ApprovalManager;
-        const toolName = 'bash_exec';
 
         beforeEach(() => {
             manager = createApprovalManager(
@@ -1173,442 +1168,116 @@ describe('ApprovalManager', () => {
             );
         });
 
-        describe('addPattern', () => {
-            it('should add a pattern to the approved list', async () => {
-                await manager.addPattern(toolName, 'git *');
-                expect(manager.getToolPatterns(toolName).has('git *')).toBe(true);
-            });
+        it('should add and read a session-approved key', async () => {
+            await manager.addApprovedKey('bash:git status *');
 
-            it('should add multiple patterns', async () => {
-                await manager.addPattern(toolName, 'git *');
-                await manager.addPattern(toolName, 'npm *');
-                await manager.addPattern(toolName, 'ls *');
-
-                const patterns = manager.getToolPatterns(toolName);
-                expect(patterns.size).toBe(3);
-                expect(patterns.has('git *')).toBe(true);
-                expect(patterns.has('npm *')).toBe(true);
-                expect(patterns.has('ls *')).toBe(true);
-            });
-
-            it('should not duplicate patterns', async () => {
-                await manager.addPattern(toolName, 'git *');
-                await manager.addPattern(toolName, 'git *');
-
-                expect(manager.getToolPatterns(toolName).size).toBe(1);
-            });
+            expect(manager.isApprovalKeySessionApproved('bash:git status *')).toBe(true);
+            expect(manager.isApprovalKeyApproved('bash:git status *')).toBe(true);
         });
 
-        describe('matchesPattern (pattern-to-pattern covering)', () => {
-            // Note: matchesPattern expects pattern keys (e.g., "git push *"),
-            // not raw commands. ToolManager generates pattern keys from commands.
+        it('should keep once-approved keys executable but not session-approved', async () => {
+            await manager.addApprovedKey('directory:/tmp', 'once');
 
-            it('should match exact pattern against exact stored pattern', async () => {
-                await manager.addPattern(toolName, 'git status *');
-                expect(manager.matchesPattern(toolName, 'git status *')).toBe(true);
-                expect(manager.matchesPattern(toolName, 'git push *')).toBe(false);
-            });
+            expect(manager.isApprovalKeySessionApproved('directory:/tmp')).toBe(false);
+            expect(manager.isApprovalKeyApproved('directory:/tmp')).toBe(true);
+        });
 
-            it('should cover narrower pattern with broader pattern', async () => {
-                // "git *" is broader and should cover "git push *", "git status *", etc.
-                await manager.addPattern(toolName, 'git *');
-                expect(manager.matchesPattern(toolName, 'git *')).toBe(true);
-                expect(manager.matchesPattern(toolName, 'git push *')).toBe(true);
-                expect(manager.matchesPattern(toolName, 'git status *')).toBe(true);
-                expect(manager.matchesPattern(toolName, 'npm *')).toBe(false);
-            });
+        it('should not downgrade a session-approved key to once', async () => {
+            await manager.addApprovedKey('directory:/tmp', 'session');
+            await manager.addApprovedKey('directory:/tmp', 'once');
 
-            it('should not let narrower pattern cover broader pattern', async () => {
-                // "git push *" should NOT cover "git *"
-                await manager.addPattern(toolName, 'git push *');
-                expect(manager.matchesPattern(toolName, 'git push *')).toBe(true);
-                expect(manager.matchesPattern(toolName, 'git *')).toBe(false);
-                expect(manager.matchesPattern(toolName, 'git status *')).toBe(false);
-            });
+            expect(manager.getApprovedKeys().get('directory:/tmp')).toBe('session');
+        });
 
-            it('should match against multiple patterns', async () => {
-                await manager.addPattern(toolName, 'git *');
-                await manager.addPattern(toolName, 'npm install *');
+        it('should isolate approved keys by session', async () => {
+            await manager.addApprovedKey('bash:git status *', 'session', 'session-a');
 
-                expect(manager.matchesPattern(toolName, 'git status *')).toBe(true);
-                expect(manager.matchesPattern(toolName, 'npm install *')).toBe(true);
-                // npm * is not covered, only npm install * specifically
-                expect(manager.matchesPattern(toolName, 'npm run *')).toBe(false);
-            });
+            expect(manager.isApprovalKeySessionApproved('bash:git status *', 'session-a')).toBe(
+                true
+            );
+            expect(manager.isApprovalKeySessionApproved('bash:git status *', 'session-b')).toBe(
+                false
+            );
+        });
 
-            it('should return false when no patterns are set', () => {
-                expect(manager.matchesPattern(toolName, 'git status *')).toBe(false);
-            });
-
-            it('should not cross-match unrelated commands', async () => {
-                await manager.addPattern(toolName, 'npm *');
-                // "npx" starts with "np" but is not "npm " + something
-                expect(manager.matchesPattern(toolName, 'npx *')).toBe(false);
-            });
-
-            it('should handle multi-level subcommands', async () => {
-                await manager.addPattern(toolName, 'docker compose *');
-                expect(manager.matchesPattern(toolName, 'docker compose *')).toBe(true);
-                expect(manager.matchesPattern(toolName, 'docker compose up *')).toBe(true);
-                expect(manager.matchesPattern(toolName, 'docker *')).toBe(false);
-            });
-
-            it('should isolate patterns by tool', async () => {
-                await manager.addPattern('tool-a', 'git *');
-                expect(manager.matchesPattern('tool-a', 'git push *')).toBe(true);
-                expect(manager.matchesPattern('tool-b', 'git push *')).toBe(false);
-            });
-
-            it('should serialize deleteSessionState with in-flight pattern persistence', async () => {
-                const sessionId = 'locked-delete-session';
-                const saveStarted = createDeferred<void>();
-                const releaseSave = createDeferred<void>();
-                const persistedState = new Map<string, SessionApprovalState>();
-                const emptyState: SessionApprovalState = {
-                    toolPatterns: {},
-                    approvedDirectories: [],
-                };
-                const store = {
-                    loadSessionState: vi.fn().mockImplementation(async (input) => {
-                        return structuredClone(
-                            persistedState.get(input.sessionId ?? '__global__') ?? emptyState
-                        );
-                    }),
-                    saveSessionState: vi.fn().mockImplementation(async (input) => {
-                        saveStarted.resolve();
-                        await releaseSave.promise;
-                        persistedState.set(
-                            input.sessionId ?? '__global__',
-                            structuredClone(input.state)
-                        );
-                    }),
-                    deleteSessionState: vi.fn().mockImplementation(async (input) => {
-                        persistedState.delete(input.sessionId ?? '__global__');
-                    }),
-                    createRequest: vi.fn(),
-                    getRequest: vi.fn(),
-                    listPending: vi.fn(),
-                    saveResponse: vi.fn(),
-                    getResponse: vi.fn(),
-                };
-                const manager = new ApprovalManager(
-                    {
-                        permissions: {
-                            mode: 'auto-approve',
-                            timeout: 120000,
-                        },
-                        elicitation: {
-                            enabled: true,
-                            timeout: 120000,
-                        },
+        it('should serialize deleteSessionState with in-flight key persistence', async () => {
+            const sessionId = 'locked-delete-session';
+            const saveStarted = createDeferred<void>();
+            const releaseSave = createDeferred<void>();
+            const persistedState = new Map<string, SessionApprovalState>();
+            const emptyState: SessionApprovalState = {
+                approvedKeys: {},
+            };
+            const store = {
+                loadSessionState: vi.fn().mockImplementation(async (input) => {
+                    return structuredClone(
+                        persistedState.get(input.sessionId ?? '__global__') ?? emptyState
+                    );
+                }),
+                saveSessionState: vi.fn().mockImplementation(async (input) => {
+                    saveStarted.resolve();
+                    await releaseSave.promise;
+                    persistedState.set(
+                        input.sessionId ?? '__global__',
+                        structuredClone(input.state)
+                    );
+                }),
+                deleteSessionState: vi.fn().mockImplementation(async (input) => {
+                    persistedState.delete(input.sessionId ?? '__global__');
+                }),
+                createRequest: vi.fn(),
+                getRequest: vi.fn(),
+                listPending: vi.fn(),
+                saveResponse: vi.fn(),
+                getResponse: vi.fn(),
+            };
+            const manager = new ApprovalManager(
+                {
+                    permissions: {
+                        mode: 'auto-approve',
+                        timeout: 120000,
                     },
-                    mockLogger,
-                    store as unknown as ConstructorParameters<typeof ApprovalManager>[2]
-                );
+                    elicitation: {
+                        enabled: true,
+                        timeout: 120000,
+                    },
+                },
+                mockLogger,
+                store as unknown as ConstructorParameters<typeof ApprovalManager>[2]
+            );
 
-                const addPatternPromise = manager.addPattern('bash_exec', 'git *', sessionId);
-                await saveStarted.promise;
+            const addKeyPromise = manager.addApprovedKey('bash:git status *', 'session', sessionId);
+            await saveStarted.promise;
 
-                let deleteFinished = false;
-                const deletePromise = manager.deleteSessionState(sessionId).then(() => {
-                    deleteFinished = true;
-                });
-
-                await Promise.resolve();
-                expect(deleteFinished).toBe(false);
-
-                releaseSave.resolve();
-                await addPatternPromise;
-                await deletePromise;
-
-                expect(
-                    persistedState.get(sessionId) ?? {
-                        toolPatterns: {},
-                        approvedDirectories: [],
-                    }
-                ).toEqual(emptyState);
-                expect(manager.matchesPattern('bash_exec', 'git status *', sessionId)).toBe(false);
-            });
-        });
-
-        describe('clearPatterns', () => {
-            it('should clear patterns for a tool', async () => {
-                await manager.addPattern(toolName, 'git *');
-                await manager.addPattern(toolName, 'npm *');
-                expect(manager.getToolPatterns(toolName).size).toBe(2);
-
-                await manager.clearPatterns(toolName);
-                expect(manager.getToolPatterns(toolName).size).toBe(0);
+            let deleteFinished = false;
+            const deletePromise = manager.deleteSessionState(sessionId).then(() => {
+                deleteFinished = true;
             });
 
-            it('should allow adding patterns after clearing', async () => {
-                await manager.addPattern(toolName, 'git *');
-                await manager.clearPatterns(toolName);
-                await manager.addPattern(toolName, 'npm *');
+            await Promise.resolve();
+            expect(deleteFinished).toBe(false);
 
-                expect(manager.getToolPatterns(toolName).size).toBe(1);
-                expect(manager.getToolPatterns(toolName).has('npm *')).toBe(true);
-            });
-        });
+            releaseSave.resolve();
+            await addKeyPromise;
+            await deletePromise;
 
-        describe('getToolPatterns', () => {
-            it('should return empty set initially', () => {
-                expect(manager.getToolPatterns(toolName).size).toBe(0);
-            });
-
-            it('should return a copy that reflects current patterns', async () => {
-                await manager.addPattern(toolName, 'git *');
-                const patterns = manager.getToolPatterns(toolName);
-                expect(patterns.has('git *')).toBe(true);
-            });
+            expect(persistedState.get(sessionId) ?? emptyState).toEqual(emptyState);
+            expect(manager.isApprovalKeySessionApproved('bash:git status *', sessionId)).toBe(
+                false
+            );
         });
     });
+});
 
-    describe('Directory Access Approval', () => {
-        let manager: ApprovalManager;
-
-        beforeEach(() => {
-            manager = createApprovalManager(
-                {
-                    permissions: {
-                        mode: 'manual',
-                        timeout: 120000,
-                    },
-                    elicitation: {
-                        enabled: false,
-                    },
-                },
-                mockLogger
-            );
-        });
-
-        describe('initializeWorkingDirectory', () => {
-            it('should add working directory as session-approved', async () => {
-                await manager.initializeWorkingDirectory('/home/user/project');
-                expect(manager.isDirectorySessionApproved('/home/user/project/src/file.ts')).toBe(
-                    true
-                );
-            });
-
-            it('should normalize the path before adding', async () => {
-                await manager.initializeWorkingDirectory('/home/user/../user/project');
-                expect(manager.isDirectorySessionApproved('/home/user/project/file.ts')).toBe(true);
-            });
-        });
-
-        describe('addApprovedDirectory', () => {
-            it('should add directory with session type by default', async () => {
-                await manager.addApprovedDirectory('/external/project');
-                expect(manager.isDirectorySessionApproved('/external/project/file.ts')).toBe(true);
-            });
-
-            it('should treat symlink-approved directory as approved for its realpath', async () => {
-                const baseDir = mkdtempSync(path.join(os.tmpdir(), 'dexto-approval-symlink-'));
-                try {
-                    const actualDir = path.join(baseDir, 'actual');
-                    mkdirSync(actualDir);
-
-                    const linkDir = path.join(baseDir, 'link');
-                    const symlinkType = process.platform === 'win32' ? 'junction' : 'dir';
-                    symlinkSync(actualDir, linkDir, symlinkType);
-
-                    await manager.addApprovedDirectory(linkDir, 'session');
-
-                    expect(manager.isDirectoryApproved(path.join(actualDir, 'file.ts'))).toBe(true);
-                    expect(
-                        manager.isDirectorySessionApproved(path.join(actualDir, 'file.ts'))
-                    ).toBe(true);
-                } finally {
-                    rmSync(baseDir, { recursive: true, force: true });
-                }
-            });
-
-            it('should treat approved directory as approved for its realpath even if the directory did not exist yet', async () => {
-                const baseDir = mkdtempSync(
-                    path.join(os.tmpdir(), 'dexto-approval-symlink-missing-leaf-')
-                );
-
-                try {
-                    const actualDir = path.join(baseDir, 'actual');
-                    mkdirSync(actualDir);
-
-                    const linkDir = path.join(baseDir, 'link');
-                    const symlinkType = process.platform === 'win32' ? 'junction' : 'dir';
-                    symlinkSync(actualDir, linkDir, symlinkType);
-
-                    const approvedDir = path.join(linkDir, 'child');
-
-                    // Approve a directory that doesn't exist yet (common for write/create flows).
-                    await manager.addApprovedDirectory(approvedDir, 'session');
-
-                    const actualChildDir = path.join(actualDir, 'child');
-                    mkdirSync(actualChildDir);
-
-                    const filePath = path.join(actualChildDir, 'file.ts');
-                    expect(manager.isDirectoryApproved(filePath)).toBe(true);
-                    expect(manager.isDirectorySessionApproved(filePath)).toBe(true);
-                } finally {
-                    rmSync(baseDir, { recursive: true, force: true });
-                }
-            });
-
-            it('should add directory with explicit session type', async () => {
-                await manager.addApprovedDirectory('/external/project', 'session');
-                expect(manager.isDirectorySessionApproved('/external/project/file.ts')).toBe(true);
-            });
-
-            it('should add directory with once type', async () => {
-                await manager.addApprovedDirectory('/external/project', 'once');
-                // 'once' type should NOT be session-approved (requires prompt each time)
-                expect(manager.isDirectorySessionApproved('/external/project/file.ts')).toBe(false);
-                // But should be generally approved for execution
-                expect(manager.isDirectoryApproved('/external/project/file.ts')).toBe(true);
-            });
-
-            it('should not downgrade from session to once', async () => {
-                await manager.addApprovedDirectory('/external/project', 'session');
-                await manager.addApprovedDirectory('/external/project', 'once');
-                // Should still be session-approved
-                expect(manager.isDirectorySessionApproved('/external/project/file.ts')).toBe(true);
-            });
-
-            it('should upgrade from once to session', async () => {
-                await manager.addApprovedDirectory('/external/project', 'once');
-                expect(manager.isDirectorySessionApproved('/external/project/file.ts')).toBe(false);
-
-                await manager.addApprovedDirectory('/external/project', 'session');
-                expect(manager.isDirectorySessionApproved('/external/project/file.ts')).toBe(true);
-            });
-
-            it('should normalize paths before adding', async () => {
-                await manager.addApprovedDirectory('/external/../external/project');
-                expect(manager.isDirectoryApproved('/external/project/file.ts')).toBe(true);
-            });
-        });
-
-        describe('isDirectorySessionApproved', () => {
-            it('should return true for files within session-approved directory', async () => {
-                await manager.addApprovedDirectory('/external/project', 'session');
-                expect(manager.isDirectorySessionApproved('/external/project/file.ts')).toBe(true);
-                expect(
-                    manager.isDirectorySessionApproved('/external/project/src/deep/file.ts')
-                ).toBe(true);
-            });
-
-            it('should return false for files within once-approved directory', async () => {
-                await manager.addApprovedDirectory('/external/project', 'once');
-                expect(manager.isDirectorySessionApproved('/external/project/file.ts')).toBe(false);
-            });
-
-            it('should return false for files outside approved directories', async () => {
-                await manager.addApprovedDirectory('/external/project', 'session');
-                expect(manager.isDirectorySessionApproved('/other/file.ts')).toBe(false);
-            });
-
-            it('should handle path containment correctly', async () => {
-                await manager.addApprovedDirectory('/external', 'session');
-                // Approving /external should cover /external/sub/file.ts
-                expect(manager.isDirectorySessionApproved('/external/sub/file.ts')).toBe(true);
-                // But not /external-other/file.ts (different directory)
-                expect(manager.isDirectorySessionApproved('/external-other/file.ts')).toBe(false);
-            });
-
-            it('should return true when working directory is initialized', async () => {
-                await manager.initializeWorkingDirectory('/home/user/project');
-                expect(manager.isDirectorySessionApproved('/home/user/project/any/file.ts')).toBe(
-                    true
-                );
-            });
-        });
-
-        describe('isDirectoryApproved', () => {
-            it('should return true for files within session-approved directory', async () => {
-                await manager.addApprovedDirectory('/external/project', 'session');
-                expect(manager.isDirectoryApproved('/external/project/file.ts')).toBe(true);
-            });
-
-            it('should return true for files within once-approved directory', async () => {
-                await manager.addApprovedDirectory('/external/project', 'once');
-                expect(manager.isDirectoryApproved('/external/project/file.ts')).toBe(true);
-            });
-
-            it('should return false for files outside approved directories', async () => {
-                await manager.addApprovedDirectory('/external/project', 'session');
-                expect(manager.isDirectoryApproved('/other/file.ts')).toBe(false);
-            });
-
-            it('should handle multiple approved directories', async () => {
-                await manager.addApprovedDirectory('/external/project1', 'session');
-                await manager.addApprovedDirectory('/external/project2', 'once');
-
-                expect(manager.isDirectoryApproved('/external/project1/file.ts')).toBe(true);
-                expect(manager.isDirectoryApproved('/external/project2/file.ts')).toBe(true);
-                expect(manager.isDirectoryApproved('/external/project3/file.ts')).toBe(false);
-            });
-
-            it('should handle nested directory approvals', async () => {
-                await manager.addApprovedDirectory('/external', 'session');
-                // Approving /external should cover all subdirectories
-                expect(manager.isDirectoryApproved('/external/sub/deep/file.ts')).toBe(true);
-            });
-        });
-
-        describe('getApprovedDirectories', () => {
-            it('should return empty map initially', () => {
-                expect(manager.getApprovedDirectories().size).toBe(0);
-            });
-
-            it('should return map with type information', async () => {
-                await manager.addApprovedDirectory('/external/project1', 'session');
-                await manager.addApprovedDirectory('/external/project2', 'once');
-
-                const dirs = manager.getApprovedDirectories();
-                expect(dirs.size).toBeGreaterThanOrEqual(2);
-                // Check that paths are normalized (absolute)
-                const keys = Array.from(dirs.keys());
-                expect(keys.some((k) => k.includes('project1'))).toBe(true);
-                expect(keys.some((k) => k.includes('project2'))).toBe(true);
-            });
-
-            it('should include working directory after initialization', async () => {
-                await manager.initializeWorkingDirectory('/home/user/project');
-                const dirs = manager.getApprovedDirectories();
-                expect(dirs.size).toBeGreaterThanOrEqual(1);
-                expect(dirs.get(path.resolve('/home/user/project'))).toBe('session');
-                expect(new Set(dirs.values())).toEqual(new Set(['session']));
-            });
-        });
-
-        describe('Session vs Once Prompting Behavior', () => {
-            // These tests verify the expected prompting flow
-
-            it('working directory should not require prompt (session-approved)', async () => {
-                await manager.initializeWorkingDirectory('/home/user/project');
-                // isDirectorySessionApproved returns true → no directory prompt needed
-                expect(manager.isDirectorySessionApproved('/home/user/project/src/file.ts')).toBe(
-                    true
-                );
-            });
-
-            it('external dir after session approval should not require prompt', async () => {
-                await manager.addApprovedDirectory('/external', 'session');
-                // isDirectorySessionApproved returns true → no directory prompt needed
-                expect(manager.isDirectorySessionApproved('/external/file.ts')).toBe(true);
-            });
-
-            it('external dir after once approval should require prompt each time', async () => {
-                await manager.addApprovedDirectory('/external', 'once');
-                // isDirectorySessionApproved returns false → directory prompt needed
-                expect(manager.isDirectorySessionApproved('/external/file.ts')).toBe(false);
-                // But isDirectoryApproved returns true → execution allowed
-                expect(manager.isDirectoryApproved('/external/file.ts')).toBe(true);
-            });
-
-            it('unapproved external dir should require prompt', () => {
-                // No directories approved
-                expect(manager.isDirectorySessionApproved('/external/file.ts')).toBe(false);
-                expect(manager.isDirectoryApproved('/external/file.ts')).toBe(false);
-            });
-        });
+describe('approval schemas', () => {
+    it('rejects empty tool approval keys', () => {
+        expect(
+            ToolApprovalMetadataSchema.safeParse({
+                toolName: 'write_file',
+                approvalKey: '',
+                toolCallId: 'call-1',
+                args: {},
+            }).success
+        ).toBe(false);
     });
 });

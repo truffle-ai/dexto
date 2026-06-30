@@ -1,5 +1,12 @@
 import { describe, test, expect, vi, beforeEach, afterEach } from 'vitest';
 import { APICallError } from 'ai';
+import { trace } from '@opentelemetry/api';
+import { AsyncHooksContextManager } from '@opentelemetry/context-async-hooks';
+import {
+    BasicTracerProvider,
+    InMemorySpanExporter,
+    SimpleSpanProcessor,
+} from '@opentelemetry/sdk-trace-base';
 import { StreamProcessor } from './stream-processor.js';
 import type { StreamProcessorConfig } from './stream-processor.js';
 import type { ContextManager } from '../../context/manager.js';
@@ -220,6 +227,78 @@ describe('StreamProcessor', () => {
     });
 
     describe('Chunk Emission', () => {
+        test('sets stream boundary timing attributes on the active span', async () => {
+            const contextManager = new AsyncHooksContextManager().enable();
+            const exporter = new InMemorySpanExporter();
+            const provider = new BasicTracerProvider();
+            provider.addSpanProcessor(new SimpleSpanProcessor(exporter));
+            provider.register({ contextManager });
+
+            try {
+                const mocks = createMocks();
+                const processor = new StreamProcessor(
+                    mocks.contextManager,
+                    mocks.eventBus,
+                    mocks.abortController.signal,
+                    mocks.config,
+                    mocks.logger,
+                    true
+                );
+
+                const events = [
+                    { type: 'text-delta', text: 'Hello' },
+                    { type: 'reasoning-delta', text: ' thinking' },
+                    { type: 'text-delta', text: ' world' },
+                    { type: 'reasoning-delta', text: ' done' },
+                    {
+                        type: 'finish',
+                        finishReason: 'stop',
+                        totalUsage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+                    },
+                ];
+
+                await trace.getTracer('test').startActiveSpan('llm.stream', async (span) => {
+                    try {
+                        await processor.process(() => createMockStream(events) as never);
+                    } finally {
+                        span.end();
+                    }
+                });
+
+                const span = exporter
+                    .getFinishedSpans()
+                    .find((entry) => entry.name === 'llm.stream');
+
+                expect(span?.attributes).toEqual(
+                    expect.objectContaining({
+                        'llm.stream.finish_event_received_ms': expect.any(Number),
+                        'llm.stream.finish_after_last_delta_ms': expect.any(Number),
+                        'llm.stream.finish_after_last_reasoning_delta_ms': expect.any(Number),
+                        'llm.stream.finish_after_last_text_delta_ms': expect.any(Number),
+                        'llm.stream.first_reasoning_delta_received_ms': expect.any(Number),
+                        'llm.stream.first_text_delta_received_ms': expect.any(Number),
+                        'llm.stream.full_stream_iterator_completed_ms': expect.any(Number),
+                        'llm.stream.last_delta_kind': 'reasoning',
+                        'llm.stream.last_delta_received_ms': expect.any(Number),
+                        'llm.stream.last_reasoning_delta_emitted_ms': expect.any(Number),
+                        'llm.stream.last_reasoning_delta_received_ms': expect.any(Number),
+                        'llm.stream.last_text_delta_emitted_ms': expect.any(Number),
+                        'llm.stream.last_text_delta_received_ms': expect.any(Number),
+                        'llm.stream.llm_response_emit_started_ms': expect.any(Number),
+                        'llm.stream.llm_response_emitted_ms': expect.any(Number),
+                        'llm.stream.metadata_persist_finished_ms': expect.any(Number),
+                        'llm.stream.metadata_persist_started_ms': expect.any(Number),
+                        'llm.stream.reasoning_delta_count': 2,
+                        'llm.stream.text_delta_count': 2,
+                    })
+                );
+            } finally {
+                await provider.shutdown();
+                contextManager.disable();
+                trace.disable();
+            }
+        });
+
         test('streaming=true: emits llm:chunk for each text-delta', async () => {
             const mocks = createMocks();
             const processor = new StreamProcessor(

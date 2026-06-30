@@ -256,8 +256,6 @@ export interface CloudChatApprovalDecision {
     status: 'approved' | 'denied' | 'cancelled';
     formData?: Record<string, unknown>;
     rememberChoice?: boolean;
-    rememberPattern?: string;
-    rememberDirectory?: boolean;
     reason?: string;
     message?: string;
 }
@@ -684,12 +682,6 @@ export function createDeployClient() {
                         ...(decision.formData !== undefined ? { formData: decision.formData } : {}),
                         ...(decision.rememberChoice !== undefined
                             ? { rememberChoice: decision.rememberChoice }
-                            : {}),
-                        ...(decision.rememberPattern !== undefined
-                            ? { rememberPattern: decision.rememberPattern }
-                            : {}),
-                        ...(decision.rememberDirectory !== undefined
-                            ? { rememberDirectory: decision.rememberDirectory }
                             : {}),
                         ...(decision.reason !== undefined ? { reason: decision.reason } : {}),
                         ...(decision.message !== undefined ? { message: decision.message } : {}),

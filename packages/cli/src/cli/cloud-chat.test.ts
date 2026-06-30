@@ -13,8 +13,6 @@ describe('buildCloudApprovalDecision', () => {
             sessionId: 'session-1',
             data: {
                 rememberChoice: true,
-                rememberPattern: '*.ts',
-                rememberDirectory: true,
                 formData: { answer: 'yes' },
             },
         });
@@ -23,8 +21,6 @@ describe('buildCloudApprovalDecision', () => {
             status: ApprovalStatus.APPROVED,
             formData: { answer: 'yes' },
             rememberChoice: true,
-            rememberPattern: '*.ts',
-            rememberDirectory: true,
         });
     });
 

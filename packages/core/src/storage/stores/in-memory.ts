@@ -4,7 +4,7 @@ import { cloneInternalMessage, cloneInternalMessages } from '../../context/conte
 import type { InternalMessage } from '../../context/types.js';
 import type { Memory } from '../../memory/types.js';
 import type { StoredCustomPrompt } from '../../prompts/providers/custom-prompt-provider.js';
-import { cloneQueuedMessages } from '../../session/queue-clone.js';
+import { cloneQueuedMessage, cloneQueuedMessages } from '../../session/queue-clone.js';
 import type { SessionData } from '../../session/session-manager.js';
 import type { QueuedMessage } from '../../session/types.js';
 import type { WorkspaceContext } from '../../workspace/types.js';
@@ -45,8 +45,7 @@ import type { DextoStoreMap, DextoStoreName, DextoStores } from './types.js';
 const GLOBAL_SCOPE = 'global';
 
 const DEFAULT_APPROVAL_STATE: SessionApprovalState = {
-    toolPatterns: {},
-    approvedDirectories: [],
+    approvedKeys: {},
 };
 
 const DEFAULT_TOOL_PREFERENCES: SessionToolPreferences = {
@@ -308,24 +307,43 @@ class InMemoryToolPreferenceStore implements ToolPreferenceStore {
 class InMemorySessionMessageQueueStore implements SessionMessageQueueStore {
     private readonly queues = new Map<string, QueuedMessage[]>();
 
-    async listSessionIds(): Promise<string[]> {
-        return Array.from(this.queues.keys());
-    }
-
-    async load(input: { sessionId: string }): Promise<QueuedMessage[]> {
+    async list(input: { sessionId: string }): Promise<QueuedMessage[]> {
         return cloneQueuedMessages(this.queues.get(input.sessionId) ?? []);
     }
 
-    async save(input: { sessionId: string; queue: QueuedMessage[] }): Promise<void> {
-        if (input.queue.length === 0) {
-            this.queues.delete(input.sessionId);
-            return;
-        }
-
-        this.queues.set(input.sessionId, cloneQueuedMessages(input.queue));
+    async append(input: {
+        sessionId: string;
+        message: QueuedMessage;
+    }): Promise<{ position: number }> {
+        const queue = [
+            ...(this.queues.get(input.sessionId) ?? []),
+            cloneQueuedMessage(input.message),
+        ];
+        this.queues.set(input.sessionId, queue);
+        return { position: queue.length };
     }
 
-    async delete(input: { sessionId: string }): Promise<void> {
+    async takeAll(input: { sessionId: string }): Promise<QueuedMessage[]> {
+        const queue = cloneQueuedMessages(this.queues.get(input.sessionId) ?? []);
+        this.queues.delete(input.sessionId);
+        return queue;
+    }
+
+    async remove(input: { sessionId: string; id: string }): Promise<boolean> {
+        const queue = this.queues.get(input.sessionId) ?? [];
+        const updatedQueue = queue.filter((message) => message.id !== input.id);
+        if (updatedQueue.length === queue.length) {
+            return false;
+        }
+        if (updatedQueue.length === 0) {
+            this.queues.delete(input.sessionId);
+        } else {
+            this.queues.set(input.sessionId, updatedQueue);
+        }
+        return true;
+    }
+
+    async clear(input: { sessionId: string }): Promise<void> {
         this.queues.delete(input.sessionId);
     }
 }
