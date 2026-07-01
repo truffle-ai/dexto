@@ -1,5 +1,14 @@
 # @dexto/core
 
+## 1.9.1
+
+### Patch Changes
+
+- 95cac59: Add typed assistant output lifecycle metadata for complete, draft, and stopped responses.
+- 023f297: Regenerate the LLM model registry and preserve URL payloads while cloning structured messages.
+- Updated dependencies [023f297]
+    - @dexto/llm@1.9.1
+
 ## 1.9.0
 
 ### Minor Changes
