@@ -82,6 +82,39 @@ describe('StreamProcessor', () => {
     });
 
     describe('Text Accumulation', () => {
+        test('marks streamed assistant output draft first and complete on finish', async () => {
+            const mocks = createMocks();
+            const processor = new StreamProcessor(
+                mocks.contextManager,
+                mocks.eventBus,
+                mocks.abortController.signal,
+                mocks.config,
+                mocks.logger,
+                true
+            );
+
+            const events = [
+                { type: 'text-delta', text: 'Hello' },
+                {
+                    type: 'finish',
+                    finishReason: 'stop',
+                    totalUsage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+                },
+            ];
+
+            await processor.process(() => createMockStream(events) as never);
+
+            expect(mocks.contextManager.addAssistantMessage).toHaveBeenCalledWith('', [], {
+                assistantOutput: { status: 'draft' },
+            });
+            expect(mocks.contextManager.updateAssistantMessage).toHaveBeenCalledWith(
+                'msg-1',
+                expect.objectContaining({
+                    assistantOutput: { status: 'complete' },
+                })
+            );
+        });
+
         test('accumulates text from multiple text-delta events', async () => {
             const mocks = createMocks();
             const processor = new StreamProcessor(
@@ -186,7 +219,9 @@ describe('StreamProcessor', () => {
 
             await processor.process(() => createMockStream(events) as never);
 
-            expect(mocks.contextManager.addAssistantMessage).toHaveBeenCalledWith('', [], {});
+            expect(mocks.contextManager.addAssistantMessage).toHaveBeenCalledWith('', [], {
+                assistantOutput: { status: 'draft' },
+            });
         });
 
         test('appends text to assistant message for each delta', async () => {
@@ -664,6 +699,12 @@ describe('StreamProcessor', () => {
                     },
                 }
             );
+            expect(mocks.contextManager.updateAssistantMessage).toHaveBeenCalledWith(
+                'msg-1',
+                expect.objectContaining({
+                    assistantOutput: { status: 'complete' },
+                })
+            );
         });
     });
 
@@ -691,6 +732,86 @@ describe('StreamProcessor', () => {
             const result = await processor.process(() => createMockStream(events) as never);
 
             expect(result.finishReason).toBe('length');
+        });
+
+        test('marks assistant output stopped on stream abort', async () => {
+            const mocks = createMocks();
+            const processor = new StreamProcessor(
+                mocks.contextManager,
+                mocks.eventBus,
+                mocks.abortController.signal,
+                mocks.config,
+                mocks.logger,
+                true
+            );
+
+            const events = [{ type: 'text-delta', text: 'Partial response' }, { type: 'abort' }];
+
+            await processor.process(() => createMockStream(events) as never);
+
+            expect(mocks.contextManager.updateAssistantMessage).toHaveBeenCalledWith(
+                'msg-1',
+                expect.objectContaining({
+                    assistantOutput: { status: 'stopped', reason: 'cancelled' },
+                })
+            );
+        });
+
+        test('marks assistant output stopped when stream fails after partial text', async () => {
+            const mocks = createMocks();
+            const processor = new StreamProcessor(
+                mocks.contextManager,
+                mocks.eventBus,
+                mocks.abortController.signal,
+                mocks.config,
+                mocks.logger,
+                true
+            );
+
+            const events = [
+                { type: 'text-delta', text: 'Partial response' },
+                { type: 'error', error: new Error('provider failed') },
+            ];
+
+            await expect(
+                processor.process(() => createMockStream(events) as never)
+            ).rejects.toThrow('provider failed');
+            expect(mocks.contextManager.updateAssistantMessage).toHaveBeenCalledWith(
+                'msg-1',
+                expect.objectContaining({
+                    assistantOutput: { status: 'stopped', reason: 'failed' },
+                })
+            );
+        });
+
+        test('marks assistant output stopped when finish reason is error', async () => {
+            const mocks = createMocks();
+            const processor = new StreamProcessor(
+                mocks.contextManager,
+                mocks.eventBus,
+                mocks.abortController.signal,
+                mocks.config,
+                mocks.logger,
+                true
+            );
+
+            const events = [
+                { type: 'text-delta', text: 'Partial response' },
+                {
+                    type: 'finish',
+                    finishReason: 'error',
+                    totalUsage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+                },
+            ];
+
+            await processor.process(() => createMockStream(events) as never);
+
+            expect(mocks.contextManager.updateAssistantMessage).toHaveBeenCalledWith(
+                'msg-1',
+                expect.objectContaining({
+                    assistantOutput: { status: 'stopped', reason: 'failed' },
+                })
+            );
         });
 
         test('captures token usage including reasoning tokens', async () => {

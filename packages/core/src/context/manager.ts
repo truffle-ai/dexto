@@ -24,6 +24,14 @@ import type { ToolCallMetadata } from '../tools/tool-call-metadata.js';
 import { getResourceKind } from './media-helpers.js';
 import { describeContentPartsForAudit } from './content-audit.js';
 
+function isVisibleInPreparedHistory(message: InternalMessage): boolean {
+    if (message.role !== 'assistant') {
+        return true;
+    }
+
+    return message.assistantOutput.status === 'complete';
+}
+
 /**
  * Manages conversation history and provides message formatting capabilities for the LLM context.
  * The ContextManager is responsible for:
@@ -452,7 +460,8 @@ export class ContextManager<TMessage = unknown> {
      *
      * Transformations applied:
      * 1. filterCompacted - Remove pre-summary messages (messages before the most recent summary)
-     * 2. Transform pruned tool messages - Replace compactedAt messages with placeholder text
+     * 2. Remove non-complete assistant outputs and their dependent tool messages
+     * 3. Transform pruned tool messages - Replace compactedAt messages with placeholder text
      *
      * Used by both:
      * - getFormattedMessagesForLLM() - For actual LLM calls
@@ -465,7 +474,7 @@ export class ContextManager<TMessage = unknown> {
         stats: {
             /** Total messages in raw history */
             originalCount: number;
-            /** Messages after filterCompacted (removed pre-summary) */
+            /** Messages after model-history filters */
             filteredCount: number;
             /** Messages with compactedAt that were transformed to placeholders */
             prunedToolCount: number;
@@ -476,13 +485,26 @@ export class ContextManager<TMessage = unknown> {
         });
         const originalCount = fullHistory.length;
 
-        // Step 1: Filter compacted (remove pre-summary messages)
-        let history = filterCompacted(fullHistory);
+        // Step 1: Filter compacted and non-complete assistant outputs
+        const visibleToolCallIds = new Set<string>();
+        let history = filterCompacted(fullHistory).filter((message) => {
+            const isVisible = isVisibleInPreparedHistory(message);
+            if (isVisible && message.role === 'assistant') {
+                for (const toolCall of message.toolCalls ?? []) {
+                    visibleToolCallIds.add(toolCall.id);
+                }
+            }
+            return isVisible;
+        });
+
+        history = history.filter((message) => {
+            return message.role !== 'tool' || visibleToolCallIds.has(message.toolCallId);
+        });
         const filteredCount = history.length;
 
         if (filteredCount < originalCount) {
             this.logger.debug(
-                `prepareHistory: filterCompacted reduced from ${originalCount} to ${filteredCount} messages`
+                `prepareHistory: reduced from ${originalCount} to ${filteredCount} model-visible messages`
             );
         }
 
@@ -560,6 +582,7 @@ export class ContextManager<TMessage = unknown> {
         const clearMarker: InternalMessage = {
             id: `clear-${Date.now()}`,
             role: 'assistant',
+            assistantOutput: { status: 'complete' },
             content: [{ type: 'text', text: '[Context cleared]' }],
             timestamp: Date.now(),
             metadata: {
@@ -865,6 +888,7 @@ export class ContextManager<TMessage = unknown> {
             estimatedCost?: AssistantMessage['estimatedCost'];
             pricingStatus?: AssistantMessage['pricingStatus'];
             usageScopeId?: AssistantMessage['usageScopeId'];
+            assistantOutput?: AssistantMessage['assistantOutput'];
         }
     ): Promise<void> {
         // Validate that either content or toolCalls is provided
@@ -887,6 +911,7 @@ export class ContextManager<TMessage = unknown> {
             }),
             ...(metadata?.pricingStatus && { pricingStatus: metadata.pricingStatus }),
             ...(metadata?.usageScopeId && { usageScopeId: metadata.usageScopeId }),
+            assistantOutput: metadata?.assistantOutput ?? { status: 'complete' },
         });
     }
 

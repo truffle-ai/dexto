@@ -53,6 +53,7 @@ describe('content audit summaries', () => {
             { role: 'user', id: 'user-1', timestamp: 1, content: [{ type: 'text', text: 'one' }] },
             {
                 role: 'assistant',
+                assistantOutput: { status: 'complete' },
                 id: 'assistant-1',
                 timestamp: 2,
                 content: null,

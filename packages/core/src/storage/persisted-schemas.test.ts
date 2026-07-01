@@ -61,6 +61,7 @@ describe('persisted storage schemas', () => {
             id: 'message-1',
             timestamp: 1,
             content: null,
+            assistantOutput: { status: 'complete' },
             toolCalls: [
                 {
                     id: 'tool-call-1',
@@ -78,6 +79,56 @@ describe('persisted storage schemas', () => {
             role: 'assistant',
             toolCalls: [{ function: { name: 'todo_write' } }],
         });
+    });
+
+    it('validates assistant output lifecycle on persisted assistant messages', () => {
+        expect(
+            InternalMessageSchema.parse({
+                role: 'assistant',
+                id: 'message-1',
+                content: [{ type: 'text', text: 'partial' }],
+                assistantOutput: { status: 'draft' },
+            })
+        ).toMatchObject({
+            assistantOutput: { status: 'draft' },
+        });
+
+        expect(
+            InternalMessageSchema.parse({
+                role: 'assistant',
+                id: 'message-2',
+                content: [{ type: 'text', text: 'cancelled partial' }],
+                assistantOutput: { status: 'stopped', reason: 'cancelled' },
+            })
+        ).toMatchObject({
+            assistantOutput: { status: 'stopped', reason: 'cancelled' },
+        });
+
+        expect(() =>
+            InternalMessageSchema.parse({
+                role: 'assistant',
+                id: 'message-3',
+                content: [{ type: 'text', text: 'bad partial' }],
+                assistantOutput: { status: 'stopped', reason: 'unknown' },
+            })
+        ).toThrow();
+
+        expect(() =>
+            InternalMessageSchema.parse({
+                role: 'assistant',
+                id: 'message-4',
+                content: [{ type: 'text', text: 'bad complete' }],
+                assistantOutput: { status: 'complete', reason: 'cancelled' },
+            })
+        ).toThrow();
+
+        expect(() =>
+            InternalMessageSchema.parse({
+                role: 'assistant',
+                id: 'message-5',
+                content: [{ type: 'text', text: 'missing lifecycle' }],
+            })
+        ).toThrow();
     });
 
     it('keeps existing approval request schemas available for store adapters', () => {

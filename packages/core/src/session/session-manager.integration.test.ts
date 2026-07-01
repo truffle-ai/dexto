@@ -41,6 +41,16 @@ import {
 import type { InternalMessage } from '../context/types.js';
 
 function textMessage(id: string, role: 'user' | 'assistant', text: string): InternalMessage {
+    if (role === 'assistant') {
+        return {
+            id,
+            role,
+            assistantOutput: { status: 'complete' },
+            content: [{ type: 'text', text }],
+            timestamp: Date.now(),
+        };
+    }
+
     return {
         id,
         role,
@@ -126,6 +136,7 @@ describe('Session Integration: Chat History Preservation', () => {
             {
                 id: 'msg-2',
                 role: 'assistant',
+                assistantOutput: { status: 'complete' },
                 content: [{ type: 'text', text: '2+2 equals 4.' }],
                 timestamp: 2,
             },
@@ -138,6 +149,7 @@ describe('Session Integration: Chat History Preservation', () => {
             {
                 id: 'msg-4',
                 role: 'assistant',
+                assistantOutput: { status: 'complete' },
                 content: [
                     {
                         type: 'text',

@@ -380,6 +380,7 @@ export class ChatSession {
         const assistantMessage: InternalMessage = {
             id: assistantMessageId,
             role: 'assistant',
+            assistantOutput: { status: 'complete' },
             timestamp: timestamp + 1,
             content: [{ type: 'text', text: errorContent }],
         };

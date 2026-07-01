@@ -250,10 +250,20 @@ export interface UserMessage extends MessageBase {
  * Assistant message containing LLM response.
  * May include text content, reasoning, and/or tool calls.
  */
+export type AssistantOutputStopReason = 'cancelled' | 'user_stopped' | 'replaced' | 'failed';
+
+export type AssistantOutputLifecycle =
+    | { status: 'draft' }
+    | { status: 'complete' }
+    | { status: 'stopped'; reason: AssistantOutputStopReason };
+
 export interface AssistantMessage extends MessageBase {
     role: 'assistant';
     /** Response content - null if message only contains tool calls */
     content: ContentPart[] | null;
+
+    /** Lifecycle state for persisted assistant output. */
+    assistantOutput: AssistantOutputLifecycle;
 
     /**
      * Model reasoning text associated with this response.

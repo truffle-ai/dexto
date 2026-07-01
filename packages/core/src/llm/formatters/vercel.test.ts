@@ -262,6 +262,7 @@ describe('VercelMessageFormatter', () => {
             const messages: InternalMessage[] = [
                 {
                     role: 'assistant',
+                    assistantOutput: { status: 'complete' },
                     content: [{ type: 'text', text: 'Calling tool' }],
                     toolCalls: [
                         {
@@ -296,6 +297,7 @@ describe('VercelMessageFormatter', () => {
             const messages: InternalMessage[] = [
                 {
                     role: 'assistant',
+                    assistantOutput: { status: 'complete' },
                     content: [{ type: 'text', text: 'Reading image' }],
                     toolCalls: [
                         {
@@ -349,6 +351,7 @@ describe('VercelMessageFormatter', () => {
             const messages: InternalMessage[] = [
                 {
                     role: 'assistant',
+                    assistantOutput: { status: 'complete' },
                     content: [{ type: 'text', text: 'Reading image' }],
                     toolCalls: [
                         {
@@ -393,6 +396,7 @@ describe('VercelMessageFormatter', () => {
             const messages: InternalMessage[] = [
                 {
                     role: 'assistant',
+                    assistantOutput: { status: 'complete' },
                     content: [{ type: 'text', text: 'Reading image' }],
                     toolCalls: [
                         {
@@ -440,6 +444,7 @@ describe('VercelMessageFormatter', () => {
             const messages: InternalMessage[] = [
                 {
                     role: 'assistant',
+                    assistantOutput: { status: 'complete' },
                     content: [{ type: 'text', text: 'Answer' }],
                     reasoning: 'Thinking...',
                     reasoningMetadata: { openai: { itemId: 'rs_123' } },
@@ -464,6 +469,7 @@ describe('VercelMessageFormatter', () => {
             const messages: InternalMessage[] = [
                 {
                     role: 'assistant',
+                    assistantOutput: { status: 'complete' },
                     content: [{ type: 'text', text: 'Answer' }],
                     reasoning: 'Thinking...',
                     reasoningMetadata: { anthropic: { cacheId: 'cache-123' } },
@@ -494,6 +500,7 @@ describe('VercelMessageFormatter', () => {
             const messages: InternalMessage[] = [
                 {
                     role: 'assistant',
+                    assistantOutput: { status: 'complete' },
                     content: [{ type: 'text', text: 'Simple answer' }],
                     // No reasoning field
                 },

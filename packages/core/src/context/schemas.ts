@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { ContentPart, InternalMessage } from './types.js';
+import type { AssistantOutputLifecycle, ContentPart, InternalMessage } from './types.js';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -35,6 +35,27 @@ function isContentParts(value: unknown): value is ContentPart[] {
     return Array.isArray(value) && value.every(isContentPart);
 }
 
+function isAssistantOutputLifecycle(value: unknown): value is AssistantOutputLifecycle {
+    if (!isRecord(value)) {
+        return false;
+    }
+
+    switch (value.status) {
+        case 'draft':
+        case 'complete':
+            return value.reason === undefined;
+        case 'stopped':
+            return (
+                value.reason === 'cancelled' ||
+                value.reason === 'user_stopped' ||
+                value.reason === 'replaced' ||
+                value.reason === 'failed'
+            );
+        default:
+            return false;
+    }
+}
+
 export const ContentPartSchema: z.ZodType<ContentPart> = z.custom<ContentPart>(isContentPart, {
     message: 'Expected a Dexto content part.',
 });
@@ -50,7 +71,10 @@ export const InternalMessageSchema: z.ZodType<InternalMessage> = z.custom<Intern
             case 'user':
                 return isContentParts(value.content);
             case 'assistant':
-                return value.content === null || isContentParts(value.content);
+                return (
+                    (value.content === null || isContentParts(value.content)) &&
+                    isAssistantOutputLifecycle(value.assistantOutput)
+                );
             case 'tool':
                 return (
                     isContentParts(value.content) &&

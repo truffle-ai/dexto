@@ -821,6 +821,7 @@ describe('filterMessagesByLLMCapabilities', () => {
             },
             {
                 role: 'assistant',
+                assistantOutput: { status: 'complete' },
                 content: [{ type: 'text', text: 'I can see the issue. The error is...' }],
             },
             {
@@ -1950,6 +1951,7 @@ describe('Token Estimation Functions', () => {
                 },
                 {
                     role: 'assistant',
+                    assistantOutput: { status: 'complete' },
                     content: [{ type: 'text', text: 'a'.repeat(200) }], // 50 tokens
                 },
             ];
@@ -2121,7 +2123,11 @@ describe('estimateContextTokens', () => {
         const systemPrompt = 'System instructions here.';
         const messages: InternalMessage[] = [
             { role: 'user', content: [{ type: 'text', text: 'User message' }] },
-            { role: 'assistant', content: [{ type: 'text', text: 'Assistant response' }] },
+            {
+                role: 'assistant',
+                assistantOutput: { status: 'complete' },
+                content: [{ type: 'text', text: 'Assistant response' }],
+            },
         ];
         const tools = {
             tool1: { name: 'tool1', description: 'First tool', parameters: {} },
