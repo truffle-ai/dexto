@@ -211,6 +211,7 @@ export class ReactiveOverflowCompactionStrategy implements CompactionStrategy {
         // originalMessageCount tells filterCompacted() how many messages were summarized
         const summaryMessage: InternalMessage = {
             role: 'assistant',
+            assistantOutput: { status: 'complete' },
             content: [{ type: 'text', text: summary }],
             timestamp: Date.now(),
             metadata: {
@@ -263,6 +264,7 @@ export class ReactiveOverflowCompactionStrategy implements CompactionStrategy {
 
         const summaryMessage: InternalMessage = {
             role: 'assistant',
+            assistantOutput: { status: 'complete' },
             content: [{ type: 'text', text: summary }],
             timestamp: Date.now(),
             metadata: {

@@ -792,9 +792,45 @@ describe('ContextManager', () => {
     });
 
     describe('prepareHistory', () => {
+        it('keeps partial assistant outputs in raw history but excludes them from prepared history', async () => {
+            await contextManager.addUserMessage([{ type: 'text', text: 'Question' }]);
+            await contextManager.addAssistantMessage('Draft response', [], {
+                assistantOutput: { status: 'draft' },
+            });
+            await contextManager.addAssistantMessage('Stopped response', [], {
+                assistantOutput: { status: 'stopped', reason: 'user_stopped' },
+            });
+            await contextManager.addAssistantMessage('Complete response', [], {
+                assistantOutput: { status: 'complete' },
+            });
+            await contextManager.addAssistantMessage('Default complete response');
+
+            const rawHistory = await contextManager.getHistory();
+            expect(rawHistory).toHaveLength(5);
+
+            const result = await contextManager.prepareHistory();
+
+            expect(
+                result.preparedHistory.map((message) =>
+                    message.role === 'assistant'
+                        ? (message.content?.[0] as { text: string }).text
+                        : message.role
+                )
+            ).toEqual(['user', 'Complete response', 'Default complete response']);
+            expect(result.stats.originalCount).toBe(5);
+            expect(result.stats.filteredCount).toBe(3);
+        });
+
         it('should transform pruned tool messages to placeholders', async () => {
             // Add a tool result with known content
             const originalContent = 'This is a long tool output that will be pruned';
+            await contextManager.addAssistantMessage(null, [
+                {
+                    id: 'call-1',
+                    type: 'function',
+                    function: { name: 'test', arguments: '{}' },
+                },
+            ]);
             const sanitizedResult: SanitizedToolResult = {
                 content: [{ type: 'text', text: originalContent }],
                 meta: { toolName: 'test', toolCallId: 'call-1', success: true },
@@ -823,6 +859,13 @@ describe('ContextManager', () => {
 
         it('should not transform non-pruned tool messages', async () => {
             const originalContent = 'This tool output should remain intact';
+            await contextManager.addAssistantMessage(null, [
+                {
+                    id: 'call-1',
+                    type: 'function',
+                    function: { name: 'test', arguments: '{}' },
+                },
+            ]);
             const sanitizedResult: SanitizedToolResult = {
                 content: [{ type: 'text', text: originalContent }],
                 meta: { toolName: 'test', toolCallId: 'call-1', success: true },
@@ -835,6 +878,52 @@ describe('ContextManager', () => {
             expect(result.stats.prunedToolCount).toBe(0);
             const toolMsg = result.preparedHistory.find((m) => m.role === 'tool');
             expect((toolMsg?.content as any)?.[0]?.text).toBe(originalContent);
+        });
+
+        it('excludes tool results whose assistant tool call is not model-visible', async () => {
+            await contextManager.addAssistantMessage(
+                null,
+                [
+                    {
+                        id: 'call-hidden',
+                        type: 'function',
+                        function: { name: 'test', arguments: '{}' },
+                    },
+                ],
+                {
+                    assistantOutput: { status: 'stopped', reason: 'cancelled' },
+                }
+            );
+            await contextManager.addToolResult('call-hidden', 'test', {
+                content: [{ type: 'text', text: 'Cancelled by user' }],
+                meta: { toolName: 'test', toolCallId: 'call-hidden', success: false },
+            });
+
+            await contextManager.addAssistantMessage(
+                null,
+                [
+                    {
+                        id: 'call-visible',
+                        type: 'function',
+                        function: { name: 'test', arguments: '{}' },
+                    },
+                ],
+                {
+                    assistantOutput: { status: 'complete' },
+                }
+            );
+            await contextManager.addToolResult('call-visible', 'test', {
+                content: [{ type: 'text', text: 'Visible result' }],
+                meta: { toolName: 'test', toolCallId: 'call-visible', success: true },
+            });
+
+            const result = await contextManager.prepareHistory();
+
+            expect(
+                result.preparedHistory
+                    .filter((message) => message.role === 'tool')
+                    .map((message) => message.toolCallId)
+            ).toEqual(['call-visible']);
         });
     });
 
@@ -878,6 +967,13 @@ describe('ContextManager', () => {
 
         it('should reduce estimate when tool messages are pruned', async () => {
             // Add a tool result with substantial content (~250 tokens)
+            await contextManager.addAssistantMessage(null, [
+                {
+                    id: 'call-1',
+                    type: 'function',
+                    function: { name: 'test', arguments: '{}' },
+                },
+            ]);
             const sanitizedResult: SanitizedToolResult = {
                 content: [{ type: 'text', text: 'A'.repeat(1000) }],
                 meta: { toolName: 'test', toolCallId: 'call-1', success: true },
@@ -916,10 +1012,15 @@ describe('ContextManager', () => {
             contextManager.setLastActualOutputTokens(200);
             await contextManager.recordLastCallMessageCount();
 
-            // Add assistant response (simulating what happens after LLM call)
-            await contextManager.addAssistantMessage('Hi there!', []);
+            // Add assistant tool call and result (simulating new messages after the LLM call)
+            await contextManager.addAssistantMessage(null, [
+                {
+                    id: 'call-1',
+                    type: 'function',
+                    function: { name: 'test', arguments: '{}' },
+                },
+            ]);
 
-            // Add a "new" message (tool result)
             const toolResult: SanitizedToolResult = {
                 content: [{ type: 'text', text: 'Tool output here' }],
                 meta: { toolName: 'test', toolCallId: 'call-1', success: true },

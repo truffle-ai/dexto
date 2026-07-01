@@ -3,7 +3,7 @@ import { trace } from '@opentelemetry/api';
 import { ContextManager } from '../../context/manager.js';
 import { SessionEventBus, LLMFinishReason } from '../../events/index.js';
 import { StreamProcessorResult } from './types.js';
-import type { SanitizedToolResult } from '../../context/types.js';
+import type { AssistantOutputLifecycle, SanitizedToolResult } from '../../context/types.js';
 import type { Logger } from '../../logger/v2/types.js';
 import { DextoLogComponent } from '../../logger/v2/types.js';
 import type { ModelToolCall } from './types.js';
@@ -33,6 +33,12 @@ type FullStreamPart =
     StreamTextResult<VercelToolSet, unknown>['fullStream'] extends AsyncIterable<infer Part>
         ? Part
         : never;
+
+function assistantOutputForFinishReason(finishReason: LLMFinishReason): AssistantOutputLifecycle {
+    return finishReason === 'cancelled'
+        ? { status: 'stopped', reason: 'cancelled' }
+        : { status: 'complete' };
+}
 
 // Defensive widenings: SDK v5 fields may drift between releases, so keep optional fallbacks.
 type ToolInputStartEvent = Extract<FullStreamPart, { type: 'tool-input-start' }> & {
@@ -195,7 +201,9 @@ export class StreamProcessor {
                         if (!this.assistantMessageId) {
                             // Create assistant message on first text delta if not exists
                             this.assistantMessageId = await this.contextManager
-                                .addAssistantMessage('', [], {})
+                                .addAssistantMessage('', [], {
+                                    assistantOutput: { status: 'draft' },
+                                })
                                 .then(() => {
                                     return this.getLastMessageId();
                                 });
@@ -444,7 +452,11 @@ export class StreamProcessor {
                         });
 
                         markTiming('metadata_persist_started');
-                        await this.persistAssistantResponseMetadata(usage, pricingMetadata);
+                        await this.persistAssistantResponseMetadata(
+                            usage,
+                            pricingMetadata,
+                            assistantOutputForFinishReason(this.finishReason)
+                        );
                         markTiming('metadata_persist_finished');
 
                         // Skip empty responses when tools are being called
@@ -487,7 +499,8 @@ export class StreamProcessor {
                         });
                         await this.persistAssistantResponseMetadata(
                             this.actualTokens,
-                            abortPricingMetadata
+                            abortPricingMetadata,
+                            { status: 'stopped', reason: 'cancelled' }
                         );
 
                         this.emitLLMResponse({
@@ -527,7 +540,8 @@ export class StreamProcessor {
                 });
                 await this.persistAssistantResponseMetadata(
                     this.actualTokens,
-                    abortPricingMetadata
+                    abortPricingMetadata,
+                    { status: 'stopped', reason: 'cancelled' }
                 );
 
                 this.emitLLMResponse({
@@ -551,6 +565,16 @@ export class StreamProcessor {
                 provider: this.config.provider,
                 model: this.config.model,
             });
+            const failurePricingMetadata = getUsagePricingMetadata({
+                provider: this.config.provider,
+                model: this.config.model,
+                tokenUsage: this.actualTokens,
+            });
+            await this.persistAssistantResponseMetadata(this.actualTokens, failurePricingMetadata, {
+                status: 'stopped',
+                reason: 'failed',
+            });
+
             if (!this.emitFatalErrors) {
                 this.logger.error('Stream processing failed', { error: mappedError });
                 throw error;
@@ -704,7 +728,8 @@ export class StreamProcessor {
 
     private async persistAssistantResponseMetadata(
         tokenUsage: TokenUsage,
-        pricingMetadata: ReturnType<typeof getUsagePricingMetadata>
+        pricingMetadata: ReturnType<typeof getUsagePricingMetadata>,
+        assistantOutput: AssistantOutputLifecycle
     ): Promise<void> {
         if (!this.assistantMessageId) {
             return;
@@ -725,6 +750,7 @@ export class StreamProcessor {
             ...(this.reasoningMetadata && {
                 reasoningMetadata: this.reasoningMetadata,
             }),
+            assistantOutput,
         });
     }
 
@@ -769,7 +795,9 @@ export class StreamProcessor {
     }
 
     private async createAssistantMessage(): Promise<string> {
-        await this.contextManager.addAssistantMessage('', [], {});
+        await this.contextManager.addAssistantMessage('', [], {
+            assistantOutput: { status: 'draft' },
+        });
         return this.getLastMessageId();
     }
 
