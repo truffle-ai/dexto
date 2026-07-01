@@ -784,6 +784,36 @@ describe('StreamProcessor', () => {
             );
         });
 
+        test('marks assistant output stopped when finish reason is error', async () => {
+            const mocks = createMocks();
+            const processor = new StreamProcessor(
+                mocks.contextManager,
+                mocks.eventBus,
+                mocks.abortController.signal,
+                mocks.config,
+                mocks.logger,
+                true
+            );
+
+            const events = [
+                { type: 'text-delta', text: 'Partial response' },
+                {
+                    type: 'finish',
+                    finishReason: 'error',
+                    totalUsage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+                },
+            ];
+
+            await processor.process(() => createMockStream(events) as never);
+
+            expect(mocks.contextManager.updateAssistantMessage).toHaveBeenCalledWith(
+                'msg-1',
+                expect.objectContaining({
+                    assistantOutput: { status: 'stopped', reason: 'failed' },
+                })
+            );
+        });
+
         test('captures token usage including reasoning tokens', async () => {
             const mocks = createMocks();
             const processor = new StreamProcessor(

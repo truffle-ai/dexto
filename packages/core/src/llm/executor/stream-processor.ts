@@ -35,9 +35,14 @@ type FullStreamPart =
         : never;
 
 function assistantOutputForFinishReason(finishReason: LLMFinishReason): AssistantOutputLifecycle {
-    return finishReason === 'cancelled'
-        ? { status: 'stopped', reason: 'cancelled' }
-        : { status: 'complete' };
+    switch (finishReason) {
+        case 'cancelled':
+            return { status: 'stopped', reason: 'cancelled' };
+        case 'error':
+            return { status: 'stopped', reason: 'failed' };
+        default:
+            return { status: 'complete' };
+    }
 }
 
 // Defensive widenings: SDK v5 fields may drift between releases, so keep optional fallbacks.
