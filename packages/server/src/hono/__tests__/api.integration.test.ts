@@ -796,7 +796,11 @@ describe('Hono API Integration Tests', () => {
 
             const parentHistory: InternalMessage[] = [
                 { role: 'user', content: [{ type: 'text', text: 'fork me 1' }] },
-                { role: 'assistant', content: [{ type: 'text', text: 'forked 1' }] },
+                {
+                    role: 'assistant',
+                    assistantOutput: { status: 'complete' },
+                    content: [{ type: 'text', text: 'forked 1' }],
+                },
                 { role: 'user', content: [{ type: 'text', text: 'fork me 2' }] },
             ];
 

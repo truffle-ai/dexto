@@ -46,6 +46,7 @@ function createUserMessage(text: string, timestamp?: number): InternalMessage {
 function createAssistantMessage(text: string, timestamp?: number): InternalMessage {
     return {
         role: 'assistant',
+        assistantOutput: { status: 'complete' },
         content: [{ type: 'text', text }],
         timestamp: timestamp ?? Date.now(),
     };
@@ -58,6 +59,7 @@ function createSummaryMessage(
 ): InternalMessage {
     return {
         role: 'assistant',
+        assistantOutput: { status: 'complete' },
         content: [{ type: 'text', text }],
         timestamp: timestamp ?? Date.now(),
         metadata: {
@@ -596,6 +598,7 @@ describe('ReactiveOverflowCompactionStrategy', () => {
                 createUserMessage('Read the file', 1000),
                 {
                     role: 'assistant',
+                    assistantOutput: { status: 'complete' },
                     content: [{ type: 'text', text: 'Let me read that file' }],
                     timestamp: 1001,
                     toolCalls: [

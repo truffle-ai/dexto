@@ -12,6 +12,7 @@ describe('summarizeAssistantUsage', () => {
             {
                 id: 'assistant-1',
                 role: 'assistant',
+                assistantOutput: { status: 'complete' },
                 content: [{ type: 'text', text: 'response 1' }],
                 tokenUsage: {
                     inputTokens: 10,
@@ -29,6 +30,7 @@ describe('summarizeAssistantUsage', () => {
             {
                 id: 'assistant-2',
                 role: 'assistant',
+                assistantOutput: { status: 'complete' },
                 content: [{ type: 'text', text: 'response 2' }],
                 tokenUsage: {
                     inputTokens: 7,
@@ -75,6 +77,7 @@ describe('summarizeAssistantUsage', () => {
             {
                 id: 'assistant-local',
                 role: 'assistant',
+                assistantOutput: { status: 'complete' },
                 content: [{ type: 'text', text: 'local response' }],
                 tokenUsage: {
                     inputTokens: 100,
@@ -89,6 +92,7 @@ describe('summarizeAssistantUsage', () => {
             {
                 id: 'assistant-cloud',
                 role: 'assistant',
+                assistantOutput: { status: 'complete' },
                 content: [{ type: 'text', text: 'cloud response' }],
                 tokenUsage: {
                     inputTokens: 11,
@@ -105,6 +109,7 @@ describe('summarizeAssistantUsage', () => {
             {
                 id: 'assistant-cloud-2',
                 role: 'assistant',
+                assistantOutput: { status: 'complete' },
                 content: [{ type: 'text', text: 'cloud response 2' }],
                 tokenUsage: {
                     inputTokens: 8,
@@ -152,6 +157,7 @@ describe('summarizeAssistantUsage', () => {
             {
                 id: 'assistant-priced',
                 role: 'assistant',
+                assistantOutput: { status: 'complete' },
                 content: [{ type: 'text', text: 'priced response' }],
                 tokenUsage: {
                     inputTokens: 10,
@@ -166,6 +172,7 @@ describe('summarizeAssistantUsage', () => {
             {
                 id: 'assistant-unpriced',
                 role: 'assistant',
+                assistantOutput: { status: 'complete' },
                 content: [{ type: 'text', text: 'unpriced response' }],
                 tokenUsage: {
                     inputTokens: 6,
@@ -179,6 +186,7 @@ describe('summarizeAssistantUsage', () => {
             {
                 id: 'assistant-missing-pricing',
                 role: 'assistant',
+                assistantOutput: { status: 'complete' },
                 content: [{ type: 'text', text: 'missing pricing metadata' }],
                 tokenUsage: {
                     inputTokens: 5,

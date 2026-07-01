@@ -21,6 +21,7 @@ describe('DatabaseConversationStore', () => {
         const assistantMessage: InternalMessage = {
             id: 'message-2',
             role: 'assistant',
+            assistantOutput: { status: 'complete' },
             content: [{ type: 'text', text: 'hi' }],
             timestamp: 2,
         };
@@ -44,6 +45,7 @@ describe('DatabaseConversationStore', () => {
             message: {
                 id: 'message-1',
                 role: 'assistant',
+                assistantOutput: { status: 'draft' },
                 content: [{ type: 'text', text: 'draft' }],
                 timestamp: 1,
             },
@@ -53,6 +55,7 @@ describe('DatabaseConversationStore', () => {
             message: {
                 id: 'message-1',
                 role: 'assistant',
+                assistantOutput: { status: 'complete' },
                 content: [{ type: 'text', text: 'final' }],
                 timestamp: 1,
             },
@@ -63,6 +66,7 @@ describe('DatabaseConversationStore', () => {
             {
                 id: 'message-1',
                 role: 'assistant',
+                assistantOutput: { status: 'complete' },
                 content: [{ type: 'text', text: 'final' }],
                 timestamp: 1,
             },

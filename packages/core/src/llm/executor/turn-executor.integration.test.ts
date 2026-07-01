@@ -224,6 +224,7 @@ function createTestCompactionStrategy(
         async (history: readonly InternalMessage[]): Promise<InternalMessage[]> => [
             {
                 role: 'assistant',
+                assistantOutput: { status: 'complete' },
                 content: [
                     {
                         type: 'text',
@@ -555,6 +556,7 @@ describe('TurnExecutor Integration Tests', () => {
                 releaseCompaction.resolve([
                     {
                         role: 'assistant',
+                        assistantOutput: { status: 'complete' },
                         content: [
                             {
                                 type: 'text',
@@ -580,6 +582,7 @@ describe('TurnExecutor Integration Tests', () => {
                 .mockResolvedValueOnce([
                     {
                         role: 'assistant',
+                        assistantOutput: { status: 'complete' },
                         content: [
                             {
                                 type: 'text',

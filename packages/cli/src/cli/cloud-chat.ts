@@ -136,6 +136,7 @@ function normalizeHistoryEntry(entry: CloudHistoryEntry, index: number): Interna
         const provider = normalizeProvider(entry.provider);
         return {
             role: 'assistant',
+            assistantOutput: { status: 'complete' },
             content: content.length > 0 ? content : null,
             ...(entry.reasoning !== undefined ? { reasoning: entry.reasoning } : {}),
             ...(entry.model !== undefined ? { model: entry.model } : {}),
