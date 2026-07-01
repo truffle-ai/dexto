@@ -77,7 +77,13 @@ export function getOpenRouterReasoningTarget(model: string): OpenRouterReasoning
     const split = splitGatewayModelId(modelLower);
     if (!split) return null;
 
-    const { providerPrefix, modelId } = split;
+    const providerPrefix = split.providerPrefix.replace(/^~/, '');
+    const modelId =
+        split.providerPrefix.startsWith('~') &&
+        providerPrefix === 'anthropic' &&
+        split.modelId === 'claude-fable-latest'
+            ? 'claude-fable-5'
+            : split.modelId;
     const rule = OPENROUTER_REASONING_TARGET_RULES[providerPrefix];
     if (!rule || !rule.acceptsModelId(modelId, modelLower)) {
         return null;

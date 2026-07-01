@@ -746,7 +746,11 @@ export function getOpenRouterCandidateModelIds(
     if (originalProvider === 'anthropic') {
         const noDate = model.replace(/-\d{8}.*$/i, '');
         const dotted = noDate.replace(/-(\d)-(\d)\b/g, '-$1.$2');
-        return [`${prefix}/${dotted}`, `${prefix}/${noDate}`, `${prefix}/${model}`];
+        const candidates = [`${prefix}/${dotted}`, `${prefix}/${noDate}`, `${prefix}/${model}`];
+        if (noDate.toLowerCase() === 'claude-fable-5') {
+            return [`~${prefix}/claude-fable-latest`, ...candidates];
+        }
+        return candidates;
     }
 
     // Google Gemini: some models use a "-001" suffix on OpenRouter, but others don't.

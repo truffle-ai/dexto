@@ -28,6 +28,10 @@ describe('openrouter reasoning profile routing', () => {
                 upstreamProvider: 'anthropic',
                 modelId: 'claude-opus-4.6',
             });
+            expect(getOpenRouterReasoningTarget('~anthropic/claude-fable-latest')).toEqual({
+                upstreamProvider: 'anthropic',
+                modelId: 'claude-fable-5',
+            });
         });
 
         it('maps only Gemini-3 Google models', () => {

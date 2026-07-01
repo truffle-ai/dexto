@@ -167,6 +167,14 @@ describe('getReasoningProfile', () => {
             defaultVariant: 'high',
             supportsBudgetTokens: true,
         });
+
+        expect(getReasoningProfile('openrouter', '~anthropic/claude-fable-latest')).toMatchObject({
+            capable: true,
+            paradigm: 'adaptive-effort',
+            supportedVariants: ['low', 'medium', 'high', 'xhigh'],
+            defaultVariant: 'high',
+            supportsBudgetTokens: true,
+        });
     });
 
     it('returns OpenRouter Gemini-3 thinking-level profile', () => {

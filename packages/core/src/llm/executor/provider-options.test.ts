@@ -366,6 +366,18 @@ describe('buildProviderOptions', () => {
                     reasoning: { enabled: true, effort: 'high' },
                 },
             });
+
+            expect(
+                buildProviderOptions({
+                    provider: 'dexto-nova',
+                    model: '~anthropic/claude-fable-latest',
+                })
+            ).toEqual({
+                'dexto-nova': {
+                    include_reasoning: true,
+                    reasoning: { enabled: true, effort: 'high' },
+                },
+            });
         });
 
         it('does not map Anthropic-only adaptive max on gateway providers', () => {

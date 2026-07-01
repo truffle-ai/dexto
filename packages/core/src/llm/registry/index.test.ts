@@ -1001,6 +1001,15 @@ describe('transformModelNameForProvider', () => {
             expect(result).toBe('anthropic/claude-haiku-4.5');
         });
 
+        it('transforms Anthropic Fable to the priced OpenRouter alias', () => {
+            const result = transformModelNameForProvider(
+                'claude-fable-5',
+                'anthropic',
+                'dexto-nova'
+            );
+            expect(result).toBe('~anthropic/claude-fable-latest');
+        });
+
         it('transforms OpenAI models to OpenRouter format', () => {
             const result = transformModelNameForProvider('gpt-5-mini', 'openai', 'dexto-nova');
             expect(result).toBe('openai/gpt-5-mini');
