@@ -10,6 +10,51 @@ function cloneBinaryData(
     return new Uint8Array(data);
 }
 
+export function cloneStructuredValuePreservingUrls<T>(value: T): T {
+    return cloneValueWithUrlSupport(value, new WeakMap<object, unknown>()) as T;
+}
+
+function cloneValueWithUrlSupport(value: unknown, seen: WeakMap<object, unknown>): unknown {
+    if (value instanceof URL) {
+        return new URL(value.href);
+    }
+    if (typeof Buffer !== 'undefined' && Buffer.isBuffer(value)) {
+        return Buffer.from(value);
+    }
+    if (value instanceof ArrayBuffer) {
+        return value.slice(0);
+    }
+    if (ArrayBuffer.isView(value)) {
+        return structuredClone(value);
+    }
+    if (value === null || typeof value !== 'object') {
+        return value;
+    }
+
+    if (seen.has(value)) {
+        return seen.get(value);
+    }
+
+    if (Array.isArray(value)) {
+        const cloned: unknown[] = [];
+        seen.set(value, cloned);
+        cloned.push(...value.map((item) => cloneValueWithUrlSupport(item, seen)));
+        return cloned;
+    }
+
+    const prototype = Object.getPrototypeOf(value);
+    if (prototype !== Object.prototype && prototype !== null) {
+        return structuredClone(value);
+    }
+
+    const cloned: Record<string, unknown> = {};
+    seen.set(value, cloned);
+    for (const [key, entry] of Object.entries(value)) {
+        cloned[key] = cloneValueWithUrlSupport(entry, seen);
+    }
+    return cloned;
+}
+
 function cloneImagePart(part: ImagePart): ImagePart {
     const cloned: ImagePart = {
         type: 'image',
@@ -88,7 +133,7 @@ export function cloneInternalMessage(message: InternalMessage): InternalMessage 
     switch (message.role) {
         case 'assistant': {
             const { content, ...messageWithoutContent } = message;
-            const cloned = structuredClone(messageWithoutContent);
+            const cloned = cloneStructuredValuePreservingUrls(messageWithoutContent);
             return {
                 ...cloned,
                 content: content === null ? null : cloneContentParts(content),
@@ -96,17 +141,17 @@ export function cloneInternalMessage(message: InternalMessage): InternalMessage 
         }
         case 'system': {
             const { content, ...messageWithoutContent } = message;
-            const cloned = structuredClone(messageWithoutContent);
+            const cloned = cloneStructuredValuePreservingUrls(messageWithoutContent);
             return { ...cloned, content: cloneContentParts(content) };
         }
         case 'user': {
             const { content, ...messageWithoutContent } = message;
-            const cloned = structuredClone(messageWithoutContent);
+            const cloned = cloneStructuredValuePreservingUrls(messageWithoutContent);
             return { ...cloned, content: cloneContentParts(content) };
         }
         case 'tool': {
             const { content, ...messageWithoutContent } = message;
-            const cloned = structuredClone(messageWithoutContent);
+            const cloned = cloneStructuredValuePreservingUrls(messageWithoutContent);
             return { ...cloned, content: cloneContentParts(content) };
         }
     }

@@ -140,4 +140,30 @@ describe('content clone utilities', () => {
         if (clonedImage?.type !== 'image') throw new Error('Expected image part');
         expect(clonedImage.image).toBeInstanceOf(URL);
     });
+
+    it('preserves cycles while cloning message metadata with URL payloads', () => {
+        const sourceUrl = new URL('https://example.com/source');
+        const metadata: Record<string, unknown> = {
+            label: 'root',
+            url: sourceUrl,
+        };
+        metadata.self = metadata;
+
+        const source: UserMessage = {
+            role: 'user',
+            id: 'message-1',
+            metadata,
+            content: [{ type: 'text', text: 'Inspect this' }],
+        };
+
+        const cloned = cloneInternalMessage(source);
+        sourceUrl.pathname = '/mutated';
+
+        if (cloned.role !== 'user') throw new Error('Expected user message');
+        if (!cloned.metadata) throw new Error('Expected cloned metadata');
+        expect(cloned.metadata).not.toBe(metadata);
+        expect(cloned.metadata.self).toBe(cloned.metadata);
+        expect(cloned.metadata.url).toEqual(new URL('https://example.com/source'));
+        expect(cloned.metadata.url).toBeInstanceOf(URL);
+    });
 });

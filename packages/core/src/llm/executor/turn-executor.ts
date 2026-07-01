@@ -69,6 +69,7 @@ import {
     describeContentPartsForAudit,
     describeInternalMessageTailForAudit,
 } from '../../context/content-audit.js';
+import { cloneStructuredValuePreservingUrls } from '../../context/content-clone.js';
 
 const MCP_TOOL_PREFIX = 'mcp--';
 const MODEL_REQUEST_MAX_RETRIES = 2;
@@ -338,7 +339,7 @@ type ModelStepScope = {
 
 function toModelStepRequestState(request: ModelStepRequest): ModelStepRequestState {
     return {
-        messages: structuredClone(request.messages),
+        messages: cloneStructuredValuePreservingUrls(request.messages),
         estimatedInputTokens: request.estimatedInputTokens,
         toolDefinitions: structuredClone(request.toolDefinitions),
         ...(request.reasoning === undefined
@@ -1563,7 +1564,7 @@ export class TurnExecutor {
         const toolDefinitions = supportsTools ? structuredClone(state.toolDefinitions) : {};
 
         return {
-            messages: structuredClone(state.messages),
+            messages: cloneStructuredValuePreservingUrls(state.messages),
             tools: supportsTools ? createModelToolDefinitions(toolDefinitions) : {},
             toolDefinitions,
             estimatedInputTokens: state.estimatedInputTokens,
