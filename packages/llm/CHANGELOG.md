@@ -1,5 +1,11 @@
 # @dexto/llm
 
+## 1.9.1
+
+### Patch Changes
+
+- 023f297: Regenerate the LLM model registry and preserve URL payloads while cloning structured messages.
+
 ## 1.9.0
 
 ### Minor Changes
