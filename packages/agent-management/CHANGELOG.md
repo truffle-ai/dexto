@@ -1,5 +1,16 @@
 # @dexto/agent-management
 
+## 1.9.2
+
+### Patch Changes
+
+- Updated dependencies [12e9d09]
+    - @dexto/core@1.9.2
+    - @dexto/agent-config@1.9.2
+    - @dexto/orchestration@1.9.2
+    - @dexto/tools-builtins@1.9.2
+    - @dexto/llm@1.9.2
+
 ## 1.9.1
 
 ### Patch Changes

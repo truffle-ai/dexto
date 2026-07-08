@@ -1,5 +1,12 @@
 # @dexto/core
 
+## 1.9.2
+
+### Patch Changes
+
+- 12e9d09: Export `@dexto/core/session/title-generator` for hosted session title generation without spinning up a full agent runtime.
+    - @dexto/llm@1.9.2
+
 ## 1.9.1
 
 ### Patch Changes

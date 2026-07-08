@@ -1,5 +1,13 @@
 # @dexto/analytics
 
+## 1.9.2
+
+### Patch Changes
+
+- Updated dependencies [12e9d09]
+    - @dexto/core@1.9.2
+    - @dexto/agent-management@1.9.2
+
 ## 1.9.1
 
 ### Patch Changes
