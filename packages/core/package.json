@@ -113,6 +113,11 @@
             "import": "./dist/session/index.js",
             "require": "./dist/session/index.cjs"
         },
+        "./session/title-generator": {
+            "types": "./dist/session/title-generator.d.ts",
+            "import": "./dist/session/title-generator.js",
+            "require": "./dist/session/title-generator.cjs"
+        },
         "./storage": {
             "types": "./dist/storage/index.d.ts",
             "import": "./dist/storage/index.js",
