@@ -2,6 +2,7 @@ import { createHash, randomUUID } from 'crypto';
 import type { ApprovalRequest, ApprovalResponse } from '../../approval/types.js';
 import { cloneInternalMessage, cloneInternalMessages } from '../../context/content-clone.js';
 import type { InternalMessage } from '../../context/types.js';
+import { filterCompacted } from '../../context/utils.js';
 import type { Memory } from '../../memory/types.js';
 import type { StoredCustomPrompt } from '../../prompts/providers/custom-prompt-provider.js';
 import { cloneQueuedMessage, cloneQueuedMessages } from '../../session/queue-clone.js';
@@ -19,7 +20,7 @@ import type {
     ArtifactStore,
     StoredArtifactMetadata,
 } from '../artifacts/types.js';
-import type { ConversationStore } from '../conversation/types.js';
+import type { ConversationStore, ModelHistoryLoad } from '../conversation/types.js';
 import type { MemoryStore } from '../memories/types.js';
 import type { SessionMessageQueueStore } from '../message-queue/types.js';
 import type { CustomPromptStore } from '../prompts/types.js';
@@ -58,6 +59,25 @@ class InMemoryConversationStore implements ConversationStore {
 
     async listMessages(input: { sessionId: string }): Promise<InternalMessage[]> {
         return cloneInternalMessages(this.messages.get(input.sessionId) ?? []);
+    }
+
+    async loadModelHistory(input: { sessionId: string }): Promise<ModelHistoryLoad> {
+        const fullHistory = await this.listMessages(input);
+        const messages = filterCompacted(fullHistory);
+        const firstMessage = messages[0];
+        const summaryMessageId =
+            firstMessage?.metadata?.isSummary === true ||
+            firstMessage?.metadata?.isSessionSummary === true
+                ? (firstMessage.id ?? null)
+                : null;
+        return {
+            messages,
+            stats: {
+                returnedMessages: messages.length,
+                skippedPreSummaryMessages: fullHistory.length - messages.length,
+                summaryMessageId,
+            },
+        };
     }
 
     async saveMessage(input: { sessionId: string; message: InternalMessage }): Promise<void> {

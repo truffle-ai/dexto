@@ -1360,7 +1360,7 @@ export class TurnExecutor {
                 },
             },
             async () => {
-                const preparedHistory = (await this.contextManager.prepareHistory())
+                const preparedHistory = (await this.contextManager.prepareModelHistory())
                     .preparedHistory;
                 const formattedMessages = await this.contextManager.getFormattedMessages(
                     input.contributorContext,
@@ -1452,7 +1452,7 @@ export class TurnExecutor {
                         },
                     },
                     async () => {
-                        const preparedHistory = (await this.contextManager.prepareHistory())
+                        const preparedHistory = (await this.contextManager.prepareModelHistory())
                             .preparedHistory;
                         const formattedMessages = await this.contextManager.getFormattedMessages(
                             input.contributorContext,
@@ -1641,12 +1641,12 @@ export class TurnExecutor {
 
     private async runModelStepWithRetry(request: ModelStepRequest): Promise<StreamProcessorResult> {
         for (let failedAttempts = 0; ; failedAttempts += 1) {
-            const historyLengthBefore = (await this.contextManager.getHistory()).length;
+            const historyLengthBefore = (await this.contextManager.getModelHistory()).length;
 
             try {
                 return await this.runModelStep(request);
             } catch (error) {
-                const historyLengthAfter = (await this.contextManager.getHistory()).length;
+                const historyLengthAfter = (await this.contextManager.getModelHistory()).length;
                 const historyLengthChanged = historyLengthAfter !== historyLengthBefore;
 
                 if (
@@ -2209,7 +2209,7 @@ export class TurnExecutor {
     /**
      * Prunes old tool outputs by marking them with compactedAt timestamp.
      * Does NOT modify content - transformation happens at format time in
-     * ContextManager.prepareHistory().
+     * ContextManager.prepareModelHistory().
      *
      * Algorithm:
      * 1. Go backwards through history (most recent first)
@@ -2219,7 +2219,7 @@ export class TurnExecutor {
      * 5. Only prune if savings exceed PRUNE_MINIMUM
      */
     private async pruneOldToolOutputs(): Promise<{ prunedCount: number; savedTokens: number }> {
-        const history = await this.contextManager.getHistory();
+        const history = await this.contextManager.getModelHistory();
         let totalToolTokens = 0;
         let prunedTokens = 0;
         const toPrune: string[] = []; // Message IDs to mark
@@ -2357,7 +2357,7 @@ export class TurnExecutor {
             `Context overflow detected (${originalTokens} tokens), checking if compression is possible`
         );
 
-        const history = await this.contextManager.getHistory();
+        const history = await this.contextManager.getModelHistory();
         const { filterCompacted } = await import('../../context/utils.js');
         const originalFiltered = filterCompacted(history);
         const originalMessages = originalFiltered.length;

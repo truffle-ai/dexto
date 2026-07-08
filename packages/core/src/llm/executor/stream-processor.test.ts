@@ -33,7 +33,7 @@ function createMocks() {
     const emittedEvents: Array<{ name: string; payload: unknown }> = [];
 
     const mockContextManager = {
-        addAssistantMessage: vi.fn().mockResolvedValue(undefined),
+        addAssistantMessage: vi.fn().mockResolvedValue('msg-1'),
         appendAssistantText: vi.fn().mockResolvedValue(undefined),
         updateAssistantMessage: vi.fn().mockResolvedValue(undefined),
         addToolCall: vi.fn().mockResolvedValue(undefined),

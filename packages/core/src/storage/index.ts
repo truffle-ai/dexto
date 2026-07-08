@@ -39,7 +39,11 @@ export {
 export type { DextoStoresLifecycle } from './stores/backend.js';
 export type { DextoStoreMap, DextoStoreName, DextoStores } from './stores/types.js';
 export { DatabaseConversationStore } from './conversation/database.js';
-export type { ConversationStore } from './conversation/types.js';
+export type {
+    ConversationStore,
+    ModelHistoryLoad,
+    ModelHistoryLoadStats,
+} from './conversation/types.js';
 export type { SessionStore } from './sessions/types.js';
 export type { MemoryStore } from './memories/types.js';
 export type { WorkspaceStore } from './workspaces/types.js';
