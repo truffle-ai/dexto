@@ -1,5 +1,12 @@
 # @dexto/core
 
+## 1.9.4
+
+### Patch Changes
+
+- 4c76e49: Add model request diagnostics telemetry for formatted message size and media payloads.
+    - @dexto/llm@1.9.4
+
 ## 1.9.3
 
 ### Patch Changes

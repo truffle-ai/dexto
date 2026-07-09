@@ -1,5 +1,18 @@
 # @dexto/server
 
+## 1.9.4
+
+### Patch Changes
+
+- Updated dependencies [4c76e49]
+    - @dexto/core@1.9.4
+    - @dexto/agent-config@1.9.4
+    - @dexto/agent-management@1.9.4
+    - @dexto/image-local@1.9.4
+    - @dexto/storage@1.9.4
+    - @dexto/tools-scheduler@1.9.4
+    - @dexto/llm@1.9.4
+
 ## 1.9.3
 
 ### Patch Changes
