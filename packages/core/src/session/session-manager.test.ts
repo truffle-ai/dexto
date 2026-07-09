@@ -1277,7 +1277,7 @@ describe('SessionManager', () => {
             const newLLMConfig: ValidatedLLMConfig = {
                 ...mockLLMConfig,
                 provider: 'anthropic',
-                model: 'claude-4-opus-20250514',
+                model: 'claude-opus-4-5',
             };
 
             // Create session first
@@ -1289,7 +1289,7 @@ describe('SessionManager', () => {
             );
 
             expect(result.message).toContain(
-                `Successfully switched to anthropic/claude-4-opus-20250514 for session ${sessionId}`
+                `Successfully switched to anthropic/claude-opus-4-5 for session ${sessionId}`
             );
             expect(result.warnings).toEqual([]);
         });
@@ -1299,7 +1299,7 @@ describe('SessionManager', () => {
             const newLLMConfig: ValidatedLLMConfig = {
                 ...mockLLMConfig,
                 provider: 'anthropic',
-                model: 'claude-4-opus-20250514',
+                model: 'claude-opus-4-5',
             };
 
             const session = await sessionManager.createSession(sessionId);
@@ -1332,7 +1332,7 @@ describe('SessionManager', () => {
             const newLLMConfig: ValidatedLLMConfig = {
                 ...mockLLMConfig,
                 provider: 'anthropic',
-                model: 'claude-4-opus-20250514',
+                model: 'claude-opus-4-5',
             };
 
             const session = await sessionManager.createSession(sessionId);
@@ -1396,7 +1396,7 @@ describe('SessionManager', () => {
             const newLLMConfig: ValidatedLLMConfig = {
                 ...mockLLMConfig,
                 provider: 'anthropic',
-                model: 'claude-4-opus-20250514',
+                model: 'claude-opus-4-5',
             };
 
             await expect(
@@ -1413,7 +1413,7 @@ describe('SessionManager', () => {
             const newLLMConfig: ValidatedLLMConfig = {
                 ...mockLLMConfig,
                 provider: 'anthropic',
-                model: 'claude-4-opus-20250514',
+                model: 'claude-opus-4-5',
             };
 
             mockStorageManager.database.list.mockResolvedValue(sessionIds);

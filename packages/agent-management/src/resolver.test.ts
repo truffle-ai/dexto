@@ -173,7 +173,7 @@ describe('Agent Resolver', () => {
             await fs.mkdir(path.dirname(agentConfigPath), { recursive: true });
             await fs.writeFile(
                 agentConfigPath,
-                'llm:\n  provider: anthropic\n  model: claude-4-sonnet-20250514'
+                'llm:\n  provider: anthropic\n  model: claude-sonnet-4-5'
             );
 
             // Mock install to return the expected path (in case auto-install is triggered)
@@ -213,7 +213,7 @@ describe('Agent Resolver', () => {
             await fs.mkdir(path.join(tempDir, 'agents', 'coding-agent'), { recursive: true });
             await fs.writeFile(
                 repoConfigPath,
-                'llm:\n  provider: anthropic\n  model: claude-4-sonnet-20250514'
+                'llm:\n  provider: anthropic\n  model: claude-sonnet-4-5'
             );
         });
 
@@ -263,7 +263,7 @@ describe('Agent Resolver', () => {
             await fs.mkdir(path.dirname(agentConfigPath), { recursive: true });
             await fs.writeFile(
                 agentConfigPath,
-                'llm:\n  provider: anthropic\n  model: claude-4-sonnet-20250514'
+                'llm:\n  provider: anthropic\n  model: claude-sonnet-4-5'
             );
 
             // Mock install to return the expected path (in case auto-install is triggered)
@@ -521,7 +521,7 @@ describe('Agent Resolver', () => {
             await fs.mkdir(path.dirname(agentConfigPath), { recursive: true });
             await fs.writeFile(
                 agentConfigPath,
-                'llm:\n  provider: anthropic\n  model: claude-4-sonnet-20250514'
+                'llm:\n  provider: anthropic\n  model: claude-sonnet-4-5'
             );
 
             // Mock install to return the expected path (in case auto-install is triggered)
@@ -651,7 +651,7 @@ describe('Agent Resolver', () => {
             await fs.mkdir(path.dirname(agentConfigPath), { recursive: true });
             await fs.writeFile(
                 agentConfigPath,
-                'llm:\n  provider: anthropic\n  model: claude-4-sonnet-20250514'
+                'llm:\n  provider: anthropic\n  model: claude-sonnet-4-5'
             );
 
             // Mock install to return the expected path (in case auto-install is triggered)
@@ -812,7 +812,7 @@ describe('Agent Resolver', () => {
             await fs.mkdir(path.dirname(agentConfigPath), { recursive: true });
             await fs.writeFile(
                 agentConfigPath,
-                'llm:\n  provider: anthropic\n  model: claude-4-sonnet-20250514'
+                'llm:\n  provider: anthropic\n  model: claude-sonnet-4-5'
             );
 
             await updateDefaultAgentPreference('my-agent');
@@ -890,7 +890,7 @@ describe('Agent Resolver', () => {
             await fs.mkdir(path.dirname(agentConfigPath), { recursive: true });
             await fs.writeFile(
                 agentConfigPath,
-                'llm:\n  provider: anthropic\n  model: claude-4-sonnet-20250514'
+                'llm:\n  provider: anthropic\n  model: claude-sonnet-4-5'
             );
 
             // Mock update to fail after agent is found

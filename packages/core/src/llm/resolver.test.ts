@@ -65,7 +65,7 @@ describe('resolveAndValidateLLMConfig', () => {
     it('preserves reasoning config when applying unrelated updates', async () => {
         const configWithReasoning = LLMConfigSchema.parse({
             provider: 'anthropic',
-            model: 'claude-3-7-sonnet-20250219',
+            model: 'claude-sonnet-4-5',
             apiKey: TEST_ANTHROPIC_API_KEY,
             reasoning: { variant: 'enabled', budgetTokens: 123 },
         });
@@ -85,7 +85,7 @@ describe('resolveAndValidateLLMConfig', () => {
     it('replaces reasoning config when updates.reasoning is provided (clears previous budgetTokens)', async () => {
         const configWithReasoning = LLMConfigSchema.parse({
             provider: 'anthropic',
-            model: 'claude-3-7-sonnet-20250219',
+            model: 'claude-sonnet-4-5',
             apiKey: TEST_ANTHROPIC_API_KEY,
             reasoning: { variant: 'enabled', budgetTokens: 123 },
         });
@@ -105,7 +105,7 @@ describe('resolveAndValidateLLMConfig', () => {
     it('clears reasoning config when updates.reasoning is null', async () => {
         const configWithReasoning = LLMConfigSchema.parse({
             provider: 'anthropic',
-            model: 'claude-3-7-sonnet-20250219',
+            model: 'claude-sonnet-4-5',
             apiKey: TEST_ANTHROPIC_API_KEY,
             reasoning: { variant: 'enabled', budgetTokens: 123 },
         });

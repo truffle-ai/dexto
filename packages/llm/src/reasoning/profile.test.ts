@@ -40,7 +40,7 @@ describe('getReasoningProfile', () => {
     });
 
     it('returns Anthropic budget profile for pre-adaptive models', () => {
-        expect(getReasoningProfile('anthropic', 'claude-3-7-sonnet-20250219')).toMatchObject({
+        expect(getReasoningProfile('anthropic', 'claude-sonnet-4-5')).toMatchObject({
             capable: true,
             paradigm: 'budget',
             supportedVariants: ['disabled', 'enabled'],

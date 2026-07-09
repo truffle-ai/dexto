@@ -558,7 +558,7 @@ describe('Provider-Specific Tests', () => {
     describe('Anthropic provider', () => {
         it('has correct capabilities and models', () => {
             expect(getSupportedProviders()).toContain('anthropic');
-            expect(getSupportedModels('anthropic')).toContain('claude-sonnet-4-20250514');
+            expect(getSupportedModels('anthropic')).toContain('claude-sonnet-5');
             expect(getSupportedModels('anthropic')).toContain('claude-haiku-4-5-20251001');
             expect(getDefaultModelForProvider('anthropic')).toBe('claude-haiku-4-5-20251001');
             expect(supportsBaseURL('anthropic')).toBe(false);

@@ -54,20 +54,9 @@ function modelProviderUnknown(model: string): LlmCatalogError {
     return new LlmCatalogError('MODEL_UNKNOWN', `Could not infer provider for model '${model}'`);
 }
 
-const LEGACY_MODEL_ID_ALIASES: Partial<Record<LLMProvider, Record<string, string>>> = {
-    anthropic: {
-        // Older Dexto configs/tests used "claude-4-{tier}-{date}".
-        // models.dev (and our generated snapshot) use "claude-{tier}-4-{date}".
-        'claude-4-sonnet-20250514': 'claude-sonnet-4-20250514',
-        'claude-4-opus-20250514': 'claude-opus-4-20250514',
-    },
-};
-
-function getNormalizedModelIdForLookup(provider: LLMProvider, model: string): string {
+function getNormalizedModelIdForLookup(model: string): string {
     const stripped = stripBedrockRegionPrefix(model);
-    const lower = stripped.toLowerCase();
-    const aliases = LEGACY_MODEL_ID_ALIASES[provider];
-    return aliases?.[lower] ?? lower;
+    return stripped.toLowerCase();
 }
 
 function mergeModels(base: ModelInfo[], extra: ModelInfo[] | undefined): ModelInfo[] {
@@ -627,7 +616,7 @@ export function getMaxInputTokensForModel(
  */
 export function isValidProviderModel(provider: LLMProvider, model: string): boolean {
     const providerInfo = LLM_REGISTRY[provider];
-    const normalizedModel = getNormalizedModelIdForLookup(provider, model);
+    const normalizedModel = getNormalizedModelIdForLookup(model);
     return providerInfo.models.some((m) => m.name.toLowerCase() === normalizedModel);
 }
 
@@ -648,7 +637,7 @@ export function getProviderFromModel(model: string): LLMProvider {
 
     for (const provider of LLM_PROVIDERS) {
         const info = LLM_REGISTRY[provider];
-        const normalizedModel = getNormalizedModelIdForLookup(provider, model);
+        const normalizedModel = getNormalizedModelIdForLookup(model);
         if (info.models.some((m) => m.name.toLowerCase() === normalizedModel)) {
             return provider;
         }
@@ -778,7 +767,7 @@ function findModelInfo(provider: LLMProvider, model: string): ModelInfo | null {
     }
 
     const providerInfo = LLM_REGISTRY[provider];
-    const normalizedModel = getNormalizedModelIdForLookup(provider, model);
+    const normalizedModel = getNormalizedModelIdForLookup(model);
     const direct = providerInfo.models.find((m) => m.name.toLowerCase() === normalizedModel);
     if (direct) return direct;
 
@@ -907,7 +896,7 @@ export function isModelValidForProvider(provider: LLMProvider, model: string): b
     const providerInfo = LLM_REGISTRY[provider];
 
     // Check provider's own models first
-    const normalizedModel = getNormalizedModelIdForLookup(provider, model);
+    const normalizedModel = getNormalizedModelIdForLookup(model);
     if (providerInfo.models.some((m) => m.name.toLowerCase() === normalizedModel)) {
         return true;
     }

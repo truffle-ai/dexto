@@ -389,7 +389,7 @@ describe('validateInputForLLM', () => {
                         filename: 'document.pdf',
                     },
                 },
-                { provider: 'anthropic', model: 'claude-sonnet-4-20250514' },
+                { provider: 'anthropic', model: 'claude-sonnet-5' },
                 mockLogger
             );
 

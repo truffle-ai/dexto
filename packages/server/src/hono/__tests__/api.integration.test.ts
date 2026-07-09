@@ -149,7 +149,7 @@ describe('Hono API Integration Tests', () => {
             const res = await httpRequest(
                 testServer.baseUrl,
                 'GET',
-                '/api/llm/capabilities?provider=anthropic&model=claude-3-7-sonnet-20250219'
+                '/api/llm/capabilities?provider=anthropic&model=claude-sonnet-4-5'
             );
             expect(res.status).toBe(200);
             expectResponseStructure(res.body, {
