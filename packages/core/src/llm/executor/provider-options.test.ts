@@ -54,7 +54,7 @@ describe('buildProviderOptions', () => {
             expect(
                 buildProviderOptions({
                     provider: 'anthropic',
-                    model: 'claude-3-7-sonnet-20250219',
+                    model: 'claude-sonnet-4-5',
                 })
             ).toEqual({
                 anthropic: {
@@ -69,7 +69,7 @@ describe('buildProviderOptions', () => {
             expect(
                 buildProviderOptions({
                     provider: 'anthropic',
-                    model: 'claude-3-7-sonnet-20250219',
+                    model: 'claude-sonnet-4-5',
                     reasoning: { variant: 'disabled' },
                 })
             ).toEqual({
@@ -85,7 +85,7 @@ describe('buildProviderOptions', () => {
             expect(
                 buildProviderOptions({
                     provider: 'anthropic',
-                    model: 'claude-3-7-sonnet-20250219',
+                    model: 'claude-sonnet-4-5',
                     reasoning: { variant: 'enabled', budgetTokens: 1234 },
                 })
             ).toEqual({
@@ -541,7 +541,7 @@ describe('getEffectiveReasoningBudgetTokens', () => {
     it('extracts effective budgets from providerOptions (anthropic)', () => {
         const providerOptions = buildProviderOptions({
             provider: 'anthropic',
-            model: 'claude-3-7-sonnet-20250219',
+            model: 'claude-sonnet-4-5',
             reasoning: { variant: 'enabled' },
         });
         expect(getEffectiveReasoningBudgetTokens(providerOptions)).toBe(2048);

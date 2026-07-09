@@ -49,7 +49,7 @@ describe('Preferences Loader', () => {
         samplePreferences = {
             llm: {
                 provider: 'anthropic',
-                model: 'claude-4-sonnet-20250514',
+                model: 'claude-sonnet-4-5',
                 apiKey: '$ANTHROPIC_API_KEY',
             },
             defaults: {
@@ -109,7 +109,7 @@ describe('Preferences Loader', () => {
             // Verify content is valid YAML with correct values
             const fileContent = await fs.readFile(mockPreferencesPath, 'utf-8');
             expect(fileContent).toContain('provider: anthropic');
-            expect(fileContent).toContain('model: claude-4-sonnet-20250514');
+            expect(fileContent).toContain('model: claude-sonnet-4-5');
             expect(fileContent).toContain('apiKey: $ANTHROPIC_API_KEY');
             expect(fileContent).toContain('defaultAgent: test-agent');
             expect(fileContent).toContain('completed: true');
@@ -340,7 +340,7 @@ setup:
         it('should use default agent name when not provided', () => {
             const preferences = createInitialPreferences({
                 provider: 'anthropic',
-                model: 'claude-4-sonnet-20250514',
+                model: 'claude-sonnet-4-5',
                 apiKeyVar: 'ANTHROPIC_API_KEY',
             });
 
@@ -455,7 +455,7 @@ setup:
             const updates = {
                 llm: {
                     provider: 'anthropic' as const,
-                    model: 'claude-4-opus-20250514',
+                    model: 'claude-opus-4-5',
                     apiKey: '$ANTHROPIC_API_KEY',
                 },
             };
@@ -464,7 +464,7 @@ setup:
 
             // Verify file was updated
             const fileContent = await fs.readFile(mockPreferencesPath, 'utf-8');
-            expect(fileContent).toContain('model: claude-4-opus-20250514');
+            expect(fileContent).toContain('model: claude-opus-4-5');
         });
 
         it('should throw validation error for invalid merged preferences', async () => {

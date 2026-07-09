@@ -623,7 +623,7 @@ describe('ChatSession', () => {
             const newConfig: ValidatedLLMConfig = {
                 ...mockLLMConfig,
                 provider: 'anthropic',
-                model: 'claude-4-opus-20250514',
+                model: 'claude-opus-4-5',
             };
 
             await chatSession.switchLLM(newConfig);
@@ -964,7 +964,7 @@ describe('ChatSession', () => {
             const newConfig: ValidatedLLMConfig = {
                 ...mockLLMConfig,
                 provider: 'anthropic',
-                model: 'claude-4-opus-20250514',
+                model: 'claude-opus-4-5',
             };
 
             // Clear previous calls to createLLMService
@@ -995,7 +995,7 @@ describe('ChatSession', () => {
             const newConfig: ValidatedLLMConfig = {
                 ...mockLLMConfig,
                 provider: 'anthropic',
-                model: 'claude-4-opus-20250514',
+                model: 'claude-opus-4-5',
             };
 
             const eventSpy = vi.spyOn(chatSession.eventBus, 'emit');
@@ -1144,7 +1144,7 @@ describe('ChatSession', () => {
 
         test('should use payload provider/model for token accumulation', async () => {
             const payloadProvider = 'anthropic';
-            const payloadModel = 'claude-4-opus-20250514';
+            const payloadModel = 'claude-opus-4-5';
 
             // Emit llm:response with provider/model in payload
             chatSession.eventBus.emit(
@@ -1181,7 +1181,7 @@ describe('ChatSession', () => {
 
         test('should calculate cost using payload model for accurate multi-model tracking', async () => {
             const payloadProvider = 'anthropic';
-            const payloadModel = 'claude-4-opus-20250514';
+            const payloadModel = 'claude-opus-4-5';
 
             // Emit llm:response with different model than llmConfig
             chatSession.eventBus.emit(
@@ -1350,7 +1350,7 @@ describe('ChatSession', () => {
                 createModelResponseEvent({
                     content: 'Response from Claude',
                     provider: 'anthropic',
-                    model: 'claude-4-opus-20250514',
+                    model: 'claude-opus-4-5',
                     tokenUsage: {
                         inputTokens: 200,
                         outputTokens: 100,
@@ -1407,7 +1407,7 @@ describe('ChatSession', () => {
                 expect.any(Number),
                 expect.objectContaining({
                     provider: 'anthropic',
-                    model: 'claude-4-opus-20250514',
+                    model: 'claude-opus-4-5',
                 })
             );
 

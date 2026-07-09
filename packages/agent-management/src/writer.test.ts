@@ -50,7 +50,7 @@ describe('Config Writer', () => {
         samplePreferences = {
             llm: {
                 provider: 'anthropic',
-                model: 'claude-4-sonnet-20250514',
+                model: 'claude-sonnet-4-5',
                 apiKey: '$ANTHROPIC_API_KEY',
             },
             defaults: {
@@ -160,7 +160,7 @@ describe('Config Writer', () => {
 
             const updatedContent = await fs.readFile(tempConfigPath, 'utf-8');
             expect(updatedContent).toContain('provider: anthropic');
-            expect(updatedContent).toContain('model: claude-4-sonnet-20250514');
+            expect(updatedContent).toContain('model: claude-sonnet-4-5');
             expect(updatedContent).toContain('apiKey: $ANTHROPIC_API_KEY');
         });
 
@@ -255,7 +255,7 @@ describe('Config Writer', () => {
 
             const updatedContent = await fs.readFile(tempConfigPath, 'utf-8');
             expect(updatedContent).toContain('provider: anthropic');
-            expect(updatedContent).toContain('model: claude-4-sonnet-20250514');
+            expect(updatedContent).toContain('model: claude-sonnet-4-5');
         });
 
         it('should skip non-YAML files', async () => {

@@ -2480,10 +2480,10 @@ export class DextoAgent {
      * await agent.switchLLM({ model: 'gpt-5' });
      *
      * // Switch to a different provider with explicit API key
-     * await agent.switchLLM({ provider: 'anthropic', model: 'claude-4-sonnet-20250514', apiKey: 'sk-ant-...' });
+     * await agent.switchLLM({ provider: 'anthropic', model: 'claude-sonnet-4-5', apiKey: 'sk-ant-...' });
      *
      * // Switch with session options
-     * await agent.switchLLM({ provider: 'anthropic', model: 'claude-4-sonnet-20250514' }, 'user-123');
+     * await agent.switchLLM({ provider: 'anthropic', model: 'claude-sonnet-4-5' }, 'user-123');
      *
      * // Switch for all sessions
      * await agent.switchLLM({ model: 'gpt-5' }, '*');
@@ -2672,7 +2672,7 @@ export class DextoAgent {
      * const provider = agent.inferProviderFromModel('gpt-5');
      * console.log(provider); // 'openai'
      *
-     * const provider2 = agent.inferProviderFromModel('claude-4-sonnet-20250514');
+     * const provider2 = agent.inferProviderFromModel('claude-sonnet-4-5');
      * console.log(provider2); // 'anthropic'
      *
      * const provider3 = agent.inferProviderFromModel('unknown-model');

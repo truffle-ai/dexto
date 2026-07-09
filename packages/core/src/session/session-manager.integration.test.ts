@@ -933,7 +933,7 @@ describe('Session Integration: Multi-Model Token Tracking', () => {
             },
             {
                 provider: 'anthropic',
-                model: 'claude-4-opus-20250514',
+                model: 'claude-opus-4-5',
                 tokenUsage: {
                     inputTokens: 200,
                     outputTokens: 100,
@@ -1007,11 +1007,11 @@ describe('Session Integration: Multi-Model Token Tracking', () => {
         });
 
         const anthropicStats = metadata?.modelStats?.find(
-            (s) => s.provider === 'anthropic' && s.model === 'claude-4-opus-20250514'
+            (s) => s.provider === 'anthropic' && s.model === 'claude-opus-4-5'
         );
         expect(anthropicStats).toMatchObject({
             provider: 'anthropic',
-            model: 'claude-4-opus-20250514',
+            model: 'claude-opus-4-5',
             messageCount: 1,
             tokenUsage: {
                 inputTokens: 200,
@@ -1175,7 +1175,7 @@ describe('Session Integration: Multi-Model Token Tracking', () => {
                 totalTokens: 2700,
             },
             0.15,
-            { provider: 'anthropic', model: 'claude-4-opus-20250514' }
+            { provider: 'anthropic', model: 'claude-opus-4-5' }
         );
 
         const metadata = await sessionManager.getSessionMetadata(sessionId);
