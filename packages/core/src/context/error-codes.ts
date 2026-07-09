@@ -13,6 +13,7 @@ export enum ContextErrorCode {
     // Assistant message validation
     ASSISTANT_MESSAGE_CONTENT_OR_TOOLS_REQUIRED = 'context_assistant_message_content_or_tools_required',
     ASSISTANT_MESSAGE_TOOL_CALLS_INVALID = 'context_assistant_message_tool_calls_invalid',
+    ASSISTANT_MESSAGE_ID_MISSING = 'context_assistant_message_id_missing',
 
     // Tool message validation
     TOOL_MESSAGE_FIELDS_MISSING = 'context_tool_message_fields_missing',

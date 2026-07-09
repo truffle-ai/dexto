@@ -24,7 +24,7 @@ import type { ToolCallMetadata } from '../tools/tool-call-metadata.js';
 import { getResourceKind } from './media-helpers.js';
 import { describeContentPartsForAudit } from './content-audit.js';
 
-type PreparedHistoryResult = {
+export type PreparedHistoryResult = {
     preparedHistory: InternalMessage[];
     stats: {
         /** Total messages in raw or model-history source */
@@ -950,7 +950,7 @@ export class ContextManager<TMessage = unknown> {
         });
 
         if (message.id === undefined) {
-            throw new Error('Expected assistant message id after saving message.');
+            throw ContextError.assistantMessageIdMissing();
         }
 
         return message.id;

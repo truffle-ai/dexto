@@ -52,6 +52,17 @@ export class ContextError {
         );
     }
 
+    static assistantMessageIdMissing() {
+        return new DextoRuntimeError(
+            ContextErrorCode.ASSISTANT_MESSAGE_ID_MISSING,
+            ErrorScope.CONTEXT,
+            ErrorType.SYSTEM,
+            'Expected assistant message id after saving message',
+            {},
+            'Check conversation store saveMessage behavior'
+        );
+    }
+
     static toolMessageFieldsMissing() {
         return new DextoRuntimeError(
             ContextErrorCode.TOOL_MESSAGE_FIELDS_MISSING,
