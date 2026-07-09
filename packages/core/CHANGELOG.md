@@ -1,5 +1,12 @@
 # @dexto/core
 
+## 1.9.3
+
+### Patch Changes
+
+- 469c76f: Load and compact model-visible history through the conversation store boundary to avoid full-history reads in long sessions.
+    - @dexto/llm@1.9.3
+
 ## 1.9.2
 
 ### Patch Changes

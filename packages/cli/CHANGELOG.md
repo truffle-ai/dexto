@@ -1,5 +1,23 @@
 # dexto
 
+## 1.9.3
+
+### Patch Changes
+
+- Updated dependencies [469c76f]
+    - @dexto/core@1.9.3
+    - @dexto/agent-config@1.9.3
+    - @dexto/agent-management@1.9.3
+    - @dexto/analytics@1.9.3
+    - @dexto/client-sdk@1.9.3
+    - @dexto/image-local@1.9.3
+    - @dexto/image-logger-agent@1.9.3
+    - @dexto/server@1.9.3
+    - @dexto/storage@1.9.3
+    - @dexto/tui@1.9.3
+    - @dexto/llm@1.9.3
+    - @dexto/registry@1.9.3
+
 ## 1.9.2
 
 ### Patch Changes
