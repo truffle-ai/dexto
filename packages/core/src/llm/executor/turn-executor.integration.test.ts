@@ -4321,6 +4321,34 @@ describe('TurnExecutor Integration Tests', () => {
             expect(compactionStrategy.compact).toHaveBeenCalledTimes(1);
         });
 
+        it('compacts through the model-history boundary instead of raw history', async () => {
+            const compactionStrategy = createTestCompactionStrategy((tokens) => tokens > 10);
+            vi.mocked(streamText).mockImplementation((options) => {
+                const requestJson = JSON.stringify(options.messages);
+                expect(requestJson).toContain('Compacted test summary');
+                expect(requestJson).not.toContain('Message 1 before summary');
+                return createMockStream({
+                    text: 'Response',
+                    finishReason: 'stop',
+                    usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+                }) as unknown as ReturnType<typeof streamText>;
+            });
+
+            const compactingExecutor = createExecutorWithCompaction(compactionStrategy);
+
+            await seedCompactionEligibleHistory();
+            const rawHistorySpy = vi
+                .spyOn(contextManager, 'getHistory')
+                .mockRejectedValue(new Error('Compaction should use model history'));
+            const modelHistorySpy = vi.spyOn(contextManager, 'getModelHistory');
+
+            await compactingExecutor.execute({ mcpManager }, true);
+
+            expect(rawHistorySpy).not.toHaveBeenCalled();
+            expect(modelHistorySpy).toHaveBeenCalled();
+            expect(compactionStrategy.compact).toHaveBeenCalledTimes(1);
+        });
+
         it('queues steer submitted during compaction for the next model step', async () => {
             const events: string[] = [];
             const compactionStrategy = createTestCompactionStrategy((tokens) => tokens > 10);

@@ -24,6 +24,18 @@ import type { ToolCallMetadata } from '../tools/tool-call-metadata.js';
 import { getResourceKind } from './media-helpers.js';
 import { describeContentPartsForAudit } from './content-audit.js';
 
+export type PreparedHistoryResult = {
+    preparedHistory: InternalMessage[];
+    stats: {
+        /** Total messages in raw or model-history source */
+        originalCount: number;
+        /** Messages after model-history filters */
+        filteredCount: number;
+        /** Messages with compactedAt that were transformed to placeholders */
+        prunedToolCount: number;
+    };
+};
+
 function isVisibleInPreparedHistory(message: InternalMessage): boolean {
     if (message.role !== 'assistant') {
         return true;
@@ -83,7 +95,7 @@ export class ContextManager<TMessage = unknown> {
     private lastActualOutputTokens: number | null = null;
 
     /**
-     * Message count at the time of the last LLM call.
+     * Model-visible message count at the time of the last LLM call.
      * Used to identify which messages are "new" since the last call.
      * Messages after this index are estimated with length/4 heuristic.
      */
@@ -418,7 +430,7 @@ export class ContextManager<TMessage = unknown> {
     }
 
     /**
-     * Returns the message count at the time of the last LLM call.
+     * Returns the model-visible message count at the time of the last LLM call.
      * Returns null if no LLM call has been made yet.
      */
     getLastCallMessageCount(): number | null {
@@ -426,12 +438,14 @@ export class ContextManager<TMessage = unknown> {
     }
 
     /**
-     * Records the current message count after an LLM call completes.
+     * Records the current model-visible message count after an LLM call completes.
      * This marks the boundary for "new messages" calculation.
      */
     async recordLastCallMessageCount(): Promise<void> {
-        const history = await this.conversationStore.listMessages({ sessionId: this.sessionId });
-        this.lastCallMessageCount = history.length;
+        const history = await this.conversationStore.loadModelHistory({
+            sessionId: this.sessionId,
+        });
+        this.lastCallMessageCount = history.messages.length;
         this.logger.debug(`Recorded lastCallMessageCount: ${this.lastCallMessageCount}`);
     }
 
@@ -469,25 +483,48 @@ export class ContextManager<TMessage = unknown> {
      *
      * @returns Prepared history and statistics about the transformations
      */
-    async prepareHistory(): Promise<{
-        preparedHistory: InternalMessage[];
-        stats: {
-            /** Total messages in raw history */
-            originalCount: number;
-            /** Messages after model-history filters */
-            filteredCount: number;
-            /** Messages with compactedAt that were transformed to placeholders */
-            prunedToolCount: number;
-        };
-    }> {
+    async prepareHistory(): Promise<PreparedHistoryResult> {
         const fullHistory = await this.conversationStore.listMessages({
             sessionId: this.sessionId,
         });
-        const originalCount = fullHistory.length;
+        return this.prepareVisibleHistory({
+            history: filterCompacted(fullHistory),
+            originalCount: fullHistory.length,
+            source: 'prepareHistory',
+        });
+    }
 
-        // Step 1: Filter compacted and non-complete assistant outputs
+    /**
+     * Prepares model-visible history without first materializing the whole durable session.
+     * This is the model execution boundary; Worker/Workflow model calls should use this
+     * method instead of prepareHistory().
+     */
+    async prepareModelHistory(): Promise<PreparedHistoryResult> {
+        const modelHistory = await this.conversationStore.loadModelHistory({
+            sessionId: this.sessionId,
+        });
+        return this.prepareVisibleHistory({
+            history: modelHistory.messages,
+            originalCount:
+                modelHistory.stats.returnedMessages + modelHistory.stats.skippedPreSummaryMessages,
+            source: 'prepareModelHistory',
+        });
+    }
+
+    async getModelHistory(): Promise<Readonly<InternalMessage[]>> {
+        const modelHistory = await this.conversationStore.loadModelHistory({
+            sessionId: this.sessionId,
+        });
+        return modelHistory.messages;
+    }
+
+    private prepareVisibleHistory(input: {
+        history: InternalMessage[];
+        originalCount: number;
+        source: string;
+    }): PreparedHistoryResult {
         const visibleToolCallIds = new Set<string>();
-        let history = filterCompacted(fullHistory).filter((message) => {
+        let history = input.history.filter((message) => {
             const isVisible = isVisibleInPreparedHistory(message);
             if (isVisible && message.role === 'assistant') {
                 for (const toolCall of message.toolCalls ?? []) {
@@ -502,14 +539,12 @@ export class ContextManager<TMessage = unknown> {
         });
         const filteredCount = history.length;
 
-        if (filteredCount < originalCount) {
+        if (filteredCount < input.originalCount) {
             this.logger.debug(
-                `prepareHistory: reduced from ${originalCount} to ${filteredCount} model-visible messages`
+                `${input.source}: reduced from ${input.originalCount} to ${filteredCount} model-visible messages`
             );
         }
 
-        // Step 2: Transform compacted tool messages to placeholders
-        // Original content is preserved in storage, placeholder sent to LLM
         let prunedToolCount = 0;
         history = history.map((msg) => {
             if (msg.role === 'tool' && msg.compactedAt) {
@@ -526,14 +561,14 @@ export class ContextManager<TMessage = unknown> {
 
         if (prunedToolCount > 0) {
             this.logger.debug(
-                `prepareHistory: Transformed ${prunedToolCount} pruned tool messages to placeholders`
+                `${input.source}: Transformed ${prunedToolCount} pruned tool messages to placeholders`
             );
         }
 
         return {
             preparedHistory: history,
             stats: {
-                originalCount,
+                originalCount: input.originalCount,
                 filteredCount,
                 prunedToolCount,
             },
@@ -753,7 +788,7 @@ export class ContextManager<TMessage = unknown> {
      * @param message The message to add to the history
      * @throws Error if message validation fails
      */
-    async addMessage(message: InternalMessage): Promise<void> {
+    async addMessage(message: InternalMessage): Promise<InternalMessage> {
         switch (message.role) {
             case 'user':
                 // User messages must have non-empty content array
@@ -821,14 +856,14 @@ export class ContextManager<TMessage = unknown> {
             `ContextManager: Adding message to conversation store: ${JSON.stringify(message, null, 2)}`
         );
 
-        // Save to conversation store
         await this.conversationStore.saveMessage({ sessionId: this.sessionId, message });
-
-        // Get updated history for logging
-        const history = await this.conversationStore.listMessages({ sessionId: this.sessionId });
-        this.logger.debug(`ContextManager: History now contains ${history.length} messages`);
+        this.logger.debug('ContextManager: Message saved to conversation store', {
+            messageId: message.id,
+            role: message.role,
+        });
 
         // Note: Compression is currently handled lazily in getFormattedMessages
+        return message;
     }
 
     /**
@@ -890,7 +925,7 @@ export class ContextManager<TMessage = unknown> {
             usageScopeId?: AssistantMessage['usageScopeId'];
             assistantOutput?: AssistantMessage['assistantOutput'];
         }
-    ): Promise<void> {
+    ): Promise<string> {
         // Validate that either content or toolCalls is provided
         if (content === null && (!toolCalls || toolCalls.length === 0)) {
             throw ContextError.assistantMessageContentOrToolsRequired();
@@ -900,7 +935,7 @@ export class ContextManager<TMessage = unknown> {
             content !== null ? [{ type: 'text', text: content }] : null;
         // Further validation happens within addMessage
         // addMessage will populate llm config metadata also
-        await this.addMessage({
+        const message = await this.addMessage({
             role: 'assistant' as const,
             content: contentArray,
             ...(toolCalls && toolCalls.length > 0 && { toolCalls }),
@@ -913,6 +948,12 @@ export class ContextManager<TMessage = unknown> {
             ...(metadata?.usageScopeId && { usageScopeId: metadata.usageScopeId }),
             assistantOutput: metadata?.assistantOutput ?? { status: 'complete' },
         });
+
+        if (message.id === undefined) {
+            throw ContextError.assistantMessageIdMissing();
+        }
+
+        return message.id;
     }
 
     /**
@@ -1125,8 +1166,8 @@ export class ContextManager<TMessage = unknown> {
         // Step 1: Get system prompt
         const systemPrompt = await this.getSystemPrompt(contributorContext);
 
-        // Step 2: Prepare history (single source of truth for transformations)
-        const { preparedHistory } = await this.prepareHistory();
+        // Step 2: Prepare model history without loading full durable history
+        const { preparedHistory } = await this.prepareModelHistory();
 
         // Step 3: Format messages with prepared history
         const formattedMessages = await this.getFormattedMessages(
@@ -1145,7 +1186,8 @@ export class ContextManager<TMessage = unknown> {
 
     /**
      * Estimates context token usage for the /context command and compaction decisions.
-     * Uses the same prepareHistory() logic as getFormattedMessagesForLLM() to ensure consistency.
+     * Uses the same model-history preparation logic as getFormattedMessagesForLLM() to ensure
+     * consistency.
      *
      * When actuals are available from previous LLM calls:
      *   estimatedNextInput = lastInputTokens + lastOutputTokens + newMessagesEstimate
@@ -1199,17 +1241,23 @@ export class ContextManager<TMessage = unknown> {
         // Step 1: Get system prompt (same as LLM preparation)
         const systemPrompt = await this.getSystemPrompt(contributorContext);
 
-        // Step 2: Prepare history (same as LLM preparation - single source of truth)
-        const { preparedHistory, stats } = await this.prepareHistory();
+        // Step 2: Prepare model history (same as LLM preparation - single source of truth)
+        const modelHistory = await this.conversationStore.loadModelHistory({
+            sessionId: this.sessionId,
+        });
+        const { preparedHistory, stats } = this.prepareVisibleHistory({
+            history: modelHistory.messages,
+            originalCount:
+                modelHistory.stats.returnedMessages + modelHistory.stats.skippedPreSummaryMessages,
+            source: 'getContextTokenEstimate',
+        });
 
         // Step 3: Calculate tokens using Phase 4 formula when actuals are available
         // Formula: estimatedNextInput = lastInputTokens + lastOutputTokens + newMessagesEstimate
         const lastInput = this.lastActualInputTokens;
         const lastOutput = this.lastActualOutputTokens;
         const lastMsgCount = this.lastCallMessageCount;
-        const currentHistory = await this.conversationStore.listMessages({
-            sessionId: this.sessionId,
-        });
+        const currentHistory = modelHistory.messages;
 
         // Get pure estimate as fallback and for breakdown calculation
         const pureEstimate = estimateContextTokens(systemPrompt, preparedHistory, tools);
@@ -1343,13 +1391,13 @@ export class ContextManager<TMessage = unknown> {
         const lastInput = this.lastActualInputTokens;
         const lastOutput = this.lastActualOutputTokens;
         const lastMsgCount = this.lastCallMessageCount;
-        const currentHistory = await this.conversationStore.listMessages({
-            sessionId: this.sessionId,
-        });
 
         // Use actuals-based formula if we have all the required values
         if (lastInput !== null && lastOutput !== null && lastMsgCount !== null) {
-            const newMessages = currentHistory.slice(lastMsgCount);
+            const modelHistory = await this.conversationStore.loadModelHistory({
+                sessionId: this.sessionId,
+            });
+            const newMessages = modelHistory.messages.slice(lastMsgCount);
             const newMessagesEstimate = estimateMessagesTokens(newMessages);
             const total = lastInput + lastOutput + newMessagesEstimate;
 

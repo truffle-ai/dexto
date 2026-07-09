@@ -35,6 +35,59 @@ describe('DatabaseConversationStore', () => {
         ]);
     });
 
+    it('loads the model-visible compacted history', async () => {
+        const database = createInMemoryDatabase();
+        const store = new DatabaseConversationStore(database, createMockLogger());
+        await database.connect();
+
+        const messages: InternalMessage[] = [
+            {
+                id: 'old-user',
+                role: 'user',
+                content: [{ type: 'text', text: 'old question' }],
+                timestamp: 1,
+            },
+            {
+                id: 'preserved-user',
+                role: 'user',
+                content: [{ type: 'text', text: 'preserved question' }],
+                timestamp: 2,
+            },
+            {
+                id: 'summary',
+                role: 'assistant',
+                assistantOutput: { status: 'complete' },
+                content: [{ type: 'text', text: 'summary' }],
+                metadata: { isSummary: true, originalMessageCount: 1 },
+                timestamp: 3,
+            },
+            {
+                id: 'after-summary',
+                role: 'assistant',
+                assistantOutput: { status: 'complete' },
+                content: [{ type: 'text', text: 'recent answer' }],
+                timestamp: 4,
+            },
+        ];
+
+        for (const message of messages) {
+            await store.saveMessage({ sessionId: 'session-1', message });
+        }
+
+        const modelHistory = await store.loadModelHistory({ sessionId: 'session-1' });
+
+        expect(modelHistory.messages.map((message) => message.id)).toEqual([
+            'summary',
+            'preserved-user',
+            'after-summary',
+        ]);
+        expect(modelHistory.stats).toEqual({
+            returnedMessages: 3,
+            skippedPreSummaryMessages: 1,
+            summaryMessageId: 'summary',
+        });
+    });
+
     it('flushes message updates back to durable storage', async () => {
         const database = createInMemoryDatabase();
         const store = new DatabaseConversationStore(database, createMockLogger());

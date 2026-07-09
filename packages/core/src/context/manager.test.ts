@@ -9,6 +9,7 @@ import type { ResourceManager } from '../resources/manager.js';
 import type { DynamicContributorContext } from '../systemPrompt/types.js';
 import type { MCPManager } from '../mcp/manager.js';
 import { InMemoryDextoStores } from '../storage/stores/in-memory.js';
+import type { ConversationStore } from '../storage/conversation/types.js';
 
 // Create mock dependencies
 const mockLogger = createMockLogger();
@@ -58,8 +59,10 @@ function createContextManager(options?: {
     formatter?: VercelMessageFormatter;
     systemPromptManager?: SystemPromptManager;
     resourceManager?: ResourceManager;
+    conversationStore?: ConversationStore;
 }) {
-    const conversationStore = new InMemoryDextoStores().getStore('conversation');
+    const conversationStore =
+        options?.conversationStore ?? new InMemoryDextoStores().getStore('conversation');
     const formatter = options?.formatter ?? createMockFormatter();
     const systemPromptManager = options?.systemPromptManager ?? createMockSystemPromptManager();
     const resourceManager = options?.resourceManager ?? createMockResourceManager();
@@ -105,6 +108,42 @@ describe('ContextManager', () => {
                 textLength: 13,
                 textSha256: '315f5bdb76d078c43b8ac0064e4a0164612b1fce77c869345bfc94c75894edd3',
             });
+        });
+
+        it('does not load full history after saving messages', async () => {
+            const savedMessages: InternalMessage[] = [];
+            const listMessages = vi.fn(async () => {
+                throw new Error('Unexpected full-history read');
+            });
+            const saveMessage = vi.fn(
+                async (input: { sessionId: string; message: InternalMessage }) => {
+                    savedMessages.push(input.message);
+                }
+            );
+            const conversationStore: ConversationStore = {
+                listMessages,
+                loadModelHistory: vi.fn(async () => ({
+                    messages: [],
+                    stats: {
+                        returnedMessages: 0,
+                        skippedPreSummaryMessages: 0,
+                        summaryMessageId: null,
+                    },
+                })),
+                saveMessage,
+                updateMessage: vi.fn(async () => {}),
+                clearMessages: vi.fn(async () => {}),
+                flush: vi.fn(async () => {}),
+            };
+            const manager = createContextManager({ conversationStore });
+
+            await manager.addUserMessage([{ type: 'text', text: 'Hello' }]);
+            const assistantId = await manager.addAssistantMessage('Hi');
+
+            expect(saveMessage).toHaveBeenCalledTimes(2);
+            expect(listMessages).not.toHaveBeenCalled();
+            expect(assistantId).toBe(savedMessages[1]?.id);
+            expect(typeof assistantId).toBe('string');
         });
 
         it('should add a user message with multiple text parts', async () => {
@@ -927,6 +966,73 @@ describe('ContextManager', () => {
         });
     });
 
+    describe('prepareModelHistory', () => {
+        it('uses the model-history store boundary instead of full-history reads', async () => {
+            const listMessages = vi.fn(async () => {
+                throw new Error('full history should not be loaded for model preparation');
+            });
+            const loadModelHistory = vi.fn(async () => ({
+                messages: [
+                    {
+                        id: 'summary-1',
+                        role: 'assistant',
+                        assistantOutput: { status: 'complete' },
+                        content: [{ type: 'text', text: 'Summary' }],
+                        metadata: { isSummary: true, originalMessageCount: 2000 },
+                        timestamp: 1,
+                    },
+                    {
+                        id: 'user-1',
+                        role: 'user',
+                        content: [{ type: 'text', text: 'Visible question' }],
+                        timestamp: 2,
+                    },
+                    {
+                        id: 'assistant-stopped',
+                        role: 'assistant',
+                        assistantOutput: { status: 'stopped', reason: 'cancelled' },
+                        content: [{ type: 'text', text: 'Hidden stopped text' }],
+                        timestamp: 3,
+                    },
+                    {
+                        id: 'assistant-complete',
+                        role: 'assistant',
+                        assistantOutput: { status: 'complete' },
+                        content: [{ type: 'text', text: 'Visible answer' }],
+                        timestamp: 4,
+                    },
+                ] satisfies InternalMessage[],
+                stats: {
+                    returnedMessages: 4,
+                    skippedPreSummaryMessages: 2000,
+                    summaryMessageId: 'summary-1',
+                },
+            }));
+            const conversationStore: ConversationStore = {
+                clearMessages: vi.fn(),
+                flush: vi.fn(),
+                listMessages,
+                loadModelHistory,
+                saveMessage: vi.fn(),
+                updateMessage: vi.fn(),
+            };
+            const manager = createContextManager({ conversationStore });
+
+            const result = await manager.prepareModelHistory();
+
+            expect(loadModelHistory).toHaveBeenCalledWith({ sessionId: 'test-session-id' });
+            expect(listMessages).not.toHaveBeenCalled();
+            expect(result.stats.originalCount).toBe(2004);
+            expect(
+                result.preparedHistory.map((message) =>
+                    message.role === 'assistant'
+                        ? (message.content?.[0] as { text: string }).text
+                        : message.role
+                )
+            ).toEqual(['Summary', 'user', 'Visible answer']);
+        });
+    });
+
     describe('getContextTokenEstimate', () => {
         const mockContributorContext = createMockContributorContext();
         const mockTools = {
@@ -936,6 +1042,52 @@ describe('ContextManager', () => {
                 parameters: { type: 'object', properties: {} },
             },
         };
+
+        it('uses the model-history store boundary instead of full-history reads', async () => {
+            const listMessages = vi.fn(async () => {
+                throw new Error('full history should not be loaded for context estimation');
+            });
+            const loadModelHistory = vi.fn(async () => ({
+                messages: [
+                    {
+                        id: 'summary-1',
+                        role: 'assistant',
+                        assistantOutput: { status: 'complete' },
+                        content: [{ type: 'text', text: 'Summary' }],
+                        metadata: { isSummary: true, originalMessageCount: 1000 },
+                        timestamp: 1,
+                    },
+                    {
+                        id: 'user-1',
+                        role: 'user',
+                        content: [{ type: 'text', text: 'Visible question' }],
+                        timestamp: 2,
+                    },
+                ] satisfies InternalMessage[],
+                stats: {
+                    returnedMessages: 2,
+                    skippedPreSummaryMessages: 1000,
+                    summaryMessageId: 'summary-1',
+                },
+            }));
+            const manager = createContextManager({
+                conversationStore: {
+                    clearMessages: vi.fn(),
+                    flush: vi.fn(),
+                    listMessages,
+                    loadModelHistory,
+                    saveMessage: vi.fn(),
+                    updateMessage: vi.fn(),
+                },
+            });
+
+            const result = await manager.getContextTokenEstimate(mockContributorContext, mockTools);
+
+            expect(result.stats.originalMessageCount).toBe(1002);
+            expect(result.stats.filteredMessageCount).toBe(2);
+            expect(loadModelHistory).toHaveBeenCalledWith({ sessionId: 'test-session-id' });
+            expect(listMessages).not.toHaveBeenCalled();
+        });
 
         it('should calculate total as sum of breakdown components', async () => {
             await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
@@ -1157,6 +1309,107 @@ describe('ContextManager', () => {
                 parameters: { type: 'object', properties: {} },
             },
         };
+
+        it('records the last call boundary from model history instead of full history', async () => {
+            const listMessages = vi.fn(async () => {
+                throw new Error('full history should not be loaded for model boundary tracking');
+            });
+            const loadModelHistory = vi.fn(async () => ({
+                messages: [
+                    {
+                        id: 'summary-1',
+                        role: 'assistant',
+                        assistantOutput: { status: 'complete' },
+                        content: [{ type: 'text', text: 'Summary' }],
+                        metadata: { isSummary: true, originalMessageCount: 2000 },
+                        timestamp: 1,
+                    },
+                    {
+                        id: 'user-1',
+                        role: 'user',
+                        content: [{ type: 'text', text: 'Visible question' }],
+                        timestamp: 2,
+                    },
+                ] satisfies InternalMessage[],
+                stats: {
+                    returnedMessages: 2,
+                    skippedPreSummaryMessages: 2000,
+                    summaryMessageId: 'summary-1',
+                },
+            }));
+            const manager = createContextManager({
+                conversationStore: {
+                    clearMessages: vi.fn(),
+                    flush: vi.fn(),
+                    listMessages,
+                    loadModelHistory,
+                    saveMessage: vi.fn(),
+                    updateMessage: vi.fn(),
+                },
+            });
+
+            await manager.recordLastCallMessageCount();
+
+            expect(manager.getLastCallMessageCount()).toBe(2);
+            expect(loadModelHistory).toHaveBeenCalledWith({ sessionId: 'test-session-id' });
+            expect(listMessages).not.toHaveBeenCalled();
+        });
+
+        it('estimates actual-token deltas from model history instead of full history', async () => {
+            const listMessages = vi.fn(async () => {
+                throw new Error('full history should not be loaded for token estimation');
+            });
+            const boundaryMessages: InternalMessage[] = [
+                {
+                    id: 'user-1',
+                    role: 'user',
+                    content: [{ type: 'text', text: 'Hello' }],
+                    timestamp: 1,
+                },
+            ];
+            const newMessage: InternalMessage = {
+                id: 'assistant-1',
+                role: 'assistant',
+                assistantOutput: { status: 'complete' },
+                content: [{ type: 'text', text: 'A'.repeat(400) }],
+                timestamp: 2,
+            };
+            let modelMessages = boundaryMessages;
+            const loadModelHistory = vi.fn(async () => ({
+                messages: modelMessages,
+                stats: {
+                    returnedMessages: modelMessages.length,
+                    skippedPreSummaryMessages: 0,
+                    summaryMessageId: null,
+                },
+            }));
+            const manager = createContextManager({
+                conversationStore: {
+                    clearMessages: vi.fn(),
+                    flush: vi.fn(),
+                    listMessages,
+                    loadModelHistory,
+                    saveMessage: vi.fn(),
+                    updateMessage: vi.fn(),
+                },
+            });
+
+            manager.setLastActualInputTokens(5000);
+            manager.setLastActualOutputTokens(200);
+            await manager.recordLastCallMessageCount();
+            modelMessages = [...boundaryMessages, newMessage];
+
+            const estimated = await manager.getEstimatedNextInputTokens(
+                'System',
+                modelMessages,
+                mockTools
+            );
+
+            const { estimateMessagesTokens } = await import('./utils.js');
+            expect(estimated).toBe(5000 + 200 + estimateMessagesTokens([newMessage]));
+            expect(loadModelHistory).toHaveBeenCalledTimes(2);
+            expect(listMessages).not.toHaveBeenCalled();
+        });
 
         it('should calculate formula exactly: lastInput + lastOutput + newMessagesEstimate', async () => {
             // Setup: one message BEFORE recording

@@ -205,13 +205,13 @@ export class StreamProcessor {
                         setStreamAttribute('last_delta_kind', 'text');
                         if (!this.assistantMessageId) {
                             // Create assistant message on first text delta if not exists
-                            this.assistantMessageId = await this.contextManager
-                                .addAssistantMessage('', [], {
+                            this.assistantMessageId = await this.contextManager.addAssistantMessage(
+                                '',
+                                [],
+                                {
                                     assistantOutput: { status: 'draft' },
-                                })
-                                .then(() => {
-                                    return this.getLastMessageId();
-                                });
+                                }
+                            );
                         }
 
                         await this.contextManager.appendAssistantText(
@@ -800,17 +800,9 @@ export class StreamProcessor {
     }
 
     private async createAssistantMessage(): Promise<string> {
-        await this.contextManager.addAssistantMessage('', [], {
+        return this.contextManager.addAssistantMessage('', [], {
             assistantOutput: { status: 'draft' },
         });
-        return this.getLastMessageId();
-    }
-
-    private async getLastMessageId(): Promise<string> {
-        const history = await this.contextManager.getHistory();
-        const last = history[history.length - 1];
-        if (!last || !last.id) throw new Error('Failed to get last message ID');
-        return last.id;
     }
 
     /**
