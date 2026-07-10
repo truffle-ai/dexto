@@ -39,15 +39,25 @@ describe('getReasoningProfile', () => {
         ]);
     });
 
-    it.each(['gpt-5.6-sol', 'gpt-5.6-terra', 'gpt-5.6-luna'])(
-        'exposes max reasoning for OpenAI %s',
-        (modelId) => {
-            expect(getReasoningProfile('openai', modelId)).toMatchObject({
-                supportedVariants: ['none', 'low', 'medium', 'high', 'xhigh', 'max'],
-                defaultVariant: 'medium',
-            });
-        }
-    );
+    it.each([
+        {
+            modelId: 'gpt-5.6-sol',
+            supportedVariants: ['low', 'medium', 'high', 'xhigh', 'max', 'ultra'],
+        },
+        {
+            modelId: 'gpt-5.6-terra',
+            supportedVariants: ['low', 'medium', 'high', 'xhigh', 'max', 'ultra'],
+        },
+        {
+            modelId: 'gpt-5.6-luna',
+            supportedVariants: ['low', 'medium', 'high', 'xhigh', 'max'],
+        },
+    ])('returns exact OpenAI reasoning levels for $modelId', ({ modelId, supportedVariants }) => {
+        expect(getReasoningProfile('openai', modelId)).toMatchObject({
+            supportedVariants,
+            defaultVariant: 'medium',
+        });
+    });
 
     it('returns Anthropic budget profile for pre-adaptive models', () => {
         expect(getReasoningProfile('anthropic', 'claude-sonnet-4-5')).toMatchObject({

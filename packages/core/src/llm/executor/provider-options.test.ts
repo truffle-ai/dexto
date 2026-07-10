@@ -38,15 +38,18 @@ describe('buildProviderOptions', () => {
             ).toEqual({ openai: { reasoningEffort: 'none' } });
         });
 
-        it('maps GPT-5.6 max reasoning to the OpenAI Responses options', () => {
-            expect(
-                buildProviderOptions({
-                    provider: 'openai',
-                    model: 'gpt-5.6-sol',
-                    reasoning: { variant: 'max' },
-                })
-            ).toEqual({ openai: { reasoningEffort: 'max', reasoningSummary: 'auto' } });
-        });
+        it.each(['max', 'ultra'] as const)(
+            'maps GPT-5.6 %s reasoning to the OpenAI Responses options',
+            (effort) => {
+                expect(
+                    buildProviderOptions({
+                        provider: 'openai',
+                        model: 'gpt-5.6-sol',
+                        reasoning: { variant: effort },
+                    })
+                ).toEqual({ openai: { reasoningEffort: effort, reasoningSummary: 'auto' } });
+            }
+        );
 
         it('does not send options for unsupported explicit variants', () => {
             expect(
@@ -364,20 +367,23 @@ describe('buildProviderOptions', () => {
             });
         });
 
-        it('preserves GPT-5.6 max reasoning for gateway providers', () => {
-            expect(
-                buildProviderOptions({
-                    provider: 'dexto-nova',
-                    model: 'openai/gpt-5.6-sol',
-                    reasoning: { variant: 'max' },
-                })
-            ).toEqual({
-                'dexto-nova': {
-                    include_reasoning: true,
-                    reasoning: { enabled: true, effort: 'max' },
-                },
-            });
-        });
+        it.each(['max', 'ultra'] as const)(
+            'preserves GPT-5.6 %s reasoning for gateway providers',
+            (effort) => {
+                expect(
+                    buildProviderOptions({
+                        provider: 'dexto-nova',
+                        model: 'openai/gpt-5.6-sol',
+                        reasoning: { variant: effort },
+                    })
+                ).toEqual({
+                    'dexto-nova': {
+                        include_reasoning: true,
+                        reasoning: { enabled: true, effort },
+                    },
+                });
+            }
+        );
 
         it('uses high effort by default for Claude Fable 5 on gateway providers', () => {
             expect(

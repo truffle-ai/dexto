@@ -5,7 +5,8 @@ export type OpenAIReasoningEffort =
     | 'medium'
     | 'high'
     | 'xhigh'
-    | 'max';
+    | 'max'
+    | 'ultra';
 
 function normalizeOpenAIModelId(model: string): string {
     const id = model.split('/').pop() ?? model;
@@ -15,6 +16,8 @@ function normalizeOpenAIModelId(model: string): string {
 export function getSupportedOpenAIReasoningEfforts(model: string): OpenAIReasoningEffort[] {
     const id = normalizeOpenAIModelId(model);
 
+    // TODO: Derive per-model reasoning effort values from models.dev once its API exposes and
+    // documents them, then remove this manually maintained capability table.
     // OpenAI docs (model pages / API reference) indicate per-model constraints.
     // Keep this conservative and only add cases when we have reliable evidence.
     //
@@ -37,8 +40,12 @@ export function getSupportedOpenAIReasoningEfforts(model: string): OpenAIReasoni
         return ['medium', 'high', 'xhigh'];
     }
 
-    if (version === 6) {
-        return ['none', 'low', 'medium', 'high', 'xhigh', 'max'];
+    if (id === 'gpt-5.6-sol' || id === 'gpt-5.6-terra') {
+        return ['low', 'medium', 'high', 'xhigh', 'max', 'ultra'];
+    }
+
+    if (id === 'gpt-5.6-luna') {
+        return ['low', 'medium', 'high', 'xhigh', 'max'];
     }
 
     if (version !== undefined && version >= 2) {
@@ -80,19 +87,21 @@ function isGpt5Chat(id: string): boolean {
 function getFallbackOrder(requested: OpenAIReasoningEffort): readonly OpenAIReasoningEffort[] {
     switch (requested) {
         case 'none':
-            return ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'];
+            return ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'ultra'];
         case 'minimal':
-            return ['minimal', 'low', 'medium', 'high', 'xhigh', 'max'];
+            return ['minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'ultra'];
         case 'low':
-            return ['low', 'medium', 'high', 'xhigh', 'max'];
+            return ['low', 'medium', 'high', 'xhigh', 'max', 'ultra'];
         case 'medium':
-            return ['medium', 'high', 'xhigh', 'max'];
+            return ['medium', 'high', 'xhigh', 'max', 'ultra'];
         case 'high':
-            return ['high', 'xhigh', 'max'];
+            return ['high', 'xhigh', 'max', 'ultra'];
         case 'xhigh':
-            return ['xhigh', 'max', 'high', 'medium', 'low', 'minimal', 'none'];
+            return ['xhigh', 'max', 'ultra', 'high', 'medium', 'low', 'minimal', 'none'];
         case 'max':
-            return ['max', 'xhigh', 'high', 'medium', 'low', 'minimal', 'none'];
+            return ['max', 'ultra', 'xhigh', 'high', 'medium', 'low', 'minimal', 'none'];
+        case 'ultra':
+            return ['ultra', 'max', 'xhigh', 'high', 'medium', 'low', 'minimal', 'none'];
     }
 }
 
