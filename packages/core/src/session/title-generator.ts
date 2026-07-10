@@ -42,12 +42,11 @@ export async function generateSessionTitle(
 
     try {
         const providerContext = opts.providerContext ?? {};
-        const model =
-            opts.languageModelFactory?.({
-                config,
-                context: providerContext,
-                createDefaultLanguageModel: () => createVercelModel(config, providerContext),
-            }) ?? createVercelModel(config, providerContext);
+        const model = await (opts.languageModelFactory?.({
+            config,
+            context: providerContext,
+            createDefaultLanguageModel: () => createVercelModel(config, providerContext),
+        }) ?? createVercelModel(config, providerContext));
 
         const instruction = [
             'Generate a short conversation title from the following user message.',

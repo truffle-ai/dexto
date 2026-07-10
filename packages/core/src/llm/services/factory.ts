@@ -1,21 +1,9 @@
 import { ToolManager } from '../../tools/tool-manager.js';
 import { ValidatedLLMConfig } from '../schemas.js';
 import { LLMError } from '../errors.js';
-import { createOpenAI } from '@ai-sdk/openai';
-import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
-import { createGoogleGenerativeAI } from '@ai-sdk/google';
-import { createAnthropic } from '@ai-sdk/anthropic';
-import { createGroq } from '@ai-sdk/groq';
-import { createXai } from '@ai-sdk/xai';
-import { createVertex } from '@ai-sdk/google-vertex';
-import { createVertexAnthropic } from '@ai-sdk/google-vertex/anthropic';
-import { createAmazonBedrock } from '@ai-sdk/amazon-bedrock';
-import { createOpenRouter } from '@openrouter/ai-sdk-provider';
 import { VercelLLMService } from './vercel.js';
 import type { LanguageModel } from 'ai';
 import { SessionEventBus } from '../../events/index.js';
-import { createCohere } from '@ai-sdk/cohere';
-import { createLocalLanguageModel } from '../providers/local/ai-sdk-adapter.js';
 import type { ConversationStore } from '../../storage/conversation/types.js';
 import type { SystemPromptManager } from '../../systemPrompt/manager.js';
 import type { Logger } from '../../logger/v2/types.js';
@@ -33,7 +21,6 @@ import {
     type LLMProvider,
 } from '@dexto/llm';
 import { getPrimaryApiKeyEnvVar, resolveApiKeyForProvider } from '../../utils/api-key-resolver.js';
-import { createCodexLanguageModel } from '../providers/codex-app-server.js';
 import { isCodexBaseURL } from '../providers/codex-base-url.js';
 import { findDextoProjectRoot } from '../../utils/execution-context.js';
 
@@ -148,12 +135,12 @@ function logRuntimeAuthResolution(input: {
  *
  * @param llmConfig - LLM configuration from agent config
  * @param context - Optional context for usage tracking (session ID, etc.)
- * @returns Vercel AI SDK LanguageModel instance
+ * @returns Promise resolving to a Vercel AI SDK LanguageModel instance
  */
-export function createVercelModel(
+export async function createVercelModel(
     llmConfig: ValidatedLLMConfig,
     context?: DextoProviderContext
-): LanguageModel {
+): Promise<LanguageModel> {
     const { provider, model, baseURL } = llmConfig;
     const runtimeAuth =
         context?.authResolver?.resolveRuntimeAuth({
@@ -189,6 +176,9 @@ export function createVercelModel(
     switch (provider.toLowerCase()) {
         case 'openai': {
             if (usesCodexRuntimeAuth && runtimeBaseURL) {
+                const { createCodexLanguageModel } = await import(
+                    '../providers/codex-app-server.js'
+                );
                 return createCodexLanguageModel({
                     modelId: model,
                     baseURL: runtimeBaseURL,
@@ -201,6 +191,7 @@ export function createVercelModel(
 
             // Regular OpenAI - strict compatibility, no baseURL
             // Explicitly use the Responses API (default in AI SDK 5+).
+            const { createOpenAI } = await import('@ai-sdk/openai');
             return createOpenAI({
                 apiKey: apiKey ?? '',
                 ...(effectiveBaseURL ? { baseURL: effectiveBaseURL } : {}),
@@ -217,6 +208,7 @@ export function createVercelModel(
 
             // Use the OpenAI-compatible provider so providerOptions can be keyed per-endpoint.
             // This also avoids mixing OpenAI Responses defaults into compatibility endpoints.
+            const { createOpenAICompatible } = await import('@ai-sdk/openai-compatible');
             const provider = createOpenAICompatible({
                 name: 'openaiCompatible',
                 baseURL: compatibleBaseURL,
@@ -230,6 +222,7 @@ export function createVercelModel(
             // OpenRouter - unified API gateway for 100+ models (BYOK)
             // Model IDs are in OpenRouter format (e.g., 'anthropic/claude-sonnet-4-5-20250929')
             const orBaseURL = baseURL || 'https://openrouter.ai/api/v1';
+            const { createOpenRouter } = await import('@openrouter/ai-sdk-provider');
             const provider = createOpenRouter({
                 apiKey: apiKey ?? '',
                 baseURL: orBaseURL,
@@ -248,6 +241,7 @@ export function createVercelModel(
         case 'minimax': {
             // MiniMax - OpenAI-compatible endpoint
             const minimaxBaseURL = effectiveBaseURL || 'https://api.minimax.chat/v1';
+            const { createOpenAI } = await import('@ai-sdk/openai');
             return createOpenAI({
                 apiKey: apiKey ?? '',
                 baseURL: minimaxBaseURL,
@@ -258,6 +252,7 @@ export function createVercelModel(
         case 'glm': {
             // Zhipu AI (GLM) - OpenAI-compatible endpoint
             const glmBaseURL = effectiveBaseURL || 'https://open.bigmodel.cn/api/paas/v4';
+            const { createOpenAI } = await import('@ai-sdk/openai');
             return createOpenAI({
                 apiKey: apiKey ?? '',
                 baseURL: glmBaseURL,
@@ -271,6 +266,7 @@ export function createVercelModel(
             if (!effectiveBaseURL) {
                 throw LLMError.baseUrlMissing('litellm');
             }
+            const { createOpenAI } = await import('@ai-sdk/openai');
             return createOpenAI({
                 apiKey: apiKey ?? '',
                 baseURL: effectiveBaseURL,
@@ -282,6 +278,7 @@ export function createVercelModel(
             // Glama - OpenAI-compatible gateway for multiple LLM providers
             // Fixed endpoint, no user configuration needed
             const glamaBaseURL = effectiveBaseURL || 'https://glama.ai/api/gateway/openai/v1';
+            const { createOpenAI } = await import('@ai-sdk/openai');
             return createOpenAI({
                 apiKey: apiKey ?? '',
                 baseURL: glamaBaseURL,
@@ -314,6 +311,7 @@ export function createVercelModel(
 
             // Dexto Gateway exposes an OpenAI-compatible /v1/chat/completions surface.
             // Model IDs remain gateway model IDs, usually OpenRouter-style provider/model IDs.
+            const { createOpenAICompatible } = await import('@ai-sdk/openai-compatible');
             const provider = createOpenAICompatible({
                 name: 'dexto-nova',
                 baseURL: dextoBaseURL,
@@ -352,6 +350,7 @@ export function createVercelModel(
                 const headers = supportsAnthropicInterleavedThinking(model)
                     ? { [ANTHROPIC_BETA_HEADER]: ANTHROPIC_INTERLEAVED_THINKING_BETA }
                     : undefined;
+                const { createVertexAnthropic } = await import('@ai-sdk/google-vertex/anthropic');
                 return createVertexAnthropic({
                     project: projectId,
                     location: location || 'us-east5',
@@ -361,6 +360,7 @@ export function createVercelModel(
 
             // Gemini models use the main export
             // Default to us-central1 for Gemini (widely available)
+            const { createVertex } = await import('@ai-sdk/google-vertex');
             return createVertex({
                 project: projectId,
                 location: location || 'us-central1',
@@ -400,6 +400,7 @@ export function createVercelModel(
             }
 
             // SDK automatically reads AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_SESSION_TOKEN
+            const { createAmazonBedrock } = await import('@ai-sdk/amazon-bedrock');
             return createAmazonBedrock({ region })(modelId);
         }
         case 'anthropic': {
@@ -409,6 +410,7 @@ export function createVercelModel(
                     : undefined,
                 runtimeHeaders
             );
+            const { createAnthropic } = await import('@ai-sdk/anthropic');
             return createAnthropic({
                 apiKey: apiKey ?? '',
                 ...(effectiveBaseURL ? { baseURL: effectiveBaseURL } : {}),
@@ -416,20 +418,29 @@ export function createVercelModel(
                 ...(runtimeFetch ? { fetch: runtimeFetch } : {}),
             })(model);
         }
-        case 'google':
+        case 'google': {
+            const { createGoogleGenerativeAI } = await import('@ai-sdk/google');
             return createGoogleGenerativeAI({ apiKey: apiKey ?? '' })(model);
-        case 'groq':
+        }
+        case 'groq': {
+            const { createGroq } = await import('@ai-sdk/groq');
             return createGroq({ apiKey: apiKey ?? '' })(model);
-        case 'xai':
+        }
+        case 'xai': {
+            const { createXai } = await import('@ai-sdk/xai');
             return createXai({ apiKey: apiKey ?? '' })(model);
-        case 'cohere':
+        }
+        case 'cohere': {
+            const { createCohere } = await import('@ai-sdk/cohere');
             return createCohere({ apiKey: apiKey ?? '' })(model);
+        }
         case 'ollama': {
             // Ollama - local model server with OpenAI-compatible API
             // Uses the /v1 endpoint for AI SDK compatibility
             // Default URL: http://localhost:11434
             const ollamaBaseURL = effectiveBaseURL || 'http://localhost:11434/v1';
             // Ollama doesn't require an API key, but the SDK needs a non-empty string
+            const { createOpenAI } = await import('@ai-sdk/openai');
             return createOpenAI({
                 apiKey: apiKey ?? 'ollama',
                 baseURL: ollamaBaseURL,
@@ -440,6 +451,9 @@ export function createVercelModel(
         case 'local': {
             // Native node-llama-cpp execution via AI SDK adapter.
             // Model is loaded lazily on first use.
+            const { createLocalLanguageModel } = await import(
+                '../providers/local/ai-sdk-adapter.js'
+            );
             return createLocalLanguageModel({
                 modelId: model,
             });
@@ -462,9 +476,9 @@ export function createVercelModel(
  * @param resourceManager Resource manager for blob storage and resource access
  * @param logger Logger instance for dependency injection
  * @param options Session-scoped runtime options
- * @returns VercelLLMService instance
+ * @returns Promise resolving to a VercelLLMService instance
  */
-export function createLLMService(
+export async function createLLMService(
     config: ValidatedLLMConfig,
     toolManager: ToolManager,
     systemPromptManager: SystemPromptManager,
@@ -475,7 +489,7 @@ export function createLLMService(
     logger: Logger,
     options: CreateLLMServiceOptions,
     languageModelFactory?: LanguageModelFactory
-): VercelLLMService {
+): Promise<VercelLLMService> {
     const { usageScopeId, compactionStrategy, executionControl, steerQueue, followUpQueue } =
         options;
 
@@ -493,12 +507,11 @@ export function createLLMService(
         },
     };
 
-    const model =
-        languageModelFactory?.({
-            config,
-            context: providerContext,
-            createDefaultLanguageModel: () => createVercelModel(config, providerContext),
-        }) ?? createVercelModel(config, providerContext);
+    const model = await (languageModelFactory?.({
+        config,
+        context: providerContext,
+        createDefaultLanguageModel: () => createVercelModel(config, providerContext),
+    }) ?? createVercelModel(config, providerContext));
 
     return new VercelLLMService(
         toolManager,

@@ -68,10 +68,10 @@ export interface LanguageModelFactoryInput {
 }
 
 export interface LanguageModelFactoryContext extends LanguageModelFactoryInput {
-    createDefaultLanguageModel: () => LanguageModel;
+    createDefaultLanguageModel: () => Promise<LanguageModel>;
 }
 
-export type LanguageModelFactory = (context: LanguageModelFactoryContext) => LanguageModel;
+export type LanguageModelFactory = (context: LanguageModelFactoryContext) => Promise<LanguageModel>;
 
 /**
  * Token usage statistics from LLM

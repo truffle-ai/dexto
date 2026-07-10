@@ -87,14 +87,14 @@ describe('createVercelModel dexto-nova base URL resolution', () => {
         delete process.env.DEXTO_API_URL;
     });
 
-    it('uses the production gateway by default', () => {
-        createVercelModel(buildDextoConfig());
+    it('uses the production gateway by default', async () => {
+        await createVercelModel(buildDextoConfig());
 
         expect(getLastDextoNovaBaseUrl()).toBe('https://app.dexto.ai/v1');
     });
 
-    it('uses llm.baseURL when explicitly provided', () => {
-        createVercelModel(
+    it('uses llm.baseURL when explicitly provided', async () => {
+        await createVercelModel(
             buildDextoConfig({
                 baseURL: 'http://localhost:3001/v1/',
             })
@@ -103,26 +103,26 @@ describe('createVercelModel dexto-nova base URL resolution', () => {
         expect(getLastDextoNovaBaseUrl()).toBe('http://localhost:3001/v1');
     });
 
-    it('uses DEXTO_API_URL when no explicit baseURL is set', () => {
+    it('uses DEXTO_API_URL when no explicit baseURL is set', async () => {
         process.env.DEXTO_API_URL = 'http://localhost:3001';
 
-        createVercelModel(buildDextoConfig());
+        await createVercelModel(buildDextoConfig());
 
         expect(getLastDextoNovaBaseUrl()).toBe('http://localhost:3001/v1');
     });
 
-    it('preserves DEXTO_API_URL when it already includes /v1', () => {
+    it('preserves DEXTO_API_URL when it already includes /v1', async () => {
         process.env.DEXTO_API_URL = 'https://api.preview.dexto.ai/v1/';
 
-        createVercelModel(buildDextoConfig());
+        await createVercelModel(buildDextoConfig());
 
         expect(getLastDextoNovaBaseUrl()).toBe('https://api.preview.dexto.ai/v1');
     });
 
-    it('prefers explicit baseURL over DEXTO_API_URL', () => {
+    it('prefers explicit baseURL over DEXTO_API_URL', async () => {
         process.env.DEXTO_API_URL = 'https://api.preview.dexto.ai';
 
-        createVercelModel(
+        await createVercelModel(
             buildDextoConfig({
                 baseURL: 'http://localhost:3001/v1',
             })
@@ -131,8 +131,8 @@ describe('createVercelModel dexto-nova base URL resolution', () => {
         expect(getLastDextoNovaBaseUrl()).toBe('http://localhost:3001/v1');
     });
 
-    it('uses an OpenAI-compatible provider named dexto-nova with gateway headers', () => {
-        createVercelModel(
+    it('uses an OpenAI-compatible provider named dexto-nova with gateway headers', async () => {
+        await createVercelModel(
             buildDextoConfig({
                 baseURL: 'http://localhost:3001/v1',
             }),
@@ -153,14 +153,14 @@ describe('createVercelModel dexto-nova base URL resolution', () => {
         });
     });
 
-    it('projects OpenAI ChatGPT Login through runtime auth instead of config baseURL', () => {
+    it('projects OpenAI ChatGPT Login through runtime auth instead of config baseURL', async () => {
         const authResolver = {
             resolveRuntimeAuth: vi.fn(() => ({
                 baseURL: 'codex://chatgpt',
             })),
         };
 
-        createVercelModel(
+        await createVercelModel(
             LLMConfigSchema.parse({
                 provider: 'openai',
                 model: 'gpt-5.4',
@@ -183,11 +183,11 @@ describe('createVercelModel dexto-nova base URL resolution', () => {
         expect(sdkMocks.createOpenAI).not.toHaveBeenCalled();
     });
 
-    it('passes runtime auth overrides to OpenAI clients', () => {
+    it('passes runtime auth overrides to OpenAI clients', async () => {
         const runtimeFetch = async (): Promise<Response> => new Response(null);
         const logger = createMockLogger();
 
-        createVercelModel(
+        await createVercelModel(
             LLMConfigSchema.parse({
                 provider: 'openai',
                 model: 'gpt-5.4',
@@ -240,10 +240,10 @@ describe('createVercelModel dexto-nova base URL resolution', () => {
         );
     });
 
-    it('passes runtime auth overrides to OpenAI-compatible clients', () => {
+    it('passes runtime auth overrides to OpenAI-compatible clients', async () => {
         const runtimeFetch = async (): Promise<Response> => new Response(null);
 
-        createVercelModel(
+        await createVercelModel(
             LLMConfigSchema.parse({
                 provider: 'openai-compatible',
                 model: 'custom-model',
