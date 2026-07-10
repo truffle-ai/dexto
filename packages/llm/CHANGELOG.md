@@ -1,5 +1,12 @@
 # @dexto/llm
 
+## 1.9.6
+
+### Patch Changes
+
+- c21d575: Correct GPT-5.6 registry limits, long-context pricing, and model-specific reasoning effort levels,
+  including `ultra` support for Sol and Terra.
+
 ## 1.9.5
 
 ### Patch Changes
