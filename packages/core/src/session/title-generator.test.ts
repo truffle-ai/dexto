@@ -46,13 +46,13 @@ describe('generateSessionTitle', () => {
 
     beforeEach(() => {
         vi.resetAllMocks();
-        mocks.createVercelModel.mockReturnValue(createMockModel('default-model'));
+        mocks.createVercelModel.mockResolvedValue(createMockModel('default-model'));
         mocks.generateText.mockResolvedValue({ text: 'Default title', totalUsage: defaultUsage });
     });
 
     test('passes a host-provided languageModelFactory through to direct text generation', async () => {
         const hostedModel = createMockModel('hosted-model');
-        const languageModelFactory = vi.fn(() => hostedModel);
+        const languageModelFactory = vi.fn(async () => hostedModel);
         mocks.generateText.mockResolvedValue({
             text: 'Hosted transport title',
             totalUsage: {
@@ -95,7 +95,7 @@ describe('generateSessionTitle', () => {
 
     test('uses the default model factory without constructing a session LLM service', async () => {
         const defaultModel = createMockModel('default-model');
-        mocks.createVercelModel.mockReturnValue(defaultModel);
+        mocks.createVercelModel.mockResolvedValue(defaultModel);
 
         const result = await generateSessionTitle(llmConfig, 'generate a title', logger);
 
