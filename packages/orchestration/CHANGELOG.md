@@ -1,5 +1,12 @@
 # @dexto/orchestration
 
+## 1.9.5
+
+### Patch Changes
+
+- Updated dependencies [cc1ef74]
+    - @dexto/core@1.9.5
+
 ## 1.9.4
 
 ### Patch Changes
