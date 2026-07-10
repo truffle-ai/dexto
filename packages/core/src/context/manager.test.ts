@@ -238,12 +238,6 @@ describe('ContextManager', () => {
             const stores = new InMemoryDextoStores();
             const resourceManager = {
                 read: vi.fn(async (uri: string) => {
-                    if (uri === 'blob:old-image') {
-                        return {
-                            contents: [{ blob: 'old-image-data', mimeType: 'image/png' }],
-                            _meta: { size: 1024, originalName: 'old-image.png' },
-                        };
-                    }
                     if (uri === 'blob:middle-image') {
                         return {
                             contents: [{ blob: 'middle-image-data', mimeType: 'image/png' }],
@@ -273,17 +267,42 @@ describe('ContextManager', () => {
             const history: InternalMessage[] = [
                 {
                     role: 'user',
-                    content: [{ type: 'image', image: '@blob:old-image', mimeType: 'image/png' }],
-                } as InternalMessage,
-                {
-                    role: 'user',
                     content: [
-                        { type: 'image', image: '@blob:middle-image', mimeType: 'image/png' },
+                        {
+                            type: 'resource',
+                            uri: 'blob:old-image',
+                            name: 'old-image.png',
+                            mimeType: 'image/png',
+                            kind: 'image',
+                            size: 1024,
+                        },
                     ],
                 } as InternalMessage,
                 {
                     role: 'user',
-                    content: [{ type: 'image', image: '@blob:new-image', mimeType: 'image/png' }],
+                    content: [
+                        {
+                            type: 'resource',
+                            uri: 'blob:middle-image',
+                            name: 'middle-image.png',
+                            mimeType: 'image/png',
+                            kind: 'image',
+                            size: 2048,
+                        },
+                    ],
+                } as InternalMessage,
+                {
+                    role: 'user',
+                    content: [
+                        {
+                            type: 'resource',
+                            uri: 'blob:new-image',
+                            name: 'new-image.png',
+                            mimeType: 'image/png',
+                            kind: 'image',
+                            size: 3072,
+                        },
+                    ],
                 } as InternalMessage,
             ];
 
@@ -299,14 +318,22 @@ describe('ContextManager', () => {
                 .calls[0]?.[0] as InternalMessage[];
             expect(formattedHistory).toBeDefined();
             expect(formattedHistory[0]?.content).toEqual([
+                { type: 'text', text: 'Attached image: blob:old-image (old-image.png)' },
                 { type: 'text', text: '[Image: old-image.png (1 KB)]' },
             ]);
             expect(formattedHistory[1]?.content).toEqual([
+                {
+                    type: 'text',
+                    text: 'Attached image: blob:middle-image (middle-image.png)',
+                },
                 { type: 'image', image: 'middle-image-data', mimeType: 'image/png' },
             ]);
             expect(formattedHistory[2]?.content).toEqual([
+                { type: 'text', text: 'Attached image: blob:new-image (new-image.png)' },
                 { type: 'image', image: 'new-image-data', mimeType: 'image/png' },
             ]);
+            expect(resourceManager.read).toHaveBeenCalledTimes(2);
+            expect(resourceManager.read).not.toHaveBeenCalledWith('blob:old-image');
         });
 
         it('should rehydrate recent tool media for the LLM', async () => {

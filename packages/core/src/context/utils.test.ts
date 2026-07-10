@@ -1474,6 +1474,69 @@ describe('expandBlobReferences', () => {
         expect(result).toEqual([{ type: 'text', text: '[Image: older-image.png (2 KB)]' }]);
     });
 
+    test('should demote older resource media without reading artifact bytes', async () => {
+        const resourceManager = {
+            read: vi.fn(),
+        } as unknown as import('../resources/index.js').ResourceManager;
+
+        const result = await expandBlobReferences(
+            [
+                {
+                    type: 'resource',
+                    uri: 'blob:uploaded-image',
+                    name: 'uploaded-image.png',
+                    mimeType: 'image/png',
+                    kind: 'image',
+                    size: 2048,
+                },
+            ],
+            resourceManager,
+            mockLogger,
+            ['image/*'],
+            false
+        );
+
+        expect(result).toEqual([
+            {
+                type: 'text',
+                text: 'Attached image: blob:uploaded-image (uploaded-image.png)',
+            },
+            { type: 'text', text: '[Image: uploaded-image.png (2 KB)]' },
+        ]);
+        expect(resourceManager.read).not.toHaveBeenCalled();
+    });
+
+    test('should demote unsupported resource media without reading artifact bytes', async () => {
+        const resourceManager = {
+            read: vi.fn(),
+        } as unknown as import('../resources/index.js').ResourceManager;
+
+        const result = await expandBlobReferences(
+            [
+                {
+                    type: 'resource',
+                    uri: 'blob:uploaded-video',
+                    name: 'uploaded-video.mp4',
+                    mimeType: 'video/mp4',
+                    kind: 'video',
+                    size: 5 * 1024 * 1024,
+                },
+            ],
+            resourceManager,
+            mockLogger,
+            ['image/*']
+        );
+
+        expect(result).toEqual([
+            {
+                type: 'text',
+                text: 'Attached video: blob:uploaded-video (uploaded-video.mp4)',
+            },
+            { type: 'text', text: '[Video: uploaded-video.mp4 (5 MB)]' },
+        ]);
+        expect(resourceManager.read).not.toHaveBeenCalled();
+    });
+
     test('should still expand text blobs when prompt media expansion is disabled', async () => {
         const resourceManager = createMockResourceManager({
             abc123def456: { text: 'Long text attachment', mimeType: 'text/plain' },
