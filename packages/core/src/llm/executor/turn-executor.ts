@@ -62,6 +62,10 @@ import type { ModelLimits } from '../../context/compaction/overflow.js';
 import { isCodexBaseURL } from '../providers/codex-base-url.js';
 import type { AgentRunContext } from '../../runtime/run-context.js';
 import { createModelToolDefinitions } from './tool-definitions.js';
+import {
+    createModelRequestDiagnostics,
+    modelRequestDiagnosticAttributes,
+} from './model-request-diagnostics.js';
 import { ApprovalStatus, type ApprovalResponse } from '../../approval/types.js';
 import type { ApprovalDecisionInput } from '../../approval/manager.js';
 import type { LLMExecutionControl } from '../services/types.js';
@@ -1350,28 +1354,33 @@ export class TurnExecutor {
             this.logger
         );
 
-        let { preparedHistory, formattedMessages } = await recordOperationSpan(
-            {
-                name: 'context.build_messages',
-                componentName: 'TurnExecutor',
-                attributes: {
-                    'llm.model': this.llmContext.model,
-                    'llm.provider': this.llmContext.provider,
+        let { preparedHistory, preparedHistoryStats, formattedMessages } =
+            await recordOperationSpan(
+                {
+                    name: 'context.build_messages',
+                    componentName: 'TurnExecutor',
+                    attributes: {
+                        'llm.model': this.llmContext.model,
+                        'llm.provider': this.llmContext.provider,
+                    },
                 },
-            },
-            async () => {
-                const preparedHistory = (await this.contextManager.prepareModelHistory())
-                    .preparedHistory;
-                const formattedMessages = await this.contextManager.getFormattedMessages(
-                    input.contributorContext,
-                    this.llmContext,
-                    systemPrompt,
-                    preparedHistory
-                );
-                return { preparedHistory, formattedMessages };
-            },
-            this.logger
-        );
+                async () => {
+                    const preparedHistoryResult = await this.contextManager.prepareModelHistory();
+                    const preparedHistory = preparedHistoryResult.preparedHistory;
+                    const formattedMessages = await this.contextManager.getFormattedMessages(
+                        input.contributorContext,
+                        this.llmContext,
+                        systemPrompt,
+                        preparedHistory
+                    );
+                    return {
+                        preparedHistory,
+                        preparedHistoryStats: preparedHistoryResult.stats,
+                        formattedMessages,
+                    };
+                },
+                this.logger
+            );
 
         const toolDefinitions = input.supportsTools
             ? await recordOperationSpan(
@@ -1441,29 +1450,36 @@ export class TurnExecutor {
                     () => this.contextManager.getSystemPrompt(input.contributorContext),
                     this.logger
                 );
-                ({ preparedHistory, formattedMessages } = await recordOperationSpan(
-                    {
-                        name: 'context.build_messages',
-                        componentName: 'TurnExecutor',
-                        attributes: {
-                            'context.after_compaction': true,
-                            'llm.model': this.llmContext.model,
-                            'llm.provider': this.llmContext.provider,
+                ({ preparedHistory, preparedHistoryStats, formattedMessages } =
+                    await recordOperationSpan(
+                        {
+                            name: 'context.build_messages',
+                            componentName: 'TurnExecutor',
+                            attributes: {
+                                'context.after_compaction': true,
+                                'llm.model': this.llmContext.model,
+                                'llm.provider': this.llmContext.provider,
+                            },
                         },
-                    },
-                    async () => {
-                        const preparedHistory = (await this.contextManager.prepareModelHistory())
-                            .preparedHistory;
-                        const formattedMessages = await this.contextManager.getFormattedMessages(
-                            input.contributorContext,
-                            this.llmContext,
-                            systemPrompt,
-                            preparedHistory
-                        );
-                        return { preparedHistory, formattedMessages };
-                    },
-                    this.logger
-                ));
+                        async () => {
+                            const preparedHistoryResult =
+                                await this.contextManager.prepareModelHistory();
+                            const preparedHistory = preparedHistoryResult.preparedHistory;
+                            const formattedMessages =
+                                await this.contextManager.getFormattedMessages(
+                                    input.contributorContext,
+                                    this.llmContext,
+                                    systemPrompt,
+                                    preparedHistory
+                                );
+                            return {
+                                preparedHistory,
+                                preparedHistoryStats: preparedHistoryResult.stats,
+                                formattedMessages,
+                            };
+                        },
+                        this.logger
+                    ));
                 estimatedInputTokens = await recordOperationSpan(
                     {
                         name: 'context.token_estimate',
@@ -1530,6 +1546,31 @@ export class TurnExecutor {
                   }
                 : undefined;
 
+        const requestProviderOptions = providerOptions as SharedV2ProviderOptions | undefined;
+        const requestDiagnostics = createModelRequestDiagnostics({
+            compacted,
+            estimatedInputTokens,
+            formattedMessages,
+            model: this.llmContext.model,
+            preparedHistoryCount: preparedHistory.length,
+            preparedHistoryStats,
+            provider: this.llmContext.provider,
+            providerOptions: requestProviderOptions,
+            reasoning,
+            streaming: input.streaming,
+            systemPrompt,
+            toolDefinitions,
+        });
+        await recordOperationSpan(
+            {
+                name: 'llm.request_diagnostics',
+                componentName: 'TurnExecutor',
+                attributes: modelRequestDiagnosticAttributes(requestDiagnostics),
+            },
+            () => undefined,
+            this.logger
+        );
+
         this.logger.info('Model request context prepared', {
             sessionId: this.sessionId,
             provider: this.llmContext.provider,
@@ -1540,6 +1581,7 @@ export class TurnExecutor {
             formattedMessageCount: formattedMessages.length,
             preparedHistoryCount: preparedHistory.length,
             compacted,
+            requestDiagnostics,
             ...(this.runContext?.hostRuntime?.ids !== undefined && {
                 hostRuntimeIds: this.runContext.hostRuntime.ids,
             }),
@@ -1552,7 +1594,7 @@ export class TurnExecutor {
             toolDefinitions,
             estimatedInputTokens,
             reasoning,
-            providerOptions: providerOptions as SharedV2ProviderOptions | undefined,
+            providerOptions: requestProviderOptions,
             streaming: input.streaming,
         };
     }
