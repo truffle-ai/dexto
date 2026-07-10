@@ -897,6 +897,24 @@ export async function expandBlobReferences(
         }
 
         if (part.type === 'resource') {
+            const shouldPlaceholderForUnsupportedMedia =
+                allowedMediaTypes !== undefined &&
+                !matchesAnyMimePattern(part.mimeType, allowedMediaTypes);
+            const shouldPlaceholderForRetainedHistoryMedia =
+                isBinaryMediaMimeType(part.mimeType) && !expandMatchingMedia;
+            if (shouldPlaceholderForUnsupportedMedia || shouldPlaceholderForRetainedHistoryMedia) {
+                expandedParts.push({ type: 'text', text: buildResourceAnchorText(part) });
+                expandedParts.push({
+                    type: 'text',
+                    text: generateMediaPlaceholder({
+                        mimeType: part.mimeType,
+                        size: part.size ?? 0,
+                        originalName: part.name,
+                    }),
+                });
+                continue;
+            }
+
             const resolved = await resolveBlobReferenceToParts(
                 part.uri,
                 resourceManager,
