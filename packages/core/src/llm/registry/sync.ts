@@ -5,6 +5,13 @@ import { DextoRuntimeError } from '../../errors/DextoRuntimeError.js';
 import { ErrorScope, ErrorType } from '../../errors/types.js';
 
 export const MODELS_DEV_URL = 'https://models.dev/api.json';
+const MODELS_DEV_OPENAI_UNSUPPORTED_MODEL_IDS = new Set(['gpt-5.6']);
+const OPENAI_SHORT_CONTEXT_INPUT_TOKENS = 272000;
+const OPENAI_SHORT_CONTEXT_CAPPED_MODEL_IDS = new Set([
+    'gpt-5.6-sol',
+    'gpt-5.6-terra',
+    'gpt-5.6-luna',
+]);
 
 type ModelsDevApi = Record<string, ModelsDevProvider>;
 type ModelsDevProvider = {
@@ -302,6 +309,7 @@ function getSupportedFileTypesFromModel(
 
 function getPricing(model: ModelsDevModel): ModelInfo['pricing'] | undefined {
     if (!model.cost) return undefined;
+    const isOpenAIGpt56 = OPENAI_SHORT_CONTEXT_CAPPED_MODEL_IDS.has(model.id);
     return {
         inputPerM: model.cost.input,
         outputPerM: model.cost.output,
@@ -323,6 +331,17 @@ function getPricing(model: ModelsDevModel): ModelInfo['pricing'] | undefined {
         ...(model.cost.context_over_200k
             ? {
                   contextOver200kPerM: {
+                      ...(isOpenAIGpt56
+                          ? {
+                                inputTokensAbove: OPENAI_SHORT_CONTEXT_INPUT_TOKENS,
+                                ...(model.cost.cache_read !== undefined
+                                    ? { cacheReadPerM: model.cost.cache_read * 2 }
+                                    : {}),
+                                ...(model.cost.cache_write !== undefined
+                                    ? { cacheWritePerM: model.cost.cache_write * 2 }
+                                    : {}),
+                            }
+                          : {}),
                       inputPerM: model.cost.context_over_200k.input,
                       outputPerM: model.cost.context_over_200k.output,
                   },
@@ -354,7 +373,10 @@ function modelToModelInfo(
     return {
         name: model.id,
         displayName: model.name,
-        maxInputTokens: model.limit.input ?? model.limit.context,
+        maxInputTokens:
+            provider === 'openai' && OPENAI_SHORT_CONTEXT_CAPPED_MODEL_IDS.has(model.id)
+                ? OPENAI_SHORT_CONTEXT_INPUT_TOKENS
+                : (model.limit.input ?? model.limit.context),
         supportedFileTypes: getSupportedFileTypesFromModel(provider, model),
         reasoning: requireBoolean(
             model.reasoning,
@@ -455,7 +477,9 @@ export function buildModelsByProviderFromParsedSources(params: {
     };
 
     const include = {
-        openai: (id: string) => id.startsWith('gpt-') || id.startsWith('o'),
+        openai: (id: string) =>
+            (id.startsWith('gpt-') || id.startsWith('o')) &&
+            !MODELS_DEV_OPENAI_UNSUPPORTED_MODEL_IDS.has(id),
         anthropic: (id: string) => id.startsWith('claude-'),
         google: (id: string) => id.startsWith('gemini-'),
         groq: (_id: string) => true,

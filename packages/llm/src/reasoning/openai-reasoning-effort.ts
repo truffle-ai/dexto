@@ -1,4 +1,11 @@
-export type OpenAIReasoningEffort = 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh';
+export type OpenAIReasoningEffort =
+    | 'none'
+    | 'minimal'
+    | 'low'
+    | 'medium'
+    | 'high'
+    | 'xhigh'
+    | 'max';
 
 function normalizeOpenAIModelId(model: string): string {
     const id = model.split('/').pop() ?? model;
@@ -28,6 +35,10 @@ export function getSupportedOpenAIReasoningEfforts(model: string): OpenAIReasoni
 
     if (isVersionedGpt5Pro(id)) {
         return ['medium', 'high', 'xhigh'];
+    }
+
+    if (version === 6) {
+        return ['none', 'low', 'medium', 'high', 'xhigh', 'max'];
     }
 
     if (version !== undefined && version >= 2) {
@@ -69,17 +80,19 @@ function isGpt5Chat(id: string): boolean {
 function getFallbackOrder(requested: OpenAIReasoningEffort): readonly OpenAIReasoningEffort[] {
     switch (requested) {
         case 'none':
-            return ['none', 'minimal', 'low', 'medium', 'high', 'xhigh'];
+            return ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'];
         case 'minimal':
-            return ['minimal', 'low', 'medium', 'high', 'xhigh'];
+            return ['minimal', 'low', 'medium', 'high', 'xhigh', 'max'];
         case 'low':
-            return ['low', 'medium', 'high', 'xhigh'];
+            return ['low', 'medium', 'high', 'xhigh', 'max'];
         case 'medium':
-            return ['medium', 'high', 'xhigh'];
+            return ['medium', 'high', 'xhigh', 'max'];
         case 'high':
-            return ['high', 'xhigh'];
+            return ['high', 'xhigh', 'max'];
         case 'xhigh':
-            return ['xhigh', 'high', 'medium', 'low', 'minimal', 'none'];
+            return ['xhigh', 'max', 'high', 'medium', 'low', 'minimal', 'none'];
+        case 'max':
+            return ['max', 'xhigh', 'high', 'medium', 'low', 'minimal', 'none'];
     }
 }
 

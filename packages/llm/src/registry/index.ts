@@ -95,8 +95,11 @@ export interface ModelPricing {
     inputAudioPerM?: number;
     outputAudioPerM?: number;
     contextOver200kPerM?: {
+        inputTokensAbove?: number;
         inputPerM: number;
         outputPerM: number;
+        cacheReadPerM?: number;
+        cacheWritePerM?: number;
     };
     currency?: 'USD';
     unit?: 'per_million_tokens';
@@ -1309,13 +1312,27 @@ export function calculateCostBreakdown(
     // Pricing assumes tokenUsage buckets are already additive. Provider-specific normalization
     // (for example whether reasoning tokens are separate from or included in output tokens)
     // must happen before usage reaches this helper.
-    const inputUsd = ((usage.inputTokens ?? 0) * pricing.inputPerM) / 1_000_000;
-    const outputUsd = ((usage.outputTokens ?? 0) * pricing.outputPerM) / 1_000_000;
-    const cacheReadUsd = ((usage.cacheReadTokens ?? 0) * (pricing.cacheReadPerM ?? 0)) / 1_000_000;
-    const cacheWriteUsd =
-        ((usage.cacheWriteTokens ?? 0) * (pricing.cacheWritePerM ?? 0)) / 1_000_000;
+    const longContextPricing = pricing.contextOver200kPerM;
+    const totalInputTokens =
+        (usage.inputTokens ?? 0) + (usage.cacheReadTokens ?? 0) + (usage.cacheWriteTokens ?? 0);
+    const useLongContextPricing =
+        longContextPricing !== undefined &&
+        totalInputTokens > (longContextPricing.inputTokensAbove ?? 200000);
+    const inputPerM = useLongContextPricing ? longContextPricing.inputPerM : pricing.inputPerM;
+    const outputPerM = useLongContextPricing ? longContextPricing.outputPerM : pricing.outputPerM;
+    const cacheReadPerM = useLongContextPricing
+        ? (longContextPricing.cacheReadPerM ?? pricing.cacheReadPerM)
+        : pricing.cacheReadPerM;
+    const cacheWritePerM = useLongContextPricing
+        ? (longContextPricing.cacheWritePerM ?? pricing.cacheWritePerM)
+        : pricing.cacheWritePerM;
+
+    const inputUsd = ((usage.inputTokens ?? 0) * inputPerM) / 1_000_000;
+    const outputUsd = ((usage.outputTokens ?? 0) * outputPerM) / 1_000_000;
+    const cacheReadUsd = ((usage.cacheReadTokens ?? 0) * (cacheReadPerM ?? 0)) / 1_000_000;
+    const cacheWriteUsd = ((usage.cacheWriteTokens ?? 0) * (cacheWritePerM ?? 0)) / 1_000_000;
     const reasoningUsd =
-        ((usage.reasoningTokens ?? 0) * (pricing.reasoningPerM ?? pricing.outputPerM)) / 1_000_000;
+        ((usage.reasoningTokens ?? 0) * (pricing.reasoningPerM ?? outputPerM)) / 1_000_000;
 
     return {
         inputUsd,
