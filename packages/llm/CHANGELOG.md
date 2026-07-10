@@ -1,5 +1,11 @@
 # @dexto/llm
 
+## 1.9.5
+
+### Patch Changes
+
+- c65884d: Refresh the model registry with the latest OpenAI models, including GPT-5.6.
+
 ## 1.9.4
 
 ## 1.9.3

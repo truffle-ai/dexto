@@ -1,5 +1,14 @@
 # @dexto/core
 
+## 1.9.5
+
+### Patch Changes
+
+- cc1ef74: Load only the selected model provider SDK when creating a language model. Model and LLM service
+  factories now resolve asynchronously so provider modules can be imported on demand.
+- Updated dependencies [c65884d]
+    - @dexto/llm@1.9.5
+
 ## 1.9.4
 
 ### Patch Changes

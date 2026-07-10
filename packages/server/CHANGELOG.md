@@ -1,5 +1,19 @@
 # @dexto/server
 
+## 1.9.5
+
+### Patch Changes
+
+- Updated dependencies [c65884d]
+- Updated dependencies [cc1ef74]
+    - @dexto/llm@1.9.5
+    - @dexto/core@1.9.5
+    - @dexto/agent-management@1.9.5
+    - @dexto/agent-config@1.9.5
+    - @dexto/image-local@1.9.5
+    - @dexto/storage@1.9.5
+    - @dexto/tools-scheduler@1.9.5
+
 ## 1.9.4
 
 ### Patch Changes
