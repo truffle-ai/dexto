@@ -293,6 +293,43 @@ describe('models.dev sync mapping', () => {
         ).toThrowError(DextoValidationError);
     });
 
+    it('applies GPT-5.6 native OpenAI registry corrections', () => {
+        const fixture = buildFixtureApi();
+        const openaiModels = (fixture.openai as { models: Record<string, Record<string, unknown>> })
+            .models;
+        const gpt56Cost = {
+            input: 5,
+            output: 30,
+            cache_read: 0.5,
+            cache_write: 6.25,
+            context_over_200k: { input: 10, output: 45 },
+        };
+        openaiModels['gpt-5.6'] = buildFixtureModel('gpt-5.6', 'GPT-5.6', {
+            cost: gpt56Cost,
+        });
+        openaiModels['gpt-5.6-sol'] = buildFixtureModel('gpt-5.6-sol', 'GPT-5.6 Sol', {
+            cost: gpt56Cost,
+        });
+        openaiModels['gpt-5.6-sol']!.limit = {
+            context: 1050000,
+            input: 922000,
+            output: 128000,
+        };
+
+        const modelsByProvider = buildModelsByProviderFromParsedSources({
+            modelsDevApi: parseModelsDevApi(fixture),
+        });
+        const sol = modelsByProvider.openai.find((model) => model.name === 'gpt-5.6-sol');
+
+        expect(modelsByProvider.openai.some((model) => model.name === 'gpt-5.6')).toBe(false);
+        expect(sol?.maxInputTokens).toBe(272000);
+        expect(sol?.pricing?.contextOver200kPerM).toMatchObject({
+            inputTokensAbove: 272000,
+            cacheReadPerM: 1,
+            cacheWritePerM: 12.5,
+        });
+    });
+
     it('deduplicates merged Vertex models and keeps provider metadata', () => {
         const parsed = parseModelsDevApi(buildFixtureApi());
 

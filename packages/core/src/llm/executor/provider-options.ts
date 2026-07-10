@@ -43,7 +43,9 @@ function toOpenAIReasoningEffort(
         reasoningVariant === 'low' ||
         reasoningVariant === 'medium' ||
         reasoningVariant === 'high' ||
-        reasoningVariant === 'xhigh'
+        reasoningVariant === 'xhigh' ||
+        reasoningVariant === 'max' ||
+        reasoningVariant === 'ultra'
         ? reasoningVariant
         : undefined;
 }
