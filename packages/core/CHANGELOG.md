@@ -1,5 +1,12 @@
 # @dexto/core
 
+## 1.9.7
+
+### Patch Changes
+
+- 378fd48: Avoid loading old or unsupported canonical media resource bytes when building model context.
+    - @dexto/llm@1.9.7
+
 ## 1.9.6
 
 ### Patch Changes

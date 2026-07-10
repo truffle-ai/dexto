@@ -1,5 +1,22 @@
 # @dexto/image-local
 
+## 1.9.7
+
+### Patch Changes
+
+- Updated dependencies [378fd48]
+    - @dexto/core@1.9.7
+    - @dexto/agent-config@1.9.7
+    - @dexto/agent-management@1.9.7
+    - @dexto/storage@1.9.7
+    - @dexto/tools-builtins@1.9.7
+    - @dexto/tools-filesystem@1.9.7
+    - @dexto/tools-lifecycle@1.9.7
+    - @dexto/tools-plan@1.9.7
+    - @dexto/tools-process@1.9.7
+    - @dexto/tools-scheduler@1.9.7
+    - @dexto/tools-todo@1.9.7
+
 ## 1.9.6
 
 ### Patch Changes
