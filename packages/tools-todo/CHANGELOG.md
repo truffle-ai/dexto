@@ -1,5 +1,12 @@
 # @dexto/tools-todo
 
+## 1.9.6
+
+### Patch Changes
+
+- @dexto/core@1.9.6
+- @dexto/agent-config@1.9.6
+
 ## 1.9.5
 
 ### Patch Changes
