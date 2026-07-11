@@ -3503,10 +3503,21 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 ([eventName]) => eventName === 'workspace:changed'
             )?.[2]?.signal;
             await toolManager.cleanup();
+            await toolManager.cleanup();
 
             expect(workspaceListenerSignal?.aborted).toBe(true);
             expect(workspaceListenerSignal?.reason).toBe(EVENT_LISTENER_CLEANUP_REASON);
             expect(workspaceListenerSignal?.reason).not.toBeInstanceOf(globalThis.DOMException);
+            expect(
+                eventBus.emit('workspace:changed', {
+                    workspace: {
+                        id: 'workspace-after-cleanup',
+                        path: '/tmp/workspace-after-cleanup',
+                        createdAt: 2,
+                        lastActiveAt: 2,
+                    },
+                })
+            ).toBe(false);
         });
     });
 

@@ -32,6 +32,7 @@ describe('ResourceManager cleanup', () => {
         expect(invalidated).toHaveBeenCalledTimes(1);
 
         manager.cleanup();
+        manager.cleanup();
 
         expect(cleanupSignal?.aborted).toBe(true);
         expect(cleanupSignal?.reason).toBe(EVENT_LISTENER_CLEANUP_REASON);
