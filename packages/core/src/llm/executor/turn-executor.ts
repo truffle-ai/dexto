@@ -78,6 +78,7 @@ import { cloneStructuredValuePreservingUrls } from '../../context/content-clone.
 const MCP_TOOL_PREFIX = 'mcp--';
 const MODEL_REQUEST_MAX_RETRIES = 2;
 const TOOL_SUPPORT_PROBE_TIMEOUT_MS = 5000;
+const TURN_STEP_CLEANUP_REASON = 'dexto.turn-step-cleanup';
 type ToolSupportValidationResult =
     | {
           supported: boolean;
@@ -2342,7 +2343,7 @@ export class TurnExecutor {
 
         // Abort any pending operations for current step
         if (!this.stepAbortController.signal.aborted) {
-            this.stepAbortController.abort();
+            this.stepAbortController.abort(TURN_STEP_CLEANUP_REASON);
         }
     }
 
