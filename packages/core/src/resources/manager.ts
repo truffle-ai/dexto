@@ -6,7 +6,7 @@ import type { ValidatedResourcesConfig } from './schemas.js';
 import type { InternalResourceServices } from './handlers/types.js';
 import type { Logger } from '../logger/v2/types.js';
 import { DextoLogComponent } from '../logger/v2/types.js';
-import type { AgentEventBus } from '../events/index.js';
+import { EVENT_LISTENER_CLEANUP_REASON, type AgentEventBus } from '../events/index.js';
 import type { ArtifactStore } from '../storage/artifacts/types.js';
 
 export interface ResourceManagerOptions {
@@ -56,7 +56,7 @@ export class ResourceManager {
 
     cleanup(): void {
         if (!this.listenerAbort.signal.aborted) {
-            this.listenerAbort.abort();
+            this.listenerAbort.abort(EVENT_LISTENER_CLEANUP_REASON);
             this.logger.debug('ResourceManager event listeners cleaned up');
         }
     }

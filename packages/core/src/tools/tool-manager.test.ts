@@ -11,7 +11,7 @@ import { MCPManager } from '../mcp/manager.js';
 import { DextoRuntimeError } from '../errors/DextoRuntimeError.js';
 import { ToolErrorCode } from './error-codes.js';
 import { ErrorScope, ErrorType } from '../errors/types.js';
-import { AgentEventBus } from '../events/index.js';
+import { AgentEventBus, EVENT_LISTENER_CLEANUP_REASON } from '../events/index.js';
 import type { ApprovalManager } from '../approval/manager.js';
 import type { AllowedToolsProvider } from './approval/allowed-tools-provider/types.js';
 import { ApprovalStatus, ApprovalType } from '../approval/types.js';
@@ -22,6 +22,7 @@ import type { SessionToolPreferences } from './session-tool-preferences-store.js
 import { createAgentRunContext } from '../runtime/run-context.js';
 import { InMemoryDextoStores } from '../storage/index.js';
 import { createToolExecutionId } from '../storage/tool-executions/types.js';
+import { WorkspaceManager } from '../workspace/manager.js';
 
 function createDeferred<T>() {
     let resolve!: (value: T | PromiseLike<T>) => void;
@@ -3477,6 +3478,35 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             await toolManager.getAllTools();
 
             expect(mockMcpManager.getAllTools).toHaveBeenCalledTimes(2);
+        });
+
+        it('cleans up its workspace listener without creating a default AbortError', async () => {
+            const eventBus = new AgentEventBus();
+            const onSpy = vi.spyOn(eventBus, 'on');
+            const stores = new InMemoryDextoStores();
+
+            const toolManager = createToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'manual',
+                eventBus,
+                { alwaysAllow: [] },
+                [],
+                mockLogger
+            );
+
+            await toolManager.setWorkspaceManager(
+                new WorkspaceManager(stores.getStore('workspaces'), eventBus, mockLogger)
+            );
+            const workspaceListenerSignal = onSpy.mock.calls.find(
+                ([eventName]) => eventName === 'workspace:changed'
+            )?.[2]?.signal;
+            await toolManager.cleanup();
+
+            expect(workspaceListenerSignal?.aborted).toBe(true);
+            expect(workspaceListenerSignal?.reason).toBe(EVENT_LISTENER_CLEANUP_REASON);
+            expect(workspaceListenerSignal?.reason).not.toBeInstanceOf(globalThis.DOMException);
         });
     });
 
