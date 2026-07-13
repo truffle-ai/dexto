@@ -4,6 +4,7 @@
 
 // Types
 export type {
+    ApprovalAutoApprovalPolicy,
     ApprovalHandler,
     ApprovalRequest,
     ApprovalResponse,
@@ -34,6 +35,7 @@ export {
 
 // Schemas
 export {
+    ApprovalAutoApprovalPolicySchema,
     ApprovalTypeSchema,
     ApprovalStatusSchema,
     DenialReasonSchema,

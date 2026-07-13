@@ -10,6 +10,7 @@ import type { Logger } from '../logger/v2/types.js';
 import type { ApprovalStore, SessionApprovalState } from '../storage/approvals/types.js';
 import { createInMemorySessionApprovalStore } from '../test-utils/session-state-stores.js';
 import { ToolApprovalMetadataSchema } from './schemas.js';
+import type { ApprovalRequestDetails } from './types.js';
 
 function createDeferred<T>() {
     let resolve!: (value: T | PromiseLike<T>) => void;
@@ -61,6 +62,48 @@ describe('ApprovalManager', () => {
             });
 
             expect(toolResponse.status).toBe(ApprovalStatus.APPROVED);
+        });
+
+        it('should require the handler when one request disallows auto approval', async () => {
+            const manager = createApprovalManager(
+                {
+                    permissions: {
+                        mode: 'auto-approve',
+                        timeout: 120000,
+                    },
+                    elicitation: {
+                        enabled: false,
+                    },
+                },
+                mockLogger
+            );
+            const handler = vi.fn(async (request) => ({
+                approvalId: request.approvalId,
+                sessionId: request.sessionId,
+                status: ApprovalStatus.APPROVED,
+            }));
+            manager.setHandler(handler);
+            const mandatoryToolApproval = {
+                args: { path: 'report.md' },
+                autoApproval: 'disallowed' as const,
+                sessionId: 'session-1',
+                toolCallId: 'test-call-id',
+                toolName: 'write_file',
+            };
+
+            const response = await manager.requestToolApproval(mandatoryToolApproval);
+
+            expect(response.status).toBe(ApprovalStatus.APPROVED);
+            expect(handler).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    autoApproval: 'disallowed',
+                    metadata: {
+                        args: { path: 'report.md' },
+                        toolCallId: 'test-call-id',
+                        toolName: 'write_file',
+                    },
+                })
+            );
         });
 
         it('should reject elicitation when disabled, even if tools are auto-approved', async () => {
@@ -340,6 +383,92 @@ describe('ApprovalManager', () => {
                     identity
                 )
             ).rejects.toThrow(/conflicts with existing approval request/);
+        });
+
+        it('normalizes allowed replay policy and rejects a mandatory-policy conflict', async () => {
+            const manager = createApprovalManager({
+                permissions: {
+                    mode: 'manual',
+                    timeout: 120000,
+                },
+                elicitation: {
+                    enabled: true,
+                    timeout: 120000,
+                },
+            });
+            const identity = {
+                runId: 'run-1',
+                turnId: 'turn-1',
+                modelStepId: 'step-1',
+                toolCallId: 'call-policy',
+            };
+            const details = {
+                type: ApprovalType.TOOL_APPROVAL,
+                sessionId: 'session-1',
+                metadata: {
+                    toolName: 'write_file',
+                    toolCallId: 'call-policy',
+                    args: { path: 'src/app.ts' },
+                },
+            } as const;
+
+            const first = await manager.recordApprovalRequest(details, identity);
+            await expect(
+                manager.recordApprovalRequest({ ...details, autoApproval: 'allowed' }, identity)
+            ).resolves.toEqual(first);
+            await expect(
+                manager.recordApprovalRequest({ ...details, autoApproval: 'disallowed' }, identity)
+            ).rejects.toThrow(/conflicts with existing approval request/);
+        });
+
+        it('rejects invalid auto-approval policy at the manager boundary', async () => {
+            const manager = createApprovalManager({
+                permissions: {
+                    mode: 'auto-approve',
+                    timeout: 120000,
+                },
+                elicitation: {
+                    enabled: false,
+                },
+            });
+
+            await expect(
+                manager.requestApproval({
+                    autoApproval: 'sometimes',
+                    metadata: {
+                        args: {},
+                        toolCallId: 'call-invalid-policy',
+                        toolName: 'write_file',
+                    },
+                    type: ApprovalType.TOOL_APPROVAL,
+                } as unknown as ApprovalRequestDetails)
+            ).rejects.toThrow();
+        });
+
+        it('rejects invalid auto-approval policy on an existing request', async () => {
+            const manager = createApprovalManager({
+                permissions: {
+                    mode: 'auto-approve',
+                    timeout: 120000,
+                },
+                elicitation: {
+                    enabled: false,
+                },
+            });
+
+            await expect(
+                manager.requestApprovalDecision({
+                    approvalId: 'b6edbf50-0131-4a5a-b8e4-79611873005e',
+                    autoApproval: 'sometimes',
+                    metadata: {
+                        args: {},
+                        toolCallId: 'call-invalid-existing-policy',
+                        toolName: 'write_file',
+                    },
+                    timestamp: new Date(),
+                    type: ApprovalType.TOOL_APPROVAL,
+                } as unknown as Parameters<typeof manager.requestApprovalDecision>[0])
+            ).rejects.toThrow();
         });
 
         it('rejects response recording when the expected request does not match persisted state', async () => {

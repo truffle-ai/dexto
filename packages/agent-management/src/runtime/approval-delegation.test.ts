@@ -1,9 +1,10 @@
+import { randomUUID } from 'node:crypto';
 import { describe, expect, it, vi } from 'vitest';
-import type { ApprovalManager, ApprovalRequest, ApprovalRequestDetails } from '@dexto/core';
-import { ApprovalStatus, ApprovalType } from '@dexto/core';
+import type { ApprovalRequest, ApprovalRequestDetails, ApprovalStore, Logger } from '@dexto/core';
+import { ApprovalManager, ApprovalStatus, ApprovalType } from '@dexto/core';
 import { createDelegatingApprovalHandler } from './approval-delegation.js';
 
-function createMockLogger() {
+function createMockLogger(): Logger {
     return {
         debug: vi.fn(),
         silly: vi.fn(),
@@ -17,6 +18,19 @@ function createMockLogger() {
         setLevel: vi.fn(),
         getLevel: vi.fn(() => 'info' as const),
         getLogFilePath: vi.fn(() => null),
+    };
+}
+
+function createMockApprovalStore(): ApprovalStore {
+    return {
+        createRequest: vi.fn(async ({ request }) => request),
+        deleteSessionState: vi.fn(async () => undefined),
+        getRequest: vi.fn(async () => undefined),
+        getResponse: vi.fn(async () => undefined),
+        listPending: vi.fn(async () => []),
+        loadSessionState: vi.fn(async () => ({ approvedKeys: {} })),
+        saveResponse: vi.fn(async ({ response }) => ({ response, status: 'created' as const })),
+        saveSessionState: vi.fn(async () => undefined),
     };
 }
 
@@ -101,5 +115,45 @@ describe('createDelegatingApprovalHandler', () => {
 
         const forwarded = requestApproval.mock.calls[0]![0];
         expect(forwarded.sessionId).toBe('session-sub');
+    });
+
+    it('preserves mandatory policy when delegating to an auto-approving parent', async () => {
+        const parentApprovalManager = new ApprovalManager(
+            {
+                elicitation: { enabled: false },
+                permissions: { mode: 'auto-approve' },
+            },
+            createMockLogger(),
+            createMockApprovalStore()
+        );
+        const parentHandler = vi.fn(async (request: ApprovalRequest) => ({
+            approvalId: request.approvalId,
+            sessionId: request.sessionId,
+            status: ApprovalStatus.APPROVED,
+        }));
+        parentApprovalManager.setHandler(parentHandler);
+        const handler = createDelegatingApprovalHandler(
+            parentApprovalManager,
+            'agent-sub',
+            'session-parent',
+            createMockLogger()
+        );
+
+        await handler({
+            approvalId: randomUUID(),
+            autoApproval: 'disallowed',
+            metadata: {
+                args: { path: 'report.md' },
+                toolCallId: 'call-mandatory',
+                toolName: 'write_file',
+            },
+            sessionId: 'session-sub',
+            timestamp: new Date(),
+            type: ApprovalType.TOOL_APPROVAL,
+        });
+
+        expect(parentHandler).toHaveBeenCalledWith(
+            expect.objectContaining({ autoApproval: 'disallowed' })
+        );
     });
 });

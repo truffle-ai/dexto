@@ -4,6 +4,7 @@
 
 import type { z } from 'zod';
 import type {
+    ApprovalAutoApprovalPolicySchema,
     ToolApprovalMetadataSchema,
     CommandApprovalMetadataSchema,
     ElicitationMetadataSchema,
@@ -26,6 +27,8 @@ import type {
     CustomApprovalResponseSchema,
     ApprovalResponseSchema,
 } from './schemas.js';
+
+export type ApprovalAutoApprovalPolicy = z.output<typeof ApprovalAutoApprovalPolicySchema>;
 
 /**
  * Types of approval requests supported by the system

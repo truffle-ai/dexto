@@ -28,6 +28,10 @@ export const ApprovalStatusSchema = z.enum(APPROVAL_STATUSES);
  */
 export const DenialReasonSchema = z.enum(DENIAL_REASONS);
 
+export const ApprovalAutoApprovalPolicySchema = z
+    .enum(['allowed', 'disallowed'])
+    .describe('Whether configured automatic approval may satisfy this request.');
+
 // Custom Zod schema for ToolDisplayData validation
 const ToolDisplayDataSchema = z.custom<ToolDisplayData>((val) => isValidDisplayData(val), {
     message: 'Invalid ToolDisplayData',
@@ -109,6 +113,7 @@ export const CustomApprovalMetadataSchema = z
 export const BaseApprovalRequestSchema = z
     .object({
         approvalId: z.string().uuid().describe('Unique approval identifier'),
+        autoApproval: ApprovalAutoApprovalPolicySchema.optional(),
         type: ApprovalTypeSchema.describe('Type of approval'),
         sessionId: z.string().optional().describe('Session identifier'),
         hostRuntime: HostRuntimeContextSchema.optional().describe(
@@ -279,6 +284,7 @@ export const ApprovalResponseSchema = z.union([
  */
 export const ApprovalRequestDetailsSchema = z
     .object({
+        autoApproval: ApprovalAutoApprovalPolicySchema.optional(),
         type: ApprovalTypeSchema,
         sessionId: z.string().optional(),
         hostRuntime: HostRuntimeContextSchema.optional().describe(
