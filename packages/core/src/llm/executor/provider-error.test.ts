@@ -1,10 +1,46 @@
 import { describe, expect, it } from 'vitest';
-import { APICallError } from 'ai';
+import { APICallError, UnsupportedFunctionalityError } from 'ai';
 import { DextoRuntimeError } from '../../errors/DextoRuntimeError.js';
 import { LLMErrorCode } from '../error-codes.js';
 import { mapProviderError } from './provider-error.js';
 
 describe('mapProviderError', () => {
+    it('does not retry deterministic unsupported functionality failures', () => {
+        const mapped = mapProviderError({
+            error: new UnsupportedFunctionalityError({
+                functionality: 'file part media type application/pdf',
+            }),
+            provider: 'dexto-nova',
+            model: 'openai/gpt-5.4',
+            sessionId: 'session-pdf',
+        });
+
+        expect(mapped).toBeInstanceOf(DextoRuntimeError);
+        expect(mapped).toMatchObject({
+            code: LLMErrorCode.GENERATION_FAILED,
+            retryDisposition: 'non_retryable',
+        });
+    });
+
+    it('preserves structured stream error messages from provider adapters', () => {
+        const mapped = mapProviderError({
+            error: {
+                code: 'invalid_request_error',
+                message: "Invalid schema for function 'lookup': schema must have type 'object'.",
+            },
+            provider: 'dexto-nova',
+            model: 'openai/gpt-5.4',
+            sessionId: 'session-tools',
+        });
+
+        expect(mapped).toBeInstanceOf(DextoRuntimeError);
+        expect(mapped).toMatchObject({
+            code: LLMErrorCode.REQUEST_INVALID_SCHEMA,
+            message: "Invalid schema for function 'lookup': schema must have type 'object'.",
+            retryDisposition: 'non_retryable',
+        });
+    });
+
     it('marks insufficient credits provider failures as non-retryable', () => {
         const error = new APICallError({
             message: 'Payment Required',
