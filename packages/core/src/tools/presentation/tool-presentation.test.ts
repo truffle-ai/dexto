@@ -2,7 +2,20 @@ import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import { createMockLogger } from '../../logger/v2/test-utils.js';
 import { defineTool } from '../define-tool.js';
+import type { ToolActivityPresentation } from '../types.js';
 import { ToolPresentation } from './tool-presentation.js';
+
+const writeActivity = {
+    category: 'file-write',
+    label: { running: 'Writing file', completed: 'Wrote file' },
+    summary: { verb: 'Wrote', singular: 'a file', plural: 'files' },
+} satisfies ToolActivityPresentation;
+
+const createActivity = {
+    category: 'file-create',
+    label: { running: 'Creating file', completed: 'Created file' },
+    summary: { verb: 'Created', singular: 'a file', plural: 'files' },
+} satisfies ToolActivityPresentation;
 
 describe('ToolPresentation', () => {
     it('builds useful generic snapshots for local and MCP tools', () => {
@@ -66,8 +79,13 @@ describe('ToolPresentation', () => {
             inputSchema: z.object({ path: z.string() }).strict(),
             execute: vi.fn(),
             presentation: {
+                activity: writeActivity,
                 describeHeader: async (args) => ({ title: 'Write', argsText: args.path }),
                 describeResult: async () => ({ summaryText: 'written' }),
+                describeResultActivity: async (display) =>
+                    display?.type === 'file' && display.operation === 'create'
+                        ? createActivity
+                        : null,
             },
         });
         const presentation = new ToolPresentation(
@@ -84,16 +102,25 @@ describe('ToolPresentation', () => {
         });
 
         expect(snapshot.header).toEqual({ title: 'Write', argsText: 'src/app.ts' });
+        expect(snapshot.activity).toEqual(writeActivity);
         await expect(
             presentation.augmentWithResult({
                 toolName: 'write_file',
                 snapshot,
-                result: 'ok',
+                result: {
+                    ok: true,
+                    _display: {
+                        type: 'file',
+                        path: 'src/app.ts',
+                        operation: 'create',
+                    },
+                },
                 args: { path: 'src/app.ts' },
                 toolCallId: 'call-1',
             })
         ).resolves.toEqual({
             ...snapshot,
+            activity: createActivity,
             result: { summaryText: 'written' },
         });
     });

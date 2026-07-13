@@ -18,6 +18,8 @@ export type { SessionToolPreferences } from './session-tool-preferences-store.js
 
 // Display types for tool result rendering
 export * from './display-types.js';
+export * from './activity.js';
+export * from './presentation-schema.js';
 
 // Schemas/types
 export * from './schemas.js';

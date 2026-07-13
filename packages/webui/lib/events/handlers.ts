@@ -12,12 +12,8 @@
  * @see packages/webui/components/hooks/useChat.ts (original implementation)
  */
 
-import type {
-    ApprovalStatus,
-    StreamingEvent,
-    StreamingEventName,
-    ToolPresentationSnapshotV1,
-} from '@dexto/core';
+import type { ApprovalStatus, StreamingEvent, StreamingEventName } from '@dexto/core';
+import { isToolPresentationSnapshotV1 } from '@dexto/core';
 import { useChatStore, generateMessageId } from '../stores/chatStore.js';
 import { useAgentStore } from '../stores/agentStore.js';
 import { useApprovalStore } from '../stores/approvalStore.js';
@@ -88,10 +84,6 @@ function stripToolNameForMatching(name: string): string {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-function isToolPresentationSnapshotV1(value: unknown): value is ToolPresentationSnapshotV1 {
-    return isRecord(value) && value.version === 1;
 }
 
 function getApprovalRequestToolContext(event: EventByName<'approval:request'>): {

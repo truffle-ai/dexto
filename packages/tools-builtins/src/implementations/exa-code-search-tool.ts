@@ -1,5 +1,10 @@
 import { z } from 'zod';
-import { createLocalToolCallHeader, defineTool, truncateForHeader } from '@dexto/core/tools';
+import {
+    TOOL_ACTIVITY,
+    createLocalToolCallHeader,
+    defineTool,
+    truncateForHeader,
+} from '@dexto/core/tools';
 import type { Tool, ToolExecutionContext } from '@dexto/core/tools';
 import { callExaTool } from './exa-mcp.js';
 
@@ -33,6 +38,7 @@ export function createCodeSearchTool(): Tool<typeof CodeSearchInputSchema> {
             'Search for code examples and documentation across sources like official docs, GitHub, and Stack Overflow. Returns formatted text context.',
         inputSchema: CodeSearchInputSchema,
         presentation: {
+            activity: TOOL_ACTIVITY.searchCode,
             describeHeader: (input) =>
                 createLocalToolCallHeader({
                     title: 'Code Search',

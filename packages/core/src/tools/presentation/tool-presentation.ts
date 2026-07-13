@@ -3,7 +3,7 @@ import type { Logger } from '../../logger/v2/types.js';
 import type { AgentRunContext } from '../../runtime/run-context.js';
 import { ToolErrorCode } from '../error-codes.js';
 import type { Tool, ToolExecutionContext, ToolPresentationSnapshotV1 } from '../types.js';
-import type { ToolDisplayData } from '../display-types.js';
+import { isValidDisplayData, type ToolDisplayData } from '../display-types.js';
 
 const MCP_TOOL_PREFIX = 'mcp--';
 
@@ -65,14 +65,21 @@ export class ToolPresentation {
         }
 
         const presentation = this.getLocalTool(input.toolName)?.presentation;
-        if (!presentation?.describeHeader && !presentation?.describeArgs) {
+        if (
+            !presentation?.activity &&
+            !presentation?.describeHeader &&
+            !presentation?.describeArgs
+        ) {
             return fallback;
         }
 
         try {
             const validatedArgs = this.validateLocalToolArgs(input.toolName, input.args);
             const context = this.buildToolExecutionContext(input);
-            let nextSnapshot: ToolPresentationSnapshotV1 = fallback;
+            let nextSnapshot: ToolPresentationSnapshotV1 = {
+                ...fallback,
+                ...(presentation.activity ? { activity: presentation.activity } : {}),
+            };
 
             const header = presentation.describeHeader?.(validatedArgs, context);
             if (!isPromiseLike(header) && header) {
@@ -115,7 +122,11 @@ export class ToolPresentation {
         }
 
         const presentation = this.getLocalTool(input.toolName)?.presentation;
-        if (!presentation?.describeHeader && !presentation?.describeArgs) {
+        if (
+            !presentation?.activity &&
+            !presentation?.describeHeader &&
+            !presentation?.describeArgs
+        ) {
             return fallback;
         }
 
@@ -130,6 +141,7 @@ export class ToolPresentation {
 
             return {
                 ...fallback,
+                ...(presentation.activity ? { activity: presentation.activity } : {}),
                 ...(describedHeader ? { header: { ...fallback.header, ...describedHeader } } : {}),
                 ...(describedArgs ? { args: describedArgs } : {}),
             };
@@ -156,22 +168,31 @@ export class ToolPresentation {
             return input.snapshot;
         }
 
-        const describeResult = this.getLocalTool(input.toolName)?.presentation?.describeResult;
-        if (!describeResult) {
+        const presentation = this.getLocalTool(input.toolName)?.presentation;
+        if (!presentation?.describeResult && !presentation?.describeResultActivity) {
             return input.snapshot;
         }
 
         try {
             const context = this.buildToolExecutionContext(input);
-            const resultPresentation = await Promise.resolve(
-                describeResult(input.result, input.args, context)
-            );
-            if (!resultPresentation) {
-                return input.snapshot;
-            }
+            const resultPresentation = presentation.describeResult
+                ? await Promise.resolve(
+                      presentation.describeResult(input.result, input.args, context)
+                  )
+                : null;
+            const resultActivity = presentation.describeResultActivity
+                ? await Promise.resolve(
+                      presentation.describeResultActivity(
+                          this.extractDisplayData(input.result),
+                          input.args,
+                          context
+                      )
+                  )
+                : null;
             return {
                 ...input.snapshot,
-                result: resultPresentation,
+                ...(resultActivity ? { activity: resultActivity } : {}),
+                ...(resultPresentation ? { result: resultPresentation } : {}),
             };
         } catch (error) {
             this.logger.debug(
@@ -181,6 +202,14 @@ export class ToolPresentation {
             );
             return input.snapshot;
         }
+    }
+
+    private extractDisplayData(result: unknown): ToolDisplayData | undefined {
+        if (result === null || typeof result !== 'object' || !('_display' in result)) {
+            return undefined;
+        }
+        const display = result._display;
+        return isValidDisplayData(display) ? display : undefined;
     }
 
     async preview(input: {

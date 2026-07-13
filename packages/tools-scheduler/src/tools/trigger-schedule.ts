@@ -2,7 +2,7 @@
  * Tool for manually triggering schedules
  */
 
-import type { Tool, ToolExecutionContext } from '@dexto/core';
+import { TOOL_ACTIVITY, type Tool, type ToolExecutionContext } from '@dexto/core';
 import { TriggerScheduleInputSchema } from '../schemas.js';
 import type { SchedulerManagerGetter } from '../tool-types.js';
 
@@ -12,6 +12,7 @@ export function createTriggerScheduleTool(getManager: SchedulerManagerGetter): T
         description:
             'Manually trigger a schedule to execute immediately, outside of its normal schedule.',
         inputSchema: TriggerScheduleInputSchema,
+        presentation: { activity: TOOL_ACTIVITY.triggerSchedule },
         execute: async (input: unknown, context: ToolExecutionContext) => {
             const { scheduleId } = input as { scheduleId: string };
             const manager = await getManager(context);

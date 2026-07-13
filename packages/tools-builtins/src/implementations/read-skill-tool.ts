@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { ToolError, createLocalToolCallHeader, defineTool } from '@dexto/core/tools';
+import { TOOL_ACTIVITY, ToolError, createLocalToolCallHeader, defineTool } from '@dexto/core/tools';
 import type { Tool, ToolExecutionContext } from '@dexto/core/tools';
 
 type ReadableSkill = {
@@ -27,6 +27,7 @@ export function createReadSkillTool(): Tool<typeof ReadSkillInputSchema> {
             'Read skill instructions or a file from a skill bundle. This is read-only and does not invoke the skill.',
         inputSchema: ReadSkillInputSchema,
         presentation: {
+            activity: TOOL_ACTIVITY.readSkill,
             describeHeader: (input) =>
                 createLocalToolCallHeader({
                     title: 'Read Skill',

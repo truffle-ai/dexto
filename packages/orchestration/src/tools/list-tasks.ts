@@ -6,7 +6,7 @@
 
 import { z } from 'zod';
 import type { TaskStatus } from '../types.js';
-import { createLocalToolCallHeader, truncateForHeader } from '@dexto/core';
+import { TOOL_ACTIVITY, createLocalToolCallHeader, truncateForHeader } from '@dexto/core';
 import type { Tool } from '@dexto/core';
 import type { TaskRegistry } from '../task-registry.js';
 
@@ -71,6 +71,7 @@ export function createListTasksTool(taskRegistry: TaskRegistry): Tool<typeof Lis
             'Returns task information and counts.',
         inputSchema: ListTasksInputSchema,
         presentation: {
+            activity: TOOL_ACTIVITY.listTasks,
             describeHeader: (input) => {
                 const bits: string[] = [];
                 if (input.status && input.status !== 'all') bits.push(`status=${input.status}`);

@@ -133,6 +133,11 @@
             "import": "./dist/tools/index.js",
             "require": "./dist/tools/index.cjs"
         },
+        "./tools/presentation": {
+            "types": "./dist/tools/presentation.d.ts",
+            "import": "./dist/tools/presentation.js",
+            "require": "./dist/tools/presentation.cjs"
+        },
         "./workspace": {
             "types": "./dist/workspace/index.d.ts",
             "import": "./dist/workspace/index.js",

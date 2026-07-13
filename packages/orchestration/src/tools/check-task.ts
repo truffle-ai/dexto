@@ -5,7 +5,7 @@
  */
 
 import { z } from 'zod';
-import { createLocalToolCallHeader, truncateForHeader } from '@dexto/core';
+import { TOOL_ACTIVITY, createLocalToolCallHeader, truncateForHeader } from '@dexto/core';
 import type { Tool } from '@dexto/core';
 import type { TaskRegistry } from '../task-registry.js';
 
@@ -59,6 +59,7 @@ export function createCheckTaskTool(taskRegistry: TaskRegistry): Tool<typeof Che
             'Use this to poll task status or check if a task is done.',
         inputSchema: CheckTaskInputSchema,
         presentation: {
+            activity: TOOL_ACTIVITY.checkTask,
             describeHeader: (input) =>
                 createLocalToolCallHeader({
                     title: 'Check Task',

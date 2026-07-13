@@ -175,20 +175,94 @@ export function isGenericDisplay(d: ToolDisplayData): d is GenericDisplayData {
 // Validation
 // =============================================================================
 
-/** Valid display type values */
-const VALID_DISPLAY_TYPES = ['diff', 'shell', 'search', 'file', 'generic'] as const;
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isOptionalString(value: unknown): boolean {
+    return value === undefined || typeof value === 'string';
+}
+
+function isOptionalNumber(value: unknown): boolean {
+    return value === undefined || (typeof value === 'number' && Number.isFinite(value));
+}
+
+function isSearchMatch(value: unknown): value is SearchMatch {
+    if (!isRecord(value)) {
+        return false;
+    }
+
+    const context = value['context'];
+    return (
+        typeof value['file'] === 'string' &&
+        typeof value['line'] === 'number' &&
+        Number.isFinite(value['line']) &&
+        typeof value['content'] === 'string' &&
+        (context === undefined ||
+            (Array.isArray(context) && context.every((line) => typeof line === 'string')))
+    );
+}
 
 /**
  * Validates that an unknown value is a valid ToolDisplayData.
  * Used by sanitizer to safely extract _display from tool results.
  */
 export function isValidDisplayData(d: unknown): d is ToolDisplayData {
-    if (d === null || typeof d !== 'object') {
+    if (!isRecord(d)) {
         return false;
     }
-    const obj = d as Record<string, unknown>;
-    return (
-        typeof obj.type === 'string' &&
-        (VALID_DISPLAY_TYPES as readonly string[]).includes(obj.type)
-    );
+
+    switch (d['type']) {
+        case 'diff':
+            return (
+                typeof d['unified'] === 'string' &&
+                typeof d['filename'] === 'string' &&
+                typeof d['additions'] === 'number' &&
+                Number.isFinite(d['additions']) &&
+                typeof d['deletions'] === 'number' &&
+                Number.isFinite(d['deletions']) &&
+                isOptionalString(d['title']) &&
+                isOptionalString(d['beforeContent']) &&
+                isOptionalString(d['afterContent'])
+            );
+        case 'shell':
+            return (
+                typeof d['command'] === 'string' &&
+                typeof d['exitCode'] === 'number' &&
+                Number.isFinite(d['exitCode']) &&
+                typeof d['duration'] === 'number' &&
+                Number.isFinite(d['duration']) &&
+                isOptionalString(d['title']) &&
+                (d['isBackground'] === undefined || typeof d['isBackground'] === 'boolean') &&
+                isOptionalString(d['stdout']) &&
+                isOptionalString(d['stderr'])
+            );
+        case 'search':
+            return (
+                typeof d['pattern'] === 'string' &&
+                Array.isArray(d['matches']) &&
+                d['matches'].every(isSearchMatch) &&
+                typeof d['totalMatches'] === 'number' &&
+                Number.isFinite(d['totalMatches']) &&
+                typeof d['truncated'] === 'boolean' &&
+                isOptionalString(d['title'])
+            );
+        case 'file':
+            return (
+                typeof d['path'] === 'string' &&
+                (d['operation'] === 'read' ||
+                    d['operation'] === 'write' ||
+                    d['operation'] === 'create' ||
+                    d['operation'] === 'delete') &&
+                isOptionalString(d['title']) &&
+                isOptionalNumber(d['size']) &&
+                isOptionalNumber(d['lineCount']) &&
+                isOptionalString(d['backupPath']) &&
+                isOptionalString(d['content'])
+            );
+        case 'generic':
+            return isOptionalString(d['title']);
+        default:
+            return false;
+    }
 }

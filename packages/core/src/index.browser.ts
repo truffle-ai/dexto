@@ -100,6 +100,10 @@ export type {
 // Event types (used by client-sdk package)
 export type { AgentEventMap, SessionEventMap } from './events/index.js';
 export type { ToolCallMetadata } from './tools/tool-call-metadata.js';
+export type { ToolDisplayData } from './tools/display-types.js';
+export { isValidDisplayData } from './tools/display-types.js';
+export type { ToolPresentationSnapshotV1 } from './tools/presentation-schema.js';
+export { isToolPresentationSnapshotV1 } from './tools/presentation-schema.js';
 export type { HostRuntimeContext, HostRuntimeIds } from './runtime/host-runtime.js';
 
 // Telemetry utilities (used by browser and Worker-hosted runtimes)

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import {
     ToolError,
+    TOOL_ACTIVITY,
     createLocalToolCallHeader,
     defineTool,
     truncateForHeader,
@@ -41,6 +42,7 @@ export function createGetResourceTool(): Tool<typeof GetResourceInputSchema> {
             'References can be obtained from tool result annotations or list_resources.',
         inputSchema: GetResourceInputSchema,
         presentation: {
+            activity: TOOL_ACTIVITY.readResource,
             describeHeader: (input) =>
                 createLocalToolCallHeader({
                     title: 'Get Resource',

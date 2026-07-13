@@ -2,7 +2,7 @@
  * Tool for getting schedule execution history
  */
 
-import type { Tool, ToolExecutionContext } from '@dexto/core';
+import { TOOL_ACTIVITY, type Tool, type ToolExecutionContext } from '@dexto/core';
 import { GetScheduleHistoryInputSchema } from '../schemas.js';
 import type { SchedulerManagerGetter } from '../tool-types.js';
 
@@ -12,6 +12,7 @@ export function createGetScheduleHistoryTool(getManager: SchedulerManagerGetter)
         description:
             'Get the execution history for a schedule, showing past runs and their results.',
         inputSchema: GetScheduleHistoryInputSchema,
+        presentation: { activity: TOOL_ACTIVITY.readScheduleHistory },
         execute: async (input: unknown, context: ToolExecutionContext) => {
             const { scheduleId, limit = 10 } = input as { scheduleId: string; limit?: number };
             const manager = await getManager(context);

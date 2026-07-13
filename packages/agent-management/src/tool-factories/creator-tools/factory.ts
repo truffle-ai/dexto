@@ -3,6 +3,7 @@ import path from 'node:path';
 import type { ToolFactory } from '@dexto/agent-config';
 import {
     ToolError,
+    TOOL_ACTIVITY,
     defineTool,
     assertValidPromptName,
     type Tool,
@@ -371,6 +372,7 @@ export const creatorToolsFactory: ToolFactory<CreatorToolsConfig> = {
             description:
                 'Create a standalone SKILL.md file, scaffold bundled resource directories, and register it with the running agent. Files under mcps/ are inert bundled files.',
             inputSchema: SkillCreateInputSchema,
+            presentation: { activity: TOOL_ACTIVITY.createSkill },
             execute: async (input, context) => {
                 const resolvedInput = resolveSkillCreateInput(input);
                 const skillId = resolvedInput.id.trim();
@@ -425,6 +427,7 @@ export const creatorToolsFactory: ToolFactory<CreatorToolsConfig> = {
             id: 'skill_update',
             description: 'Update an existing standalone SKILL.md file.',
             inputSchema: SkillUpdateInputSchema,
+            presentation: { activity: TOOL_ACTIVITY.updateSkill },
             execute: async (input, context) => {
                 const skillId = input.id.trim();
                 assertValidPromptName(skillId, {
@@ -477,6 +480,7 @@ export const creatorToolsFactory: ToolFactory<CreatorToolsConfig> = {
             description:
                 'Refresh one standalone skill bundle in the current session after editing SKILL.md, handlers/, scripts/, mcps/, or references/.',
             inputSchema: SkillRefreshInputSchema,
+            presentation: { activity: TOOL_ACTIVITY.refreshSkill },
             execute: async (input, context) => {
                 const skillId = input.id.trim();
                 assertValidPromptName(skillId, {
@@ -517,6 +521,7 @@ export const creatorToolsFactory: ToolFactory<CreatorToolsConfig> = {
             id: 'skill_search',
             description: 'Search loaded skills (supports query).',
             inputSchema: SkillSearchInputSchema,
+            presentation: { activity: TOOL_ACTIVITY.searchSkills },
             execute: async (input, context) => {
                 const query = input.query?.trim() ?? '';
                 const normalizedQuery = normalizeSkillQuery(query);
@@ -566,6 +571,7 @@ export const creatorToolsFactory: ToolFactory<CreatorToolsConfig> = {
             description:
                 'List discovered standalone skills and their search paths. Supports optional query filtering.',
             inputSchema: SkillListInputSchema,
+            presentation: { activity: TOOL_ACTIVITY.searchSkills },
             execute: async (input) => {
                 const query = input.query?.trim().toLowerCase();
                 const skills = discoverStandaloneSkills(input.projectPath);
@@ -589,6 +595,7 @@ export const creatorToolsFactory: ToolFactory<CreatorToolsConfig> = {
             description:
                 'List available tools and configured toolkits for the current agent (from the loaded image/config).',
             inputSchema: ToolCatalogInputSchema,
+            presentation: { activity: TOOL_ACTIVITY.discoverTools },
             execute: async (input, context) => {
                 const agent = context.agent;
                 if (!agent) {

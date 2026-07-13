@@ -5,7 +5,7 @@
  */
 
 import { z } from 'zod';
-import { createLocalToolCallHeader, defineTool } from '@dexto/core/tools';
+import { TOOL_ACTIVITY, createLocalToolCallHeader, defineTool } from '@dexto/core/tools';
 import type { Tool, ToolExecutionContext } from '@dexto/core/tools';
 import type { TodoService } from './todo-service.js';
 import { TODO_STATUS_VALUES } from './types.js';
@@ -79,6 +79,7 @@ IMPORTANT: This replaces the entire todo list. Always include ALL tasks (pending
         inputSchema: TodoWriteInputSchema,
 
         presentation: {
+            activity: TOOL_ACTIVITY.updateTasks,
             describeHeader: (input) =>
                 createLocalToolCallHeader({
                     title: 'Update Todos',

@@ -1,5 +1,5 @@
 import type { ToolFactory } from '@dexto/agent-config';
-import { createLocalToolCallHeader, truncateForHeader } from '@dexto/core';
+import { TOOL_ACTIVITY, createLocalToolCallHeader, truncateForHeader } from '@dexto/core';
 import type { ToolExecutionContext } from '@dexto/core';
 import type { ToolBackgroundEvent } from '@dexto/core';
 import { ToolError } from '@dexto/core';
@@ -336,6 +336,7 @@ export const agentSpawnerToolsFactory: ToolFactory<AgentSpawnerConfig> = {
                 execute: (input: SpawnAgentInput, context) =>
                     ensureToolsInitialized(context).spawnAgent.execute(input, context),
                 presentation: {
+                    activity: TOOL_ACTIVITY.runAgent,
                     describeHeader: (input: SpawnAgentInput) => {
                         const agentId =
                             typeof input.agentId === 'string' ? input.agentId : undefined;
@@ -369,6 +370,7 @@ export const agentSpawnerToolsFactory: ToolFactory<AgentSpawnerConfig> = {
                 execute: (input: WaitForInput, context) =>
                     ensureToolsInitialized(context).waitFor.execute(input, context),
                 presentation: {
+                    activity: TOOL_ACTIVITY.wait,
                     describeHeader: (input: WaitForInput) => {
                         const argsText = input.taskId
                             ? truncateForHeader(input.taskId, 80)
@@ -398,6 +400,7 @@ export const agentSpawnerToolsFactory: ToolFactory<AgentSpawnerConfig> = {
                 execute: (input: CheckTaskInput, context) =>
                     ensureToolsInitialized(context).checkTask.execute(input, context),
                 presentation: {
+                    activity: TOOL_ACTIVITY.checkTask,
                     describeHeader: (input: CheckTaskInput) => {
                         const argsText = truncateForHeader(input.taskId, 80);
 
@@ -423,6 +426,7 @@ export const agentSpawnerToolsFactory: ToolFactory<AgentSpawnerConfig> = {
                 execute: (input: ListTasksInput, context) =>
                     ensureToolsInitialized(context).listTasks.execute(input, context),
                 presentation: {
+                    activity: TOOL_ACTIVITY.listTasks,
                     describeHeader: () =>
                         createLocalToolCallHeader({
                             title: 'List Tasks',

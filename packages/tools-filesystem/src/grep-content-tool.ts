@@ -6,7 +6,12 @@
 
 import { z } from 'zod';
 import safeRegex from 'safe-regex';
-import { createLocalToolCallHeader, defineTool, truncateForHeader } from '@dexto/core/tools';
+import {
+    TOOL_ACTIVITY,
+    createLocalToolCallHeader,
+    defineTool,
+    truncateForHeader,
+} from '@dexto/core/tools';
 import type { SearchDisplayData, Tool, ToolExecutionContext } from '@dexto/core/tools';
 import type { FileSystemServiceGetter } from './file-tool-types.js';
 import { createDirectoryAccessApprovalHandlers } from './directory-approval.js';
@@ -67,6 +72,7 @@ export function createGrepContentTool(
         inputSchema: GrepContentInputSchema,
 
         presentation: {
+            activity: TOOL_ACTIVITY.searchFiles,
             describeHeader: (input) => {
                 const bits = [`pattern=${input.pattern}`];
                 if (input.glob) bits.push(`glob=${input.glob}`);

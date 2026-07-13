@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { ToolError, createLocalToolCallHeader, defineTool } from '@dexto/core/tools';
+import { TOOL_ACTIVITY, ToolError, createLocalToolCallHeader, defineTool } from '@dexto/core/tools';
 import type { Tool, ToolExecutionContext } from '@dexto/core/tools';
 
 const ListResourcesInputSchema = z
@@ -50,6 +50,7 @@ export function createListResourcesTool(): Tool<typeof ListResourcesInputSchema>
             'Filter by source (tool/user) or kind (image/audio/video/binary).',
         inputSchema: ListResourcesInputSchema,
         presentation: {
+            activity: TOOL_ACTIVITY.listResources,
             describeHeader: (input) => {
                 const parts: string[] = [];
                 if (input.source && input.source !== 'all') parts.push(`source=${input.source}`);

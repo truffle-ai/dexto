@@ -13,7 +13,12 @@
  */
 
 import { z } from 'zod';
-import { createLocalToolCallHeader, defineTool, truncateForHeader } from '@dexto/core/tools';
+import {
+    TOOL_ACTIVITY,
+    createLocalToolCallHeader,
+    defineTool,
+    truncateForHeader,
+} from '@dexto/core/tools';
 import type { Tool, ToolExecutionContext, FileDisplayData } from '@dexto/core/tools';
 import type { PlanServiceGetter } from '../plan-service-getter.js';
 import { PlanError } from '../errors.js';
@@ -42,6 +47,7 @@ export function createPlanReviewTool(
         inputSchema: PlanReviewInputSchema,
 
         presentation: {
+            activity: TOOL_ACTIVITY.reviewPlan,
             describeHeader: (input) =>
                 createLocalToolCallHeader({
                     title: 'Review Plan',

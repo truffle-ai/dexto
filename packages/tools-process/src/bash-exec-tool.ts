@@ -7,7 +7,12 @@
 
 import * as path from 'node:path';
 import { z } from 'zod';
-import { createLocalToolCallHeader, defineTool, truncateForHeader } from '@dexto/core/tools';
+import {
+    TOOL_ACTIVITY,
+    createLocalToolCallHeader,
+    defineTool,
+    truncateForHeader,
+} from '@dexto/core/tools';
 import type { ShellDisplayData, Tool, ToolExecutionContext } from '@dexto/core/tools';
 import { ProcessError } from './errors.js';
 import { generateCommandApprovalKey } from './command-pattern-utils.js';
@@ -119,6 +124,7 @@ Security: Dangerous commands are blocked. Injection attempts are detected. Requi
         needsApproval: (input): string => generateCommandApprovalKey(input.command),
 
         presentation: {
+            activity: TOOL_ACTIVITY.runCommand,
             describeHeader: (input) =>
                 createLocalToolCallHeader({
                     title: 'Bash',

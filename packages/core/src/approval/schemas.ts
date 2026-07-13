@@ -7,7 +7,7 @@ import type { JSONSchema7 } from 'json-schema';
 import { APPROVAL_TYPES, APPROVAL_STATUSES, DENIAL_REASONS, ApprovalType } from './types.js';
 import type { ToolDisplayData } from '../tools/display-types.js';
 import { isValidDisplayData } from '../tools/display-types.js';
-import type { ToolPresentationSnapshotV1 } from '../tools/types.js';
+import { ToolPresentationSnapshotV1Schema } from '../tools/presentation-schema.js';
 import { HostRuntimeContextSchema } from '../runtime/index.js';
 
 // Zod schema that validates as object but types as JSONSchema7
@@ -32,14 +32,6 @@ export const DenialReasonSchema = z.enum(DENIAL_REASONS);
 const ToolDisplayDataSchema = z.custom<ToolDisplayData>((val) => isValidDisplayData(val), {
     message: 'Invalid ToolDisplayData',
 });
-
-const ToolPresentationSnapshotV1Schema = z.custom<ToolPresentationSnapshotV1>(
-    (val) =>
-        typeof val === 'object' && val !== null && (val as { version?: unknown }).version === 1,
-    {
-        message: 'Invalid ToolPresentationSnapshotV1',
-    }
-);
 
 /**
  * Tool approval metadata schema

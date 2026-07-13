@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createLocalToolCallHeader, defineTool } from '@dexto/core/tools';
+import { TOOL_ACTIVITY, createLocalToolCallHeader, defineTool } from '@dexto/core/tools';
 import type { Tool, ToolExecutionContext } from '@dexto/core/tools';
 
 const SleepInputSchema = z
@@ -22,6 +22,7 @@ export function createSleepTool(): Tool<typeof SleepInputSchema> {
         description: 'Pause execution for a specified number of milliseconds.',
         inputSchema: SleepInputSchema,
         presentation: {
+            activity: TOOL_ACTIVITY.pause,
             describeHeader: (input) =>
                 createLocalToolCallHeader({
                     title: 'Sleep',

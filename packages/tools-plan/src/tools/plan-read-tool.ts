@@ -6,7 +6,7 @@
  */
 
 import { z } from 'zod';
-import { createLocalToolCallHeader, defineTool } from '@dexto/core/tools';
+import { TOOL_ACTIVITY, createLocalToolCallHeader, defineTool } from '@dexto/core/tools';
 import type { Tool, ToolExecutionContext } from '@dexto/core/tools';
 import type { PlanServiceGetter } from '../plan-service-getter.js';
 import { PlanError } from '../errors.js';
@@ -25,6 +25,7 @@ export function createPlanReadTool(
             'Read the current implementation plan for this session. Returns the plan content and metadata including status. Use markdown checkboxes (- [ ] and - [x]) in the content to track progress.',
         inputSchema: PlanReadInputSchema,
         presentation: {
+            activity: TOOL_ACTIVITY.readPlan,
             describeHeader: () =>
                 createLocalToolCallHeader({
                     title: 'Read Plan',

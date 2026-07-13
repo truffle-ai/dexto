@@ -5,7 +5,12 @@
  */
 
 import { z } from 'zod';
-import { createLocalToolCallHeader, defineTool, truncateForHeader } from '@dexto/core/tools';
+import {
+    TOOL_ACTIVITY,
+    createLocalToolCallHeader,
+    defineTool,
+    truncateForHeader,
+} from '@dexto/core/tools';
 import type { Tool, ToolExecutionContext } from '@dexto/core/tools';
 import type { ProcessServiceGetter } from './bash-exec-tool.js';
 
@@ -27,6 +32,7 @@ export function createKillProcessTool(
             "Terminate a background process started with bash_exec. Sends SIGTERM signal first, then SIGKILL if process doesn't terminate within 5 seconds. Only works on processes started by this agent. Returns success status and whether the process was running. Does not require additional approval (process was already approved when started).",
         inputSchema: KillProcessInputSchema,
         presentation: {
+            activity: TOOL_ACTIVITY.stopProcess,
             describeHeader: (input) =>
                 createLocalToolCallHeader({
                     title: 'Kill',

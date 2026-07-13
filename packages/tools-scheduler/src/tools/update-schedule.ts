@@ -2,7 +2,7 @@
  * Tool for updating schedules
  */
 
-import type { Tool, ToolExecutionContext } from '@dexto/core';
+import { TOOL_ACTIVITY, type Tool, type ToolExecutionContext } from '@dexto/core';
 import { UpdateScheduleInputSchema, type UpdateScheduleInput } from '../schemas.js';
 import type { SchedulerManagerGetter } from '../tool-types.js';
 
@@ -13,6 +13,7 @@ export function createUpdateScheduleTool(getManager: SchedulerManagerGetter): To
 
 When changing sessionMode to "inherit", the current conversation will be captured as the target session.`,
         inputSchema: UpdateScheduleInputSchema,
+        presentation: { activity: TOOL_ACTIVITY.updateSchedule },
         execute: async (input: unknown, context: ToolExecutionContext) => {
             const { scheduleId, ...updates } = input as UpdateScheduleInput;
 
