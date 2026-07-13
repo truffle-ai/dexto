@@ -1,5 +1,12 @@
 # @dexto/core
 
+## 1.9.8
+
+### Patch Changes
+
+- bceff08: Route Dexto Nova through the OpenRouter chat dialect so PDF, document, and inline audio file parts reach the gateway, and avoid retrying deterministic unsupported-functionality failures.
+    - @dexto/llm@1.9.8
+
 ## 1.9.7
 
 ### Patch Changes
