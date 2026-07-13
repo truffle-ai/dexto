@@ -168,18 +168,17 @@ function buildOpenRouterProviderOptions(config: {
 }): Record<string, Record<string, unknown>> | undefined {
     const { provider, model, reasoningVariant, budgetTokens } = config;
     const profile = getReasoningProfile(provider, model);
-
     if (!profile.capable) {
         return undefined;
     }
 
     if (reasoningVariant === 'disabled') {
-        return { [provider]: { include_reasoning: false } };
+        return { openrouter: { include_reasoning: false } };
     }
 
     if (budgetTokens !== undefined) {
         return {
-            [provider]: {
+            openrouter: {
                 include_reasoning: true,
                 reasoning: { enabled: true, max_tokens: budgetTokens },
             },
@@ -189,7 +188,7 @@ function buildOpenRouterProviderOptions(config: {
     if (profile.paradigm === 'budget') {
         if (reasoningVariant === undefined || reasoningVariant === 'enabled') {
             return {
-                [provider]: {
+                openrouter: {
                     include_reasoning: true,
                 },
             };
@@ -200,7 +199,7 @@ function buildOpenRouterProviderOptions(config: {
     const effort = toOpenAIReasoningEffort(reasoningVariant);
 
     return {
-        [provider]: {
+        openrouter: {
             include_reasoning: true,
             ...(effort !== undefined ? { reasoning: { enabled: true, effort } } : {}),
         },
