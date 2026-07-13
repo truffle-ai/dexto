@@ -1,5 +1,13 @@
 # @dexto/tools-builtins
 
+## 1.10.0
+
+### Patch Changes
+
+- Updated dependencies [f700ba1]
+    - @dexto/core@1.10.0
+    - @dexto/agent-config@1.10.0
+
 ## 1.9.8
 
 ### Patch Changes

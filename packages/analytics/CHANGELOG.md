@@ -1,5 +1,13 @@
 # @dexto/analytics
 
+## 1.10.0
+
+### Patch Changes
+
+- Updated dependencies [f700ba1]
+    - @dexto/agent-management@1.10.0
+    - @dexto/core@1.10.0
+
 ## 1.9.8
 
 ### Patch Changes
