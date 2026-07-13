@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from 'crypto';
+import { ApprovalAutoApprovalPolicySchema } from './schemas.js';
 import type { ApprovalRequest, ApprovalRequestDetails } from './types.js';
 
 type ApprovalId = ApprovalRequest['approvalId'];
@@ -30,12 +31,17 @@ export function createApprovalRequest(
     details: ApprovalRequestDetails,
     approvalId: ApprovalId = randomUUID()
 ): ApprovalRequest {
+    const autoApproval =
+        details.autoApproval === undefined
+            ? undefined
+            : ApprovalAutoApprovalPolicySchema.parse(details.autoApproval);
     return {
         approvalId,
+        ...(autoApproval === undefined ? {} : { autoApproval }),
         type: details.type,
-        sessionId: details.sessionId,
-        hostRuntime: details.hostRuntime,
-        timeout: details.timeout,
+        ...(details.hostRuntime === undefined ? {} : { hostRuntime: details.hostRuntime }),
+        ...(details.sessionId === undefined ? {} : { sessionId: details.sessionId }),
+        ...(details.timeout === undefined ? {} : { timeout: details.timeout }),
         timestamp: new Date(),
         metadata: details.metadata,
     } as ApprovalRequest;

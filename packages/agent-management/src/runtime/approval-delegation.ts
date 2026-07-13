@@ -15,19 +15,6 @@ import type {
 } from '@dexto/core';
 
 /**
- * Extended metadata type that includes delegation information
- */
-interface DelegatedMetadata {
-    /** Original metadata from the request */
-    [key: string]: unknown;
-    /** ID of the sub-agent that originated the request */
-    delegatedFromAgent: string;
-
-    /** Original sessionId from the sub-agent */
-    delegatedFromSessionId?: string;
-}
-
-/**
  * Creates an ApprovalHandler that delegates requests to a parent's ApprovalManager.
  *
  * This allows sub-agent tool approvals to flow through the parent's approval system,
@@ -68,18 +55,21 @@ export function createDelegatingApprovalHandler(
             pendingApprovalIds.add(request.approvalId);
 
             try {
-                // Build delegated request details with sub-agent context
                 const delegatedDetails: ApprovalRequestDetails = {
+                    ...(request.autoApproval === undefined
+                        ? {}
+                        : { autoApproval: request.autoApproval }),
+                    ...(request.hostRuntime === undefined
+                        ? {}
+                        : { hostRuntime: request.hostRuntime }),
                     type: request.type,
                     timeout: request.timeout,
-                    // IMPORTANT: use the parent sessionId so the interactive CLI surfaces
-                    // the approval in the correct active session.
                     sessionId: parentSessionId ?? request.sessionId,
                     metadata: {
                         ...request.metadata,
                         delegatedFromAgent: subAgentId,
                         delegatedFromSessionId: request.sessionId,
-                    } as DelegatedMetadata,
+                    },
                 };
 
                 // Forward to parent's approval manager
