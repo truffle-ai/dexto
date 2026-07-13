@@ -1,5 +1,18 @@
 # @dexto/agent-management
 
+## 1.10.0
+
+### Patch Changes
+
+- f700ba1: Add a per-request auto-approval policy so hosts can require an explicit approval even when the
+  agent otherwise runs in auto-approve mode, including approvals delegated from sub-agents.
+- Updated dependencies [f700ba1]
+    - @dexto/core@1.10.0
+    - @dexto/agent-config@1.10.0
+    - @dexto/orchestration@1.10.0
+    - @dexto/tools-builtins@1.10.0
+    - @dexto/llm@1.10.0
+
 ## 1.9.8
 
 ### Patch Changes

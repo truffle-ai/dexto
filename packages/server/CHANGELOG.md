@@ -1,5 +1,18 @@
 # @dexto/server
 
+## 1.10.0
+
+### Patch Changes
+
+- Updated dependencies [f700ba1]
+    - @dexto/agent-management@1.10.0
+    - @dexto/core@1.10.0
+    - @dexto/image-local@1.10.0
+    - @dexto/agent-config@1.10.0
+    - @dexto/storage@1.10.0
+    - @dexto/tools-scheduler@1.10.0
+    - @dexto/llm@1.10.0
+
 ## 1.9.8
 
 ### Patch Changes
