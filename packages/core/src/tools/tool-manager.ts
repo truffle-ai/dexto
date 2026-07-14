@@ -14,7 +14,7 @@ import { DextoRuntimeError, ErrorScope, ErrorType } from '../errors/index.js';
 import type { Logger } from '../logger/v2/types.js';
 import { DextoLogComponent } from '../logger/v2/types.js';
 import { convertZodSchemaToJsonSchema } from '../utils/schema.js';
-import type { AgentEventBus } from '../events/index.js';
+import { EVENT_LISTENER_CLEANUP_REASON, type AgentEventBus } from '../events/index.js';
 import type {
     ApprovalDecisionInput,
     ApprovalManager,
@@ -396,7 +396,7 @@ export class ToolManager {
             );
             this.registerCleanup(() => {
                 if (!this.workspaceListenerAbort.signal.aborted) {
-                    this.workspaceListenerAbort.abort();
+                    this.workspaceListenerAbort.abort(EVENT_LISTENER_CLEANUP_REASON);
                 }
             });
         }

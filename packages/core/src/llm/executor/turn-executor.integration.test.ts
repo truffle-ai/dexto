@@ -460,6 +460,17 @@ describe('TurnExecutor Integration Tests', () => {
             });
         });
 
+        it('aborts the completed model step with a primitive cleanup reason', async () => {
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
+
+            await executor.execute({ mcpManager }, true);
+
+            const providerSignal = vi.mocked(streamText).mock.calls[0]?.[0].abortSignal;
+            expect(providerSignal?.aborted).toBe(true);
+            expect(providerSignal?.reason).toBe('dexto.turn-step-cleanup');
+            expect(providerSignal?.reason).not.toBeInstanceOf(globalThis.DOMException);
+        });
+
         it('can drive a turn through the explicit turn driver boundary', async () => {
             const runCompleteHandler = vi.fn();
             sessionEventBus.on('run:complete', runCompleteHandler);
@@ -3935,6 +3946,9 @@ describe('TurnExecutor Integration Tests', () => {
             const result = await executorWithSignal.execute({ mcpManager }, true);
 
             expect(result.finishReason).toBe('cancelled');
+            const providerSignal = vi.mocked(streamText).mock.calls[0]?.[0].abortSignal;
+            expect(providerSignal?.reason).toBeInstanceOf(globalThis.DOMException);
+            expect(providerSignal?.reason).toEqual(expect.objectContaining({ name: 'AbortError' }));
         });
 
         it('appends a cancelled tool result when aborted while approval is pending', async () => {

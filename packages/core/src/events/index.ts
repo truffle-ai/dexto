@@ -248,6 +248,7 @@ export type HostRuntimeEventContext = {
 
 export type EventArgs<TEvent> = [TEvent] extends [void] ? [] : [TEvent];
 export type EventListener<TEvent> = (...args: EventArgs<TEvent>) => void;
+export const EVENT_LISTENER_CLEANUP_REASON = 'dexto.event-listener-cleanup';
 
 type WithHostRuntime<TEventMap extends object> = {
     [K in keyof TEventMap]: TEventMap[K] extends void
