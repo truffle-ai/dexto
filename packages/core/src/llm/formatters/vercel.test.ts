@@ -391,6 +391,129 @@ describe('VercelMessageFormatter', () => {
             ]);
         });
 
+        test('should send remote tool-result images as a following user message', () => {
+            const formatter = new VercelMessageFormatter(mockLogger);
+            const messages: InternalMessage[] = [
+                {
+                    role: 'assistant',
+                    assistantOutput: { status: 'complete' },
+                    content: [{ type: 'text', text: 'Reading image' }],
+                    toolCalls: [
+                        {
+                            id: 'call-1',
+                            type: 'function',
+                            function: { name: 'read_media_file', arguments: '{}' },
+                        },
+                    ],
+                },
+                {
+                    role: 'tool',
+                    toolCallId: 'call-1',
+                    name: 'read_media_file',
+                    success: true,
+                    content: [
+                        { type: 'text', text: 'Read image' },
+                        {
+                            type: 'image',
+                            image: 'https://example.test/api/artifact-exports/signed-token',
+                            mimeType: 'image/png',
+                        },
+                    ],
+                },
+            ];
+
+            const result = formatter.format(
+                messages,
+                { provider: 'openai', model: 'gpt-5.4-mini' },
+                null
+            );
+
+            expect(result.slice(-2)).toEqual([
+                {
+                    role: 'tool',
+                    content: [
+                        {
+                            type: 'tool-result',
+                            toolCallId: 'call-1',
+                            toolName: 'read_media_file',
+                            output: {
+                                type: 'text',
+                                value: 'Read image\nAttached image: https://example.test/api/artifact-exports/signed-token',
+                            },
+                        },
+                    ],
+                },
+                {
+                    role: 'user',
+                    content: [
+                        {
+                            type: 'image',
+                            image: new URL(
+                                'https://example.test/api/artifact-exports/signed-token'
+                            ),
+                            mediaType: 'image/png',
+                        },
+                    ],
+                },
+            ]);
+        });
+
+        test('should keep parallel tool results together before remote media', () => {
+            const formatter = new VercelMessageFormatter(mockLogger);
+            const messages: InternalMessage[] = [
+                {
+                    role: 'assistant',
+                    assistantOutput: { status: 'complete' },
+                    content: [],
+                    toolCalls: [
+                        {
+                            id: 'call-1',
+                            type: 'function',
+                            function: { name: 'read_media_file', arguments: '{}' },
+                        },
+                        {
+                            id: 'call-2',
+                            type: 'function',
+                            function: { name: 'search', arguments: '{}' },
+                        },
+                    ],
+                },
+                {
+                    role: 'tool',
+                    toolCallId: 'call-1',
+                    name: 'read_media_file',
+                    success: true,
+                    content: [
+                        {
+                            type: 'image',
+                            image: 'https://example.test/image.png',
+                            mimeType: 'image/png',
+                        },
+                    ],
+                },
+                {
+                    role: 'tool',
+                    toolCallId: 'call-2',
+                    name: 'search',
+                    success: true,
+                    content: [{ type: 'text', text: 'Search result' }],
+                },
+            ];
+
+            const result = formatter.format(
+                messages,
+                { provider: 'openai', model: 'gpt-5.4-mini' },
+                null
+            );
+
+            expect(result.map((message) => message.role)).toEqual([
+                'assistant',
+                'tool',
+                'tool',
+                'user',
+            ]);
+        });
+
         test('should keep tool-result URL media as text references', () => {
             const formatter = new VercelMessageFormatter(mockLogger);
             const messages: InternalMessage[] = [

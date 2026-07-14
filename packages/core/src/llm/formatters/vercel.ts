@@ -1,4 +1,4 @@
-import type { ModelMessage, AssistantContent, ToolContent, ToolResultPart } from 'ai';
+import type { ModelMessage, AssistantContent, ToolResultPart } from 'ai';
 import type { LLMContext } from '@dexto/llm';
 import type {
     InternalMessage,
@@ -14,6 +14,10 @@ import {
 } from '../../context/utils.js';
 import type { Logger } from '../../logger/v2/types.js';
 import { DextoLogComponent } from '../../logger/v2/types.js';
+
+type RemoteToolMedia =
+    | { type: 'image'; image: URL; mediaType: string }
+    | { type: 'file'; data: URL; mediaType: string; filename?: string };
 
 /**
  * Checks if a string is a URL (http:// or https://).
@@ -200,6 +204,7 @@ export class VercelMessageFormatter {
         // Track pending tool calls to detect orphans (tool calls without results)
         // Map stores toolCallId -> toolName for proper synthetic result generation
         const pendingToolCalls = new Map<string, string>();
+        let pendingRemoteToolMedia: RemoteToolMedia[] = [];
 
         for (const msg of filteredHistory) {
             switch (msg.role) {
@@ -279,9 +284,15 @@ export class VercelMessageFormatter {
                 case 'tool':
                     // Only add if we've seen the corresponding tool call
                     if (msg.toolCallId && pendingToolCalls.has(msg.toolCallId)) {
-                        formatted.push({ role: 'tool', ...this.formatToolMessage(msg) });
+                        const toolResult = this.formatToolMessage(msg);
+                        formatted.push(toolResult.message);
+                        pendingRemoteToolMedia.push(...toolResult.remoteMedia);
                         // Remove from pending since we found its result
                         pendingToolCalls.delete(msg.toolCallId);
+                        if (pendingToolCalls.size === 0 && pendingRemoteToolMedia.length > 0) {
+                            formatted.push({ role: 'user', content: pendingRemoteToolMedia });
+                            pendingRemoteToolMedia = [];
+                        }
                     } else {
                         // Orphaned tool result (result without matching call)
                         // Skip it to prevent API errors - can't send result without corresponding call
@@ -317,6 +328,9 @@ export class VercelMessageFormatter {
                     `Tool call ${toolCallId} (${toolName}) had no matching tool result - added synthetic error result to prevent API errors`
                 );
             }
+        }
+        if (pendingRemoteToolMedia.length > 0) {
+            formatted.push({ role: 'user', content: pendingRemoteToolMedia });
         }
 
         return formatted;
@@ -442,8 +456,12 @@ export class VercelMessageFormatter {
     }
 
     // Helper to format Tool result messages
-    private formatToolMessage(msg: ToolMessage): { content: ToolContent } {
+    private formatToolMessage(msg: ToolMessage): {
+        message: ModelMessage;
+        remoteMedia: RemoteToolMedia[];
+    } {
         let toolResultPart: ToolResultPart;
+        const remoteMedia: RemoteToolMedia[] = [];
         if (Array.isArray(msg.content)) {
             const content = msg.content
                 .map((part) => {
@@ -452,6 +470,13 @@ export class VercelMessageFormatter {
                     }
                     if (part.type === 'image') {
                         const data = getImageData(part, this.logger);
+                        if (/^https?:\/\//i.test(data)) {
+                            remoteMedia.push({
+                                type: 'image',
+                                image: new URL(data),
+                                mediaType: part.mimeType || 'image/jpeg',
+                            });
+                        }
                         const mediaData = normalizeToolMediaData(data);
                         if (!mediaData) {
                             return { type: 'text' as const, text: `Attached image: ${data}` };
@@ -464,6 +489,14 @@ export class VercelMessageFormatter {
                     }
                     if (part.type === 'file') {
                         const data = getFileData(part, this.logger);
+                        if (/^https?:\/\//i.test(data)) {
+                            remoteMedia.push({
+                                type: 'file',
+                                data: new URL(data),
+                                mediaType: part.mimeType,
+                                ...(part.filename === undefined ? {} : { filename: part.filename }),
+                            });
+                        }
                         const mediaData = normalizeToolMediaData(data);
                         if (!mediaData) {
                             return { type: 'text' as const, text: `Attached file: ${data}` };
@@ -517,6 +550,9 @@ export class VercelMessageFormatter {
                 },
             };
         }
-        return { content: [toolResultPart] };
+        return {
+            message: { role: 'tool', content: [toolResultPart] },
+            remoteMedia,
+        };
     }
 }

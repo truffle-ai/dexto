@@ -93,6 +93,14 @@ describe('createVercelModel dexto-nova base URL resolution', () => {
         expect(getLastDextoNovaBaseUrl()).toBe('https://app.dexto.ai/v1');
     });
 
+    it('passes remote image URLs through to the Dexto gateway', async () => {
+        const model = await createVercelModel(buildDextoConfig());
+
+        expect(Reflect.get(Object(model), 'supportedUrls')).toEqual({
+            'image/*': [/^https?:\/\/.*$/],
+        });
+    });
+
     it('uses llm.baseURL when explicitly provided', async () => {
         await createVercelModel(
             buildDextoConfig({
