@@ -514,6 +514,83 @@ describe('VercelMessageFormatter', () => {
             ]);
         });
 
+        test('should keep remote media with its turn when a parallel tool call is interrupted', () => {
+            const formatter = new VercelMessageFormatter(mockLogger);
+            const messages: InternalMessage[] = [
+                {
+                    role: 'assistant',
+                    assistantOutput: { status: 'complete' },
+                    content: [],
+                    toolCalls: [
+                        {
+                            id: 'call-media',
+                            type: 'function',
+                            function: { name: 'read_media_file', arguments: '{}' },
+                        },
+                        {
+                            id: 'call-interrupted',
+                            type: 'function',
+                            function: { name: 'search', arguments: '{}' },
+                        },
+                    ],
+                },
+                {
+                    role: 'tool',
+                    toolCallId: 'call-media',
+                    name: 'read_media_file',
+                    success: true,
+                    content: [
+                        {
+                            type: 'image',
+                            image: 'https://example.test/image.png',
+                            mimeType: 'image/png',
+                        },
+                    ],
+                },
+                {
+                    role: 'user',
+                    content: [{ type: 'text', text: 'Continue after the interrupted tool.' }],
+                },
+                {
+                    role: 'assistant',
+                    assistantOutput: { status: 'complete' },
+                    content: [{ type: 'text', text: 'Done' }],
+                },
+            ];
+
+            const result = formatter.format(
+                messages,
+                { provider: 'openai', model: 'gpt-5.4-mini' },
+                null
+            );
+
+            expect(result.map((message) => message.role)).toEqual([
+                'assistant',
+                'tool',
+                'tool',
+                'user',
+                'user',
+                'assistant',
+            ]);
+            expect(result[2]).toMatchObject({
+                role: 'tool',
+                content: [
+                    {
+                        toolCallId: 'call-interrupted',
+                        isError: true,
+                    },
+                ],
+            });
+            expect(result[3]).toMatchObject({
+                role: 'user',
+                content: [{ type: 'image', mediaType: 'image/png' }],
+            });
+            expect(result[4]).toEqual({
+                role: 'user',
+                content: [{ type: 'text', text: 'Continue after the interrupted tool.' }],
+            });
+        });
+
         test('should keep tool-result URL media as text references', () => {
             const formatter = new VercelMessageFormatter(mockLogger);
             const messages: InternalMessage[] = [

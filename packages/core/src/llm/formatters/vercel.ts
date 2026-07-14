@@ -206,7 +206,40 @@ export class VercelMessageFormatter {
         const pendingToolCalls = new Map<string, string>();
         let pendingRemoteToolMedia: RemoteToolMedia[] = [];
 
+        const closePendingToolTurn = () => {
+            for (const [toolCallId, toolName] of pendingToolCalls) {
+                formatted.push({
+                    role: 'tool',
+                    content: [
+                        {
+                            type: 'tool-result',
+                            toolCallId,
+                            toolName,
+                            output: {
+                                type: 'text',
+                                value: 'Error: Tool execution was interrupted (session crashed or cancelled before completion)',
+                            },
+                            isError: true,
+                        } as ToolResultPart,
+                    ],
+                });
+                this.logger.warn(
+                    `Tool call ${toolCallId} (${toolName}) had no matching tool result - added synthetic error result to prevent API errors`
+                );
+            }
+            pendingToolCalls.clear();
+
+            if (pendingRemoteToolMedia.length > 0) {
+                formatted.push({ role: 'user', content: pendingRemoteToolMedia });
+                pendingRemoteToolMedia = [];
+            }
+        };
+
         for (const msg of filteredHistory) {
+            if (msg.role !== 'tool' && pendingToolCalls.size > 0) {
+                closePendingToolTurn();
+            }
+
             switch (msg.role) {
                 case 'user':
                     // Images (and text) in user content arrays are handled natively
@@ -304,34 +337,7 @@ export class VercelMessageFormatter {
             }
         }
 
-        // Add synthetic error results for any orphaned tool calls
-        // This can happen when CLI crashes/interrupts before tool execution completes
-        if (pendingToolCalls.size > 0) {
-            for (const [toolCallId, toolName] of pendingToolCalls.entries()) {
-                // Vercel AI SDK uses tool-result content parts with output property
-                formatted.push({
-                    role: 'tool',
-                    content: [
-                        {
-                            type: 'tool-result',
-                            toolCallId: toolCallId,
-                            toolName: toolName,
-                            output: {
-                                type: 'text',
-                                value: 'Error: Tool execution was interrupted (session crashed or cancelled before completion)',
-                            },
-                            isError: true,
-                        } as ToolResultPart,
-                    ],
-                });
-                this.logger.warn(
-                    `Tool call ${toolCallId} (${toolName}) had no matching tool result - added synthetic error result to prevent API errors`
-                );
-            }
-        }
-        if (pendingRemoteToolMedia.length > 0) {
-            formatted.push({ role: 'user', content: pendingRemoteToolMedia });
-        }
+        closePendingToolTurn();
 
         return formatted;
     }
