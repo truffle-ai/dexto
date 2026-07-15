@@ -1,4 +1,4 @@
-import { APICallError } from 'ai';
+import { APICallError, UnsupportedFunctionalityError } from 'ai';
 import { DextoRuntimeError } from '../../errors/DextoRuntimeError.js';
 import { ErrorScope, ErrorType } from '../../errors/types.js';
 import type { ErrorRetryDisposition } from '../../errors/types.js';
@@ -125,7 +125,9 @@ function providerMessage(details: LLMProviderErrorDetails, fallback: string): st
 }
 
 function messageFromUnknown(value: unknown): string {
-    return value instanceof Error ? value.message : String(value);
+    if (value instanceof Error) return value.message;
+    if (isRecord(value)) return readString(value.message) ?? String(value);
+    return String(value);
 }
 
 function isInvalidSchemaMessage(message: string): boolean {
@@ -237,6 +239,18 @@ export function mapProviderError(input: MapProviderErrorInput): Error {
 
     if (!APICallError.isInstance?.(input.error)) {
         const message = messageFromUnknown(input.error);
+        if (UnsupportedFunctionalityError.isInstance(input.error)) {
+            return new DextoRuntimeError(
+                LLMErrorCode.GENERATION_FAILED,
+                ErrorScope.LLM,
+                ErrorType.THIRD_PARTY,
+                message,
+                buildContext(input, extractProviderErrorDetails(input)),
+                undefined,
+                undefined,
+                'non_retryable'
+            );
+        }
         if (isInvalidSchemaMessage(message)) {
             return new DextoRuntimeError(
                 LLMErrorCode.REQUEST_INVALID_SCHEMA,

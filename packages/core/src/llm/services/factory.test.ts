@@ -47,9 +47,9 @@ function buildDextoConfig(overrides: Record<string, unknown> = {}) {
 }
 
 function getLastDextoNovaBaseUrl(): string {
-    const lastCall = sdkMocks.createOpenAICompatible.mock.calls.at(-1)?.[0];
+    const lastCall = sdkMocks.createOpenRouter.mock.calls.at(-1)?.[0];
     if (!lastCall || typeof lastCall !== 'object' || !('baseURL' in lastCall)) {
-        throw new Error('createOpenAICompatible call did not capture baseURL');
+        throw new Error('createOpenRouter call did not capture baseURL');
     }
 
     const { baseURL } = lastCall;
@@ -131,7 +131,7 @@ describe('createVercelModel dexto-nova base URL resolution', () => {
         expect(getLastDextoNovaBaseUrl()).toBe('http://localhost:3001/v1');
     });
 
-    it('uses an OpenAI-compatible provider named dexto-nova with gateway headers', async () => {
+    it('uses the OpenRouter provider dialect with gateway headers', async () => {
         await createVercelModel(
             buildDextoConfig({
                 baseURL: 'http://localhost:3001/v1',
@@ -142,14 +142,14 @@ describe('createVercelModel dexto-nova base URL resolution', () => {
             }
         );
 
-        expect(sdkMocks.createOpenAICompatible).toHaveBeenCalledWith({
+        expect(sdkMocks.createOpenRouter).toHaveBeenCalledWith({
             apiKey: 'dxt_test_key',
             baseURL: 'http://localhost:3001/v1',
+            compatibility: 'strict',
             headers: {
                 'X-Dexto-Session-ID': 'session-test',
                 'X-Dexto-Source': 'web',
             },
-            name: 'dexto-nova',
         });
     });
 

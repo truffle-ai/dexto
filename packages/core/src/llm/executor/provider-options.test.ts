@@ -360,7 +360,7 @@ describe('buildProviderOptions', () => {
                     reasoning: { variant: 'high' },
                 })
             ).toEqual({
-                'dexto-nova': {
+                openrouter: {
                     include_reasoning: true,
                     reasoning: { enabled: true, effort: 'high' },
                 },
@@ -377,7 +377,7 @@ describe('buildProviderOptions', () => {
                         reasoning: { variant: effort },
                     })
                 ).toEqual({
-                    'dexto-nova': {
+                    openrouter: {
                         include_reasoning: true,
                         reasoning: { enabled: true, effort },
                     },
@@ -392,7 +392,7 @@ describe('buildProviderOptions', () => {
                     model: 'anthropic/claude-fable-5',
                 })
             ).toEqual({
-                'dexto-nova': {
+                openrouter: {
                     include_reasoning: true,
                     reasoning: { enabled: true, effort: 'high' },
                 },
@@ -493,7 +493,7 @@ describe('buildProviderOptions', () => {
             ).toBeUndefined();
         });
 
-        it('keeps openrouter and dexto-nova option payloads aligned under their transport keys', () => {
+        it('uses OpenRouter transport options for both gateway providers', () => {
             const cases = [
                 {
                     model: 'openai/gpt-5.2-codex',
@@ -524,7 +524,7 @@ describe('buildProviderOptions', () => {
                     model: testCase.model,
                     reasoning: testCase.reasoning,
                 });
-                expect(fromDextoNova?.['dexto-nova']).toEqual(fromOpenRouter?.openrouter);
+                expect(fromDextoNova?.openrouter).toEqual(fromOpenRouter?.openrouter);
             }
         });
     });

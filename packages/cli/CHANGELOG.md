@@ -1,5 +1,41 @@
 # dexto
 
+## 1.10.0
+
+### Patch Changes
+
+- Updated dependencies [f700ba1]
+    - @dexto/agent-management@1.10.0
+    - @dexto/core@1.10.0
+    - @dexto/analytics@1.10.0
+    - @dexto/image-local@1.10.0
+    - @dexto/image-logger-agent@1.10.0
+    - @dexto/server@1.10.0
+    - @dexto/tui@1.10.0
+    - @dexto/agent-config@1.10.0
+    - @dexto/client-sdk@1.10.0
+    - @dexto/storage@1.10.0
+    - @dexto/llm@1.10.0
+    - @dexto/registry@1.10.0
+
+## 1.9.8
+
+### Patch Changes
+
+- Updated dependencies [bceff08]
+    - @dexto/core@1.9.8
+    - @dexto/agent-config@1.9.8
+    - @dexto/agent-management@1.9.8
+    - @dexto/analytics@1.9.8
+    - @dexto/client-sdk@1.9.8
+    - @dexto/image-local@1.9.8
+    - @dexto/image-logger-agent@1.9.8
+    - @dexto/server@1.9.8
+    - @dexto/storage@1.9.8
+    - @dexto/tui@1.9.8
+    - @dexto/llm@1.9.8
+    - @dexto/registry@1.9.8
+
 ## 1.9.7
 
 ### Patch Changes

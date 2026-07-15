@@ -1,5 +1,23 @@
 # @dexto/core
 
+## 1.10.0
+
+### Minor Changes
+
+- f700ba1: Add a per-request auto-approval policy so hosts can require an explicit approval even when the
+  agent otherwise runs in auto-approve mode, including approvals delegated from sub-agents.
+
+### Patch Changes
+
+- @dexto/llm@1.10.0
+
+## 1.9.8
+
+### Patch Changes
+
+- bceff08: Route Dexto Nova through the OpenRouter chat dialect so PDF, document, and inline audio file parts reach the gateway, and avoid retrying deterministic unsupported-functionality failures.
+    - @dexto/llm@1.9.8
+
 ## 1.9.7
 
 ### Patch Changes

@@ -1,5 +1,6 @@
 import { isDeepStrictEqual } from 'node:util';
 import type {
+    ApprovalAutoApprovalPolicy,
     ApprovalHandler,
     ApprovalRequest,
     ApprovalResponse,
@@ -10,6 +11,7 @@ import type {
 } from './types.js';
 import { ApprovalType, ApprovalStatus } from './types.js';
 import {
+    ApprovalAutoApprovalPolicySchema,
     CommandApprovalResponseSchema,
     CustomApprovalResponseSchema,
     ElicitationResponseSchema,
@@ -345,29 +347,6 @@ export class ApprovalManager {
         });
     }
 
-    private createApprovalDetails(
-        type: ApprovalType,
-        metadata: ApprovalRequestDetails['metadata'],
-        sessionId: string | undefined,
-        hostRuntime?: ApprovalRequestDetails['hostRuntime'],
-        timeout?: number
-    ): ApprovalRequestDetails {
-        const details: ApprovalRequestDetails = {
-            type,
-            timeout: this.getApprovalTimeout(type, timeout),
-            metadata,
-        };
-
-        if (sessionId !== undefined) {
-            details.sessionId = sessionId;
-        }
-        if (hostRuntime !== undefined) {
-            details.hostRuntime = hostRuntime;
-        }
-
-        return details;
-    }
-
     private withDefaultTimeout(details: ApprovalRequestDetails): ApprovalRequestDetails {
         return {
             ...details,
@@ -389,6 +368,7 @@ export class ApprovalManager {
         candidate: ApprovalRequest
     ): void {
         const existingComparable = {
+            autoApproval: existing.autoApproval ?? 'allowed',
             type: existing.type,
             sessionId: existing.sessionId,
             hostRuntime: existing.hostRuntime,
@@ -396,6 +376,7 @@ export class ApprovalManager {
             metadata: existing.metadata,
         };
         const candidateComparable = {
+            autoApproval: candidate.autoApproval ?? 'allowed',
             type: candidate.type,
             sessionId: candidate.sessionId,
             hostRuntime: candidate.hostRuntime,
@@ -578,6 +559,11 @@ export class ApprovalManager {
      * @private
      */
     private async handleApproval(request: ApprovalRequest): Promise<ApprovalResponse> {
+        const autoApproval =
+            request.autoApproval === undefined
+                ? 'allowed'
+                : ApprovalAutoApprovalPolicySchema.parse(request.autoApproval);
+
         // Elicitation always uses manual mode (requires handler)
         if (request.type === ApprovalType.ELICITATION) {
             const handler = this.ensureHandler();
@@ -591,7 +577,7 @@ export class ApprovalManager {
         const mode = this.config.permissions.mode;
 
         // Auto-approve mode
-        if (mode === 'auto-approve') {
+        if (mode === 'auto-approve' && autoApproval === 'allowed') {
             this.logger.info(
                 `Auto-approve approval '${request.type}', approvalId: ${request.approvalId}`
             );
@@ -617,21 +603,21 @@ export class ApprovalManager {
      */
     async requestToolApproval(
         metadata: ToolApprovalMetadata & {
+            autoApproval?: ApprovalAutoApprovalPolicy;
             sessionId?: string;
             hostRuntime?: ApprovalRequestDetails['hostRuntime'];
             timeout?: number;
         }
     ): Promise<ApprovalResponse> {
-        const { sessionId, hostRuntime, timeout, ...toolMetadata } = metadata;
-        return this.requestApproval(
-            this.createApprovalDetails(
-                ApprovalType.TOOL_APPROVAL,
-                toolMetadata,
-                sessionId,
-                hostRuntime,
-                timeout
-            )
-        );
+        const { autoApproval, sessionId, hostRuntime, timeout, ...toolMetadata } = metadata;
+        return this.requestApproval({
+            ...(autoApproval === undefined ? {} : { autoApproval }),
+            ...(hostRuntime === undefined ? {} : { hostRuntime }),
+            metadata: toolMetadata,
+            ...(sessionId === undefined ? {} : { sessionId }),
+            ...(timeout === undefined ? {} : { timeout }),
+            type: ApprovalType.TOOL_APPROVAL,
+        });
     }
 
     /**
@@ -657,21 +643,21 @@ export class ApprovalManager {
      */
     async requestCommandApproval(
         metadata: CommandApprovalMetadata & {
+            autoApproval?: ApprovalAutoApprovalPolicy;
             sessionId?: string;
             hostRuntime?: ApprovalRequestDetails['hostRuntime'];
             timeout?: number;
         }
     ): Promise<ApprovalResponse> {
-        const { sessionId, hostRuntime, timeout, ...commandMetadata } = metadata;
-        return this.requestApproval(
-            this.createApprovalDetails(
-                ApprovalType.COMMAND_APPROVAL,
-                commandMetadata,
-                sessionId,
-                hostRuntime,
-                timeout
-            )
-        );
+        const { autoApproval, sessionId, hostRuntime, timeout, ...commandMetadata } = metadata;
+        return this.requestApproval({
+            ...(autoApproval === undefined ? {} : { autoApproval }),
+            ...(hostRuntime === undefined ? {} : { hostRuntime }),
+            metadata: commandMetadata,
+            ...(sessionId === undefined ? {} : { sessionId }),
+            ...(timeout === undefined ? {} : { timeout }),
+            type: ApprovalType.COMMAND_APPROVAL,
+        });
     }
 
     /**
@@ -689,15 +675,13 @@ export class ApprovalManager {
         }
     ): Promise<ApprovalResponse> {
         const { sessionId, hostRuntime, timeout, ...elicitationMetadata } = metadata;
-        return this.requestApproval(
-            this.createApprovalDetails(
-                ApprovalType.ELICITATION,
-                elicitationMetadata,
-                sessionId,
-                hostRuntime,
-                timeout
-            )
-        );
+        return this.requestApproval({
+            ...(hostRuntime === undefined ? {} : { hostRuntime }),
+            metadata: elicitationMetadata,
+            ...(sessionId === undefined ? {} : { sessionId }),
+            ...(timeout === undefined ? {} : { timeout }),
+            type: ApprovalType.ELICITATION,
+        });
     }
 
     /**
@@ -706,6 +690,7 @@ export class ApprovalManager {
      */
     async checkToolApproval(
         metadata: ToolApprovalMetadata & {
+            autoApproval?: ApprovalAutoApprovalPolicy;
             sessionId?: string;
             hostRuntime?: ApprovalRequestDetails['hostRuntime'];
             timeout?: number;
