@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import {
     ToolError,
+    TOOL_ACTIVITY,
     createLocalToolCallHeader,
     defineTool,
     truncateForHeader,
@@ -52,6 +53,7 @@ export function createSearchHistoryTool(): Tool<typeof SearchHistoryInputSchema>
             'Search through conversation history across sessions. Use mode="messages" to search for specific messages, or mode="sessions" to find sessions containing the query. For message search, you can filter by sessionId (specific session), role (user/assistant/system/tool), limit results, and set pagination offset.',
         inputSchema: SearchHistoryInputSchema,
         presentation: {
+            activity: TOOL_ACTIVITY.searchHistory,
             describeHeader: (input) =>
                 createLocalToolCallHeader({
                     title: 'Search History',

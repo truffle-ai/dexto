@@ -5,7 +5,12 @@
  */
 
 import { z } from 'zod';
-import { createLocalToolCallHeader, defineTool, truncateForHeader } from '@dexto/core/tools';
+import {
+    TOOL_ACTIVITY,
+    createLocalToolCallHeader,
+    defineTool,
+    truncateForHeader,
+} from '@dexto/core/tools';
 import type { FileDisplayData, Tool, ToolExecutionContext } from '@dexto/core/tools';
 import type { FileSystemServiceGetter } from './file-tool-types.js';
 import { createDirectoryAccessApprovalHandlers, resolveFilePath } from './directory-approval.js';
@@ -44,6 +49,7 @@ export function createReadFileTool(
         inputSchema: ReadFileInputSchema,
 
         presentation: {
+            activity: TOOL_ACTIVITY.readFile,
             describeHeader: (input) =>
                 createLocalToolCallHeader({
                     title: 'Read',

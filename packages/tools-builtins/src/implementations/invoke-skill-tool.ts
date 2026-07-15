@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { ToolError, createLocalToolCallHeader, defineTool } from '@dexto/core/tools';
+import { TOOL_ACTIVITY, ToolError, createLocalToolCallHeader, defineTool } from '@dexto/core/tools';
 import type { Tool, ToolExecutionContext } from '@dexto/core/tools';
 
 type InvokableSkill = {
@@ -38,6 +38,7 @@ export function createInvokeSkillTool(): Tool<typeof InvokeSkillInputSchema> {
         description: buildToolDescription(),
         inputSchema: InvokeSkillInputSchema,
         presentation: {
+            activity: TOOL_ACTIVITY.useSkill,
             describeHeader: (input) => {
                 const colonIndex = input.skill.indexOf(':');
                 const displaySkillName =

@@ -7,13 +7,8 @@ import React, {
     useMemo,
 } from 'react';
 import { Box, Text } from 'ink';
-import type {
-    HostRuntimeContext,
-    ToolDisplayData,
-    ElicitationMetadata,
-    ToolPresentationSnapshotV1,
-} from '@dexto/core';
-import { ApprovalType } from '@dexto/core';
+import type { HostRuntimeContext, ToolDisplayData, ElicitationMetadata } from '@dexto/core';
+import { ApprovalType, isToolPresentationSnapshotV1 } from '@dexto/core';
 import type { Key } from '../hooks/useInputOrchestrator.js';
 import { ElicitationForm, type ElicitationFormHandle } from './ElicitationForm.js';
 import { DiffPreview, CreateFilePreview } from './renderers/index.js';
@@ -104,15 +99,8 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
 
         // Format tool header using shared utility (same format as tool messages)
         const presentationSnapshot = useMemo(() => {
-            const raw = (approval.metadata as { presentationSnapshot?: unknown })
-                .presentationSnapshot;
-            if (typeof raw !== 'object' || raw === null) {
-                return undefined;
-            }
-            if ((raw as { version?: unknown }).version !== 1) {
-                return undefined;
-            }
-            return raw as ToolPresentationSnapshotV1;
+            const raw = approval.metadata['presentationSnapshot'];
+            return isToolPresentationSnapshotV1(raw) ? raw : undefined;
         }, [approval.metadata]);
 
         const formattedTool = useMemo(() => {

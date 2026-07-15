@@ -5,7 +5,7 @@
  * The sub-agent will execute the task and return the result.
  */
 
-import { createLocalToolCallHeader, truncateForHeader } from '@dexto/core';
+import { TOOL_ACTIVITY, createLocalToolCallHeader, truncateForHeader } from '@dexto/core';
 import type { Tool, ToolExecutionContext } from '@dexto/core';
 import { SpawnAgentInputSchema } from './schemas.js';
 import type { AgentSpawnerRuntime } from './runtime.js';
@@ -62,6 +62,7 @@ export function createSpawnAgentTool(
         getDescription: () => buildDescription(service),
 
         presentation: {
+            activity: TOOL_ACTIVITY.runAgent,
             describeHeader: (input) => {
                 const agentLabel = input.agentId ? input.agentId.replace(/-agent$/, '') : null;
                 const title = agentLabel

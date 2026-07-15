@@ -2,7 +2,7 @@
  * Tool for listing schedules
  */
 
-import type { Tool, ToolExecutionContext } from '@dexto/core';
+import { TOOL_ACTIVITY, type Tool, type ToolExecutionContext } from '@dexto/core';
 import { ListSchedulesInputSchema, type ListSchedulesInput } from '../schemas.js';
 import type { SchedulerManagerGetter } from '../tool-types.js';
 
@@ -11,6 +11,7 @@ export function createListSchedulesTool(getManager: SchedulerManagerGetter): Too
         id: 'list_schedules',
         description: 'List all scheduled tasks. Optionally filter by enabled status.',
         inputSchema: ListSchedulesInputSchema,
+        presentation: { activity: TOOL_ACTIVITY.listSchedules },
         execute: async (input: unknown, context: ToolExecutionContext) => {
             const manager = await getManager(context);
             const { enabled } = input as ListSchedulesInput;

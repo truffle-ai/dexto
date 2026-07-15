@@ -5,7 +5,12 @@
  */
 
 import { z } from 'zod';
-import { createLocalToolCallHeader, defineTool, truncateForHeader } from '@dexto/core/tools';
+import {
+    TOOL_ACTIVITY,
+    createLocalToolCallHeader,
+    defineTool,
+    truncateForHeader,
+} from '@dexto/core/tools';
 import type { SearchDisplayData, Tool, ToolExecutionContext } from '@dexto/core/tools';
 import type { FileSystemServiceGetter } from './file-tool-types.js';
 import { createDirectoryAccessApprovalHandlers } from './directory-approval.js';
@@ -45,6 +50,7 @@ export function createGlobFilesTool(
         inputSchema: GlobFilesInputSchema,
 
         presentation: {
+            activity: TOOL_ACTIVITY.searchFiles,
             describeHeader: (input) => {
                 const bits = [`pattern=${input.pattern}`];
                 if (input.path) bits.push(`path=${input.path}`);

@@ -18,6 +18,12 @@ export type { SessionToolPreferences } from './session-tool-preferences-store.js
 
 // Display types for tool result rendering
 export * from './display-types.js';
+export * from './activity.js';
+export {
+    isToolPresentationSnapshotV1,
+    ToolPresentationSnapshotV1Schema,
+} from './presentation-schema.js';
+export type { ToolPresentationSnapshotV1 } from './presentation-schema.js';
 
 // Schemas/types
 export * from './schemas.js';

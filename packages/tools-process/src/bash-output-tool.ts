@@ -5,7 +5,12 @@
  */
 
 import { z } from 'zod';
-import { createLocalToolCallHeader, defineTool, truncateForHeader } from '@dexto/core/tools';
+import {
+    TOOL_ACTIVITY,
+    createLocalToolCallHeader,
+    defineTool,
+    truncateForHeader,
+} from '@dexto/core/tools';
 import type { Tool, ToolExecutionContext } from '@dexto/core/tools';
 import type { ProcessServiceGetter } from './bash-exec-tool.js';
 
@@ -27,6 +32,7 @@ export function createBashOutputTool(
             'Retrieve output from a background process started with bash_exec. Returns stdout, stderr, status (running/completed/failed), exit code, and duration. Each call returns only new output since last read. The output buffer is cleared after reading. Use this tool to monitor long-running commands.',
         inputSchema: BashOutputInputSchema,
         presentation: {
+            activity: TOOL_ACTIVITY.checkCommandOutput,
             describeHeader: (input) =>
                 createLocalToolCallHeader({
                     title: 'Bash Output',

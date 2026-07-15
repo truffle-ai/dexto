@@ -1,7 +1,7 @@
 import { createHash } from 'crypto';
 import { z } from 'zod';
 import type { ToolExecutionResult } from '../../tools/types.js';
-import type { ToolPresentationSnapshotV1 } from '../../tools/types.js';
+import { ToolPresentationSnapshotV1Schema } from '../../tools/presentation-schema.js';
 import type { ToolCallMetadata } from '../../tools/tool-call-metadata.js';
 
 export const ToolExecutionIdentitySchema = z
@@ -15,7 +15,7 @@ export const ToolExecutionIdentitySchema = z
 
 const ToolExecutionResultMetadataSchema = z
     .object({
-        presentationSnapshot: z.custom<ToolPresentationSnapshotV1>().optional(),
+        presentationSnapshot: ToolPresentationSnapshotV1Schema.optional(),
         meta: z.custom<ToolCallMetadata>().optional(),
         requireApproval: z.boolean().optional(),
         approvalStatus: z.enum(['approved', 'rejected']).optional(),

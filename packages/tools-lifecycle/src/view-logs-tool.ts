@@ -1,6 +1,6 @@
 import * as fs from 'node:fs/promises';
 import { z } from 'zod';
-import { ToolError, createLocalToolCallHeader, defineTool } from '@dexto/core/tools';
+import { TOOL_ACTIVITY, ToolError, createLocalToolCallHeader, defineTool } from '@dexto/core/tools';
 import type { Tool, ToolExecutionContext } from '@dexto/core/tools';
 
 const LOG_LEVEL_VALUES = ['debug', 'info', 'warn', 'error', 'silly'] as const;
@@ -113,6 +113,7 @@ export function createViewLogsTool(options: {
             'View this session log file (tail). Returns the most recent log lines for debugging. If file logging is not configured, returns a message instead.',
         inputSchema: ViewLogsInputSchema,
         presentation: {
+            activity: TOOL_ACTIVITY.inspectLogs,
             describeHeader: (input) =>
                 createLocalToolCallHeader({
                     title: 'View Logs',

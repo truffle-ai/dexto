@@ -10,7 +10,7 @@ import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import { createWriteFileTool } from './write-file-tool.js';
 import { FileSystemService } from './filesystem-service.js';
-import { ToolErrorCode } from '@dexto/core';
+import { TOOL_ACTIVITY, ToolErrorCode } from '@dexto/core';
 import { DextoRuntimeError } from '@dexto/core';
 import type { Logger, ToolExecutionContext } from '@dexto/core';
 import type { ToolServices } from '@dexto/core/tools';
@@ -112,6 +112,34 @@ async function readWorkspaceFile(workspaceRoot: string, filePath: string): Promi
 }
 
 describe('write_file tool', () => {
+    it('resolves the final activity from typed file display data', async () => {
+        const tool = createWriteFileTool(vi.fn());
+        const input = tool.inputSchema.parse({ file_path: 'config.json', content: '{}' });
+        const context = createToolContext(createMockLogger());
+
+        expect(tool.presentation?.activity).toEqual(TOOL_ACTIVITY.writeFile);
+        expect(
+            tool.presentation?.describeResultActivity?.(
+                { type: 'file', path: 'config.json', operation: 'create' },
+                input,
+                context
+            )
+        ).toEqual(TOOL_ACTIVITY.createFile);
+        expect(
+            tool.presentation?.describeResultActivity?.(
+                {
+                    type: 'diff',
+                    unified: '',
+                    filename: 'config.json',
+                    additions: 1,
+                    deletions: 1,
+                },
+                input,
+                context
+            )
+        ).toEqual(TOOL_ACTIVITY.editFile);
+    });
+
     let mockLogger: Logger;
     let tempDir: string;
     let fileSystemService: FileSystemService;

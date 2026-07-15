@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import {
     ToolError,
+    TOOL_ACTIVITY,
     createLocalToolCallHeader,
     defineTool,
     truncateForHeader,
@@ -38,6 +39,7 @@ export function createMemoryListTool(): Tool<typeof MemoryListInputSchema> {
         description: 'List stored memories for this agent, with optional filtering.',
         inputSchema: MemoryListInputSchema,
         presentation: {
+            activity: TOOL_ACTIVITY.listMemories,
             describeHeader: (input) => {
                 const filterParts: string[] = [];
                 if (input.tags && input.tags.length > 0) {
@@ -87,6 +89,7 @@ export function createMemoryGetTool(): Tool<typeof MemoryGetInputSchema> {
         description: 'Get a memory by ID.',
         inputSchema: MemoryGetInputSchema,
         presentation: {
+            activity: TOOL_ACTIVITY.readMemory,
             describeHeader: (input) =>
                 createLocalToolCallHeader({
                     title: 'Get Memory',
@@ -122,6 +125,7 @@ export function createMemoryCreateTool(): Tool<typeof MemoryCreateInputSchema> {
         description: 'Create a new memory.',
         inputSchema: MemoryCreateInputSchema,
         presentation: {
+            activity: TOOL_ACTIVITY.createMemory,
             describeHeader: (input) =>
                 createLocalToolCallHeader({
                     title: 'Create Memory',
@@ -162,6 +166,7 @@ export function createMemoryUpdateTool(): Tool<typeof MemoryUpdateInputSchema> {
         description: 'Update an existing memory.',
         inputSchema: MemoryUpdateInputSchema,
         presentation: {
+            activity: TOOL_ACTIVITY.updateMemory,
             describeHeader: (input) => {
                 const updateParts: string[] = [];
                 if (input.content !== undefined) updateParts.push('content');
@@ -208,6 +213,7 @@ export function createMemoryDeleteTool(): Tool<typeof MemoryDeleteInputSchema> {
         description: 'Delete a memory by ID.',
         inputSchema: MemoryDeleteInputSchema,
         presentation: {
+            activity: TOOL_ACTIVITY.deleteMemory,
             describeHeader: (input) =>
                 createLocalToolCallHeader({
                     title: 'Delete Memory',

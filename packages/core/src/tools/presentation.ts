@@ -1,5 +1,13 @@
 import type { ToolPresentationSnapshotV1 } from './types.js';
 
+export type { ToolDisplayData } from './display-types.js';
+export { isValidDisplayData } from './display-types.js';
+export type { ToolPresentationSnapshotV1 } from './presentation-schema.js';
+export {
+    isToolPresentationSnapshotV1,
+    ToolPresentationSnapshotV1Schema,
+} from './presentation-schema.js';
+
 export function createLocalToolCallHeader(options: {
     title: string;
     argsText?: string;

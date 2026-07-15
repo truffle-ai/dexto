@@ -9,6 +9,7 @@ import { z } from 'zod';
 import { createPatch } from 'diff';
 import {
     createLocalToolCallHeader,
+    TOOL_ACTIVITY,
     ToolError,
     defineTool,
     truncateForHeader,
@@ -110,6 +111,16 @@ export function createWriteFileTool(
         }),
 
         presentation: {
+            activity: TOOL_ACTIVITY.writeFile,
+            describeResultActivity: (display) => {
+                if (display?.type === 'file' && display.operation === 'create') {
+                    return TOOL_ACTIVITY.createFile;
+                }
+                if (display?.type === 'diff') {
+                    return TOOL_ACTIVITY.editFile;
+                }
+                return null;
+            },
             describeHeader: (input) =>
                 createLocalToolCallHeader({
                     title: 'Write',

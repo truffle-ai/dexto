@@ -2,7 +2,7 @@
  * Tool for getting schedule details
  */
 
-import type { Tool, ToolExecutionContext } from '@dexto/core';
+import { TOOL_ACTIVITY, type Tool, type ToolExecutionContext } from '@dexto/core';
 import { GetScheduleInputSchema } from '../schemas.js';
 import type { SchedulerManagerGetter } from '../tool-types.js';
 
@@ -11,6 +11,7 @@ export function createGetScheduleTool(getManager: SchedulerManagerGetter): Tool 
         id: 'get_schedule',
         description: 'Get detailed information about a specific schedule by ID.',
         inputSchema: GetScheduleInputSchema,
+        presentation: { activity: TOOL_ACTIVITY.readSchedule },
         execute: async (input: unknown, context: ToolExecutionContext) => {
             const { scheduleId } = input as { scheduleId: string };
             const manager = await getManager(context);

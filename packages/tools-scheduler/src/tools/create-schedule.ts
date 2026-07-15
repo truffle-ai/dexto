@@ -2,7 +2,7 @@
  * Tool for creating schedules
  */
 
-import type { Tool, ToolExecutionContext } from '@dexto/core';
+import { TOOL_ACTIVITY, type Tool, type ToolExecutionContext } from '@dexto/core';
 import { CreateScheduleInputSchema, type CreateScheduleInput } from '../schemas.js';
 import type { SchedulerManagerGetter } from '../tool-types.js';
 
@@ -30,6 +30,7 @@ Examples:
 - Notes backup at midnight: targetAgentId="notes", cronExpression="0 0 * * *"
 - Daily code review: targetAgentId="coding", cronExpression="0 17 * * 1-5"`,
         inputSchema: CreateScheduleInputSchema,
+        presentation: { activity: TOOL_ACTIVITY.createSchedule },
         execute: async (input: unknown, context: ToolExecutionContext) => {
             const typedInput = input as CreateScheduleInput;
 

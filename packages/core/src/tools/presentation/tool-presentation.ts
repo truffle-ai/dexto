@@ -3,7 +3,7 @@ import type { Logger } from '../../logger/v2/types.js';
 import type { AgentRunContext } from '../../runtime/run-context.js';
 import { ToolErrorCode } from '../error-codes.js';
 import type { Tool, ToolExecutionContext, ToolPresentationSnapshotV1 } from '../types.js';
-import type { ToolDisplayData } from '../display-types.js';
+import { isValidDisplayData, type ToolDisplayData } from '../display-types.js';
 
 const MCP_TOOL_PREFIX = 'mcp--';
 
@@ -65,14 +65,21 @@ export class ToolPresentation {
         }
 
         const presentation = this.getLocalTool(input.toolName)?.presentation;
-        if (!presentation?.describeHeader && !presentation?.describeArgs) {
+        if (
+            !presentation?.activity &&
+            !presentation?.describeHeader &&
+            !presentation?.describeArgs
+        ) {
             return fallback;
         }
 
+        let nextSnapshot: ToolPresentationSnapshotV1 = {
+            ...fallback,
+            ...(presentation.activity ? { activity: presentation.activity } : {}),
+        };
         try {
             const validatedArgs = this.validateLocalToolArgs(input.toolName, input.args);
             const context = this.buildToolExecutionContext(input);
-            let nextSnapshot: ToolPresentationSnapshotV1 = fallback;
 
             const header = presentation.describeHeader?.(validatedArgs, context);
             if (!isPromiseLike(header) && header) {
@@ -97,7 +104,7 @@ export class ToolPresentation {
                     error instanceof Error ? error.message : String(error)
                 }`
             );
-            return fallback;
+            return nextSnapshot;
         }
     }
 
@@ -115,32 +122,64 @@ export class ToolPresentation {
         }
 
         const presentation = this.getLocalTool(input.toolName)?.presentation;
-        if (!presentation?.describeHeader && !presentation?.describeArgs) {
+        if (
+            !presentation?.activity &&
+            !presentation?.describeHeader &&
+            !presentation?.describeArgs
+        ) {
             return fallback;
         }
 
+        let nextSnapshot: ToolPresentationSnapshotV1 = {
+            ...fallback,
+            ...(presentation.activity ? { activity: presentation.activity } : {}),
+        };
+        let context: ToolExecutionContext;
         try {
-            const context = this.buildToolExecutionContext(input);
-            const describedHeader = presentation.describeHeader
-                ? await Promise.resolve(presentation.describeHeader(input.args, context))
-                : null;
-            const describedArgs = presentation.describeArgs
-                ? await Promise.resolve(presentation.describeArgs(input.args, context))
-                : null;
-
-            return {
-                ...fallback,
-                ...(describedHeader ? { header: { ...fallback.header, ...describedHeader } } : {}),
-                ...(describedArgs ? { args: describedArgs } : {}),
-            };
+            context = this.buildToolExecutionContext(input);
         } catch (error) {
             this.logger.debug(
                 `Tool presentation snapshot generation failed for '${input.toolName}': ${
                     error instanceof Error ? error.message : String(error)
                 }`
             );
-            return fallback;
+            return nextSnapshot;
         }
+
+        try {
+            const describedHeader = presentation.describeHeader
+                ? await Promise.resolve(presentation.describeHeader(input.args, context))
+                : null;
+            if (describedHeader) {
+                nextSnapshot = {
+                    ...nextSnapshot,
+                    header: { ...nextSnapshot.header, ...describedHeader },
+                };
+            }
+        } catch (error) {
+            this.logger.debug(
+                `Tool header presentation generation failed for '${input.toolName}': ${
+                    error instanceof Error ? error.message : String(error)
+                }`
+            );
+        }
+
+        try {
+            const describedArgs = presentation.describeArgs
+                ? await Promise.resolve(presentation.describeArgs(input.args, context))
+                : null;
+            if (describedArgs) {
+                nextSnapshot = { ...nextSnapshot, args: describedArgs };
+            }
+        } catch (error) {
+            this.logger.debug(
+                `Tool argument presentation generation failed for '${input.toolName}': ${
+                    error instanceof Error ? error.message : String(error)
+                }`
+            );
+        }
+
+        return nextSnapshot;
     }
 
     async augmentWithResult(input: {
@@ -156,23 +195,14 @@ export class ToolPresentation {
             return input.snapshot;
         }
 
-        const describeResult = this.getLocalTool(input.toolName)?.presentation?.describeResult;
-        if (!describeResult) {
+        const presentation = this.getLocalTool(input.toolName)?.presentation;
+        if (!presentation?.describeResult && !presentation?.describeResultActivity) {
             return input.snapshot;
         }
 
+        let context: ToolExecutionContext;
         try {
-            const context = this.buildToolExecutionContext(input);
-            const resultPresentation = await Promise.resolve(
-                describeResult(input.result, input.args, context)
-            );
-            if (!resultPresentation) {
-                return input.snapshot;
-            }
-            return {
-                ...input.snapshot,
-                result: resultPresentation,
-            };
+            context = this.buildToolExecutionContext(input);
         } catch (error) {
             this.logger.debug(
                 `Tool result presentation snapshot generation failed for '${input.toolName}': ${
@@ -181,6 +211,54 @@ export class ToolPresentation {
             );
             return input.snapshot;
         }
+
+        let resultPresentation: ToolPresentationSnapshotV1['result'];
+        try {
+            resultPresentation = presentation.describeResult
+                ? ((await Promise.resolve(
+                      presentation.describeResult(input.result, input.args, context)
+                  )) ?? undefined)
+                : undefined;
+        } catch (error) {
+            this.logger.debug(
+                `Tool result presentation generation failed for '${input.toolName}': ${
+                    error instanceof Error ? error.message : String(error)
+                }`
+            );
+        }
+
+        let resultActivity: ToolPresentationSnapshotV1['activity'];
+        try {
+            resultActivity = presentation.describeResultActivity
+                ? ((await Promise.resolve(
+                      presentation.describeResultActivity(
+                          this.extractDisplayData(input.result),
+                          input.args,
+                          context
+                      )
+                  )) ?? undefined)
+                : undefined;
+        } catch (error) {
+            this.logger.debug(
+                `Tool result activity generation failed for '${input.toolName}': ${
+                    error instanceof Error ? error.message : String(error)
+                }`
+            );
+        }
+
+        return {
+            ...input.snapshot,
+            ...(resultActivity ? { activity: resultActivity } : {}),
+            ...(resultPresentation ? { result: resultPresentation } : {}),
+        };
+    }
+
+    private extractDisplayData(result: unknown): ToolDisplayData | undefined {
+        if (result === null || typeof result !== 'object' || !('_display' in result)) {
+            return undefined;
+        }
+        const display = result._display;
+        return isValidDisplayData(display) ? display : undefined;
     }
 
     async preview(input: {

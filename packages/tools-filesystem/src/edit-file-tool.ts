@@ -9,6 +9,7 @@ import { z } from 'zod';
 import { createPatch } from 'diff';
 import {
     createLocalToolCallHeader,
+    TOOL_ACTIVITY,
     ToolError,
     ToolErrorCode,
     defineTool,
@@ -97,6 +98,7 @@ export function createEditFileTool(
         }),
 
         presentation: {
+            activity: TOOL_ACTIVITY.editFile,
             describeHeader: (input) =>
                 createLocalToolCallHeader({
                     title: 'Edit',

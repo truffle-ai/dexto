@@ -9,7 +9,7 @@ import { z } from 'zod';
 import { randomUUID } from 'crypto';
 import { ConditionEngine } from '../condition-engine.js';
 import type { WaitCondition, Signal } from '../types.js';
-import { createLocalToolCallHeader, truncateForHeader } from '@dexto/core';
+import { TOOL_ACTIVITY, createLocalToolCallHeader, truncateForHeader } from '@dexto/core';
 import type { Tool } from '@dexto/core';
 
 /**
@@ -159,6 +159,7 @@ export function createWaitForTool(
             'Use taskId for a single task, or taskIds with mode for multiple tasks.',
         inputSchema: WaitForInputSchema,
         presentation: {
+            activity: TOOL_ACTIVITY.wait,
             describeHeader: (input) => {
                 const argsText = input.taskId
                     ? truncateForHeader(input.taskId, 80)

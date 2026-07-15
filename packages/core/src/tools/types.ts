@@ -5,6 +5,8 @@
 import type { JSONSchema7 } from 'json-schema';
 import type { z, ZodTypeAny } from 'zod';
 import type { ToolDisplayData } from './display-types.js';
+import type { ToolActivityPresentation } from './activity.js';
+import type { ToolPresentationSnapshotV1 } from './presentation-schema.js';
 import type { WorkspaceContext } from '../workspace/types.js';
 import type { ApprovalManager } from '../approval/manager.js';
 import type { DextoAgent } from '../agent/DextoAgent.js';
@@ -115,101 +117,6 @@ export interface ToolExecutionResult {
     approvalStatus?: 'approved' | 'rejected';
 }
 
-// =========================================================================
-// PRESENTATION SNAPSHOT (UI-AGNOSTIC)
-// =========================================================================
-
-/**
- * UI-agnostic, runtime-computed presentation snapshot for tool calls/approvals/results.
- *
- * This is intended to decouple UIs (CLI/WebUI) from tool-specific heuristics (toolName parsing,
- * hardcoded argument omission, etc.). It must remain:
- * - JSON-serializable (plain objects/arrays/strings/numbers/booleans/null)
- * - Optional everywhere (UIs MUST fall back to generic defaults when absent)
- * - Forward-compatible (UIs MUST ignore unknown fields)
- *
- * SECURITY: Do not include secrets (tokens, full file contents, credentials). Prefer previews via
- * {@link ToolDisplayData} for large content and rely on UIs to render those previews.
- */
-export type ToolPresentationSnapshotV1 = {
-    version: 1;
-
-    /** Optional source information (prevents UIs from parsing tool ids like `mcp--server--tool`). */
-    source?: {
-        type: 'local' | 'mcp';
-        mcpServerName?: string;
-    };
-
-    /** Optional one-line identity of the call (used for headers/timelines). */
-    header?: {
-        title?: string;
-        /**
-         * Pre-formatted one-line call detail shown in parentheses.
-         * Example: `Read(/path/to/file.ts)` where argsText is `/path/to/file.ts`.
-         */
-        argsText?: string;
-    };
-
-    /** Compact semantic tags. Use sparingly to avoid UI noise. */
-    chips?: Array<{
-        kind: 'neutral' | 'info' | 'warning' | 'danger' | 'success';
-        text: string;
-    }>;
-
-    /** Human-facing argument presentation. Prefer `display` over leaking raw values. */
-    args?: {
-        summary?: Array<{
-            label: string;
-            display: string;
-            kind?: 'path' | 'command' | 'url' | 'text' | 'json';
-            sensitive?: boolean;
-        }>;
-
-        groups?: Array<{
-            id: string;
-            label: string;
-            collapsedByDefault?: boolean;
-            items: Array<{
-                label: string;
-                display: string;
-                kind?: 'path' | 'command' | 'url' | 'text' | 'json';
-                sensitive?: boolean;
-            }>;
-        }>;
-    };
-
-    /** Optional capabilities that UIs may use to enable modes without toolName branching. */
-    capabilities?: string[];
-
-    /** Optional approval UX hints. If absent, UIs use their existing generic approval flows. */
-    approval?: {
-        actions?: Array<
-            | {
-                  id: string;
-                  label: string;
-                  kind?: 'primary' | 'secondary' | 'danger';
-                  responseData?: Record<string, unknown>;
-                  uiEffects?: UiEffect[];
-              }
-            | {
-                  id: string;
-                  label: string;
-                  kind?: 'danger';
-                  denyWithFeedback?: {
-                      placeholder?: string;
-                      messageTemplate?: string;
-                  };
-              }
-        >;
-    };
-
-    /** Optional post-result presentation and UI effects. */
-    result?: {
-        summaryText?: string;
-        uiEffects?: UiEffect[];
-    };
-};
-
 /**
  * Optional, UI-local side effects driven by tool approvals/results.
  *
@@ -293,6 +200,9 @@ export type ToolNeedsApproval<TSchema extends ZodTypeAny = ZodTypeAny> =
       ) => Promise<ToolApprovalDecision> | ToolApprovalDecision);
 
 export interface ToolPresentation<TSchema extends ZodTypeAny = ZodTypeAny> {
+    /** Deterministic lifecycle copy and aggregation grammar for this first-party tool. */
+    activity?: ToolActivityPresentation;
+
     /**
      * Optional rich preview used in approval prompts.
      *
@@ -356,7 +266,21 @@ export interface ToolPresentation<TSchema extends ZodTypeAny = ZodTypeAny> {
         | Promise<ToolPresentationSnapshotV1['result'] | null>
         | ToolPresentationSnapshotV1['result']
         | null;
+
+    /**
+     * Override the call-time activity after execution using validated structured display data.
+     * Use this when the final operation is only known from the result, such as write_file
+     * resolving to either file creation or file editing.
+     */
+    describeResultActivity?(
+        display: ToolDisplayData | undefined,
+        input: z.output<TSchema>,
+        context: ToolExecutionContext
+    ): Promise<ToolActivityPresentation | null> | ToolActivityPresentation | null;
 }
+
+export type { ToolActivityCategory, ToolActivityPresentation } from './activity.js';
+export type { ToolPresentationSnapshotV1 } from './presentation-schema.js';
 
 /**
  * Standard tool set interface - used by AI/LLM services
