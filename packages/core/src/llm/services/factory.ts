@@ -327,6 +327,13 @@ export async function createVercelModel(
                     model
                 );
             }
+            Object.defineProperty(chatModel, 'supportedUrls', {
+                configurable: true,
+                enumerable: true,
+                value: {
+                    'image/*': [/^https?:\/\/.*$/],
+                },
+            });
             return chatModel;
         }
         case 'vertex': {

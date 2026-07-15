@@ -22,6 +22,7 @@ export interface OpenWorkspaceInput {
 
 export interface WorkspaceFiles {
     readFile(path: string): Promise<string>;
+    readFileSize?(path: string): Promise<number>;
     readText(path: string): Promise<string>;
     glob(pattern: string): Promise<string[]>;
     writeFile(path: string, content: string): Promise<void>;
