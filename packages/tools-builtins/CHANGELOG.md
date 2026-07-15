@@ -1,5 +1,16 @@
 # @dexto/tools-builtins
 
+## 1.10.1
+
+### Patch Changes
+
+- e8fa852: Add typed tool activity presentation metadata so hosts can render stable lifecycle labels and
+  count-aware summaries while preserving serialized presentation details across tool execution.
+- Updated dependencies [91dd3f1]
+- Updated dependencies [e8fa852]
+    - @dexto/core@1.10.1
+    - @dexto/agent-config@1.10.1
+
 ## 1.10.0
 
 ### Patch Changes
