@@ -124,4 +124,59 @@ describe('ToolPresentation', () => {
             result: { summaryText: 'written' },
         });
     });
+
+    it('preserves static and successful presentation fields when descriptors fail', async () => {
+        const tool = defineTool({
+            id: 'write_file',
+            description: 'Write file',
+            inputSchema: z.object({ path: z.string() }).strict(),
+            execute: vi.fn(),
+            presentation: {
+                activity: writeActivity,
+                describeHeader: () => ({ title: 'Write' }),
+                describeArgs: () => {
+                    throw new Error('args failed');
+                },
+                describeResult: async () => ({ summaryText: 'written' }),
+                describeResultActivity: async () => {
+                    throw new Error('activity failed');
+                },
+            },
+        });
+        const presentation = new ToolPresentation(
+            () => tool,
+            (_toolName, args) => args,
+            (context) => ({ ...context, logger: createMockLogger() }),
+            createMockLogger()
+        );
+
+        const eventSnapshot = presentation.snapshotForToolCallEvent({
+            toolName: 'write_file',
+            args: { path: 'src/app.ts' },
+            toolCallId: 'call-1',
+        });
+        expect(eventSnapshot.activity).toEqual(writeActivity);
+        expect(eventSnapshot.header).toEqual({ title: 'Write' });
+
+        const snapshot = await presentation.snapshotForCall({
+            toolName: 'write_file',
+            args: { path: 'src/app.ts' },
+            toolCallId: 'call-1',
+        });
+        expect(snapshot.activity).toEqual(writeActivity);
+        expect(snapshot.header).toEqual({ title: 'Write' });
+
+        await expect(
+            presentation.augmentWithResult({
+                toolName: 'write_file',
+                snapshot,
+                result: { ok: true },
+                args: { path: 'src/app.ts' },
+                toolCallId: 'call-1',
+            })
+        ).resolves.toEqual({
+            ...snapshot,
+            result: { summaryText: 'written' },
+        });
+    });
 });

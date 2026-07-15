@@ -183,8 +183,12 @@ function isOptionalString(value: unknown): boolean {
     return value === undefined || typeof value === 'string';
 }
 
-function isOptionalNumber(value: unknown): boolean {
-    return value === undefined || (typeof value === 'number' && Number.isFinite(value));
+function isNonNegativeInteger(value: unknown): value is number {
+    return typeof value === 'number' && Number.isInteger(value) && value >= 0;
+}
+
+function isOptionalNonNegativeInteger(value: unknown): boolean {
+    return value === undefined || isNonNegativeInteger(value);
 }
 
 function isSearchMatch(value: unknown): value is SearchMatch {
@@ -195,8 +199,7 @@ function isSearchMatch(value: unknown): value is SearchMatch {
     const context = value['context'];
     return (
         typeof value['file'] === 'string' &&
-        typeof value['line'] === 'number' &&
-        Number.isFinite(value['line']) &&
+        isNonNegativeInteger(value['line']) &&
         typeof value['content'] === 'string' &&
         (context === undefined ||
             (Array.isArray(context) && context.every((line) => typeof line === 'string')))
@@ -217,10 +220,8 @@ export function isValidDisplayData(d: unknown): d is ToolDisplayData {
             return (
                 typeof d['unified'] === 'string' &&
                 typeof d['filename'] === 'string' &&
-                typeof d['additions'] === 'number' &&
-                Number.isFinite(d['additions']) &&
-                typeof d['deletions'] === 'number' &&
-                Number.isFinite(d['deletions']) &&
+                isNonNegativeInteger(d['additions']) &&
+                isNonNegativeInteger(d['deletions']) &&
                 isOptionalString(d['title']) &&
                 isOptionalString(d['beforeContent']) &&
                 isOptionalString(d['afterContent'])
@@ -242,8 +243,7 @@ export function isValidDisplayData(d: unknown): d is ToolDisplayData {
                 typeof d['pattern'] === 'string' &&
                 Array.isArray(d['matches']) &&
                 d['matches'].every(isSearchMatch) &&
-                typeof d['totalMatches'] === 'number' &&
-                Number.isFinite(d['totalMatches']) &&
+                isNonNegativeInteger(d['totalMatches']) &&
                 typeof d['truncated'] === 'boolean' &&
                 isOptionalString(d['title'])
             );
@@ -255,8 +255,8 @@ export function isValidDisplayData(d: unknown): d is ToolDisplayData {
                     d['operation'] === 'create' ||
                     d['operation'] === 'delete') &&
                 isOptionalString(d['title']) &&
-                isOptionalNumber(d['size']) &&
-                isOptionalNumber(d['lineCount']) &&
+                isOptionalNonNegativeInteger(d['size']) &&
+                isOptionalNonNegativeInteger(d['lineCount']) &&
                 isOptionalString(d['backupPath']) &&
                 isOptionalString(d['content'])
             );

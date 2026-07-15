@@ -99,8 +99,7 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
 
         // Format tool header using shared utility (same format as tool messages)
         const presentationSnapshot = useMemo(() => {
-            const raw = (approval.metadata as { presentationSnapshot?: unknown })
-                .presentationSnapshot;
+            const raw = approval.metadata['presentationSnapshot'];
             return isToolPresentationSnapshotV1(raw) ? raw : undefined;
         }, [approval.metadata]);
 
