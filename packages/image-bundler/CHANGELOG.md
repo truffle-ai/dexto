@@ -1,5 +1,14 @@
 # @dexto/image-bundler
 
+## 1.10.1
+
+### Patch Changes
+
+- Updated dependencies [91dd3f1]
+- Updated dependencies [e8fa852]
+    - @dexto/core@1.10.1
+    - @dexto/agent-config@1.10.1
+
 ## 1.10.0
 
 ### Patch Changes

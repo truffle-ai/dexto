@@ -1,5 +1,14 @@
 # @dexto/core
 
+## 1.10.1
+
+### Patch Changes
+
+- 91dd3f1: Keep provider-readable tool media as remote URLs while preparing model history so large artifacts are not downloaded and expanded into the model process heap.
+- e8fa852: Add typed tool activity presentation metadata so hosts can render stable lifecycle labels and
+  count-aware summaries while preserving serialized presentation details across tool execution.
+    - @dexto/llm@1.10.1
+
 ## 1.10.0
 
 ### Minor Changes
