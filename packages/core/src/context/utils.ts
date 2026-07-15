@@ -16,6 +16,7 @@ import { validateModelFileSupport } from '@dexto/llm';
 import type { LLMContext } from '@dexto/llm';
 import { safeStringify } from '../utils/safe-stringify.js';
 import { getFileMediaKind, getResourceKind } from './media-helpers.js';
+import type { ArtifactData } from '../storage/artifacts/types.js';
 
 // Tunable heuristics and shared constants
 const MIN_BASE64_HEURISTIC_LENGTH = 512; // Below this length, treat as regular text
@@ -316,6 +317,50 @@ async function resolveBlobReferenceToParts(
     expandMatchingMedia = true
 ): Promise<Array<TextPart | ImagePart | FilePart>> {
     try {
+        let urlArtifact: ArtifactData | null = null;
+        try {
+            urlArtifact = await resourceManager
+                .getArtifactStore()
+                .retrieve({ reference: resourceUri, format: 'url' });
+        } catch {
+            // Stores without provider-readable URLs retain the base64 resource path below.
+        }
+        const urlMimeType = urlArtifact?.metadata.mimeType;
+        const shouldPlaceholderForUrlMedia =
+            urlMimeType !== undefined &&
+            ((!expandMatchingMedia && isBinaryMediaMimeType(urlMimeType)) ||
+                (allowedMediaTypes !== undefined &&
+                    !matchesAnyMimePattern(urlMimeType, allowedMediaTypes)));
+
+        if (urlArtifact !== null && shouldPlaceholderForUrlMedia) {
+            return [
+                {
+                    type: 'text',
+                    text: generateMediaPlaceholder({
+                        mimeType: urlArtifact.metadata.mimeType,
+                        size: urlArtifact.metadata.size,
+                        ...(urlArtifact.metadata.originalName === undefined
+                            ? {}
+                            : { originalName: urlArtifact.metadata.originalName }),
+                    }),
+                },
+            ];
+        }
+
+        if (
+            urlArtifact?.format === 'url' &&
+            (urlArtifact.data.startsWith('https://') || urlArtifact.data.startsWith('http://')) &&
+            urlMimeType?.startsWith('image/')
+        ) {
+            return [
+                {
+                    type: 'image',
+                    image: urlArtifact.data,
+                    mimeType: urlMimeType,
+                },
+            ];
+        }
+
         const result = await resourceManager.read(normalizeResourceUriForRead(resourceUri));
         const mimeType = result.contents[0]?.mimeType;
         const metadata = result._meta as { size?: number; originalName?: string } | undefined;

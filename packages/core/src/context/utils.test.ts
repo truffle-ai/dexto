@@ -1344,6 +1344,52 @@ describe('expandBlobReferences', () => {
         });
     });
 
+    test('should expand image blobs to provider URLs without reading base64 data', async () => {
+        const retrieve = vi.fn(async (input: { format?: string; reference: string }) => {
+            expect(input).toEqual({ format: 'url', reference: 'blob:provider-image' });
+            return {
+                data: 'https://example.test/api/artifact-exports/signed-token',
+                format: 'url' as const,
+                metadata: {
+                    createdAt: new Date(0),
+                    hash: '',
+                    id: 'provider-image',
+                    mimeType: 'image/png',
+                    originalName: 'provider-image.png',
+                    size: 14_523_378,
+                },
+            };
+        });
+        const read = vi.fn();
+        const resourceManager = {
+            getArtifactStore: () => ({ retrieve }),
+            read,
+        } as unknown as import('../resources/index.js').ResourceManager;
+
+        const result = await expandBlobReferences(
+            [
+                {
+                    type: 'image',
+                    image: '@blob:provider-image',
+                    mimeType: 'image/png',
+                },
+            ],
+            resourceManager,
+            mockLogger,
+            ['image/*']
+        );
+
+        expect(result).toEqual([
+            {
+                type: 'image',
+                image: 'https://example.test/api/artifact-exports/signed-token',
+                mimeType: 'image/png',
+            },
+        ]);
+        expect(retrieve).toHaveBeenCalledOnce();
+        expect(read).not.toHaveBeenCalled();
+    });
+
     test('should expand blob reference in file part', async () => {
         const resourceManager = createMockResourceManager({
             fff000eee111: { blob: 'resolvedfiledata', mimeType: 'application/pdf' },
