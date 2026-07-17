@@ -1,5 +1,21 @@
 # @dexto/image-local
 
+## 1.10.2
+
+### Patch Changes
+
+- @dexto/agent-management@1.10.2
+- @dexto/core@1.10.2
+- @dexto/agent-config@1.10.2
+- @dexto/storage@1.10.2
+- @dexto/tools-builtins@1.10.2
+- @dexto/tools-filesystem@1.10.2
+- @dexto/tools-lifecycle@1.10.2
+- @dexto/tools-plan@1.10.2
+- @dexto/tools-process@1.10.2
+- @dexto/tools-scheduler@1.10.2
+- @dexto/tools-todo@1.10.2
+
 ## 1.10.1
 
 ### Patch Changes

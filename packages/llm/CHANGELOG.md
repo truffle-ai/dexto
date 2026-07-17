@@ -1,5 +1,11 @@
 # @dexto/llm
 
+## 1.10.2
+
+### Patch Changes
+
+- 69da86f: Refresh the model registry with the latest models, including Kimi K3.
+
 ## 1.10.1
 
 ## 1.10.0
