@@ -9,6 +9,7 @@ import type { ToolDisplayData } from '../tools/display-types.js';
 import { isValidDisplayData } from '../tools/display-types.js';
 import { ToolPresentationSnapshotV1Schema } from '../tools/presentation-schema.js';
 import { HostRuntimeContextSchema } from '../runtime/index.js';
+import { ToolIdentitySchema } from '../tools/schemas.js';
 
 // Zod schema that validates as object but types as JSONSchema7
 const JsonSchema7Schema = z.record(z.string(), z.unknown()) as z.ZodType<JSONSchema7>;
@@ -43,6 +44,9 @@ const ToolDisplayDataSchema = z.custom<ToolDisplayData>((val) => isValidDisplayD
 export const ToolApprovalMetadataSchema = z
     .object({
         toolName: z.string().describe('Name of the tool to approve'),
+        toolIdentity: ToolIdentitySchema.optional().describe(
+            'Canonical tool identity. Absent only for approvals recorded before identity tracking.'
+        ),
         approvalKey: z
             .string()
             .min(1)
