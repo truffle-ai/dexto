@@ -22,6 +22,7 @@ import type { SessionToolPreferences } from './session-tool-preferences-store.js
 import { createAgentRunContext } from '../runtime/run-context.js';
 import { InMemoryDextoStores } from '../storage/index.js';
 import { createToolExecutionId } from '../storage/tool-executions/types.js';
+import type { ToolExecutionContext } from './types.js';
 
 function createDeferred<T>() {
     let resolve!: (value: T | PromiseLike<T>) => void;
@@ -99,6 +100,16 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
     beforeEach(() => {
         mockMcpManager = {
             getAllTools: vi.fn(),
+            getToolDescriptor: vi.fn().mockImplementation((toolName: string) => ({
+                name: toolName,
+                description: `MCP tool ${toolName}`,
+                identity: {
+                    type: 'mcp',
+                    connectionId: 'test-connection',
+                    toolName,
+                },
+                inputSchema: { type: 'object', additionalProperties: true },
+            })),
             executeTool: vi.fn(),
             getToolClient: vi.fn(),
             refresh: vi.fn().mockResolvedValue(undefined),
@@ -290,7 +301,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                         toolName: 'typed',
                         toolCallId: 'call-1',
                         input: { count: 5 },
-                        source: 'local',
+                        identity: { type: 'local', toolId: 'typed' },
                     }),
                 })
             );
@@ -336,6 +347,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                         sessionId: 'session-1',
                         metadata: expect.objectContaining({
                             toolName: 'write_file',
+                            toolIdentity: { type: 'local', toolId: 'write_file' },
                             toolCallId: 'call-2',
                             args: { path: 'src/app.ts' },
                         }),
@@ -490,13 +502,62 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     kind: 'ready',
                     call: expect.objectContaining({
                         toolName: 'mcp--read_file',
-                        source: 'mcp',
+                        identity: {
+                            type: 'mcp',
+                            connectionId: 'test-connection',
+                            toolName: 'read_file',
+                        },
                         input: { path: '/tmp/file.txt' },
                     }),
                 })
             );
             expect(mockMcpManager.executeTool).not.toHaveBeenCalled();
             expect(mockApprovalManager.requestToolApproval).not.toHaveBeenCalled();
+        });
+
+        it('currently prepares MCP input without validating the discovered JSON schema', async () => {
+            mockMcpManager.getAllTools = vi.fn().mockResolvedValue({
+                read_file: {
+                    name: 'read_file',
+                    description: 'Read file',
+                    parameters: {
+                        type: 'object',
+                        properties: { path: { type: 'string' } },
+                        required: ['path'],
+                        additionalProperties: false,
+                    },
+                },
+            });
+            const toolManager = createToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'auto-approve',
+                mockAgentEventBus,
+                { alwaysAllow: [] },
+                [],
+                mockLogger
+            );
+
+            const prepared = await toolManager.prepareToolCall({
+                toolName: 'mcp--read_file',
+                input: { path: 42 },
+                toolCallId: 'call-mcp-validation-characterization',
+            });
+
+            expect(prepared).toEqual(
+                expect.objectContaining({
+                    kind: 'ready',
+                    call: expect.objectContaining({
+                        input: { path: 42 },
+                        presentationSnapshot: {
+                            version: 1,
+                            source: { type: 'mcp' },
+                            header: { title: 'Read File' },
+                        },
+                    }),
+                })
+            );
         });
 
         it('records a prepared approval request with stable turn identity', async () => {
@@ -1784,6 +1845,46 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
     });
 
     describe('Local Tool Execution', () => {
+        it('passes the invocation abort signal to the local tool execution context', async () => {
+            const controller = new AbortController();
+            controller.abort('characterization');
+            const execute = vi.fn(
+                (_input: Record<string, never>, context: ToolExecutionContext) =>
+                    context.abortSignal?.aborted
+            );
+            const toolManager = createToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'auto-approve',
+                mockAgentEventBus,
+                { alwaysAllow: [] },
+                [
+                    defineTool({
+                        id: 'observe_abort',
+                        description: 'Observe cancellation',
+                        inputSchema: z.object({}).strict(),
+                        execute,
+                    }),
+                ],
+                mockLogger
+            );
+
+            await expect(
+                toolManager.executeTool('observe_abort', {}, 'call-abort-characterization', {
+                    abortSignal: controller.signal,
+                })
+            ).resolves.toEqual(
+                expect.objectContaining({
+                    result: true,
+                })
+            );
+            expect(execute).toHaveBeenCalledWith(
+                {},
+                expect.objectContaining({ abortSignal: controller.signal })
+            );
+        });
+
         it('should execute local tools provided to ToolManager', async () => {
             mockMcpManager.getAllTools = vi.fn().mockResolvedValue({});
 
@@ -3129,6 +3230,90 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
     });
 
     describe('Cache Management Logic', () => {
+        it('describes local and MCP tools without losing canonical schemas or identity', async () => {
+            mockMcpManager.getToolDescriptors = vi.fn().mockReturnValue([
+                {
+                    name: 'lookup',
+                    description: 'Look up a record',
+                    identity: {
+                        type: 'mcp',
+                        connectionId: 'connection-1',
+                        toolName: 'lookup',
+                    },
+                    inputSchema: {
+                        type: 'object',
+                        properties: { id: { type: 'string' } },
+                        required: ['id'],
+                        additionalProperties: false,
+                    },
+                    outputSchema: {
+                        type: 'object',
+                        properties: { value: { type: 'string' } },
+                        required: ['value'],
+                    },
+                    annotations: { readOnlyHint: true },
+                },
+            ]);
+            const toolManager = createToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'manual',
+                mockAgentEventBus,
+                { alwaysAllow: [] },
+                [
+                    defineTool({
+                        id: 'local_lookup',
+                        description: 'Look up local state',
+                        inputSchema: z.object({ id: z.string() }).strict(),
+                        outputSchema: z.object({ value: z.string() }).strict(),
+                        execute: vi.fn(),
+                    }),
+                ],
+                mockLogger
+            );
+
+            const descriptors = await toolManager.getToolDescriptors();
+
+            expect(descriptors).toEqual([
+                expect.objectContaining({
+                    name: 'local_lookup',
+                    description: 'Look up local state',
+                    identity: { type: 'local', toolId: 'local_lookup' },
+                    inputSchema: expect.objectContaining({
+                        type: 'object',
+                        required: ['id'],
+                    }),
+                    outputSchema: expect.objectContaining({
+                        type: 'object',
+                        required: ['value'],
+                    }),
+                }),
+                {
+                    name: 'mcp--lookup',
+                    description: 'Look up a record (via MCP servers)',
+                    identity: {
+                        type: 'mcp',
+                        connectionId: 'connection-1',
+                        toolName: 'lookup',
+                    },
+                    inputSchema: {
+                        type: 'object',
+                        properties: { id: { type: 'string' } },
+                        required: ['id'],
+                        additionalProperties: false,
+                    },
+                    outputSchema: {
+                        type: 'object',
+                        properties: { value: { type: 'string' } },
+                        required: ['value'],
+                    },
+                    annotations: { readOnlyHint: true },
+                },
+            ]);
+            expect(descriptors[0]?.inputSchema).not.toHaveProperty('properties.__meta');
+        });
+
         it('uses dynamic tool descriptions when provided', async () => {
             const getDescription = vi.fn().mockReturnValue('Dynamic description');
             mockMcpManager.getAllTools = vi.fn().mockResolvedValue({});

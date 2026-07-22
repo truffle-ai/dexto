@@ -13,11 +13,10 @@ import type {
     MCPResourceSummary,
     McpAuthProviderFactory,
 } from './types.js';
-import type { ToolSet } from '../tools/types.js';
+import type { MCPToolDescriptor, ToolSet } from '../tools/types.js';
 import { MCPError } from './errors.js';
 import { eventBus, type AgentEventBus } from '../events/index.js';
 import type { PromptDefinition } from '../prompts/types.js';
-import type { JSONSchema7 } from 'json-schema';
 import type { ApprovalManager } from '../approval/manager.js';
 import type { AgentRunContext } from '../runtime/run-context.js';
 
@@ -67,11 +66,8 @@ type PromptCacheEntry = {
 type ToolCacheEntry = {
     serverName: string;
     client: McpClient;
-    definition: {
-        name?: string;
-        description?: string;
-        parameters: JSONSchema7;
-    };
+    upstreamToolName: string;
+    definition: ToolSet[string];
 };
 
 export class MCPManager {
@@ -346,6 +342,7 @@ export class MCPManager {
                     this.toolCache.set(newQualified, {
                         serverName: clientName,
                         client,
+                        upstreamToolName: toolName,
                         definition: toolDef,
                     });
 
@@ -359,6 +356,7 @@ export class MCPManager {
                     this.toolCache.set(qualifiedName, {
                         serverName: clientName,
                         client,
+                        upstreamToolName: toolName,
                         definition: toolDef,
                     });
                     this.logger.debug(`✅ Tool '${qualifiedName}' cached (known conflict)`);
@@ -367,6 +365,7 @@ export class MCPManager {
                     this.toolCache.set(toolName, {
                         serverName: clientName,
                         client,
+                        upstreamToolName: toolName,
                         definition: toolDef,
                     });
                     this.logger.debug(`✅ Tool '${toolName}' mapped to ${clientName}`);
@@ -470,6 +469,40 @@ export class MCPManager {
 
         this.logger.silly(`MCP tools: ${JSON.stringify(allTools, null, 2)}`);
         return allTools;
+    }
+
+    /**
+     * Describe cached MCP tools without provider-specific schema wrapping.
+     * The callable name may change when conflicts appear, while identity remains connection-based.
+     */
+    getToolDescriptors(): MCPToolDescriptor[] {
+        return Array.from(this.toolCache.entries(), ([name, entry]) =>
+            this.buildToolDescriptor(name, entry)
+        );
+    }
+
+    getToolDescriptor(name: string): MCPToolDescriptor | undefined {
+        const entry = this.toolCache.get(name);
+        return entry === undefined ? undefined : this.buildToolDescriptor(name, entry);
+    }
+
+    private buildToolDescriptor(name: string, entry: ToolCacheEntry): MCPToolDescriptor {
+        return {
+            name,
+            description: entry.definition.description ?? '',
+            identity: {
+                type: 'mcp',
+                connectionId: entry.serverName,
+                toolName: entry.upstreamToolName,
+            },
+            inputSchema: entry.definition.parameters,
+            ...(entry.definition.outputSchema !== undefined
+                ? { outputSchema: entry.definition.outputSchema }
+                : {}),
+            ...(entry.definition.annotations !== undefined
+                ? { annotations: entry.definition.annotations }
+                : {}),
+        };
     }
 
     /**
@@ -1160,6 +1193,7 @@ export class MCPManager {
                         this.toolCache.set(newQualified, {
                             serverName,
                             client,
+                            upstreamToolName: toolName,
                             definition: toolDef,
                         });
 
@@ -1173,6 +1207,7 @@ export class MCPManager {
                         this.toolCache.set(qualifiedName, {
                             serverName,
                             client,
+                            upstreamToolName: toolName,
                             definition: toolDef,
                         });
                         this.logger.debug(`✅ Tool '${qualifiedName}' cached (known conflict)`);
@@ -1181,6 +1216,7 @@ export class MCPManager {
                         this.toolCache.set(toolName, {
                             serverName,
                             client,
+                            upstreamToolName: toolName,
                             definition: toolDef,
                         });
                         this.logger.debug(`✅ Tool '${toolName}' mapped to ${serverName}`);

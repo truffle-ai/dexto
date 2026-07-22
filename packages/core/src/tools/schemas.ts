@@ -1,4 +1,16 @@
 import { z } from 'zod';
+import type { ToolIdentity } from './types.js';
+
+export const ToolIdentitySchema: z.ZodType<ToolIdentity> = z.discriminatedUnion('type', [
+    z.object({ type: z.literal('local'), toolId: z.string() }).strict(),
+    z
+        .object({
+            type: z.literal('mcp'),
+            connectionId: z.string(),
+            toolName: z.string(),
+        })
+        .strict(),
+]);
 
 export const PERMISSIONS_MODES = ['manual', 'auto-approve'] as const;
 export type PermissionsMode = (typeof PERMISSIONS_MODES)[number];

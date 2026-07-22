@@ -20,6 +20,7 @@ import type { HostRuntimeContext } from '../runtime/index.js';
 import type { AgentRunContext } from '../runtime/run-context.js';
 import type { SkillManager } from '../skills/index.js';
 import type { WorkspaceManager } from '../workspace/index.js';
+import type { ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
 
 /**
  * Interface for forking execution to an isolated sub-agent context.
@@ -158,6 +159,9 @@ export interface Tool<TSchema extends ZodTypeAny = ZodTypeAny> {
     /** Zod schema defining the input parameters */
     inputSchema: TSchema;
 
+    /** Optional Zod schema describing a stable structured result. */
+    outputSchema?: ZodTypeAny | undefined;
+
     /** The actual function that executes the tool - input is validated by Zod before execution */
     execute(input: z.output<TSchema>, context: ToolExecutionContext): Promise<unknown> | unknown;
 
@@ -291,9 +295,45 @@ export interface ToolSet {
         name?: string;
         description?: string;
         parameters: JSONSchema7; // JSON Schema v7 specification
+        outputSchema?: JSONSchema7;
+        annotations?: ToolAnnotations;
         _meta?: Record<string, unknown>;
     };
 }
+
+interface ToolDescriptorBase {
+    /** Name accepted by this ToolManager snapshot. */
+    name: string;
+    description: string;
+    inputSchema: JSONSchema7;
+    /** Absent when the provider cannot make a trustworthy result-shape guarantee. */
+    outputSchema?: JSONSchema7;
+}
+
+export type ToolIdentity =
+    | {
+          type: 'local';
+          toolId: string;
+      }
+    | {
+          type: 'mcp';
+          /** Stable host connection identity; the Core/CLI implementation uses its config key. */
+          connectionId: string;
+          /** Name advertised by the upstream MCP server. */
+          toolName: string;
+      };
+
+export interface LocalToolDescriptor extends ToolDescriptorBase {
+    identity: Extract<ToolIdentity, { type: 'local' }>;
+}
+
+export interface MCPToolDescriptor extends ToolDescriptorBase {
+    identity: Extract<ToolIdentity, { type: 'mcp' }>;
+    /** Untrusted MCP hints preserved for consumers; host policy must not treat them as authority. */
+    annotations?: ToolAnnotations;
+}
+
+export type ToolDescriptor = LocalToolDescriptor | MCPToolDescriptor;
 
 // ============================================================================
 // TOOL EXECUTION AND RESULTS

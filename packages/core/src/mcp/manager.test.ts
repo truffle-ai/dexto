@@ -2,32 +2,21 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { EventEmitter } from 'events';
 import { MCPManager } from './manager.js';
 import type { McpClient, MCPResourceSummary } from './types.js';
-import type { ToolExecutionContextBase } from '../tools/types.js';
+import type { ToolExecutionContextBase, ToolSet } from '../tools/types.js';
 import { DextoRuntimeError } from '../errors/DextoRuntimeError.js';
 import { MCPErrorCode } from './error-codes.js';
 import { ErrorScope, ErrorType } from '../errors/types.js';
 import { eventBus } from '../events/index.js';
-import type { JSONSchema7 } from 'json-schema';
 import type { Prompt } from '@modelcontextprotocol/sdk/types.js';
 
 // Mock client for testing
 class MockMCPClient extends EventEmitter implements McpClient {
-    private tools: Record<
-        string,
-        { name?: string; description?: string; parameters: JSONSchema7 }
-    > = {};
+    private tools: ToolSet = {};
     private prompts: string[] = [];
     private resources: MCPResourceSummary[] = [];
     public lastInvocation: Pick<ToolExecutionContextBase, 'sessionId' | 'runContext'> | undefined;
 
-    constructor(
-        tools: Record<
-            string,
-            { name?: string; description?: string; parameters: JSONSchema7 }
-        > = {},
-        prompts: string[] = [],
-        resources: MCPResourceSummary[] = []
-    ) {
+    constructor(tools: ToolSet = {}, prompts: string[] = [], resources: MCPResourceSummary[] = []) {
         super();
         this.tools = tools;
         this.prompts = prompts;
@@ -43,9 +32,7 @@ class MockMCPClient extends EventEmitter implements McpClient {
         return {} as any; // Mock client
     }
 
-    async getTools(): Promise<
-        Record<string, { name?: string; description?: string; parameters: JSONSchema7 }>
-    > {
+    async getTools(): Promise<ToolSet> {
         return this.tools;
     }
 
@@ -92,9 +79,7 @@ class MockMCPClient extends EventEmitter implements McpClient {
     }
 
     // Public setters for test manipulation
-    setTools(
-        tools: Record<string, { name?: string; description?: string; parameters: JSONSchema7 }>
-    ): void {
+    setTools(tools: ToolSet): void {
         this.tools = tools;
     }
 
@@ -177,6 +162,50 @@ describe('MCPManager Tool Conflict Resolution', () => {
     });
 
     describe('Basic Tool Registration and Conflict Detection', () => {
+        it('preserves canonical identity, output schema, and MCP annotations', async () => {
+            const client = new MockMCPClient({
+                lookup: {
+                    description: 'Look up a record',
+                    parameters: {
+                        type: 'object',
+                        properties: { id: { type: 'string' } },
+                        required: ['id'],
+                    },
+                    outputSchema: {
+                        type: 'object',
+                        properties: { value: { type: 'string' } },
+                        required: ['value'],
+                    },
+                    annotations: { readOnlyHint: true },
+                },
+            });
+            manager.registerClient('connection-1', client);
+            await manager['updateClientCache']('connection-1', client);
+
+            expect(manager.getToolDescriptors()).toEqual([
+                {
+                    name: 'lookup',
+                    description: 'Look up a record',
+                    identity: {
+                        type: 'mcp',
+                        connectionId: 'connection-1',
+                        toolName: 'lookup',
+                    },
+                    inputSchema: {
+                        type: 'object',
+                        properties: { id: { type: 'string' } },
+                        required: ['id'],
+                    },
+                    outputSchema: {
+                        type: 'object',
+                        properties: { value: { type: 'string' } },
+                        required: ['value'],
+                    },
+                    annotations: { readOnlyHint: true },
+                },
+            ]);
+        });
+
         it('should register tools from single client without conflicts', async () => {
             manager.registerClient('server1', client1);
             await manager['updateClientCache']('server1', client1);

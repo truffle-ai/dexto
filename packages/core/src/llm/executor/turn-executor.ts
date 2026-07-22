@@ -157,11 +157,22 @@ const ProviderOptionsStateSchema: z.ZodType<SharedV2ProviderOptions> = z.record(
 const JsonSchemaStateSchema = z.custom<JSONSchema7>(
     (value) => typeof value === 'object' && value !== null && !Array.isArray(value)
 );
+const ToolAnnotationsStateSchema = z
+    .object({
+        title: z.string().optional(),
+        readOnlyHint: z.boolean().optional(),
+        destructiveHint: z.boolean().optional(),
+        idempotentHint: z.boolean().optional(),
+        openWorldHint: z.boolean().optional(),
+    })
+    .strict();
 const ToolSetEntryStateSchema = z
     .object({
         name: z.string().optional(),
         description: z.string().optional(),
         parameters: JsonSchemaStateSchema,
+        outputSchema: JsonSchemaStateSchema.optional(),
+        annotations: ToolAnnotationsStateSchema.optional(),
         _meta: z.record(z.string(), JsonValueSchema).optional(),
     })
     .strict()
@@ -169,6 +180,8 @@ const ToolSetEntryStateSchema = z
         const tool: ToolSet[string] = { parameters: parsed.parameters };
         if (parsed.name !== undefined) tool.name = parsed.name;
         if (parsed.description !== undefined) tool.description = parsed.description;
+        if (parsed.outputSchema !== undefined) tool.outputSchema = parsed.outputSchema;
+        if (parsed.annotations !== undefined) tool.annotations = parsed.annotations;
         if (parsed._meta !== undefined) tool._meta = parsed._meta;
         return tool;
     });

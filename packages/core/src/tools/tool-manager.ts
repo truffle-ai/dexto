@@ -8,6 +8,9 @@ import {
     Tool,
     ToolPresentationSnapshotV1,
     ToolExecutionResult,
+    ToolDescriptor,
+    MCPToolDescriptor,
+    ToolIdentity,
 } from './types.js';
 import { ToolError } from './errors.js';
 import { DextoRuntimeError, ErrorScope, ErrorType } from '../errors/index.js';
@@ -78,10 +81,10 @@ export type ExecutableToolCall = {
         requireApproval: true;
     };
     callDescription?: string;
+    identity: ToolIdentity;
     input: Record<string, unknown>;
     meta?: ToolCallMetadata;
     presentationSnapshot: ToolPresentationSnapshotV1;
-    source: 'local' | 'mcp';
     toolCallId: string;
     toolName: string;
 };
@@ -803,6 +806,82 @@ export class ToolManager {
         return await this.mcpManager.getAllTools();
     }
 
+    /**
+     * Return canonical tool descriptions for host-owned discovery and type generation.
+     * Unlike getAllTools(), schemas are not rewritten for model-provider compatibility.
+     */
+    async getToolDescriptors(): Promise<ToolDescriptor[]> {
+        const descriptors: ToolDescriptor[] = [];
+
+        for (const tool of this.agentTools.values()) {
+            descriptors.push(await this.buildLocalToolDescriptor(tool));
+        }
+
+        for (const descriptor of this.mcpManager.getToolDescriptors()) {
+            descriptors.push(this.prefixMcpToolDescriptor(descriptor));
+        }
+
+        return descriptors;
+    }
+
+    async getToolDescriptor(toolName: string): Promise<ToolDescriptor | undefined> {
+        const localTool = this.agentTools.get(toolName);
+        if (localTool !== undefined) {
+            return await this.buildLocalToolDescriptor(localTool);
+        }
+
+        if (!toolName.startsWith(ToolManager.MCP_TOOL_PREFIX)) {
+            return undefined;
+        }
+
+        const mcpName = toolName.substring(ToolManager.MCP_TOOL_PREFIX.length);
+        if (mcpName.length === 0) {
+            return undefined;
+        }
+
+        const descriptor = this.mcpManager.getToolDescriptor(mcpName);
+        return descriptor === undefined ? undefined : this.prefixMcpToolDescriptor(descriptor);
+    }
+
+    private resolveToolIdentity(toolName: string): ToolIdentity | undefined {
+        if (this.agentTools.has(toolName)) {
+            return { type: 'local', toolId: toolName };
+        }
+
+        if (!toolName.startsWith(ToolManager.MCP_TOOL_PREFIX)) {
+            return undefined;
+        }
+
+        const mcpName = toolName.substring(ToolManager.MCP_TOOL_PREFIX.length);
+        return this.mcpManager.getToolDescriptor(mcpName)?.identity;
+    }
+
+    private async buildLocalToolDescriptor(tool: Tool): Promise<ToolDescriptor> {
+        return {
+            name: tool.id,
+            description: await this.getLocalToolDescription(tool),
+            identity: { type: 'local', toolId: tool.id },
+            inputSchema: convertZodSchemaToJsonSchema(tool.inputSchema, this.logger),
+            ...(tool.outputSchema !== undefined
+                ? {
+                      outputSchema: convertZodSchemaToJsonSchema(
+                          tool.outputSchema,
+                          this.logger,
+                          'output'
+                      ),
+                  }
+                : {}),
+        };
+    }
+
+    private prefixMcpToolDescriptor(descriptor: MCPToolDescriptor): MCPToolDescriptor {
+        return {
+            ...descriptor,
+            name: `${ToolManager.MCP_TOOL_PREFIX}${descriptor.name}`,
+            description: `${descriptor.description || 'No description provided'} (via MCP servers)`,
+        };
+    }
+
     private buildToolExecutionContext(options: {
         sessionId?: string | undefined;
         abortSignal?: AbortSignal | undefined;
@@ -992,23 +1071,7 @@ export class ToolManager {
 
         // Add local tools
         for (const [toolName, tool] of this.agentTools) {
-            let description = tool.description || 'No description provided';
-            if (tool.getDescription) {
-                try {
-                    const dynamicDescription = await tool.getDescription(
-                        this.buildToolExecutionContext({})
-                    );
-                    if (dynamicDescription.trim()) {
-                        description = dynamicDescription;
-                    }
-                } catch (error) {
-                    this.logger.warn(
-                        `Failed to build dynamic description for '${toolName}': ${
-                            error instanceof Error ? error.message : String(error)
-                        }`
-                    );
-                }
-            }
+            const description = await this.getLocalToolDescription(tool);
 
             allTools[toolName] = {
                 name: toolName,
@@ -1041,6 +1104,25 @@ export class ToolManager {
         return allTools;
     }
 
+    private async getLocalToolDescription(tool: Tool): Promise<string> {
+        const fallback = tool.description || 'No description provided';
+        if (!tool.getDescription) {
+            return fallback;
+        }
+
+        try {
+            const description = await tool.getDescription(this.buildToolExecutionContext({}));
+            return description.trim() ? description : fallback;
+        } catch (error) {
+            this.logger.warn(
+                `Failed to build dynamic description for '${tool.id}': ${
+                    error instanceof Error ? error.message : String(error)
+                }`
+            );
+            return fallback;
+        }
+    }
+
     /**
      * Get all available tools from all sources with conflict resolution
      * This is the single interface the LLM uses to discover tools
@@ -1059,8 +1141,8 @@ export class ToolManager {
 
     async prepareToolCall(input: PrepareToolCallInput): Promise<PreparedToolCall> {
         const sessionId = input.runContext?.sessionId ?? input.sessionId;
-        const source = await this.resolveExecutableToolSource(input.toolName);
-        if (source === 'unknown') {
+        const identity = this.resolveToolIdentity(input.toolName);
+        if (identity === undefined) {
             return this.createPreparedToolError(
                 'unknown-tool',
                 input.toolName,
@@ -1105,9 +1187,9 @@ export class ToolManager {
             ...(input.runContext !== undefined ? { runContext: input.runContext } : {}),
         });
         const call: ExecutableToolCall = {
+            identity,
             input: validatedArgs,
             presentationSnapshot,
-            source,
             toolCallId: input.toolCallId,
             toolName: input.toolName,
             ...(callDescription !== undefined ? { callDescription } : {}),
@@ -1123,7 +1205,7 @@ export class ToolManager {
                     runContext: input.runContext,
                 }),
             ...(sessionId !== undefined ? { sessionId } : {}),
-            source,
+            source: identity.type,
             toolName: input.toolName,
         });
         if (approvalGate.kind === 'ready') {
@@ -1166,6 +1248,7 @@ export class ToolManager {
             ...(hostRuntime !== undefined ? { hostRuntime } : {}),
             metadata: {
                 toolName: input.toolName,
+                toolIdentity: input.call.identity,
                 ...(input.approvalGate.approvalKey !== undefined
                     ? { approvalKey: input.approvalGate.approvalKey }
                     : {}),
@@ -1353,23 +1436,6 @@ export class ToolManager {
         return `Tool '${toolName}' was not executed because ${outcome}${
             response.message ? `: ${response.message}` : ''
         }.`;
-    }
-
-    private async resolveExecutableToolSource(
-        toolName: string
-    ): Promise<'local' | 'mcp' | 'unknown'> {
-        if (this.agentTools.has(toolName)) {
-            return 'local';
-        }
-
-        if (
-            toolName.startsWith(ToolManager.MCP_TOOL_PREFIX) &&
-            toolName.length > ToolManager.MCP_TOOL_PREFIX.length
-        ) {
-            return 'mcp';
-        }
-
-        return 'unknown';
     }
 
     private createPreparedToolError(
@@ -1790,7 +1856,7 @@ export class ToolManager {
                 };
             };
 
-            if (call.source === 'mcp') {
+            if (call.identity.type === 'mcp') {
                 const actualToolName = call.toolName.substring(ToolManager.MCP_TOOL_PREFIX.length);
                 if (actualToolName.length === 0) {
                     throw ToolError.invalidName(

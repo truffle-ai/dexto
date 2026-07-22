@@ -499,7 +499,7 @@ export class DextoMcpClient extends EventEmitter implements McpClient {
 
             // Populate tools
             if (listToolResult && listToolResult.tools) {
-                listToolResult.tools.forEach((tool: any) => {
+                listToolResult.tools.forEach((tool) => {
                     if (!tool.description) {
                         this.logger.warn(`Tool '${tool.name}' is missing a description`);
                     }
@@ -509,7 +509,13 @@ export class DextoMcpClient extends EventEmitter implements McpClient {
                     tools[tool.name] = {
                         description: tool.description ?? '',
                         parameters: tool.inputSchema,
-                        _meta: tool._meta,
+                        ...(tool.outputSchema !== undefined
+                            ? { outputSchema: tool.outputSchema }
+                            : {}),
+                        ...(tool.annotations !== undefined
+                            ? { annotations: tool.annotations }
+                            : {}),
+                        ...(tool._meta !== undefined ? { _meta: tool._meta } : {}),
                     };
                 });
             } else {
