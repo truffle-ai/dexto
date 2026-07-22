@@ -3412,6 +3412,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
 
             expect(descriptors).toEqual([
                 expect.objectContaining({
+                    approval: 'possible',
                     name: 'local_lookup',
                     description: 'Look up local state',
                     identity: { type: 'local', toolId: 'local_lookup' },
@@ -3425,6 +3426,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     }),
                 }),
                 {
+                    approval: 'possible',
                     name: 'mcp--lookup',
                     description: 'Look up a record (via MCP servers)',
                     identity: {
@@ -3447,6 +3449,63 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 },
             ]);
             expect(descriptors[0]?.inputSchema).not.toHaveProperty('properties.__meta');
+        });
+
+        it('marks descriptor approval capability conservatively for the current manager mode', async () => {
+            mockMcpManager.getToolDescriptors = vi.fn().mockReturnValue([]);
+            const tools = [
+                defineTool({
+                    id: 'always_allowed',
+                    description: 'Always allowed',
+                    inputSchema: z.object({}).strict(),
+                    needsApproval: false,
+                    execute: vi.fn(),
+                }),
+                defineTool({
+                    id: 'argument_dependent',
+                    description: 'Depends on arguments',
+                    inputSchema: z.object({ mutate: z.boolean() }).strict(),
+                    needsApproval: ({ mutate }) => mutate,
+                    execute: vi.fn(),
+                }),
+                defineTool({
+                    id: 'manual_default',
+                    description: 'Uses the manager default',
+                    inputSchema: z.object({}).strict(),
+                    execute: vi.fn(),
+                }),
+            ];
+            const manual = createToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'manual',
+                mockAgentEventBus,
+                { alwaysAllow: [] },
+                tools,
+                mockLogger
+            );
+            const automatic = createToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'auto-approve',
+                mockAgentEventBus,
+                { alwaysAllow: [] },
+                tools,
+                mockLogger
+            );
+
+            await expect(manual.getToolDescriptors()).resolves.toEqual([
+                expect.objectContaining({ approval: 'never', name: 'always_allowed' }),
+                expect.objectContaining({ approval: 'possible', name: 'argument_dependent' }),
+                expect.objectContaining({ approval: 'possible', name: 'manual_default' }),
+            ]);
+            await expect(automatic.getToolDescriptors()).resolves.toEqual([
+                expect.objectContaining({ approval: 'never', name: 'always_allowed' }),
+                expect.objectContaining({ approval: 'never', name: 'argument_dependent' }),
+                expect.objectContaining({ approval: 'never', name: 'manual_default' }),
+            ]);
         });
 
         it('uses dynamic tool descriptions when provided', async () => {

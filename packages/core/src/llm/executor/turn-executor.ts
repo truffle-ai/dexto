@@ -66,8 +66,8 @@ import {
     createModelRequestDiagnostics,
     modelRequestDiagnosticAttributes,
 } from './model-request-diagnostics.js';
-import { ApprovalStatus, type ApprovalResponse } from '../../approval/types.js';
-import type { ApprovalDecisionInput } from '../../approval/manager.js';
+import type { ApprovalResponse } from '../../approval/types.js';
+import { approvalResponseToDecisionInput } from '../../approval/manager.js';
 import type { LLMExecutionControl } from '../services/types.js';
 import {
     describeContentPartsForAudit,
@@ -1926,7 +1926,7 @@ export class TurnExecutor {
             if (approval.kind === 'terminal') {
                 return approval.modelVisibleResult;
             }
-            const decision = this.toApprovalDecisionInput(approval.response);
+            const decision = approvalResponseToDecisionInput(approval.response);
             const applied = await this.toolManager.applyApprovalDecision(recorded, decision);
             if (applied.kind === 'terminal') {
                 return applied.modelVisibleResult;
@@ -2169,30 +2169,6 @@ export class TurnExecutor {
             turnId: ids?.turnId ?? 'in-memory-turn',
             modelStepId: ids?.modelStepId ?? this.currentModelStepId,
             toolCallId,
-        };
-    }
-
-    private toApprovalDecisionInput(response: ApprovalResponse): ApprovalDecisionInput {
-        if (response.status === ApprovalStatus.APPROVED) {
-            return {
-                approvalId: response.approvalId,
-                status: ApprovalStatus.APPROVED,
-                ...(response.data !== undefined ? { data: response.data } : {}),
-            };
-        }
-
-        const status =
-            response.status === ApprovalStatus.DENIED
-                ? ApprovalStatus.DENIED
-                : ApprovalStatus.CANCELLED;
-
-        return {
-            approvalId: response.approvalId,
-            status,
-            ...(response.reason !== undefined ? { reason: response.reason } : {}),
-            ...(response.message !== undefined ? { message: response.message } : {}),
-            ...(response.timeoutMs !== undefined ? { timeoutMs: response.timeoutMs } : {}),
-            ...(response.data !== undefined ? { data: response.data } : {}),
         };
     }
 

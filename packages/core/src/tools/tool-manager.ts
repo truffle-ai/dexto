@@ -865,6 +865,12 @@ export class ToolManager {
         return {
             name: tool.id,
             description: await this.getLocalToolDescription(tool),
+            approval:
+                this.approvalMode === 'auto-approve' ||
+                tool.needsApproval === false ||
+                tool.needsApproval === null
+                    ? 'never'
+                    : 'possible',
             identity: { type: 'local', toolId: tool.id },
             inputSchema,
             ...(outputSchema === undefined ? {} : { outputSchema }),
@@ -872,9 +878,10 @@ export class ToolManager {
         };
     }
 
-    private prefixMcpToolDescriptor(descriptor: MCPToolDescriptor): MCPToolDescriptor {
+    private prefixMcpToolDescriptor(descriptor: MCPToolDescriptor): ToolDescriptor {
         return {
             ...descriptor,
+            approval: this.approvalMode === 'auto-approve' ? 'never' : 'possible',
             name: `${ToolManager.MCP_TOOL_PREFIX}${descriptor.name}`,
             description: `${descriptor.description || 'No description provided'} (via MCP servers)`,
         };
@@ -1391,6 +1398,15 @@ export class ToolManager {
 
     async requestApprovalDecision(recorded: RecordedToolApproval): Promise<ApprovalResponse> {
         return this.approvalManager.requestApprovalDecision(recorded.request);
+    }
+
+    async cancelApprovalRequest(recorded: RecordedToolApproval): Promise<void> {
+        await this.approvalManager.cancelApproval(recorded.request.approvalId);
+        await this.applyApprovalDecision(recorded, {
+            approvalId: recorded.request.approvalId,
+            reason: 'system_cancelled',
+            status: ApprovalStatus.CANCELLED,
+        });
     }
 
     private assertRecordedApprovalMatchesPreparedCall(

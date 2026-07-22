@@ -328,6 +328,8 @@ export type ToolIdentity =
       };
 
 export interface LocalToolDescriptor extends ToolDescriptorBase {
+    /** Whether the current ToolManager policy may require approval after validating call input. */
+    approval: 'never' | 'possible';
     identity: Extract<ToolIdentity, { type: 'local' }>;
 }
 
@@ -337,7 +339,12 @@ export interface MCPToolDescriptor extends ToolDescriptorBase {
     annotations?: ToolAnnotations;
 }
 
-export type ToolDescriptor = LocalToolDescriptor | MCPToolDescriptor;
+export type ToolDescriptor =
+    | LocalToolDescriptor
+    | (MCPToolDescriptor & {
+          /** Whether the current ToolManager policy may require approval after validating call input. */
+          approval: 'never' | 'possible';
+      });
 
 // ============================================================================
 // TOOL EXECUTION AND RESULTS
