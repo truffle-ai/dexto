@@ -15,12 +15,19 @@ import { getHostRuntimeAttributes, getHostRuntimeBaggageEntries } from '../runti
 
 // Decorator factory that takes optional spanName
 export function withSpan(options: {
+    captureArguments?: boolean;
+    captureErrors?: boolean;
+    captureResult?: boolean;
     spanName?: string;
     componentName?: string;
     skipIfNoTelemetry?: boolean;
     spanKind?: SpanKind;
     tracerName?: string;
 }): any {
+    const captureArguments = options.captureArguments ?? true;
+    const captureErrors = options.captureErrors ?? true;
+    const captureResult = options.captureResult ?? true;
+
     return function (
         _target: unknown,
         propertyKey: string | symbol,
@@ -79,10 +86,14 @@ export function withSpan(options: {
             const effectiveRunId = effectiveHostRuntime?.ids?.runId ?? runId;
 
             const applySpanAttributes = (span: Span) => {
-                // Record input arguments as span attributes (sanitized and truncated)
-                args.forEach((arg, index) => {
-                    span.setAttribute(`${spanName}.argument.${index}`, safeStringify(arg, 8192));
-                });
+                if (captureArguments) {
+                    args.forEach((arg, index) => {
+                        span.setAttribute(
+                            `${spanName}.argument.${index}`,
+                            safeStringify(arg, 8192)
+                        );
+                    });
+                }
 
                 // Add all baggage values to span attributes
                 // Set both direct attributes and baggage-prefixed versions for storage schema fallback
@@ -198,18 +209,24 @@ export function withSpan(options: {
                     if (result instanceof Promise) {
                         return result
                             .then((resolvedValue) => {
-                                span.setAttribute(
-                                    `${spanName}.result`,
-                                    safeStringify(resolvedValue, 8192)
-                                );
+                                if (captureResult) {
+                                    span.setAttribute(
+                                        `${spanName}.result`,
+                                        safeStringify(resolvedValue, 8192)
+                                    );
+                                }
                                 return resolvedValue;
                             })
                             .catch((error) => {
-                                span.recordException(error);
-                                span.setStatus({
-                                    code: SpanStatusCode.ERROR,
-                                    message: error?.toString(),
-                                });
+                                if (captureErrors) {
+                                    span.recordException(error);
+                                    span.setStatus({
+                                        code: SpanStatusCode.ERROR,
+                                        message: error?.toString(),
+                                    });
+                                } else {
+                                    span.setStatus({ code: SpanStatusCode.ERROR });
+                                }
                                 throw error;
                             })
                             .finally(() => {
@@ -217,23 +234,29 @@ export function withSpan(options: {
                             });
                     }
 
-                    // Record result for non-promise returns (sanitized and truncated)
-                    span.setAttribute(`${spanName}.result`, safeStringify(result, 8192));
+                    if (captureResult) {
+                        span.setAttribute(`${spanName}.result`, safeStringify(result, 8192));
+                    }
                     // Return regular results
                     return result;
                 } catch (error) {
                     // Try to use instance logger if available (DI pattern)
                     const logger = (this as any)?.logger as Logger | undefined;
-                    logger?.error(
-                        `withSpan: Error in method '${methodName}': ${error instanceof Error ? error.message : String(error)}`,
-                        { error }
-                    );
-                    span.setStatus({
-                        code: SpanStatusCode.ERROR,
-                        message: error instanceof Error ? error.message : 'Unknown error',
-                    });
-                    if (error instanceof Error) {
-                        span.recordException(error);
+                    if (captureErrors) {
+                        logger?.error(
+                            `withSpan: Error in method '${methodName}': ${error instanceof Error ? error.message : String(error)}`,
+                            { error }
+                        );
+                        span.setStatus({
+                            code: SpanStatusCode.ERROR,
+                            message: error instanceof Error ? error.message : 'Unknown error',
+                        });
+                        if (error instanceof Error) {
+                            span.recordException(error);
+                        }
+                    } else {
+                        logger?.error(`withSpan: Error in method '${methodName}'`);
+                        span.setStatus({ code: SpanStatusCode.ERROR });
                     }
                     throw error;
                 } finally {
@@ -251,6 +274,9 @@ export function withSpan(options: {
 
 // class-telemetry.decorator.ts
 export function InstrumentClass(options?: {
+    captureArguments?: boolean;
+    captureErrors?: boolean;
+    captureResult?: boolean;
     prefix?: string;
     componentName?: string;
     spanKind?: SpanKind;
@@ -274,6 +300,9 @@ export function InstrumentClass(options?: {
                     target.prototype,
                     method,
                     withSpan({
+                        captureArguments: options?.captureArguments ?? true,
+                        captureErrors: options?.captureErrors ?? true,
+                        captureResult: options?.captureResult ?? true,
                         spanName: options?.prefix ? `${options.prefix}.${method}` : method,
                         skipIfNoTelemetry: true,
                         spanKind: options?.spanKind || SpanKind.INTERNAL,

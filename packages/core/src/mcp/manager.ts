@@ -651,9 +651,7 @@ export class MCPManager {
             const result = await client.callTool(actualToolName, args, invocation);
             return result;
         } catch (error) {
-            this.logger.error(
-                `❌ MCP tool execution failed: '${actualToolName}' - ${error instanceof Error ? error.message : String(error)}`
-            );
+            this.logger.error(`MCP tool execution failed: '${actualToolName}'`);
             throw error;
         }
     }

@@ -187,6 +187,9 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  *   See feature-plans/telemetry.md for details
  */
 @InstrumentClass({
+    captureArguments: false,
+    captureErrors: false,
+    captureResult: false,
     prefix: 'tool',
     excludeMethods: ['setHookSupport', 'getApprovalManager', 'getAllowedToolsProvider'],
 })
@@ -1072,9 +1075,7 @@ export class ToolManager {
             const result = await tool.execute(args, context);
             return result;
         } catch (error) {
-            this.logger.error(`❌ Local tool execution failed: ${toolName}`, {
-                error: error instanceof Error ? error.message : String(error),
-            });
+            this.logger.error(`Local tool execution failed: ${toolName}`);
             throw error;
         }
     }
@@ -1541,7 +1542,6 @@ export class ToolManager {
             this.resolveToolExecutionInvocation(invocation);
 
         this.logger.debug(`🔧 Tool execution requested: '${toolName}' (toolCallId: ${toolCallId})`);
-        this.logger.debug(`Tool args: ${JSON.stringify(args, null, 2)}`);
 
         if (toolName === ToolManager.MCP_TOOL_PREFIX) {
             throw ToolError.invalidName(toolName, 'tool name cannot be empty after prefix');
@@ -2107,7 +2107,7 @@ export class ToolManager {
         } catch (error) {
             const duration = Date.now() - startTime;
             this.logger.error(
-                `❌ Prepared tool execution failed for ${call.toolName} after ${duration}ms, sessionId: ${sessionId ?? 'global'}: ${error instanceof Error ? error.message : String(error)}`
+                `Prepared tool execution failed for ${call.toolName} after ${duration}ms, sessionId: ${sessionId ?? 'global'}`
             );
             const message = error instanceof Error ? error.message : String(error);
 

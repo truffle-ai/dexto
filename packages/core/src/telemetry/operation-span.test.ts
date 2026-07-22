@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { SpanStatusCode, trace } from '@opentelemetry/api';
+import { SpanKind, SpanStatusCode, trace } from '@opentelemetry/api';
 import { AsyncHooksContextManager } from '@opentelemetry/context-async-hooks';
 import {
     BasicTracerProvider,
@@ -40,6 +40,7 @@ describe('recordOperationSpan', () => {
                     attributes: { 'tools.supports': true },
                     resultAttributes: (skills: string[]) => ({ 'skills.count': skills.length }),
                     skipIfNoTelemetry: false,
+                    spanKind: SpanKind.CLIENT,
                 },
                 async () => ['alpha', 'beta']
             )
@@ -54,6 +55,7 @@ describe('recordOperationSpan', () => {
                 'tools.supports': true,
             })
         );
+        expect(span?.kind).toBe(SpanKind.CLIENT);
     });
 
     it('does not fail the operation when result attribute extraction fails', async () => {
@@ -100,5 +102,29 @@ describe('recordOperationSpan', () => {
         }
         expect(child.spanContext().traceId).toBe(parent.spanContext().traceId);
         expect(child).toHaveProperty('parentSpanId', parent.spanContext().spanId);
+    });
+
+    it('can record a failed operation without copying the error into telemetry', async () => {
+        const sensitiveError = new Error('provider-private-payload');
+
+        await expect(
+            recordOperationSpan(
+                {
+                    captureErrors: false,
+                    name: 'operation.private_failure',
+                    skipIfNoTelemetry: false,
+                },
+                () => {
+                    throw sensitiveError;
+                }
+            )
+        ).rejects.toBe(sensitiveError);
+
+        const span = exporter
+            .getFinishedSpans()
+            .find((span) => span.name === 'operation.private_failure');
+
+        expect(span?.status).toEqual({ code: SpanStatusCode.ERROR });
+        expect(JSON.stringify(span?.events)).not.toContain(sensitiveError.message);
     });
 });
