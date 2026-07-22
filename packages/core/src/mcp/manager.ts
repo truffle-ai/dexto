@@ -500,9 +500,7 @@ export class MCPManager {
             const result = await entry.connection.callTool(actualToolName, validatedArgs, context);
             return result;
         } catch (error) {
-            this.logger.error(
-                `❌ MCP tool execution failed: '${actualToolName}' - ${error instanceof Error ? error.message : String(error)}`
-            );
+            this.logger.error(`MCP tool execution failed: '${actualToolName}'`);
             throw error;
         }
     }

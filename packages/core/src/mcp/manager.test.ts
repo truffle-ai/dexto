@@ -167,6 +167,27 @@ describe('MCPManager', () => {
         expect(callTool).not.toHaveBeenCalled();
     });
 
+    it('does not copy upstream tool failures into logs', async () => {
+        const sensitiveError = new Error('provider-private-error-body');
+        const connections = new TestMCPConnections();
+        connections.set(
+            createConnection({
+                id: 'connection-1',
+                tools: async () => ({ lookup: tool('Lookup') }),
+                callTool: vi.fn().mockRejectedValue(sensitiveError),
+            })
+        );
+        const logger = createMockLogger();
+        const manager = new MCPManager(connections, logger);
+        await manager.initialize();
+
+        await expect(manager.executeTool('lookup', {})).rejects.toBe(sensitiveError);
+
+        expect(JSON.stringify(vi.mocked(logger.error).mock.calls)).not.toContain(
+            sensitiveError.message
+        );
+    });
+
     it('qualifies conflicts and restores the simple alias when one connection remains', async () => {
         const connections = new TestMCPConnections();
         const firstCall = vi.fn().mockResolvedValue({ source: 'first' });

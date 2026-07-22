@@ -7,10 +7,12 @@ type OperationSpanAttributes = Record<string, string | number | boolean>;
 
 export type OperationSpanOptions<T> = {
     attributes?: OperationSpanAttributes;
+    captureErrors?: boolean;
     componentName?: string;
     name: string;
     resultAttributes?: (result: T) => OperationSpanAttributes | undefined;
     skipIfNoTelemetry?: boolean;
+    spanKind?: SpanKind;
     tracerName?: string;
 };
 
@@ -25,9 +27,10 @@ export async function recordOperationSpan<T>(
         return operation();
     }
 
+    const spanKind = options.spanKind ?? SpanKind.INTERNAL;
     return trace
         .getTracer(options.tracerName ?? 'dexto')
-        .startActiveSpan(options.name, { kind: SpanKind.INTERNAL }, async (span) => {
+        .startActiveSpan(options.name, { kind: spanKind }, async (span) => {
             const spanContext = trace.setSpan(context.active(), span);
 
             addBaggageAttributesToSpan(span, spanContext, logger);
@@ -49,7 +52,9 @@ export async function recordOperationSpan<T>(
                 span.setStatus({ code: SpanStatusCode.OK });
                 return result;
             } catch (error) {
-                if (error instanceof Error) {
+                if (!(options.captureErrors ?? true)) {
+                    span.setStatus({ code: SpanStatusCode.ERROR });
+                } else if (error instanceof Error) {
                     span.recordException(error);
                     span.setStatus({ code: SpanStatusCode.ERROR, message: error.message });
                 } else {
