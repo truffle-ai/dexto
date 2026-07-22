@@ -69,12 +69,20 @@ export type ToolExecutionContextFactory = (
     baseContext: ToolExecutionContextBase
 ) => ToolExecutionContext;
 
-export type ToolExecutionInvocation = {
-    sessionId?: string | undefined;
-    abortSignal?: AbortSignal | undefined;
-    runContext?: AgentRunContext | undefined;
-    executionIdentity?: ToolExecutionIdentity | undefined;
-};
+type ToolExecutionRoutingContext = Pick<
+    ToolExecutionContextBase,
+    | 'abortSignal'
+    | 'executionIdentity'
+    | 'parentToolCallId'
+    | 'runContext'
+    | 'sessionId'
+    | 'toolCallId'
+>;
+
+export type ToolExecutionInvocation = Pick<
+    ToolExecutionRoutingContext,
+    'abortSignal' | 'executionIdentity' | 'runContext' | 'sessionId'
+>;
 
 export type ExecutableToolCall = {
     approval?: {
@@ -892,17 +900,12 @@ export class ToolManager {
         };
     }
 
-    private buildToolExecutionContext(options: {
-        sessionId?: string | undefined;
-        abortSignal?: AbortSignal | undefined;
-        toolCallId?: string | undefined;
-        parentToolCallId?: string | undefined;
-        runContext?: AgentRunContext | undefined;
-    }): ToolExecutionContext {
+    private buildToolExecutionContext(options: ToolExecutionRoutingContext): ToolExecutionContext {
         const workspace = this.currentWorkspace;
         const baseContext: ToolExecutionContextBase = {
             sessionId: options.sessionId,
             runContext: options.runContext,
+            executionIdentity: options.executionIdentity,
             workspaceId: workspace?.id,
             workspace,
             abortSignal: options.abortSignal,
@@ -1046,13 +1049,7 @@ export class ToolManager {
     private async executeLocalTool(
         toolName: string,
         args: Record<string, unknown>,
-        options?: {
-            sessionId?: string | undefined;
-            abortSignal?: AbortSignal | undefined;
-            toolCallId?: string | undefined;
-            parentToolCallId?: string | undefined;
-            runContext?: AgentRunContext | undefined;
-        }
+        options?: ToolExecutionRoutingContext
     ): Promise<unknown> {
         const tool = this.agentTools.get(toolName);
         if (!tool) {
@@ -1067,6 +1064,7 @@ export class ToolManager {
             const context = this.buildToolExecutionContext({
                 sessionId: options?.sessionId,
                 abortSignal: options?.abortSignal,
+                executionIdentity: options?.executionIdentity,
                 toolCallId: options?.toolCallId,
                 parentToolCallId: options?.parentToolCallId,
                 runContext: options?.runContext,
@@ -2003,6 +2001,7 @@ export class ToolManager {
                         this.executeLocalTool(call.toolName, toolArgs, {
                             sessionId: backgroundSessionId,
                             abortSignal,
+                            executionIdentity,
                             toolCallId: call.toolCallId,
                             parentToolCallId: call.parentToolCallId,
                             runContext,
@@ -2028,6 +2027,7 @@ export class ToolManager {
                     result = await this.executeLocalTool(call.toolName, toolArgs, {
                         sessionId,
                         abortSignal,
+                        executionIdentity,
                         toolCallId: call.toolCallId,
                         parentToolCallId: call.parentToolCallId,
                         runContext,
