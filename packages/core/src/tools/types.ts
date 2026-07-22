@@ -11,6 +11,7 @@ import type { WorkspaceContext } from '../workspace/types.js';
 import type { ApprovalManager } from '../approval/manager.js';
 import type { DextoAgent } from '../agent/DextoAgent.js';
 import type { ToolStateStore } from '../storage/index.js';
+import type { ToolExecutionIdentity } from '../storage/tool-executions/types.js';
 import type { MCPManager } from '../mcp/manager.js';
 import type { PromptManager } from '../prompts/prompt-manager.js';
 import type { ResourceManager } from '../resources/manager.js';
@@ -69,6 +70,8 @@ export interface ToolExecutionContextBase {
     sessionId?: string | undefined;
     /** Internal run-scoped execution context for this tool invocation */
     runContext?: AgentRunContext | undefined;
+    /** Durable identity assigned to this concrete tool execution, when one exists. */
+    executionIdentity?: ToolExecutionIdentity | undefined;
     /** Workspace ID if available */
     workspaceId?: string | undefined;
     /** Workspace context if available */

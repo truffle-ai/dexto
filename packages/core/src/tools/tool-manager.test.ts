@@ -1348,6 +1348,51 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             );
         });
 
+        it('provides the durable execution identity to the executing tool', async () => {
+            const executionIdentity = {
+                runId: 'run-1',
+                turnId: 'turn-1',
+                modelStepId: 'step-1',
+                toolCallId: 'call-prepared-context',
+            };
+            const execute = vi.fn(
+                async (_input: { path: string }, context: ToolExecutionContext) =>
+                    context.executionIdentity
+            );
+            const toolManager = createToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'auto-approve',
+                mockAgentEventBus,
+                { alwaysAllow: [] },
+                [
+                    defineTool({
+                        id: 'write_file',
+                        description: 'Write file',
+                        inputSchema: z.object({ path: z.string() }).strict(),
+                        execute,
+                    }),
+                ],
+                mockLogger
+            );
+            const prepared = await toolManager.prepareToolCall({
+                toolName: 'write_file',
+                input: { path: 'src/app.ts' },
+                toolCallId: executionIdentity.toolCallId,
+                sessionId: 'session-1',
+            });
+            if (prepared.kind !== 'ready') {
+                throw new Error('Expected ready prepared call');
+            }
+
+            const result = await toolManager.executePreparedToolCall(prepared.call, {
+                executionIdentity,
+            });
+
+            expect(result.result).toEqual(executionIdentity);
+        });
+
         it('rejects prepared execution replay when the stored input differs', async () => {
             const execute = vi.fn().mockResolvedValue('created');
             const toolManager = createToolManager(
@@ -3205,7 +3250,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             );
         });
 
-        it('should pass runContext through MCP execution', async () => {
+        it('should pass execution context through MCP execution', async () => {
             mockMcpManager.executeTool = vi.fn().mockResolvedValue('result');
 
             const toolManager = createToolManager(
@@ -3228,8 +3273,15 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 },
                 telemetryContext: {} as any,
             };
+            const executionIdentity = {
+                modelStepId: 'model-step-1',
+                runId: 'run-1',
+                toolCallId: 'call-789',
+                turnId: 'turn-1',
+            };
 
             await toolManager.executeTool('mcp--file_read', { path: '/test' }, 'call-789', {
+                executionIdentity,
                 runContext,
             });
 
@@ -3238,6 +3290,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 { path: '/test' },
                 expect.objectContaining({
                     logger: mockLogger,
+                    executionIdentity,
                     runContext,
                     sessionId: 'session-1',
                     toolCallId: 'call-789',
