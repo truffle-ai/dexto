@@ -5,6 +5,8 @@ import { MCPManager } from '../mcp/manager.js';
 import { z } from 'zod';
 import { AgentEventBus } from '../events/index.js';
 import { ApprovalManager } from '../approval/manager.js';
+import { ToolApprovalMetadataSchema } from '../approval/schemas.js';
+import { ApprovalType } from '../approval/types.js';
 import type { AllowedToolsProvider } from './approval/allowed-tools-provider/types.js';
 import { createMockLogger } from '../logger/v2/test-utils.js';
 import {
@@ -596,6 +598,93 @@ describe('ToolManager Integration Tests', () => {
             await toolManager.getAllTools();
             await toolManager.getAllTools();
             expect(mockClient.getTools).toHaveBeenCalledTimes(0);
+        });
+    });
+
+    describe('Canonical preparation parity', () => {
+        it('prepares direct and Code Mode child calls with identical validation, policy, and presentation', async () => {
+            const client = {
+                getTools: vi.fn().mockResolvedValue({
+                    lookup_record: {
+                        description: 'Lookup a record',
+                        parameters: {
+                            additionalProperties: false,
+                            properties: { id: { type: 'string' } },
+                            required: ['id'],
+                            type: 'object',
+                        },
+                    },
+                }),
+                callTool: vi.fn(),
+            };
+            mcpConnections.set(
+                connectionFromClient('stable-connection-id', client, 'Friendly Connection')
+            );
+            await mcpManager.refresh();
+
+            const manualApprovalManager = createApprovalManager(
+                {
+                    permissions: { mode: 'manual', timeout: 120_000 },
+                    elicitation: { enabled: true, timeout: 120_000 },
+                },
+                mockLogger
+            );
+            const toolManager = createToolManager(
+                mcpManager,
+                manualApprovalManager,
+                allowedToolsProvider,
+                'manual',
+                mockAgentEventBus,
+                { alwaysAllow: [] },
+                [],
+                mockLogger
+            );
+
+            const prepare = (toolCallId: string, input: Record<string, unknown>) =>
+                toolManager.prepareToolCall({
+                    input,
+                    sessionId: 'session-1',
+                    toolCallId,
+                    toolName: 'mcp--lookup_record',
+                });
+            const direct = await prepare('direct-call', { id: 'record-1' });
+            const codeModeChild = await prepare('code-mode-child-call', { id: 'record-1' });
+
+            expect(direct.kind).toBe('approval-required');
+            expect(codeModeChild.kind).toBe('approval-required');
+            if (direct.kind !== 'approval-required' || codeModeChild.kind !== 'approval-required') {
+                throw new Error('Expected both calls to require approval');
+            }
+            if (
+                direct.requestDetails.type !== ApprovalType.TOOL_APPROVAL ||
+                codeModeChild.requestDetails.type !== ApprovalType.TOOL_APPROVAL
+            ) {
+                throw new Error('Expected tool approval details');
+            }
+            const directMetadata = ToolApprovalMetadataSchema.parse(direct.requestDetails.metadata);
+            const codeModeMetadata = ToolApprovalMetadataSchema.parse(
+                codeModeChild.requestDetails.metadata
+            );
+
+            expect({
+                approvalKey: directMetadata.approvalKey,
+                identity: direct.call.identity,
+                input: direct.call.input,
+                presentation: direct.call.presentationSnapshot,
+            }).toEqual({
+                approvalKey: codeModeMetadata.approvalKey,
+                identity: codeModeChild.call.identity,
+                input: codeModeChild.call.input,
+                presentation: codeModeChild.call.presentationSnapshot,
+            });
+            expect(directMetadata.approvalKey).toBe('mcp:stable-connection-id:lookup_record');
+
+            const invalidDirect = await prepare('invalid-direct', { id: 42 });
+            const invalidCodeModeChild = await prepare('invalid-code-mode-child', { id: 42 });
+            expect(invalidDirect).toEqual(invalidCodeModeChild);
+            expect(invalidDirect).toEqual(
+                expect.objectContaining({ kind: 'terminal', reason: 'invalid-input' })
+            );
         });
     });
 

@@ -17,6 +17,10 @@ import type {
     MCPConnectionChange,
     MCPConnectionLayer,
 } from './connection-layer.js';
+import { toolSchemaFingerprint } from '../tools/schema-fingerprint.js';
+import { stableFingerprint } from '../utils/stable-fingerprint.js';
+import { CfWorkerJsonSchemaValidator } from '@modelcontextprotocol/sdk/validation/cfworker';
+import type { JsonSchemaType, JsonSchemaValidator } from '@modelcontextprotocol/sdk/validation';
 
 /** Normalizes and dispatches capabilities supplied by one host-owned MCP connection layer. */
 type ResourceCacheEntry = {
@@ -38,6 +42,15 @@ type ToolCacheEntry = {
     definition: ToolSet[string];
 };
 
+type CachedToolInputValidator = {
+    schemaFingerprint: string;
+    validate: JsonSchemaValidator<Record<string, unknown>>;
+};
+
+function isJsonSchemaObject(value: unknown): value is JsonSchemaType {
+    return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
 type CatalogLoad<T> = { status: 'loaded'; value: T } | { status: 'failed' };
 
 type ConnectionCatalog = {
@@ -51,6 +64,7 @@ export class MCPManager {
     private connections = new Map<string, MCPConnection>();
     private toolCatalogs = new Map<string, ToolSet>();
     private toolCache = new Map<string, ToolCacheEntry>();
+    private toolInputValidators = new Map<string, CachedToolInputValidator>();
     private toolConflicts = new Set<string>();
     private promptCache = new Map<string, PromptCacheEntry>();
     private resourceCache = new Map<string, ResourceCacheEntry>();
@@ -59,6 +73,7 @@ export class MCPManager {
     private readonly connectionLayer: MCPConnectionLayer;
     private readonly logger: Logger;
     private readonly eventBus: AgentEventBus;
+    private readonly jsonSchemaValidator = new CfWorkerJsonSchemaValidator();
 
     // Use a distinctive delimiter that won't appear in normal server/tool names
     // Using double hyphen as it's allowed in LLM tool name patterns (^[a-zA-Z0-9_-]+$)
@@ -127,6 +142,12 @@ export class MCPManager {
     /** Ensures display names are safe when used in conflict aliases. */
     private sanitizeServerName(serverName: string): string {
         return serverName.replace(/[^a-zA-Z0-9_-]/g, '_');
+    }
+
+    private toolNamespace(entry: ToolCacheEntry, namespaceCount: number): string {
+        const friendlyName = this.sanitizeServerName(entry.connection.name);
+        if (namespaceCount === 1) return friendlyName;
+        return `${friendlyName}_${stableFingerprint(entry.connection.id).slice(0, 16)}`;
     }
 
     private async loadTools(connection: MCPConnection): Promise<CatalogLoad<ToolSet>> {
@@ -208,6 +229,7 @@ export class MCPManager {
         }
 
         this.toolCache.clear();
+        this.toolInputValidators.clear();
         this.toolConflicts.clear();
         for (const [toolName, entries] of providers) {
             if (entries.length === 1) {
@@ -216,9 +238,19 @@ export class MCPManager {
             }
 
             this.toolConflicts.add(toolName);
+            const namespaceCounts = new Map<string, number>();
             for (const entry of entries) {
                 const namespace = this.sanitizeServerName(entry.connection.name);
-                this.toolCache.set(`${namespace}${MCPManager.SERVER_DELIMITER}${toolName}`, entry);
+                namespaceCounts.set(namespace, (namespaceCounts.get(namespace) ?? 0) + 1);
+            }
+            for (const entry of entries) {
+                const friendlyName = this.sanitizeServerName(entry.connection.name);
+                const namespace = this.toolNamespace(entry, namespaceCounts.get(friendlyName) ?? 1);
+                const alias = `${namespace}${MCPManager.SERVER_DELIMITER}${toolName}`;
+                if (this.toolCache.has(alias)) {
+                    throw MCPError.duplicateName(entry.connection.name, entry.connection.name);
+                }
+                this.toolCache.set(alias, entry);
             }
         }
     }
@@ -354,6 +386,41 @@ export class MCPManager {
         return entry === undefined ? undefined : this.buildToolDescriptor(name, entry);
     }
 
+    validateToolInput(toolName: string, input: Record<string, unknown>): Record<string, unknown> {
+        const entry = this.toolCache.get(toolName);
+        if (entry === undefined) {
+            throw MCPError.toolNotFound(toolName);
+        }
+
+        const schemaFingerprint = toolSchemaFingerprint(entry.definition.parameters);
+        let cached = this.toolInputValidators.get(toolName);
+        if (cached?.schemaFingerprint !== schemaFingerprint) {
+            const inputSchema: unknown = entry.definition.parameters;
+            if (!isJsonSchemaObject(inputSchema)) {
+                throw MCPError.invalidToolSchema(entry.upstreamToolName, 'expected an object');
+            }
+            try {
+                cached = {
+                    schemaFingerprint,
+                    validate:
+                        this.jsonSchemaValidator.getValidator<Record<string, unknown>>(inputSchema),
+                };
+            } catch (error) {
+                throw MCPError.invalidToolSchema(
+                    entry.upstreamToolName,
+                    error instanceof Error ? error.message : String(error)
+                );
+            }
+            this.toolInputValidators.set(toolName, cached);
+        }
+
+        const result = cached.validate(input);
+        if (!result.valid) {
+            throw MCPError.invalidToolArguments(entry.upstreamToolName, result.errorMessage);
+        }
+        return result.data;
+    }
+
     private buildToolDescriptor(name: string, entry: ToolCacheEntry): MCPToolDescriptor {
         return {
             name,
@@ -370,6 +437,10 @@ export class MCPManager {
             ...(entry.definition.annotations !== undefined
                 ? { annotations: entry.definition.annotations }
                 : {}),
+            schemaFingerprint: toolSchemaFingerprint(
+                entry.definition.parameters,
+                entry.definition.outputSchema
+            ),
         };
     }
 
@@ -418,6 +489,7 @@ export class MCPManager {
 
         // Extract actual tool name (remove server prefix if present)
         const actualToolName = entry.upstreamToolName;
+        const validatedArgs = this.validateToolInput(toolName, args);
         const serverName = entry.connection.name;
 
         this.logger.debug(
@@ -425,7 +497,7 @@ export class MCPManager {
         );
 
         try {
-            const result = await entry.connection.callTool(actualToolName, args, context);
+            const result = await entry.connection.callTool(actualToolName, validatedArgs, context);
             return result;
         } catch (error) {
             this.logger.error(
@@ -551,6 +623,7 @@ export class MCPManager {
         this.connections.clear();
         this.toolCatalogs.clear();
         this.toolCache.clear();
+        this.toolInputValidators.clear();
         this.toolConflicts.clear();
         this.promptCache.clear();
         this.resourceCache.clear();
@@ -560,20 +633,12 @@ export class MCPManager {
     private async syncConnections(): Promise<void> {
         const connections = await this.connectionLayer.listConnections();
         const nextConnections = new Map<string, MCPConnection>();
-        const sanitizedNames = new Map<string, string>();
 
         for (const connection of connections) {
             if (nextConnections.has(connection.id)) {
                 throw MCPError.duplicateName(connection.id, connection.id);
             }
-            const sanitizedName = this.sanitizeServerName(connection.name);
-            const existingId = sanitizedNames.get(sanitizedName);
-            if (existingId) {
-                const existingName = nextConnections.get(existingId)?.name ?? existingId;
-                throw MCPError.duplicateName(connection.name, existingName);
-            }
             nextConnections.set(connection.id, connection);
-            sanitizedNames.set(sanitizedName, connection.id);
         }
 
         const catalogs = await Promise.all(

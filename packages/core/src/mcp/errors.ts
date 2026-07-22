@@ -154,4 +154,14 @@ export class MCPError {
             { toolName, reason }
         );
     }
+
+    static invalidToolArguments(toolName: string, reason: string) {
+        return new DextoRuntimeError(
+            MCPErrorCode.PROTOCOL_ERROR,
+            ErrorScope.MCP,
+            ErrorType.USER,
+            `MCP tool '${toolName}' received invalid arguments: ${reason}`,
+            { toolName, reason }
+        );
+    }
 }

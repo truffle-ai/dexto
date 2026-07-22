@@ -18,6 +18,7 @@ import { DextoRuntimeError, ErrorScope, ErrorType } from '../errors/index.js';
 import type { Logger } from '../logger/v2/types.js';
 import { DextoLogComponent } from '../logger/v2/types.js';
 import { convertZodSchemaToJsonSchema } from '../utils/schema.js';
+import { toolSchemaFingerprint } from './schema-fingerprint.js';
 import type { AgentEventBus } from '../events/index.js';
 import type {
     ApprovalDecisionInput,
@@ -69,7 +70,7 @@ export type ToolExecutionContextFactory = (
     baseContext: ToolExecutionContextBase
 ) => ToolExecutionContext;
 
-type ToolExecutionInvocation = {
+export type ToolExecutionInvocation = {
     sessionId?: string | undefined;
     abortSignal?: AbortSignal | undefined;
     runContext?: AgentRunContext | undefined;
@@ -85,6 +86,7 @@ export type ExecutableToolCall = {
     identity: ToolIdentity;
     input: Record<string, unknown>;
     meta?: ToolCallMetadata;
+    parentToolCallId?: string;
     presentationSnapshot: ToolPresentationSnapshotV1;
     toolCallId: string;
     toolName: string;
@@ -118,7 +120,10 @@ export type ApprovalRequiredPreparedToolCall = Extract<
     { kind: 'approval-required' }
 >;
 
-export type ToolApprovalRecordIdentity = Omit<ApprovalRecordIdentity, 'toolCallId'>;
+export type ToolApprovalRecordIdentity = Pick<
+    ApprovalRecordIdentity,
+    'runId' | 'turnId' | 'modelStepId'
+>;
 
 export type RecordedToolApproval = {
     prepared: ApprovalRequiredPreparedToolCall;
@@ -141,6 +146,7 @@ export type PrepareToolCallInput = {
     toolName: string;
     input: unknown;
     toolCallId: string;
+    parentToolCallId?: string | undefined;
     sessionId?: string | undefined;
     runContext?: AgentRunContext | undefined;
 };
@@ -848,20 +854,18 @@ export class ToolManager {
     }
 
     private async buildLocalToolDescriptor(tool: Tool): Promise<ToolDescriptor> {
+        const inputSchema = convertZodSchemaToJsonSchema(tool.inputSchema, this.logger);
+        const outputSchema =
+            tool.outputSchema === undefined
+                ? undefined
+                : convertZodSchemaToJsonSchema(tool.outputSchema, this.logger, 'output');
         return {
             name: tool.id,
             description: await this.getLocalToolDescription(tool),
             identity: { type: 'local', toolId: tool.id },
-            inputSchema: convertZodSchemaToJsonSchema(tool.inputSchema, this.logger),
-            ...(tool.outputSchema !== undefined
-                ? {
-                      outputSchema: convertZodSchemaToJsonSchema(
-                          tool.outputSchema,
-                          this.logger,
-                          'output'
-                      ),
-                  }
-                : {}),
+            inputSchema,
+            ...(outputSchema === undefined ? {} : { outputSchema }),
+            schemaFingerprint: toolSchemaFingerprint(inputSchema, outputSchema),
         };
     }
 
@@ -877,6 +881,7 @@ export class ToolManager {
         sessionId?: string | undefined;
         abortSignal?: AbortSignal | undefined;
         toolCallId?: string | undefined;
+        parentToolCallId?: string | undefined;
         runContext?: AgentRunContext | undefined;
     }): ToolExecutionContext {
         const workspace = this.currentWorkspace;
@@ -887,6 +892,7 @@ export class ToolManager {
             workspace,
             abortSignal: options.abortSignal,
             toolCallId: options.toolCallId,
+            parentToolCallId: options.parentToolCallId,
             hostRuntime: options.runContext?.hostRuntime,
             logger: this.logger,
         };
@@ -897,11 +903,15 @@ export class ToolManager {
         sessionId?: string | undefined;
         abortSignal?: AbortSignal | undefined;
         toolCallId: string;
+        parentToolCallId?: string | undefined;
         runContext?: AgentRunContext | undefined;
     }): MCPConnectionCallContext {
         return {
             logger: this.logger,
             toolCallId: options.toolCallId,
+            ...(options.parentToolCallId === undefined
+                ? {}
+                : { parentToolCallId: options.parentToolCallId }),
             ...(options.sessionId === undefined ? {} : { sessionId: options.sessionId }),
             ...(options.abortSignal === undefined ? {} : { abortSignal: options.abortSignal }),
             ...(options.runContext === undefined
@@ -931,9 +941,19 @@ export class ToolManager {
 
     private resolveToolExecutionIdentity(
         invocation: ToolExecutionInvocation,
-        toolCallId: string
+        toolCallId: string,
+        parentToolCallId?: string
     ): ToolExecutionIdentity | undefined {
         if (invocation.executionIdentity !== undefined) {
+            if (
+                invocation.executionIdentity.toolCallId !== toolCallId ||
+                invocation.executionIdentity.parentToolCallId !== parentToolCallId
+            ) {
+                throw ToolError.executionFailed(
+                    toolCallId,
+                    'Tool execution identity does not match the prepared call'
+                );
+            }
             return invocation.executionIdentity;
         }
 
@@ -953,6 +973,7 @@ export class ToolManager {
             runId,
             turnId,
             modelStepId,
+            ...(parentToolCallId === undefined ? {} : { parentToolCallId }),
             toolCallId,
         };
     }
@@ -1016,6 +1037,21 @@ export class ToolManager {
         return validated as Record<string, unknown>;
     }
 
+    private validateToolArgs(
+        toolName: string,
+        args: Record<string, unknown>
+    ): Record<string, unknown> {
+        if (!toolName.startsWith(ToolManager.MCP_TOOL_PREFIX)) {
+            return this.validateLocalToolArgs(toolName, args);
+        }
+
+        const mcpName = toolName.substring(ToolManager.MCP_TOOL_PREFIX.length);
+        if (mcpName.length === 0) {
+            throw ToolError.invalidName(toolName, 'tool name cannot be empty after prefix');
+        }
+        return this.mcpManager.validateToolInput(mcpName, args);
+    }
+
     private async executeLocalTool(
         toolName: string,
         args: Record<string, unknown>,
@@ -1023,6 +1059,7 @@ export class ToolManager {
             sessionId?: string | undefined;
             abortSignal?: AbortSignal | undefined;
             toolCallId?: string | undefined;
+            parentToolCallId?: string | undefined;
             runContext?: AgentRunContext | undefined;
         }
     ): Promise<unknown> {
@@ -1040,6 +1077,7 @@ export class ToolManager {
                 sessionId: options?.sessionId,
                 abortSignal: options?.abortSignal,
                 toolCallId: options?.toolCallId,
+                parentToolCallId: options?.parentToolCallId,
                 runContext: options?.runContext,
             });
             const result = await tool.execute(args, context);
@@ -1181,7 +1219,7 @@ export class ToolManager {
 
         let validatedArgs: Record<string, unknown>;
         try {
-            validatedArgs = this.validateLocalToolArgs(input.toolName, rawToolArgs);
+            validatedArgs = this.validateToolArgs(input.toolName, rawToolArgs);
         } catch (error) {
             return this.createPreparedToolError(
                 'invalid-input',
@@ -1194,12 +1232,18 @@ export class ToolManager {
             toolName: input.toolName,
             args: validatedArgs,
             toolCallId: input.toolCallId,
+            ...(input.parentToolCallId === undefined
+                ? {}
+                : { parentToolCallId: input.parentToolCallId }),
             ...(sessionId !== undefined ? { sessionId } : {}),
             ...(input.runContext !== undefined ? { runContext: input.runContext } : {}),
         });
         const call: ExecutableToolCall = {
             identity,
             input: validatedArgs,
+            ...(input.parentToolCallId === undefined
+                ? {}
+                : { parentToolCallId: input.parentToolCallId }),
             presentationSnapshot,
             toolCallId: input.toolCallId,
             toolName: input.toolName,
@@ -1213,10 +1257,11 @@ export class ToolManager {
                 this.buildToolExecutionContext({
                     sessionId,
                     toolCallId: input.toolCallId,
+                    parentToolCallId: input.parentToolCallId,
                     runContext: input.runContext,
                 }),
             ...(sessionId !== undefined ? { sessionId } : {}),
-            source: identity.type,
+            identity,
             toolName: input.toolName,
         });
         if (approvalGate.kind === 'ready') {
@@ -1250,6 +1295,9 @@ export class ToolManager {
             ...(input.runContext !== undefined ? { runContext: input.runContext } : {}),
             ...(input.sessionId !== undefined ? { sessionId: input.sessionId } : {}),
             toolCallId: input.toolCallId,
+            ...(input.call.parentToolCallId === undefined
+                ? {}
+                : { parentToolCallId: input.call.parentToolCallId }),
             toolName: input.toolName,
         });
         const hostRuntime = input.runContext?.hostRuntime;
@@ -1265,6 +1313,9 @@ export class ToolManager {
                     : {}),
                 presentationSnapshot: input.call.presentationSnapshot,
                 toolCallId: input.toolCallId,
+                ...(input.call.parentToolCallId === undefined
+                    ? {}
+                    : { parentToolCallId: input.call.parentToolCallId }),
                 args: input.args,
                 ...(input.callDescription !== undefined
                     ? { description: input.callDescription }
@@ -1503,6 +1554,9 @@ export class ToolManager {
             toolName,
             input: args,
             toolCallId,
+            ...(invocation?.executionIdentity?.parentToolCallId === undefined
+                ? {}
+                : { parentToolCallId: invocation.executionIdentity.parentToolCallId }),
             ...(sessionId !== undefined ? { sessionId } : {}),
             ...(runContext !== undefined ? { runContext } : {}),
         });
@@ -1525,7 +1579,11 @@ export class ToolManager {
         try {
             const recorded = await this.recordApprovalRequest(
                 prepared,
-                this.resolveDirectApprovalIdentity(invocation, toolCallId)
+                this.resolveDirectApprovalIdentity(
+                    invocation,
+                    toolCallId,
+                    prepared.call.parentToolCallId
+                )
             );
             const response = await this.requestApprovalDecision(recorded);
             applied = await this.applyApprovalDecision(recorded, {
@@ -1562,6 +1620,9 @@ export class ToolManager {
         if (!sessionId) {
             return;
         }
+        if (call.parentToolCallId !== undefined) {
+            return;
+        }
 
         this.agentEventBus.emit('llm:tool-call', {
             toolName: call.toolName,
@@ -1596,7 +1657,11 @@ export class ToolManager {
             return undefined;
         }
 
-        const identity = this.resolveToolExecutionIdentity(invocation ?? {}, call.toolCallId);
+        const identity = this.resolveToolExecutionIdentity(
+            invocation ?? {},
+            call.toolCallId,
+            call.parentToolCallId
+        );
         if (identity === undefined) {
             return undefined;
         }
@@ -1637,7 +1702,11 @@ export class ToolManager {
         invocation: ToolExecutionInvocation | undefined,
         error: unknown
     ): Promise<void> {
-        const identity = this.resolveToolExecutionIdentity(invocation ?? {}, call.toolCallId);
+        const identity = this.resolveToolExecutionIdentity(
+            invocation ?? {},
+            call.toolCallId,
+            call.parentToolCallId
+        );
         if (identity === undefined) {
             return;
         }
@@ -1675,9 +1744,14 @@ export class ToolManager {
 
     private resolveDirectApprovalIdentity(
         invocation: ToolExecutionInvocation | undefined,
-        toolCallId: string
+        toolCallId: string,
+        parentToolCallId?: string
     ): ToolApprovalRecordIdentity {
-        const executionIdentity = this.resolveToolExecutionIdentity(invocation ?? {}, toolCallId);
+        const executionIdentity = this.resolveToolExecutionIdentity(
+            invocation ?? {},
+            toolCallId,
+            parentToolCallId
+        );
         if (executionIdentity !== undefined) {
             return {
                 runId: executionIdentity.runId,
@@ -1745,7 +1819,8 @@ export class ToolManager {
             this.resolveToolExecutionInvocation(invocation);
         const durableIdentity = this.resolveToolExecutionIdentity(
             invocation ?? {},
-            call.toolCallId
+            call.toolCallId,
+            call.parentToolCallId
         );
         const backgroundTasksEnabled = isBackgroundTasksEnabled();
         const willRunInBackground =
@@ -1818,6 +1893,9 @@ export class ToolManager {
                 this.agentEventBus.emit('tool:running', {
                     toolName: call.toolName,
                     toolCallId: call.toolCallId,
+                    ...(call.parentToolCallId !== undefined && {
+                        parentToolCallId: call.parentToolCallId,
+                    }),
                     sessionId,
                     ...(hostRuntime !== undefined && { hostRuntime }),
                 });
@@ -1845,7 +1923,7 @@ export class ToolManager {
 
                 toolArgs = modifiedPayload.args;
                 try {
-                    toolArgs = this.validateLocalToolArgs(call.toolName, toolArgs);
+                    toolArgs = this.validateToolArgs(call.toolName, toolArgs);
                 } catch (error) {
                     this.logger.error(
                         `Post-hook validation failed for tool '${call.toolName}': a beforeToolCall hook may have set invalid args`
@@ -1884,6 +1962,7 @@ export class ToolManager {
                             sessionId,
                             abortSignal,
                             toolCallId: call.toolCallId,
+                            parentToolCallId: call.parentToolCallId,
                             runContext,
                         })
                     );
@@ -1932,6 +2011,7 @@ export class ToolManager {
                             sessionId: backgroundSessionId,
                             abortSignal,
                             toolCallId: call.toolCallId,
+                            parentToolCallId: call.parentToolCallId,
                             runContext,
                         }),
                         `Tool ${call.toolName}`
@@ -1956,6 +2036,7 @@ export class ToolManager {
                         sessionId,
                         abortSignal,
                         toolCallId: call.toolCallId,
+                        parentToolCallId: call.parentToolCallId,
                         runContext,
                     });
                 }
@@ -1996,6 +2077,9 @@ export class ToolManager {
                 result,
                 args: toolArgs,
                 toolCallId: call.toolCallId,
+                ...(call.parentToolCallId === undefined
+                    ? {}
+                    : { parentToolCallId: call.parentToolCallId }),
                 ...(sessionId !== undefined ? { sessionId } : {}),
                 ...(runContext !== undefined ? { runContext } : {}),
             });

@@ -74,3 +74,4 @@ export type {
     ToolExecutionStartResult,
     ToolExecutionStore,
 } from './tool-executions/types.js';
+export { createToolExecutionId } from './tool-executions/types.js';

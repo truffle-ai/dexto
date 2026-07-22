@@ -27,6 +27,7 @@ export type { ToolPresentationSnapshotV1 } from './presentation-schema.js';
 
 // Schemas/types
 export * from './schemas.js';
+export * from './schema-fingerprint.js';
 
 // Presentation helpers
 export * from './presentation.js';
@@ -37,7 +38,11 @@ export { ToolError } from './errors.js';
 export { ToolErrorCode } from './error-codes.js';
 
 // Unified tool manager (main interface for LLM)
-export { ToolManager, type ToolExecutionContextFactory } from './tool-manager.js';
+export {
+    ToolManager,
+    type ToolExecutionContextFactory,
+    type ToolExecutionInvocation,
+} from './tool-manager.js';
 export type {
     ExecutableToolCall,
     RecordedToolApproval,

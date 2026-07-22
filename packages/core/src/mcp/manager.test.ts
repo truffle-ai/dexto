@@ -9,6 +9,7 @@ import type { ToolSet } from '../tools/types.js';
 import type { MCPConnection } from './connection-layer.js';
 import { MCPErrorCode } from './error-codes.js';
 import { MCPManager } from './manager.js';
+import { toolSchemaFingerprint } from '../tools/schema-fingerprint.js';
 
 function createDeferred<T>() {
     let resolve: ((value: T) => void) | undefined;
@@ -108,6 +109,10 @@ describe('MCPManager', () => {
             inputSchema: definition.parameters,
             outputSchema: definition.outputSchema,
             annotations: { readOnlyHint: true },
+            schemaFingerprint: toolSchemaFingerprint(
+                definition.parameters,
+                definition.outputSchema
+            ),
         });
 
         const logger = createMockLogger();
@@ -122,6 +127,44 @@ describe('MCPManager', () => {
                 sessionId: 'session-1',
             }
         );
+    });
+
+    it('validates tool input against the canonical MCP schema before dispatch', async () => {
+        const callTool = vi.fn().mockResolvedValue({ ok: true });
+        const connections = new TestMCPConnections();
+        connections.set(
+            createConnection({
+                id: 'connection-1',
+                tools: async () => ({
+                    lookup: {
+                        description: 'Lookup a record',
+                        parameters: {
+                            additionalProperties: false,
+                            properties: { id: { type: 'string' } },
+                            required: ['id'],
+                            type: 'object',
+                        },
+                    },
+                }),
+                callTool,
+            })
+        );
+        const manager = await createManager(connections);
+
+        expect(manager.validateToolInput('lookup', { id: 'record-1' })).toEqual({
+            id: 'record-1',
+        });
+        expect(() => manager.validateToolInput('lookup', { id: 42 })).toThrow(
+            "MCP tool 'lookup' received invalid arguments"
+        );
+        expect(() => manager.validateToolInput('lookup', { id: 'record-1', extra: true })).toThrow(
+            "MCP tool 'lookup' received invalid arguments"
+        );
+
+        await expect(manager.executeTool('lookup', { id: 42 })).rejects.toThrow(
+            "MCP tool 'lookup' received invalid arguments"
+        );
+        expect(callTool).not.toHaveBeenCalled();
     });
 
     it('qualifies conflicts and restores the simple alias when one connection remains', async () => {
@@ -164,18 +207,58 @@ describe('MCPManager', () => {
         });
     });
 
-    it('rejects display names that produce the same callable namespace', async () => {
+    it('uses stable connection-derived suffixes when display names produce the same namespace', async () => {
         const connections = new TestMCPConnections();
         connections.set(
-            createConnection({ id: 'one', name: 'my@server', tools: async () => ({}) })
+            createConnection({
+                id: 'connection-one',
+                name: 'my@server',
+                tools: async () => ({ shared: tool('First') }),
+            })
         );
         connections.set(
-            createConnection({ id: 'two', name: 'my_server', tools: async () => ({}) })
+            createConnection({
+                id: 'connection-two',
+                name: 'my_server',
+                tools: async () => ({ shared: tool('Second') }),
+            })
+        );
+        const manager = await createManager(connections);
+        const aliasesByIdentity = new Map(
+            manager
+                .getToolDescriptors()
+                .map((descriptor) => [descriptor.identity.connectionId, descriptor.name])
         );
 
-        await expect(createManager(connections)).rejects.toMatchObject({
-            code: MCPErrorCode.DUPLICATE_NAME,
-        });
+        const reversedConnections = new TestMCPConnections();
+        reversedConnections.set(
+            createConnection({
+                id: 'connection-two',
+                name: 'my_server',
+                tools: async () => ({ shared: tool('Second') }),
+            })
+        );
+        reversedConnections.set(
+            createConnection({
+                id: 'connection-one',
+                name: 'my@server',
+                tools: async () => ({ shared: tool('First') }),
+            })
+        );
+        const reversedManager = await createManager(reversedConnections);
+
+        expect(aliasesByIdentity).toEqual(
+            new Map(
+                reversedManager
+                    .getToolDescriptors()
+                    .map((descriptor) => [descriptor.identity.connectionId, descriptor.name])
+            )
+        );
+        expect(Array.from(aliasesByIdentity.values())).toEqual([
+            expect.stringMatching(/^my_server_[a-z0-9]+--shared$/),
+            expect.stringMatching(/^my_server_[a-z0-9]+--shared$/),
+        ]);
+        expect(new Set(aliasesByIdentity.values()).size).toBe(2);
     });
 
     it('keeps canonical identity stable when the display name changes', async () => {
@@ -218,15 +301,28 @@ describe('MCPManager', () => {
             })
         );
         const manager = await createManager(connections, eventBus);
+        const initialFingerprint = manager.getToolDescriptor('old_tool')?.schemaFingerprint;
         getTools.mockClear();
         listPrompts.mockClear();
         listResources.mockClear();
 
-        tools = { new_tool: tool('New') };
+        tools = {
+            new_tool: {
+                description: 'New',
+                parameters: {
+                    properties: { id: { type: 'string' } },
+                    required: ['id'],
+                    type: 'object',
+                },
+            },
+        };
         await connections.announce({ type: 'tools-changed', connectionId: 'server-1' });
 
         expect(manager.getToolDescriptor('old_tool')).toBeUndefined();
         expect(manager.getToolDescriptor('new_tool')).toBeDefined();
+        expect(manager.getToolDescriptor('new_tool')?.schemaFingerprint).not.toBe(
+            initialFingerprint
+        );
         expect(getTools).toHaveBeenCalledOnce();
         expect(listPrompts).not.toHaveBeenCalled();
         expect(listResources).not.toHaveBeenCalled();

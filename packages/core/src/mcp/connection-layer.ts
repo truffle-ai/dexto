@@ -10,7 +10,13 @@ import type { MCPResourceSummary } from './types.js';
 
 export type MCPConnectionCallContext = Pick<
     ToolExecutionContextBase,
-    'abortSignal' | 'hostRuntime' | 'logger' | 'runContext' | 'sessionId' | 'toolCallId'
+    | 'abortSignal'
+    | 'hostRuntime'
+    | 'logger'
+    | 'parentToolCallId'
+    | 'runContext'
+    | 'sessionId'
+    | 'toolCallId'
 >;
 
 export interface MCPConnection {

@@ -77,6 +77,8 @@ export interface ToolExecutionContextBase {
     abortSignal?: AbortSignal | undefined;
     /** Unique tool call ID for tracking parallel tool calls */
     toolCallId?: string | undefined;
+    /** Outer tool call that owns this nested execution, when applicable. */
+    parentToolCallId?: string | undefined;
     /** Host-owned runtime IDs for orchestration and correlation */
     hostRuntime?: HostRuntimeContext | undefined;
 
@@ -308,6 +310,8 @@ interface ToolDescriptorBase {
     inputSchema: JSONSchema7;
     /** Absent when the provider cannot make a trustworthy result-shape guarantee. */
     outputSchema?: JSONSchema7;
+    /** Stable fingerprint of the input/output contract for grant and replay validation. */
+    schemaFingerprint: string;
 }
 
 export type ToolIdentity =

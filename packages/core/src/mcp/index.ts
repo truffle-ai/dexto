@@ -3,6 +3,7 @@ export { ConfiguredMCPConnections } from './configured-connections.js';
 export type { ConnectionFailure, MCPConnectionManagement } from './configured-connections.js';
 export type {
     MCPConnection,
+    MCPConnectionCallContext,
     MCPConnectionChange,
     MCPConnectionLayer,
     MCPConnectionListener,

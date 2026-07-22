@@ -110,6 +110,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 },
                 inputSchema: { type: 'object', additionalProperties: true },
             })),
+            validateToolInput: vi.fn().mockImplementation((_toolName, input) => input),
             executeTool: vi.fn(),
             getToolConnection: vi.fn(),
             refresh: vi.fn().mockResolvedValue(undefined),
@@ -515,7 +516,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             expect(mockApprovalManager.requestToolApproval).not.toHaveBeenCalled();
         });
 
-        it('currently prepares MCP input without validating the discovered JSON schema', async () => {
+        it('prepares invalid MCP input as a model-visible invalid-input result', async () => {
             mockMcpManager.getAllTools = vi.fn().mockResolvedValue({
                 read_file: {
                     name: 'read_file',
@@ -538,6 +539,9 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 [],
                 mockLogger
             );
+            mockMcpManager.validateToolInput = vi.fn(() => {
+                throw new Error("MCP tool 'read_file' received invalid arguments: /path: type");
+            });
 
             const prepared = await toolManager.prepareToolCall({
                 toolName: 'mcp--read_file',
@@ -545,19 +549,17 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 toolCallId: 'call-mcp-validation-characterization',
             });
 
-            expect(prepared).toEqual(
+            expect(prepared.kind).toBe('terminal');
+            if (prepared.kind !== 'terminal') {
+                throw new Error('Expected invalid-input prepared');
+            }
+            expect(prepared.reason).toBe('invalid-input');
+            expect(prepared.modelVisibleResult.result).toEqual(
                 expect.objectContaining({
-                    kind: 'ready',
-                    call: expect.objectContaining({
-                        input: { path: 42 },
-                        presentationSnapshot: {
-                            version: 1,
-                            source: { type: 'mcp' },
-                            header: { title: 'Read File' },
-                        },
-                    }),
+                    error: expect.stringContaining('received invalid arguments'),
                 })
             );
+            expect(mockMcpManager.executeTool).not.toHaveBeenCalled();
         });
 
         it('records a prepared approval request with stable turn identity', async () => {
@@ -1525,6 +1527,131 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     success: true,
                 }),
                 expect.objectContaining({ toolManager })
+            );
+        });
+
+        it('records a nested prepared call as canonical child execution without model tool events', async () => {
+            const execute = vi.fn().mockResolvedValue({ found: true });
+            const toolExecutionStore = new InMemoryDextoStores().getStore('toolExecutions');
+            const toolManager = new ToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'auto-approve',
+                mockAgentEventBus,
+                { alwaysAllow: [] },
+                [
+                    defineTool({
+                        id: 'lookup',
+                        description: 'Lookup a record',
+                        inputSchema: z.object({ id: z.string() }).strict(),
+                        execute,
+                    }),
+                ],
+                mockLogger,
+                createInMemorySessionToolPreferencesStore(mockLogger),
+                toolExecutionStore
+            );
+            toolManager.setToolExecutionContextFactory((baseContext) => baseContext);
+            const executionIdentity = {
+                modelStepId: 'step-1',
+                parentToolCallId: 'code-execute-call',
+                runId: 'run-1',
+                toolCallId: 'code-execute-call:1',
+                turnId: 'turn-1',
+            };
+            const prepared = await toolManager.prepareToolCall({
+                input: { id: 'record-1' },
+                parentToolCallId: 'code-execute-call',
+                sessionId: 'session-1',
+                toolCallId: 'code-execute-call:1',
+                toolName: 'lookup',
+            });
+            if (prepared.kind !== 'ready') {
+                throw new Error('Expected ready nested call');
+            }
+
+            await expect(
+                toolManager.executePreparedToolCall(prepared.call, {
+                    executionIdentity,
+                    sessionId: 'session-1',
+                })
+            ).resolves.toEqual(
+                expect.objectContaining({
+                    result: { found: true },
+                })
+            );
+
+            expect(execute).toHaveBeenCalledWith(
+                { id: 'record-1' },
+                expect.objectContaining({
+                    parentToolCallId: 'code-execute-call',
+                    toolCallId: 'code-execute-call:1',
+                })
+            );
+            await expect(
+                toolExecutionStore.get({ executionId: createToolExecutionId(executionIdentity) })
+            ).resolves.toEqual(
+                expect.objectContaining({
+                    identity: executionIdentity,
+                    modelOutput: { found: true },
+                    status: 'completed',
+                })
+            );
+            expect(mockAgentEventBus.emit).toHaveBeenCalledWith(
+                'tool:running',
+                expect.objectContaining({
+                    parentToolCallId: 'code-execute-call',
+                    toolCallId: 'code-execute-call:1',
+                })
+            );
+            expect(mockAgentEventBus.emit).not.toHaveBeenCalledWith(
+                'llm:tool-call',
+                expect.anything()
+            );
+            expect(mockAgentEventBus.emit).not.toHaveBeenCalledWith(
+                'llm:tool-result',
+                expect.anything()
+            );
+        });
+
+        it('carries the owning parent into nested approval metadata', async () => {
+            const toolManager = createToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'manual',
+                mockAgentEventBus,
+                { alwaysAllow: [] },
+                [
+                    defineTool({
+                        id: 'update_record',
+                        description: 'Update a record',
+                        inputSchema: z.object({ id: z.string() }).strict(),
+                        execute: vi.fn(),
+                    }),
+                ],
+                mockLogger
+            );
+
+            const prepared = await toolManager.prepareToolCall({
+                input: { id: 'record-1' },
+                parentToolCallId: 'code-execute-call',
+                sessionId: 'session-1',
+                toolCallId: 'code-execute-call:2',
+                toolName: 'update_record',
+            });
+
+            expect(prepared).toEqual(
+                expect.objectContaining({
+                    kind: 'approval-required',
+                    requestDetails: expect.objectContaining({
+                        metadata: expect.objectContaining({
+                            parentToolCallId: 'code-execute-call',
+                            toolCallId: 'code-execute-call:2',
+                        }),
+                    }),
+                })
             );
         });
 

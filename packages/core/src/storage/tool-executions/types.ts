@@ -1,14 +1,15 @@
-import { createHash } from 'crypto';
 import { z } from 'zod';
 import type { ToolExecutionResult } from '../../tools/types.js';
 import { ToolPresentationSnapshotV1Schema } from '../../tools/presentation-schema.js';
 import type { ToolCallMetadata } from '../../tools/tool-call-metadata.js';
+import { stableFingerprint } from '../../utils/stable-fingerprint.js';
 
 export const ToolExecutionIdentitySchema = z
     .object({
         runId: z.string().min(1),
         turnId: z.string().min(1),
         modelStepId: z.string().min(1),
+        parentToolCallId: z.string().min(1).optional(),
         toolCallId: z.string().min(1),
     })
     .strict();
@@ -102,9 +103,10 @@ export function createToolExecutionId(identity: ToolExecutionIdentity): string {
         identity.runId,
         identity.turnId,
         identity.modelStepId,
+        identity.parentToolCallId ?? null,
         identity.toolCallId,
     ]);
-    return `tool-exec-${createHash('sha256').update(key).digest('hex')}`;
+    return `tool-exec-${stableFingerprint(key)}`;
 }
 
 export function splitToolExecutionResult(result: ToolExecutionResult): {
