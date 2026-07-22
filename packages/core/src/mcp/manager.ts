@@ -4,14 +4,19 @@ import type {
     GetPromptResult,
     ReadResourceResult,
     Prompt,
+    Tool,
 } from '@modelcontextprotocol/sdk/types.js';
 import type { MCPResolvedResource, MCPResourceSummary } from './types.js';
 import type { MCPToolDescriptor, ToolSet } from '../tools/types.js';
 import { MCPError } from './errors.js';
 import { eventBus, type AgentEventBus } from '../events/index.js';
 import type { PromptDefinition } from '../prompts/types.js';
-import type { AgentRunContext } from '../runtime/run-context.js';
-import type { MCPConnection, MCPConnectionChange, MCPConnectionLayer } from './connection-layer.js';
+import type {
+    MCPConnection,
+    MCPConnectionCallContext,
+    MCPConnectionChange,
+    MCPConnectionLayer,
+} from './connection-layer.js';
 
 /** Normalizes and dispatches capabilities supplied by one host-owned MCP connection layer. */
 type ResourceCacheEntry = {
@@ -126,7 +131,7 @@ export class MCPManager {
 
     private async loadTools(connection: MCPConnection): Promise<CatalogLoad<ToolSet>> {
         try {
-            const tools = await connection.getTools();
+            const tools = this.normalizeTools(await connection.listTools());
             this.logger.debug(
                 `🔧 Discovered ${Object.keys(tools).length} tools from connection '${connection.name}': [${Object.keys(tools).join(', ')}]`
             );
@@ -137,6 +142,21 @@ export class MCPManager {
             );
             return { status: 'failed' };
         }
+    }
+
+    private normalizeTools(tools: readonly Tool[]): ToolSet {
+        return Object.fromEntries(
+            tools.map((tool) => [
+                tool.name,
+                {
+                    description: tool.description ?? '',
+                    parameters: tool.inputSchema,
+                    ...(tool.outputSchema === undefined ? {} : { outputSchema: tool.outputSchema }),
+                    ...(tool.annotations === undefined ? {} : { annotations: tool.annotations }),
+                    ...(tool._meta === undefined ? {} : { _meta: tool._meta }),
+                },
+            ])
+        );
     }
 
     private async loadPrompts(connection: MCPConnection): Promise<CatalogLoad<Prompt[]>> {
@@ -384,8 +404,7 @@ export class MCPManager {
     async executeTool(
         toolName: string,
         args: Record<string, unknown>,
-        sessionId?: string,
-        runContext?: AgentRunContext
+        context?: MCPConnectionCallContext
     ): Promise<unknown> {
         const entry = this.toolCache.get(toolName);
         if (!entry) {
@@ -406,14 +425,7 @@ export class MCPManager {
         );
 
         try {
-            const invocation =
-                sessionId !== undefined || runContext !== undefined
-                    ? {
-                          ...(sessionId !== undefined ? { sessionId } : {}),
-                          ...(runContext !== undefined ? { runContext } : {}),
-                      }
-                    : undefined;
-            const result = await entry.connection.callTool(actualToolName, args, invocation);
+            const result = await entry.connection.callTool(actualToolName, args, context);
             return result;
         } catch (error) {
             this.logger.error(

@@ -4,8 +4,11 @@ import type {
     MCPConnectionLayer,
     MCPConnectionListener,
 } from '../mcp/connection-layer.js';
-import { connectionFromConfiguredClient } from '../mcp/configured-connections.js';
-import type { MCPConnectionClient } from '../mcp/configured-connections.js';
+import { ToolSchema } from '@modelcontextprotocol/sdk/types.js';
+import type { McpClient } from '../mcp/types.js';
+
+type TestMCPConnectionClient = Pick<McpClient, 'callTool' | 'getTools'> &
+    Partial<Pick<McpClient, 'getPrompt' | 'listPrompts' | 'listResources' | 'readResource'>>;
 
 export class TestMCPConnections implements MCPConnectionLayer {
     private readonly connections = new Map<string, MCPConnection>();
@@ -40,8 +43,35 @@ export class TestMCPConnections implements MCPConnectionLayer {
 
 export function connectionFromClient(
     id: string,
-    client: MCPConnectionClient,
+    client: TestMCPConnectionClient,
     name: string = id
 ): MCPConnection {
-    return connectionFromConfiguredClient(id, client, { name });
+    const listPrompts = client.listPrompts?.bind(client);
+    const getPrompt = client.getPrompt?.bind(client);
+    const listResources = client.listResources?.bind(client);
+    const readResource = client.readResource?.bind(client);
+    return {
+        id,
+        name,
+        listTools: async () =>
+            Object.entries(await client.getTools()).map(([toolName, definition]) =>
+                ToolSchema.parse({
+                    name: toolName,
+                    description: definition.description,
+                    inputSchema: definition.parameters,
+                    ...(definition.outputSchema === undefined
+                        ? {}
+                        : { outputSchema: definition.outputSchema }),
+                    ...(definition.annotations === undefined
+                        ? {}
+                        : { annotations: definition.annotations }),
+                    ...(definition._meta === undefined ? {} : { _meta: definition._meta }),
+                })
+            ),
+        callTool: (toolName, args, context) => client.callTool(toolName, args, context),
+        ...(listPrompts && getPrompt ? { prompts: { list: listPrompts, get: getPrompt } } : {}),
+        ...(listResources && readResource
+            ? { resources: { list: listResources, read: readResource } }
+            : {}),
+    };
 }

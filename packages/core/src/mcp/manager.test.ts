@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { ToolSchema, type Tool as MCPTool } from '@modelcontextprotocol/sdk/types.js';
 
 import { AgentEventBus } from '../events/index.js';
 import { createMockLogger } from '../logger/v2/test-utils.js';
@@ -25,6 +26,23 @@ function tool(description: string): ToolSet[string] {
     };
 }
 
+function rawTools(tools: ToolSet): MCPTool[] {
+    return Object.entries(tools).map(([name, definition]) =>
+        ToolSchema.parse({
+            name,
+            description: definition.description,
+            inputSchema: definition.parameters,
+            ...(definition.outputSchema === undefined
+                ? {}
+                : { outputSchema: definition.outputSchema }),
+            ...(definition.annotations === undefined
+                ? {}
+                : { annotations: definition.annotations }),
+            ...(definition._meta === undefined ? {} : { _meta: definition._meta }),
+        })
+    );
+}
+
 function createConnection(options: {
     id: string;
     name?: string;
@@ -36,7 +54,7 @@ function createConnection(options: {
     return {
         id: options.id,
         name: options.name ?? options.id,
-        getTools: options.tools,
+        listTools: async () => rawTools(await options.tools()),
         callTool: options.callTool ?? vi.fn().mockResolvedValue({ ok: true }),
         ...(options.prompts ? { prompts: options.prompts } : {}),
         ...(options.resources ? { resources: options.resources } : {}),
@@ -92,13 +110,15 @@ describe('MCPManager', () => {
             annotations: { readOnlyHint: true },
         });
 
+        const logger = createMockLogger();
         await expect(
-            manager.executeTool('search', { query: 'dexto' }, 'session-1')
+            manager.executeTool('search', { query: 'dexto' }, { logger, sessionId: 'session-1' })
         ).resolves.toEqual({ items: ['dexto'] });
         expect(invocation).toHaveBeenCalledWith(
             'search',
             { query: 'dexto' },
             {
+                logger,
                 sessionId: 'session-1',
             }
         );
@@ -360,12 +380,22 @@ describe('MCPManager', () => {
         );
         const manager = await createManager(connections);
 
-        await manager.executeTool('inspect', {}, 'session-1', runContext);
+        const logger = createMockLogger();
+        await manager.executeTool(
+            'inspect',
+            {},
+            {
+                logger,
+                runContext,
+                sessionId: 'session-1',
+                toolCallId: 'call-1',
+            }
+        );
 
         expect(callTool).toHaveBeenCalledWith(
             'inspect',
             {},
-            { sessionId: 'session-1', runContext }
+            { logger, sessionId: 'session-1', runContext, toolCallId: 'call-1' }
         );
     });
 

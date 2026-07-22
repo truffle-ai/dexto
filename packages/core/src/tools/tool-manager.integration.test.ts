@@ -223,7 +223,10 @@ describe('ToolManager Integration Tests', () => {
             expect(mockClient.callTool).toHaveBeenCalledWith(
                 'test_tool',
                 { param: 'value' },
-                undefined
+                expect.objectContaining({
+                    logger: mockLogger,
+                    toolCallId: 'test-call-id',
+                })
             );
             expect(result).toEqual(expect.objectContaining({ result: 'mcp tool result' }));
         });
@@ -500,12 +503,9 @@ describe('ToolManager Integration Tests', () => {
                     parameters: { type: 'object', properties: {} },
                 },
             });
-            mcpConnections.set({
-                id: 'added-server',
-                name: 'added-server',
-                getTools,
-                callTool: vi.fn(),
-            });
+            mcpConnections.set(
+                connectionFromClient('added-server', { getTools, callTool: vi.fn() })
+            );
             await mcpConnections.announce({ type: 'connections-changed' });
 
             expect(await toolManager.getAllTools()).toHaveProperty('mcp--added_tool');
@@ -648,9 +648,11 @@ describe('ToolManager Integration Tests', () => {
             expect(mockClient.callTool).toHaveBeenCalledWith(
                 'test_tool',
                 { param: 'value' },
-                {
+                expect.objectContaining({
+                    logger: mockLogger,
                     sessionId,
-                }
+                    toolCallId: 'test-call-id-1',
+                })
             );
 
             // Verify local tool was called with proper defaults

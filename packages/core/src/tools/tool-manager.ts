@@ -1,5 +1,6 @@
 import { isDeepStrictEqual } from 'node:util';
 import { MCPManager } from '../mcp/manager.js';
+import type { MCPConnectionCallContext } from '../mcp/connection-layer.js';
 import type { ToolPolicies } from './schemas.js';
 import {
     ToolSet,
@@ -890,6 +891,26 @@ export class ToolManager {
             logger: this.logger,
         };
         return this.toolExecutionContextFactory(baseContext);
+    }
+
+    private buildMCPConnectionCallContext(options: {
+        sessionId?: string | undefined;
+        abortSignal?: AbortSignal | undefined;
+        toolCallId: string;
+        runContext?: AgentRunContext | undefined;
+    }): MCPConnectionCallContext {
+        return {
+            logger: this.logger,
+            toolCallId: options.toolCallId,
+            ...(options.sessionId === undefined ? {} : { sessionId: options.sessionId }),
+            ...(options.abortSignal === undefined ? {} : { abortSignal: options.abortSignal }),
+            ...(options.runContext === undefined
+                ? {}
+                : {
+                      hostRuntime: options.runContext.hostRuntime,
+                      runContext: options.runContext,
+                  }),
+        };
     }
 
     private resolveToolExecutionInvocation(
@@ -1856,14 +1877,16 @@ export class ToolManager {
                 }
 
                 const executeMcpTool = () =>
-                    runContext === undefined
-                        ? this.mcpManager.executeTool(actualToolName, toolArgs, sessionId)
-                        : this.mcpManager.executeTool(
-                              actualToolName,
-                              toolArgs,
-                              sessionId,
-                              runContext
-                          );
+                    this.mcpManager.executeTool(
+                        actualToolName,
+                        toolArgs,
+                        this.buildMCPConnectionCallContext({
+                            sessionId,
+                            abortSignal,
+                            toolCallId: call.toolCallId,
+                            runContext,
+                        })
+                    );
                 if (call.meta?.runInBackground === true && !backgroundTasksEnabled) {
                     this.logger.debug(
                         'Background tool execution disabled; running synchronously instead.',

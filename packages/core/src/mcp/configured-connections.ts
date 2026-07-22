@@ -26,7 +26,7 @@ export interface MCPConnectionManagement {
     setAuthProviderFactory(factory: McpAuthProviderFactory | null): void;
 }
 
-export type MCPConnectionClient = Pick<McpClient, 'getTools' | 'callTool'> &
+export type MCPConnectionClient = Pick<McpClient, 'callTool' | 'getConnectedClient'> &
     Partial<Pick<McpClient, 'listPrompts' | 'getPrompt' | 'listResources' | 'readResource'>>;
 
 export function connectionFromConfiguredClient(
@@ -41,7 +41,7 @@ export function connectionFromConfiguredClient(
     return {
         id,
         name: options.name ?? id,
-        getTools: () => client.getTools(),
+        listTools: async () => (await (await client.getConnectedClient()).listTools({})).tools,
         callTool: (toolName, args, context) => client.callTool(toolName, args, context),
         ...(options.prompts !== false && listPrompts && getPrompt
             ? {

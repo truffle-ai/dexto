@@ -1220,7 +1220,11 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             expect(mockMcpManager.executeTool).toHaveBeenCalledWith(
                 'filesystem--read_file',
                 { path: '/tmp/file.txt' },
-                'session-1'
+                expect.objectContaining({
+                    logger: mockLogger,
+                    sessionId: 'session-1',
+                    toolCallId: 'call-prepared-mcp',
+                })
             );
         });
 
@@ -3105,8 +3109,12 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             expect(mockMcpManager.executeTool).toHaveBeenCalledWith(
                 'file_read',
                 { path: '/test' },
-                'session-1',
-                runContext
+                expect.objectContaining({
+                    logger: mockLogger,
+                    runContext,
+                    sessionId: 'session-1',
+                    toolCallId: 'call-789',
+                })
             );
         });
 
@@ -3163,7 +3171,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             expect(mockMcpManager.executeTool).toHaveBeenCalledWith(
                 'file_read',
                 { path: '/test' },
-                undefined
+                expect.objectContaining({ logger: mockLogger, toolCallId: 'test-call-id' })
             );
             expect(result).toEqual(
                 expect.objectContaining({
@@ -3939,7 +3947,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             expect(mockMcpManager.executeTool).toHaveBeenCalledWith(
                 'filesystem--read_file',
                 { path: '/test' },
-                undefined
+                expect.objectContaining({ logger: mockLogger, toolCallId: 'test-call-id' })
             );
         });
 
@@ -4068,7 +4076,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             expect(mockMcpManager.executeTool).toHaveBeenLastCalledWith(
                 'read_file',
                 { path: '/test' },
-                undefined
+                expect.objectContaining({ logger: mockLogger, toolCallId: 'call-1' })
             );
 
             await toolManager.executeTool(
@@ -4079,14 +4087,14 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             expect(mockMcpManager.executeTool).toHaveBeenLastCalledWith(
                 'filesystem--read_file',
                 { path: '/test' },
-                undefined
+                expect.objectContaining({ logger: mockLogger, toolCallId: 'call-2' })
             );
 
             await toolManager.executeTool('mcp--server2--list_directory', {}, 'call-3');
             expect(mockMcpManager.executeTool).toHaveBeenLastCalledWith(
                 'server2--list_directory',
                 {},
-                undefined
+                expect.objectContaining({ logger: mockLogger, toolCallId: 'call-3' })
             );
             expect(mockApprovalManager.requestToolApproval).not.toHaveBeenCalled();
         });
@@ -4481,7 +4489,15 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
 
                 // Should NOT have requested approval (auto-approved by session config)
                 expect(mockApprovalManager.requestToolApproval).not.toHaveBeenCalled();
-                expect(mockMcpManager.executeTool).toHaveBeenCalledWith('test_tool', {}, sessionId);
+                expect(mockMcpManager.executeTool).toHaveBeenCalledWith(
+                    'test_tool',
+                    {},
+                    expect.objectContaining({
+                        logger: mockLogger,
+                        sessionId,
+                        toolCallId: 'call-1',
+                    })
+                );
             });
 
             it('should still require approval for tools NOT in session auto-approve list', async () => {
