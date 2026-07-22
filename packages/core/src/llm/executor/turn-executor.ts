@@ -74,6 +74,9 @@ import {
     describeInternalMessageTailForAudit,
 } from '../../context/content-audit.js';
 import { cloneStructuredValuePreservingUrls } from '../../context/content-clone.js';
+import { DextoRuntimeError } from '../../errors/DextoRuntimeError.js';
+import { ErrorScope, ErrorType } from '../../errors/types.js';
+import { LLMErrorCode } from '../error-codes.js';
 
 const MCP_TOOL_PREFIX = 'mcp--';
 const MODEL_REQUEST_MAX_RETRIES = 2;
@@ -240,6 +243,7 @@ export const TurnDriverStateSchema = z.discriminatedUnion('phase', [
             startedAtMs: z.number().int().nonnegative(),
             supportsTools: z.boolean(),
             modelStepId: z.string(),
+            modelToolNames: z.array(z.string()),
             result: ModelStepResultStateSchema,
             toolCallsExecuted: z.boolean(),
         })
@@ -599,6 +603,12 @@ export class TurnExecutor {
         let currentStepScope: ModelStepScope | null = null;
         let currentResult: StreamProcessorResult | null =
             state.phase === 'model-step-complete' ? structuredClone(state.result) : null;
+        let currentModelToolNames =
+            state.phase === 'model-step-prepared'
+                ? Object.keys(state.request.toolDefinitions)
+                : state.phase === 'model-step-complete'
+                  ? [...state.modelToolNames]
+                  : [];
         let preparedModelRequest: ModelStepRequest | null =
             state.phase === 'model-step-prepared'
                 ? await this.restorePreparedModelRequest(state.request, state.supportsTools)
@@ -669,6 +679,7 @@ export class TurnExecutor {
                     startedAtMs: startTime,
                     supportsTools: turn.supportsTools,
                     modelStepId: this.currentModelStepId,
+                    modelToolNames: [...currentModelToolNames],
                     result: {
                         text: currentResult.text,
                         finishReason: currentResult.finishReason,
@@ -793,6 +804,7 @@ export class TurnExecutor {
                         this.logger
                     );
                     currentResult = result;
+                    currentModelToolNames = Object.keys(modelStepRequest.toolDefinitions);
                     currentToolCallsExecuted = result.finishReason !== 'tool-calls';
                     preparedModelRequest = null;
 
@@ -844,7 +856,8 @@ export class TurnExecutor {
                                     'tool.count': result.toolCalls.length,
                                 },
                             },
-                            () => this.executeModelToolCalls(result.toolCalls),
+                            () =>
+                                this.executeModelToolCalls(result.toolCalls, currentModelToolNames),
                             this.logger
                         );
                     } catch (error) {
@@ -886,6 +899,7 @@ export class TurnExecutor {
                 );
                 stepCount = nextStep.stepCount;
                 currentResult = null;
+                currentModelToolNames = [];
                 currentToolCallsExecuted = false;
                 closeCurrentStepScope();
                 if (nextStep.kind === 'stop') {
@@ -1403,11 +1417,13 @@ export class TurnExecutor {
                       attributes: { 'tools.supports': input.supportsTools },
                       resultAttributes: (tools) => ({ 'tools.count': Object.keys(tools).length }),
                   },
-                  async () =>
-                      this.toolManager.filterToolsForSession(
+                  async () => {
+                      const availableTools = this.toolManager.filterToolsForSession(
                           await this.toolManager.getAllTools(),
                           this.sessionId
-                      ),
+                      );
+                      return this.selectModelTools(availableTools, input.stepCount);
+                  },
                   this.logger
               )
             : {};
@@ -1790,8 +1806,69 @@ export class TurnExecutor {
         }
     }
 
-    private async executeModelToolCalls(toolCalls: ModelToolCall[]): Promise<void> {
+    private async selectModelTools(availableTools: ToolSet, stepCount: number): Promise<ToolSet> {
+        const selector = this.config.executionControl?.selectModelTools;
+        if (selector === undefined) {
+            return availableTools;
+        }
+
+        const selectedToolNames = await selector({
+            availableToolNames: Object.keys(availableTools),
+            modelStepId: this.currentModelStepId,
+            runContext: this.runContext,
+            sessionId: this.sessionId,
+            stepCount,
+        });
+        if (!Array.isArray(selectedToolNames)) {
+            throw new DextoRuntimeError(
+                LLMErrorCode.REQUEST_INVALID_SCHEMA,
+                ErrorScope.LLM,
+                ErrorType.SYSTEM,
+                'Model tool selector must return an array of tool names'
+            );
+        }
+
+        const selectedTools: ToolSet = {};
+        const seen = new Set<string>();
+        for (const toolName of selectedToolNames) {
+            if (typeof toolName !== 'string' || toolName === '') {
+                throw new DextoRuntimeError(
+                    LLMErrorCode.REQUEST_INVALID_SCHEMA,
+                    ErrorScope.LLM,
+                    ErrorType.SYSTEM,
+                    `Model tool selector returned unavailable tool '${String(toolName)}'`
+                );
+            }
+            const tool = availableTools[toolName];
+            if (tool === undefined) {
+                throw new DextoRuntimeError(
+                    LLMErrorCode.REQUEST_INVALID_SCHEMA,
+                    ErrorScope.LLM,
+                    ErrorType.SYSTEM,
+                    `Model tool selector returned unavailable tool '${toolName}'`
+                );
+            }
+            if (seen.has(toolName)) {
+                throw new DextoRuntimeError(
+                    LLMErrorCode.REQUEST_INVALID_SCHEMA,
+                    ErrorScope.LLM,
+                    ErrorType.SYSTEM,
+                    `Model tool selector returned duplicate tool '${toolName}'`
+                );
+            }
+            seen.add(toolName);
+            selectedTools[toolName] = tool;
+        }
+
+        return selectedTools;
+    }
+
+    private async executeModelToolCalls(
+        toolCalls: ModelToolCall[],
+        modelToolNames: readonly string[]
+    ): Promise<void> {
         const preparedCalls: PreparedModelToolCall[] = [];
+        const modelTools = new Set(modelToolNames);
 
         for (const toolCall of toolCalls) {
             preparedCalls.push(
@@ -1805,7 +1882,7 @@ export class TurnExecutor {
                         },
                         resultAttributes: (prepared) => ({ 'tool.prepare_kind': prepared.kind }),
                     },
-                    () => this.prepareModelToolCall(toolCall),
+                    () => this.prepareModelToolCall(toolCall, modelTools),
                     this.logger
                 )
             );
@@ -1853,7 +1930,10 @@ export class TurnExecutor {
         }
     }
 
-    private async prepareModelToolCall(toolCall: ModelToolCall): Promise<PreparedModelToolCall> {
+    private async prepareModelToolCall(
+        toolCall: ModelToolCall,
+        modelTools: ReadonlySet<string>
+    ): Promise<PreparedModelToolCall> {
         if (this.stepAbortController.signal.aborted) {
             return {
                 kind: 'terminal',
@@ -1862,6 +1942,17 @@ export class TurnExecutor {
                     this.buildToolCallFallbackSnapshot(toolCall.toolName)
                 ),
             };
+        }
+
+        if (!modelTools.has(toolCall.toolName)) {
+            const modelVisibleResult: ToolExecutionResult = {
+                result: {
+                    error: `Tool '${toolCall.toolName}' was not available for this model step`,
+                },
+                presentationSnapshot: this.buildToolCallFallbackSnapshot(toolCall.toolName),
+            };
+            this.emitFallbackToolCall(toolCall, modelVisibleResult);
+            return { kind: 'terminal', toolCall, modelVisibleResult };
         }
 
         let prepared: PreparedToolCall;

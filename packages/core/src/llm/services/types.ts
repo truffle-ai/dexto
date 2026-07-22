@@ -35,6 +35,21 @@ export type LLMExecutionControl = {
      * Hosted runtimes should keep follow-ups durable and promote them as separate runs.
      */
     followUpQueueMode?: 'core-continuation' | 'host-run' | undefined;
+    /**
+     * Selects the ordered subset of currently enabled tools advertised for one model step.
+     * Tool execution continues to resolve through ToolManager's complete canonical catalog.
+     */
+    selectModelTools?:
+        | ((input: ModelToolSelectionInput) => readonly string[] | Promise<readonly string[]>)
+        | undefined;
+};
+
+export type ModelToolSelectionInput = {
+    readonly availableToolNames: readonly string[];
+    readonly modelStepId: string;
+    readonly runContext: AgentRunContext | undefined;
+    readonly sessionId: string;
+    readonly stepCount: number;
 };
 
 export type CreateTurnDriverOptions = {
