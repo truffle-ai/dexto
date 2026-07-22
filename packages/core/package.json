@@ -133,6 +133,11 @@
             "import": "./dist/tools/index.js",
             "require": "./dist/tools/index.cjs"
         },
+        "./tools/identity": {
+            "types": "./dist/tools/identity.d.ts",
+            "import": "./dist/tools/identity.js",
+            "require": "./dist/tools/identity.cjs"
+        },
         "./tools/presentation": {
             "types": "./dist/tools/presentation.d.ts",
             "import": "./dist/tools/presentation.js",
