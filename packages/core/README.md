@@ -156,31 +156,26 @@ const models = agent.getSupportedModels();
 const openaiModels = agent.getSupportedModelsForProvider('openai');
 ```
 
-### MCP Manager
+### MCP servers
 
-For advanced MCP server management, use the MCPManager directly.
+Manage configured MCP servers through the agent. `MCPManager` consumes the host's injected MCP
+connection layer and is responsible only for catalog normalization and dispatch.
 
 ```typescript
-import { MCPManager } from '@dexto/core';
-
-const manager = new MCPManager();
-
 // Connect to MCP servers
-await manager.connectServer('filesystem', {
+await agent.addMcpServer('filesystem', {
   type: 'stdio',
   command: 'npx',
   args: ['-y', '@modelcontextprotocol/server-filesystem', '.']
 });
 
-// Access tools, prompts, and resources
-const tools = await manager.getAllTools();
-const prompts = await manager.getAllPrompts();
-const resources = await manager.getAllResources();
+// Access MCP tools
+const tools = await agent.getAllMcpTools();
 
 // Execute tools
-const result = await manager.executeTool('readFile', { path: './README.md' });
+const result = await agent.executeTool('readFile', { path: './README.md' });
 
-await manager.disconnectAll();
+await agent.removeMcpServer('filesystem');
 ```
 
 ### Agent-to-Agent Delegation

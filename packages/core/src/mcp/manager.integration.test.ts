@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { connectionFromClient, TestMCPConnections } from '../test-utils/mcp-connections.js';
 import { MCPManager } from './manager.js';
 import { DextoMcpClient } from './mcp-client.js';
 import { McpServerConfigSchema } from './schemas.js';
@@ -29,14 +30,17 @@ const MEMORY_DEMO_PATH = resolve(__dirname, '../../../../examples/memory-demo-se
 
 describe('MCPManager Integration Tests', () => {
     let manager: MCPManager;
+    let connections: TestMCPConnections;
     const mockLogger = createMockLogger();
 
-    beforeEach(() => {
-        manager = new MCPManager(mockLogger);
+    beforeEach(async () => {
+        connections = new TestMCPConnections();
+        manager = new MCPManager(connections, mockLogger);
+        await manager.initialize();
     });
 
     afterEach(async () => {
-        await manager.disconnectAll();
+        await manager.close();
     });
 
     describe('Resources Demo Server (Comprehensive)', () => {
@@ -51,7 +55,7 @@ describe('MCPManager Integration Tests', () => {
             const client = new DextoMcpClient(mockLogger);
             await client.connect(config, 'resources-demo');
 
-            manager.registerClient('resources-demo', client);
+            connections.set(connectionFromClient('resources-demo', client));
             await manager.refresh();
 
             // Verify resources are cached
@@ -84,7 +88,7 @@ describe('MCPManager Integration Tests', () => {
             const client = new DextoMcpClient(mockLogger);
             await client.connect(config, 'resources-demo');
 
-            manager.registerClient('resources-demo', client);
+            connections.set(connectionFromClient('resources-demo', client));
             await manager.refresh();
 
             // Read a resource
@@ -113,7 +117,7 @@ describe('MCPManager Integration Tests', () => {
             const client = new DextoMcpClient(mockLogger);
             await client.connect(config, 'resources-demo');
 
-            manager.registerClient('resources-demo', client);
+            connections.set(connectionFromClient('resources-demo', client));
             await manager.refresh();
 
             // Verify prompts are cached
@@ -143,7 +147,7 @@ describe('MCPManager Integration Tests', () => {
             const client = new DextoMcpClient(mockLogger);
             await client.connect(config, 'resources-demo');
 
-            manager.registerClient('resources-demo', client);
+            connections.set(connectionFromClient('resources-demo', client));
             await manager.refresh();
 
             // Get a prompt with arguments
@@ -174,7 +178,7 @@ describe('MCPManager Integration Tests', () => {
             const client = new DextoMcpClient(mockLogger);
             await client.connect(config, 'resources-demo');
 
-            manager.registerClient('resources-demo', client);
+            connections.set(connectionFromClient('resources-demo', client));
             await manager.refresh();
 
             // Verify tools are cached
@@ -210,7 +214,7 @@ describe('MCPManager Integration Tests', () => {
             const client = new DextoMcpClient(mockLogger);
             await client.connect(config, 'resources-demo');
 
-            manager.registerClient('resources-demo', client);
+            connections.set(connectionFromClient('resources-demo', client));
             await manager.refresh();
 
             // Check all three capabilities
@@ -245,7 +249,7 @@ describe('MCPManager Integration Tests', () => {
             const client = new DextoMcpClient(mockLogger);
             await client.connect(config, 'memory');
 
-            manager.registerClient('memory', client);
+            connections.set(connectionFromClient('memory', client));
             await manager.refresh();
 
             // Verify tools are cached
@@ -286,8 +290,8 @@ describe('MCPManager Integration Tests', () => {
             await memoryClient.connect(memoryConfig, 'memory');
 
             // Register both
-            manager.registerClient('resources-demo', resourcesClient);
-            manager.registerClient('memory', memoryClient);
+            connections.set(connectionFromClient('resources-demo', resourcesClient));
+            connections.set(connectionFromClient('memory', memoryClient));
 
             await manager.refresh();
 
@@ -326,15 +330,16 @@ describe('MCPManager Integration Tests', () => {
             const memoryClient = new DextoMcpClient(mockLogger);
             await memoryClient.connect(memoryConfig, 'memory');
 
-            manager.registerClient('resources-demo', resourcesClient);
-            manager.registerClient('memory', memoryClient);
+            connections.set(connectionFromClient('resources-demo', resourcesClient));
+            connections.set(connectionFromClient('memory', memoryClient));
 
             await manager.refresh();
 
             const toolsBefore = Object.keys(await manager.getAllTools()).length;
 
             // Remove resources-demo
-            await manager.removeClient('resources-demo');
+            connections.delete('resources-demo');
+            await manager.refresh();
 
             const resourcesAfter = (await manager.listAllResources()).length;
             const toolsAfter = Object.keys(await manager.getAllTools()).length;
@@ -361,7 +366,7 @@ describe('MCPManager Integration Tests', () => {
             const client = new DextoMcpClient(mockLogger);
             await client.connect(config, 'memory');
 
-            manager.registerClient('memory', client);
+            connections.set(connectionFromClient('memory', client));
 
             // Time first call (populates cache)
             const start1 = Date.now();

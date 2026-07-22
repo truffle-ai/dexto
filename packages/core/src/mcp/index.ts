@@ -1,4 +1,12 @@
 export { MCPManager } from './manager.js';
+export { ConfiguredMCPConnections } from './configured-connections.js';
+export type { ConnectionFailure, MCPConnectionManagement } from './configured-connections.js';
+export type {
+    MCPConnection,
+    MCPConnectionChange,
+    MCPConnectionLayer,
+    MCPConnectionListener,
+} from './connection-layer.js';
 export { DextoMcpClient } from './mcp-client.js';
 export type {
     McpAuthProvider,

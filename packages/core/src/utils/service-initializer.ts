@@ -7,6 +7,9 @@
  */
 
 import { MCPManager } from '../mcp/manager.js';
+import { ConfiguredMCPConnections } from '../mcp/configured-connections.js';
+import type { MCPConnectionManagement } from '../mcp/configured-connections.js';
+import type { MCPConnectionLayer } from '../mcp/connection-layer.js';
 import { ToolManager } from '../tools/tool-manager.js';
 import type { ToolPolicies } from '../tools/schemas.js';
 import type { Tool } from '../tools/types.js';
@@ -39,6 +42,8 @@ import type { WorkspaceHandleProvider } from '../workspace/types.js';
  */
 export type AgentServices = {
     mcpManager: MCPManager;
+    mcpConnections: MCPConnectionLayer;
+    mcpConnectionManagement?: MCPConnectionManagement;
     toolManager: ToolManager;
     systemPromptManager: SystemPromptManager;
     agentEventBus: AgentEventBus;
@@ -82,6 +87,7 @@ export type InitializeServicesOptions = {
     languageModelFactory?: LanguageModelFactory;
     authResolver?: LlmAuthResolver | null;
     mcpAuthProviderFactory?: import('../mcp/types.js').McpAuthProviderFactory | null;
+    mcpConnections?: MCPConnectionLayer;
     toolManager?: ToolManager;
     toolManagerFactory?: ToolManagerFactory;
     stores?: DextoStores;
@@ -198,15 +204,23 @@ export async function createAgentServices(
     logger.debug('Approval system initialized');
 
     // 4. Initialize MCP manager
-    const mcpManager = new MCPManager(logger, agentEventBus);
-    if (overrides?.mcpAuthProviderFactory) {
-        mcpManager.setAuthProviderFactory(overrides.mcpAuthProviderFactory);
+    let mcpConnections: MCPConnectionLayer;
+    let mcpConnectionManagement: MCPConnectionManagement | undefined;
+    if (overrides?.mcpConnections) {
+        mcpConnections = overrides.mcpConnections;
+    } else {
+        const configuredConnections = new ConfiguredMCPConnections(logger, {
+            ...(overrides?.mcpAuthProviderFactory !== undefined && {
+                authProviderFactory: overrides.mcpAuthProviderFactory,
+            }),
+            approvalManager,
+        });
+        await configuredConnections.initializeFromConfig(config.mcpServers);
+        mcpConnections = configuredConnections;
+        mcpConnectionManagement = configuredConnections;
     }
-    await mcpManager.initializeFromConfig(config.mcpServers);
-
-    // 4.1 - Wire approval manager into MCP manager for elicitation support
-    mcpManager.setApprovalManager(approvalManager);
-    logger.debug('Approval manager connected to MCP manager for elicitation support');
+    const mcpManager = new MCPManager(mcpConnections, logger, agentEventBus);
+    await mcpManager.initialize();
 
     // 5. Initialize search service
     const searchService = new SearchService(conversationStore, sessionStore, logger);
@@ -349,6 +363,8 @@ export async function createAgentServices(
     // 13. Return the core services
     return {
         mcpManager,
+        mcpConnections,
+        ...(mcpConnectionManagement ? { mcpConnectionManagement } : {}),
         toolManager,
         systemPromptManager,
         agentEventBus,

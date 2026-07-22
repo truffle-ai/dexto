@@ -111,7 +111,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 inputSchema: { type: 'object', additionalProperties: true },
             })),
             executeTool: vi.fn(),
-            getToolClient: vi.fn(),
+            getToolConnection: vi.fn(),
             refresh: vi.fn().mockResolvedValue(undefined),
         } as any;
 
@@ -3607,6 +3607,35 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             expect(mockMcpManager.getAllTools).toHaveBeenCalledTimes(2);
         });
 
+        it('invalidates its combined cache after MCPManager commits a tool catalog change', async () => {
+            let toolsChangedListener: ((payload: { serverName: string }) => void) | undefined;
+            mockAgentEventBus.on = vi.fn((eventName, listener) => {
+                if (eventName === 'mcp:tools-list-changed') {
+                    toolsChangedListener = listener as (payload: { serverName: string }) => void;
+                }
+                return mockAgentEventBus;
+            }) as typeof mockAgentEventBus.on;
+            mockMcpManager.getAllTools = vi
+                .fn()
+                .mockResolvedValueOnce({ old_tool: { description: 'Old', parameters: {} } })
+                .mockResolvedValueOnce({ new_tool: { description: 'New', parameters: {} } });
+            const toolManager = createToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'manual',
+                mockAgentEventBus,
+                { alwaysAllow: [] },
+                [],
+                mockLogger
+            );
+
+            expect(await toolManager.getAllTools()).toHaveProperty('mcp--old_tool');
+            toolsChangedListener?.({ serverName: 'server-1' });
+            expect(await toolManager.getAllTools()).toHaveProperty('mcp--new_tool');
+            expect(mockMcpManager.getAllTools).toHaveBeenCalledTimes(2);
+        });
+
         it('invalidates cache when the workspace changes', async () => {
             mockMcpManager.getAllTools = vi.fn().mockResolvedValue({});
             let workspaceChangedListener:
@@ -3743,7 +3772,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
 
     describe('Tool Existence Checking Logic', () => {
         it('should check MCP tool existence correctly', async () => {
-            mockMcpManager.getToolClient = vi.fn().mockReturnValue({});
+            mockMcpManager.getToolConnection = vi.fn().mockReturnValue({});
 
             const toolManager = createToolManager(
                 mockMcpManager,
@@ -3758,12 +3787,12 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
 
             const exists = await toolManager.hasTool('mcp--file_read');
 
-            expect(mockMcpManager.getToolClient).toHaveBeenCalledWith('file_read');
+            expect(mockMcpManager.getToolConnection).toHaveBeenCalledWith('file_read');
             expect(exists).toBe(true);
         });
 
         it('should return false for non-existent MCP tools', async () => {
-            mockMcpManager.getToolClient = vi.fn().mockReturnValue(undefined);
+            mockMcpManager.getToolConnection = vi.fn().mockReturnValue(undefined);
 
             const toolManager = createToolManager(
                 mockMcpManager,

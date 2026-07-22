@@ -16,6 +16,7 @@ import { MessageQueueService } from '../../session/message-queue.js';
 import { SystemPromptManager } from '../../systemPrompt/manager.js';
 import { VercelMessageFormatter } from '../formatters/vercel.js';
 import { MCPManager } from '../../mcp/manager.js';
+import { TestMCPConnections } from '../../test-utils/mcp-connections.js';
 import { ApprovalManager } from '../../approval/manager.js';
 import { createLogger } from '../../logger/factory.js';
 import { MemoryManager } from '../../memory/index.js';
@@ -358,7 +359,9 @@ describe('TurnExecutor Integration Tests', () => {
         await stores.connect();
 
         // Create real MCP manager
-        mcpManager = new MCPManager(logger, agentEventBus);
+        const mcpConnections = new TestMCPConnections();
+        mcpManager = new MCPManager(mcpConnections, logger, agentEventBus);
+        await mcpManager.initialize();
 
         // Create real resource manager with proper wiring
         resourceManager = new ResourceManager(

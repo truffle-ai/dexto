@@ -622,19 +622,9 @@ export class ToolManager {
      * Set up listeners for MCP notifications to invalidate cache on changes
      */
     private setupNotificationListeners(): void {
-        // Listen for MCP server connection changes that affect tools
-        this.agentEventBus.on('mcp:server-connected', async (payload) => {
-            if (payload.success) {
-                this.logger.debug(
-                    `🔄 MCP server connected, invalidating tool cache: ${payload.name}`
-                );
-                this.invalidateCache();
-            }
-        });
-
-        this.agentEventBus.on('mcp:server-removed', async (payload) => {
+        this.agentEventBus.on('mcp:tools-list-changed', (payload) => {
             this.logger.debug(
-                `🔄 MCP server removed: ${payload.serverName}, invalidating tool cache`
+                `MCP tools changed for '${payload.serverName}', invalidating combined tool cache`
             );
             this.invalidateCache();
         });
@@ -2063,7 +2053,7 @@ export class ToolManager {
         // Check MCP tools
         if (toolName.startsWith(ToolManager.MCP_TOOL_PREFIX)) {
             const actualToolName = toolName.substring(ToolManager.MCP_TOOL_PREFIX.length);
-            return this.mcpManager.getToolClient(actualToolName) !== undefined;
+            return this.mcpManager.getToolConnection(actualToolName) !== undefined;
         }
 
         // Local tools use their ids as-is.

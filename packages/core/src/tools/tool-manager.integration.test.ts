@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ToolManager } from './tool-manager.js';
+import { connectionFromClient, TestMCPConnections } from '../test-utils/mcp-connections.js';
 import { MCPManager } from '../mcp/manager.js';
 import { z } from 'zod';
-import type { McpClient } from '../mcp/types.js';
 import { AgentEventBus } from '../events/index.js';
 import { ApprovalManager } from '../approval/manager.js';
 import type { AllowedToolsProvider } from './approval/allowed-tools-provider/types.js';
@@ -68,6 +68,7 @@ vi.mock('../logger/index.js', () => ({
 
 describe('ToolManager Integration Tests', () => {
     let mcpManager: MCPManager;
+    let mcpConnections: TestMCPConnections;
     let approvalManager: ApprovalManager;
     let allowedToolsProvider: AllowedToolsProvider;
     let mockAgentEventBus: AgentEventBus;
@@ -142,18 +143,13 @@ describe('ToolManager Integration Tests', () => {
         };
     }
 
-    beforeEach(() => {
-        // Create real MCPManager
-        mcpManager = new MCPManager(mockLogger);
+    beforeEach(async () => {
+        mockAgentEventBus = new AgentEventBus();
 
-        // Create mock AgentEventBus
-        mockAgentEventBus = {
-            on: vi.fn(),
-            emit: vi.fn(),
-            off: vi.fn(),
-            once: vi.fn(),
-            removeAllListeners: vi.fn(),
-        } as any;
+        // Create real MCPManager
+        mcpConnections = new TestMCPConnections();
+        mcpManager = new MCPManager(mcpConnections, mockLogger, mockAgentEventBus);
+        await mcpManager.initialize();
 
         // Create ApprovalManager in auto-approve mode for integration tests
         approvalManager = createApprovalManager(
@@ -190,7 +186,7 @@ describe('ToolManager Integration Tests', () => {
     describe('End-to-End Tool Execution', () => {
         it('should execute MCP tools through the complete pipeline', async () => {
             // Create mock MCP client
-            const mockClient: McpClient = {
+            const mockClient = {
                 getTools: vi.fn().mockResolvedValue({
                     test_tool: {
                         name: 'test_tool',
@@ -199,14 +195,10 @@ describe('ToolManager Integration Tests', () => {
                     },
                 }),
                 callTool: vi.fn().mockResolvedValue('mcp tool result'),
-                listPrompts: vi.fn().mockResolvedValue([]),
-                listResources: vi.fn().mockResolvedValue([]),
-            } as any;
+            };
 
-            // Register mock client and update cache
-            mcpManager.registerClient('test-server', mockClient);
-            // Need to manually call updateClientCache since registerClient doesn't do it
-            await (mcpManager as any).updateClientCache('test-server', mockClient);
+            mcpConnections.set(connectionFromClient('test-server', mockClient));
+            await mcpManager.refresh();
 
             // Create ToolManager with real components
             const toolManager = createToolManager(
@@ -275,7 +267,7 @@ describe('ToolManager Integration Tests', () => {
 
         it('should work with both MCP and local tools together', async () => {
             // Set up MCP tool
-            const mockClient: McpClient = {
+            const mockClient = {
                 getTools: vi.fn().mockResolvedValue({
                     file_read: {
                         name: 'file_read',
@@ -284,12 +276,10 @@ describe('ToolManager Integration Tests', () => {
                     },
                 }),
                 callTool: vi.fn().mockResolvedValue('file content'),
-                listPrompts: vi.fn().mockResolvedValue([]),
-                listResources: vi.fn().mockResolvedValue([]),
-            } as any;
+            };
 
-            mcpManager.registerClient('file-server', mockClient);
-            await (mcpManager as any).updateClientCache('file-server', mockClient);
+            mcpConnections.set(connectionFromClient('file-server', mockClient));
+            await mcpManager.refresh();
 
             // Create ToolManager with both MCP and local tools
             const toolManager = createToolManager(
@@ -364,7 +354,7 @@ describe('ToolManager Integration Tests', () => {
                 },
                 mockLogger
             );
-            const mockClient: McpClient = {
+            const mockClient = {
                 getTools: vi.fn().mockResolvedValue({
                     test_tool: {
                         name: 'test_tool',
@@ -373,13 +363,12 @@ describe('ToolManager Integration Tests', () => {
                     },
                 }),
                 callTool: vi.fn().mockResolvedValue('approved result'),
-                listPrompts: vi.fn().mockResolvedValue([]),
-                listResources: vi.fn().mockResolvedValue([]),
-            } as any;
+            };
 
-            const mcpMgr = new MCPManager(mockLogger);
-            mcpMgr.registerClient('test-server', mockClient);
-            await (mcpMgr as any).updateClientCache('test-server', mockClient);
+            const connections = new TestMCPConnections();
+            connections.set(connectionFromClient('test-server', mockClient));
+            const mcpMgr = new MCPManager(connections, mockLogger);
+            await mcpMgr.initialize();
 
             const toolManager = createToolManager(
                 mcpMgr,
@@ -399,14 +388,13 @@ describe('ToolManager Integration Tests', () => {
 
     describe('Error Scenarios and Recovery', () => {
         it('should handle MCP client failures gracefully', async () => {
-            const failingClient: McpClient = {
+            const failingClient = {
                 getTools: vi.fn().mockRejectedValue(new Error('MCP connection failed')),
                 callTool: vi.fn(),
-                listPrompts: vi.fn().mockResolvedValue([]),
-                listResources: vi.fn().mockResolvedValue([]),
-            } as any;
+            };
 
-            mcpManager.registerClient('failing-server', failingClient);
+            mcpConnections.set(connectionFromClient('failing-server', failingClient));
+            await mcpManager.refresh();
 
             const toolManager = createToolManager(
                 mcpManager,
@@ -431,7 +419,7 @@ describe('ToolManager Integration Tests', () => {
         });
 
         it('should handle tool execution failures properly', async () => {
-            const failingClient: McpClient = {
+            const failingClient = {
                 getTools: vi.fn().mockResolvedValue({
                     failing_tool: {
                         name: 'failing_tool',
@@ -440,12 +428,10 @@ describe('ToolManager Integration Tests', () => {
                     },
                 }),
                 callTool: vi.fn().mockRejectedValue(new Error('Tool execution failed')),
-                listPrompts: vi.fn().mockResolvedValue([]),
-                listResources: vi.fn().mockResolvedValue([]),
-            } as any;
+            };
 
-            mcpManager.registerClient('failing-server', failingClient);
-            await (mcpManager as any).updateClientCache('failing-server', failingClient);
+            mcpConnections.set(connectionFromClient('failing-server', failingClient));
+            await mcpManager.refresh();
 
             const toolManager = createToolManager(
                 mcpManager,
@@ -495,8 +481,39 @@ describe('ToolManager Integration Tests', () => {
     });
 
     describe('Performance and Caching', () => {
+        it('updates the model-facing cache after an injected connection change', async () => {
+            const toolManager = createToolManager(
+                mcpManager,
+                approvalManager,
+                allowedToolsProvider,
+                'auto-approve',
+                mockAgentEventBus,
+                { alwaysAllow: [] },
+                [],
+                mockLogger
+            );
+            expect(await toolManager.getAllTools()).toEqual({});
+
+            const getTools = vi.fn().mockResolvedValue({
+                added_tool: {
+                    description: 'Added later',
+                    parameters: { type: 'object', properties: {} },
+                },
+            });
+            mcpConnections.set({
+                id: 'added-server',
+                name: 'added-server',
+                getTools,
+                callTool: vi.fn(),
+            });
+            await mcpConnections.announce({ type: 'connections-changed' });
+
+            expect(await toolManager.getAllTools()).toHaveProperty('mcp--added_tool');
+            expect(getTools).toHaveBeenCalledOnce();
+        });
+
         it('should cache tool discovery results efficiently', async () => {
-            const mockClient: McpClient = {
+            const mockClient = {
                 getTools: vi.fn().mockResolvedValue({
                     test_tool: {
                         name: 'test_tool',
@@ -505,14 +522,12 @@ describe('ToolManager Integration Tests', () => {
                     },
                 }),
                 callTool: vi.fn(),
-                listPrompts: vi.fn().mockResolvedValue([]),
-                listResources: vi.fn().mockResolvedValue([]),
-            } as any;
+            };
 
-            mcpManager.registerClient('test-server', mockClient);
-            await (mcpManager as any).updateClientCache('test-server', mockClient);
+            mcpConnections.set(connectionFromClient('test-server', mockClient));
+            await mcpManager.refresh();
 
-            // MCP client's getTools gets called during updateClientCache (1)
+            // MCP client's getTools gets called during the initial catalog refresh (1)
             expect(mockClient.getTools).toHaveBeenCalledTimes(1);
             vi.mocked(mockClient.getTools).mockClear();
 
@@ -534,13 +549,13 @@ describe('ToolManager Integration Tests', () => {
             await toolManager.getAllTools();
             await toolManager.getAllTools();
 
-            // With new architecture: MCPManager caches tools during updateClientCache
+            // MCPManager caches tools during catalog refresh.
             // So mockClient.getTools is NOT called again by toolManager.getAllTools()
             expect(mockClient.getTools).toHaveBeenCalledTimes(0);
         });
 
         it('should refresh cache when requested', async () => {
-            const mockClient: McpClient = {
+            const mockClient = {
                 getTools: vi.fn().mockResolvedValue({
                     test_tool: {
                         name: 'test_tool',
@@ -549,12 +564,10 @@ describe('ToolManager Integration Tests', () => {
                     },
                 }),
                 callTool: vi.fn(),
-                listPrompts: vi.fn().mockResolvedValue([]),
-                listResources: vi.fn().mockResolvedValue([]),
-            } as any;
+            };
 
-            mcpManager.registerClient('test-server', mockClient);
-            await (mcpManager as any).updateClientCache('test-server', mockClient);
+            mcpConnections.set(connectionFromClient('test-server', mockClient));
+            await mcpManager.refresh();
             expect(mockClient.getTools).toHaveBeenCalledTimes(1);
             vi.mocked(mockClient.getTools).mockClear();
 
@@ -588,7 +601,7 @@ describe('ToolManager Integration Tests', () => {
 
     describe('Session ID Handling', () => {
         it('should pass sessionId through the complete execution pipeline', async () => {
-            const mockClient: McpClient = {
+            const mockClient = {
                 getTools: vi.fn().mockResolvedValue({
                     test_tool: {
                         name: 'test_tool',
@@ -597,12 +610,10 @@ describe('ToolManager Integration Tests', () => {
                     },
                 }),
                 callTool: vi.fn().mockResolvedValue('result'),
-                listPrompts: vi.fn().mockResolvedValue([]),
-                listResources: vi.fn().mockResolvedValue([]),
-            } as any;
+            };
 
-            mcpManager.registerClient('test-server', mockClient);
-            await (mcpManager as any).updateClientCache('test-server', mockClient);
+            mcpConnections.set(connectionFromClient('test-server', mockClient));
+            await mcpManager.refresh();
 
             const toolManager = createToolManager(
                 mcpManager,
