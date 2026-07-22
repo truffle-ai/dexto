@@ -19,6 +19,18 @@ import { eventBus, type AgentEventBus } from '../events/index.js';
 import type { PromptDefinition } from '../prompts/types.js';
 import type { ApprovalManager } from '../approval/manager.js';
 import type { AgentRunContext } from '../runtime/run-context.js';
+import { toolSchemaFingerprint } from '../tools/schema-fingerprint.js';
+import { CfWorkerJsonSchemaValidator } from '@modelcontextprotocol/sdk/validation/cfworker';
+import type { JsonSchemaType, JsonSchemaValidator } from '@modelcontextprotocol/sdk/validation';
+
+type CachedToolInputValidator = {
+    schemaFingerprint: string;
+    validate: JsonSchemaValidator<Record<string, unknown>>;
+};
+
+function isJsonSchemaObject(value: unknown): value is JsonSchemaType {
+    return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
 
 /**
  * Centralized manager for Multiple Model Context Protocol (MCP) servers.
@@ -75,6 +87,8 @@ export class MCPManager {
     private connectionErrors: { [key: string]: { message: string; code?: string } } = {};
     private configCache: Map<string, ValidatedMcpServerConfig> = new Map(); // Store original configs for restart
     private toolCache: Map<string, ToolCacheEntry> = new Map();
+    private toolInputValidators = new Map<string, CachedToolInputValidator>();
+    private readonly jsonSchemaValidator = new CfWorkerJsonSchemaValidator();
     private toolConflicts: Set<string> = new Set(); // Track which tool names have conflicts
     private promptCache: Map<string, PromptCacheEntry> = new Map();
     private resourceCache: Map<string, ResourceCacheEntry> = new Map();
@@ -486,6 +500,42 @@ export class MCPManager {
         return entry === undefined ? undefined : this.buildToolDescriptor(name, entry);
     }
 
+    /** Validate arguments against the tool's advertised input schema before calling the server. */
+    validateToolInput(toolName: string, input: Record<string, unknown>): Record<string, unknown> {
+        const entry = this.toolCache.get(toolName);
+        if (entry === undefined) {
+            throw MCPError.toolNotFound(toolName);
+        }
+
+        const schemaFingerprint = toolSchemaFingerprint(entry.definition.parameters);
+        let cached = this.toolInputValidators.get(toolName);
+        if (cached?.schemaFingerprint !== schemaFingerprint) {
+            const inputSchema: unknown = entry.definition.parameters;
+            if (!isJsonSchemaObject(inputSchema)) {
+                throw MCPError.invalidToolSchema(entry.upstreamToolName, 'expected an object');
+            }
+            try {
+                cached = {
+                    schemaFingerprint,
+                    validate:
+                        this.jsonSchemaValidator.getValidator<Record<string, unknown>>(inputSchema),
+                };
+            } catch (error) {
+                throw MCPError.invalidToolSchema(
+                    entry.upstreamToolName,
+                    error instanceof Error ? error.message : String(error)
+                );
+            }
+            this.toolInputValidators.set(toolName, cached);
+        }
+
+        const result = cached.validate(input);
+        if (!result.valid) {
+            throw MCPError.invalidToolArguments(entry.upstreamToolName, result.errorMessage);
+        }
+        return result.data;
+    }
+
     private buildToolDescriptor(name: string, entry: ToolCacheEntry): MCPToolDescriptor {
         return {
             name,
@@ -502,6 +552,10 @@ export class MCPManager {
             ...(entry.definition.annotations !== undefined
                 ? { annotations: entry.definition.annotations }
                 : {}),
+            schemaFingerprint: toolSchemaFingerprint(
+                entry.definition.parameters,
+                entry.definition.outputSchema
+            ),
         };
     }
 
@@ -1008,6 +1062,7 @@ export class MCPManager {
         this.connectionErrors = {};
         this.configCache.clear();
         this.toolCache.clear();
+        this.toolInputValidators.clear();
         this.toolConflicts.clear();
         this.promptCache.clear();
         this.resourceCache.clear();

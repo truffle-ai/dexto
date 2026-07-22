@@ -58,6 +58,11 @@ export const ToolApprovalMetadataSchema = z
             'Optional UI-agnostic presentation snapshot for the tool call. Clients MUST ignore unknown fields.'
         ),
         toolCallId: z.string().describe('Unique tool call ID for tracking parallel tool calls'),
+        parentToolCallId: z
+            .string()
+            .min(1)
+            .optional()
+            .describe('Outer tool call that owns this nested approval request'),
         args: z.record(z.string(), z.unknown()).describe('Arguments for the tool'),
         description: z.string().optional().describe('Description of the tool'),
         displayPreview: ToolDisplayDataSchema.optional().describe(

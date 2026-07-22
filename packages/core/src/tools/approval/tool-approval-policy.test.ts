@@ -58,6 +58,8 @@ async function resolveFor(
     policy: ToolApprovalPolicy,
     options?: {
         source?: 'local' | 'mcp';
+        connectionId?: string;
+        identityToolName?: string;
         toolName?: string;
         args?: TestInput;
         getContext?: () => ToolExecutionContext;
@@ -68,7 +70,14 @@ async function resolveFor(
         args: options?.args ?? {},
         getContext: options?.getContext ?? (() => createContext(options?.sessionId)),
         ...(options?.sessionId !== undefined ? { sessionId: options.sessionId } : {}),
-        source: options?.source ?? 'local',
+        identity:
+            options?.source === 'mcp'
+                ? {
+                      type: 'mcp',
+                      connectionId: options.connectionId ?? 'connection-1',
+                      toolName: options.identityToolName ?? options?.toolName ?? 'test_tool',
+                  }
+                : { type: 'local', toolId: options?.toolName ?? 'test_tool' },
         toolName: options?.toolName ?? 'test_tool',
     });
 }
@@ -152,7 +161,7 @@ describe('ToolApprovalPolicy', () => {
                 args: {},
                 getContext,
                 sessionId: 'session-1',
-                source: 'local',
+                identity: { type: 'local', toolId: 'test_tool' },
                 toolName: 'test_tool',
             })
         ).resolves.toEqual({ kind: 'ready' });
@@ -198,7 +207,7 @@ describe('ToolApprovalPolicy', () => {
                 args: { value: 'session-1' },
                 getContext: () => context,
                 sessionId: 'session-1',
-                source: 'local',
+                identity: { type: 'local', toolId: 'test_tool' },
                 toolName: 'test_tool',
             })
         ).resolves.toEqual({
@@ -217,8 +226,8 @@ describe('ToolApprovalPolicy', () => {
             policy.resolve({
                 args: {},
                 getContext: () => createContext('other-session'),
+                identity: { type: 'local', toolId: 'test_tool' },
                 sessionId: 'session-1',
-                source: 'local',
                 toolName: 'test_tool',
             })
         ).rejects.toThrow('approval context session does not match the approval scope');
@@ -238,9 +247,23 @@ describe('ToolApprovalPolicy', () => {
         });
 
         await expect(resolveFor(policy, { getContext, source: 'mcp' })).resolves.toEqual({
+            approvalKey: 'mcp:connection-1:test_tool',
             kind: 'approval-required',
         });
         expect(getContext).not.toHaveBeenCalled();
         expect(needsApproval).not.toHaveBeenCalled();
+    });
+
+    it('uses canonical MCP identity for approval instead of the callable alias', async () => {
+        const policy = createPolicy({ approvedKeys: ['mcp:connection-1:upstream_tool'] });
+
+        await expect(
+            resolveFor(policy, {
+                connectionId: 'connection-1',
+                identityToolName: 'upstream_tool',
+                source: 'mcp',
+                toolName: 'friendly_alias',
+            })
+        ).resolves.toEqual({ kind: 'ready' });
     });
 });

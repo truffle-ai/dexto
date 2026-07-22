@@ -202,8 +202,33 @@ describe('MCPManager Tool Conflict Resolution', () => {
                         required: ['value'],
                     },
                     annotations: { readOnlyHint: true },
+                    schemaFingerprint: expect.stringMatching(/^[0-9a-f]{64}$/),
                 },
             ]);
+        });
+
+        it('validates arguments against the advertised input schema', async () => {
+            const client = new MockMCPClient({
+                lookup: {
+                    description: 'Look up a record',
+                    parameters: {
+                        type: 'object',
+                        properties: { id: { type: 'string' } },
+                        required: ['id'],
+                        additionalProperties: false,
+                    },
+                },
+            });
+            manager.registerClient('connection-1', client);
+            await manager['updateClientCache']('connection-1', client);
+
+            expect(manager.validateToolInput('lookup', { id: 'record-1' })).toEqual({
+                id: 'record-1',
+            });
+            expect(() => manager.validateToolInput('lookup', { id: 42 })).toThrow(
+                "MCP tool 'lookup' received invalid arguments"
+            );
+            expect(() => manager.validateToolInput('missing', {})).toThrow();
         });
 
         it('should register tools from single client without conflicts', async () => {
