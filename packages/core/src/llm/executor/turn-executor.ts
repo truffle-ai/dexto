@@ -1422,7 +1422,7 @@ export class TurnExecutor {
                           await this.toolManager.getAllTools(),
                           this.sessionId
                       );
-                      return this.selectModelTools(availableTools, input.stepCount);
+                      return this.projectModelTools(availableTools);
                   },
                   this.logger
               )
@@ -1806,46 +1806,22 @@ export class TurnExecutor {
         }
     }
 
-    private async selectModelTools(availableTools: ToolSet, stepCount: number): Promise<ToolSet> {
-        const selector = this.config.executionControl?.selectModelTools;
-        if (selector === undefined) {
+    private projectModelTools(availableTools: ToolSet): ToolSet {
+        const modelToolNames = this.config.executionControl?.modelToolNames;
+        if (modelToolNames === undefined) {
             return availableTools;
-        }
-
-        const selectedToolNames = await selector({
-            availableToolNames: Object.keys(availableTools),
-            modelStepId: this.currentModelStepId,
-            runContext: this.runContext,
-            sessionId: this.sessionId,
-            stepCount,
-        });
-        if (!Array.isArray(selectedToolNames)) {
-            throw new DextoRuntimeError(
-                LLMErrorCode.REQUEST_INVALID_SCHEMA,
-                ErrorScope.LLM,
-                ErrorType.SYSTEM,
-                'Model tool selector must return an array of tool names'
-            );
         }
 
         const selectedTools: ToolSet = {};
         const seen = new Set<string>();
-        for (const toolName of selectedToolNames) {
-            if (typeof toolName !== 'string' || toolName === '') {
-                throw new DextoRuntimeError(
-                    LLMErrorCode.REQUEST_INVALID_SCHEMA,
-                    ErrorScope.LLM,
-                    ErrorType.SYSTEM,
-                    `Model tool selector returned unavailable tool '${String(toolName)}'`
-                );
-            }
+        for (const toolName of modelToolNames) {
             const tool = availableTools[toolName];
             if (tool === undefined) {
                 throw new DextoRuntimeError(
                     LLMErrorCode.REQUEST_INVALID_SCHEMA,
                     ErrorScope.LLM,
                     ErrorType.SYSTEM,
-                    `Model tool selector returned unavailable tool '${toolName}'`
+                    `Model tool surface contains unavailable tool '${toolName}'`
                 );
             }
             if (seen.has(toolName)) {
@@ -1853,7 +1829,7 @@ export class TurnExecutor {
                     LLMErrorCode.REQUEST_INVALID_SCHEMA,
                     ErrorScope.LLM,
                     ErrorType.SYSTEM,
-                    `Model tool selector returned duplicate tool '${toolName}'`
+                    `Model tool surface contains duplicate tool '${toolName}'`
                 );
             }
             seen.add(toolName);

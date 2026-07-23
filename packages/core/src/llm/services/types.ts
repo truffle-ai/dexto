@@ -36,20 +36,11 @@ export type LLMExecutionControl = {
      */
     followUpQueueMode?: 'core-continuation' | 'host-run' | undefined;
     /**
-     * Selects the ordered subset of currently enabled tools advertised for one model step.
+     * Ordered subset of currently enabled tools advertised to the model.
+     * Omit to preserve the default behavior of advertising every enabled tool.
      * Tool execution continues to resolve through ToolManager's complete canonical catalog.
      */
-    selectModelTools?:
-        | ((input: ModelToolSelectionInput) => readonly string[] | Promise<readonly string[]>)
-        | undefined;
-};
-
-export type ModelToolSelectionInput = {
-    readonly availableToolNames: readonly string[];
-    readonly modelStepId: string;
-    readonly runContext: AgentRunContext | undefined;
-    readonly sessionId: string;
-    readonly stepCount: number;
+    modelToolNames?: readonly string[] | undefined;
 };
 
 export type CreateTurnDriverOptions = {

@@ -1498,7 +1498,7 @@ describe('TurnExecutor Integration Tests', () => {
             );
         });
 
-        it('selects an ordered model tool view without narrowing ToolManager', async () => {
+        it('uses an ordered static model tool surface without narrowing ToolManager', async () => {
             toolManager.addTools([
                 defineTool({
                     id: 'code_execute',
@@ -1519,24 +1519,6 @@ describe('TurnExecutor Integration Tests', () => {
                     execute: vi.fn().mockResolvedValue('search result'),
                 }),
             ]);
-            const selectModelTools = vi.fn(
-                async (input: {
-                    availableToolNames: readonly string[];
-                    modelStepId: string;
-                    sessionId: string;
-                    stepCount: number;
-                }) => {
-                    expect(input).toMatchObject({
-                        modelStepId: 'in-memory-model-step-0',
-                        sessionId,
-                        stepCount: 0,
-                    });
-                    expect(input.availableToolNames).toEqual(
-                        expect.arrayContaining(['code_execute', 'hidden_direct_tool', 'web_search'])
-                    );
-                    return ['web_search', 'code_execute'];
-                }
-            );
             const selectingExecutor = new TurnExecutor(
                 createMockModel(),
                 toolManager,
@@ -1546,7 +1528,9 @@ describe('TurnExecutor Integration Tests', () => {
                 sessionId,
                 {
                     maxSteps: 10,
-                    executionControl: { selectModelTools },
+                    executionControl: {
+                        modelToolNames: ['web_search', 'code_execute'],
+                    },
                 },
                 llmContext,
                 logger,
@@ -1565,10 +1549,69 @@ describe('TurnExecutor Integration Tests', () => {
             expect(Object.keys(await toolManager.getAllTools())).toEqual(
                 expect.arrayContaining(['code_execute', 'hidden_direct_tool', 'web_search'])
             );
-            expect(selectModelTools).toHaveBeenCalledOnce();
         });
 
-        it('rejects a model tool selection outside the enabled catalog', async () => {
+        it('preserves every enabled tool when no model tool surface is configured', async () => {
+            toolManager.addTools([
+                defineTool({
+                    id: 'code_execute',
+                    description: 'Execute code',
+                    inputSchema: z.object({ source: z.string() }).strict(),
+                    execute: vi.fn().mockResolvedValue('code result'),
+                }),
+                defineTool({
+                    id: 'web_search',
+                    description: 'Search the web',
+                    inputSchema: z.object({ query: z.string() }).strict(),
+                    execute: vi.fn().mockResolvedValue('search result'),
+                }),
+            ]);
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Use tools' }]);
+            await executor.execute({ mcpManager }, true);
+
+            const firstCallOptions = vi.mocked(streamText).mock.calls[0]?.[0];
+            expect(Object.keys(firstCallOptions?.tools ?? {})).toEqual([
+                'code_execute',
+                'web_search',
+            ]);
+        });
+
+        it('advertises no tools when the configured model tool surface is empty', async () => {
+            toolManager.addTools([
+                defineTool({
+                    id: 'code_execute',
+                    description: 'Execute code',
+                    inputSchema: z.object({ source: z.string() }).strict(),
+                    execute: vi.fn().mockResolvedValue('code result'),
+                }),
+            ]);
+            const selectingExecutor = new TurnExecutor(
+                createMockModel(),
+                toolManager,
+                contextManager,
+                sessionEventBus,
+                resourceManager,
+                sessionId,
+                {
+                    maxSteps: 10,
+                    executionControl: { modelToolNames: [] },
+                },
+                llmContext,
+                logger,
+                steerQueue,
+                followUpQueue
+            );
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Do not use tools' }]);
+            await selectingExecutor.execute({ mcpManager }, true);
+
+            const firstCallOptions = vi.mocked(streamText).mock.calls[0]?.[0];
+            expect(firstCallOptions?.tools).toEqual({});
+            expect(Object.keys(await toolManager.getAllTools())).toEqual(['code_execute']);
+        });
+
+        it('rejects a static model tool name outside the enabled catalog', async () => {
             toolManager.addTools([
                 defineTool({
                     id: 'code_execute',
@@ -1587,7 +1630,7 @@ describe('TurnExecutor Integration Tests', () => {
                 {
                     maxSteps: 10,
                     executionControl: {
-                        selectModelTools: async () => ['not_available'],
+                        modelToolNames: ['not_available'],
                     },
                 },
                 llmContext,
@@ -1604,7 +1647,7 @@ describe('TurnExecutor Integration Tests', () => {
 
             try {
                 await expect(driver.prepareNextModelStep()).rejects.toThrow(
-                    "Model tool selector returned unavailable tool 'not_available'"
+                    "Model tool surface contains unavailable tool 'not_available'"
                 );
             } finally {
                 driver.dispose();
@@ -1627,7 +1670,6 @@ describe('TurnExecutor Integration Tests', () => {
                     execute: hiddenExecute,
                 }),
             ]);
-            const selectModelTools = vi.fn(async () => ['code_execute']);
             const selectingExecutor = new TurnExecutor(
                 createMockModel(),
                 toolManager,
@@ -1637,7 +1679,7 @@ describe('TurnExecutor Integration Tests', () => {
                 sessionId,
                 {
                     maxSteps: 10,
-                    executionControl: { selectModelTools },
+                    executionControl: { modelToolNames: ['code_execute'] },
                 },
                 llmContext,
                 logger,
@@ -1683,9 +1725,7 @@ describe('TurnExecutor Integration Tests', () => {
                 {
                     maxSteps: 10,
                     executionControl: {
-                        selectModelTools: vi.fn(() => {
-                            throw new Error('Restored model step must use checkpointed selection');
-                        }),
+                        modelToolNames: ['hidden_direct_tool'],
                     },
                 },
                 llmContext,
@@ -1715,7 +1755,6 @@ describe('TurnExecutor Integration Tests', () => {
                     toolName: 'hidden_direct_tool',
                 })
             );
-            expect(selectModelTools).toHaveBeenCalledOnce();
         });
 
         it('preserves single-step model request options at the streamText boundary', async () => {
