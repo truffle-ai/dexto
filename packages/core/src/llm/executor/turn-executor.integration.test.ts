@@ -16,7 +16,7 @@ import { MessageQueueService } from '../../session/message-queue.js';
 import { SystemPromptManager } from '../../systemPrompt/manager.js';
 import { VercelMessageFormatter } from '../formatters/vercel.js';
 import { MCPManager } from '../../mcp/manager.js';
-import { TestMCPConnections } from '../../test-utils/mcp-connections.js';
+import { connectionFromClient, TestMCPConnections } from '../../test-utils/mcp-connections.js';
 import { ApprovalManager } from '../../approval/manager.js';
 import { createLogger } from '../../logger/factory.js';
 import { MemoryManager } from '../../memory/index.js';
@@ -274,6 +274,7 @@ describe('TurnExecutor Integration Tests', () => {
     let logger: Logger;
     let conversationStore: ConversationStore;
     let mcpManager: MCPManager;
+    let mcpConnections: TestMCPConnections;
     let approvalManager: ApprovalManager;
     let stores: DextoStores;
 
@@ -372,7 +373,7 @@ describe('TurnExecutor Integration Tests', () => {
         await stores.connect();
 
         // Create real MCP manager
-        const mcpConnections = new TestMCPConnections();
+        mcpConnections = new TestMCPConnections();
         mcpManager = new MCPManager(mcpConnections, logger, agentEventBus);
         await mcpManager.initialize();
 
@@ -1549,6 +1550,65 @@ describe('TurnExecutor Integration Tests', () => {
             expect(Object.keys(await toolManager.getAllTools())).toEqual(
                 expect.arrayContaining(['code_execute', 'hidden_direct_tool', 'web_search'])
             );
+        });
+
+        it('can add dynamically discovered MCP tools to a static model tool surface', async () => {
+            toolManager.addTools([
+                defineTool({
+                    id: 'code_execute',
+                    description: 'Execute code',
+                    inputSchema: z.object({ source: z.string() }).strict(),
+                    execute: vi.fn().mockResolvedValue('code result'),
+                }),
+            ]);
+            mcpConnections.set(
+                connectionFromClient(
+                    'connected-mcp',
+                    {
+                        callTool: vi.fn().mockResolvedValue({ found: true }),
+                        getTools: vi.fn().mockResolvedValue({
+                            lookup_record: {
+                                description: 'Look up one record',
+                                parameters: {
+                                    type: 'object',
+                                    properties: {},
+                                    additionalProperties: false,
+                                },
+                            },
+                        }),
+                    },
+                    'Connected MCP'
+                )
+            );
+            await mcpConnections.announce({ type: 'connections-changed' });
+            const selectingExecutor = new TurnExecutor(
+                createMockModel(),
+                toolManager,
+                contextManager,
+                sessionEventBus,
+                resourceManager,
+                sessionId,
+                {
+                    maxSteps: 10,
+                    executionControl: {
+                        includeMcpTools: true,
+                        modelToolNames: ['code_execute'],
+                    },
+                },
+                llmContext,
+                logger,
+                steerQueue,
+                followUpQueue
+            );
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Use tools' }]);
+            await selectingExecutor.execute({ mcpManager }, true);
+
+            const firstCallOptions = vi.mocked(streamText).mock.calls[0]?.[0];
+            expect(Object.keys(firstCallOptions?.tools ?? {})).toEqual([
+                'code_execute',
+                'mcp--lookup_record',
+            ]);
         });
 
         it('preserves every enabled tool when no model tool surface is configured', async () => {

@@ -1807,7 +1807,8 @@ export class TurnExecutor {
     }
 
     private projectModelTools(availableTools: ToolSet): ToolSet {
-        const modelToolNames = this.config.executionControl?.modelToolNames;
+        const executionControl = this.config.executionControl;
+        const modelToolNames = executionControl?.modelToolNames;
         if (modelToolNames === undefined) {
             return availableTools;
         }
@@ -1834,6 +1835,14 @@ export class TurnExecutor {
             }
             seen.add(toolName);
             selectedTools[toolName] = tool;
+        }
+        if (executionControl?.includeMcpTools === true) {
+            for (const [toolName, tool] of Object.entries(availableTools)) {
+                if (seen.has(toolName) || this.toolManager.getToolSource(toolName) !== 'mcp') {
+                    continue;
+                }
+                selectedTools[toolName] = tool;
+            }
         }
 
         return selectedTools;

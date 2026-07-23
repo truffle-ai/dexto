@@ -41,6 +41,12 @@ export type LLMExecutionControl = {
      * Tool execution continues to resolve through ToolManager's complete canonical catalog.
      */
     modelToolNames?: readonly string[] | undefined;
+    /**
+     * Append MCP tools discovered for this run to an explicit model tool surface.
+     * This keeps dynamic connection catalogs available without requiring callers to reproduce
+     * Core's conflict-qualified MCP tool names.
+     */
+    includeMcpTools?: boolean | undefined;
 };
 
 export type CreateTurnDriverOptions = {
