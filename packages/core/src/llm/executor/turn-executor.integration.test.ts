@@ -1607,7 +1607,7 @@ describe('TurnExecutor Integration Tests', () => {
             const firstCallOptions = vi.mocked(streamText).mock.calls[0]?.[0];
             expect(Object.keys(firstCallOptions?.tools ?? {})).toEqual([
                 'code_execute',
-                'mcp--lookup_record',
+                'mcp__connected_mcp__lookup_record',
             ]);
         });
 

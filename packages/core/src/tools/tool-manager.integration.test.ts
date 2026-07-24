@@ -217,7 +217,7 @@ describe('ToolManager Integration Tests', () => {
 
             // Execute tool through complete pipeline
             const result = await toolManager.executeTool(
-                'mcp--test_tool',
+                'mcp__test_server__test_tool',
                 { param: 'value' },
                 'test-call-id'
             );
@@ -304,14 +304,16 @@ describe('ToolManager Integration Tests', () => {
             // Get all tools - should include both MCP and local tools
             const allTools = await toolManager.getAllTools();
 
-            expect(allTools['mcp--file_read']).toBeDefined();
+            expect(allTools['mcp__file_server__file_read']).toBeDefined();
             expect(allTools['search_history']).toBeDefined();
-            expect(allTools['mcp--file_read']?.description).toContain('(via MCP servers)');
+            expect(allTools['mcp__file_server__file_read']?.description).toContain(
+                '(via MCP servers)'
+            );
             expect(allTools['search_history']?.description).toContain(
                 'Search through conversation'
             );
 
-            const mcpParams = allTools['mcp--file_read']?.parameters as {
+            const mcpParams = allTools['mcp__file_server__file_read']?.parameters as {
                 properties?: Record<string, unknown>;
             };
             expect(mcpParams.properties?.__meta).toBeDefined();
@@ -325,7 +327,7 @@ describe('ToolManager Integration Tests', () => {
 
             // Execute both types
             const mcpResult = await toolManager.executeTool(
-                'mcp--file_read',
+                'mcp__file_server__file_read',
                 { path: '/test' },
                 'test-call-id-1'
             );
@@ -385,7 +387,11 @@ describe('ToolManager Integration Tests', () => {
                 [],
                 mockLogger
             );
-            const result = await toolManager.executeTool('mcp--test_tool', {}, 'test-call-id');
+            const result = await toolManager.executeTool(
+                'mcp__test_server__test_tool',
+                {},
+                'test-call-id'
+            );
 
             expect(result).toEqual(expect.objectContaining({ result: 'approved result' }));
         });
@@ -418,7 +424,7 @@ describe('ToolManager Integration Tests', () => {
             // Should still return internal tools even if MCP fails
             const allTools = await toolManager.getAllTools();
             expect(allTools['search_history']).toBeDefined();
-            expect(Object.keys(allTools).filter((name) => name.startsWith('mcp--'))).toHaveLength(
+            expect(Object.keys(allTools).filter((name) => name.startsWith('mcp__'))).toHaveLength(
                 0
             );
         });
@@ -450,7 +456,7 @@ describe('ToolManager Integration Tests', () => {
             );
 
             await expect(
-                toolManager.executeTool('mcp--failing_tool', {}, 'test-call-id')
+                toolManager.executeTool('mcp__failing_tool', {}, 'test-call-id')
             ).rejects.toThrow(Error);
         });
 
@@ -510,7 +516,7 @@ describe('ToolManager Integration Tests', () => {
             );
             await mcpConnections.announce({ type: 'connections-changed' });
 
-            expect(await toolManager.getAllTools()).toHaveProperty('mcp--added_tool');
+            expect(await toolManager.getAllTools()).toHaveProperty('mcp__added_server__added_tool');
             expect(getTools).toHaveBeenCalledOnce();
         });
 
@@ -645,7 +651,7 @@ describe('ToolManager Integration Tests', () => {
                     input,
                     sessionId: 'session-1',
                     toolCallId,
-                    toolName: 'mcp--lookup_record',
+                    toolName: 'mcp__stable_connection_id__lookup_record',
                 });
             const direct = await prepare('direct-call', { id: 'record-1' });
             const codeModeChild = await prepare('code-mode-child-call', { id: 'record-1' });
@@ -721,9 +727,14 @@ describe('ToolManager Integration Tests', () => {
             const sessionId = 'test-session-123';
 
             // Execute MCP tool with sessionId
-            await toolManager.executeTool('mcp--test_tool', { param: 'value' }, 'test-call-id-1', {
-                sessionId,
-            });
+            await toolManager.executeTool(
+                'mcp__test_server__test_tool',
+                { param: 'value' },
+                'test-call-id-1',
+                {
+                    sessionId,
+                }
+            );
 
             // Execute local tool with sessionId
             await toolManager.executeTool(

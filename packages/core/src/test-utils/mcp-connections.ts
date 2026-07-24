@@ -6,6 +6,7 @@ import type {
 } from '../mcp/connection-layer.js';
 import { ToolSchema } from '@modelcontextprotocol/sdk/types.js';
 import type { McpClient } from '../mcp/types.js';
+import { normalizeMcpNamespace } from '../mcp/tool-name.js';
 
 type TestMCPConnectionClient = Pick<McpClient, 'callTool' | 'getTools'> &
     Partial<Pick<McpClient, 'getPrompt' | 'listPrompts' | 'listResources' | 'readResource'>>;
@@ -53,6 +54,7 @@ export function connectionFromClient(
     return {
         id,
         name,
+        namespace: normalizeMcpNamespace(id),
         listTools: async () =>
             Object.entries(await client.getTools()).map(([toolName, definition]) =>
                 ToolSchema.parse({

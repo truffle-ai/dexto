@@ -11,6 +11,7 @@ import { MCPError } from './errors.js';
 import { DextoMcpClient } from './mcp-client.js';
 import type { ValidatedMcpServerConfig, ValidatedServersConfig } from './schemas.js';
 import type { McpAuthProvider, McpAuthProviderFactory, McpClient } from './types.js';
+import { normalizeMcpNamespace } from './tool-name.js';
 
 export type ConnectionFailure = { message: string; code?: string };
 
@@ -41,6 +42,7 @@ export function connectionFromConfiguredClient(
     return {
         id,
         name: options.name ?? id,
+        namespace: normalizeMcpNamespace(id),
         listTools: async () => (await (await client.getConnectedClient()).listTools({})).tools,
         callTool: (toolName, args, context) => client.callTool(toolName, args, context),
         ...(options.prompts !== false && listPrompts && getPrompt

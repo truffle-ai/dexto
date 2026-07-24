@@ -1,5 +1,10 @@
 import { isDeepStrictEqual } from 'node:util';
 import { MCPManager } from '../mcp/manager.js';
+import {
+    MCP_MODEL_TOOL_PREFIX,
+    modelMcpToolName,
+    stripMcpModelToolPrefix,
+} from '../mcp/tool-name.js';
 import type { MCPConnectionCallContext } from '../mcp/connection-layer.js';
 import type { ToolPolicies } from './schemas.js';
 import {
@@ -174,7 +179,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  * - Route tool execution to appropriate source (MCP vs local)
  * - Provide unified tool interface to LLM
  * - Manage tool approvals and security via ApprovalManager
- * - Handle cross-source naming conflicts (MCP tools are prefixed with `mcp--`)
+ * - Expose MCP tools under stable `mcp__namespace__tool` names
  *
  * Architecture:
  * LLM runtime → ToolManager → [MCPManager, local tools]
@@ -215,10 +220,7 @@ export class ToolManager {
     private workspaceListenerAttached = false;
     private readonly workspaceListenerAbort = new AbortController();
 
-    // Tool naming:
-    // - MCP tools are prefixed with `mcp--` for disambiguation.
-    // - Local tools use their `Tool.id` as-is (no internal/custom prefixing).
-    private static readonly MCP_TOOL_PREFIX = 'mcp--';
+    private static readonly MCP_TOOL_PREFIX = MCP_MODEL_TOOL_PREFIX;
 
     // Tool caching for performance
     private toolsCache: ToolSet = {};
@@ -451,7 +453,7 @@ export class ToolManager {
      * This is ADDITIVE - other tools are NOT blocked, they just go through normal approval flow.
      *
      * @param sessionId The session ID
-     * @param autoApproveTools Array of tool names to auto-approve (e.g., ['bash_exec', 'mcp--read_file'])
+     * @param autoApproveTools Array of tool names to auto-approve (e.g., ['bash_exec', 'mcp__filesystem__read_file'])
      */
     setSessionAutoApproveTools(sessionId: string, autoApproveTools: string[]): void {
         this.sessionToolPolicy.setSessionAutoApproveTools(sessionId, autoApproveTools);
@@ -462,7 +464,7 @@ export class ToolManager {
      * Merges into the existing list instead of replacing it.
      *
      * @param sessionId The session ID
-     * @param autoApproveTools Array of tool names to auto-approve (e.g., ['bash_exec', 'mcp--read_file'])
+     * @param autoApproveTools Array of tool names to auto-approve (e.g., ['bash_exec', 'mcp__filesystem__read_file'])
      */
     addSessionAutoApproveTools(sessionId: string, autoApproveTools: string[]): void {
         this.sessionToolPolicy.addSessionAutoApproveTools(sessionId, autoApproveTools);
@@ -842,10 +844,8 @@ export class ToolManager {
             return undefined;
         }
 
-        const mcpName = toolName.substring(ToolManager.MCP_TOOL_PREFIX.length);
-        if (mcpName.length === 0) {
-            return undefined;
-        }
+        const mcpName = stripMcpModelToolPrefix(toolName);
+        if (mcpName === undefined) return undefined;
 
         const descriptor = this.mcpManager.getToolDescriptor(mcpName);
         return descriptor === undefined ? undefined : this.prefixMcpToolDescriptor(descriptor);
@@ -860,7 +860,8 @@ export class ToolManager {
             return undefined;
         }
 
-        const mcpName = toolName.substring(ToolManager.MCP_TOOL_PREFIX.length);
+        const mcpName = stripMcpModelToolPrefix(toolName);
+        if (mcpName === undefined) return undefined;
         return this.mcpManager.getToolDescriptor(mcpName)?.identity;
     }
 
@@ -890,7 +891,7 @@ export class ToolManager {
         return {
             ...descriptor,
             approval: this.approvalMode === 'auto-approve' ? 'never' : 'possible',
-            name: `${ToolManager.MCP_TOOL_PREFIX}${descriptor.name}`,
+            name: modelMcpToolName(descriptor.name),
             description: `${descriptor.description || 'No description provided'} (via MCP servers)`,
         };
     }
@@ -1057,8 +1058,8 @@ export class ToolManager {
             return this.validateLocalToolArgs(toolName, args);
         }
 
-        const mcpName = toolName.substring(ToolManager.MCP_TOOL_PREFIX.length);
-        if (mcpName.length === 0) {
+        const mcpName = stripMcpModelToolPrefix(toolName);
+        if (mcpName === undefined) {
             throw ToolError.invalidName(toolName, 'tool name cannot be empty after prefix');
         }
         return this.mcpManager.validateToolInput(mcpName, args);
@@ -1098,15 +1099,7 @@ export class ToolManager {
     /**
      * Build all tools from sources.
      *
-     * TODO: Rethink MCP tool naming convention for more consistency.
-     * Current issue: MCP tools have dynamic naming based on conflicts:
-     * - No conflict: mcp--toolName
-     * - With conflict: mcp--serverName--toolName
-     * This makes policy configuration fragile. Consider:
-     * 1. Always including server name: mcp--serverName--toolName (breaking change)
-     * 2. Using a different delimiter pattern that's more predictable
-     * 3. Providing a tool discovery command to help users find exact names
-     * Related: Tool policies now support dual matching (exact + suffix) as a workaround
+     * MCP names are always stable and namespace-qualified.
      */
     private async buildAllTools(): Promise<ToolSet> {
         const allTools: ToolSet = {};
@@ -1136,9 +1129,9 @@ export class ToolManager {
             };
         }
 
-        // Add MCP tools with 'mcp--' prefix
+        // Add MCP tools under provider-safe mcp__namespace__tool names.
         for (const [toolName, toolDef] of Object.entries(mcpTools)) {
-            const qualifiedName = `${ToolManager.MCP_TOOL_PREFIX}${toolName}`;
+            const qualifiedName = modelMcpToolName(toolName);
             allTools[qualifiedName] = {
                 ...toolDef,
                 name: qualifiedName,
@@ -1959,8 +1952,8 @@ export class ToolManager {
             };
 
             if (call.identity.type === 'mcp') {
-                const actualToolName = call.toolName.substring(ToolManager.MCP_TOOL_PREFIX.length);
-                if (actualToolName.length === 0) {
+                const actualToolName = stripMcpModelToolPrefix(call.toolName);
+                if (actualToolName === undefined) {
                     throw ToolError.invalidName(
                         call.toolName,
                         'tool name cannot be empty after prefix'
@@ -2175,7 +2168,8 @@ export class ToolManager {
     async hasTool(toolName: string): Promise<boolean> {
         // Check MCP tools
         if (toolName.startsWith(ToolManager.MCP_TOOL_PREFIX)) {
-            const actualToolName = toolName.substring(ToolManager.MCP_TOOL_PREFIX.length);
+            const actualToolName = stripMcpModelToolPrefix(toolName);
+            if (actualToolName === undefined) return false;
             return this.mcpManager.getToolConnection(actualToolName) !== undefined;
         }
 
@@ -2234,7 +2228,6 @@ export class ToolManager {
 
     /**
      * Check if a tool is in the static alwaysAllow list
-     * Supports both exact and suffix matching (e.g., "mcp--read_file" matches "mcp--server--read_file")
      * @param toolName The fully qualified tool name to check
      * @returns true if the tool is in the allow list
      */

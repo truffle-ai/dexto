@@ -201,8 +201,8 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockLogger
             );
 
-            expect(toolManager.getToolSource('mcp--file_read')).toBe('mcp');
-            expect(toolManager.getToolSource('mcp--web_search')).toBe('mcp');
+            expect(toolManager.getToolSource('mcp__file_read')).toBe('mcp');
+            expect(toolManager.getToolSource('mcp__web_search')).toBe('mcp');
         });
 
         it('should correctly identify local tools', () => {
@@ -263,7 +263,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockLogger
             );
 
-            expect(toolManager.getToolSource('mcp--')).toBe('unknown'); // Prefix but no name
+            expect(toolManager.getToolSource('mcp__')).toBe('unknown'); // Prefix but no name
         });
     });
 
@@ -492,7 +492,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             );
 
             const prepared = await toolManager.prepareToolCall({
-                toolName: 'mcp--read_file',
+                toolName: 'mcp__read_file',
                 input: { path: '/tmp/file.txt' },
                 toolCallId: 'call-5',
                 sessionId: 'session-1',
@@ -502,7 +502,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 expect.objectContaining({
                     kind: 'ready',
                     call: expect.objectContaining({
-                        toolName: 'mcp--read_file',
+                        toolName: 'mcp__read_file',
                         identity: {
                             type: 'mcp',
                             connectionId: 'test-connection',
@@ -544,7 +544,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             });
 
             const prepared = await toolManager.prepareToolCall({
-                toolName: 'mcp--read_file',
+                toolName: 'mcp__read_file',
                 input: { path: 42 },
                 toolCallId: 'call-mcp-validation-characterization',
             });
@@ -1181,7 +1181,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
 
         it('executes a prepared MCP tool call through the normalized MCP name', async () => {
             mockMcpManager.getAllTools = vi.fn().mockResolvedValue({
-                'filesystem--read_file': {
+                filesystem__read_file: {
                     description: 'Read file',
                     parameters: {
                         type: 'object',
@@ -1202,7 +1202,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockLogger
             );
             const prepared = await toolManager.prepareToolCall({
-                toolName: 'mcp--filesystem--read_file',
+                toolName: 'mcp__filesystem__read_file',
                 input: { path: '/tmp/file.txt' },
                 toolCallId: 'call-prepared-mcp',
                 sessionId: 'session-1',
@@ -1220,7 +1220,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             );
             expect(mockApprovalManager.requestToolApproval).not.toHaveBeenCalled();
             expect(mockMcpManager.executeTool).toHaveBeenCalledWith(
-                'filesystem--read_file',
+                'filesystem__read_file',
                 { path: '/tmp/file.txt' },
                 expect.objectContaining({
                     logger: mockLogger,
@@ -1729,7 +1729,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     mockLogger
                 );
                 const prepared = await toolManager.prepareToolCall({
-                    toolName: 'mcp--read_file',
+                    toolName: 'mcp__read_file',
                     input: {
                         path: '/tmp/file.txt',
                         __meta: {
@@ -1759,7 +1759,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 expect(backgroundEvent).toEqual([
                     'tool:background',
                     expect.objectContaining({
-                        toolName: 'mcp--read_file',
+                        toolName: 'mcp__read_file',
                         toolCallId: 'call-prepared-background',
                         sessionId: 'session-1',
                         timeoutMs: 5000,
@@ -1908,14 +1908,14 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
 
     describe('Tool Name Parsing Logic', () => {
         it('should extract actual tool name from MCP prefix', () => {
-            const prefixedName = 'mcp--file_read';
-            const actualName = prefixedName.substring('mcp--'.length);
+            const prefixedName = 'mcp__file_read';
+            const actualName = prefixedName.substring('mcp__'.length);
             expect(actualName).toBe('file_read');
         });
 
         it('should handle complex tool names', () => {
-            const complexName = 'mcp--complex_tool_name_with_underscores';
-            const actualName = complexName.substring('mcp--'.length);
+            const complexName = 'mcp__complex_tool_name_with_underscores';
+            const actualName = complexName.substring('mcp__'.length);
             expect(actualName).toBe('complex_tool_name_with_underscores');
         });
     });
@@ -1957,7 +1957,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             );
 
             const mcpError = (await toolManager
-                .executeTool('mcp--', {}, 'test-call-id')
+                .executeTool('mcp__', {}, 'test-call-id')
                 .catch((e) => e)) as DextoRuntimeError;
             expect(mcpError).toBeInstanceOf(DextoRuntimeError);
             expect(mcpError.code).toBe(ToolErrorCode.TOOL_INVALID_ARGS);
@@ -2650,7 +2650,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             );
 
             await toolManager.executeTool(
-                'mcp--file_read',
+                'mcp__file_read',
                 { path: '/test', description: 'Read test file' },
                 'call-1',
                 { sessionId: 'session-1' }
@@ -2659,7 +2659,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             expect(mockAgentEventBus.emit).toHaveBeenCalledWith(
                 'llm:tool-call',
                 expect.objectContaining({
-                    toolName: 'mcp--file_read',
+                    toolName: 'mcp__file_read',
                     args: { path: '/test', description: 'Read test file' },
                     callDescription: 'Read test file',
                     callId: 'call-1',
@@ -2854,7 +2854,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             );
 
             await toolManager.executeTool(
-                'mcp--file_read',
+                'mcp__file_read',
                 {
                     path: '/test',
                     __meta: {
@@ -2870,7 +2870,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     type: ApprovalType.TOOL_APPROVAL,
                     sessionId: 'session123',
                     metadata: expect.objectContaining({
-                        toolName: 'mcp--file_read',
+                        toolName: 'mcp__file_read',
                         toolCallId: 'call-123',
                         args: { path: '/test' },
                         description: 'Read test file',
@@ -2889,7 +2889,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     approvalId: 'recorded-approval-id',
                     sessionId: 'session123',
                     metadata: expect.objectContaining({
-                        toolName: 'mcp--file_read',
+                        toolName: 'mcp__file_read',
                         toolCallId: 'call-123',
                     }),
                 })
@@ -2906,7 +2906,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             );
             expect(mockApprovalManager.requestToolApproval).toHaveBeenCalledWith(
                 expect.objectContaining({
-                    toolName: 'mcp--file_read',
+                    toolName: 'mcp__file_read',
                     toolCallId: 'call-123',
                     args: { path: '/test' },
                     description: 'Read test file',
@@ -3090,7 +3090,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             );
 
             await toolManager.executeTool(
-                'mcp--file_read',
+                'mcp__file_read',
                 { path: '/test', description: 'Read test file' },
                 'call-123',
                 { sessionId: 'session123' }
@@ -3098,7 +3098,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
 
             expect(mockApprovalManager.requestToolApproval).toHaveBeenCalledWith(
                 expect.objectContaining({
-                    toolName: 'mcp--file_read',
+                    toolName: 'mcp__file_read',
                     toolCallId: 'call-123',
                     args: { path: '/test', description: 'Read test file' },
                     description: 'Read test file',
@@ -3128,7 +3128,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 );
 
                 const response = await toolManager.executeTool(
-                    'mcp--file_read',
+                    'mcp__file_read',
                     {
                         path: '/test',
                         __meta: {
@@ -3149,7 +3149,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 expect(emitSpy).toHaveBeenCalledWith(
                     'tool:background',
                     expect.objectContaining({
-                        toolName: 'mcp--file_read',
+                        toolName: 'mcp__file_read',
                         toolCallId: 'call-123',
                         sessionId: 'session-1',
                     })
@@ -3192,7 +3192,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 };
 
                 const response = await toolManager.executeTool(
-                    'mcp--file_read',
+                    'mcp__file_read',
                     {
                         path: '/test',
                         __meta: {
@@ -3238,11 +3238,11 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockLogger
             );
 
-            await toolManager.executeTool('mcp--file_read', { path: '/test' }, 'call-456');
+            await toolManager.executeTool('mcp__file_read', { path: '/test' }, 'call-456');
 
             expect(mockApprovalManager.requestToolApproval).toHaveBeenCalledWith(
                 expect.objectContaining({
-                    toolName: 'mcp--file_read',
+                    toolName: 'mcp__file_read',
                     toolCallId: 'call-456',
                     args: { path: '/test' },
                     presentationSnapshot: expect.objectContaining({ version: 1 }),
@@ -3280,7 +3280,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 turnId: 'turn-1',
             };
 
-            await toolManager.executeTool('mcp--file_read', { path: '/test' }, 'call-789', {
+            await toolManager.executeTool('mcp__file_read', { path: '/test' }, 'call-789', {
                 executionIdentity,
                 runContext,
             });
@@ -3316,7 +3316,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             );
 
             const error = (await toolManager
-                .executeTool('mcp--file_read', { path: '/test' }, 'test-call-id', {
+                .executeTool('mcp__file_read', { path: '/test' }, 'test-call-id', {
                     sessionId: 'session123',
                 })
                 .catch((e) => e)) as DextoRuntimeError;
@@ -3343,7 +3343,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             );
 
             const result = await toolManager.executeTool(
-                'mcp--file_read',
+                'mcp__file_read',
                 { path: '/test' },
                 'test-call-id'
             );
@@ -3378,13 +3378,13 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             );
 
             const result = await toolManager.executeTool(
-                'mcp--file_read',
+                'mcp__file_read',
                 { path: '/test' },
                 'test-call-id'
             );
 
             expect(mockAllowedToolsProvider.isToolAllowed).toHaveBeenCalledWith(
-                'mcp--file_read',
+                'mcp__file_read',
                 undefined
             );
             expect(mockApprovalManager.requestToolApproval).not.toHaveBeenCalled();
@@ -3406,7 +3406,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             );
 
             const result = await toolManager.executeTool(
-                'mcp--file_read',
+                'mcp__file_read',
                 { path: '/test' },
                 'test-call-id'
             );
@@ -3480,7 +3480,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 }),
                 {
                     approval: 'possible',
-                    name: 'mcp--lookup',
+                    name: 'mcp__lookup',
                     description: 'Look up a record (via MCP servers)',
                     identity: {
                         type: 'mcp',
@@ -3675,7 +3675,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
 
             const tools = await toolManager.getAllTools();
 
-            expect(tools['mcp--legacy']?.parameters).toEqual(
+            expect(tools['mcp__legacy']?.parameters).toEqual(
                 expect.objectContaining({
                     additionalProperties: true,
                     properties: expect.objectContaining({
@@ -3687,7 +3687,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     type: 'object',
                 })
             );
-            expect(tools['mcp--legacy']?.parameters).not.toHaveProperty('oneOf');
+            expect(tools['mcp__legacy']?.parameters).not.toHaveProperty('oneOf');
         });
 
         it('falls back when MCP tool parameters cannot be flattened to an object schema', async () => {
@@ -3714,7 +3714,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
 
             const tools = await toolManager.getAllTools();
 
-            expect(tools['mcp--legacy']?.parameters).toEqual({
+            expect(tools['mcp__legacy']?.parameters).toEqual({
                 additionalProperties: true,
                 type: 'object',
             });
@@ -3877,9 +3877,9 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockLogger
             );
 
-            expect(await toolManager.getAllTools()).toHaveProperty('mcp--old_tool');
+            expect(await toolManager.getAllTools()).toHaveProperty('mcp__old_tool');
             toolsChangedListener?.({ serverName: 'server-1' });
-            expect(await toolManager.getAllTools()).toHaveProperty('mcp--new_tool');
+            expect(await toolManager.getAllTools()).toHaveProperty('mcp__new_tool');
             expect(mockMcpManager.getAllTools).toHaveBeenCalledTimes(2);
         });
 
@@ -4032,7 +4032,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockLogger
             );
 
-            const exists = await toolManager.hasTool('mcp--file_read');
+            const exists = await toolManager.hasTool('mcp__file_read');
 
             expect(mockMcpManager.getToolConnection).toHaveBeenCalledWith('file_read');
             expect(exists).toBe(true);
@@ -4052,7 +4052,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockLogger
             );
 
-            const exists = await toolManager.hasTool('mcp--nonexistent');
+            const exists = await toolManager.hasTool('mcp__nonexistent');
 
             expect(exists).toBe(false);
         });
@@ -4101,7 +4101,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             };
 
             await expect(
-                toolManager.executeTool('mcp--file_read', { path: '/test' }, 'test-call-id', {
+                toolManager.executeTool('mcp__file_read', { path: '/test' }, 'test-call-id', {
                     sessionId: 'session-1',
                     executionIdentity,
                 })
@@ -4141,7 +4141,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             };
 
             await expect(
-                toolManager.executeTool('mcp--file_read', { path: '/test' }, 'test-call-id', {
+                toolManager.executeTool('mcp__file_read', { path: '/test' }, 'test-call-id', {
                     sessionId: 'session-1',
                     executionIdentity,
                 })
@@ -4170,13 +4170,13 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'manual',
                 mockAgentEventBus,
-                { alwaysAllow: ['mcp--filesystem--read_file'] },
+                { alwaysAllow: ['mcp__filesystem__read_file'] },
                 [],
                 mockLogger
             );
 
             const result = await toolManager.executeTool(
-                'mcp--filesystem--read_file',
+                'mcp__filesystem__read_file',
                 { path: '/test' },
                 'test-call-id'
             );
@@ -4184,7 +4184,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             expect(result).toEqual(expect.objectContaining({ result: 'success' }));
             expect(mockApprovalManager.requestToolApproval).not.toHaveBeenCalled();
             expect(mockMcpManager.executeTool).toHaveBeenCalledWith(
-                'filesystem--read_file',
+                'filesystem__read_file',
                 { path: '/test' },
                 expect.objectContaining({ logger: mockLogger, toolCallId: 'test-call-id' })
             );
@@ -4204,14 +4204,14 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             );
 
             const result = await toolManager.executeTool(
-                'mcp--filesystem--read_file',
+                'mcp__filesystem__read_file',
                 { path: '/test' },
                 'test-call-id'
             );
 
             expect(result).toEqual(expect.objectContaining({ result: 'success' }));
             expect(mockAllowedToolsProvider.isToolAllowed).toHaveBeenCalledWith(
-                'mcp--filesystem--read_file',
+                'mcp__filesystem__read_file',
                 undefined
             );
             expect(mockApprovalManager.requestToolApproval).not.toHaveBeenCalled();
@@ -4235,7 +4235,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             );
 
             const result = await toolManager.executeTool(
-                'mcp--filesystem--read_file',
+                'mcp__filesystem__read_file',
                 { path: '/test' },
                 'test-call-id'
             );
@@ -4263,7 +4263,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             );
 
             const result = await toolManager.executeTool(
-                'mcp--filesystem--write_file',
+                'mcp__filesystem__write_file',
                 { path: '/test' },
                 'test-call-id'
             );
@@ -4299,41 +4299,36 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             expect(mockApprovalManager.requestToolApproval).not.toHaveBeenCalled();
         });
 
-        it('matches exact and qualified MCP tool names in allow policies', async () => {
+        it('matches stable namespace-qualified MCP tool names exactly', async () => {
             const toolManager = createToolManager(
                 mockMcpManager,
                 mockApprovalManager,
                 mockAllowedToolsProvider,
                 'manual',
                 mockAgentEventBus,
-                { alwaysAllow: ['mcp--read_file', 'mcp--list_directory'] },
+                {
+                    alwaysAllow: ['mcp__filesystem__read_file', 'mcp__server2__list_directory'],
+                },
                 [],
                 mockLogger
             );
 
-            await toolManager.executeTool('mcp--read_file', { path: '/test' }, 'call-1');
+            await toolManager.executeTool(
+                'mcp__filesystem__read_file',
+                { path: '/test' },
+                'call-1'
+            );
             expect(mockMcpManager.executeTool).toHaveBeenLastCalledWith(
-                'read_file',
+                'filesystem__read_file',
                 { path: '/test' },
                 expect.objectContaining({ logger: mockLogger, toolCallId: 'call-1' })
             );
 
-            await toolManager.executeTool(
-                'mcp--filesystem--read_file',
-                { path: '/test' },
-                'call-2'
-            );
+            await toolManager.executeTool('mcp__server2__list_directory', {}, 'call-2');
             expect(mockMcpManager.executeTool).toHaveBeenLastCalledWith(
-                'filesystem--read_file',
-                { path: '/test' },
-                expect.objectContaining({ logger: mockLogger, toolCallId: 'call-2' })
-            );
-
-            await toolManager.executeTool('mcp--server2--list_directory', {}, 'call-3');
-            expect(mockMcpManager.executeTool).toHaveBeenLastCalledWith(
-                'server2--list_directory',
+                'server2__list_directory',
                 {},
-                expect.objectContaining({ logger: mockLogger, toolCallId: 'call-3' })
+                expect.objectContaining({ logger: mockLogger, toolCallId: 'call-2' })
             );
             expect(mockApprovalManager.requestToolApproval).not.toHaveBeenCalled();
         });
@@ -4350,13 +4345,13 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockAllowedToolsProvider,
                 'manual',
                 mockAgentEventBus,
-                { alwaysAllow: ['mcp--read_file'] },
+                { alwaysAllow: ['mcp__read_file'] },
                 [],
                 mockLogger
             );
 
             const result = await toolManager.executeTool(
-                'mcp--read_file_metadata',
+                'mcp__read_file_metadata',
                 {},
                 'test-call-id'
             );
@@ -4387,7 +4382,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 );
 
                 const sessionId = 'test-session-123';
-                const tools = ['bash_exec', 'mcp--read_file'];
+                const tools = ['bash_exec', 'mcp__read_file'];
 
                 toolManager.setSessionAutoApproveTools(sessionId, tools);
 
@@ -4477,14 +4472,14 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
 
                 toolManager.setSessionAutoApproveTools(session1, ['bash_exec']);
                 toolManager.setSessionAutoApproveTools(session2, [
-                    'mcp--read_file',
-                    'mcp--write_file',
+                    'mcp__read_file',
+                    'mcp__write_file',
                 ]);
 
                 expect(toolManager.getSessionAutoApproveTools(session1)).toEqual(['bash_exec']);
                 expect(toolManager.getSessionAutoApproveTools(session2)).toEqual([
-                    'mcp--read_file',
-                    'mcp--write_file',
+                    'mcp__read_file',
+                    'mcp__write_file',
                 ]);
 
                 // Clearing one session should not affect the other
@@ -4721,10 +4716,10 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 );
 
                 const sessionId = 'test-session';
-                toolManager.setSessionAutoApproveTools(sessionId, ['mcp--test_tool']);
+                toolManager.setSessionAutoApproveTools(sessionId, ['mcp__test_tool']);
 
                 // Execute tool with sessionId
-                await toolManager.executeTool('mcp--test_tool', {}, 'call-1', { sessionId });
+                await toolManager.executeTool('mcp__test_tool', {}, 'call-1', { sessionId });
 
                 // Should NOT have requested approval (auto-approved by session config)
                 expect(mockApprovalManager.requestToolApproval).not.toHaveBeenCalled();
@@ -4768,10 +4763,10 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 );
 
                 const sessionId = 'test-session';
-                toolManager.setSessionAutoApproveTools(sessionId, ['mcp--allowed_tool']);
+                toolManager.setSessionAutoApproveTools(sessionId, ['mcp__allowed_tool']);
 
                 // Execute a tool NOT in the auto-approve list
-                await toolManager.executeTool('mcp--other_tool', {}, 'call-1', { sessionId });
+                await toolManager.executeTool('mcp__other_tool', {}, 'call-1', { sessionId });
 
                 // Should have requested approval
                 expect(mockApprovalManager.requestToolApproval).toHaveBeenCalled();
@@ -4801,10 +4796,10 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 );
 
                 // Set auto-approve for session-1
-                toolManager.setSessionAutoApproveTools('session-1', ['mcp--test_tool']);
+                toolManager.setSessionAutoApproveTools('session-1', ['mcp__test_tool']);
 
                 // Execute with different session
-                await toolManager.executeTool('mcp--test_tool', {}, 'call-1', {
+                await toolManager.executeTool('mcp__test_tool', {}, 'call-1', {
                     sessionId: 'session-2',
                 });
 
@@ -4835,10 +4830,10 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     mockLogger
                 );
 
-                toolManager.setSessionAutoApproveTools('session-1', ['mcp--test_tool']);
+                toolManager.setSessionAutoApproveTools('session-1', ['mcp__test_tool']);
 
                 // Execute without sessionId
-                await toolManager.executeTool('mcp--test_tool', {}, 'call-1');
+                await toolManager.executeTool('mcp__test_tool', {}, 'call-1');
 
                 // Should have requested approval (no sessionId means no session auto-approve)
                 expect(mockApprovalManager.requestToolApproval).toHaveBeenCalled();

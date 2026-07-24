@@ -338,6 +338,8 @@ export interface LocalToolDescriptor extends ToolDescriptorBase {
 
 export interface MCPToolDescriptor extends ToolDescriptorBase {
     identity: Extract<ToolIdentity, { type: 'mcp' }>;
+    /** Stable JavaScript-safe namespace assigned to the providing MCP connection. */
+    namespace: string;
     /** Untrusted MCP hints preserved for consumers; host policy must not treat them as authority. */
     annotations?: ToolAnnotations;
 }

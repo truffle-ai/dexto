@@ -1,5 +1,15 @@
 export { MCPManager } from './manager.js';
 export { ConfiguredMCPConnections } from './configured-connections.js';
+export {
+    MCP_MODEL_TOOL_PREFIX,
+    MCP_TOOL_SEPARATOR,
+    isValidMcpNamespace,
+    modelMcpToolName,
+    normalizeMcpNamespace,
+    parseMcpModelToolName,
+    qualifyMcpToolName,
+    stripMcpModelToolPrefix,
+} from './tool-name.js';
 export type { ConnectionFailure, MCPConnectionManagement } from './configured-connections.js';
 export type {
     MCPConnection,

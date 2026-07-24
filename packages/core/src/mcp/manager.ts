@@ -18,7 +18,7 @@ import type {
     MCPConnectionLayer,
 } from './connection-layer.js';
 import { toolSchemaFingerprint } from '../tools/schema-fingerprint.js';
-import { stableFingerprint } from '../utils/stable-fingerprint.js';
+import { isValidMcpNamespace, qualifyMcpToolName } from './tool-name.js';
 import { CfWorkerJsonSchemaValidator } from '@modelcontextprotocol/sdk/validation/cfworker';
 import type { JsonSchemaType, JsonSchemaValidator } from '@modelcontextprotocol/sdk/validation';
 
@@ -65,7 +65,6 @@ export class MCPManager {
     private toolCatalogs = new Map<string, ToolSet>();
     private toolCache = new Map<string, ToolCacheEntry>();
     private toolInputValidators = new Map<string, CachedToolInputValidator>();
-    private toolConflicts = new Set<string>();
     private promptCache = new Map<string, PromptCacheEntry>();
     private resourceCache = new Map<string, ResourceCacheEntry>();
     private stopListening: (() => void) | undefined;
@@ -74,10 +73,6 @@ export class MCPManager {
     private readonly logger: Logger;
     private readonly eventBus: AgentEventBus;
     private readonly jsonSchemaValidator = new CfWorkerJsonSchemaValidator();
-
-    // Use a distinctive delimiter that won't appear in normal server/tool names
-    // Using double hyphen as it's allowed in LLM tool name patterns (^[a-zA-Z0-9_-]+$)
-    private static readonly SERVER_DELIMITER = '--';
 
     constructor(
         connectionLayer: MCPConnectionLayer,
@@ -137,17 +132,6 @@ export class MCPManager {
         } catch {
             return undefined;
         }
-    }
-
-    /** Ensures display names are safe when used in conflict aliases. */
-    private sanitizeServerName(serverName: string): string {
-        return serverName.replace(/[^a-zA-Z0-9_-]/g, '_');
-    }
-
-    private toolNamespace(entry: ToolCacheEntry, namespaceCount: number): string {
-        const friendlyName = this.sanitizeServerName(entry.connection.name);
-        if (namespaceCount === 1) return friendlyName;
-        return `${friendlyName}_${stableFingerprint(entry.connection.id).slice(0, 16)}`;
     }
 
     private async loadTools(connection: MCPConnection): Promise<CatalogLoad<ToolSet>> {
@@ -212,45 +196,21 @@ export class MCPManager {
     }
 
     private rebuildToolCache(): void {
-        const providers = new Map<string, ToolCacheEntry[]>();
-
+        this.toolCache.clear();
+        this.toolInputValidators.clear();
         for (const connection of this.connections.values()) {
             const tools = this.toolCatalogs.get(connection.id) ?? {};
             for (const [toolName, definition] of Object.entries(tools)) {
-                const entries = providers.get(toolName) ?? [];
-                entries.push({
+                const qualifiedName = qualifyMcpToolName(connection.namespace, toolName);
+                if (this.toolCache.has(qualifiedName)) {
+                    throw MCPError.duplicateName(connection.namespace, connection.namespace);
+                }
+                this.toolCache.set(qualifiedName, {
                     serverName: connection.id,
                     connection,
                     upstreamToolName: toolName,
                     definition,
                 });
-                providers.set(toolName, entries);
-            }
-        }
-
-        this.toolCache.clear();
-        this.toolInputValidators.clear();
-        this.toolConflicts.clear();
-        for (const [toolName, entries] of providers) {
-            if (entries.length === 1) {
-                for (const entry of entries) this.toolCache.set(toolName, entry);
-                continue;
-            }
-
-            this.toolConflicts.add(toolName);
-            const namespaceCounts = new Map<string, number>();
-            for (const entry of entries) {
-                const namespace = this.sanitizeServerName(entry.connection.name);
-                namespaceCounts.set(namespace, (namespaceCounts.get(namespace) ?? 0) + 1);
-            }
-            for (const entry of entries) {
-                const friendlyName = this.sanitizeServerName(entry.connection.name);
-                const namespace = this.toolNamespace(entry, namespaceCounts.get(friendlyName) ?? 1);
-                const alias = `${namespace}${MCPManager.SERVER_DELIMITER}${toolName}`;
-                if (this.toolCache.has(alias)) {
-                    throw MCPError.duplicateName(entry.connection.name, entry.connection.name);
-                }
-                this.toolCache.set(alias, entry);
             }
         }
     }
@@ -333,22 +293,13 @@ export class MCPManager {
     async getAllTools(): Promise<ToolSet> {
         const allTools: ToolSet = {};
 
-        // Build tool set from cache
         for (const [toolKey, entry] of this.toolCache.entries()) {
-            const toolDef = entry.definition;
-
-            // For qualified names (conflicts), enhance description with server name
-            if (toolKey.includes(MCPManager.SERVER_DELIMITER)) {
-                allTools[toolKey] = {
-                    ...toolDef,
-                    description: toolDef.description
-                        ? `${toolDef.description} (via ${entry.connection.name})`
-                        : `Tool from ${entry.connection.name}`,
-                };
-            } else {
-                // Simple name, use as-is
-                allTools[toolKey] = toolDef;
-            }
+            allTools[toolKey] = {
+                ...entry.definition,
+                description: entry.definition.description
+                    ? `${entry.definition.description} (via ${entry.connection.name})`
+                    : `Tool from ${entry.connection.name}`,
+            };
         }
 
         const serverNames = Array.from(
@@ -356,16 +307,10 @@ export class MCPManager {
         );
 
         this.logger.debug(
-            `🔧 MCP tools from cache: ${Object.keys(allTools).length} total tools, ${this.toolConflicts.size} conflicts, connected servers: ${serverNames.join(', ')}`
+            `🔧 MCP tools from cache: ${Object.keys(allTools).length} total tools, connected servers: ${serverNames.join(', ')}`
         );
 
-        Object.keys(allTools).forEach((toolName) => {
-            if (toolName.includes(MCPManager.SERVER_DELIMITER)) {
-                this.logger.debug(`  - ${toolName} (qualified)`);
-            } else {
-                this.logger.debug(`  - ${toolName}`);
-            }
-        });
+        Object.keys(allTools).forEach((toolName) => this.logger.debug(`  - ${toolName}`));
 
         this.logger.silly(`MCP tools: ${JSON.stringify(allTools, null, 2)}`);
         return allTools;
@@ -373,7 +318,7 @@ export class MCPManager {
 
     /**
      * Describe cached MCP tools without provider-specific schema wrapping.
-     * The callable name may change when conflicts appear, while identity remains connection-based.
+     * Callable names are always namespace-qualified, while identity remains connection-based.
      */
     getToolDescriptors(): MCPToolDescriptor[] {
         return Array.from(this.toolCache.entries(), ([name, entry]) =>
@@ -430,6 +375,7 @@ export class MCPManager {
                 connectionId: entry.serverName,
                 toolName: entry.upstreamToolName,
             },
+            namespace: entry.connection.namespace,
             inputSchema: entry.definition.parameters,
             ...(entry.definition.outputSchema !== undefined
                 ? { outputSchema: entry.definition.outputSchema }
@@ -483,7 +429,6 @@ export class MCPManager {
             this.logger.debug(
                 `Available MCP tools: ${Array.from(this.toolCache.keys()).join(', ')}`
             );
-            this.logger.debug(`Conflicted tools: ${Array.from(this.toolConflicts).join(', ')}`);
             throw MCPError.toolNotFound(toolName);
         }
 
@@ -622,7 +567,6 @@ export class MCPManager {
         this.toolCatalogs.clear();
         this.toolCache.clear();
         this.toolInputValidators.clear();
-        this.toolConflicts.clear();
         this.promptCache.clear();
         this.resourceCache.clear();
         this.logger.info('Closed MCP connections and cleared caches.');
@@ -631,12 +575,21 @@ export class MCPManager {
     private async syncConnections(): Promise<void> {
         const connections = await this.connectionLayer.listConnections();
         const nextConnections = new Map<string, MCPConnection>();
+        const namespaces = new Map<string, MCPConnection>();
 
         for (const connection of connections) {
             if (nextConnections.has(connection.id)) {
                 throw MCPError.duplicateName(connection.id, connection.id);
             }
+            if (!isValidMcpNamespace(connection.namespace)) {
+                throw MCPError.invalidNamespace(connection.namespace);
+            }
+            const existingNamespace = namespaces.get(connection.namespace);
+            if (existingNamespace !== undefined) {
+                throw MCPError.duplicateName(connection.namespace, existingNamespace.name);
+            }
             nextConnections.set(connection.id, connection);
+            namespaces.set(connection.namespace, connection);
         }
 
         const catalogs = await Promise.all(

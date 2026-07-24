@@ -10,6 +10,7 @@ import type { MCPConnection } from './connection-layer.js';
 import { MCPErrorCode } from './error-codes.js';
 import { MCPManager } from './manager.js';
 import { toolSchemaFingerprint } from '../tools/schema-fingerprint.js';
+import { normalizeMcpNamespace } from './tool-name.js';
 
 function createDeferred<T>() {
     let resolve: ((value: T) => void) | undefined;
@@ -55,6 +56,7 @@ function createConnection(options: {
     return {
         id: options.id,
         name: options.name ?? options.id,
+        namespace: normalizeMcpNamespace(options.name ?? options.id),
         listTools: async () => rawTools(await options.tools()),
         callTool: options.callTool ?? vi.fn().mockResolvedValue({ ok: true }),
         ...(options.prompts ? { prompts: options.prompts } : {}),
@@ -98,14 +100,15 @@ describe('MCPManager', () => {
         );
         const manager = await createManager(connections);
 
-        expect(manager.getToolDescriptor('search')).toEqual({
-            name: 'search',
+        expect(manager.getToolDescriptor('web_search__search')).toEqual({
+            name: 'web_search__search',
             description: 'Search the web',
             identity: {
                 type: 'mcp',
                 connectionId: 'connection-1',
                 toolName: 'search',
             },
+            namespace: 'web_search',
             inputSchema: definition.parameters,
             outputSchema: definition.outputSchema,
             annotations: { readOnlyHint: true },
@@ -117,7 +120,11 @@ describe('MCPManager', () => {
 
         const logger = createMockLogger();
         await expect(
-            manager.executeTool('search', { query: 'dexto' }, { logger, sessionId: 'session-1' })
+            manager.executeTool(
+                'web_search__search',
+                { query: 'dexto' },
+                { logger, sessionId: 'session-1' }
+            )
         ).resolves.toEqual({ items: ['dexto'] });
         expect(invocation).toHaveBeenCalledWith(
             'search',
@@ -151,17 +158,17 @@ describe('MCPManager', () => {
         );
         const manager = await createManager(connections);
 
-        expect(manager.validateToolInput('lookup', { id: 'record-1' })).toEqual({
+        expect(manager.validateToolInput('connection_1__lookup', { id: 'record-1' })).toEqual({
             id: 'record-1',
         });
-        expect(() => manager.validateToolInput('lookup', { id: 42 })).toThrow(
+        expect(() => manager.validateToolInput('connection_1__lookup', { id: 42 })).toThrow(
             "MCP tool 'lookup' received invalid arguments"
         );
-        expect(() => manager.validateToolInput('lookup', { id: 'record-1', extra: true })).toThrow(
-            "MCP tool 'lookup' received invalid arguments"
-        );
+        expect(() =>
+            manager.validateToolInput('connection_1__lookup', { id: 'record-1', extra: true })
+        ).toThrow("MCP tool 'lookup' received invalid arguments");
 
-        await expect(manager.executeTool('lookup', { id: 42 })).rejects.toThrow(
+        await expect(manager.executeTool('connection_1__lookup', { id: 42 })).rejects.toThrow(
             "MCP tool 'lookup' received invalid arguments"
         );
         expect(callTool).not.toHaveBeenCalled();
@@ -181,14 +188,14 @@ describe('MCPManager', () => {
         const manager = new MCPManager(connections, logger);
         await manager.initialize();
 
-        await expect(manager.executeTool('lookup', {})).rejects.toBe(sensitiveError);
+        await expect(manager.executeTool('connection_1__lookup', {})).rejects.toBe(sensitiveError);
 
         expect(JSON.stringify(vi.mocked(logger.error).mock.calls)).not.toContain(
             sensitiveError.message
         );
     });
 
-    it('qualifies conflicts and restores the simple alias when one connection remains', async () => {
+    it('keeps names namespace-qualified when connections are added or removed', async () => {
         const connections = new TestMCPConnections();
         const firstCall = vi.fn().mockResolvedValue({ source: 'first' });
         const secondCall = vi.fn().mockResolvedValue({ source: 'second' });
@@ -211,24 +218,24 @@ describe('MCPManager', () => {
         const manager = await createManager(connections);
 
         expect(Object.keys(await manager.getAllTools()).sort()).toEqual([
-            'First_Server--shared',
-            'Second_Server--shared',
+            'first_server__shared',
+            'second_server__shared',
         ]);
-        await manager.executeTool('Second_Server--shared', {});
+        await manager.executeTool('second_server__shared', {});
         expect(secondCall).toHaveBeenCalledWith('shared', {}, undefined);
 
         connections.delete('second-id');
         await connections.announce({ type: 'connections-changed' });
 
-        expect(Object.keys(await manager.getAllTools())).toEqual(['shared']);
-        expect(manager.getToolDescriptor('shared')?.identity).toEqual({
+        expect(Object.keys(await manager.getAllTools())).toEqual(['first_server__shared']);
+        expect(manager.getToolDescriptor('first_server__shared')?.identity).toEqual({
             type: 'mcp',
             connectionId: 'first-id',
             toolName: 'shared',
         });
     });
 
-    it('uses stable connection-derived suffixes when display names produce the same namespace', async () => {
+    it('rejects duplicate connection namespaces', async () => {
         const connections = new TestMCPConnections();
         connections.set(
             createConnection({
@@ -244,42 +251,9 @@ describe('MCPManager', () => {
                 tools: async () => ({ shared: tool('Second') }),
             })
         );
-        const manager = await createManager(connections);
-        const aliasesByIdentity = new Map(
-            manager
-                .getToolDescriptors()
-                .map((descriptor) => [descriptor.identity.connectionId, descriptor.name])
+        await expect(createManager(connections)).rejects.toThrow(
+            "Server name 'my_server' conflicts"
         );
-
-        const reversedConnections = new TestMCPConnections();
-        reversedConnections.set(
-            createConnection({
-                id: 'connection-two',
-                name: 'my_server',
-                tools: async () => ({ shared: tool('Second') }),
-            })
-        );
-        reversedConnections.set(
-            createConnection({
-                id: 'connection-one',
-                name: 'my@server',
-                tools: async () => ({ shared: tool('First') }),
-            })
-        );
-        const reversedManager = await createManager(reversedConnections);
-
-        expect(aliasesByIdentity).toEqual(
-            new Map(
-                reversedManager
-                    .getToolDescriptors()
-                    .map((descriptor) => [descriptor.identity.connectionId, descriptor.name])
-            )
-        );
-        expect(Array.from(aliasesByIdentity.values())).toEqual([
-            expect.stringMatching(/^my_server_[a-z0-9]+--shared$/),
-            expect.stringMatching(/^my_server_[a-z0-9]+--shared$/),
-        ]);
-        expect(new Set(aliasesByIdentity.values()).size).toBe(2);
     });
 
     it('keeps canonical identity stable when the display name changes', async () => {
@@ -295,7 +269,7 @@ describe('MCPManager', () => {
         connections.set({ ...operation, name: 'New Name' });
         await connections.announce({ type: 'connections-changed' });
 
-        expect(manager.getToolDescriptor('lookup')?.identity).toEqual({
+        expect(manager.getToolDescriptor('old_name__lookup')?.identity).toEqual({
             type: 'mcp',
             connectionId: 'stable-id',
             toolName: 'lookup',
@@ -322,7 +296,8 @@ describe('MCPManager', () => {
             })
         );
         const manager = await createManager(connections, eventBus);
-        const initialFingerprint = manager.getToolDescriptor('old_tool')?.schemaFingerprint;
+        const initialFingerprint =
+            manager.getToolDescriptor('server_1__old_tool')?.schemaFingerprint;
         getTools.mockClear();
         listPrompts.mockClear();
         listResources.mockClear();
@@ -339,9 +314,9 @@ describe('MCPManager', () => {
         };
         await connections.announce({ type: 'tools-changed', connectionId: 'server-1' });
 
-        expect(manager.getToolDescriptor('old_tool')).toBeUndefined();
-        expect(manager.getToolDescriptor('new_tool')).toBeDefined();
-        expect(manager.getToolDescriptor('new_tool')?.schemaFingerprint).not.toBe(
+        expect(manager.getToolDescriptor('server_1__old_tool')).toBeUndefined();
+        expect(manager.getToolDescriptor('server_1__new_tool')).toBeDefined();
+        expect(manager.getToolDescriptor('server_1__new_tool')?.schemaFingerprint).not.toBe(
             initialFingerprint
         );
         expect(getTools).toHaveBeenCalledOnce();
@@ -410,7 +385,7 @@ describe('MCPManager', () => {
         await Promise.all([older, newer]);
 
         expect(manager.getToolDescriptors().map((descriptor) => descriptor.name)).toEqual([
-            'newest',
+            'server_1__newest',
         ]);
     });
 
@@ -426,7 +401,7 @@ describe('MCPManager', () => {
 
         expect(await manager.listAllPrompts()).toEqual([]);
         expect(await manager.listAllResources()).toEqual([]);
-        expect(manager.getToolDescriptor('ping')).toBeDefined();
+        expect(manager.getToolDescriptor('cloud_connection__ping')).toBeDefined();
     });
 
     it('caches optional prompt and resource catalogs while dispatching reads on demand', async () => {
@@ -499,7 +474,7 @@ describe('MCPManager', () => {
 
         const logger = createMockLogger();
         await manager.executeTool(
-            'inspect',
+            'server_1__inspect',
             {},
             {
                 logger,

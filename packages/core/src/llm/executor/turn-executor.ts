@@ -77,8 +77,8 @@ import { cloneStructuredValuePreservingUrls } from '../../context/content-clone.
 import { DextoRuntimeError } from '../../errors/DextoRuntimeError.js';
 import { ErrorScope, ErrorType } from '../../errors/types.js';
 import { LLMErrorCode } from '../error-codes.js';
+import { MCP_MODEL_TOOL_PREFIX } from '../../mcp/tool-name.js';
 
-const MCP_TOOL_PREFIX = 'mcp--';
 const MODEL_REQUEST_MAX_RETRIES = 2;
 const TOOL_SUPPORT_PROBE_TIMEOUT_MS = 5000;
 type ToolSupportValidationResult =
@@ -2299,7 +2299,7 @@ export class TurnExecutor {
         return {
             version: 1,
             source: {
-                type: toolName.startsWith(MCP_TOOL_PREFIX) ? 'mcp' : 'local',
+                type: toolName.startsWith(MCP_MODEL_TOOL_PREFIX) ? 'mcp' : 'local',
             },
             header: {
                 title: toolName.replace(/[_-]+/g, ' '),

@@ -191,7 +191,7 @@ describe('MCPManager Integration Tests', () => {
             expect(toolNames.some((name) => name.includes('format-metric'))).toBe(true);
 
             // Verify tool schema - tools have 'parameters' field (converted from inputSchema)
-            const growthRateTool = tools['calculate-growth-rate'];
+            const growthRateTool = tools['resources_demo__calculate-growth-rate'];
             expect(
                 growthRateTool,
                 `Tool calculate-growth-rate should exist.\nAvailable tools: ${JSON.stringify(tools, null, 2)}`

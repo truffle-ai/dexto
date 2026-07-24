@@ -77,6 +77,17 @@ export class MCPError {
         );
     }
 
+    static invalidNamespace(namespace: string) {
+        return new DextoRuntimeError(
+            MCPErrorCode.INVALID_NAMESPACE,
+            ErrorScope.MCP,
+            ErrorType.USER,
+            `Invalid MCP namespace '${namespace}'`,
+            { namespace },
+            'Use a lowercase JavaScript-safe namespace such as github_work'
+        );
+    }
+
     /**
      * MCP server not found
      */

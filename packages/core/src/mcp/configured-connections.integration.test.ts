@@ -34,14 +34,16 @@ describe('ConfiguredMCPConnections integration', () => {
         await connections.connect('resources-demo', config);
 
         expect(manager.getToolDescriptors().map((tool) => tool.name)).toEqual([
-            'calculate-growth-rate',
-            'format-metric',
+            'resources_demo__calculate-growth-rate',
+            'resources_demo__format-metric',
         ]);
         expect(await manager.listAllPrompts()).toContain('analyze-metrics');
         expect(await manager.listAllResources()).toHaveLength(3);
 
         await connections.restart('resources-demo');
-        expect(manager.getToolDescriptor('calculate-growth-rate')?.identity).toEqual({
+        expect(
+            manager.getToolDescriptor('resources_demo__calculate-growth-rate')?.identity
+        ).toEqual({
             type: 'mcp',
             connectionId: 'resources-demo',
             toolName: 'calculate-growth-rate',

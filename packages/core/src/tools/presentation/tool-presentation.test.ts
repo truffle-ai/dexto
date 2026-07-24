@@ -31,7 +31,7 @@ describe('ToolPresentation', () => {
             source: { type: 'local' },
             header: { title: 'Write File' },
         });
-        expect(presentation.buildGenericSnapshot('mcp--filesystem--read_file')).toEqual({
+        expect(presentation.buildGenericSnapshot('mcp__filesystem__read_file')).toEqual({
             version: 1,
             source: { type: 'mcp', mcpServerName: 'filesystem' },
             header: { title: 'Read File' },

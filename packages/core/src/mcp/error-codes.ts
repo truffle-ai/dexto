@@ -7,6 +7,7 @@ export enum MCPErrorCode {
     SCHEMA_VALIDATION = 'mcp_schema_validation',
     COMMAND_MISSING = 'mcp_command_missing',
     DUPLICATE_NAME = 'mcp_duplicate_name',
+    INVALID_NAMESPACE = 'mcp_invalid_namespace',
 
     // Connection and lifecycle
     CONNECTION_FAILED = 'mcp_connection_failed',

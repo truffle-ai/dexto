@@ -23,8 +23,10 @@ export type MCPConnectionCallContext = Pick<
 export interface MCPConnection {
     /** Stable host-owned identity. Display-name changes must not change this value. */
     id: string;
-    /** Human-readable name used to derive friendly aliases. */
+    /** Human-readable name used in logs and presentation. */
     name: string;
+    /** Stable, unique JavaScript-safe name used to address this connection's capabilities. */
+    namespace: string;
     listTools(): Promise<Tool[]>;
     callTool(
         toolName: string,
