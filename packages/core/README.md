@@ -74,7 +74,7 @@ for await (const event of await agent.stream('Write a story', session.id)) {
 await agent.stop();
 ```
 
-See the [Dexto Agent SDK docs](https://docs.dexto.ai/docs/guides/dexto-sdk) for multimodal content, streaming, MCP tools, and advanced features.
+See the [Dexto Agent SDK docs](https://cli.dexto.ai/docs/guides/dexto-sdk) for multimodal content, streaming, MCP tools, and advanced features.
 
 ---
 
@@ -109,10 +109,10 @@ console.log('Dexto server running at http://localhost:3001');
 // Server provides REST API and SSE streaming endpoints
 // POST /api/message - Send messages
 // GET /api/sessions - List sessions
-// See docs.dexto.ai/api/rest/ for all endpoints
+// See cli.dexto.ai/api/rest/ for all endpoints
 ```
 
-This starts an HTTP server with full REST and SSE APIs, enabling integration with web frontends, webhooks, and other services. See the [REST API Documentation](https://docs.dexto.ai/api/rest/) for available endpoints.
+This starts an HTTP server with full REST and SSE APIs, enabling integration with web frontends, webhooks, and other services. See the [REST API Documentation](https://cli.dexto.ai/api/rest/) for available endpoints.
 
 ### Session Management
 
@@ -279,15 +279,15 @@ logger:
 CLI automatically adds per-agent file transport at `~/.dexto/logs/<agent-id>.log`. See architecture in `src/logger/v2/`.
 
 See the DextoAgent API reference for all methods:
-https://docs.dexto.ai/api/dexto-agent/
+https://cli.dexto.ai/api/dexto-agent/
 
 ---
 
 ## Links
 
-- Docs: https://docs.dexto.ai/
-- Configuration Guide: https://docs.dexto.ai/docs/category/guides/
-- API Reference: https://docs.dexto.ai/api/
+- Docs: https://cli.dexto.ai/
+- Configuration Guide: https://cli.dexto.ai/docs/category/guides/
+- API Reference: https://cli.dexto.ai/api/
 
 ## License
 

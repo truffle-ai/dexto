@@ -13,7 +13,7 @@
  * programmatically without a registry file.
  *
  * @see AgentFactory.createAgent() for inline config creation
- * @see https://docs.dexto.ai/api/sdk/agent-manager for full documentation
+ * @see https://cli.dexto.ai/api/sdk/agent-manager for full documentation
  */
 
 import { promises as fs } from 'fs';

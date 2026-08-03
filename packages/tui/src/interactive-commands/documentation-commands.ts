@@ -27,7 +27,7 @@ export const documentationCommands: CommandDefinition[] = [
             _agent: TuiAgentBackend,
             _ctx: CommandContext
         ): Promise<boolean | string> => {
-            const docsUrl = 'https://docs.dexto.ai/docs/category/getting-started';
+            const docsUrl = 'https://cli.dexto.ai/docs/category/getting-started';
             try {
                 const { spawn } = await import('child_process');
 

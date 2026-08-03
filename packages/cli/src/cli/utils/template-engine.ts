@@ -857,7 +857,7 @@ database and blob store (e.g. SQLite + local blobs).
 
 ## Learn More
 
-- [Dexto Documentation](https://docs.dexto.ai)
-- [Agent Configuration Guide](https://docs.dexto.ai/docs/guides/configuration)
+- [Dexto Documentation](https://cli.dexto.ai)
+- [Agent Configuration Guide](https://cli.dexto.ai/docs/guides/configuration)
 `;
 }

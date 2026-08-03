@@ -500,7 +500,7 @@ export default function CustomizePanel({
                         <div className="flex items-center gap-2">
                             <h2 className="text-lg font-semibold">Customize Agent</h2>
                             <a
-                                href="https://docs.dexto.ai/docs/guides/configuring-dexto/overview"
+                                href="https://cli.dexto.ai/docs/guides/configuring-dexto/overview"
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1"
