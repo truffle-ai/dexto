@@ -80,7 +80,7 @@ export async function createDextoProject(
         console.log(`\n${chalk.cyan('Next steps:')}`);
         console.log(`  ${chalk.gray('$')} cd ${projectName}`);
         console.log(`  ${chalk.gray('$')} pnpm start`);
-        console.log(`\n${chalk.gray('Learn more:')} https://docs.dexto.ai\n`);
+        console.log(`\n${chalk.gray('Learn more:')} https://cli.dexto.ai\n`);
 
         return projectPath;
     } catch (error) {

@@ -553,7 +553,7 @@ program
             'Advanced Modes:\n' +
             '  dexto --mode server      Run as API server\n' +
             '  dexto --mode mcp         Run as MCP server\n\n' +
-            'Docs: https://docs.dexto.ai'
+            'Docs: https://cli.dexto.ai'
     )
     .action(
         withAnalytics(

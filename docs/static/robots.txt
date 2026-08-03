@@ -13,4 +13,4 @@ Disallow: /*.md$
 Disallow: /*.mdx$
 
 # Sitemap location
-Sitemap: https://docs.dexto.ai/sitemap.xml
+Sitemap: https://cli.dexto.ai/sitemap.xml

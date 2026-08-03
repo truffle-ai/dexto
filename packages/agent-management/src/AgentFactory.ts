@@ -21,7 +21,7 @@
  * and need discovery/selection capabilities.
  *
  * @see AgentManager for registry-based agent management
- * @see https://docs.dexto.ai/api/sdk/agent-factory for full documentation
+ * @see https://cli.dexto.ai/api/sdk/agent-factory for full documentation
  */
 
 import { promises as fs } from 'fs';

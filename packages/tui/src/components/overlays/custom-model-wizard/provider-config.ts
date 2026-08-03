@@ -321,7 +321,7 @@ export const PROVIDER_CONFIGS: Record<CustomModelProvider, ProviderConfig> = {
             title: 'AWS Bedrock Setup',
             description:
                 'Bedrock uses AWS credentials from your environment. Ensure AWS_REGION and either AWS_BEARER_TOKEN_BEDROCK or IAM credentials are set.',
-            docsUrl: 'https://docs.dexto.ai/docs/guides/supported-llm-providers#amazon-bedrock',
+            docsUrl: 'https://cli.dexto.ai/docs/guides/supported-llm-providers#amazon-bedrock',
         },
     },
 
@@ -369,7 +369,7 @@ export const PROVIDER_CONFIGS: Record<CustomModelProvider, ProviderConfig> = {
             title: 'Ollama Setup',
             description:
                 'Add custom Ollama models by name. Ensure Ollama is running (default: http://localhost:11434). Pull models with: ollama pull <model>',
-            docsUrl: 'https://docs.dexto.ai/docs/guides/supported-llm-providers#ollama',
+            docsUrl: 'https://cli.dexto.ai/docs/guides/supported-llm-providers#ollama',
         },
     },
 
@@ -440,7 +440,7 @@ export const PROVIDER_CONFIGS: Record<CustomModelProvider, ProviderConfig> = {
             title: 'Local Models Setup',
             description:
                 'Add custom GGUF models by ID (from registry) or absolute file path. Ensure node-llama-cpp is installed and GPU acceleration is configured.',
-            docsUrl: 'https://docs.dexto.ai/docs/guides/supported-llm-providers#local-models',
+            docsUrl: 'https://cli.dexto.ai/docs/guides/supported-llm-providers#local-models',
         },
     },
 
@@ -478,7 +478,7 @@ export const PROVIDER_CONFIGS: Record<CustomModelProvider, ProviderConfig> = {
             title: 'Google Vertex AI Setup',
             description:
                 'Vertex AI uses Google Cloud Application Default Credentials (ADC). Set GOOGLE_VERTEX_PROJECT and optionally GOOGLE_VERTEX_LOCATION. Run: gcloud auth application-default login',
-            docsUrl: 'https://docs.dexto.ai/docs/guides/supported-llm-providers#google-vertex-ai',
+            docsUrl: 'https://cli.dexto.ai/docs/guides/supported-llm-providers#google-vertex-ai',
         },
     },
 

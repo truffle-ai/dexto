@@ -985,7 +985,7 @@ const LocalModelWizard = forwardRef<LocalModelWizardHandle, LocalModelWizardProp
                 <SetupInfoBanner
                     title="Local Models"
                     description="Select a model to download, or use a custom GGUF file. Models run completely on your machine - free, private, and offline."
-                    docsUrl="https://docs.dexto.ai/docs/guides/supported-llm-providers#local-models"
+                    docsUrl="https://cli.dexto.ai/docs/guides/supported-llm-providers#local-models"
                 />
 
                 {/* Model list */}
