@@ -110,8 +110,8 @@ cd dexto && pnpm install && pnpm install-cli
 ```
 
 Upgrade/uninstall and migration troubleshooting live in docs:
-- Installation guide: https://docs.dexto.ai/docs/getting-started/installation
-- CLI command reference: https://docs.dexto.ai/docs/guides/cli/overview
+- Installation guide: https://cli.dexto.ai/docs/getting-started/installation
+- CLI command reference: https://cli.dexto.ai/docs/guides/cli/overview
 
 ### Run
 
@@ -330,7 +330,7 @@ const { server } = await startHonoApiServer(agent, 3001);
 // POST /api/message, GET /api/sessions, etc.
 ```
 
-This starts an HTTP server with full REST and SSE APIs, enabling integration with web frontends, webhooks, and other services. See the [REST API Documentation](https://docs.dexto.ai/api/rest/) for available endpoints.
+This starts an HTTP server with full REST and SSE APIs, enabling integration with web frontends, webhooks, and other services. See the [REST API Documentation](https://cli.dexto.ai/api/rest/) for available endpoints.
 
 <details>
 <summary><strong>Advanced SDK Usage</strong></summary>
@@ -426,7 +426,7 @@ sessions:
 - **Cache**: Redis, In-Memory
 - **Database**: PostgreSQL, SQLite, In-Memory
 
-See the [Storage Configuration guide](https://docs.dexto.ai/docs/guides/configuring-dexto/storage) for details.
+See the [Storage Configuration guide](https://cli.dexto.ai/docs/guides/configuring-dexto/storage) for details.
 
 </details>
 
@@ -447,7 +447,7 @@ dexto --agent coding-agent
 
 **Available:** Coding, Podcast, Image Editor, Video (Sora), Database, GitHub, Triage (multi-agent), and more.
 
-See the full [Agent Registry](https://docs.dexto.ai/docs/guides/agent-registry).
+See the full [Agent Registry](https://cli.dexto.ai/docs/guides/agent-registry).
 
 ---
 
@@ -529,7 +529,7 @@ dexto -m llama-4-scout
 
 Switch within interactive CLI (`/model`) or Web UI without config changes.
 
-See the [Configuration Guide](https://docs.dexto.ai/docs/category/agent-configuration-guide).
+See the [Configuration Guide](https://cli.dexto.ai/docs/category/agent-configuration-guide).
 
 ---
 
@@ -626,10 +626,10 @@ Full reference: `dexto --help`
 
 ## Documentation
 
-- **[Quick Start](https://docs.dexto.ai/docs/getting-started/intro/)** – Get running in minutes
-- **[Configuration Guide](https://docs.dexto.ai/docs/category/guides/)** – Agents, LLMs, tools
-- **[SDK Reference](https://docs.dexto.ai/api/sdk/dexto-agent)** – Programmatic usage
-- **[REST API](https://docs.dexto.ai/api/rest/)** – HTTP endpoints
+- **[Quick Start](https://cli.dexto.ai/docs/getting-started/intro/)** – Get running in minutes
+- **[Configuration Guide](https://cli.dexto.ai/docs/category/guides/)** – Agents, LLMs, tools
+- **[SDK Reference](https://cli.dexto.ai/api/sdk/dexto-agent)** – Programmatic usage
+- **[REST API](https://cli.dexto.ai/api/rest/)** – HTTP endpoints
 
 ---
 

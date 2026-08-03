@@ -10,7 +10,7 @@ const config: Config = {
     favicon: 'img/dexto/dexto_logo_icon.svg',
 
     // Set the production url of your site here
-    url: 'https://docs.dexto.ai',
+    url: 'https://cli.dexto.ai',
     // Set the /<baseUrl>/ pathname under which your site is served
     baseUrl: '/',
 
@@ -226,7 +226,7 @@ const config: Config = {
                         },
                         {
                             label: 'llms.txt',
-                            href: 'https://docs.dexto.ai/llms.txt',
+                            href: 'https://cli.dexto.ai/llms.txt',
                         },
                     ],
                 },
