@@ -39,6 +39,7 @@ import type {
     LLMReasoningConfig,
     LLMContext,
     LLMProvider,
+    ModelRegistry,
     ReasoningVariant,
 } from '@dexto/llm';
 import type { Logger } from '../../logger/v2/types.js';
@@ -473,6 +474,7 @@ export class TurnExecutor {
             baseURL?: string | undefined;
             usageScopeId?: string | undefined;
             executionControl?: LLMExecutionControl | undefined;
+            llmRegistry?: ModelRegistry;
             // Provider-specific options
             reasoning?: LLMReasoningConfig | undefined;
         },
@@ -510,6 +512,9 @@ export class TurnExecutor {
             model: this.llmContext.model,
             ...(this.config.usageScopeId !== undefined && {
                 usageScopeId: this.config.usageScopeId,
+            }),
+            ...(this.config.llmRegistry !== undefined && {
+                llmRegistry: this.config.llmRegistry,
             }),
             ...(estimatedInputTokens !== undefined && { estimatedInputTokens }),
             ...(reasoning?.reasoningVariant !== undefined && {
@@ -1520,6 +1525,9 @@ export class TurnExecutor {
                     provider: this.llmContext.provider,
                     model: this.llmContext.model,
                     reasoning: this.config.reasoning,
+                    ...(this.config.llmRegistry !== undefined && {
+                        llmRegistry: this.config.llmRegistry,
+                    }),
                 }),
             this.logger
         );

@@ -11,6 +11,8 @@ import type {
     LanguageModelFactory,
 } from '../llm/services/types.js';
 import type { LlmAuthResolver } from '../llm/auth/index.js';
+import type { ModelRegistry } from '@dexto/llm';
+import { DEFAULT_MODEL_REGISTRY } from '@dexto/llm';
 import type { SystemPromptManager } from '../systemPrompt/manager.js';
 import type { ToolManager } from '../tools/tool-manager.js';
 import type { ValidatedLLMConfig } from '../llm/schemas.js';
@@ -185,6 +187,7 @@ export class ChatSession {
             followUpQueueStore: SessionMessageQueueStore;
             languageModelFactory?: LanguageModelFactory;
             authResolver?: LlmAuthResolver | null;
+            llmRegistry?: ModelRegistry;
             workspaceManager?: import('../workspace/manager.js').WorkspaceManager;
             compactionStrategy: CompactionStrategy | null;
             executionControl?: LLMExecutionControl | undefined;
@@ -329,6 +332,7 @@ export class ChatSession {
             steerQueue: this.steerQueue,
             followUpQueue: this.followUpQueue,
             authResolver: this.services.authResolver ?? null,
+            llmRegistry: this.services.llmRegistry ?? DEFAULT_MODEL_REGISTRY,
         };
 
         return createLLMService(

@@ -503,6 +503,7 @@ export async function createLLMService(
 
     const providerContext: DextoProviderContext = {
         sessionId,
+        ...(options.llmRegistry !== undefined ? { llmRegistry: options.llmRegistry } : {}),
         ...(options.cwd !== undefined ? { cwd: options.cwd } : {}),
         authResolver: options.authResolver ?? null,
         logger,
@@ -535,6 +536,7 @@ export async function createLLMService(
         followUpQueue,
         usageScopeId,
         executionControl,
-        compactionStrategy
+        compactionStrategy,
+        options.llmRegistry
     );
 }

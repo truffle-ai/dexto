@@ -2,7 +2,7 @@
  * Provider-specific options builder for Vercel AI SDK's streamText/generateText.
  */
 
-import type { LLMProvider, LLMReasoningConfig } from '@dexto/llm';
+import type { LLMProvider, LLMReasoningConfig, ModelRegistry } from '@dexto/llm';
 import {
     ANTHROPIC_INTERLEAVED_THINKING_BETA,
     getGoogleReasoningBudgetTokens,
@@ -21,6 +21,7 @@ export interface ProviderOptionsConfig {
     provider: LLMProvider;
     model: string;
     reasoning?: LLMReasoningConfig | undefined;
+    llmRegistry?: ModelRegistry;
 }
 
 const ANTHROPIC_MIN_THINKING_BUDGET_TOKENS = 1024;
@@ -65,7 +66,7 @@ function getSelectedReasoningVariant(config: ProviderOptionsConfig): {
     reasoningVariant: string | undefined;
     hasInvalidRequestedReasoningVariant: boolean;
 } {
-    const profile = getReasoningProfile(config.provider, config.model);
+    const profile = getReasoningProfile(config.provider, config.model, config.llmRegistry);
     const requested = config.reasoning?.variant;
     if (requested !== undefined) {
         const supported = profile.variants.some((entry) => entry.id === requested);
@@ -165,9 +166,10 @@ function buildOpenRouterProviderOptions(config: {
     model: string;
     reasoningVariant: string | undefined;
     budgetTokens: number | undefined;
+    llmRegistry?: ModelRegistry;
 }): Record<string, Record<string, unknown>> | undefined {
     const { provider, model, reasoningVariant, budgetTokens } = config;
-    const profile = getReasoningProfile(provider, model);
+    const profile = getReasoningProfile(provider, model, config.llmRegistry);
     if (!profile.capable) {
         return undefined;
     }
@@ -263,12 +265,12 @@ export function buildProviderOptions(
     }
 
     if (provider === 'anthropic') {
-        const capable = isReasoningCapableModel(model, 'anthropic');
+        const capable = isReasoningCapableModel(model, 'anthropic', config.llmRegistry);
         return buildAnthropicProviderOptions({ model, reasoningVariant, budgetTokens, capable });
     }
 
     if (provider === 'bedrock') {
-        const capable = getReasoningProfile('bedrock', model).capable;
+        const capable = getReasoningProfile('bedrock', model, config.llmRegistry).capable;
         if (!capable) {
             return { bedrock: {} };
         }
@@ -317,12 +319,12 @@ export function buildProviderOptions(
     }
 
     if (provider === 'vertex' && modelLower.includes('claude')) {
-        const capable = isReasoningCapableModel(model, 'vertex');
+        const capable = isReasoningCapableModel(model, 'vertex', config.llmRegistry);
         return buildAnthropicProviderOptions({ model, reasoningVariant, budgetTokens, capable });
     }
 
     if (provider === 'google' || (provider === 'vertex' && !modelLower.includes('claude'))) {
-        const profile = getReasoningProfile(provider, model);
+        const profile = getReasoningProfile(provider, model, config.llmRegistry);
         const includeThoughts = profile.capable && reasoningVariant !== 'disabled';
         const isThinkingLevel = profile.paradigm === 'thinking-level';
         const thinkingLevel =
@@ -373,11 +375,17 @@ export function buildProviderOptions(
     }
 
     if (isOpenRouterGatewayProvider(provider)) {
-        return buildOpenRouterProviderOptions({ provider, model, reasoningVariant, budgetTokens });
+        return buildOpenRouterProviderOptions({
+            provider,
+            model,
+            reasoningVariant,
+            budgetTokens,
+            ...(config.llmRegistry !== undefined && { llmRegistry: config.llmRegistry }),
+        });
     }
 
     if (provider === 'openai-compatible') {
-        const profile = getReasoningProfile(provider, model);
+        const profile = getReasoningProfile(provider, model, config.llmRegistry);
         if (!profile.capable) return undefined;
 
         const reasoningEffort = toOpenAICompatibleReasoningEffort(reasoningVariant);

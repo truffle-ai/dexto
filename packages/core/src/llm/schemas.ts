@@ -1,19 +1,14 @@
 import { LLMErrorCode } from './error-codes.js';
 import { ErrorScope, ErrorType } from '../errors/types.js';
-import { DextoRuntimeError } from '../errors/index.js';
 import { NonEmptyTrimmed, EnvExpandedString, OptionalURL } from '../utils/result.js';
 import { z } from 'zod';
 import {
-    supportsBaseURL,
-    acceptsAnyModel,
-    supportsCustomModels,
-    hasAllRegistryModelsSupport,
-    getSupportedModels,
+    DEFAULT_MODEL_REGISTRY,
+    type ModelRegistry,
     getReasoningProfile,
-    isValidProviderModel,
     supportsReasoningVariant,
+    LlmCatalogError,
 } from '@dexto/llm';
-import { getMaxInputTokensForModel } from './registry/index.js';
 import { LLM_PROVIDERS } from '@dexto/llm';
 
 /**
@@ -119,58 +114,40 @@ export const LLMConfigBaseSchema = z
  * - API keys and base URLs are validated at runtime (when creating a provider client), not at parse time.
  * - This keeps programmatic construction (code-first DI) ergonomic: you can omit credentials and rely on env.
  */
-export const LLMConfigSchema = LLMConfigBaseSchema.superRefine((data, ctx) => {
-    const baseURLIsSet = data.baseURL != null && data.baseURL.trim() !== '';
-    const maxInputTokensIsSet = data.maxInputTokens != null;
+export function createLLMConfigSchema(
+    registry: ModelRegistry = DEFAULT_MODEL_REGISTRY
+): typeof LLMConfigBaseSchema {
+    return LLMConfigBaseSchema.superRefine((data, ctx) => {
+        const baseURLIsSet = data.baseURL != null && data.baseURL.trim() !== '';
+        const maxInputTokensIsSet = data.maxInputTokens != null;
 
-    // Gateway providers require OpenRouter-format model IDs ("provider/model").
-    // This avoids implicit transformation and makes the config unambiguous.
-    if (hasAllRegistryModelsSupport(data.provider) && !data.model.includes('/')) {
-        ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            path: ['model'],
-            message:
-                `Provider '${data.provider}' requires OpenRouter-format model IDs (e.g. ` +
-                `'openai/gpt-5-mini' or 'anthropic/claude-sonnet-4.5'). You provided '${data.model}'.`,
-            params: {
-                code: LLMErrorCode.MODEL_INCOMPATIBLE,
-                scope: ErrorScope.LLM,
-                type: ErrorType.USER,
-            },
-        });
-    }
-
-    if (baseURLIsSet) {
-        if (!supportsBaseURL(data.provider)) {
+        // Gateway providers require OpenRouter-format model IDs ("provider/model").
+        // This avoids implicit transformation and makes the config unambiguous.
+        if (registry.hasAllRegistryModelsSupport(data.provider) && !data.model.includes('/')) {
             ctx.addIssue({
                 code: z.ZodIssueCode.custom,
-                path: ['provider'],
+                path: ['model'],
                 message:
-                    `Provider '${data.provider}' does not support baseURL. ` +
-                    `Use an 'openai-compatible' provider if you need a custom base URL.`,
+                    `Provider '${data.provider}' requires OpenRouter-format model IDs (e.g. ` +
+                    `'openai/gpt-5-mini' or 'anthropic/claude-sonnet-4.5'). You provided '${data.model}'.`,
                 params: {
-                    code: LLMErrorCode.BASE_URL_INVALID,
+                    code: LLMErrorCode.MODEL_INCOMPATIBLE,
                     scope: ErrorScope.LLM,
                     type: ErrorType.USER,
                 },
             });
         }
-    }
 
-    // Model and token validation
-    if (!baseURLIsSet || supportsBaseURL(data.provider)) {
-        // Skip model validation for providers that accept any model OR support custom models
-        if (!acceptsAnyModel(data.provider) && !supportsCustomModels(data.provider)) {
-            const supportedModelsList = getSupportedModels(data.provider);
-            if (!isValidProviderModel(data.provider, data.model)) {
+        if (baseURLIsSet) {
+            if (!registry.supportsBaseURL(data.provider)) {
                 ctx.addIssue({
                     code: z.ZodIssueCode.custom,
-                    path: ['model'],
+                    path: ['provider'],
                     message:
-                        `Model '${data.model}' is not supported for provider '${data.provider}'. ` +
-                        `Supported: ${supportedModelsList.join(', ')}`,
+                        `Provider '${data.provider}' does not support baseURL. ` +
+                        `Use an 'openai-compatible' provider if you need a custom base URL.`,
                     params: {
-                        code: LLMErrorCode.MODEL_INCOMPATIBLE,
+                        code: LLMErrorCode.BASE_URL_INVALID,
                         scope: ErrorScope.LLM,
                         type: ErrorType.USER,
                     },
@@ -178,135 +155,86 @@ export const LLMConfigSchema = LLMConfigBaseSchema.superRefine((data, ctx) => {
             }
         }
 
-        // Skip token cap validation for providers that accept any model OR support custom models
-        if (
-            maxInputTokensIsSet &&
-            !acceptsAnyModel(data.provider) &&
-            !supportsCustomModels(data.provider)
-        ) {
-            try {
-                const cap = getMaxInputTokensForModel(data.provider, data.model);
-                if (data.maxInputTokens! > cap) {
+        // Model and token validation
+        if (!baseURLIsSet || registry.supportsBaseURL(data.provider)) {
+            // Skip model validation for providers that accept any model OR support custom models
+            if (
+                !registry.acceptsAnyModel(data.provider) &&
+                !registry.supportsCustomModels(data.provider)
+            ) {
+                const supportedModelsList = registry.getSupportedModels(data.provider);
+                if (!registry.isValidProviderModel(data.provider, data.model)) {
                     ctx.addIssue({
                         code: z.ZodIssueCode.custom,
-                        path: ['maxInputTokens'],
+                        path: ['model'],
                         message:
-                            `Max input tokens for model '${data.model}' is ${cap}. ` +
-                            `You provided ${data.maxInputTokens}`,
+                            `Model '${data.model}' is not supported for provider '${data.provider}'. ` +
+                            `Supported: ${supportedModelsList.join(', ')}`,
                         params: {
-                            code: LLMErrorCode.TOKENS_EXCEEDED,
+                            code: LLMErrorCode.MODEL_INCOMPATIBLE,
                             scope: ErrorScope.LLM,
                             type: ErrorType.USER,
                         },
                     });
                 }
-            } catch (error: unknown) {
-                if (
-                    error instanceof DextoRuntimeError &&
-                    error.code === LLMErrorCode.MODEL_UNKNOWN
-                ) {
-                    // Model not found in registry
-                    ctx.addIssue({
-                        code: z.ZodIssueCode.custom,
-                        path: ['model'],
-                        message: error.message,
-                        params: {
-                            code: error.code,
-                            scope: error.scope,
-                            type: error.type,
-                        },
-                    });
-                } else {
-                    // Unexpected error
-                    const message =
-                        error instanceof Error ? error.message : 'Unknown error occurred';
-                    ctx.addIssue({
-                        code: z.ZodIssueCode.custom,
-                        path: ['model'],
-                        message,
-                        params: {
-                            code: LLMErrorCode.REQUEST_INVALID_SCHEMA,
-                            scope: ErrorScope.LLM,
-                            type: ErrorType.SYSTEM,
-                        },
-                    });
+            }
+
+            // Skip token cap validation for providers that accept any model OR support custom models
+            if (
+                maxInputTokensIsSet &&
+                !registry.acceptsAnyModel(data.provider) &&
+                !registry.supportsCustomModels(data.provider)
+            ) {
+                try {
+                    const cap = registry.getMaxInputTokensForModel(data.provider, data.model);
+                    if (data.maxInputTokens! > cap) {
+                        ctx.addIssue({
+                            code: z.ZodIssueCode.custom,
+                            path: ['maxInputTokens'],
+                            message:
+                                `Max input tokens for model '${data.model}' is ${cap}. ` +
+                                `You provided ${data.maxInputTokens}`,
+                            params: {
+                                code: LLMErrorCode.TOKENS_EXCEEDED,
+                                scope: ErrorScope.LLM,
+                                type: ErrorType.USER,
+                            },
+                        });
+                    }
+                } catch (error: unknown) {
+                    if (error instanceof LlmCatalogError && error.code === 'MODEL_UNKNOWN') {
+                        // Model not found in registry
+                        ctx.addIssue({
+                            code: z.ZodIssueCode.custom,
+                            path: ['model'],
+                            message: error.message,
+                            params: {
+                                code: LLMErrorCode.MODEL_UNKNOWN,
+                                scope: ErrorScope.LLM,
+                                type: ErrorType.USER,
+                            },
+                        });
+                    } else {
+                        // Unexpected error
+                        const message =
+                            error instanceof Error ? error.message : 'Unknown error occurred';
+                        ctx.addIssue({
+                            code: z.ZodIssueCode.custom,
+                            path: ['model'],
+                            message,
+                            params: {
+                                code: LLMErrorCode.REQUEST_INVALID_SCHEMA,
+                                scope: ErrorScope.LLM,
+                                type: ErrorType.SYSTEM,
+                            },
+                        });
+                    }
                 }
             }
         }
-    }
 
-    if (data.reasoning) {
-        const profile = getReasoningProfile(data.provider, data.model);
-        const variant = data.reasoning.variant;
-        const budgetTokens = data.reasoning.budgetTokens;
-
-        if (!supportsReasoningVariant(profile, variant)) {
-            ctx.addIssue({
-                code: z.ZodIssueCode.custom,
-                path: ['reasoning', 'variant'],
-                message:
-                    `Reasoning variant '${variant}' is not supported for provider '${data.provider}' ` +
-                    `model '${data.model}'. Supported: ${profile.variants.map((entry) => entry.id).join(', ')}`,
-                params: {
-                    code: LLMErrorCode.MODEL_INCOMPATIBLE,
-                    scope: ErrorScope.LLM,
-                    type: ErrorType.USER,
-                },
-            });
-        }
-
-        if (typeof budgetTokens === 'number' && !profile.supportsBudgetTokens) {
-            ctx.addIssue({
-                code: z.ZodIssueCode.custom,
-                path: ['reasoning', 'budgetTokens'],
-                message:
-                    `Reasoning budgetTokens are not supported for provider '${data.provider}' ` +
-                    `model '${data.model}'. Remove reasoning.budgetTokens to use provider defaults.`,
-                params: {
-                    code: LLMErrorCode.MODEL_INCOMPATIBLE,
-                    scope: ErrorScope.LLM,
-                    type: ErrorType.USER,
-                },
-            });
-        }
-    }
-    // Note: OpenRouter model validation happens in resolver.ts during switchLLM only
-    // to avoid network calls during startup/serverless cold starts
-});
-
-// Input type and output types for the zod schema
-export type LLMConfig = z.input<typeof LLMConfigSchema>;
-export type ValidatedLLMConfig = z.output<typeof LLMConfigSchema>;
-// PATCH-like schema for updates (switch flows)
-
-// TODO: when moving to zod v4 we might be able to set this as strict
-export const LLMUpdatesSchema = z
-    .object({
-        ...LLMConfigFields,
-        // Special-case: allow `null` as an explicit "clear reasoning config" sentinel for switch flows.
-        // Full configs (LLMConfigSchema) still require `reasoning` to be an object when present.
-        reasoning: LLMConfigFields.reasoning.nullable(),
-    })
-    .partial()
-    .superRefine((data, ctx) => {
-        // Require at least one meaningful change field: model or provider
-        if (!data.model && !data.provider) {
-            ctx.addIssue({
-                code: z.ZodIssueCode.custom,
-                message: 'At least model or provider must be specified for LLM switch',
-                path: [],
-            });
-        }
-
-        // If we have enough context (provider+model), validate reasoning updates to avoid
-        // sending unsupported reasoning params at runtime.
-        if (
-            data.reasoning &&
-            data.reasoning !== null &&
-            typeof data.provider === 'string' &&
-            typeof data.model === 'string'
-        ) {
-            const profile = getReasoningProfile(data.provider, data.model);
+        if (data.reasoning) {
+            const profile = getReasoningProfile(data.provider, data.model, registry);
             const variant = data.reasoning.variant;
             const budgetTokens = data.reasoning.budgetTokens;
 
@@ -340,6 +268,83 @@ export const LLMUpdatesSchema = z
                 });
             }
         }
+        // Note: OpenRouter model validation happens in resolver.ts during switchLLM only
+        // to avoid network calls during startup/serverless cold starts
     });
+}
+
+export const LLMConfigSchema = createLLMConfigSchema();
+
+// Input type and output types for the zod schema
+export type LLMConfig = z.input<typeof LLMConfigSchema>;
+export type ValidatedLLMConfig = z.output<typeof LLMConfigSchema>;
+// PATCH-like schema for updates (switch flows)
+
+// TODO: when moving to zod v4 we might be able to set this as strict
+export function createLLMUpdatesSchema(registry: ModelRegistry = DEFAULT_MODEL_REGISTRY) {
+    return z
+        .object({
+            ...LLMConfigFields,
+            // Special-case: allow `null` as an explicit "clear reasoning config" sentinel for switch flows.
+            // Full configs (LLMConfigSchema) still require `reasoning` to be an object when present.
+            reasoning: LLMConfigFields.reasoning.nullable(),
+        })
+        .partial()
+        .superRefine((data, ctx) => {
+            // Require at least one meaningful change field: model or provider
+            if (!data.model && !data.provider) {
+                ctx.addIssue({
+                    code: z.ZodIssueCode.custom,
+                    message: 'At least model or provider must be specified for LLM switch',
+                    path: [],
+                });
+            }
+
+            // If we have enough context (provider+model), validate reasoning updates to avoid
+            // sending unsupported reasoning params at runtime.
+            if (
+                data.reasoning &&
+                data.reasoning !== null &&
+                typeof data.provider === 'string' &&
+                typeof data.model === 'string'
+            ) {
+                const profile = getReasoningProfile(data.provider, data.model, registry);
+                const variant = data.reasoning.variant;
+                const budgetTokens = data.reasoning.budgetTokens;
+
+                if (!supportsReasoningVariant(profile, variant)) {
+                    ctx.addIssue({
+                        code: z.ZodIssueCode.custom,
+                        path: ['reasoning', 'variant'],
+                        message:
+                            `Reasoning variant '${variant}' is not supported for provider '${data.provider}' ` +
+                            `model '${data.model}'. Supported: ${profile.variants.map((entry) => entry.id).join(', ')}`,
+                        params: {
+                            code: LLMErrorCode.MODEL_INCOMPATIBLE,
+                            scope: ErrorScope.LLM,
+                            type: ErrorType.USER,
+                        },
+                    });
+                }
+
+                if (typeof budgetTokens === 'number' && !profile.supportsBudgetTokens) {
+                    ctx.addIssue({
+                        code: z.ZodIssueCode.custom,
+                        path: ['reasoning', 'budgetTokens'],
+                        message:
+                            `Reasoning budgetTokens are not supported for provider '${data.provider}' ` +
+                            `model '${data.model}'. Remove reasoning.budgetTokens to use provider defaults.`,
+                        params: {
+                            code: LLMErrorCode.MODEL_INCOMPATIBLE,
+                            scope: ErrorScope.LLM,
+                            type: ErrorType.USER,
+                        },
+                    });
+                }
+            }
+        });
+}
+
+export const LLMUpdatesSchema = createLLMUpdatesSchema();
 export type LLMUpdates = z.input<typeof LLMUpdatesSchema>;
 export type { LLMUpdateContext } from '@dexto/llm';

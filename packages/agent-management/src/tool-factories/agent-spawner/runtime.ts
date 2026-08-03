@@ -55,7 +55,7 @@ export class AgentSpawnerRuntime implements TaskForker {
         model: AgentConfig['llm']['model'],
         preferredVariant: string
     ): string | undefined {
-        const profile = getReasoningProfile(provider, model);
+        const profile = getReasoningProfile(provider, model, this.parentAgent.llmRegistry);
         if (!profile.capable || profile.supportedVariants.length === 0) {
             return undefined;
         }

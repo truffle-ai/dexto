@@ -1,5 +1,5 @@
 import type { LLMProvider } from '@dexto/llm';
-import { LLM_REGISTRY, type ModelInfo } from '@dexto/llm';
+import { DEFAULT_MODEL_REGISTRY, type ModelInfo, type ModelRegistry } from '@dexto/llm';
 import { CURATED_MODEL_IDS_BY_PROVIDER } from './curation-config.js';
 
 type CuratedModelsOptions = {
@@ -33,10 +33,10 @@ export type CuratedModelRef = {
  */
 export function getCuratedModelsForProvider(
     provider: LLMProvider,
-    options?: CuratedModelsOptions
+    options?: CuratedModelsOptions,
+    registry: ModelRegistry = DEFAULT_MODEL_REGISTRY
 ): ModelInfo[] {
-    const providerInfo = LLM_REGISTRY[provider];
-    const models = providerInfo.models ?? [];
+    const models = registry.getProvider(provider).models;
 
     if (models.length === 0) return [];
 
@@ -74,7 +74,8 @@ export function getCuratedModelsForProvider(
  * This prevents early providers from consuming the entire featured budget.
  */
 export function getCuratedModelRefsForProviders(
-    options: CuratedModelRefsOptions
+    options: CuratedModelRefsOptions,
+    registry: ModelRegistry = DEFAULT_MODEL_REGISTRY
 ): CuratedModelRef[] {
     const max = options.max ?? DEFAULT_MAX;
     if (max <= 0 || options.providers.length === 0) {
@@ -83,7 +84,7 @@ export function getCuratedModelRefsForProviders(
 
     const providerCurated = options.providers.map((provider) => ({
         provider,
-        models: getCuratedModelsForProvider(provider, { max }),
+        models: getCuratedModelsForProvider(provider, { max }, registry),
     }));
     const cursorByProvider = new Array<number>(providerCurated.length).fill(0);
     const picked: CuratedModelRef[] = [];

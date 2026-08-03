@@ -24,6 +24,7 @@ import { LLMErrorCode } from '../error-codes.js';
 import type { ContentInput } from '../../agent/types.js';
 import type { AgentRunContext } from '../../runtime/run-context.js';
 import { recordOperationSpan } from '../../telemetry/operation-span.js';
+import { DEFAULT_MODEL_REGISTRY, type ModelRegistry } from '@dexto/llm';
 
 export function ensureRunContextMatchesServiceSession(
     serviceSessionId: string,
@@ -80,6 +81,7 @@ export class VercelLLMService {
     private modelLimits?: ModelLimits;
     private readonly usageScopeId: string | undefined;
     private readonly executionControl: LLMExecutionControl | undefined;
+    private readonly llmRegistry: ModelRegistry;
 
     /**
      * Helper to extract model ID from LanguageModel union type (string | LanguageModelV2)
@@ -102,7 +104,8 @@ export class VercelLLMService {
         followUpQueue: MessageQueueService,
         usageScopeId?: string,
         executionControl?: LLMExecutionControl,
-        compactionStrategy?: import('../../context/compaction/types.js').CompactionStrategy | null
+        compactionStrategy?: import('../../context/compaction/types.js').CompactionStrategy | null,
+        llmRegistry: ModelRegistry = DEFAULT_MODEL_REGISTRY
     ) {
         this.logger = logger.createChild(DextoLogComponent.LLM);
         this.model = model;
@@ -113,14 +116,15 @@ export class VercelLLMService {
         this.resourceManager = resourceManager;
         this.usageScopeId = usageScopeId;
         this.executionControl = executionControl;
+        this.llmRegistry = llmRegistry;
         this.compactionStrategy = compactionStrategy ?? null;
 
         this.steerQueue = steerQueue;
         this.followUpQueue = followUpQueue;
 
         // Create properly-typed ContextManager for Vercel
-        const formatter = new VercelMessageFormatter(this.logger);
-        const maxInputTokens = getEffectiveMaxInputTokens(config, this.logger);
+        const formatter = new VercelMessageFormatter(this.logger, this.llmRegistry);
+        const maxInputTokens = getEffectiveMaxInputTokens(config, this.logger, this.llmRegistry);
 
         // Set model limits for compaction overflow detection (if enabled)
         if (this.compactionStrategy) {
@@ -135,7 +139,8 @@ export class VercelLLMService {
             conversationStore,
             sessionId,
             resourceManager,
-            this.logger
+            this.logger,
+            this.llmRegistry
         );
 
         this.logger.debug(
@@ -214,10 +219,14 @@ export class VercelLLMService {
                 ...(this.executionControl !== undefined && {
                     executionControl: this.executionControl,
                 }),
+                llmRegistry: this.llmRegistry,
                 // Provider-specific options
                 reasoning: this.config.reasoning,
             },
-            { provider: this.config.provider, model: this.getModelId() },
+            {
+                provider: this.config.provider,
+                model: this.getModelId(),
+            },
             this.logger,
             this.steerQueue,
             this.followUpQueue,
@@ -324,7 +333,8 @@ export class VercelLLMService {
             modelMaxInputTokens = getMaxInputTokensForModel(
                 this.config.provider,
                 this.getModelId(),
-                this.logger
+                this.logger,
+                this.llmRegistry
             );
         } catch (error) {
             // if the model is not found in the LLM registry, log and default to configured max tokens

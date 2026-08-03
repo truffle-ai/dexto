@@ -6,7 +6,7 @@ import {
     type AgentEventMap,
     type Database,
 } from '@dexto/core';
-import { calculateCostBreakdown, getModelPricing } from '@dexto/llm';
+import { calculateCostBreakdown, DEFAULT_MODEL_REGISTRY, type ModelRegistry } from '@dexto/llm';
 import type { EventSubscriber } from './types.js';
 import type {
     UsageEvent,
@@ -37,6 +37,7 @@ interface UsageEventSubscriberConfig extends UsageEventDeliveryOptions {
     database: Database;
     targetUrl: string;
     authToken: string;
+    llmRegistry?: ModelRegistry;
     runtimeId?: string;
     runId?: string;
 }
@@ -57,6 +58,7 @@ export class UsageEventSubscriber implements EventSubscriber {
     private readonly database: Database;
     private readonly targetUrl: string;
     private readonly authToken: string;
+    private readonly llmRegistry: ModelRegistry;
     private readonly runtimeId: string | undefined;
     private readonly runId: string | undefined;
     private readonly deliveryOptions: Required<UsageEventDeliveryOptions>;
@@ -71,6 +73,7 @@ export class UsageEventSubscriber implements EventSubscriber {
         this.database = config.database;
         this.targetUrl = config.targetUrl;
         this.authToken = config.authToken;
+        this.llmRegistry = config.llmRegistry ?? DEFAULT_MODEL_REGISTRY;
         this.runtimeId = config.runtimeId;
         this.runId = config.runId;
         const flushIntervalMs = requirePositiveIntegerOption(
@@ -156,7 +159,10 @@ export class UsageEventSubscriber implements EventSubscriber {
             payload.costBreakdown ??
             (payload.provider && payload.model
                 ? (() => {
-                      const pricing = getModelPricing(payload.provider, payload.model);
+                      const pricing = this.llmRegistry.getModelPricing(
+                          payload.provider,
+                          payload.model
+                      );
                       if (!pricing) {
                           return undefined;
                       }

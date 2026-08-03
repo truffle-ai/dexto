@@ -23,6 +23,8 @@ import {
 import type { SessionMessageQueueStore } from '../storage/message-queue/types.js';
 import type { ConversationStore } from '../storage/conversation/types.js';
 import type { SessionStore } from '../storage/sessions/types.js';
+import type { ModelRegistry } from '@dexto/llm';
+import { DEFAULT_MODEL_REGISTRY } from '@dexto/llm';
 export type SessionLoggerFactory = (options: {
     baseLogger: Logger;
     agentId: string;
@@ -160,6 +162,7 @@ export class SessionManager {
             followUpQueueStore: SessionMessageQueueStore;
             compactionStrategy: CompactionStrategy | null;
             workspaceManager?: import('../workspace/manager.js').WorkspaceManager;
+            llmRegistry?: ModelRegistry;
         },
         config: SessionManagerConfig = {},
         logger: Logger
@@ -181,6 +184,7 @@ export class SessionManager {
                 languageModelFactory: this.languageModelFactory,
             }),
             authResolver: this.authResolver,
+            llmRegistry: this.services.llmRegistry ?? DEFAULT_MODEL_REGISTRY,
             ...(this.executionControl !== undefined && {
                 executionControl: this.executionControl,
             }),
