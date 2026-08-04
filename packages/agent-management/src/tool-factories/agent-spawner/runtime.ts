@@ -55,7 +55,7 @@ export class AgentSpawnerRuntime implements TaskForker {
         model: AgentConfig['llm']['model'],
         preferredVariant: string
     ): string | undefined {
-        const profile = getReasoningProfile(provider, model);
+        const profile = getReasoningProfile(provider, model, this.parentAgent.llmRegistry);
         if (!profile.capable || profile.supportedVariants.length === 0) {
             return undefined;
         }
@@ -338,6 +338,7 @@ export class AgentSpawnerRuntime implements TaskForker {
                 defaultTaskTimeout: config.defaultTimeout,
             },
             logger,
+            llmRegistry: parentAgent.llmRegistry,
         });
 
         this.logger.debug(
@@ -1064,6 +1065,7 @@ export class AgentSpawnerRuntime implements TaskForker {
                     const resolution = resolveSubAgentLLM({
                         subAgentLLM: loadedConfig.llm,
                         parentLLM: currentParentLLM,
+                        registry: this.parentAgent.llmRegistry,
                         subAgentId: agentId,
                     });
                     this.logger.debug(`Sub-agent LLM resolution: ${resolution.reason}`);

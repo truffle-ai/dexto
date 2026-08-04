@@ -5,6 +5,7 @@ import type { ValidatedLLMConfig } from '../schemas.js';
 import type { LlmAuthResolver } from '../auth/types.js';
 import type { Logger } from '../../logger/v2/types.js';
 import type { LLMProvider } from '@dexto/llm';
+import type { ModelRegistry } from '@dexto/llm';
 import type { MessageQueueService } from '../../session/message-queue.js';
 import type { AgentRunContext } from '../../runtime/run-context.js';
 import type { TurnDriverState } from '../executor/turn-executor.js';
@@ -27,6 +28,7 @@ export interface CreateLLMServiceOptions {
     authResolver?: LlmAuthResolver | null | undefined;
     steerQueue: MessageQueueService;
     followUpQueue: MessageQueueService;
+    llmRegistry?: ModelRegistry;
 }
 
 export type LLMExecutionControl = {
@@ -56,6 +58,8 @@ export interface DextoProviderContext {
     cwd?: string;
     /** Runtime auth resolver for profile-backed API keys, OAuth, and external accounts. */
     authResolver?: LlmAuthResolver | null;
+    /** Registry selected by the host for this agent/session. */
+    llmRegistry?: ModelRegistry;
     /** Logger for non-secret runtime provider/auth observability. */
     logger?: Logger | undefined;
     /** Optional callback for ChatGPT Login rate-limit status updates from Codex. */

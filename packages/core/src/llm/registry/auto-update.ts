@@ -4,9 +4,9 @@ import path from 'node:path';
 import { getDextoGlobalPath } from '../../utils/path.js';
 import { logger as defaultLogger } from '../../logger/logger.js';
 import type { Logger } from '../../logger/v2/types.js';
-import type { LLMProvider } from '@dexto/llm';
+import type { LLMProvider, ProviderInfo } from '@dexto/llm';
 import { LLM_PROVIDERS } from '@dexto/llm';
-import { LLM_REGISTRY, type ModelInfo } from '@dexto/llm';
+import { DEFAULT_MODEL_REGISTRY, LLM_REGISTRY, type ModelInfo } from '@dexto/llm';
 import { buildModelsByProviderFromRemote } from './sync.js';
 
 type LogLike = Pick<Logger, 'debug' | 'info' | 'warn' | 'error'>;
@@ -61,9 +61,11 @@ function isModelInfo(value: unknown): value is ModelInfo {
 }
 
 function applyModelsByProvider(modelsByProvider: Record<LLMProvider, ModelInfo[]>): void {
+    const nextProviders: Record<LLMProvider, ProviderInfo> = { ...LLM_REGISTRY };
+
     for (const provider of UPDATABLE_PROVIDERS) {
         const incoming = modelsByProvider[provider] ?? [];
-        const existing = LLM_REGISTRY[provider].models ?? [];
+        const existing = nextProviders[provider].models;
 
         const incomingByName = new Map<string, ModelInfo>();
         for (const m of incoming) {
@@ -157,7 +159,18 @@ function applyModelsByProvider(modelsByProvider: Record<LLMProvider, ModelInfo[]
             }
         }
 
-        LLM_REGISTRY[provider].models = finalMerged;
+        nextProviders[provider] = {
+            ...nextProviders[provider],
+            models: finalMerged,
+        };
+    }
+
+    // Validate the complete candidate before changing either active representation. The default
+    // registry is a cloned snapshot, so refreshes must update it explicitly as well as the raw
+    // export used by the legacy catalog helpers.
+    DEFAULT_MODEL_REGISTRY.replaceProviders(nextProviders);
+    for (const provider of UPDATABLE_PROVIDERS) {
+        LLM_REGISTRY[provider].models = nextProviders[provider].models;
     }
 }
 
@@ -230,7 +243,14 @@ export function getLlmRegistryAutoUpdateStatus(): LlmRegistryAutoUpdateStatus {
 export function loadLlmRegistryCache(options?: { logger?: LogLike }): boolean {
     const cache = tryLoadCacheFromDisk(options?.logger);
     if (!cache) return false;
-    applyModelsByProvider(cache.modelsByProvider);
+    try {
+        applyModelsByProvider(cache.modelsByProvider);
+    } catch (error) {
+        options?.logger?.warn?.(
+            `Ignored invalid LLM registry cache (${getCachePath()}): ${error instanceof Error ? error.message : String(error)}`
+        );
+        return false;
+    }
     lastFetchedAt = cache.fetchedAt;
     lastSource = 'cache';
     return true;
@@ -291,9 +311,9 @@ export async function refreshLlmRegistryCache(options?: {
             timeoutMs: 30_000,
         });
 
+        applyModelsByProvider(modelsByProvider);
         const cachePath = getCachePath();
         await writeCacheFile(cachePath, modelsByProvider);
-        applyModelsByProvider(modelsByProvider);
         lastFetchedAt = Date.now();
         lastSource = 'remote';
         log?.debug?.(`Refreshed LLM registry cache (${cachePath})`);

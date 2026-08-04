@@ -1,5 +1,10 @@
-import { getAllowedMimeTypes, validateModelFileSupport } from '@dexto/llm';
-import type { LLMProvider } from '@dexto/llm';
+import {
+    DEFAULT_MODEL_REGISTRY,
+    getAllowedMimeTypes,
+    validateModelFileSupport,
+    type LLMProvider,
+    type ModelRegistry,
+} from '@dexto/llm';
 import type { Logger } from '../logger/v2/types.js';
 import type { ImageData, FileData } from '../context/types.js';
 import { Result, ok, fail } from '../utils/result.js';
@@ -10,6 +15,7 @@ import { LLMErrorCode } from './error-codes.js';
 export interface ValidationLLMConfig {
     provider: LLMProvider;
     model?: string;
+    llmRegistry?: ModelRegistry;
 }
 
 export interface ValidationContext {
@@ -59,7 +65,8 @@ const MAX_IMAGE_SIZE = 20971520; // 20MB
 export function validateInputForLLM(
     input: ValidationInput,
     config: ValidationLLMConfig,
-    logger: Logger
+    logger: Logger,
+    registry: ModelRegistry = config.llmRegistry ?? DEFAULT_MODEL_REGISTRY
 ): Result<ValidationData, ValidationContext> {
     const issues: Issue<ValidationContext>[] = [];
     const validationData: ValidationData = {};
@@ -72,7 +79,7 @@ export function validateInputForLLM(
 
         // Validate file data if provided
         if (input.fileData) {
-            const fileValidation = validateFileInput(input.fileData, config, logger);
+            const fileValidation = validateFileInput(input.fileData, config, logger, registry);
             validationData.fileValidation = fileValidation;
 
             if (!fileValidation.isSupported) {
@@ -95,7 +102,7 @@ export function validateInputForLLM(
 
         // Validate image data if provided
         if (input.imageData) {
-            const imageValidation = validateImageInput(input.imageData, config, logger);
+            const imageValidation = validateImageInput(input.imageData, config, logger, registry);
             validationData.imageValidation = imageValidation;
 
             if (!imageValidation.isSupported) {
@@ -147,7 +154,8 @@ export function validateInputForLLM(
 function validateFileInput(
     fileData: FileData,
     config: ValidationLLMConfig,
-    logger: Logger
+    logger: Logger,
+    registry: ModelRegistry
 ): NonNullable<ValidationData['fileValidation']> {
     logger.info(`Validating file input: ${fileData.mimeType}`);
 
@@ -185,7 +193,7 @@ function validateFileInput(
 
     // Model-specific capability validation (only if model is specified)
     if (config.model) {
-        return validateModelFileSupport(config.provider, config.model, fileData.mimeType);
+        return validateModelFileSupport(config.provider, config.model, fileData.mimeType, registry);
     }
 
     // If no model specified, we cannot validate capabilities
@@ -205,7 +213,8 @@ function validateFileInput(
 function validateImageInput(
     imageData: ImageData,
     config: ValidationLLMConfig,
-    logger: Logger
+    logger: Logger,
+    registry: ModelRegistry
 ): NonNullable<ValidationData['imageValidation']> {
     logger.info(`Validating image input: ${imageData.mimeType}`);
 
@@ -244,7 +253,7 @@ function validateImageInput(
     const baseMimeType = resolvedMime.split(';')[0]?.trim() || resolvedMime;
 
     // Delegate both allowed-MIME and model capability to registry helper
-    const res = validateModelFileSupport(config.provider, config.model, baseMimeType);
+    const res = validateModelFileSupport(config.provider, config.model, baseMimeType, registry);
     return {
         isSupported: res.isSupported,
         ...(res.error ? { error: res.error } : {}),

@@ -9,15 +9,14 @@ import {
     getCuratedModelRefsForProviders,
     getSupportedFileTypesForModel,
     getLocalModelById,
-    LLMUpdatesSchema,
+    LLMUpdatesShapeSchema,
 } from '@dexto/core';
 import {
-    LLM_REGISTRY,
     LLM_PROVIDERS,
     SUPPORTED_FILE_TYPES,
     getReasoningProfile,
-    supportsBaseURL,
     type LLMProvider,
+    type ModelRegistry,
     type ProviderInfo,
     type SupportedFileType,
 } from '@dexto/llm';
@@ -120,9 +119,9 @@ const CatalogQuerySchema = z
     .strict()
     .describe('Query parameters for filtering and formatting the LLM catalog');
 
-// Combine LLM updates schema with sessionId for API requests
-// LLMUpdatesSchema is no longer strict, so it accepts extra fields like sessionId
-const SwitchLLMBodySchema = LLMUpdatesSchema.and(
+// Combine shape validation with sessionId for API requests. Model and reasoning compatibility
+// are validated by DextoAgent against its active registry.
+const SwitchLLMBodySchema = LLMUpdatesShapeSchema.and(
     z.object({
         sessionId: z
             .string()
@@ -672,14 +671,14 @@ export function createLlmRouter(getAgent: GetAgentFn) {
         return deduped;
     };
 
-    const buildModelPickerSections = async () => {
+    const buildModelPickerSections = async (registry: ModelRegistry) => {
         const byKey = new Map<string, z.output<typeof ModelPickerEntrySchema>>();
         const customSection: Array<z.output<typeof ModelPickerEntrySchema>> = [];
         const hydrateStateEntry = (
             entry: z.output<typeof ModelPickerModelRefSchema>
         ): z.output<typeof ModelPickerEntrySchema> => {
-            const providerInfo = LLM_REGISTRY[entry.provider];
-            const modelInfo = providerInfo.models.find((model) => model.name === entry.model);
+            const providerInfo = registry.getProvider(entry.provider);
+            const modelInfo = registry.getModel(entry.provider, entry.model);
             const supportedFileTypes =
                 Array.isArray(modelInfo?.supportedFileTypes) &&
                 modelInfo.supportedFileTypes.length > 0
@@ -707,8 +706,8 @@ export function createLlmRouter(getAgent: GetAgentFn) {
                 continue;
             }
 
-            const providerInfo = LLM_REGISTRY[provider];
-            for (const model of getAllModelsForProvider(provider)) {
+            const providerInfo = registry.getProvider(provider);
+            for (const model of getAllModelsForProvider(provider, registry)) {
                 const supportedFileTypes =
                     Array.isArray(model.supportedFileTypes) && model.supportedFileTypes.length > 0
                         ? model.supportedFileTypes
@@ -736,7 +735,7 @@ export function createLlmRouter(getAgent: GetAgentFn) {
                 continue;
             }
 
-            const providerInfo = LLM_REGISTRY[provider];
+            const providerInfo = registry.getProvider(provider);
             const entry: z.output<typeof ModelPickerEntrySchema> = {
                 provider,
                 model: customModel.name,
@@ -750,7 +749,7 @@ export function createLlmRouter(getAgent: GetAgentFn) {
             customSection.push(entry);
         }
 
-        const localProviderSupportedFileTypes = LLM_REGISTRY.local.supportedFileTypes;
+        const localProviderSupportedFileTypes = registry.getProvider('local').supportedFileTypes;
         const installedLocalModels = await getAllInstalledModels();
         for (const installedModel of installedLocalModels) {
             const modelInfo = getLocalModelById(installedModel.id);
@@ -765,10 +764,13 @@ export function createLlmRouter(getAgent: GetAgentFn) {
         }
 
         const featuredProviders = LLM_PROVIDERS.filter((provider) => isProviderEnabled(provider));
-        const featured = getCuratedModelRefsForProviders({
-            providers: featuredProviders,
-            max: MODEL_PICKER_FEATURED_LIMIT,
-        })
+        const featured = getCuratedModelRefsForProviders(
+            {
+                providers: featuredProviders,
+                max: MODEL_PICKER_FEATURED_LIMIT,
+            },
+            registry
+        )
             .map((ref) => byKey.get(toModelPickerKey(ref)))
             .filter((entry): entry is z.output<typeof ModelPickerEntrySchema> => Boolean(entry));
 
@@ -820,6 +822,7 @@ export function createLlmRouter(getAgent: GetAgentFn) {
     return app
         .openapi(currentRoute, async (ctx) => {
             const agent = await getAgent(ctx);
+            const registry = agent.llmRegistry;
             const { sessionId } = ctx.req.valid('query');
 
             const currentConfig = sessionId
@@ -829,9 +832,7 @@ export function createLlmRouter(getAgent: GetAgentFn) {
             let displayName: string | undefined;
             try {
                 // First check registry for built-in models
-                const model = LLM_REGISTRY[currentConfig.provider]?.models.find(
-                    (m) => m.name.toLowerCase() === String(currentConfig.model).toLowerCase()
-                );
+                const model = registry.getModel(currentConfig.provider, currentConfig.model);
                 displayName = model?.displayName || undefined;
 
                 // If not found in registry, check custom models
@@ -867,7 +868,9 @@ export function createLlmRouter(getAgent: GetAgentFn) {
                 200
             );
         })
-        .openapi(catalogRoute, (ctx) => {
+        .openapi(catalogRoute, async (ctx) => {
+            const agent = await getAgent(ctx);
+            const registry = agent.llmRegistry;
             type ProviderCatalog = Pick<ProviderInfo, 'models' | 'supportedFileTypes'> & {
                 name: string;
                 hasApiKey: boolean;
@@ -889,7 +892,7 @@ export function createLlmRouter(getAgent: GetAgentFn) {
                     continue;
                 }
 
-                const info = LLM_REGISTRY[provider];
+                const info = registry.getProvider(provider);
                 const displayName =
                     provider === 'dexto-nova'
                         ? 'Dexto Nova'
@@ -900,18 +903,18 @@ export function createLlmRouter(getAgent: GetAgentFn) {
                     if (!includeModels) return [];
                     if (scope === 'all') {
                         // Full list (may include inherited models for gateway providers)
-                        return getAllModelsForProvider(provider);
+                        return getAllModelsForProvider(provider, registry);
                     }
 
                     // Curated list for UI: keep it small but not single-model-per-provider.
-                    return getCuratedModelsForProvider(provider);
+                    return getCuratedModelsForProvider(provider, undefined, registry);
                 })();
 
                 providers[provider] = {
                     name: displayName,
                     hasApiKey: keyStatus.hasApiKey,
                     primaryEnvVar: keyStatus.envVar,
-                    supportsBaseURL: supportsBaseURL(provider),
+                    supportsBaseURL: registry.supportsBaseURL(provider),
                     models,
                     supportedFileTypes: info.supportedFileTypes,
                 };
@@ -1041,7 +1044,8 @@ export function createLlmRouter(getAgent: GetAgentFn) {
             return ctx.json({ ok: true as const, deleted: name } as const, 200);
         })
         .openapi(modelPickerStateRoute, async (ctx) => {
-            const sections = await buildModelPickerSections();
+            const agent = await getAgent(ctx);
+            const sections = await buildModelPickerSections(agent.llmRegistry);
             return ctx.json(sections, 200);
         })
         .openapi(recordRecentModelRoute, async (ctx) => {
@@ -1073,7 +1077,9 @@ export function createLlmRouter(getAgent: GetAgentFn) {
                 200
             );
         })
-        .openapi(capabilitiesRoute, (ctx) => {
+        .openapi(capabilitiesRoute, async (ctx) => {
+            const agent = await getAgent(ctx);
+            const registry = agent.llmRegistry;
             const { provider, model } = ctx.req.valid('query');
 
             // getSupportedFileTypesForModel handles:
@@ -1083,14 +1089,19 @@ export function createLlmRouter(getAgent: GetAgentFn) {
             // Falls back to provider-level supportedFileTypes if model not found
             let supportedFileTypes: SupportedFileType[];
             try {
-                supportedFileTypes = getSupportedFileTypesForModel(provider, model);
+                supportedFileTypes = getSupportedFileTypesForModel(
+                    provider,
+                    model,
+                    undefined,
+                    registry
+                );
             } catch {
                 // If model lookup fails, fall back to provider-level capabilities
-                const providerInfo = LLM_REGISTRY[provider];
+                const providerInfo = registry.getProvider(provider);
                 supportedFileTypes = providerInfo?.supportedFileTypes ?? [];
             }
 
-            const reasoning = getReasoningProfile(provider, model);
+            const reasoning = getReasoningProfile(provider, model, registry);
 
             return ctx.json(
                 {

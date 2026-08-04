@@ -1,4 +1,9 @@
-import { calculateCostBreakdown, getModelPricing, type TokenUsageCostBreakdown } from '@dexto/llm';
+import {
+    calculateCostBreakdown,
+    DEFAULT_MODEL_REGISTRY,
+    type ModelRegistry,
+    type TokenUsageCostBreakdown,
+} from '@dexto/llm';
 import type { LLMProvider, LLMPricingStatus, TokenUsage } from '@dexto/llm';
 
 export interface LLMUsagePricingMetadata {
@@ -44,14 +49,15 @@ export function getUsagePricingMetadata(config: {
     provider?: LLMProvider;
     model?: string;
     tokenUsage?: TokenUsage;
+    llmRegistry?: ModelRegistry;
 }): LLMUsagePricingMetadata {
-    const { provider, model, tokenUsage } = config;
+    const { provider, model, tokenUsage, llmRegistry = DEFAULT_MODEL_REGISTRY } = config;
 
     if (!provider || !model || !tokenUsage || !hasMeaningfulTokenUsage(tokenUsage)) {
         return {};
     }
 
-    const pricing = getModelPricing(provider, model);
+    const pricing = llmRegistry.getModelPricing(provider, model);
     if (!pricing) {
         return { pricingStatus: 'unpriced' };
     }

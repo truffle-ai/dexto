@@ -258,11 +258,15 @@ describe('DextoAgent Lifecycle Management', () => {
             expect(mockGenerateSessionTitle).toHaveBeenCalledWith(
                 mockValidatedConfig.llm,
                 'Need a title for this session',
-                expect.any(Object),
-                {
+                expect.anything(), // logger instance
+                expect.objectContaining({
                     languageModelFactory,
-                    providerContext: { sessionId: 'session-123', authResolver: null },
-                }
+                    providerContext: expect.objectContaining({
+                        sessionId: 'session-123',
+                        authResolver: null,
+                        llmRegistry: expect.anything(),
+                    }),
+                })
             );
         });
 
@@ -314,7 +318,8 @@ describe('DextoAgent Lifecycle Management', () => {
                 expect.anything(), // logger instance
                 expect.anything(), // eventBus instance
                 expect.any(Object),
-                null
+                null,
+                expect.anything() // model registry
             );
         });
 
@@ -380,7 +385,8 @@ describe('DextoAgent Lifecycle Management', () => {
                 expect.anything(), // logger instance
                 expect.anything(), // eventBus instance
                 expect.any(Object),
-                null
+                null,
+                expect.anything() // model registry
             );
         });
 
@@ -414,7 +420,8 @@ describe('DextoAgent Lifecycle Management', () => {
                 expect.objectContaining({
                     telemetryBootstrap,
                 }),
-                null
+                null,
+                expect.anything() // model registry
             );
         });
 

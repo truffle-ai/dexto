@@ -1,5 +1,5 @@
 import type { LLMProvider } from '../types.js';
-import { isReasoningCapableModel } from '../registry/index.js';
+import { DEFAULT_MODEL_REGISTRY, type ModelRegistry } from '../registry/index.js';
 import { isAnthropicAdaptiveThinkingModel, parseClaudeVersion } from './anthropic-thinking.js';
 import { buildAnthropicReasoningProfile } from './profiles/anthropic.js';
 import { buildBedrockReasoningProfile } from './profiles/bedrock.js';
@@ -33,32 +33,37 @@ const GOOGLE_PROFILE_CONFIG = {
 
 function isAnthropicStyleReasoningCapable(
     provider: 'anthropic' | 'vertex',
-    model: string
+    model: string,
+    registry: ModelRegistry
 ): boolean {
     return (
-        isReasoningCapableModel(model, provider) ||
+        registry.isReasoningCapableModel(model, provider) ||
         parseClaudeVersion(model) !== null ||
         isAnthropicAdaptiveThinkingModel(model)
     );
 }
 
-function getNativeReasoningProfile(provider: LLMProvider, model: string): ReasoningProfile {
+function getNativeReasoningProfile(
+    provider: LLMProvider,
+    model: string,
+    registry: ModelRegistry
+): ReasoningProfile {
     switch (provider) {
         case 'openai':
-            if (!isReasoningCapableModel(model, 'openai')) {
+            if (!registry.isReasoningCapableModel(model, 'openai')) {
                 return nonCapableProfile();
             }
             return buildOpenAIReasoningProfile(model);
 
         case 'anthropic':
-            if (!isAnthropicStyleReasoningCapable('anthropic', model)) {
+            if (!isAnthropicStyleReasoningCapable('anthropic', model, registry)) {
                 return nonCapableProfile();
             }
             return buildAnthropicReasoningProfile({ model, ...ANTHROPIC_PROFILE_CONFIG });
 
         case 'bedrock':
             if (
-                !isReasoningCapableModel(model, 'bedrock') &&
+                !registry.isReasoningCapableModel(model, 'bedrock') &&
                 !model.toLowerCase().includes('nova')
             ) {
                 return nonCapableProfile();
@@ -66,19 +71,19 @@ function getNativeReasoningProfile(provider: LLMProvider, model: string): Reason
             return buildBedrockReasoningProfile(model);
 
         case 'google':
-            if (!isReasoningCapableModel(model, 'google')) {
+            if (!registry.isReasoningCapableModel(model, 'google')) {
                 return nonCapableProfile();
             }
             return buildGoogleReasoningProfile({ model, ...GOOGLE_PROFILE_CONFIG });
 
         case 'vertex':
-            if (!isAnthropicStyleReasoningCapable('vertex', model)) {
+            if (!isAnthropicStyleReasoningCapable('vertex', model, registry)) {
                 return nonCapableProfile();
             }
             return buildVertexReasoningProfile(model);
 
         case 'openai-compatible':
-            if (!isReasoningCapableModel(model, 'openai-compatible')) {
+            if (!registry.isReasoningCapableModel(model, 'openai-compatible')) {
                 return nonCapableProfile();
             }
             return buildOpenAICompatibleReasoningProfile();
@@ -117,18 +122,26 @@ function toGatewayReasoningProfile(nativeProfile: ReasoningProfile): ReasoningPr
  * - No generic preset abstraction at this layer
  * - No guessed variants for unknown paradigms
  */
-export function getReasoningProfile(provider: LLMProvider, model: string): ReasoningProfile {
+export function getReasoningProfile(
+    provider: LLMProvider,
+    model: string,
+    registry: ModelRegistry = DEFAULT_MODEL_REGISTRY
+): ReasoningProfile {
     if (isOpenRouterGatewayProvider(provider)) {
         const target = getOpenRouterReasoningTarget(model);
         if (!target) {
             return nonCapableProfile();
         }
 
-        const nativeProfile = getNativeReasoningProfile(target.upstreamProvider, target.modelId);
+        const nativeProfile = getNativeReasoningProfile(
+            target.upstreamProvider,
+            target.modelId,
+            registry
+        );
         return toGatewayReasoningProfile(nativeProfile);
     }
 
-    return getNativeReasoningProfile(provider, model);
+    return getNativeReasoningProfile(provider, model, registry);
 }
 
 export function supportsReasoningVariant(profile: ReasoningProfile, variant: string): boolean {

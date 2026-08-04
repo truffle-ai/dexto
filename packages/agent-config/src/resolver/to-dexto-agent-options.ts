@@ -11,7 +11,7 @@ export interface ToDextoAgentOptionsInput<
     image?: DextoImage<THostContext> | undefined;
     hostContext?: THostContext | undefined;
     overrides?: InitializeServicesOptions | undefined;
-    runtimeOverrides?: Pick<DextoAgentOptions, 'usageScopeId'> | undefined;
+    runtimeOverrides?: Partial<Pick<DextoAgentOptions, 'usageScopeId' | 'llmRegistry'>> | undefined;
 }
 
 export function toDextoAgentOptions<THostContext extends DextoHostContext = DextoHostContext>(

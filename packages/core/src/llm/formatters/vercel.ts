@@ -1,5 +1,5 @@
 import type { ModelMessage, AssistantContent, ToolResultPart } from 'ai';
-import type { LLMContext } from '@dexto/llm';
+import { DEFAULT_MODEL_REGISTRY, type LLMContext, type ModelRegistry } from '@dexto/llm';
 import type {
     InternalMessage,
     AssistantMessage,
@@ -146,9 +146,11 @@ function filePartToText(part: FilePart): { type: 'text'; text: string } | null {
  */
 export class VercelMessageFormatter {
     private logger: Logger;
+    private readonly llmRegistry: ModelRegistry;
 
-    constructor(logger: Logger) {
+    constructor(logger: Logger, llmRegistry: ModelRegistry = DEFAULT_MODEL_REGISTRY) {
         this.logger = logger.createChild(DextoLogComponent.LLM);
+        this.llmRegistry = llmRegistry;
     }
     /**
      * Formats internal messages into Vercel AI SDK format
@@ -168,7 +170,12 @@ export class VercelMessageFormatter {
         // Apply model-aware capability filtering for Vercel
         let filteredHistory: InternalMessage[];
         try {
-            filteredHistory = filterMessagesByLLMCapabilities([...history], context, this.logger);
+            filteredHistory = filterMessagesByLLMCapabilities(
+                [...history],
+                context,
+                this.logger,
+                this.llmRegistry
+            );
 
             const modelInfo = `${context.provider}/${context.model}`;
             this.logger.debug(`Applied Vercel filtering for ${modelInfo}`);

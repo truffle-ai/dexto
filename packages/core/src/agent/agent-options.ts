@@ -6,6 +6,7 @@ import type { InitializeServicesOptions, ToolkitLoader } from '../utils/service-
 import type { DextoStores } from '../storage/stores/types.js';
 import type { DextoAgentConfigInput } from './runtime-config.js';
 import type { SkillSource } from '../skills/index.js';
+import type { ModelRegistry } from '@dexto/llm';
 
 /**
  * Constructor options for {@link DextoAgent}.
@@ -66,6 +67,11 @@ export interface DextoAgentOptions {
      * If omitted/null, automatic compaction is disabled.
      */
     compaction?: CompactionStrategy | null | undefined;
+
+    /**
+     * Host-selected LLM registry. When omitted, core uses the bundled registry from `@dexto/llm`.
+     */
+    llmRegistry?: ModelRegistry | undefined;
 }
 
 export interface DextoAgentOptions extends DextoAgentConfigInput {}

@@ -2,17 +2,13 @@ import { Result, hasErrors, splitIssues, ok, fail, zodToIssues } from '../utils/
 import { Issue, ErrorScope, ErrorType } from '../errors/types.js';
 import { LLMErrorCode } from './error-codes.js';
 
-import { type ValidatedLLMConfig, type LLMUpdates, type LLMConfig } from './schemas.js';
-import { LLMConfigSchema } from './schemas.js';
 import {
-    getDefaultModelForProvider,
-    acceptsAnyModel,
-    isValidProviderModel,
-    supportsBaseURL,
-    supportsCustomModels,
-    hasAllRegistryModelsSupport,
-    getProviderFromModel,
-} from '@dexto/llm';
+    type ValidatedLLMConfig,
+    type LLMUpdates,
+    type LLMConfig,
+    createLLMConfigSchema,
+} from './schemas.js';
+import { DEFAULT_MODEL_REGISTRY, type ModelRegistry } from '@dexto/llm';
 import { getEffectiveMaxInputTokens } from './registry/index.js';
 import {
     lookupOpenRouterModel,
@@ -32,16 +28,17 @@ import type { Logger } from '../logger/v2/types.js';
 export async function resolveAndValidateLLMConfig(
     previous: ValidatedLLMConfig,
     updates: LLMUpdates,
-    logger: Logger
+    logger: Logger,
+    registry: ModelRegistry = DEFAULT_MODEL_REGISTRY
 ): Promise<Result<ValidatedLLMConfig, LLMUpdateContext>> {
-    const { candidate, warnings } = await resolveLLMConfig(previous, updates, logger);
+    const { candidate, warnings } = await resolveLLMConfig(previous, updates, logger, registry);
 
     // If resolver produced any errors, fail immediately (don't try to validate a broken candidate)
     if (hasErrors(warnings)) {
         const { errors } = splitIssues(warnings);
         return fail<ValidatedLLMConfig, LLMUpdateContext>(errors);
     }
-    const result = validateLLMConfig(candidate, warnings, logger);
+    const result = validateLLMConfig(candidate, warnings, logger, registry);
     return result;
 }
 
@@ -54,7 +51,8 @@ export async function resolveAndValidateLLMConfig(
 export async function resolveLLMConfig(
     previous: ValidatedLLMConfig,
     updates: LLMUpdates,
-    logger: Logger
+    logger: Logger,
+    registry: ModelRegistry = DEFAULT_MODEL_REGISTRY
 ): Promise<{ candidate: LLMConfig; warnings: Issue<LLMUpdateContext>[] }> {
     const warnings: Issue<LLMUpdateContext>[] = [];
 
@@ -64,7 +62,7 @@ export async function resolveLLMConfig(
         (updates.model && !updates.model.includes('/')
             ? (() => {
                   try {
-                      return getProviderFromModel(updates.model);
+                      return registry.getProviderFromModel(updates.model);
                   } catch {
                       return previous.provider;
                   }
@@ -103,11 +101,11 @@ export async function resolveLLMConfig(
     let model = updates.model ?? previous.model;
     if (
         provider !== previous.provider &&
-        !acceptsAnyModel(provider) &&
-        !supportsCustomModels(provider) &&
-        !isValidProviderModel(provider, model)
+        !registry.acceptsAnyModel(provider) &&
+        !registry.supportsCustomModels(provider) &&
+        !registry.isValidProviderModel(provider, model)
     ) {
-        model = getDefaultModelForProvider(provider) ?? previous.model;
+        model = registry.getDefaultModelForProvider(provider) ?? previous.model;
         warnings.push({
             code: LLMErrorCode.MODEL_INCOMPATIBLE,
             message: `Model set to default '${model}' for provider '${provider}'`,
@@ -124,10 +122,10 @@ export async function resolveLLMConfig(
     if (
         provider !== previous.provider &&
         updates.model == null &&
-        hasAllRegistryModelsSupport(provider) &&
+        registry.hasAllRegistryModelsSupport(provider) &&
         !model.includes('/')
     ) {
-        const defaultGatewayModel = getDefaultModelForProvider(provider);
+        const defaultGatewayModel = registry.getDefaultModelForProvider(provider);
         if (defaultGatewayModel) {
             model = defaultGatewayModel;
             warnings.push({
@@ -146,7 +144,7 @@ export async function resolveLLMConfig(
     let baseURL: string | undefined;
     if (updates.baseURL) {
         baseURL = updates.baseURL;
-    } else if (supportsBaseURL(provider)) {
+    } else if (registry.supportsBaseURL(provider)) {
         baseURL = previous.baseURL;
     } else {
         baseURL = undefined;
@@ -191,8 +189,9 @@ export async function resolveLLMConfig(
         }
     }
 
-    // OpenRouter model validation with cache refresh
-    if (provider === 'openrouter') {
+    // The bundled default preserves the legacy OpenRouter cache behavior. A host-owned registry
+    // is already the validated source of truth and must not trigger a hidden network refresh.
+    if (provider === 'openrouter' && registry === DEFAULT_MODEL_REGISTRY) {
         let lookupStatus = lookupOpenRouterModel(model);
 
         if (lookupStatus === 'unknown') {
@@ -262,10 +261,11 @@ export async function resolveLLMConfig(
 export function validateLLMConfig(
     candidate: LLMConfig,
     warnings: Issue<LLMUpdateContext>[],
-    logger: Logger
+    logger: Logger,
+    registry: ModelRegistry = DEFAULT_MODEL_REGISTRY
 ): Result<ValidatedLLMConfig, LLMUpdateContext> {
     // Final validation (business rules + shape)
-    const parsed = LLMConfigSchema.safeParse(candidate);
+    const parsed = createLLMConfigSchema(registry).safeParse(candidate);
     if (!parsed.success) {
         return fail<ValidatedLLMConfig, LLMUpdateContext>(zodToIssues(parsed.error, 'error'));
     }
@@ -279,7 +279,8 @@ export function validateLLMConfig(
                 model: parsed.data.model,
                 baseURL: parsed.data.baseURL,
             },
-            logger
+            logger,
+            registry
         );
 
     // Note: Credentials (apiKey/baseURL) are validated at runtime when creating provider clients.

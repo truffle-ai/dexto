@@ -24,6 +24,7 @@ const createMockLogger = (): Logger => {
 };
 
 const runtimeMocks = vi.hoisted(() => ({
+    constructorOptions: vi.fn(),
     spawnAgent: vi.fn(),
     executeTask: vi.fn(),
     stopAgent: vi.fn(),
@@ -32,6 +33,10 @@ const runtimeMocks = vi.hoisted(() => ({
 
 vi.mock('../../runtime/AgentRuntime.js', () => {
     class AgentRuntime {
+        constructor(options: unknown) {
+            runtimeMocks.constructorOptions(options);
+        }
+
         listAgents = runtimeMocks.listAgents;
         spawnAgent = runtimeMocks.spawnAgent;
         executeTask = runtimeMocks.executeTask;
@@ -52,10 +57,25 @@ describe('AgentSpawnerRuntime sub-agent policies and approvals', () => {
 
     beforeEach(() => {
         runtimeMocks.spawnAgent.mockReset();
+        runtimeMocks.constructorOptions.mockReset();
         runtimeMocks.executeTask.mockReset();
         runtimeMocks.stopAgent.mockReset();
         runtimeMocks.listAgents.mockReset();
         runtimeMocks.listAgents.mockReturnValue([]);
+    });
+
+    it('passes the parent active model registry into the runtime', () => {
+        const parentRegistry = {};
+        const parentAgent = {
+            config: { agentId: 'coding-agent', mcpServers: {} },
+            llmRegistry: parentRegistry,
+        } as unknown as DextoAgent;
+
+        new AgentSpawnerRuntime(parentAgent, config, createMockLogger());
+
+        expect(runtimeMocks.constructorOptions).toHaveBeenCalledWith(
+            expect.objectContaining({ llmRegistry: parentRegistry })
+        );
     });
 
     it('inherits parent toolPolicies into default sub-agent config', async () => {

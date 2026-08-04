@@ -1,7 +1,7 @@
 import { parse as parseYaml } from 'yaml';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
-import { AgentConfigSchema, type AgentConfig } from './agent-config.js';
+import { AgentConfigSchema, createAgentConfigSchema, type AgentConfig } from './agent-config.js';
 
 describe('AgentConfigSchema', () => {
     afterEach(() => {
@@ -18,6 +18,27 @@ describe('AgentConfigSchema', () => {
     };
 
     describe('Basic Structure Validation', () => {
+        it('validates against a host-injected model registry', () => {
+            const registry = {
+                hasAllRegistryModelsSupport: () => false,
+                supportsBaseURL: () => false,
+                acceptsAnyModel: () => false,
+                supportsCustomModels: () => false,
+                getSupportedModels: () => ['host-model'],
+                isValidProviderModel: (_provider: string, model: string) => model === 'host-model',
+                getMaxInputTokensForModel: () => 128_000,
+                isReasoningCapableModel: () => false,
+            } as unknown as Parameters<typeof createAgentConfigSchema>[0];
+            const schema = createAgentConfigSchema(registry);
+
+            expect(
+                schema.safeParse({
+                    ...validAgentConfig,
+                    llm: { ...validAgentConfig.llm, model: 'host-model' },
+                }).success
+            ).toBe(true);
+        });
+
         it('should accept valid minimal config', () => {
             const result = AgentConfigSchema.parse(validAgentConfig);
 

@@ -23,6 +23,8 @@ import type { ToolPresentationSnapshotV1 } from '../tools/types.js';
 import type { ToolCallMetadata } from '../tools/tool-call-metadata.js';
 import { getResourceKind } from './media-helpers.js';
 import { describeContentPartsForAudit } from './content-audit.js';
+import { getSupportedFileTypesForModel } from '../llm/registry/index.js';
+import { DEFAULT_MODEL_REGISTRY, type ModelRegistry } from '@dexto/llm';
 
 export type PreparedHistoryResult = {
     preparedHistory: InternalMessage[];
@@ -112,6 +114,7 @@ export class ContextManager<TMessage = unknown> {
     private resourceManager: import('../resources/index.js').ResourceManager;
 
     private logger: Logger;
+    private readonly llmRegistry: ModelRegistry;
 
     private static deriveResourceKind(mimeType: string): import('./types.js').ResourcePart['kind'] {
         if (
@@ -272,7 +275,8 @@ export class ContextManager<TMessage = unknown> {
         conversationStore: ConversationStore,
         sessionId: string,
         resourceManager: import('../resources/index.js').ResourceManager,
-        logger: Logger
+        logger: Logger,
+        llmRegistry: ModelRegistry = DEFAULT_MODEL_REGISTRY
     ) {
         this.llmConfig = llmConfig;
         this.formatter = formatter;
@@ -282,6 +286,7 @@ export class ContextManager<TMessage = unknown> {
         this.sessionId = sessionId;
         this.resourceManager = resourceManager;
         this.logger = logger.createChild(DextoLogComponent.CONTEXT);
+        this.llmRegistry = llmRegistry;
 
         this.logger.debug(
             `ContextManager: Initialized for session ${sessionId} - history will be managed by ${conversationStore.constructor.name}`
@@ -1063,11 +1068,12 @@ export class ContextManager<TMessage = unknown> {
         if (!allowedMediaTypes) {
             // Fall back to model capabilities from registry
             try {
-                const { getSupportedFileTypesForModel } = await import('@dexto/llm');
                 const { fileTypesToMimePatterns } = await import('./utils.js');
                 const supportedFileTypes = getSupportedFileTypesForModel(
                     llmContext.provider,
-                    llmContext.model
+                    llmContext.model,
+                    this.logger,
+                    this.llmRegistry
                 );
                 allowedMediaTypes = fileTypesToMimePatterns(supportedFileTypes, this.logger);
                 this.logger.debug(

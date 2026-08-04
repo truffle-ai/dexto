@@ -33,6 +33,7 @@ import type { CompactionStrategy } from '../context/compaction/types.js';
 import { SessionToolPreferencesStore } from '../tools/session-tool-preferences-store.js';
 import type { LLMExecutionControl, LanguageModelFactory } from '../llm/services/types.js';
 import type { WorkspaceHandleProvider } from '../workspace/types.js';
+import type { ModelRegistry } from '@dexto/llm';
 
 /**
  * Type for the core agent services returned by createAgentServices
@@ -126,7 +127,8 @@ export async function createAgentServices(
     logger: Logger,
     agentEventBus: AgentEventBus,
     overrides?: InitializeServicesOptions,
-    compactionStrategy?: CompactionStrategy | null | undefined
+    compactionStrategy?: CompactionStrategy | null | undefined,
+    llmRegistry?: ModelRegistry | undefined
 ): Promise<AgentServices> {
     // 0. Initialize telemetry FIRST (before any decorated classes are instantiated)
     // This must happen before creating any services that use @InstrumentClass decorator
@@ -317,6 +319,7 @@ export async function createAgentServices(
             followUpQueueStore,
             compactionStrategy: compactionStrategy ?? null,
             workspaceManager, // Workspace context propagation
+            ...(llmRegistry !== undefined ? { llmRegistry } : {}),
         },
         {
             maxSessions: config.sessions?.maxSessions,

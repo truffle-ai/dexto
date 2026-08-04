@@ -16,6 +16,7 @@
 
 import { randomUUID } from 'crypto';
 import type { Logger, GenerateResponse } from '@dexto/core';
+import type { ModelRegistry } from '@dexto/llm';
 import { AgentPool } from './AgentPool.js';
 import { RuntimeError } from './errors.js';
 import type {
@@ -36,17 +37,21 @@ export interface AgentRuntimeOptions {
     config?: AgentRuntimeConfig;
     /** Logger instance */
     logger: Logger;
+    /** Host-selected model registry inherited by spawned agents. */
+    llmRegistry?: ModelRegistry;
 }
 
 export class AgentRuntime {
     private pool: AgentPool;
     private config: ValidatedAgentRuntimeConfig;
     private logger: Logger;
+    private llmRegistry: ModelRegistry | undefined;
 
     constructor(options: AgentRuntimeOptions) {
         // Validate and apply defaults
         this.config = AgentRuntimeConfigSchema.parse(options.config ?? {});
         this.logger = options.logger;
+        this.llmRegistry = options.llmRegistry;
         this.pool = new AgentPool(this.config, this.logger);
 
         this.logger.debug('AgentRuntime initialized', {
@@ -85,6 +90,9 @@ export class AgentRuntime {
                 },
                 agentIdOverride: agentId,
                 agentContext: 'subagent',
+                ...(this.llmRegistry
+                    ? { runtimeOverrides: { llmRegistry: this.llmRegistry } }
+                    : {}),
             });
 
             // Create the handle (status: starting)

@@ -15,6 +15,7 @@
 
 import {
     LLM_PROVIDERS,
+    SUPPORTED_FILE_TYPES,
     type LLMProvider,
     type SupportedFileType,
     type TokenUsage,
@@ -31,7 +32,7 @@ export interface LlmCatalogLogger {
     error(message: string): void;
 }
 
-export type LlmCatalogErrorCode = 'MODEL_UNKNOWN';
+export type LlmCatalogErrorCode = 'MODEL_UNKNOWN' | 'REGISTRY_INVALID';
 
 export class LlmCatalogError extends Error {
     readonly code: LlmCatalogErrorCode;
@@ -53,6 +54,34 @@ function unknownModel(provider: LLMProvider, model: string): LlmCatalogError {
 function modelProviderUnknown(model: string): LlmCatalogError {
     return new LlmCatalogError('MODEL_UNKNOWN', `Could not infer provider for model '${model}'`);
 }
+
+const MODEL_PRICING_FIELDS = [
+    'inputPerM',
+    'outputPerM',
+    'cacheReadPerM',
+    'cacheWritePerM',
+    'reasoningPerM',
+    'inputAudioPerM',
+    'outputAudioPerM',
+] as const;
+
+const LONG_CONTEXT_PRICING_FIELDS = [
+    'inputTokensAbove',
+    'inputPerM',
+    'outputPerM',
+    'cacheReadPerM',
+    'cacheWritePerM',
+] as const;
+
+const MODEL_BOOLEAN_FIELDS = [
+    'default',
+    'reasoning',
+    'supportsTemperature',
+    'supportsInterleaved',
+    'supportsToolCall',
+] as const;
+const MODEL_STRING_FIELDS = ['displayName', 'releaseDate', 'status'] as const;
+const MODEL_MODALITIES = ['text', 'audio', 'image', 'video', 'pdf'] as const;
 
 function getNormalizedModelIdForLookup(model: string): string {
     const stripped = stripBedrockRegionPrefix(model);
@@ -415,6 +444,439 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
     },
 };
 
+export class ModelRegistry {
+    #providers: Record<LLMProvider, ProviderInfo>;
+
+    constructor(providers: Record<LLMProvider, ProviderInfo>) {
+        validateRegistryProviders(providers);
+        this.#providers = cloneRegistryProviders(providers);
+    }
+
+    /**
+     * Replaces the active provider snapshot after validating and cloning it.
+     *
+     * Hosts that refresh the bundled registry can update the shared default instance without
+     * exposing mutable provider records to consumers that already hold a ModelRegistry reference.
+     */
+    replaceProviders(providers: Record<LLMProvider, ProviderInfo>): void {
+        validateRegistryProviders(providers);
+        this.#providers = cloneRegistryProviders(providers);
+    }
+
+    getProvider(provider: LLMProvider): ProviderInfo {
+        return cloneProviderInfo(this.#providers[provider]);
+    }
+
+    getModel(provider: LLMProvider, model: string): ModelInfo | null {
+        const modelInfo = findModelInfoInRegistry(this.#providers, provider, model);
+        return modelInfo === null ? null : cloneModelInfo(modelInfo);
+    }
+
+    getModelCapabilities(provider: LLMProvider, model: string): ModelCapabilities | null {
+        const modelInfo = this.getModel(provider, model);
+        if (modelInfo === null) return null;
+
+        return {
+            maxInputTokens: modelInfo.maxInputTokens,
+            reasoning: modelInfo.reasoning === true,
+            supportedFileTypes: [...modelInfo.supportedFileTypes],
+            supportsInterleaved: modelInfo.supportsInterleaved === true,
+            supportsTemperature: modelInfo.supportsTemperature === true,
+            supportsToolCall: modelInfo.supportsToolCall === true,
+            ...(modelInfo.modalities
+                ? {
+                      modalities: {
+                          input: [...modelInfo.modalities.input],
+                          output: [...modelInfo.modalities.output],
+                      },
+                  }
+                : {}),
+        };
+    }
+
+    getSupportedModels(provider: LLMProvider): string[] {
+        return this.#providers[provider].models.map((model) => model.name);
+    }
+
+    getDefaultModelForProvider(provider: LLMProvider): string | null {
+        const models = this.#providers[provider].models;
+        const explicit = models.find((model) => model.default)?.name;
+        if (explicit) return explicit;
+        if (models.length === 0) return null;
+
+        return (
+            [...models].sort((left, right) => left.name.localeCompare(right.name))[0]?.name ?? null
+        );
+    }
+
+    getMaxInputTokensForModel(
+        provider: LLMProvider,
+        model: string,
+        logger?: LlmCatalogLogger
+    ): number {
+        const modelInfo = findModelInfoInRegistry(this.#providers, provider, model);
+        if (!modelInfo) {
+            const supportedModels = this.getSupportedModels(provider).join(', ');
+            logger?.error(
+                `Model '${model}' not found for provider '${provider}' in LLM registry. Supported models: ${supportedModels}`
+            );
+            throw unknownModel(provider, model);
+        }
+
+        logger?.debug(`Found max tokens for ${provider}/${model}: ${modelInfo.maxInputTokens}`);
+        return modelInfo.maxInputTokens;
+    }
+
+    getModelPricing(provider: LLMProvider, model: string): ModelPricing | undefined {
+        if (this.acceptsAnyModel(provider)) return undefined;
+        const modelInfo = findModelInfoInRegistry(this.#providers, provider, model);
+        return modelInfo?.pricing ? cloneModelInfo(modelInfo).pricing : undefined;
+    }
+
+    isReasoningCapableModel(model: string, provider?: LLMProvider): boolean {
+        const registryProvider = (() => {
+            if (model.includes('/')) return 'openrouter';
+            if (provider) return provider;
+            try {
+                return this.getProviderFromModel(model);
+            } catch {
+                return undefined;
+            }
+        })();
+
+        if (registryProvider) {
+            const modelInfo = findModelInfoInRegistry(this.#providers, registryProvider, model);
+            if (modelInfo?.reasoning === true) return true;
+            if (modelInfo?.reasoning === false) return false;
+        }
+
+        const modelIdForHeuristics = model.includes('/')
+            ? (model.split('/').pop() ?? model)
+            : model;
+        const modelLower = modelIdForHeuristics.toLowerCase();
+        if (modelLower.includes('codex')) return true;
+        if (
+            modelLower.startsWith('o1') ||
+            modelLower.startsWith('o3') ||
+            modelLower.startsWith('o4')
+        ) {
+            return true;
+        }
+        if (modelLower.includes('gpt-5')) return true;
+        if (modelLower.includes('gemini-2.5') || modelLower.includes('gemini-3')) return true;
+        return false;
+    }
+
+    getProviderFromModel(model: string): LLMProvider {
+        if (model.includes('/')) throw modelProviderUnknown(model);
+
+        const normalizedModel = getNormalizedModelIdForLookup(model);
+        for (const provider of LLM_PROVIDERS) {
+            const info = this.#providers[provider];
+            if (info.models.some((candidate) => candidate.name.toLowerCase() === normalizedModel)) {
+                return provider;
+            }
+        }
+
+        throw modelProviderUnknown(model);
+    }
+
+    acceptsAnyModel(provider: LLMProvider): boolean {
+        return this.#providers[provider].models.length === 0;
+    }
+
+    supportsCustomModels(provider: LLMProvider): boolean {
+        return this.#providers[provider].supportsCustomModels === true;
+    }
+
+    hasAllRegistryModelsSupport(provider: LLMProvider): boolean {
+        return this.#providers[provider].supportsAllRegistryModels === true;
+    }
+
+    supportsBaseURL(provider: LLMProvider): boolean {
+        return this.#providers[provider].baseURLSupport !== 'none';
+    }
+
+    isValidProviderModel(provider: LLMProvider, model: string): boolean {
+        const normalizedModel = getNormalizedModelIdForLookup(model);
+        return this.#providers[provider].models.some(
+            (candidate) => candidate.name.toLowerCase() === normalizedModel
+        );
+    }
+
+    getSupportedFileTypesForModel(provider: LLMProvider, model: string): SupportedFileType[] {
+        const providerInfo = this.#providers[provider];
+        if (this.acceptsAnyModel(provider)) return [...providerInfo.supportedFileTypes];
+
+        const modelInfo = findModelInfoInRegistry(this.#providers, provider, model);
+        if (modelInfo) return [...modelInfo.supportedFileTypes];
+        if (this.supportsCustomModels(provider)) return [...providerInfo.supportedFileTypes];
+        throw unknownModel(provider, model);
+    }
+
+    getAllModelsForProvider(
+        provider: LLMProvider
+    ): Array<ModelInfo & { originalProvider?: LLMProvider }> {
+        const providerInfo = this.#providers[provider];
+        const ownModels = providerInfo.models.map((model) => ({
+            ...cloneModelInfo(model),
+            originalProvider: provider,
+        }));
+        if (!providerInfo.supportsAllRegistryModels || provider === 'openrouter') {
+            return ownModels;
+        }
+
+        const seen = new Set(ownModels.map((model) => model.name.toLowerCase()));
+        const inherited = this.#providers.openrouter.models
+            .filter((model) => !seen.has(model.name.toLowerCase()))
+            .map((model): ModelInfo & { originalProvider: LLMProvider } => ({
+                ...cloneModelInfo(model),
+                originalProvider: 'openrouter',
+            }));
+        return [...ownModels, ...inherited];
+    }
+}
+
+export function createModelRegistry(providers: Record<LLMProvider, ProviderInfo>): ModelRegistry {
+    return new ModelRegistry(providers);
+}
+
+export const DEFAULT_MODEL_REGISTRY = createModelRegistry(LLM_REGISTRY);
+
+function cloneRegistryProviders(
+    providers: Record<LLMProvider, ProviderInfo>
+): Record<LLMProvider, ProviderInfo> {
+    const cloned: Record<LLMProvider, ProviderInfo> = { ...providers };
+    for (const provider of LLM_PROVIDERS) {
+        cloned[provider] = cloneProviderInfo(providers[provider]);
+    }
+    return cloned;
+}
+
+function validateRegistryProviders(providers: Record<LLMProvider, ProviderInfo>): void {
+    for (const provider of LLM_PROVIDERS) {
+        const providerInfo = providers[provider];
+        if (
+            !isRecord(providerInfo) ||
+            !Array.isArray(providerInfo.models) ||
+            !['none', 'optional', 'required'].includes(providerInfo.baseURLSupport) ||
+            !Array.isArray(providerInfo.supportedFileTypes) ||
+            !providerInfo.supportedFileTypes.every(isSupportedFileType)
+        ) {
+            throw new LlmCatalogError(
+                'REGISTRY_INVALID',
+                `Invalid registry provider definition for '${provider}'`
+            );
+        }
+
+        if (
+            (providerInfo.supportsCustomModels !== undefined &&
+                typeof providerInfo.supportsCustomModels !== 'boolean') ||
+            (providerInfo.supportsAllRegistryModels !== undefined &&
+                typeof providerInfo.supportsAllRegistryModels !== 'boolean') ||
+            (providerInfo.modelsDev !== undefined &&
+                !isValidModelsDevMetadata(providerInfo.modelsDev))
+        ) {
+            throw new LlmCatalogError(
+                'REGISTRY_INVALID',
+                `Invalid registry provider metadata for '${provider}'`
+            );
+        }
+
+        const modelNames = new Set<string>();
+
+        for (const [modelIndex, model] of providerInfo.models.entries()) {
+            const modelObject = isRecord(model) ? model : null;
+            const modelName =
+                modelObject && typeof modelObject.name === 'string'
+                    ? modelObject.name
+                    : `<index ${modelIndex}>`;
+
+            if (
+                !modelObject ||
+                typeof modelObject.name !== 'string' ||
+                modelObject.name.trim().length === 0 ||
+                !Number.isInteger(modelObject.maxInputTokens) ||
+                modelObject.maxInputTokens < 0 ||
+                !Array.isArray(modelObject.supportedFileTypes) ||
+                !modelObject.supportedFileTypes.every(isSupportedFileType)
+            ) {
+                throw new LlmCatalogError(
+                    'REGISTRY_INVALID',
+                    `Invalid registry model definition for '${provider}/${modelName}'`
+                );
+            }
+
+            const normalizedModelName = modelObject.name.toLowerCase();
+            if (modelNames.has(normalizedModelName)) {
+                throw new LlmCatalogError(
+                    'REGISTRY_INVALID',
+                    `Duplicate registry model definition for '${provider}/${modelObject.name}'`
+                );
+            }
+            modelNames.add(normalizedModelName);
+
+            if (!isValidModelMetadata(modelObject)) {
+                throw new LlmCatalogError(
+                    'REGISTRY_INVALID',
+                    `Invalid registry metadata for '${provider}/${modelObject.name}'`
+                );
+            }
+
+            if (!isValidModelPricing(modelObject.pricing)) {
+                throw new LlmCatalogError(
+                    'REGISTRY_INVALID',
+                    `Invalid registry pricing for '${provider}/${modelName}'`
+                );
+            }
+        }
+    }
+}
+
+function isSupportedFileType(value: unknown): value is SupportedFileType {
+    return (
+        typeof value === 'string' &&
+        SUPPORTED_FILE_TYPES.some((supportedFileType) => supportedFileType === value)
+    );
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === 'object' && value !== null;
+}
+
+function isValidPricingNumber(value: unknown): value is number {
+    return typeof value === 'number' && Number.isFinite(value) && value >= 0;
+}
+
+function isValidModelsDevMetadata(value: unknown): boolean {
+    if (!isRecord(value) || !Array.isArray(value.env) || !value.env.every(isString)) {
+        return false;
+    }
+
+    return ['npm', 'api', 'doc'].every(
+        (field) => value[field] === undefined || isString(value[field])
+    );
+}
+
+function isValidModelMetadata(value: Record<string, unknown>): boolean {
+    if (
+        !MODEL_BOOLEAN_FIELDS.every(
+            (field) => value[field] === undefined || typeof value[field] === 'boolean'
+        ) ||
+        !MODEL_STRING_FIELDS.every((field) => value[field] === undefined || isString(value[field]))
+    ) {
+        return false;
+    }
+
+    if (value.modalities !== undefined && !isValidModelModalities(value.modalities)) {
+        return false;
+    }
+    if (value.providerMetadata !== undefined && !isValidProviderMetadata(value.providerMetadata)) {
+        return false;
+    }
+    if (value.interleaved !== undefined && !isValidInterleavedMetadata(value.interleaved)) {
+        return false;
+    }
+
+    return true;
+}
+
+function isValidModelModalities(value: unknown): boolean {
+    if (!isRecord(value) || !Array.isArray(value.input) || !Array.isArray(value.output)) {
+        return false;
+    }
+
+    return (
+        value.input.every(isSupportedModelModality) && value.output.every(isSupportedModelModality)
+    );
+}
+
+function isValidProviderMetadata(value: unknown): boolean {
+    return (
+        isRecord(value) &&
+        ['npm', 'api'].every((field) => value[field] === undefined || isString(value[field]))
+    );
+}
+
+function isValidInterleavedMetadata(value: unknown): boolean {
+    return (
+        value === true || (isRecord(value) && (value.field === undefined || isString(value.field)))
+    );
+}
+
+function isSupportedModelModality(value: unknown): boolean {
+    return typeof value === 'string' && MODEL_MODALITIES.some((modality) => modality === value);
+}
+
+function isString(value: unknown): value is string {
+    return typeof value === 'string';
+}
+
+function isValidModelPricing(value: unknown): boolean {
+    if (value === undefined) return true;
+    if (!isRecord(value)) return false;
+
+    if (value.currency !== undefined && value.currency !== 'USD') return false;
+    if (value.unit !== undefined && value.unit !== 'per_million_tokens') return false;
+
+    for (const field of MODEL_PRICING_FIELDS) {
+        if (field in value && !isValidPricingNumber(value[field])) return false;
+    }
+    if (!isValidPricingNumber(value.inputPerM) || !isValidPricingNumber(value.outputPerM)) {
+        return false;
+    }
+
+    const longContextPricing = value.contextOver200kPerM;
+    if (longContextPricing === undefined) return true;
+    if (!isRecord(longContextPricing)) return false;
+
+    const inputTokensAbove = longContextPricing.inputTokensAbove;
+    if (
+        inputTokensAbove !== undefined &&
+        (typeof inputTokensAbove !== 'number' ||
+            !Number.isInteger(inputTokensAbove) ||
+            inputTokensAbove < 0)
+    ) {
+        return false;
+    }
+
+    for (const field of LONG_CONTEXT_PRICING_FIELDS) {
+        if (field in longContextPricing && !isValidPricingNumber(longContextPricing[field])) {
+            return false;
+        }
+    }
+    return (
+        isValidPricingNumber(longContextPricing.inputPerM) &&
+        isValidPricingNumber(longContextPricing.outputPerM)
+    );
+}
+
+function findModelInfoInRegistry(
+    providers: Record<LLMProvider, ProviderInfo>,
+    provider: LLMProvider,
+    model: string
+): ModelInfo | null {
+    const normalizedModel = getNormalizedModelIdForLookup(model);
+    const direct = providers[provider].models.find(
+        (candidate) => candidate.name.toLowerCase() === normalizedModel
+    );
+    if (direct) return direct;
+
+    if (
+        provider !== 'openrouter' &&
+        providers[provider].supportsAllRegistryModels &&
+        model.includes('/')
+    ) {
+        return (
+            providers.openrouter.models.find(
+                (candidate) => candidate.name.toLowerCase() === normalizedModel
+            ) ?? null
+        );
+    }
+
+    return null;
+}
+
 function cloneModelInfo(model: ModelInfo): ModelInfo {
     return {
         ...model,
@@ -701,9 +1163,11 @@ export function supportsCustomModels(provider: LLMProvider): boolean {
  * @param provider The name of the provider.
  * @returns True if the provider supports all registry models, false otherwise.
  */
-export function hasAllRegistryModelsSupport(provider: LLMProvider): boolean {
-    const providerInfo = LLM_REGISTRY[provider];
-    return providerInfo.supportsAllRegistryModels === true;
+export function hasAllRegistryModelsSupport(
+    provider: LLMProvider,
+    registry: ModelRegistry = DEFAULT_MODEL_REGISTRY
+): boolean {
+    return registry.hasAllRegistryModelsSupport(provider);
 }
 
 /**
@@ -720,8 +1184,8 @@ const OPENROUTER_PREFIX_BY_PROVIDER: Partial<Record<LLMProvider, string>> = {
     glm: 'z-ai',
 };
 
-function getOpenRouterModelIdSet(): Set<string> {
-    return new Set(LLM_REGISTRY.openrouter.models.map((m) => m.name.toLowerCase()));
+function getOpenRouterModelIdSet(registry: ModelRegistry): Set<string> {
+    return new Set(registry.getSupportedModels('openrouter').map((model) => model.toLowerCase()));
 }
 
 export function getOpenRouterCandidateModelIds(
@@ -753,8 +1217,11 @@ export function getOpenRouterCandidateModelIds(
     return [`${prefix}/${model}`];
 }
 
-function pickExistingOpenRouterModelId(candidates: string[]): string | null {
-    const openrouterSet = getOpenRouterModelIdSet();
+function pickExistingOpenRouterModelId(
+    candidates: string[],
+    registry: ModelRegistry
+): string | null {
+    const openrouterSet = getOpenRouterModelIdSet(registry);
     for (const candidate of candidates) {
         if (openrouterSet.has(candidate.toLowerCase())) {
             return candidate;
@@ -866,15 +1333,16 @@ export function getAllModelsForProvider(
 export function transformModelNameForProvider(
     model: string,
     originalProvider: LLMProvider,
-    targetProvider: LLMProvider
+    targetProvider: LLMProvider,
+    registry: ModelRegistry = DEFAULT_MODEL_REGISTRY
 ): string {
     // Only transform when targeting gateway providers (those with supportsAllRegistryModels)
-    if (!hasAllRegistryModelsSupport(targetProvider)) {
+    if (!hasAllRegistryModelsSupport(targetProvider, registry)) {
         return model;
     }
 
     // If original provider is already a gateway, model is already in correct format
-    if (hasAllRegistryModelsSupport(originalProvider)) {
+    if (hasAllRegistryModelsSupport(originalProvider, registry)) {
         return model;
     }
 
@@ -886,7 +1354,7 @@ export function transformModelNameForProvider(
     const candidates = getOpenRouterCandidateModelIds(model, originalProvider);
     if (candidates.length === 0) return model;
 
-    return pickExistingOpenRouterModelId(candidates) ?? candidates[0]!;
+    return pickExistingOpenRouterModelId(candidates, registry) ?? candidates[0]!;
 }
 
 /**
@@ -995,9 +1463,13 @@ export function getSupportedFileTypesForModel(
 export function modelSupportsFileType(
     provider: LLMProvider,
     model: string,
-    fileType: SupportedFileType
+    fileType: SupportedFileType,
+    registry: ModelRegistry = DEFAULT_MODEL_REGISTRY
 ): boolean {
-    const supportedTypes = getSupportedFileTypesForModel(provider, model);
+    const supportedTypes =
+        registry === DEFAULT_MODEL_REGISTRY
+            ? getSupportedFileTypesForModel(provider, model)
+            : registry.getSupportedFileTypesForModel(provider, model);
     return supportedTypes.includes(fileType);
 }
 
@@ -1011,7 +1483,8 @@ export function modelSupportsFileType(
 export function validateModelFileSupport(
     provider: LLMProvider,
     model: string,
-    mimeType: string
+    mimeType: string,
+    registry: ModelRegistry = DEFAULT_MODEL_REGISTRY
 ): {
     isSupported: boolean;
     fileType?: SupportedFileType;
@@ -1028,7 +1501,7 @@ export function validateModelFileSupport(
     }
 
     try {
-        if (!modelSupportsFileType(provider, model, fileType)) {
+        if (!modelSupportsFileType(provider, model, fileType, registry)) {
             return {
                 isSupported: false,
                 fileType,
@@ -1196,7 +1669,7 @@ export function getModelPricing(provider: LLMProvider, model: string): ModelPric
     }
 
     const modelInfo = findModelInfo(provider, model);
-    return modelInfo?.pricing;
+    return modelInfo?.pricing ? cloneModelInfo(modelInfo).pricing : undefined;
 }
 
 /**
@@ -1233,7 +1706,15 @@ export function getModelDisplayName(model: string, provider?: LLMProvider): stri
  * @param provider Optional provider for context (defaults to detecting from model name).
  * @returns True if the registry marks this model as reasoning-capable.
  */
-export function isReasoningCapableModel(model: string, provider?: LLMProvider): boolean {
+export function isReasoningCapableModel(
+    model: string,
+    provider?: LLMProvider,
+    registry: ModelRegistry = DEFAULT_MODEL_REGISTRY
+): boolean {
+    if (registry !== DEFAULT_MODEL_REGISTRY) {
+        return registry.isReasoningCapableModel(model, provider);
+    }
+
     const registryProvider = (() => {
         if (model.includes('/')) return 'openrouter' as const;
         if (provider) return provider;

@@ -113,6 +113,22 @@ describe('Hono API Integration Tests', () => {
             expect(res.status).toBe(200);
         });
 
+        it('POST /api/llm/switch accepts a session-specific model update', async () => {
+            if (!testServer) throw new Error('Test server not initialized');
+            const sessionId = 'test-session-llm-switch';
+            const createRes = await httpRequest(testServer.baseUrl, 'POST', '/api/sessions', {
+                sessionId,
+            });
+            expect(createRes.status).toBe(201);
+
+            const res = await httpRequest(testServer.baseUrl, 'POST', '/api/llm/switch', {
+                model: 'gpt-5',
+                sessionId,
+            });
+            expect(res.status).toBe(200);
+            expect((res.body as { sessionId: string }).sessionId).toBe(sessionId);
+        });
+
         it('GET /api/llm/model-picker-state returns picker sections', async () => {
             if (!testServer) throw new Error('Test server not initialized');
             const res = await httpRequest(testServer.baseUrl, 'GET', '/api/llm/model-picker-state');

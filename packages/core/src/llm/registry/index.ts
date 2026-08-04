@@ -1,15 +1,12 @@
 import {
-    acceptsAnyModel,
+    DEFAULT_MODEL_REGISTRY,
     DEFAULT_MAX_INPUT_TOKENS,
     getAllModelsForProvider as getSharedAllModelsForProvider,
-    getModel,
     getProviderFromModel as getSharedProviderFromModel,
     getSupportedFileTypesForModel as getSharedSupportedFileTypesForModel,
-    getSupportedModels,
-    hasAllRegistryModelsSupport,
     LLM_REGISTRY,
     LlmCatalogError,
-    supportsCustomModels,
+    type ModelRegistry,
     type ModelInfo,
 } from '@dexto/llm';
 import type { ValidatedLLMConfig } from '../schemas.js';
@@ -133,8 +130,13 @@ function getOpenRouterGatewayCatalogModels(): ModelInfo[] {
 }
 
 export function getAllModelsForProvider(
-    provider: LLMProvider
+    provider: LLMProvider,
+    registry: ModelRegistry = DEFAULT_MODEL_REGISTRY
 ): Array<ModelInfo & { originalProvider?: LLMProvider }> {
+    if (registry !== DEFAULT_MODEL_REGISTRY) {
+        return registry.getAllModelsForProvider(provider);
+    }
+
     if (provider === 'openrouter') {
         return getOpenRouterGatewayCatalogModels().map((model) => ({
             ...model,
@@ -142,7 +144,7 @@ export function getAllModelsForProvider(
         }));
     }
 
-    if (!hasAllRegistryModelsSupport(provider)) {
+    if (LLM_REGISTRY[provider].supportsAllRegistryModels !== true) {
         return getSharedAllModelsForProvider(provider) as Array<
             ModelInfo & { originalProvider?: LLMProvider }
         >;
@@ -168,7 +170,21 @@ export function getAllModelsForProvider(
     return allModels;
 }
 
-export function getProviderFromModel(model: string): LLMProvider {
+export function getProviderFromModel(
+    model: string,
+    registry: ModelRegistry = DEFAULT_MODEL_REGISTRY
+): LLMProvider {
+    if (registry !== DEFAULT_MODEL_REGISTRY) {
+        try {
+            return registry.getProviderFromModel(model);
+        } catch (error) {
+            if (isUnknownCatalogModelError(error)) {
+                throw LLMError.modelProviderUnknown(model);
+            }
+            throw error;
+        }
+    }
+
     try {
         return getSharedProviderFromModel(model) as LLMProvider;
     } catch (error) {
@@ -181,8 +197,21 @@ export function getProviderFromModel(model: string): LLMProvider {
 
 export function getSupportedFileTypesForModel(
     provider: LLMProvider,
-    model: string
+    model: string,
+    _logger?: Logger,
+    registry: ModelRegistry = DEFAULT_MODEL_REGISTRY
 ): SupportedFileType[] {
+    if (registry !== DEFAULT_MODEL_REGISTRY) {
+        try {
+            return registry.getSupportedFileTypesForModel(provider, model);
+        } catch (error) {
+            if (isUnknownCatalogModelError(error)) {
+                throw LLMError.unknownModel(provider, model);
+            }
+            throw error;
+        }
+    }
+
     try {
         return getSharedSupportedFileTypesForModel(provider, model) as SupportedFileType[];
     } catch (error) {
@@ -196,23 +225,29 @@ export function getSupportedFileTypesForModel(
 export function modelSupportsFileType(
     provider: LLMProvider,
     model: string,
-    fileType: SupportedFileType
+    fileType: SupportedFileType,
+    registry: ModelRegistry = DEFAULT_MODEL_REGISTRY
 ): boolean {
-    return getSupportedFileTypesForModel(provider, model).includes(fileType);
+    return getSupportedFileTypesForModel(provider, model, undefined, registry).includes(fileType);
 }
 
 export function getMaxInputTokensForModel(
     provider: LLMProvider,
     model: string,
-    logger?: Logger
+    logger?: Logger,
+    registry: ModelRegistry = DEFAULT_MODEL_REGISTRY
 ): number {
-    const modelInfo = getModel(provider, model);
+    const modelInfo = registry.getModel(provider, model);
     if (modelInfo !== null) {
         logger?.debug(`Found max tokens for ${provider}/${model}: ${modelInfo.maxInputTokens}`);
         return modelInfo.maxInputTokens;
     }
 
-    if ((provider === 'openrouter' || provider === 'dexto-nova') && model.includes('/')) {
+    if (
+        registry === DEFAULT_MODEL_REGISTRY &&
+        (provider === 'openrouter' || provider === 'dexto-nova') &&
+        model.includes('/')
+    ) {
         const contextLength = getOpenRouterModelContextLength(model);
         if (typeof contextLength === 'number') {
             logger?.debug(
@@ -222,7 +257,7 @@ export function getMaxInputTokensForModel(
         }
     }
 
-    const supportedModels = getSupportedModels(provider).join(', ');
+    const supportedModels = registry.getSupportedModels(provider).join(', ');
     logger?.error(
         `Model '${model}' not found for provider '${provider}' in LLM registry. Supported models: ${supportedModels}`
     );
@@ -231,7 +266,8 @@ export function getMaxInputTokensForModel(
 
 export function getEffectiveMaxInputTokens(
     config: EffectiveMaxInputTokensConfig,
-    logger: Logger
+    logger: Logger,
+    registry: ModelRegistry = DEFAULT_MODEL_REGISTRY
 ): number {
     const configuredMaxInputTokens = config.maxInputTokens;
 
@@ -247,7 +283,8 @@ export function getEffectiveMaxInputTokens(
             const registryMaxInputTokens = getMaxInputTokensForModel(
                 config.provider,
                 config.model,
-                logger
+                logger,
+                registry
             );
             if (configuredMaxInputTokens > registryMaxInputTokens) {
                 logger.warn(
@@ -285,7 +322,7 @@ export function getEffectiveMaxInputTokens(
         return DEFAULT_MAX_INPUT_TOKENS;
     }
 
-    if (acceptsAnyModel(config.provider)) {
+    if (registry.acceptsAnyModel(config.provider)) {
         logger.debug(
             `Provider ${config.provider} accepts any model, defaulting to ${DEFAULT_MAX_INPUT_TOKENS} tokens`
         );
@@ -296,7 +333,8 @@ export function getEffectiveMaxInputTokens(
         const registryMaxInputTokens = getMaxInputTokensForModel(
             config.provider,
             config.model,
-            logger
+            logger,
+            registry
         );
         logger.debug(
             `Using maxInputTokens from registry for ${config.provider}/${config.model}: ${registryMaxInputTokens}`
@@ -304,7 +342,7 @@ export function getEffectiveMaxInputTokens(
         return registryMaxInputTokens;
     } catch (error: unknown) {
         if (error instanceof DextoRuntimeError && error.code === LLMErrorCode.MODEL_UNKNOWN) {
-            if (supportsCustomModels(config.provider)) {
+            if (registry.supportsCustomModels(config.provider)) {
                 logger.debug(
                     `Custom model ${config.model} not in ${config.provider} registry, defaulting to ${DEFAULT_MAX_INPUT_TOKENS} tokens`
                 );

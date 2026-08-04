@@ -14,6 +14,7 @@ import { LLMErrorCode } from './error-codes.js';
 import {
     LLMConfigSchema,
     LLMUpdatesSchema,
+    LLMUpdatesShapeSchema,
     type LLMConfig,
     type ValidatedLLMConfig,
 } from './schemas.js';
@@ -572,6 +573,11 @@ describe('LLMConfigSchema', () => {
                 expect(() => LLMUpdatesSchema.parse(updates)).toThrow();
             });
 
+            it('should reject unknown update fields instead of silently dropping them', () => {
+                const updates = { model: 'gpt-5', unsupportedOption: true } as const;
+                expect(() => LLMUpdatesSchema.parse(updates)).toThrow();
+            });
+
             it('should pass validation when model/provider with other fields', () => {
                 const updates = { model: 'gpt-5', maxIterations: 10 };
                 expect(() => LLMUpdatesSchema.parse(updates)).not.toThrow();
@@ -585,6 +591,16 @@ describe('LLMConfigSchema', () => {
                 } as const;
 
                 expect(() => LLMUpdatesSchema.parse(updates)).toThrow();
+            });
+
+            it('keeps shape validation separate from model compatibility validation', () => {
+                const updates = {
+                    provider: 'openai',
+                    model: 'gpt-5-pro',
+                    reasoning: { variant: 'none' },
+                } as const;
+
+                expect(LLMUpdatesShapeSchema.safeParse(updates).success).toBe(true);
             });
         });
     });

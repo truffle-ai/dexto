@@ -72,6 +72,7 @@ type ToolInputEndEvent = Extract<FullStreamPart, { type: 'tool-input-end' }> & {
 export interface StreamProcessorConfig {
     provider: LLMProvider;
     model: string;
+    llmRegistry?: import('@dexto/llm').ModelRegistry;
     usageScopeId?: string;
     /** Estimated input tokens before LLM call (for analytics/calibration) */
     estimatedInputTokens?: number;
@@ -442,6 +443,9 @@ export class StreamProcessor {
                             provider: this.config.provider,
                             model: this.config.model,
                             tokenUsage: usage,
+                            ...(this.config.llmRegistry !== undefined && {
+                                llmRegistry: this.config.llmRegistry,
+                            }),
                         });
 
                         // Log LLM response metadata. Avoid logging full content at info level.
@@ -501,6 +505,9 @@ export class StreamProcessor {
                             provider: this.config.provider,
                             model: this.config.model,
                             tokenUsage: this.actualTokens,
+                            ...(this.config.llmRegistry !== undefined && {
+                                llmRegistry: this.config.llmRegistry,
+                            }),
                         });
                         await this.persistAssistantResponseMetadata(
                             this.actualTokens,
@@ -542,6 +549,9 @@ export class StreamProcessor {
                     provider: this.config.provider,
                     model: this.config.model,
                     tokenUsage: this.actualTokens,
+                    ...(this.config.llmRegistry !== undefined && {
+                        llmRegistry: this.config.llmRegistry,
+                    }),
                 });
                 await this.persistAssistantResponseMetadata(
                     this.actualTokens,
@@ -574,6 +584,9 @@ export class StreamProcessor {
                 provider: this.config.provider,
                 model: this.config.model,
                 tokenUsage: this.actualTokens,
+                ...(this.config.llmRegistry !== undefined && {
+                    llmRegistry: this.config.llmRegistry,
+                }),
             });
             await this.persistAssistantResponseMetadata(this.actualTokens, failurePricingMetadata, {
                 status: 'stopped',

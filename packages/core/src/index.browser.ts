@@ -46,6 +46,7 @@ export { getFileMediaKind, getResourceKind } from './context/media-helpers.js';
 // LLM types (used by client packages)
 export type { LLMProvider } from '@dexto/llm';
 export { LLM_PROVIDERS } from '@dexto/llm';
+export { createLLMConfigSchema } from './llm/schemas.js';
 
 // MCP types and constants (used by webui)
 export type { McpServerType, McpConnectionMode } from './mcp/schemas.js';
