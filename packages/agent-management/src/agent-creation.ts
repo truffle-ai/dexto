@@ -3,6 +3,7 @@ import {
     AgentConfigSchema,
     applyImageDefaults,
     cleanNullValues,
+    createAgentConfigSchema,
     loadImage,
     resolveServicesFromConfig,
     toDextoAgentOptions,
@@ -10,7 +11,7 @@ import {
 import {
     DextoAgent,
     logger,
-    type DextoAgentConfigInput,
+    type DextoAgentOptions,
     type InitializeServicesOptions,
 } from '@dexto/core';
 import { enrichAgentConfig, type EnrichAgentConfigOptions } from './config/index.js';
@@ -25,7 +26,7 @@ type CreateDextoAgentFromConfigOptions = {
     agentContext?: 'subagent' | undefined;
     hostContext?: DextoHostContext | undefined;
     overrides?: InitializeServicesOptions | undefined;
-    runtimeOverrides?: Pick<DextoAgentConfigInput, 'usageScopeId'> | undefined;
+    runtimeOverrides?: Pick<DextoAgentOptions, 'usageScopeId' | 'llmRegistry'> | undefined;
 };
 
 async function loadImageForConfig(options: {
@@ -112,7 +113,9 @@ export async function createDextoAgentFromConfig(
         enrichedConfig.agentId = agentIdOverride;
     }
 
-    const validatedConfig = AgentConfigSchema.parse(enrichedConfig);
+    const validatedConfig = runtimeOverrides?.llmRegistry
+        ? createAgentConfigSchema(runtimeOverrides.llmRegistry).parse(enrichedConfig)
+        : AgentConfigSchema.parse(enrichedConfig);
     const resolvedHostContext = {
         ...(hostContext ?? {}),
         ...(enrichOptions?.workspaceRoot ? { workspaceRoot: enrichOptions.workspaceRoot } : {}),

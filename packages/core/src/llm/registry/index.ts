@@ -175,7 +175,14 @@ export function getProviderFromModel(
     registry: ModelRegistry = DEFAULT_MODEL_REGISTRY
 ): LLMProvider {
     if (registry !== DEFAULT_MODEL_REGISTRY) {
-        return registry.getProviderFromModel(model);
+        try {
+            return registry.getProviderFromModel(model);
+        } catch (error) {
+            if (isUnknownCatalogModelError(error)) {
+                throw LLMError.modelProviderUnknown(model);
+            }
+            throw error;
+        }
     }
 
     try {

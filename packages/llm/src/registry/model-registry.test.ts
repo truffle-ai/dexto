@@ -48,6 +48,42 @@ describe('ModelRegistry', () => {
         expect(registry.getSupportedModels('openai')).toEqual(['registry-test-model']);
     });
 
+    it('returns defensive pricing clones', () => {
+        const bundledModel = getProvider('openai').models[0];
+        if (!bundledModel) throw new Error('Expected the bundled OpenAI registry to be populated');
+
+        const registry = createModelRegistry(
+            registryWithModel({
+                ...bundledModel,
+                name: 'pricing-clone-model',
+                pricing: {
+                    inputPerM: 12,
+                    outputPerM: 34,
+                    contextOver200kPerM: {
+                        inputPerM: 56,
+                        outputPerM: 78,
+                    },
+                },
+            })
+        );
+
+        const pricing = registry.getModelPricing('openai', 'pricing-clone-model');
+        if (!pricing || !pricing.contextOver200kPerM) {
+            throw new Error('Expected pricing metadata');
+        }
+        pricing.inputPerM = 999;
+        pricing.contextOver200kPerM.inputPerM = 888;
+
+        expect(registry.getModelPricing('openai', 'pricing-clone-model')).toEqual({
+            inputPerM: 12,
+            outputPerM: 34,
+            contextOver200kPerM: {
+                inputPerM: 56,
+                outputPerM: 78,
+            },
+        });
+    });
+
     it('does not mutate the input provider records', () => {
         const registry = createModelRegistry(LLM_REGISTRY);
 
@@ -74,5 +110,61 @@ describe('ModelRegistry', () => {
                 })
             )
         ).toThrow("Invalid registry pricing for 'openai/invalid-price-model'");
+    });
+
+    it.each([
+        'cacheReadPerM',
+        'cacheWritePerM',
+        'reasoningPerM',
+        'inputAudioPerM',
+        'outputAudioPerM',
+    ])('rejects invalid %s pricing before activation', (field) => {
+        const bundledModel = getProvider('openai').models[0];
+        if (!bundledModel) throw new Error('Expected the bundled OpenAI registry to be populated');
+
+        expect(() =>
+            createModelRegistry(
+                registryWithModel({
+                    ...bundledModel,
+                    name: `invalid-${field}-model`,
+                    pricing: {
+                        inputPerM: 1,
+                        outputPerM: 1,
+                        [field]: -1,
+                    },
+                })
+            )
+        ).toThrow(expect.objectContaining({ code: 'REGISTRY_INVALID' }));
+    });
+
+    it('rejects malformed model fields with a registry error', () => {
+        const bundledModel = getProvider('openai').models[0];
+        if (!bundledModel) throw new Error('Expected the bundled OpenAI registry to be populated');
+
+        for (const malformedModel of [
+            null,
+            { ...bundledModel, name: 42 },
+            { ...bundledModel, maxInputTokens: Number.NaN },
+            { ...bundledModel, supportedFileTypes: 'image' },
+        ]) {
+            expect(() =>
+                createModelRegistry(registryWithModel(malformedModel as ModelInfo))
+            ).toThrow(expect.objectContaining({ code: 'REGISTRY_INVALID' }));
+        }
+    });
+
+    it('allows zero input-token limits for media models', () => {
+        const bundledModel = getProvider('openai').models[0];
+        if (!bundledModel) throw new Error('Expected the bundled OpenAI registry to be populated');
+
+        const registry = createModelRegistry(
+            registryWithModel({
+                ...bundledModel,
+                name: 'zero-limit-media-model',
+                maxInputTokens: 0,
+            })
+        );
+
+        expect(registry.getMaxInputTokensForModel('openai', 'zero-limit-media-model')).toBe(0);
     });
 });

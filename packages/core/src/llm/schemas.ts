@@ -281,68 +281,70 @@ export type ValidatedLLMConfig = z.output<typeof LLMConfigSchema>;
 // PATCH-like schema for updates (switch flows)
 
 // TODO: when moving to zod v4 we might be able to set this as strict
+const LLMUpdatesBaseSchema = z
+    .object({
+        ...LLMConfigFields,
+        // Special-case: allow `null` as an explicit "clear reasoning config" sentinel for switch flows.
+        // Full configs (LLMConfigSchema) still require `reasoning` to be an object when present.
+        reasoning: LLMConfigFields.reasoning.nullable(),
+    })
+    .partial();
+
+export const LLMUpdatesShapeSchema = LLMUpdatesBaseSchema.superRefine((data, ctx) => {
+    if (!data.model && !data.provider) {
+        ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: 'At least model or provider must be specified for LLM switch',
+            path: [],
+        });
+    }
+});
+
 export function createLLMUpdatesSchema(registry: ModelRegistry = DEFAULT_MODEL_REGISTRY) {
-    return z
-        .object({
-            ...LLMConfigFields,
-            // Special-case: allow `null` as an explicit "clear reasoning config" sentinel for switch flows.
-            // Full configs (LLMConfigSchema) still require `reasoning` to be an object when present.
-            reasoning: LLMConfigFields.reasoning.nullable(),
-        })
-        .partial()
-        .superRefine((data, ctx) => {
-            // Require at least one meaningful change field: model or provider
-            if (!data.model && !data.provider) {
+    return LLMUpdatesShapeSchema.superRefine((data, ctx) => {
+        // If we have enough context (provider+model), validate reasoning updates to avoid
+        // sending unsupported reasoning params at runtime.
+        if (
+            data.reasoning &&
+            data.reasoning !== null &&
+            typeof data.provider === 'string' &&
+            typeof data.model === 'string'
+        ) {
+            const profile = getReasoningProfile(data.provider, data.model, registry);
+            const variant = data.reasoning.variant;
+            const budgetTokens = data.reasoning.budgetTokens;
+
+            if (!supportsReasoningVariant(profile, variant)) {
                 ctx.addIssue({
                     code: z.ZodIssueCode.custom,
-                    message: 'At least model or provider must be specified for LLM switch',
-                    path: [],
+                    path: ['reasoning', 'variant'],
+                    message:
+                        `Reasoning variant '${variant}' is not supported for provider '${data.provider}' ` +
+                        `model '${data.model}'. Supported: ${profile.variants.map((entry) => entry.id).join(', ')}`,
+                    params: {
+                        code: LLMErrorCode.MODEL_INCOMPATIBLE,
+                        scope: ErrorScope.LLM,
+                        type: ErrorType.USER,
+                    },
                 });
             }
 
-            // If we have enough context (provider+model), validate reasoning updates to avoid
-            // sending unsupported reasoning params at runtime.
-            if (
-                data.reasoning &&
-                data.reasoning !== null &&
-                typeof data.provider === 'string' &&
-                typeof data.model === 'string'
-            ) {
-                const profile = getReasoningProfile(data.provider, data.model, registry);
-                const variant = data.reasoning.variant;
-                const budgetTokens = data.reasoning.budgetTokens;
-
-                if (!supportsReasoningVariant(profile, variant)) {
-                    ctx.addIssue({
-                        code: z.ZodIssueCode.custom,
-                        path: ['reasoning', 'variant'],
-                        message:
-                            `Reasoning variant '${variant}' is not supported for provider '${data.provider}' ` +
-                            `model '${data.model}'. Supported: ${profile.variants.map((entry) => entry.id).join(', ')}`,
-                        params: {
-                            code: LLMErrorCode.MODEL_INCOMPATIBLE,
-                            scope: ErrorScope.LLM,
-                            type: ErrorType.USER,
-                        },
-                    });
-                }
-
-                if (typeof budgetTokens === 'number' && !profile.supportsBudgetTokens) {
-                    ctx.addIssue({
-                        code: z.ZodIssueCode.custom,
-                        path: ['reasoning', 'budgetTokens'],
-                        message:
-                            `Reasoning budgetTokens are not supported for provider '${data.provider}' ` +
-                            `model '${data.model}'. Remove reasoning.budgetTokens to use provider defaults.`,
-                        params: {
-                            code: LLMErrorCode.MODEL_INCOMPATIBLE,
-                            scope: ErrorScope.LLM,
-                            type: ErrorType.USER,
-                        },
-                    });
-                }
+            if (typeof budgetTokens === 'number' && !profile.supportsBudgetTokens) {
+                ctx.addIssue({
+                    code: z.ZodIssueCode.custom,
+                    path: ['reasoning', 'budgetTokens'],
+                    message:
+                        `Reasoning budgetTokens are not supported for provider '${data.provider}' ` +
+                        `model '${data.model}'. Remove reasoning.budgetTokens to use provider defaults.`,
+                    params: {
+                        code: LLMErrorCode.MODEL_INCOMPATIBLE,
+                        scope: ErrorScope.LLM,
+                        type: ErrorType.USER,
+                    },
+                });
             }
-        });
+        }
+    });
 }
 
 export const LLMUpdatesSchema = createLLMUpdatesSchema();

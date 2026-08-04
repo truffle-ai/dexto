@@ -9,7 +9,7 @@ import {
     getCuratedModelRefsForProviders,
     getSupportedFileTypesForModel,
     getLocalModelById,
-    LLMUpdatesSchema,
+    LLMUpdatesShapeSchema,
 } from '@dexto/core';
 import {
     LLM_PROVIDERS,
@@ -119,9 +119,9 @@ const CatalogQuerySchema = z
     .strict()
     .describe('Query parameters for filtering and formatting the LLM catalog');
 
-// Combine LLM updates schema with sessionId for API requests
-// LLMUpdatesSchema is no longer strict, so it accepts extra fields like sessionId
-const SwitchLLMBodySchema = LLMUpdatesSchema.and(
+// Combine shape validation with sessionId for API requests. Model and reasoning compatibility
+// are validated by DextoAgent against its active registry.
+const SwitchLLMBodySchema = LLMUpdatesShapeSchema.and(
     z.object({
         sessionId: z
             .string()

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { LLM_PROVIDERS } from '@dexto/llm';
+import { createModelRegistry, LLM_PROVIDERS } from '@dexto/llm';
 import {
     LLM_REGISTRY,
     getSupportedProviders,
@@ -29,6 +29,7 @@ import {
 } from './index.js';
 import { LLMErrorCode } from '../error-codes.js';
 import { ErrorScope, ErrorType } from '../../errors/types.js';
+import { DextoRuntimeError } from '../../errors/DextoRuntimeError.js';
 import type { Logger } from '../../logger/v2/types.js';
 import {
     getCachedOpenRouterModelsWithInfo,
@@ -119,6 +120,19 @@ describe('LLM Registry Core Functions', () => {
             expect(() => getProviderFromModel('anthropic/claude-opus-4.5')).toThrow();
             expect(() => getProviderFromModel('openai/gpt-5-mini')).toThrow();
             expect(() => getProviderFromModel('x-ai/grok-4')).toThrow();
+        });
+
+        it('normalizes unknown-model errors from an injected registry', () => {
+            const registry = createModelRegistry(LLM_REGISTRY);
+
+            expect(() => getProviderFromModel('unknown-model', registry)).toThrow(
+                expect.objectContaining({ code: LLMErrorCode.MODEL_UNKNOWN })
+            );
+            try {
+                getProviderFromModel('unknown-model', registry);
+            } catch (error) {
+                expect(error).toBeInstanceOf(DextoRuntimeError);
+            }
         });
     });
 

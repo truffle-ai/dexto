@@ -338,6 +338,7 @@ export class AgentSpawnerRuntime implements TaskForker {
                 defaultTaskTimeout: config.defaultTimeout,
             },
             logger,
+            llmRegistry: parentAgent.llmRegistry,
         });
 
         this.logger.debug(

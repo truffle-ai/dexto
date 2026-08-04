@@ -14,6 +14,7 @@ import { LLMErrorCode } from './error-codes.js';
 import {
     LLMConfigSchema,
     LLMUpdatesSchema,
+    LLMUpdatesShapeSchema,
     type LLMConfig,
     type ValidatedLLMConfig,
 } from './schemas.js';
@@ -585,6 +586,16 @@ describe('LLMConfigSchema', () => {
                 } as const;
 
                 expect(() => LLMUpdatesSchema.parse(updates)).toThrow();
+            });
+
+            it('keeps shape validation separate from model compatibility validation', () => {
+                const updates = {
+                    provider: 'openai',
+                    model: 'gpt-5-pro',
+                    reasoning: { variant: 'none' },
+                } as const;
+
+                expect(LLMUpdatesShapeSchema.safeParse(updates).success).toBe(true);
             });
         });
     });

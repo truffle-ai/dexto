@@ -54,6 +54,24 @@ function modelProviderUnknown(model: string): LlmCatalogError {
     return new LlmCatalogError('MODEL_UNKNOWN', `Could not infer provider for model '${model}'`);
 }
 
+const MODEL_PRICING_FIELDS = [
+    'inputPerM',
+    'outputPerM',
+    'cacheReadPerM',
+    'cacheWritePerM',
+    'reasoningPerM',
+    'inputAudioPerM',
+    'outputAudioPerM',
+] as const;
+
+const LONG_CONTEXT_PRICING_FIELDS = [
+    'inputTokensAbove',
+    'inputPerM',
+    'outputPerM',
+    'cacheReadPerM',
+    'cacheWritePerM',
+] as const;
+
 function getNormalizedModelIdForLookup(model: string): string {
     const stripped = stripBedrockRegionPrefix(model);
     return stripped.toLowerCase();
@@ -489,7 +507,8 @@ export class ModelRegistry {
 
     getModelPricing(provider: LLMProvider, model: string): ModelPricing | undefined {
         if (this.acceptsAnyModel(provider)) return undefined;
-        return findModelInfoInRegistry(this.#providers, provider, model)?.pricing;
+        const modelInfo = findModelInfoInRegistry(this.#providers, provider, model);
+        return modelInfo?.pricing ? cloneModelInfo(modelInfo).pricing : undefined;
     }
 
     isReasoningCapableModel(model: string, provider?: LLMProvider): boolean {
@@ -616,7 +635,7 @@ function validateRegistryProviders(providers: Record<LLMProvider, ProviderInfo>)
     for (const provider of LLM_PROVIDERS) {
         const providerInfo = providers[provider];
         if (
-            !providerInfo ||
+            !isRecord(providerInfo) ||
             !Array.isArray(providerInfo.models) ||
             !['none', 'optional', 'required'].includes(providerInfo.baseURLSupport) ||
             !Array.isArray(providerInfo.supportedFileTypes)
@@ -627,33 +646,70 @@ function validateRegistryProviders(providers: Record<LLMProvider, ProviderInfo>)
             );
         }
 
-        for (const model of providerInfo.models) {
+        for (const [modelIndex, model] of providerInfo.models.entries()) {
+            const modelObject = isRecord(model) ? model : null;
+            const modelName =
+                modelObject && typeof modelObject.name === 'string'
+                    ? modelObject.name
+                    : `<index ${modelIndex}>`;
+
             if (
-                model.name.trim().length === 0 ||
-                !Number.isInteger(model.maxInputTokens) ||
-                model.maxInputTokens < 0
+                !modelObject ||
+                typeof modelObject.name !== 'string' ||
+                modelObject.name.trim().length === 0 ||
+                !Number.isInteger(modelObject.maxInputTokens) ||
+                modelObject.maxInputTokens < 0 ||
+                !Array.isArray(modelObject.supportedFileTypes) ||
+                !modelObject.supportedFileTypes.every((fileType) => typeof fileType === 'string')
             ) {
                 throw new LlmCatalogError(
                     'REGISTRY_INVALID',
-                    `Invalid registry model definition for '${provider}/${model.name}'`
+                    `Invalid registry model definition for '${provider}/${modelName}'`
                 );
             }
 
-            const pricing = model.pricing;
-            if (
-                pricing &&
-                (!Number.isFinite(pricing.inputPerM) ||
-                    pricing.inputPerM < 0 ||
-                    !Number.isFinite(pricing.outputPerM) ||
-                    pricing.outputPerM < 0)
-            ) {
+            if (!isValidModelPricing(modelObject.pricing)) {
                 throw new LlmCatalogError(
                     'REGISTRY_INVALID',
-                    `Invalid registry pricing for '${provider}/${model.name}'`
+                    `Invalid registry pricing for '${provider}/${modelName}'`
                 );
             }
         }
     }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === 'object' && value !== null;
+}
+
+function isValidPricingNumber(value: unknown): value is number {
+    return typeof value === 'number' && Number.isFinite(value) && value >= 0;
+}
+
+function isValidModelPricing(value: unknown): boolean {
+    if (value === undefined) return true;
+    if (!isRecord(value)) return false;
+
+    for (const field of MODEL_PRICING_FIELDS) {
+        if (field in value && !isValidPricingNumber(value[field])) return false;
+    }
+    if (!isValidPricingNumber(value.inputPerM) || !isValidPricingNumber(value.outputPerM)) {
+        return false;
+    }
+
+    const longContextPricing = value.contextOver200kPerM;
+    if (longContextPricing === undefined) return true;
+    if (!isRecord(longContextPricing)) return false;
+
+    for (const field of LONG_CONTEXT_PRICING_FIELDS) {
+        if (field in longContextPricing && !isValidPricingNumber(longContextPricing[field])) {
+            return false;
+        }
+    }
+    return (
+        isValidPricingNumber(longContextPricing.inputPerM) &&
+        isValidPricingNumber(longContextPricing.outputPerM)
+    );
 }
 
 function findModelInfoInRegistry(

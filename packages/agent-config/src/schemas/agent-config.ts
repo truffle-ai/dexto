@@ -1,7 +1,6 @@
 import {
     AgentCardSchema,
     ElicitationConfigSchema,
-    LLMConfigSchema,
     LoggerConfigSchema,
     MemoriesConfigSchema,
     ServersConfigSchema as McpServersConfigSchema,
@@ -12,10 +11,13 @@ import {
     PermissionsConfigSchema,
     ResourcesConfigSchema,
 } from '@dexto/core/config';
+import { createLLMConfigSchema } from '@dexto/core';
 import { StorageSchema } from '@dexto/storage/schemas';
 import { z } from 'zod';
 import { HooksConfigSchema } from './hooks.js';
 import { CompactionConfigSchema, DEFAULT_COMPACTION_CONFIG } from './compaction.js';
+
+type AgentConfigModelRegistry = Parameters<typeof createLLMConfigSchema>[0];
 
 // ========================================
 // DI SURFACE CONFIG (validated in resolver)
@@ -51,7 +53,7 @@ export type ToolFactoryEntry = z.output<typeof ToolFactoryEntrySchema>;
 /**
  * Creates the agent config schema.
  */
-export function createAgentConfigSchema() {
+export function createAgentConfigSchema(registry?: AgentConfigModelRegistry) {
     return z
         .object({
             // ========================================
@@ -61,7 +63,7 @@ export function createAgentConfigSchema() {
                 'System prompt: string shorthand or structured config'
             ),
 
-            llm: LLMConfigSchema.describe('Core LLM configuration for the agent'),
+            llm: createLLMConfigSchema(registry).describe('Core LLM configuration for the agent'),
 
             // ========================================
             // OPTIONAL FEATURES (undefined if not provided)

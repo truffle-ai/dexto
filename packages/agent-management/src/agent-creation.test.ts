@@ -1,9 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { AgentConfig } from '@dexto/agent-config';
+import type { ModelRegistry } from '@dexto/llm';
 
 const loadImageMock = vi.fn(async (_specifier: string) => ({ defaults: {} }));
 const resolveServicesFromConfigMock = vi.fn(async () => ({}));
 const enrichAgentConfigMock = vi.fn((config: unknown) => config);
+const createAgentConfigSchemaMock = vi.fn(() => ({ parse: (config: unknown) => config }));
 const toDextoAgentOptionsMock = vi.fn(
     (options: {
         config?: Record<string, unknown> | undefined;
@@ -16,6 +18,7 @@ const toDextoAgentOptionsMock = vi.fn(
 
 vi.mock('@dexto/agent-config', () => ({
     AgentConfigSchema: { parse: (config: unknown) => config },
+    createAgentConfigSchema: createAgentConfigSchemaMock,
     applyImageDefaults: (config: unknown) => config,
     cleanNullValues: (config: unknown) => config,
     loadImage: loadImageMock,
@@ -153,5 +156,19 @@ describe('createDextoAgentFromConfig', () => {
                 hostContext,
             })
         );
+    });
+
+    it('validates config with an injected model registry before agent construction', async () => {
+        const { createDextoAgentFromConfig } = await import('./agent-creation.js');
+        const llmRegistry = {} as ModelRegistry;
+
+        await createDextoAgentFromConfig({
+            config: {
+                llm: { provider: 'openai', model: 'host-model', apiKey: 'test' },
+            } as unknown as AgentConfig,
+            runtimeOverrides: { llmRegistry },
+        });
+
+        expect(createAgentConfigSchemaMock).toHaveBeenCalledWith(llmRegistry);
     });
 });
