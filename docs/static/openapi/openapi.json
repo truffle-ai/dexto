@@ -9791,7 +9791,8 @@
                         "additionalProperties": false,
                         "description": "Reasoning configuration using model/provider-native variants (tuning only; display is controlled separately)."
                       }
-                    }
+                    },
+                    "additionalProperties": false
                   },
                   {
                     "type": "object",
