@@ -3,6 +3,7 @@ import { randomUUID } from 'crypto';
 import { setMaxListeners } from 'events';
 import { ZodError } from 'zod';
 import { MCPManager } from '../mcp/manager.js';
+import type { MCPConnectionManagement } from '../mcp/configured-connections.js';
 import { ToolManager } from '../tools/tool-manager.js';
 import { SystemPromptManager } from '../systemPrompt/manager.js';
 import { SkillsContributor } from '../systemPrompt/contributors.js';
@@ -241,7 +242,6 @@ export class DextoAgent {
     // Approval handler for manual tool approval and elicitation
     // Set via setApprovalHandler() before start() if needed
     private approvalHandler?: ApprovalHandler | undefined;
-    private mcpAuthProviderFactory: import('../mcp/types.js').McpAuthProviderFactory | null = null;
 
     // Active stream controllers per session - allows cancel() to abort iterators
     private activeStreamControllers: Map<string, AbortController> = new Map();
@@ -344,10 +344,6 @@ export class DextoAgent {
         this.toolkitLoader = options.toolkitLoader;
         this.skillSources = options.skillSources ?? [];
 
-        if (overrides.mcpAuthProviderFactory !== undefined) {
-            this.mcpAuthProviderFactory = overrides.mcpAuthProviderFactory;
-        }
-
         // Create event bus early so it's available for approval handler creation
         this.agentEventBus = new AgentEventBus();
 
@@ -380,10 +376,6 @@ export class DextoAgent {
                 this.compactionStrategy,
                 this.llmRegistry
             );
-
-            if (this.mcpAuthProviderFactory) {
-                services.mcpManager.setAuthProviderFactory(this.mcpAuthProviderFactory);
-            }
 
             // Validate all required services are provided
             for (const service of requiredServices) {
@@ -575,7 +567,7 @@ export class DextoAgent {
             // 3. Disconnect all MCP clients
             try {
                 if (this.mcpManager) {
-                    await this.mcpManager.disconnectAll();
+                    await this.mcpManager.close();
                     this.logger.debug('MCPManager disconnected all clients successfully');
                 }
             } catch (error) {
@@ -2711,6 +2703,16 @@ export class DextoAgent {
 
     // ============= MCP SERVER MANAGEMENT =============
 
+    private getConfiguredMcpConnections(): MCPConnectionManagement {
+        const management = this.services.mcpConnectionManagement;
+        if (!management) {
+            throw AgentError.initializationFailed(
+                'This host manages MCP connections outside DextoAgent configuration'
+            );
+        }
+        return management;
+    }
+
     /**
      * Adds a new MCP server to the runtime configuration and connects it if enabled.
      * This method handles validation, state management, and establishing the connection.
@@ -2738,10 +2740,7 @@ export class DextoAgent {
 
         try {
             // Connect the server
-            await this.mcpManager.connectServer(name, validatedConfig);
-
-            // Ensure tool cache reflects the newly connected server before notifying listeners
-            await this.toolManager.refresh();
+            await this.getConfiguredMcpConnections().connect(name, validatedConfig);
 
             this.agentEventBus.emit('mcp:server-connected', {
                 name,
@@ -2802,12 +2801,11 @@ export class DextoAgent {
         this.stateManager.setMcpServer(name, validatedConfig);
 
         const shouldEnable = validatedConfig.enabled !== false;
-        const hasClient = this.mcpManager.getClients().has(name);
+        const hasClient = this.getConfiguredMcpConnections().has(name);
 
         if (!shouldEnable) {
             if (hasClient) {
-                await this.mcpManager.removeClient(name);
-                await this.toolManager.refresh();
+                await this.getConfiguredMcpConnections().remove(name);
             }
             this.logger.info(`MCP server '${name}' updated (disabled)`);
             return;
@@ -2815,11 +2813,10 @@ export class DextoAgent {
 
         try {
             if (hasClient) {
-                await this.mcpManager.removeClient(name);
+                await this.getConfiguredMcpConnections().remove(name);
             }
 
-            await this.mcpManager.connectServer(name, validatedConfig);
-            await this.toolManager.refresh();
+            await this.getConfiguredMcpConnections().connect(name, validatedConfig);
 
             this.agentEventBus.emit('mcp:server-connected', { name, success: true });
             this.agentEventBus.emit('tools:available-updated', {
@@ -2843,8 +2840,7 @@ export class DextoAgent {
             this.stateManager.setMcpServer(name, currentConfig);
             if (currentConfig.enabled !== false) {
                 try {
-                    await this.mcpManager.connectServer(name, currentConfig);
-                    await this.toolManager.refresh();
+                    await this.getConfiguredMcpConnections().connect(name, currentConfig);
                 } catch (reconnectError) {
                     const reconnectMsg =
                         reconnectError instanceof Error
@@ -2888,8 +2884,7 @@ export class DextoAgent {
 
         try {
             // Connect the server
-            await this.mcpManager.connectServer(name, updatedConfig);
-            await this.toolManager.refresh();
+            await this.getConfiguredMcpConnections().connect(name, updatedConfig);
 
             this.agentEventBus.emit('mcp:server-connected', { name, success: true });
             this.logger.info(`MCP server '${name}' enabled and connected`);
@@ -2923,8 +2918,7 @@ export class DextoAgent {
 
         try {
             // Disconnect the server
-            await this.mcpManager.removeClient(name);
-            await this.toolManager.refresh();
+            await this.getConfiguredMcpConnections().remove(name);
 
             this.logger.info(`MCP server '${name}' disabled and disconnected`);
         } catch (error) {
@@ -2947,13 +2941,10 @@ export class DextoAgent {
 
         try {
             // Disconnect the client first
-            await this.mcpManager.removeClient(name);
+            await this.getConfiguredMcpConnections().remove(name);
 
             // Then remove from runtime state
             this.stateManager.removeMcpServer(name);
-
-            // Refresh tool cache after server removal so the LLM sees updated set
-            await this.toolManager.refresh();
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : String(error);
             this.logger.error(`Failed to remove MCP server '${name}': ${errorMessage}`);
@@ -2973,11 +2964,8 @@ export class DextoAgent {
         try {
             this.logger.info(`DextoAgent: Restarting MCP server '${name}'...`);
 
-            // Restart the server using MCPManager
-            await this.mcpManager.restartServer(name);
-
-            // Refresh tool cache after restart so the LLM sees updated toolset
-            await this.toolManager.refresh();
+            // Restart through the configured host connection layer.
+            await this.getConfiguredMcpConnections().restart(name);
 
             this.agentEventBus.emit('mcp:server-restarted', {
                 serverName: name,
@@ -3006,7 +2994,7 @@ export class DextoAgent {
             throw AgentError.apiValidationError('name is required and must be a non-empty string');
         }
         this.ensureStarted();
-        return this.mcpManager.getAuthProvider(name);
+        return this.getConfiguredMcpConnections().getAuthProvider(name);
     }
 
     /**
@@ -3232,7 +3220,7 @@ export class DextoAgent {
      */
     public getMcpClients(): Map<string, McpClient> {
         this.ensureStarted();
-        return this.mcpManager.getClients();
+        return this.getConfiguredMcpConnections().getClients();
     }
 
     /**
@@ -3242,7 +3230,7 @@ export class DextoAgent {
      */
     public getMcpFailedConnections(): Record<string, string> {
         this.ensureStarted();
-        const failures = this.mcpManager.getFailedConnections();
+        const failures = this.getConfiguredMcpConnections().getFailures();
         return Object.fromEntries(
             Object.entries(failures).map(([name, error]) => [name, error.message])
         );
@@ -3263,8 +3251,9 @@ export class DextoAgent {
         if (!serverConfig) return undefined;
 
         const enabled = serverConfig.enabled !== false;
-        const connectedClients = this.mcpManager.getClients();
-        const failedConnections = this.mcpManager.getFailedConnections();
+        const connections = this.getConfiguredMcpConnections();
+        const connectedClients = connections.getClients();
+        const failedConnections = connections.getFailures();
 
         let status: McpConnectionStatus;
         if (!enabled) {
@@ -3272,7 +3261,7 @@ export class DextoAgent {
         } else if (connectedClients.has(name)) {
             status = 'connected';
         } else {
-            const errorCode = this.mcpManager.getFailedConnectionErrorCode(name);
+            const errorCode = failedConnections[name]?.code;
             if (errorCode === MCPErrorCode.AUTH_REQUIRED) {
                 status = 'auth-required';
             } else {
@@ -3304,8 +3293,9 @@ export class DextoAgent {
         this.ensureStarted();
         const config = this.stateManager.getRuntimeConfig();
         const mcpServers = config.mcpServers || {};
-        const connectedClients = this.mcpManager.getClients();
-        const failedConnections = this.mcpManager.getFailedConnections();
+        const connections = this.getConfiguredMcpConnections();
+        const connectedClients = connections.getClients();
+        const failedConnections = connections.getFailures();
 
         const servers: McpServerStatus[] = [];
 
@@ -3318,7 +3308,7 @@ export class DextoAgent {
             } else if (connectedClients.has(name)) {
                 status = 'connected';
             } else {
-                const errorCode = this.mcpManager.getFailedConnectionErrorCode(name);
+                const errorCode = failedConnections[name]?.code;
                 if (errorCode === MCPErrorCode.AUTH_REQUIRED) {
                     status = 'auth-required';
                 } else {
@@ -3612,7 +3602,7 @@ export class DextoAgent {
         this.ensureStarted();
         const config = this.stateManager.getRuntimeConfig().mcpServers[name];
         if (config) return config;
-        return this.mcpManager.getServerConfig(name);
+        return this.getConfiguredMcpConnections().getConfig(name);
     }
 
     // ============= APPROVAL HANDLER API =============
@@ -3664,10 +3654,11 @@ export class DextoAgent {
     public setMcpAuthProviderFactory(
         factory: import('../mcp/types.js').McpAuthProviderFactory | null
     ): void {
-        this.mcpAuthProviderFactory = factory;
-        if (this._isStarted && this.services) {
-            this.services.mcpManager.setAuthProviderFactory(factory);
+        if (!this._isStarted) {
+            this.overrides.mcpAuthProviderFactory = factory;
+            return;
         }
+        this.services?.mcpConnectionManagement?.setAuthProviderFactory(factory);
     }
 
     /**

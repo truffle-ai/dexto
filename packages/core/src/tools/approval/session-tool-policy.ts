@@ -4,21 +4,10 @@ import type {
     SessionToolPreferencesStore,
 } from '../session-tool-preferences-store.js';
 import type { ToolSet } from '../types.js';
-
-const MCP_TOOL_PREFIX = 'mcp--';
 type SessionToolPreferencesStorage = Pick<SessionToolPreferencesStore, 'load' | 'save' | 'delete'>;
 
 export function matchesToolPolicyPattern(toolName: string, policyPattern: string): boolean {
-    if (toolName === policyPattern) {
-        return true;
-    }
-
-    if (!policyPattern.startsWith(MCP_TOOL_PREFIX)) {
-        return false;
-    }
-
-    const baseName = policyPattern.substring(MCP_TOOL_PREFIX.length);
-    return toolName.endsWith(`--${baseName}`) && toolName.startsWith(MCP_TOOL_PREFIX);
+    return toolName === policyPattern;
 }
 
 export class SessionToolPolicy {

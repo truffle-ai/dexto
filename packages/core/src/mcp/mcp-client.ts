@@ -28,13 +28,13 @@ import type {
     Prompt,
 } from '@modelcontextprotocol/sdk/types.js';
 import {
+    CallToolResultSchema,
     ResourceUpdatedNotificationSchema,
     PromptListChangedNotificationSchema,
     ToolListChangedNotificationSchema,
 } from '@modelcontextprotocol/sdk/types.js';
-import { trace, context, SpanStatusCode, SpanKind } from '@opentelemetry/api';
-import { hasActiveTelemetry, addBaggageAttributesToSpan } from '../telemetry/utils.js';
-import { safeStringify } from '../utils/safe-stringify.js';
+import { SpanKind } from '@opentelemetry/api';
+import { recordOperationSpan } from '../telemetry/operation-span.js';
 
 // const DEFAULT_TIMEOUT = 60000; // Commented out or remove if not used elsewhere
 const UI_EXTENSION_NAME = 'io.modelcontextprotocol/ui';
@@ -55,6 +55,21 @@ function buildClientCapabilities(): McpClientCapabilities {
         },
     };
 }
+
+function mcpToolFailureMessage(name: string, result: unknown): string {
+    const parsed = CallToolResultSchema.safeParse(result);
+    if (!parsed.success) {
+        return `MCP tool '${name}' failed.`;
+    }
+    const messages: string[] = [];
+    for (const content of parsed.data.content) {
+        if (content.type === 'text') {
+            messages.push(content.text);
+        }
+    }
+    return messages.join('\n') || `MCP tool '${name}' failed.`;
+}
+
 /**
  * Wrapper on top of Client class provided in model context protocol SDK, to add additional metadata about the server
  */
@@ -396,91 +411,49 @@ export class DextoMcpClient extends EventEmitter implements McpClient {
         this.ensureConnected();
 
         return await this.toolInvocationContext.run(invocation, async () => {
-            // Only create telemetry span if telemetry is active
-            const shouldTrace = hasActiveTelemetry();
-            const tracer = shouldTrace ? trace.getTracer('dexto') : null;
-            const span = tracer?.startSpan(`mcp.tool.${name}`, {
-                kind: SpanKind.CLIENT,
-            });
-
             try {
-                // Add telemetry attributes
-                if (span) {
-                    const ctx = trace.setSpan(context.active(), span);
-                    addBaggageAttributesToSpan(span, ctx, this.logger);
-                    span.setAttribute('tool.name', name);
-                    span.setAttribute('tool.server', this.serverAlias || 'unknown');
-                    span.setAttribute('tool.timeout', this.timeout);
-                    // Sanitize and truncate arguments for telemetry
-                    span.setAttribute('tool.arguments', safeStringify(args, 4096));
-                }
-
-                this.logger.debug(
-                    `Calling tool '${name}' with args: ${JSON.stringify(args, null, 2)}`
-                );
-
-                // Parse args if it's a string (handle JSON strings)
-                let toolArgs = args;
-                if (typeof args === 'string') {
-                    try {
-                        toolArgs = JSON.parse(args);
-                    } catch {
-                        // If it's not valid JSON, keep as string
-                        toolArgs = { input: args };
-                    }
-                }
-
-                // Call the tool with properly formatted arguments
-                this.logger.debug(`Using timeout: ${this.timeout}`);
-
-                const result = await this.client!.callTool(
-                    { name, arguments: toolArgs },
-                    undefined, // resultSchema (optional)
-                    { timeout: this.timeout } // Use server-specific timeout, default 1 minute
-                );
-
-                // Log result with base64 truncation for readability
-                const logResult = JSON.stringify(
-                    result,
-                    (key, value) => {
-                        if (key === 'data' && typeof value === 'string' && value.length > 100) {
-                            return `[Base64 data: ${value.length} chars]`;
-                        }
-                        return value;
+                return await recordOperationSpan(
+                    {
+                        attributes: {
+                            'tool.name': name,
+                            'tool.server': this.serverAlias || 'unknown',
+                            'tool.timeout': this.timeout,
+                        },
+                        captureErrors: false,
+                        componentName: 'DextoMcpClient',
+                        name: `mcp.tool.${name}`,
+                        spanKind: SpanKind.CLIENT,
                     },
-                    2
+                    async () => {
+                        this.logger.debug(`Calling tool '${name}'`);
+
+                        let toolArgs = args;
+                        if (typeof args === 'string') {
+                            try {
+                                toolArgs = JSON.parse(args);
+                            } catch {
+                                toolArgs = { input: args };
+                            }
+                        }
+
+                        this.logger.debug(`Using timeout: ${this.timeout}`);
+                        const result = await this.client!.callTool(
+                            { name, arguments: toolArgs },
+                            undefined,
+                            { timeout: this.timeout }
+                        );
+                        if (result.isError === true) {
+                            throw new Error(mcpToolFailureMessage(name, result));
+                        }
+
+                        this.logger.debug(`Tool '${name}' completed`);
+                        return result ?? 'Tool executed successfully with no result data.';
+                    },
+                    this.logger
                 );
-                this.logger.debug(`Tool '${name}' result: ${logResult}`);
-
-                // Add result to telemetry span (sanitized and truncated)
-                if (span) {
-                    span.setAttribute('tool.result', safeStringify(result, 4096));
-                    span.setStatus({ code: SpanStatusCode.OK });
-                }
-
-                // Check for null or undefined result
-                if (result === null || result === undefined) {
-                    return 'Tool executed successfully with no result data.';
-                }
-                return result;
             } catch (error) {
-                this.logger.error(`Tool call '${name}' failed: ${JSON.stringify(error, null, 2)}`);
-
-                // Record error in telemetry span
-                if (span) {
-                    span.recordException(error as Error);
-                    span.setStatus({
-                        code: SpanStatusCode.ERROR,
-                        message: error instanceof Error ? error.message : String(error),
-                    });
-                }
-
-                return `Error executing tool '${name}': ${
-                    error instanceof Error ? error.message : String(error)
-                }`;
-            } finally {
-                // End telemetry span
-                span?.end();
+                this.logger.error(`Tool call '${name}' failed`);
+                throw error;
             }
         });
     }
@@ -499,7 +472,7 @@ export class DextoMcpClient extends EventEmitter implements McpClient {
 
             // Populate tools
             if (listToolResult && listToolResult.tools) {
-                listToolResult.tools.forEach((tool: any) => {
+                listToolResult.tools.forEach((tool) => {
                     if (!tool.description) {
                         this.logger.warn(`Tool '${tool.name}' is missing a description`);
                     }
@@ -509,7 +482,13 @@ export class DextoMcpClient extends EventEmitter implements McpClient {
                     tools[tool.name] = {
                         description: tool.description ?? '',
                         parameters: tool.inputSchema,
-                        _meta: tool._meta,
+                        ...(tool.outputSchema !== undefined
+                            ? { outputSchema: tool.outputSchema }
+                            : {}),
+                        ...(tool.annotations !== undefined
+                            ? { annotations: tool.annotations }
+                            : {}),
+                        ...(tool._meta !== undefined ? { _meta: tool._meta } : {}),
                     };
                 });
             } else {

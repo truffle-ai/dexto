@@ -67,16 +67,19 @@ import {
     createModelRequestDiagnostics,
     modelRequestDiagnosticAttributes,
 } from './model-request-diagnostics.js';
-import { ApprovalStatus, type ApprovalResponse } from '../../approval/types.js';
-import type { ApprovalDecisionInput } from '../../approval/manager.js';
+import type { ApprovalResponse } from '../../approval/types.js';
+import { approvalResponseToDecisionInput } from '../../approval/manager.js';
 import type { LLMExecutionControl } from '../services/types.js';
 import {
     describeContentPartsForAudit,
     describeInternalMessageTailForAudit,
 } from '../../context/content-audit.js';
 import { cloneStructuredValuePreservingUrls } from '../../context/content-clone.js';
+import { DextoRuntimeError } from '../../errors/DextoRuntimeError.js';
+import { ErrorScope, ErrorType } from '../../errors/types.js';
+import { LLMErrorCode } from '../error-codes.js';
+import { MCP_MODEL_TOOL_PREFIX } from '../../mcp/tool-name.js';
 
-const MCP_TOOL_PREFIX = 'mcp--';
 const MODEL_REQUEST_MAX_RETRIES = 2;
 const TOOL_SUPPORT_PROBE_TIMEOUT_MS = 5000;
 type ToolSupportValidationResult =
@@ -158,11 +161,22 @@ const ProviderOptionsStateSchema: z.ZodType<SharedV2ProviderOptions> = z.record(
 const JsonSchemaStateSchema = z.custom<JSONSchema7>(
     (value) => typeof value === 'object' && value !== null && !Array.isArray(value)
 );
+const ToolAnnotationsStateSchema = z
+    .object({
+        title: z.string().optional(),
+        readOnlyHint: z.boolean().optional(),
+        destructiveHint: z.boolean().optional(),
+        idempotentHint: z.boolean().optional(),
+        openWorldHint: z.boolean().optional(),
+    })
+    .strict();
 const ToolSetEntryStateSchema = z
     .object({
         name: z.string().optional(),
         description: z.string().optional(),
         parameters: JsonSchemaStateSchema,
+        outputSchema: JsonSchemaStateSchema.optional(),
+        annotations: ToolAnnotationsStateSchema.optional(),
         _meta: z.record(z.string(), JsonValueSchema).optional(),
     })
     .strict()
@@ -170,6 +184,8 @@ const ToolSetEntryStateSchema = z
         const tool: ToolSet[string] = { parameters: parsed.parameters };
         if (parsed.name !== undefined) tool.name = parsed.name;
         if (parsed.description !== undefined) tool.description = parsed.description;
+        if (parsed.outputSchema !== undefined) tool.outputSchema = parsed.outputSchema;
+        if (parsed.annotations !== undefined) tool.annotations = parsed.annotations;
         if (parsed._meta !== undefined) tool._meta = parsed._meta;
         return tool;
     });
@@ -228,6 +244,7 @@ export const TurnDriverStateSchema = z.discriminatedUnion('phase', [
             startedAtMs: z.number().int().nonnegative(),
             supportsTools: z.boolean(),
             modelStepId: z.string(),
+            modelToolNames: z.array(z.string()),
             result: ModelStepResultStateSchema,
             toolCallsExecuted: z.boolean(),
         })
@@ -591,6 +608,12 @@ export class TurnExecutor {
         let currentStepScope: ModelStepScope | null = null;
         let currentResult: StreamProcessorResult | null =
             state.phase === 'model-step-complete' ? structuredClone(state.result) : null;
+        let currentModelToolNames =
+            state.phase === 'model-step-prepared'
+                ? Object.keys(state.request.toolDefinitions)
+                : state.phase === 'model-step-complete'
+                  ? [...state.modelToolNames]
+                  : [];
         let preparedModelRequest: ModelStepRequest | null =
             state.phase === 'model-step-prepared'
                 ? await this.restorePreparedModelRequest(state.request, state.supportsTools)
@@ -661,6 +684,7 @@ export class TurnExecutor {
                     startedAtMs: startTime,
                     supportsTools: turn.supportsTools,
                     modelStepId: this.currentModelStepId,
+                    modelToolNames: [...currentModelToolNames],
                     result: {
                         text: currentResult.text,
                         finishReason: currentResult.finishReason,
@@ -785,6 +809,7 @@ export class TurnExecutor {
                         this.logger
                     );
                     currentResult = result;
+                    currentModelToolNames = Object.keys(modelStepRequest.toolDefinitions);
                     currentToolCallsExecuted = result.finishReason !== 'tool-calls';
                     preparedModelRequest = null;
 
@@ -836,7 +861,8 @@ export class TurnExecutor {
                                     'tool.count': result.toolCalls.length,
                                 },
                             },
-                            () => this.executeModelToolCalls(result.toolCalls),
+                            () =>
+                                this.executeModelToolCalls(result.toolCalls, currentModelToolNames),
                             this.logger
                         );
                     } catch (error) {
@@ -878,6 +904,7 @@ export class TurnExecutor {
                 );
                 stepCount = nextStep.stepCount;
                 currentResult = null;
+                currentModelToolNames = [];
                 currentToolCallsExecuted = false;
                 closeCurrentStepScope();
                 if (nextStep.kind === 'stop') {
@@ -1395,11 +1422,13 @@ export class TurnExecutor {
                       attributes: { 'tools.supports': input.supportsTools },
                       resultAttributes: (tools) => ({ 'tools.count': Object.keys(tools).length }),
                   },
-                  async () =>
-                      this.toolManager.filterToolsForSession(
+                  async () => {
+                      const availableTools = this.toolManager.filterToolsForSession(
                           await this.toolManager.getAllTools(),
                           this.sessionId
-                      ),
+                      );
+                      return this.projectModelTools(availableTools);
+                  },
                   this.logger
               )
             : {};
@@ -1785,8 +1814,54 @@ export class TurnExecutor {
         }
     }
 
-    private async executeModelToolCalls(toolCalls: ModelToolCall[]): Promise<void> {
+    private projectModelTools(availableTools: ToolSet): ToolSet {
+        const executionControl = this.config.executionControl;
+        const modelToolNames = executionControl?.modelToolNames;
+        if (modelToolNames === undefined) {
+            return availableTools;
+        }
+
+        const selectedTools: ToolSet = {};
+        const seen = new Set<string>();
+        for (const toolName of modelToolNames) {
+            const tool = availableTools[toolName];
+            if (tool === undefined) {
+                throw new DextoRuntimeError(
+                    LLMErrorCode.REQUEST_INVALID_SCHEMA,
+                    ErrorScope.LLM,
+                    ErrorType.SYSTEM,
+                    `Model tool surface contains unavailable tool '${toolName}'`
+                );
+            }
+            if (seen.has(toolName)) {
+                throw new DextoRuntimeError(
+                    LLMErrorCode.REQUEST_INVALID_SCHEMA,
+                    ErrorScope.LLM,
+                    ErrorType.SYSTEM,
+                    `Model tool surface contains duplicate tool '${toolName}'`
+                );
+            }
+            seen.add(toolName);
+            selectedTools[toolName] = tool;
+        }
+        if (executionControl?.includeMcpTools === true) {
+            for (const [toolName, tool] of Object.entries(availableTools)) {
+                if (seen.has(toolName) || this.toolManager.getToolSource(toolName) !== 'mcp') {
+                    continue;
+                }
+                selectedTools[toolName] = tool;
+            }
+        }
+
+        return selectedTools;
+    }
+
+    private async executeModelToolCalls(
+        toolCalls: ModelToolCall[],
+        modelToolNames: readonly string[]
+    ): Promise<void> {
         const preparedCalls: PreparedModelToolCall[] = [];
+        const modelTools = new Set(modelToolNames);
 
         for (const toolCall of toolCalls) {
             preparedCalls.push(
@@ -1800,7 +1875,7 @@ export class TurnExecutor {
                         },
                         resultAttributes: (prepared) => ({ 'tool.prepare_kind': prepared.kind }),
                     },
-                    () => this.prepareModelToolCall(toolCall),
+                    () => this.prepareModelToolCall(toolCall, modelTools),
                     this.logger
                 )
             );
@@ -1848,7 +1923,10 @@ export class TurnExecutor {
         }
     }
 
-    private async prepareModelToolCall(toolCall: ModelToolCall): Promise<PreparedModelToolCall> {
+    private async prepareModelToolCall(
+        toolCall: ModelToolCall,
+        modelTools: ReadonlySet<string>
+    ): Promise<PreparedModelToolCall> {
         if (this.stepAbortController.signal.aborted) {
             return {
                 kind: 'terminal',
@@ -1857,6 +1935,17 @@ export class TurnExecutor {
                     this.buildToolCallFallbackSnapshot(toolCall.toolName)
                 ),
             };
+        }
+
+        if (!modelTools.has(toolCall.toolName)) {
+            const modelVisibleResult: ToolExecutionResult = {
+                result: {
+                    error: `Tool '${toolCall.toolName}' was not available for this model step`,
+                },
+                presentationSnapshot: this.buildToolCallFallbackSnapshot(toolCall.toolName),
+            };
+            this.emitFallbackToolCall(toolCall, modelVisibleResult);
+            return { kind: 'terminal', toolCall, modelVisibleResult };
         }
 
         let prepared: PreparedToolCall;
@@ -1921,7 +2010,7 @@ export class TurnExecutor {
             if (approval.kind === 'terminal') {
                 return approval.modelVisibleResult;
             }
-            const decision = this.toApprovalDecisionInput(approval.response);
+            const decision = approvalResponseToDecisionInput(approval.response);
             const applied = await this.toolManager.applyApprovalDecision(recorded, decision);
             if (applied.kind === 'terminal') {
                 return applied.modelVisibleResult;
@@ -2167,30 +2256,6 @@ export class TurnExecutor {
         };
     }
 
-    private toApprovalDecisionInput(response: ApprovalResponse): ApprovalDecisionInput {
-        if (response.status === ApprovalStatus.APPROVED) {
-            return {
-                approvalId: response.approvalId,
-                status: ApprovalStatus.APPROVED,
-                ...(response.data !== undefined ? { data: response.data } : {}),
-            };
-        }
-
-        const status =
-            response.status === ApprovalStatus.DENIED
-                ? ApprovalStatus.DENIED
-                : ApprovalStatus.CANCELLED;
-
-        return {
-            approvalId: response.approvalId,
-            status,
-            ...(response.reason !== undefined ? { reason: response.reason } : {}),
-            ...(response.message !== undefined ? { message: response.message } : {}),
-            ...(response.timeoutMs !== undefined ? { timeoutMs: response.timeoutMs } : {}),
-            ...(response.data !== undefined ? { data: response.data } : {}),
-        };
-    }
-
     private getToolExecutionMetadata(executionResult: ToolExecutionResult):
         | {
               presentationSnapshot?: ToolPresentationSnapshotV1;
@@ -2242,7 +2307,7 @@ export class TurnExecutor {
         return {
             version: 1,
             source: {
-                type: toolName.startsWith(MCP_TOOL_PREFIX) ? 'mcp' : 'local',
+                type: toolName.startsWith(MCP_MODEL_TOOL_PREFIX) ? 'mcp' : 'local',
             },
             header: {
                 title: toolName.replace(/[_-]+/g, ' '),

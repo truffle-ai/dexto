@@ -134,10 +134,6 @@ export interface TuiAgentBackend
         getSessionMetadata: (sessionId: string) => Promise<SessionMetadata | undefined>;
         getSessionStats: () => Promise<TuiSessionStats>;
     };
-    mcpManager: {
-        getClients: () => Map<string, unknown>;
-        getFailedConnections: () => Record<string, unknown>;
-    };
     toolManager: {
         addSessionAutoApproveTools: (
             sessionId: string,

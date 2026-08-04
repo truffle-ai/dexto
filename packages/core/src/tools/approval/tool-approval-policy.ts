@@ -1,4 +1,4 @@
-import type { Tool, ToolApprovalDecision, ToolExecutionContext } from '../types.js';
+import type { Tool, ToolApprovalDecision, ToolExecutionContext, ToolIdentity } from '../types.js';
 import { ToolError } from '../errors.js';
 
 export type ToolApprovalGate =
@@ -25,8 +25,8 @@ type AuthoredToolApproval =
 export type ToolApprovalPolicyInput = {
     args: Record<string, unknown>;
     getContext: () => ToolExecutionContext;
+    identity: ToolIdentity;
     sessionId?: string | undefined;
-    source: 'local' | 'mcp';
     toolName: string;
 };
 
@@ -84,13 +84,26 @@ export class ToolApprovalPolicy {
             };
         }
 
+        if (input.identity.type === 'mcp') {
+            const approvalKey = `mcp:${encodeURIComponent(input.identity.connectionId)}:${encodeURIComponent(input.identity.toolName)}`;
+            if (
+                this.deps.isApprovalKeySessionApproved({
+                    approvalKey,
+                    ...(input.sessionId !== undefined ? { sessionId: input.sessionId } : {}),
+                })
+            ) {
+                return { kind: 'ready' };
+            }
+            return { approvalKey, kind: 'approval-required' };
+        }
+
         return { kind: 'approval-required' };
     }
 
     private async resolveAuthoredPolicy(
         input: ToolApprovalPolicyInput
     ): Promise<AuthoredToolApproval> {
-        if (input.source !== 'local') {
+        if (input.identity.type !== 'local') {
             return { kind: 'none' };
         }
 

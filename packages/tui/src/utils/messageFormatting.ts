@@ -610,8 +610,8 @@ export async function getStartupInfo(agent: TuiAgentBackend, sessionId: string |
         };
     }
 
-    const connectedServers = agent.mcpManager.getClients();
-    const failedConnections = agent.mcpManager.getFailedConnections();
+    const connectedServers = agent.getMcpClients();
+    const failedConnections = agent.getMcpFailedConnections();
     const tools = await agent.getAllTools();
     const toolCount = Object.keys(tools).length;
     // File logging is session-scoped. If a session already exists, show its log file.

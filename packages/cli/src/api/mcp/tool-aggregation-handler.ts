@@ -1,7 +1,9 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
+import { CallToolResultSchema, type CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import {
     MCPManager,
+    ConfiguredMCPConnections,
     logger,
     type ValidatedServersConfig,
     jsonSchemaToZodShape,
@@ -9,6 +11,14 @@ import {
     DextoLogComponent,
 } from '@dexto/core';
 import { z } from 'zod';
+
+function normalizeToolResult(result: unknown): CallToolResult {
+    const parsed = CallToolResultSchema.safeParse(result);
+    if (parsed.success) return parsed.data;
+
+    const text = typeof result === 'string' ? result : (JSON.stringify(result) ?? String(result));
+    return { content: [{ type: 'text', text }] };
+}
 
 /**
  * Initializes MCP server for tool aggregation mode.
@@ -30,11 +40,13 @@ export async function initializeMcpToolAggregationServer(
         agentId: 'mcp-tool-aggregation',
         component: DextoLogComponent.MCP,
     });
-    const mcpManager = new MCPManager(mcpLogger);
+    const mcpConnections = new ConfiguredMCPConnections(mcpLogger);
+    const mcpManager = new MCPManager(mcpConnections, mcpLogger);
 
     // Initialize all MCP server connections from config
     logger.info('Connecting to configured MCP servers for tool aggregation...');
-    await mcpManager.initializeFromConfig(serverConfigs);
+    await mcpConnections.initializeFromConfig(serverConfigs);
+    await mcpManager.initialize();
 
     // Create the aggregation MCP server
     const mcpServer = new McpServer(
@@ -69,7 +81,7 @@ export async function initializeMcpToolAggregationServer(
                 try {
                     const result = await mcpManager.executeTool(toolName, args);
                     logger.info(`Tool aggregation: ${toolName} completed successfully`);
-                    return result;
+                    return normalizeToolResult(result);
                 } catch (error) {
                     logger.error(`Tool aggregation: ${toolName} failed: ${error}`);
                     throw error;

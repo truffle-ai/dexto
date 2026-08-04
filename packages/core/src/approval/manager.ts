@@ -57,6 +57,28 @@ export type ApprovalResponseRecord = {
     status: 'created' | 'replayed';
 };
 
+export function approvalResponseToDecisionInput(response: ApprovalResponse): ApprovalDecisionInput {
+    if (response.status === ApprovalStatus.APPROVED) {
+        return {
+            approvalId: response.approvalId,
+            status: ApprovalStatus.APPROVED,
+            ...(response.data !== undefined ? { data: response.data } : {}),
+        };
+    }
+
+    return {
+        approvalId: response.approvalId,
+        status:
+            response.status === ApprovalStatus.DENIED
+                ? ApprovalStatus.DENIED
+                : ApprovalStatus.CANCELLED,
+        ...(response.reason !== undefined ? { reason: response.reason } : {}),
+        ...(response.message !== undefined ? { message: response.message } : {}),
+        ...(response.timeoutMs !== undefined ? { timeoutMs: response.timeoutMs } : {}),
+        ...(response.data !== undefined ? { data: response.data } : {}),
+    };
+}
+
 /**
  * Configuration for the approval manager
  */
@@ -750,15 +772,15 @@ export class ApprovalManager {
     /**
      * Cancel a specific approval request
      */
-    cancelApproval(approvalId: string): void {
-        this.handler?.cancel?.(approvalId);
+    cancelApproval(approvalId: string): void | Promise<void> {
+        return this.handler?.cancel?.(approvalId);
     }
 
     /**
      * Cancel all pending approval requests
      */
-    cancelAllApprovals(): void {
-        this.handler?.cancelAll?.();
+    cancelAllApprovals(): void | Promise<void> {
+        return this.handler?.cancelAll?.();
     }
 
     /**

@@ -4,12 +4,12 @@ import type { AgentRunContext } from '../../runtime/run-context.js';
 import { ToolErrorCode } from '../error-codes.js';
 import type { Tool, ToolExecutionContext, ToolPresentationSnapshotV1 } from '../types.js';
 import { isValidDisplayData, type ToolDisplayData } from '../display-types.js';
-
-const MCP_TOOL_PREFIX = 'mcp--';
+import { MCP_MODEL_TOOL_PREFIX, parseMcpModelToolName } from '../../mcp/tool-name.js';
 
 type BuildToolExecutionContext = (options: {
     sessionId?: string | undefined;
     toolCallId?: string | undefined;
+    parentToolCallId?: string | undefined;
     runContext?: AgentRunContext | undefined;
 }) => ToolExecutionContext;
 
@@ -25,7 +25,8 @@ export class ToolPresentation {
     ) {}
 
     buildGenericSnapshot(toolName: string): ToolPresentationSnapshotV1 {
-        const isMcp = toolName.startsWith(MCP_TOOL_PREFIX);
+        const parsedMcpName = parseMcpModelToolName(toolName);
+        const isMcp = parsedMcpName !== undefined;
         const fallbackTitle = isMcp
             ? this.titleCaseMcpToolName(toolName)
             : this.toTitleCase(toolName);
@@ -40,12 +41,8 @@ export class ToolPresentation {
             },
         };
 
-        if (snapshot.source?.type === 'mcp') {
-            const actualToolName = toolName.substring(MCP_TOOL_PREFIX.length);
-            const parts = actualToolName.split('--');
-            if (parts.length >= 2 && parts[0]) {
-                snapshot.source.mcpServerName = parts[0];
-            }
+        if (snapshot.source?.type === 'mcp' && parsedMcpName !== undefined) {
+            snapshot.source.mcpServerName = parsedMcpName.namespace;
         }
 
         return snapshot;
@@ -55,12 +52,13 @@ export class ToolPresentation {
         toolName: string;
         args: Record<string, unknown>;
         toolCallId: string;
+        parentToolCallId?: string | undefined;
         sessionId?: string | undefined;
         runContext?: AgentRunContext | undefined;
     }): ToolPresentationSnapshotV1 {
         const fallback = this.buildGenericSnapshot(input.toolName);
 
-        if (input.toolName.startsWith(MCP_TOOL_PREFIX)) {
+        if (input.toolName.startsWith(MCP_MODEL_TOOL_PREFIX)) {
             return fallback;
         }
 
@@ -112,12 +110,13 @@ export class ToolPresentation {
         toolName: string;
         args: Record<string, unknown>;
         toolCallId: string;
+        parentToolCallId?: string | undefined;
         sessionId?: string | undefined;
         runContext?: AgentRunContext | undefined;
     }): Promise<ToolPresentationSnapshotV1> {
         const fallback = this.buildGenericSnapshot(input.toolName);
 
-        if (input.toolName.startsWith(MCP_TOOL_PREFIX)) {
+        if (input.toolName.startsWith(MCP_MODEL_TOOL_PREFIX)) {
             return fallback;
         }
 
@@ -188,10 +187,11 @@ export class ToolPresentation {
         result: unknown;
         args: Record<string, unknown>;
         toolCallId: string;
+        parentToolCallId?: string | undefined;
         sessionId?: string | undefined;
         runContext?: AgentRunContext | undefined;
     }): Promise<ToolPresentationSnapshotV1> {
-        if (input.toolName.startsWith(MCP_TOOL_PREFIX)) {
+        if (input.toolName.startsWith(MCP_MODEL_TOOL_PREFIX)) {
             return input.snapshot;
         }
 
@@ -265,10 +265,11 @@ export class ToolPresentation {
         toolName: string;
         args: Record<string, unknown>;
         toolCallId: string;
+        parentToolCallId?: string | undefined;
         sessionId?: string | undefined;
         runContext?: AgentRunContext | undefined;
     }): Promise<ToolDisplayData | undefined> {
-        if (input.toolName.startsWith(MCP_TOOL_PREFIX)) {
+        if (input.toolName.startsWith(MCP_MODEL_TOOL_PREFIX)) {
             return undefined;
         }
 
@@ -300,10 +301,7 @@ export class ToolPresentation {
     }
 
     private titleCaseMcpToolName(toolName: string): string {
-        const actualToolName = toolName.substring(MCP_TOOL_PREFIX.length);
-        const parts = actualToolName.split('--');
-        const toolPart = parts.length >= 2 ? parts.slice(1).join('--') : actualToolName;
-        return this.toTitleCase(toolPart);
+        return this.toTitleCase(parseMcpModelToolName(toolName)?.toolName ?? toolName);
     }
 
     private toTitleCase(name: string): string {

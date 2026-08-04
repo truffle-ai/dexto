@@ -52,7 +52,7 @@ describe('PermissionsConfigSchema', () => {
             timeout: 30000,
             allowedToolsStorage: 'memory' as const,
             toolPolicies: {
-                alwaysAllow: ['ask_user', 'mcp--filesystem--read_file'],
+                alwaysAllow: ['ask_user', 'mcp__filesystem__read_file'],
             },
         };
 
@@ -63,7 +63,7 @@ describe('PermissionsConfigSchema', () => {
         const result = PermissionsConfigSchema.safeParse({
             toolPolicies: {
                 alwaysAllow: [],
-                blockedTools: ['mcp--filesystem--delete_file'],
+                blockedTools: ['mcp__filesystem__delete_file'],
             },
         });
 
@@ -88,9 +88,9 @@ describe('ToolPoliciesSchema', () => {
         expect(ToolPoliciesSchema.parse({})).toEqual({ alwaysAllow: [] });
 
         const result: ToolPolicies = ToolPoliciesSchema.parse({
-            alwaysAllow: ['ask_user', 'mcp--filesystem--read_file'],
+            alwaysAllow: ['ask_user', 'mcp__filesystem__read_file'],
         });
-        expect(result.alwaysAllow).toEqual(['ask_user', 'mcp--filesystem--read_file']);
+        expect(result.alwaysAllow).toEqual(['ask_user', 'mcp__filesystem__read_file']);
     });
 
     it('rejects non-array allow-list values', () => {
@@ -109,7 +109,7 @@ describe('ToolPoliciesSchema', () => {
     it('rejects unknown fields instead of silently preserving unsupported policy', () => {
         const result = ToolPoliciesSchema.safeParse({
             alwaysAllow: ['ask_user'],
-            blockedTools: ['mcp--filesystem--delete_file'],
+            blockedTools: ['mcp__filesystem__delete_file'],
         });
 
         expect(result.success).toBe(false);

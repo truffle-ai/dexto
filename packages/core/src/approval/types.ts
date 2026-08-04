@@ -311,13 +311,13 @@ export interface ApprovalHandler {
      * @param approvalId The ID of the approval to cancel
      * @remarks Not all handlers support cancellation (e.g., auto-approve handlers)
      */
-    cancel?(approvalId: string): void;
+    cancel?(approvalId: string): void | Promise<void>;
 
     /**
      * Cancel all pending approval requests (optional)
      * @remarks Not all handlers support cancellation (e.g., auto-approve handlers)
      */
-    cancelAll?(): void;
+    cancelAll?(): void | Promise<void>;
 
     /**
      * Get list of pending approval request IDs (optional)

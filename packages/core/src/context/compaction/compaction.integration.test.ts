@@ -7,6 +7,7 @@ import { SystemPromptManager } from '../../systemPrompt/manager.js';
 import { SystemPromptConfigSchema } from '../../systemPrompt/schemas.js';
 import { ResourceManager } from '../../resources/index.js';
 import { MCPManager } from '../../mcp/manager.js';
+import { TestMCPConnections } from '../../test-utils/mcp-connections.js';
 import { MemoryManager } from '../../memory/index.js';
 import { createLogger } from '../../logger/factory.js';
 import { AgentEventBus } from '../../events/index.js';
@@ -77,7 +78,9 @@ describe('Context Compaction Integration Tests', () => {
 
         // Create real MCP and resource managers
         const agentEventBus = new AgentEventBus();
-        mcpManager = new MCPManager(logger, agentEventBus);
+        const mcpConnections = new TestMCPConnections();
+        mcpManager = new MCPManager(mcpConnections, logger, agentEventBus);
+        await mcpManager.initialize();
         resourceManager = new ResourceManager(
             mcpManager,
             {

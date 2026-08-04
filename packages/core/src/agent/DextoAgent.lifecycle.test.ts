@@ -100,9 +100,13 @@ describe('DextoAgent Lifecycle Management', () => {
 
         mockServices = {
             mcpManager: {
-                disconnectAll: vi.fn(),
-                initializeFromConfig: vi.fn().mockResolvedValue(undefined),
+                close: vi.fn(),
             } as any,
+            mcpConnections: {
+                listConnections: vi.fn().mockResolvedValue([]),
+                onChange: vi.fn().mockReturnValue(() => undefined),
+                close: vi.fn().mockResolvedValue(undefined),
+            },
             toolManager: {
                 setTools: vi.fn(),
                 setToolExecutionContextFactory: vi.fn(),
@@ -155,7 +159,7 @@ describe('DextoAgent Lifecycle Management', () => {
 
         // Set up default behaviors for mock functions that will be overridden in tests
         (mockServices.sessionManager.cleanup as any).mockResolvedValue(undefined);
-        (mockServices.mcpManager.disconnectAll as any).mockResolvedValue(undefined);
+        (mockServices.mcpManager.close as any).mockResolvedValue(undefined);
         (mockServices.stores.disconnect as any).mockResolvedValue(undefined);
     });
 
@@ -165,6 +169,22 @@ describe('DextoAgent Lifecycle Management', () => {
 
             expect(agent.isStarted()).toBe(false);
             expect(agent.isStopped()).toBe(false);
+        });
+
+        test('forwards an auth provider factory set before startup to configured MCP connections', async () => {
+            const agent = createTestAgent(mockValidatedConfig);
+            const factory = vi.fn(() => null);
+
+            agent.setMcpAuthProviderFactory(factory);
+            await agent.start();
+
+            expect(mockCreateAgentServices).toHaveBeenCalledWith(
+                mockValidatedConfig,
+                expect.anything(),
+                expect.any(AgentEventBus),
+                expect.objectContaining({ mcpAuthProviderFactory: factory }),
+                null
+            );
         });
     });
 
@@ -458,7 +478,7 @@ describe('DextoAgent Lifecycle Management', () => {
             expect(agent.isStarted()).toBe(false);
             expect(agent.isStopped()).toBe(true);
             expect(mockServices.sessionManager.cleanup).toHaveBeenCalled();
-            expect(mockServices.mcpManager.disconnectAll).toHaveBeenCalled();
+            expect(mockServices.mcpManager.close).toHaveBeenCalled();
             expect(mockServices.stores.disconnect).toHaveBeenCalled();
         });
 
@@ -497,7 +517,7 @@ describe('DextoAgent Lifecycle Management', () => {
             expect(agent.isStopped()).toBe(true);
 
             // Should still try to clean other services
-            expect(mockServices.mcpManager.disconnectAll).toHaveBeenCalled();
+            expect(mockServices.mcpManager.close).toHaveBeenCalled();
             expect(mockServices.stores.disconnect).toHaveBeenCalled();
         });
     });
@@ -1272,7 +1292,7 @@ describe('DextoAgent Lifecycle Management', () => {
                 return Promise.resolve();
             });
 
-            (mockServices.mcpManager.disconnectAll as any).mockImplementation(() => {
+            (mockServices.mcpManager.close as any).mockImplementation(() => {
                 cleanupOrder.push('clients');
                 return Promise.resolve();
             });

@@ -572,6 +572,8 @@ interface SessionEventMapBase {
     'tool:running': {
         toolName: string;
         toolCallId: string;
+        /** Outer tool call that owns this nested execution, when applicable. */
+        parentToolCallId?: string;
     };
 
     /** LLM service error */

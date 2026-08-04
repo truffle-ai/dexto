@@ -493,10 +493,6 @@ export function createCloudAgentBackend(
                 };
             },
         },
-        mcpManager: {
-            getClients: () => new Map(),
-            getFailedConnections: () => ({}),
-        },
         toolManager: {
             addSessionAutoApproveTools: async () => {},
         },

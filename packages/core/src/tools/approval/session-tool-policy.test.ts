@@ -37,14 +37,14 @@ describe('SessionToolPolicy', () => {
         const policy = createPolicy(store);
 
         policy.setSessionAutoApproveTools('session-1', ['bash_exec']);
-        policy.addSessionAutoApproveTools('session-1', ['bash', 'mcp--read_file']);
+        policy.addSessionAutoApproveTools('session-1', ['bash', 'mcp__filesystem__read_file']);
 
         expect(policy.getSessionAutoApproveTools('session-1')).toEqual([
             'bash_exec',
-            'mcp--read_file',
+            'mcp__filesystem__read_file',
         ]);
         expect(policy.isToolAutoApprovedForSession('session-1', 'bash_exec')).toBe(true);
-        expect(policy.isToolAutoApprovedForSession('session-1', 'mcp--server--read_file')).toBe(
+        expect(policy.isToolAutoApprovedForSession('session-1', 'mcp__filesystem__read_file')).toBe(
             true
         );
     });
@@ -125,10 +125,14 @@ describe('SessionToolPolicy', () => {
         expect(policy.getDisabledTools(sessionId)).toEqual([]);
     });
 
-    it('matches MCP policy patterns by exact name or server-qualified suffix only', () => {
-        expect(matchesToolPolicyPattern('mcp--read_file', 'mcp--read_file')).toBe(true);
-        expect(matchesToolPolicyPattern('mcp--filesystem--read_file', 'mcp--read_file')).toBe(true);
-        expect(matchesToolPolicyPattern('read_file', 'mcp--read_file')).toBe(false);
+    it('matches policy patterns by exact stable name only', () => {
+        expect(
+            matchesToolPolicyPattern('mcp__filesystem__read_file', 'mcp__filesystem__read_file')
+        ).toBe(true);
+        expect(matchesToolPolicyPattern('mcp__filesystem__read_file', 'mcp__read_file')).toBe(
+            false
+        );
+        expect(matchesToolPolicyPattern('read_file', 'mcp__read_file')).toBe(false);
         expect(matchesToolPolicyPattern('write_file', 'read_file')).toBe(false);
     });
 });

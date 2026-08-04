@@ -11,6 +11,7 @@ import type { WorkspaceContext } from '../workspace/types.js';
 import type { ApprovalManager } from '../approval/manager.js';
 import type { DextoAgent } from '../agent/DextoAgent.js';
 import type { ToolStateStore } from '../storage/index.js';
+import type { ToolExecutionIdentity } from '../storage/tool-executions/types.js';
 import type { MCPManager } from '../mcp/manager.js';
 import type { PromptManager } from '../prompts/prompt-manager.js';
 import type { ResourceManager } from '../resources/manager.js';
@@ -20,6 +21,7 @@ import type { HostRuntimeContext } from '../runtime/index.js';
 import type { AgentRunContext } from '../runtime/run-context.js';
 import type { SkillManager } from '../skills/index.js';
 import type { WorkspaceManager } from '../workspace/index.js';
+import type { ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
 
 /**
  * Interface for forking execution to an isolated sub-agent context.
@@ -68,6 +70,8 @@ export interface ToolExecutionContextBase {
     sessionId?: string | undefined;
     /** Internal run-scoped execution context for this tool invocation */
     runContext?: AgentRunContext | undefined;
+    /** Durable identity assigned to this concrete tool execution, when one exists. */
+    executionIdentity?: ToolExecutionIdentity | undefined;
     /** Workspace ID if available */
     workspaceId?: string | undefined;
     /** Workspace context if available */
@@ -76,6 +80,8 @@ export interface ToolExecutionContextBase {
     abortSignal?: AbortSignal | undefined;
     /** Unique tool call ID for tracking parallel tool calls */
     toolCallId?: string | undefined;
+    /** Outer tool call that owns this nested execution, when applicable. */
+    parentToolCallId?: string | undefined;
     /** Host-owned runtime IDs for orchestration and correlation */
     hostRuntime?: HostRuntimeContext | undefined;
 
@@ -157,6 +163,9 @@ export interface Tool<TSchema extends ZodTypeAny = ZodTypeAny> {
 
     /** Zod schema defining the input parameters */
     inputSchema: TSchema;
+
+    /** Optional Zod schema describing a stable structured result. */
+    outputSchema?: ZodTypeAny | undefined;
 
     /** The actual function that executes the tool - input is validated by Zod before execution */
     execute(input: z.output<TSchema>, context: ToolExecutionContext): Promise<unknown> | unknown;
@@ -291,9 +300,56 @@ export interface ToolSet {
         name?: string;
         description?: string;
         parameters: JSONSchema7; // JSON Schema v7 specification
+        outputSchema?: JSONSchema7;
+        annotations?: ToolAnnotations;
         _meta?: Record<string, unknown>;
     };
 }
+
+interface ToolDescriptorBase {
+    /** Name accepted by this ToolManager snapshot. */
+    name: string;
+    description: string;
+    inputSchema: JSONSchema7;
+    /** Absent when the provider cannot make a trustworthy result-shape guarantee. */
+    outputSchema?: JSONSchema7;
+    /** Stable fingerprint of the input/output contract for grant and replay validation. */
+    schemaFingerprint: string;
+}
+
+export type ToolIdentity =
+    | {
+          type: 'local';
+          toolId: string;
+      }
+    | {
+          type: 'mcp';
+          /** Stable host connection identity; the Core/CLI implementation uses its config key. */
+          connectionId: string;
+          /** Name advertised by the upstream MCP server. */
+          toolName: string;
+      };
+
+export interface LocalToolDescriptor extends ToolDescriptorBase {
+    /** Whether the current ToolManager policy may require approval after validating call input. */
+    approval: 'never' | 'possible';
+    identity: Extract<ToolIdentity, { type: 'local' }>;
+}
+
+export interface MCPToolDescriptor extends ToolDescriptorBase {
+    identity: Extract<ToolIdentity, { type: 'mcp' }>;
+    /** Stable JavaScript-safe namespace assigned to the providing MCP connection. */
+    namespace: string;
+    /** Untrusted MCP hints preserved for consumers; host policy must not treat them as authority. */
+    annotations?: ToolAnnotations;
+}
+
+export type ToolDescriptor =
+    | LocalToolDescriptor
+    | (MCPToolDescriptor & {
+          /** Whether the current ToolManager policy may require approval after validating call input. */
+          approval: 'never' | 'possible';
+      });
 
 // ============================================================================
 // TOOL EXECUTION AND RESULTS

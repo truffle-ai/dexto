@@ -16,6 +16,7 @@ import { MessageQueueService } from '../../session/message-queue.js';
 import { SystemPromptManager } from '../../systemPrompt/manager.js';
 import { VercelMessageFormatter } from '../formatters/vercel.js';
 import { MCPManager } from '../../mcp/manager.js';
+import { connectionFromClient, TestMCPConnections } from '../../test-utils/mcp-connections.js';
 import { ApprovalManager } from '../../approval/manager.js';
 import { createLogger } from '../../logger/factory.js';
 import { MemoryManager } from '../../memory/index.js';
@@ -64,6 +65,19 @@ function createDeferred<T>() {
         resolve,
         reject,
     };
+}
+
+async function waitForDeferredBoundary(
+    boundary: Promise<void>,
+    execution: Promise<unknown>,
+    failureMessage: string
+): Promise<void> {
+    await Promise.race([
+        boundary,
+        execution.then(() => {
+            throw new Error(failureMessage);
+        }),
+    ]);
 }
 
 function serializeTurnDriverState(state: TurnDriverState): TurnDriverState {
@@ -260,6 +274,7 @@ describe('TurnExecutor Integration Tests', () => {
     let logger: Logger;
     let conversationStore: ConversationStore;
     let mcpManager: MCPManager;
+    let mcpConnections: TestMCPConnections;
     let approvalManager: ApprovalManager;
     let stores: DextoStores;
 
@@ -358,7 +373,9 @@ describe('TurnExecutor Integration Tests', () => {
         await stores.connect();
 
         // Create real MCP manager
-        mcpManager = new MCPManager(logger, agentEventBus);
+        mcpConnections = new TestMCPConnections();
+        mcpManager = new MCPManager(mcpConnections, logger, agentEventBus);
+        await mcpManager.initialize();
 
         // Create real resource manager with proper wiring
         resourceManager = new ResourceManager(
@@ -1478,6 +1495,324 @@ describe('TurnExecutor Integration Tests', () => {
                             onInputAvailable: expect.any(Function),
                         }),
                     }),
+                })
+            );
+        });
+
+        it('uses an ordered static model tool surface without narrowing ToolManager', async () => {
+            toolManager.addTools([
+                defineTool({
+                    id: 'code_execute',
+                    description: 'Execute code',
+                    inputSchema: z.object({ source: z.string() }).strict(),
+                    execute: vi.fn().mockResolvedValue('code result'),
+                }),
+                defineTool({
+                    id: 'hidden_direct_tool',
+                    description: 'Hidden direct tool',
+                    inputSchema: z.object({}).strict(),
+                    execute: vi.fn().mockResolvedValue('hidden result'),
+                }),
+                defineTool({
+                    id: 'web_search',
+                    description: 'Search the web',
+                    inputSchema: z.object({ query: z.string() }).strict(),
+                    execute: vi.fn().mockResolvedValue('search result'),
+                }),
+            ]);
+            const selectingExecutor = new TurnExecutor(
+                createMockModel(),
+                toolManager,
+                contextManager,
+                sessionEventBus,
+                resourceManager,
+                sessionId,
+                {
+                    maxSteps: 10,
+                    executionControl: {
+                        modelToolNames: ['web_search', 'code_execute'],
+                    },
+                },
+                llmContext,
+                logger,
+                steerQueue,
+                followUpQueue
+            );
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Use tools' }]);
+            await selectingExecutor.execute({ mcpManager }, true);
+
+            const firstCallOptions = vi.mocked(streamText).mock.calls[0]?.[0];
+            expect(Object.keys(firstCallOptions?.tools ?? {})).toEqual([
+                'web_search',
+                'code_execute',
+            ]);
+            expect(Object.keys(await toolManager.getAllTools())).toEqual(
+                expect.arrayContaining(['code_execute', 'hidden_direct_tool', 'web_search'])
+            );
+        });
+
+        it('can add dynamically discovered MCP tools to a static model tool surface', async () => {
+            toolManager.addTools([
+                defineTool({
+                    id: 'code_execute',
+                    description: 'Execute code',
+                    inputSchema: z.object({ source: z.string() }).strict(),
+                    execute: vi.fn().mockResolvedValue('code result'),
+                }),
+            ]);
+            mcpConnections.set(
+                connectionFromClient(
+                    'connected-mcp',
+                    {
+                        callTool: vi.fn().mockResolvedValue({ found: true }),
+                        getTools: vi.fn().mockResolvedValue({
+                            lookup_record: {
+                                description: 'Look up one record',
+                                parameters: {
+                                    type: 'object',
+                                    properties: {},
+                                    additionalProperties: false,
+                                },
+                            },
+                        }),
+                    },
+                    'Connected MCP'
+                )
+            );
+            await mcpConnections.announce({ type: 'connections-changed' });
+            const selectingExecutor = new TurnExecutor(
+                createMockModel(),
+                toolManager,
+                contextManager,
+                sessionEventBus,
+                resourceManager,
+                sessionId,
+                {
+                    maxSteps: 10,
+                    executionControl: {
+                        includeMcpTools: true,
+                        modelToolNames: ['code_execute'],
+                    },
+                },
+                llmContext,
+                logger,
+                steerQueue,
+                followUpQueue
+            );
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Use tools' }]);
+            await selectingExecutor.execute({ mcpManager }, true);
+
+            const firstCallOptions = vi.mocked(streamText).mock.calls[0]?.[0];
+            expect(Object.keys(firstCallOptions?.tools ?? {})).toEqual([
+                'code_execute',
+                'mcp__connected_mcp__lookup_record',
+            ]);
+        });
+
+        it('preserves every enabled tool when no model tool surface is configured', async () => {
+            toolManager.addTools([
+                defineTool({
+                    id: 'code_execute',
+                    description: 'Execute code',
+                    inputSchema: z.object({ source: z.string() }).strict(),
+                    execute: vi.fn().mockResolvedValue('code result'),
+                }),
+                defineTool({
+                    id: 'web_search',
+                    description: 'Search the web',
+                    inputSchema: z.object({ query: z.string() }).strict(),
+                    execute: vi.fn().mockResolvedValue('search result'),
+                }),
+            ]);
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Use tools' }]);
+            await executor.execute({ mcpManager }, true);
+
+            const firstCallOptions = vi.mocked(streamText).mock.calls[0]?.[0];
+            expect(Object.keys(firstCallOptions?.tools ?? {})).toEqual([
+                'code_execute',
+                'web_search',
+            ]);
+        });
+
+        it('advertises no tools when the configured model tool surface is empty', async () => {
+            toolManager.addTools([
+                defineTool({
+                    id: 'code_execute',
+                    description: 'Execute code',
+                    inputSchema: z.object({ source: z.string() }).strict(),
+                    execute: vi.fn().mockResolvedValue('code result'),
+                }),
+            ]);
+            const selectingExecutor = new TurnExecutor(
+                createMockModel(),
+                toolManager,
+                contextManager,
+                sessionEventBus,
+                resourceManager,
+                sessionId,
+                {
+                    maxSteps: 10,
+                    executionControl: { modelToolNames: [] },
+                },
+                llmContext,
+                logger,
+                steerQueue,
+                followUpQueue
+            );
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Do not use tools' }]);
+            await selectingExecutor.execute({ mcpManager }, true);
+
+            const firstCallOptions = vi.mocked(streamText).mock.calls[0]?.[0];
+            expect(firstCallOptions?.tools).toEqual({});
+            expect(Object.keys(await toolManager.getAllTools())).toEqual(['code_execute']);
+        });
+
+        it('rejects a static model tool name outside the enabled catalog', async () => {
+            toolManager.addTools([
+                defineTool({
+                    id: 'code_execute',
+                    description: 'Execute code',
+                    inputSchema: z.object({ source: z.string() }).strict(),
+                    execute: vi.fn().mockResolvedValue('code result'),
+                }),
+            ]);
+            const selectingExecutor = new TurnExecutor(
+                createMockModel(),
+                toolManager,
+                contextManager,
+                sessionEventBus,
+                resourceManager,
+                sessionId,
+                {
+                    maxSteps: 10,
+                    executionControl: {
+                        modelToolNames: ['not_available'],
+                    },
+                },
+                llmContext,
+                logger,
+                steerQueue,
+                followUpQueue
+            );
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Use tools' }]);
+            const driver = await selectingExecutor.createDriver(
+                { mcpManager },
+                { streaming: true }
+            );
+
+            try {
+                await expect(driver.prepareNextModelStep()).rejects.toThrow(
+                    "Model tool surface contains unavailable tool 'not_available'"
+                );
+            } finally {
+                driver.dispose();
+            }
+        });
+
+        it('rejects an omitted model tool after restoring the completed model step', async () => {
+            const hiddenExecute = vi.fn().mockResolvedValue('hidden result');
+            toolManager.addTools([
+                defineTool({
+                    id: 'code_execute',
+                    description: 'Execute code',
+                    inputSchema: z.object({ source: z.string() }).strict(),
+                    execute: vi.fn().mockResolvedValue('code result'),
+                }),
+                defineTool({
+                    id: 'hidden_direct_tool',
+                    description: 'Hidden direct tool',
+                    inputSchema: z.object({}).strict(),
+                    execute: hiddenExecute,
+                }),
+            ]);
+            const selectingExecutor = new TurnExecutor(
+                createMockModel(),
+                toolManager,
+                contextManager,
+                sessionEventBus,
+                resourceManager,
+                sessionId,
+                {
+                    maxSteps: 10,
+                    executionControl: { modelToolNames: ['code_execute'] },
+                },
+                llmContext,
+                logger,
+                steerQueue,
+                followUpQueue
+            );
+            const toolResultHandler = vi.fn();
+            sessionEventBus.on('llm:tool-result', toolResultHandler);
+            vi.mocked(streamText).mockImplementationOnce(
+                () =>
+                    createMockStream({
+                        finishReason: 'tool-calls',
+                        toolCalls: [
+                            {
+                                toolCallId: 'call-hidden',
+                                toolName: 'hidden_direct_tool',
+                                args: {},
+                            },
+                        ],
+                    }) as unknown as ReturnType<typeof streamText>
+            );
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Use tools' }]);
+            const firstDriver = await selectingExecutor.createDriver(
+                { mcpManager },
+                { streaming: true }
+            );
+            await firstDriver.runNextModelStep();
+            const savedState = serializeTurnDriverState(firstDriver.checkpoint());
+            firstDriver.dispose();
+            expect(savedState).toMatchObject({
+                phase: 'model-step-complete',
+                modelToolNames: ['code_execute'],
+            });
+
+            const restoredExecutor = new TurnExecutor(
+                createMockModel(),
+                toolManager,
+                contextManager,
+                sessionEventBus,
+                resourceManager,
+                sessionId,
+                {
+                    maxSteps: 10,
+                    executionControl: {
+                        modelToolNames: ['hidden_direct_tool'],
+                    },
+                },
+                llmContext,
+                logger,
+                steerQueue,
+                followUpQueue
+            );
+            const restoredDriver = await restoredExecutor.createDriver(
+                { mcpManager },
+                { streaming: true, state: savedState }
+            );
+
+            try {
+                await restoredDriver.executeToolCalls();
+            } finally {
+                restoredDriver.dispose();
+            }
+
+            expect(hiddenExecute).not.toHaveBeenCalled();
+            expect(toolResultHandler).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    callId: 'call-hidden',
+                    error: expect.stringContaining(
+                        "Tool 'hidden_direct_tool' was not available for this model step"
+                    ),
+                    success: false,
+                    toolName: 'hidden_direct_tool',
                 })
             );
         });
@@ -2860,6 +3195,138 @@ describe('TurnExecutor Integration Tests', () => {
             expect(secondCallText).toContain('first result');
             expect(secondCallText).toContain('second result');
             expect(secondCallText).toContain('Steer after tools finish');
+        });
+
+        it('keeps steering queued until the code_execute outer tool completes', async () => {
+            const executionStarted = createDeferred<void>();
+            const finishExecution = createDeferred<void>();
+            toolManager.addTools([
+                defineTool({
+                    id: 'code_execute',
+                    description: 'Executes a composed Code Mode program',
+                    inputSchema: z.object({ code: z.string() }).strict(),
+                    execute: vi.fn().mockImplementation(async () => {
+                        executionStarted.resolve();
+                        await finishExecution.promise;
+                        return { status: 'completed' };
+                    }),
+                }),
+            ]);
+
+            vi.mocked(streamText)
+                .mockImplementationOnce(
+                    () =>
+                        createMockStream({
+                            finishReason: 'tool-calls',
+                            toolCalls: [
+                                {
+                                    toolCallId: 'code-call-1',
+                                    toolName: 'code_execute',
+                                    args: { code: 'async () => tools.read_data({})' },
+                                },
+                            ],
+                        }) as unknown as ReturnType<typeof streamText>
+                )
+                .mockImplementationOnce(
+                    () =>
+                        createMockStream({
+                            text: 'Code Mode finished',
+                            finishReason: 'stop',
+                        }) as unknown as ReturnType<typeof streamText>
+                );
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Run composed work' }]);
+            const execution = executor.execute({ mcpManager }, true);
+
+            await waitForDeferredBoundary(
+                executionStarted.promise,
+                execution,
+                'Code execution completed before entering the outer tool boundary'
+            );
+            try {
+                await steerQueue.enqueue({
+                    content: [{ type: 'text', text: 'Steer during code execution' }],
+                });
+                expect(streamText).toHaveBeenCalledTimes(1);
+                expect(JSON.stringify(await contextManager.getHistory())).not.toContain(
+                    'Steer during code execution'
+                );
+            } finally {
+                finishExecution.resolve();
+                await execution;
+            }
+
+            expect(streamText).toHaveBeenCalledTimes(2);
+            const history = await contextManager.getHistory();
+            const toolResultIndex = history.findIndex(
+                (message) => message.role === 'tool' && message.toolCallId === 'code-call-1'
+            );
+            const steerIndex = history.findIndex(
+                (message) =>
+                    message.role === 'user' &&
+                    JSON.stringify(message.content).includes('Steer during code execution')
+            );
+            expect(toolResultIndex).toBeGreaterThan(-1);
+            expect(steerIndex).toBeGreaterThan(toolResultIndex);
+            const secondCallText = JSON.stringify(
+                vi.mocked(streamText).mock.calls[1]?.[0].messages
+            );
+            expect(secondCallText).toContain('completed');
+            expect(secondCallText).toContain('Steer during code execution');
+        });
+
+        it('cancels code_execute immediately while the outer tool boundary is active', async () => {
+            const controller = new AbortController();
+            const executionStarted = createDeferred<void>();
+            const codeExecutionCancelled = createDeferred<void>();
+            toolManager.addTools([
+                defineTool({
+                    id: 'code_execute',
+                    description: 'Executes a composed Code Mode program',
+                    inputSchema: z.object({ code: z.string() }).strict(),
+                    execute: vi.fn().mockImplementation(async (_input, context) => {
+                        executionStarted.resolve();
+                        await new Promise<never>((_resolve, reject) => {
+                            const cancel = () => {
+                                codeExecutionCancelled.resolve();
+                                reject(new Error('Code execution was cancelled.'));
+                            };
+                            context.abortSignal?.addEventListener('abort', cancel, { once: true });
+                            if (context.abortSignal?.aborted === true) {
+                                cancel();
+                            }
+                        });
+                    }),
+                }),
+            ]);
+            const executorWithSignal = createExecutorWithContext(contextManager, controller.signal);
+            vi.mocked(streamText).mockImplementationOnce(
+                () =>
+                    createMockStream({
+                        finishReason: 'tool-calls',
+                        toolCalls: [
+                            {
+                                toolCallId: 'code-call-cancel',
+                                toolName: 'code_execute',
+                                args: { code: 'async () => tools.slow_read({})' },
+                            },
+                        ],
+                    }) as unknown as ReturnType<typeof streamText>
+            );
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Run slow code' }]);
+            const execution = executorWithSignal.execute({ mcpManager }, true);
+            await waitForDeferredBoundary(
+                executionStarted.promise,
+                execution,
+                'Code execution completed before cancellation could be observed'
+            );
+
+            controller.abort('user_cancelled');
+
+            await expect(codeExecutionCancelled.promise).resolves.toBeUndefined();
+            await expect(execution).resolves.toMatchObject({ finishReason: 'cancelled' });
+            expect(streamText).toHaveBeenCalledTimes(1);
         });
 
         it('keeps follow-up queued during sibling tools out of the immediate tool-result continuation', async () => {

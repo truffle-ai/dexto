@@ -1,4 +1,5 @@
 import { z } from 'zod';
+export { ToolIdentitySchema } from './identity.js';
 
 export const PERMISSIONS_MODES = ['manual', 'auto-approve'] as const;
 export type PermissionsMode = (typeof PERMISSIONS_MODES)[number];
@@ -16,7 +17,7 @@ export const ToolPoliciesSchema = z
             .array(z.string())
             .default([])
             .describe(
-                'Tools that never require approval (low-risk). Use tool names (e.g., "ask_user", "mcp--filesystem--read_file")'
+                'Tools that never require approval (low-risk). Use tool names (e.g., "ask_user", "mcp__filesystem__read_file")'
             ),
     })
     .strict()

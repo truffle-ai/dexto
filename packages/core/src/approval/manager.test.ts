@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { ApprovalManager } from './manager.js';
+import { ApprovalManager, approvalResponseToDecisionInput } from './manager.js';
 import { createApprovalRequest } from './factory.js';
 import { ApprovalStatus, ApprovalType, DenialReason } from './types.js';
 import { AgentEventBus } from '../events/index.js';
@@ -1408,5 +1408,39 @@ describe('approval schemas', () => {
                 args: {},
             }).success
         ).toBe(false);
+    });
+});
+
+describe('approvalResponseToDecisionInput', () => {
+    it('keeps approved data and omits denial-only fields', () => {
+        expect(
+            approvalResponseToDecisionInput({
+                approvalId: 'approval-1',
+                data: { remember: true },
+                status: ApprovalStatus.APPROVED,
+            })
+        ).toEqual({
+            approvalId: 'approval-1',
+            data: { remember: true },
+            status: ApprovalStatus.APPROVED,
+        });
+    });
+
+    it('preserves cancellation details', () => {
+        expect(
+            approvalResponseToDecisionInput({
+                approvalId: 'approval-1',
+                message: 'Timed out',
+                reason: DenialReason.TIMEOUT,
+                status: ApprovalStatus.CANCELLED,
+                timeoutMs: 1_000,
+            })
+        ).toEqual({
+            approvalId: 'approval-1',
+            message: 'Timed out',
+            reason: DenialReason.TIMEOUT,
+            status: ApprovalStatus.CANCELLED,
+            timeoutMs: 1_000,
+        });
     });
 });

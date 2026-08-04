@@ -1,5 +1,11 @@
 import { isDeepStrictEqual } from 'node:util';
 import { MCPManager } from '../mcp/manager.js';
+import {
+    MCP_MODEL_TOOL_PREFIX,
+    modelMcpToolName,
+    stripMcpModelToolPrefix,
+} from '../mcp/tool-name.js';
+import type { MCPConnectionCallContext } from '../mcp/connection-layer.js';
 import type { ToolPolicies } from './schemas.js';
 import {
     ToolSet,
@@ -8,12 +14,16 @@ import {
     Tool,
     ToolPresentationSnapshotV1,
     ToolExecutionResult,
+    ToolDescriptor,
+    MCPToolDescriptor,
+    ToolIdentity,
 } from './types.js';
 import { ToolError } from './errors.js';
 import { DextoRuntimeError, ErrorScope, ErrorType } from '../errors/index.js';
 import type { Logger } from '../logger/v2/types.js';
 import { DextoLogComponent } from '../logger/v2/types.js';
 import { convertZodSchemaToJsonSchema } from '../utils/schema.js';
+import { toolSchemaFingerprint } from './schema-fingerprint.js';
 import type { AgentEventBus } from '../events/index.js';
 import type {
     ApprovalDecisionInput,
@@ -65,12 +75,20 @@ export type ToolExecutionContextFactory = (
     baseContext: ToolExecutionContextBase
 ) => ToolExecutionContext;
 
-type ToolExecutionInvocation = {
-    sessionId?: string | undefined;
-    abortSignal?: AbortSignal | undefined;
-    runContext?: AgentRunContext | undefined;
-    executionIdentity?: ToolExecutionIdentity | undefined;
-};
+type ToolExecutionRoutingContext = Pick<
+    ToolExecutionContextBase,
+    | 'abortSignal'
+    | 'executionIdentity'
+    | 'parentToolCallId'
+    | 'runContext'
+    | 'sessionId'
+    | 'toolCallId'
+>;
+
+export type ToolExecutionInvocation = Pick<
+    ToolExecutionRoutingContext,
+    'abortSignal' | 'executionIdentity' | 'runContext' | 'sessionId'
+>;
 
 export type ExecutableToolCall = {
     approval?: {
@@ -78,10 +96,11 @@ export type ExecutableToolCall = {
         requireApproval: true;
     };
     callDescription?: string;
+    identity: ToolIdentity;
     input: Record<string, unknown>;
     meta?: ToolCallMetadata;
+    parentToolCallId?: string;
     presentationSnapshot: ToolPresentationSnapshotV1;
-    source: 'local' | 'mcp';
     toolCallId: string;
     toolName: string;
 };
@@ -114,7 +133,10 @@ export type ApprovalRequiredPreparedToolCall = Extract<
     { kind: 'approval-required' }
 >;
 
-export type ToolApprovalRecordIdentity = Omit<ApprovalRecordIdentity, 'toolCallId'>;
+export type ToolApprovalRecordIdentity = Pick<
+    ApprovalRecordIdentity,
+    'runId' | 'turnId' | 'modelStepId'
+>;
 
 export type RecordedToolApproval = {
     prepared: ApprovalRequiredPreparedToolCall;
@@ -137,6 +159,7 @@ export type PrepareToolCallInput = {
     toolName: string;
     input: unknown;
     toolCallId: string;
+    parentToolCallId?: string | undefined;
     sessionId?: string | undefined;
     runContext?: AgentRunContext | undefined;
 };
@@ -156,7 +179,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  * - Route tool execution to appropriate source (MCP vs local)
  * - Provide unified tool interface to LLM
  * - Manage tool approvals and security via ApprovalManager
- * - Handle cross-source naming conflicts (MCP tools are prefixed with `mcp--`)
+ * - Expose MCP tools under stable `mcp__namespace__tool` names
  *
  * Architecture:
  * LLM runtime → ToolManager → [MCPManager, local tools]
@@ -171,6 +194,9 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  *   See feature-plans/telemetry.md for details
  */
 @InstrumentClass({
+    captureArguments: false,
+    captureErrors: false,
+    captureResult: false,
     prefix: 'tool',
     excludeMethods: ['setHookSupport', 'getApprovalManager', 'getAllowedToolsProvider'],
 })
@@ -194,10 +220,7 @@ export class ToolManager {
     private workspaceListenerAttached = false;
     private readonly workspaceListenerAbort = new AbortController();
 
-    // Tool naming:
-    // - MCP tools are prefixed with `mcp--` for disambiguation.
-    // - Local tools use their `Tool.id` as-is (no internal/custom prefixing).
-    private static readonly MCP_TOOL_PREFIX = 'mcp--';
+    private static readonly MCP_TOOL_PREFIX = MCP_MODEL_TOOL_PREFIX;
 
     // Tool caching for performance
     private toolsCache: ToolSet = {};
@@ -430,7 +453,7 @@ export class ToolManager {
      * This is ADDITIVE - other tools are NOT blocked, they just go through normal approval flow.
      *
      * @param sessionId The session ID
-     * @param autoApproveTools Array of tool names to auto-approve (e.g., ['bash_exec', 'mcp--read_file'])
+     * @param autoApproveTools Array of tool names to auto-approve (e.g., ['bash_exec', 'mcp__filesystem__read_file'])
      */
     setSessionAutoApproveTools(sessionId: string, autoApproveTools: string[]): void {
         this.sessionToolPolicy.setSessionAutoApproveTools(sessionId, autoApproveTools);
@@ -441,7 +464,7 @@ export class ToolManager {
      * Merges into the existing list instead of replacing it.
      *
      * @param sessionId The session ID
-     * @param autoApproveTools Array of tool names to auto-approve (e.g., ['bash_exec', 'mcp--read_file'])
+     * @param autoApproveTools Array of tool names to auto-approve (e.g., ['bash_exec', 'mcp__filesystem__read_file'])
      */
     addSessionAutoApproveTools(sessionId: string, autoApproveTools: string[]): void {
         this.sessionToolPolicy.addSessionAutoApproveTools(sessionId, autoApproveTools);
@@ -619,19 +642,9 @@ export class ToolManager {
      * Set up listeners for MCP notifications to invalidate cache on changes
      */
     private setupNotificationListeners(): void {
-        // Listen for MCP server connection changes that affect tools
-        this.agentEventBus.on('mcp:server-connected', async (payload) => {
-            if (payload.success) {
-                this.logger.debug(
-                    `🔄 MCP server connected, invalidating tool cache: ${payload.name}`
-                );
-                this.invalidateCache();
-            }
-        });
-
-        this.agentEventBus.on('mcp:server-removed', async (payload) => {
+        this.agentEventBus.on('mcp:tools-list-changed', (payload) => {
             this.logger.debug(
-                `🔄 MCP server removed: ${payload.serverName}, invalidating tool cache`
+                `MCP tools changed for '${payload.serverName}', invalidating combined tool cache`
             );
             this.invalidateCache();
         });
@@ -803,24 +816,124 @@ export class ToolManager {
         return await this.mcpManager.getAllTools();
     }
 
-    private buildToolExecutionContext(options: {
-        sessionId?: string | undefined;
-        abortSignal?: AbortSignal | undefined;
-        toolCallId?: string | undefined;
-        runContext?: AgentRunContext | undefined;
-    }): ToolExecutionContext {
+    /**
+     * Return canonical tool descriptions for host-owned discovery and type generation.
+     * Unlike getAllTools(), schemas are not rewritten for model-provider compatibility.
+     */
+    async getToolDescriptors(): Promise<ToolDescriptor[]> {
+        const descriptors: ToolDescriptor[] = [];
+
+        for (const tool of this.agentTools.values()) {
+            descriptors.push(await this.buildLocalToolDescriptor(tool));
+        }
+
+        for (const descriptor of this.mcpManager.getToolDescriptors()) {
+            descriptors.push(this.prefixMcpToolDescriptor(descriptor));
+        }
+
+        return descriptors;
+    }
+
+    async getToolDescriptor(toolName: string): Promise<ToolDescriptor | undefined> {
+        const localTool = this.agentTools.get(toolName);
+        if (localTool !== undefined) {
+            return await this.buildLocalToolDescriptor(localTool);
+        }
+
+        if (!toolName.startsWith(ToolManager.MCP_TOOL_PREFIX)) {
+            return undefined;
+        }
+
+        const mcpName = stripMcpModelToolPrefix(toolName);
+        if (mcpName === undefined) return undefined;
+
+        const descriptor = this.mcpManager.getToolDescriptor(mcpName);
+        return descriptor === undefined ? undefined : this.prefixMcpToolDescriptor(descriptor);
+    }
+
+    private resolveToolIdentity(toolName: string): ToolIdentity | undefined {
+        if (this.agentTools.has(toolName)) {
+            return { type: 'local', toolId: toolName };
+        }
+
+        if (!toolName.startsWith(ToolManager.MCP_TOOL_PREFIX)) {
+            return undefined;
+        }
+
+        const mcpName = stripMcpModelToolPrefix(toolName);
+        if (mcpName === undefined) return undefined;
+        return this.mcpManager.getToolDescriptor(mcpName)?.identity;
+    }
+
+    private async buildLocalToolDescriptor(tool: Tool): Promise<ToolDescriptor> {
+        const inputSchema = convertZodSchemaToJsonSchema(tool.inputSchema, this.logger);
+        const outputSchema =
+            tool.outputSchema === undefined
+                ? undefined
+                : convertZodSchemaToJsonSchema(tool.outputSchema, this.logger, 'output');
+        return {
+            name: tool.id,
+            description: await this.getLocalToolDescription(tool),
+            approval:
+                this.approvalMode === 'auto-approve' ||
+                tool.needsApproval === false ||
+                tool.needsApproval === null
+                    ? 'never'
+                    : 'possible',
+            identity: { type: 'local', toolId: tool.id },
+            inputSchema,
+            ...(outputSchema === undefined ? {} : { outputSchema }),
+            schemaFingerprint: toolSchemaFingerprint(inputSchema, outputSchema),
+        };
+    }
+
+    private prefixMcpToolDescriptor(descriptor: MCPToolDescriptor): ToolDescriptor {
+        return {
+            ...descriptor,
+            approval: this.approvalMode === 'auto-approve' ? 'never' : 'possible',
+            name: modelMcpToolName(descriptor.name),
+            description: `${descriptor.description || 'No description provided'} (via MCP servers)`,
+        };
+    }
+
+    private buildToolExecutionContext(options: ToolExecutionRoutingContext): ToolExecutionContext {
         const workspace = this.currentWorkspace;
         const baseContext: ToolExecutionContextBase = {
             sessionId: options.sessionId,
             runContext: options.runContext,
+            executionIdentity: options.executionIdentity,
             workspaceId: workspace?.id,
             workspace,
             abortSignal: options.abortSignal,
             toolCallId: options.toolCallId,
+            parentToolCallId: options.parentToolCallId,
             hostRuntime: options.runContext?.hostRuntime,
             logger: this.logger,
         };
         return this.toolExecutionContextFactory(baseContext);
+    }
+
+    private buildMCPConnectionCallContext(
+        options: ToolExecutionRoutingContext & { toolCallId: string }
+    ): MCPConnectionCallContext {
+        return {
+            logger: this.logger,
+            toolCallId: options.toolCallId,
+            ...(options.executionIdentity === undefined
+                ? {}
+                : { executionIdentity: options.executionIdentity }),
+            ...(options.parentToolCallId === undefined
+                ? {}
+                : { parentToolCallId: options.parentToolCallId }),
+            ...(options.sessionId === undefined ? {} : { sessionId: options.sessionId }),
+            ...(options.abortSignal === undefined ? {} : { abortSignal: options.abortSignal }),
+            ...(options.runContext === undefined
+                ? {}
+                : {
+                      hostRuntime: options.runContext.hostRuntime,
+                      runContext: options.runContext,
+                  }),
+        };
     }
 
     private resolveToolExecutionInvocation(
@@ -841,9 +954,19 @@ export class ToolManager {
 
     private resolveToolExecutionIdentity(
         invocation: ToolExecutionInvocation,
-        toolCallId: string
+        toolCallId: string,
+        parentToolCallId?: string
     ): ToolExecutionIdentity | undefined {
         if (invocation.executionIdentity !== undefined) {
+            if (
+                invocation.executionIdentity.toolCallId !== toolCallId ||
+                invocation.executionIdentity.parentToolCallId !== parentToolCallId
+            ) {
+                throw ToolError.executionFailed(
+                    toolCallId,
+                    'Tool execution identity does not match the prepared call'
+                );
+            }
             return invocation.executionIdentity;
         }
 
@@ -863,6 +986,7 @@ export class ToolManager {
             runId,
             turnId,
             modelStepId,
+            ...(parentToolCallId === undefined ? {} : { parentToolCallId }),
             toolCallId,
         };
     }
@@ -926,15 +1050,25 @@ export class ToolManager {
         return validated as Record<string, unknown>;
     }
 
+    private validateToolArgs(
+        toolName: string,
+        args: Record<string, unknown>
+    ): Record<string, unknown> {
+        if (!toolName.startsWith(ToolManager.MCP_TOOL_PREFIX)) {
+            return this.validateLocalToolArgs(toolName, args);
+        }
+
+        const mcpName = stripMcpModelToolPrefix(toolName);
+        if (mcpName === undefined) {
+            throw ToolError.invalidName(toolName, 'tool name cannot be empty after prefix');
+        }
+        return this.mcpManager.validateToolInput(mcpName, args);
+    }
+
     private async executeLocalTool(
         toolName: string,
         args: Record<string, unknown>,
-        options?: {
-            sessionId?: string | undefined;
-            abortSignal?: AbortSignal | undefined;
-            toolCallId?: string | undefined;
-            runContext?: AgentRunContext | undefined;
-        }
+        options?: ToolExecutionRoutingContext
     ): Promise<unknown> {
         const tool = this.agentTools.get(toolName);
         if (!tool) {
@@ -949,15 +1083,15 @@ export class ToolManager {
             const context = this.buildToolExecutionContext({
                 sessionId: options?.sessionId,
                 abortSignal: options?.abortSignal,
+                executionIdentity: options?.executionIdentity,
                 toolCallId: options?.toolCallId,
+                parentToolCallId: options?.parentToolCallId,
                 runContext: options?.runContext,
             });
             const result = await tool.execute(args, context);
             return result;
         } catch (error) {
-            this.logger.error(`❌ Local tool execution failed: ${toolName}`, {
-                error: error instanceof Error ? error.message : String(error),
-            });
+            this.logger.error(`Local tool execution failed: ${toolName}`);
             throw error;
         }
     }
@@ -965,15 +1099,7 @@ export class ToolManager {
     /**
      * Build all tools from sources.
      *
-     * TODO: Rethink MCP tool naming convention for more consistency.
-     * Current issue: MCP tools have dynamic naming based on conflicts:
-     * - No conflict: mcp--toolName
-     * - With conflict: mcp--serverName--toolName
-     * This makes policy configuration fragile. Consider:
-     * 1. Always including server name: mcp--serverName--toolName (breaking change)
-     * 2. Using a different delimiter pattern that's more predictable
-     * 3. Providing a tool discovery command to help users find exact names
-     * Related: Tool policies now support dual matching (exact + suffix) as a workaround
+     * MCP names are always stable and namespace-qualified.
      */
     private async buildAllTools(): Promise<ToolSet> {
         const allTools: ToolSet = {};
@@ -992,23 +1118,7 @@ export class ToolManager {
 
         // Add local tools
         for (const [toolName, tool] of this.agentTools) {
-            let description = tool.description || 'No description provided';
-            if (tool.getDescription) {
-                try {
-                    const dynamicDescription = await tool.getDescription(
-                        this.buildToolExecutionContext({})
-                    );
-                    if (dynamicDescription.trim()) {
-                        description = dynamicDescription;
-                    }
-                } catch (error) {
-                    this.logger.warn(
-                        `Failed to build dynamic description for '${toolName}': ${
-                            error instanceof Error ? error.message : String(error)
-                        }`
-                    );
-                }
-            }
+            const description = await this.getLocalToolDescription(tool);
 
             allTools[toolName] = {
                 name: toolName,
@@ -1019,9 +1129,9 @@ export class ToolManager {
             };
         }
 
-        // Add MCP tools with 'mcp--' prefix
+        // Add MCP tools under provider-safe mcp__namespace__tool names.
         for (const [toolName, toolDef] of Object.entries(mcpTools)) {
-            const qualifiedName = `${ToolManager.MCP_TOOL_PREFIX}${toolName}`;
+            const qualifiedName = modelMcpToolName(toolName);
             allTools[qualifiedName] = {
                 ...toolDef,
                 name: qualifiedName,
@@ -1039,6 +1149,25 @@ export class ToolManager {
         );
 
         return allTools;
+    }
+
+    private async getLocalToolDescription(tool: Tool): Promise<string> {
+        const fallback = tool.description || 'No description provided';
+        if (!tool.getDescription) {
+            return fallback;
+        }
+
+        try {
+            const description = await tool.getDescription(this.buildToolExecutionContext({}));
+            return description.trim() ? description : fallback;
+        } catch (error) {
+            this.logger.warn(
+                `Failed to build dynamic description for '${tool.id}': ${
+                    error instanceof Error ? error.message : String(error)
+                }`
+            );
+            return fallback;
+        }
     }
 
     /**
@@ -1059,8 +1188,8 @@ export class ToolManager {
 
     async prepareToolCall(input: PrepareToolCallInput): Promise<PreparedToolCall> {
         const sessionId = input.runContext?.sessionId ?? input.sessionId;
-        const source = await this.resolveExecutableToolSource(input.toolName);
-        if (source === 'unknown') {
+        const identity = this.resolveToolIdentity(input.toolName);
+        if (identity === undefined) {
             return this.createPreparedToolError(
                 'unknown-tool',
                 input.toolName,
@@ -1088,7 +1217,7 @@ export class ToolManager {
 
         let validatedArgs: Record<string, unknown>;
         try {
-            validatedArgs = this.validateLocalToolArgs(input.toolName, rawToolArgs);
+            validatedArgs = this.validateToolArgs(input.toolName, rawToolArgs);
         } catch (error) {
             return this.createPreparedToolError(
                 'invalid-input',
@@ -1101,13 +1230,19 @@ export class ToolManager {
             toolName: input.toolName,
             args: validatedArgs,
             toolCallId: input.toolCallId,
+            ...(input.parentToolCallId === undefined
+                ? {}
+                : { parentToolCallId: input.parentToolCallId }),
             ...(sessionId !== undefined ? { sessionId } : {}),
             ...(input.runContext !== undefined ? { runContext: input.runContext } : {}),
         });
         const call: ExecutableToolCall = {
+            identity,
             input: validatedArgs,
+            ...(input.parentToolCallId === undefined
+                ? {}
+                : { parentToolCallId: input.parentToolCallId }),
             presentationSnapshot,
-            source,
             toolCallId: input.toolCallId,
             toolName: input.toolName,
             ...(callDescription !== undefined ? { callDescription } : {}),
@@ -1120,10 +1255,11 @@ export class ToolManager {
                 this.buildToolExecutionContext({
                     sessionId,
                     toolCallId: input.toolCallId,
+                    parentToolCallId: input.parentToolCallId,
                     runContext: input.runContext,
                 }),
             ...(sessionId !== undefined ? { sessionId } : {}),
-            source,
+            identity,
             toolName: input.toolName,
         });
         if (approvalGate.kind === 'ready') {
@@ -1157,6 +1293,9 @@ export class ToolManager {
             ...(input.runContext !== undefined ? { runContext: input.runContext } : {}),
             ...(input.sessionId !== undefined ? { sessionId: input.sessionId } : {}),
             toolCallId: input.toolCallId,
+            ...(input.call.parentToolCallId === undefined
+                ? {}
+                : { parentToolCallId: input.call.parentToolCallId }),
             toolName: input.toolName,
         });
         const hostRuntime = input.runContext?.hostRuntime;
@@ -1166,11 +1305,15 @@ export class ToolManager {
             ...(hostRuntime !== undefined ? { hostRuntime } : {}),
             metadata: {
                 toolName: input.toolName,
+                toolIdentity: input.call.identity,
                 ...(input.approvalGate.approvalKey !== undefined
                     ? { approvalKey: input.approvalGate.approvalKey }
                     : {}),
                 presentationSnapshot: input.call.presentationSnapshot,
                 toolCallId: input.toolCallId,
+                ...(input.call.parentToolCallId === undefined
+                    ? {}
+                    : { parentToolCallId: input.call.parentToolCallId }),
                 args: input.args,
                 ...(input.callDescription !== undefined
                     ? { description: input.callDescription }
@@ -1245,6 +1388,15 @@ export class ToolManager {
 
     async requestApprovalDecision(recorded: RecordedToolApproval): Promise<ApprovalResponse> {
         return this.approvalManager.requestApprovalDecision(recorded.request);
+    }
+
+    async cancelApprovalRequest(recorded: RecordedToolApproval): Promise<void> {
+        await this.approvalManager.cancelApproval(recorded.request.approvalId);
+        await this.applyApprovalDecision(recorded, {
+            approvalId: recorded.request.approvalId,
+            reason: 'system_cancelled',
+            status: ApprovalStatus.CANCELLED,
+        });
     }
 
     private assertRecordedApprovalMatchesPreparedCall(
@@ -1355,23 +1507,6 @@ export class ToolManager {
         }.`;
     }
 
-    private async resolveExecutableToolSource(
-        toolName: string
-    ): Promise<'local' | 'mcp' | 'unknown'> {
-        if (this.agentTools.has(toolName)) {
-            return 'local';
-        }
-
-        if (
-            toolName.startsWith(ToolManager.MCP_TOOL_PREFIX) &&
-            toolName.length > ToolManager.MCP_TOOL_PREFIX.length
-        ) {
-            return 'mcp';
-        }
-
-        return 'unknown';
-    }
-
     private createPreparedToolError(
         kind: 'invalid-input' | 'unknown-tool',
         toolName: string,
@@ -1416,7 +1551,6 @@ export class ToolManager {
             this.resolveToolExecutionInvocation(invocation);
 
         this.logger.debug(`🔧 Tool execution requested: '${toolName}' (toolCallId: ${toolCallId})`);
-        this.logger.debug(`Tool args: ${JSON.stringify(args, null, 2)}`);
 
         if (toolName === ToolManager.MCP_TOOL_PREFIX) {
             throw ToolError.invalidName(toolName, 'tool name cannot be empty after prefix');
@@ -1426,6 +1560,9 @@ export class ToolManager {
             toolName,
             input: args,
             toolCallId,
+            ...(invocation?.executionIdentity?.parentToolCallId === undefined
+                ? {}
+                : { parentToolCallId: invocation.executionIdentity.parentToolCallId }),
             ...(sessionId !== undefined ? { sessionId } : {}),
             ...(runContext !== undefined ? { runContext } : {}),
         });
@@ -1448,7 +1585,11 @@ export class ToolManager {
         try {
             const recorded = await this.recordApprovalRequest(
                 prepared,
-                this.resolveDirectApprovalIdentity(invocation, toolCallId)
+                this.resolveDirectApprovalIdentity(
+                    invocation,
+                    toolCallId,
+                    prepared.call.parentToolCallId
+                )
             );
             const response = await this.requestApprovalDecision(recorded);
             applied = await this.applyApprovalDecision(recorded, {
@@ -1485,6 +1626,9 @@ export class ToolManager {
         if (!sessionId) {
             return;
         }
+        if (call.parentToolCallId !== undefined) {
+            return;
+        }
 
         this.agentEventBus.emit('llm:tool-call', {
             toolName: call.toolName,
@@ -1519,7 +1663,11 @@ export class ToolManager {
             return undefined;
         }
 
-        const identity = this.resolveToolExecutionIdentity(invocation ?? {}, call.toolCallId);
+        const identity = this.resolveToolExecutionIdentity(
+            invocation ?? {},
+            call.toolCallId,
+            call.parentToolCallId
+        );
         if (identity === undefined) {
             return undefined;
         }
@@ -1560,7 +1708,11 @@ export class ToolManager {
         invocation: ToolExecutionInvocation | undefined,
         error: unknown
     ): Promise<void> {
-        const identity = this.resolveToolExecutionIdentity(invocation ?? {}, call.toolCallId);
+        const identity = this.resolveToolExecutionIdentity(
+            invocation ?? {},
+            call.toolCallId,
+            call.parentToolCallId
+        );
         if (identity === undefined) {
             return;
         }
@@ -1598,9 +1750,14 @@ export class ToolManager {
 
     private resolveDirectApprovalIdentity(
         invocation: ToolExecutionInvocation | undefined,
-        toolCallId: string
+        toolCallId: string,
+        parentToolCallId?: string
     ): ToolApprovalRecordIdentity {
-        const executionIdentity = this.resolveToolExecutionIdentity(invocation ?? {}, toolCallId);
+        const executionIdentity = this.resolveToolExecutionIdentity(
+            invocation ?? {},
+            toolCallId,
+            parentToolCallId
+        );
         if (executionIdentity !== undefined) {
             return {
                 runId: executionIdentity.runId,
@@ -1668,7 +1825,8 @@ export class ToolManager {
             this.resolveToolExecutionInvocation(invocation);
         const durableIdentity = this.resolveToolExecutionIdentity(
             invocation ?? {},
-            call.toolCallId
+            call.toolCallId,
+            call.parentToolCallId
         );
         const backgroundTasksEnabled = isBackgroundTasksEnabled();
         const willRunInBackground =
@@ -1741,6 +1899,9 @@ export class ToolManager {
                 this.agentEventBus.emit('tool:running', {
                     toolName: call.toolName,
                     toolCallId: call.toolCallId,
+                    ...(call.parentToolCallId !== undefined && {
+                        parentToolCallId: call.parentToolCallId,
+                    }),
                     sessionId,
                     ...(hostRuntime !== undefined && { hostRuntime }),
                 });
@@ -1768,7 +1929,7 @@ export class ToolManager {
 
                 toolArgs = modifiedPayload.args;
                 try {
-                    toolArgs = this.validateLocalToolArgs(call.toolName, toolArgs);
+                    toolArgs = this.validateToolArgs(call.toolName, toolArgs);
                 } catch (error) {
                     this.logger.error(
                         `Post-hook validation failed for tool '${call.toolName}': a beforeToolCall hook may have set invalid args`
@@ -1790,9 +1951,9 @@ export class ToolManager {
                 };
             };
 
-            if (call.source === 'mcp') {
-                const actualToolName = call.toolName.substring(ToolManager.MCP_TOOL_PREFIX.length);
-                if (actualToolName.length === 0) {
+            if (call.identity.type === 'mcp') {
+                const actualToolName = stripMcpModelToolPrefix(call.toolName);
+                if (actualToolName === undefined) {
                     throw ToolError.invalidName(
                         call.toolName,
                         'tool name cannot be empty after prefix'
@@ -1800,14 +1961,18 @@ export class ToolManager {
                 }
 
                 const executeMcpTool = () =>
-                    runContext === undefined
-                        ? this.mcpManager.executeTool(actualToolName, toolArgs, sessionId)
-                        : this.mcpManager.executeTool(
-                              actualToolName,
-                              toolArgs,
-                              sessionId,
-                              runContext
-                          );
+                    this.mcpManager.executeTool(
+                        actualToolName,
+                        toolArgs,
+                        this.buildMCPConnectionCallContext({
+                            sessionId,
+                            abortSignal,
+                            executionIdentity,
+                            toolCallId: call.toolCallId,
+                            parentToolCallId: call.parentToolCallId,
+                            runContext,
+                        })
+                    );
                 if (call.meta?.runInBackground === true && !backgroundTasksEnabled) {
                     this.logger.debug(
                         'Background tool execution disabled; running synchronously instead.',
@@ -1852,7 +2017,9 @@ export class ToolManager {
                         this.executeLocalTool(call.toolName, toolArgs, {
                             sessionId: backgroundSessionId,
                             abortSignal,
+                            executionIdentity,
                             toolCallId: call.toolCallId,
+                            parentToolCallId: call.parentToolCallId,
                             runContext,
                         }),
                         `Tool ${call.toolName}`
@@ -1876,7 +2043,9 @@ export class ToolManager {
                     result = await this.executeLocalTool(call.toolName, toolArgs, {
                         sessionId,
                         abortSignal,
+                        executionIdentity,
                         toolCallId: call.toolCallId,
+                        parentToolCallId: call.parentToolCallId,
                         runContext,
                     });
                 }
@@ -1917,6 +2086,9 @@ export class ToolManager {
                 result,
                 args: toolArgs,
                 toolCallId: call.toolCallId,
+                ...(call.parentToolCallId === undefined
+                    ? {}
+                    : { parentToolCallId: call.parentToolCallId }),
                 ...(sessionId !== undefined ? { sessionId } : {}),
                 ...(runContext !== undefined ? { runContext } : {}),
             });
@@ -1940,7 +2112,7 @@ export class ToolManager {
         } catch (error) {
             const duration = Date.now() - startTime;
             this.logger.error(
-                `❌ Prepared tool execution failed for ${call.toolName} after ${duration}ms, sessionId: ${sessionId ?? 'global'}: ${error instanceof Error ? error.message : String(error)}`
+                `Prepared tool execution failed for ${call.toolName} after ${duration}ms, sessionId: ${sessionId ?? 'global'}`
             );
             const message = error instanceof Error ? error.message : String(error);
 
@@ -1996,8 +2168,9 @@ export class ToolManager {
     async hasTool(toolName: string): Promise<boolean> {
         // Check MCP tools
         if (toolName.startsWith(ToolManager.MCP_TOOL_PREFIX)) {
-            const actualToolName = toolName.substring(ToolManager.MCP_TOOL_PREFIX.length);
-            return this.mcpManager.getToolClient(actualToolName) !== undefined;
+            const actualToolName = stripMcpModelToolPrefix(toolName);
+            if (actualToolName === undefined) return false;
+            return this.mcpManager.getToolConnection(actualToolName) !== undefined;
         }
 
         // Local tools use their ids as-is.
@@ -2055,7 +2228,6 @@ export class ToolManager {
 
     /**
      * Check if a tool is in the static alwaysAllow list
-     * Supports both exact and suffix matching (e.g., "mcp--read_file" matches "mcp--server--read_file")
      * @param toolName The fully qualified tool name to check
      * @returns true if the tool is in the allow list
      */

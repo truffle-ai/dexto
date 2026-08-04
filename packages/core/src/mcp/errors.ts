@@ -77,6 +77,17 @@ export class MCPError {
         );
     }
 
+    static invalidNamespace(namespace: string) {
+        return new DextoRuntimeError(
+            MCPErrorCode.INVALID_NAMESPACE,
+            ErrorScope.MCP,
+            ErrorType.USER,
+            `Invalid MCP namespace '${namespace}'`,
+            { namespace },
+            'Use a lowercase JavaScript-safe namespace such as github_work'
+        );
+    }
+
     /**
      * MCP server not found
      */
@@ -151,6 +162,16 @@ export class MCPError {
             ErrorScope.MCP,
             ErrorType.THIRD_PARTY,
             `Tool '${toolName}' has invalid schema: ${reason}`,
+            { toolName, reason }
+        );
+    }
+
+    static invalidToolArguments(toolName: string, reason: string) {
+        return new DextoRuntimeError(
+            MCPErrorCode.PROTOCOL_ERROR,
+            ErrorScope.MCP,
+            ErrorType.USER,
+            `MCP tool '${toolName}' received invalid arguments: ${reason}`,
             { toolName, reason }
         );
     }

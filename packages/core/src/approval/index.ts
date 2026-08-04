@@ -77,7 +77,7 @@ export type {
 } from './errors.js';
 
 // Manager
-export { ApprovalManager } from './manager.js';
+export { ApprovalManager, approvalResponseToDecisionInput } from './manager.js';
 export type {
     ApprovalDecisionInput,
     ApprovalManagerConfig,

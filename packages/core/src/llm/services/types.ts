@@ -37,6 +37,18 @@ export type LLMExecutionControl = {
      * Hosted runtimes should keep follow-ups durable and promote them as separate runs.
      */
     followUpQueueMode?: 'core-continuation' | 'host-run' | undefined;
+    /**
+     * Ordered subset of currently enabled tools advertised to the model.
+     * Omit to preserve the default behavior of advertising every enabled tool.
+     * Tool execution continues to resolve through ToolManager's complete canonical catalog.
+     */
+    modelToolNames?: readonly string[] | undefined;
+    /**
+     * Append MCP tools discovered for this run to an explicit model tool surface.
+     * This keeps dynamic connection catalogs available without requiring callers to reproduce
+     * Core's conflict-qualified MCP tool names.
+     */
+    includeMcpTools?: boolean | undefined;
 };
 
 export type CreateTurnDriverOptions = {

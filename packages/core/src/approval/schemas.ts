@@ -9,6 +9,7 @@ import type { ToolDisplayData } from '../tools/display-types.js';
 import { isValidDisplayData } from '../tools/display-types.js';
 import { ToolPresentationSnapshotV1Schema } from '../tools/presentation-schema.js';
 import { HostRuntimeContextSchema } from '../runtime/index.js';
+import { ToolIdentitySchema } from '../tools/schemas.js';
 
 // Zod schema that validates as object but types as JSONSchema7
 const JsonSchema7Schema = z.record(z.string(), z.unknown()) as z.ZodType<JSONSchema7>;
@@ -43,6 +44,9 @@ const ToolDisplayDataSchema = z.custom<ToolDisplayData>((val) => isValidDisplayD
 export const ToolApprovalMetadataSchema = z
     .object({
         toolName: z.string().describe('Name of the tool to approve'),
+        toolIdentity: ToolIdentitySchema.optional().describe(
+            'Canonical tool identity. Absent only for approvals recorded before identity tracking.'
+        ),
         approvalKey: z
             .string()
             .min(1)
@@ -54,6 +58,11 @@ export const ToolApprovalMetadataSchema = z
             'Optional UI-agnostic presentation snapshot for the tool call. Clients MUST ignore unknown fields.'
         ),
         toolCallId: z.string().describe('Unique tool call ID for tracking parallel tool calls'),
+        parentToolCallId: z
+            .string()
+            .min(1)
+            .optional()
+            .describe('Outer tool call that owns this nested approval request'),
         args: z.record(z.string(), z.unknown()).describe('Arguments for the tool'),
         description: z.string().optional().describe('Description of the tool'),
         displayPreview: ToolDisplayDataSchema.optional().describe(
