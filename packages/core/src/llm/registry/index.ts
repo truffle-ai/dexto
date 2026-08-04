@@ -225,9 +225,10 @@ export function getSupportedFileTypesForModel(
 export function modelSupportsFileType(
     provider: LLMProvider,
     model: string,
-    fileType: SupportedFileType
+    fileType: SupportedFileType,
+    registry: ModelRegistry = DEFAULT_MODEL_REGISTRY
 ): boolean {
-    return getSupportedFileTypesForModel(provider, model).includes(fileType);
+    return getSupportedFileTypesForModel(provider, model, undefined, registry).includes(fileType);
 }
 
 export function getMaxInputTokensForModel(
@@ -242,7 +243,11 @@ export function getMaxInputTokensForModel(
         return modelInfo.maxInputTokens;
     }
 
-    if ((provider === 'openrouter' || provider === 'dexto-nova') && model.includes('/')) {
+    if (
+        registry === DEFAULT_MODEL_REGISTRY &&
+        (provider === 'openrouter' || provider === 'dexto-nova') &&
+        model.includes('/')
+    ) {
         const contextLength = getOpenRouterModelContextLength(model);
         if (typeof contextLength === 'number') {
             logger?.debug(

@@ -169,6 +169,51 @@ describe('ModelRegistry', () => {
         ).toThrow(expect.objectContaining({ code: 'REGISTRY_INVALID' }));
     });
 
+    it('rejects duplicate model IDs regardless of case', () => {
+        const bundledModel = getProvider('openai').models[0];
+        if (!bundledModel) throw new Error('Expected the bundled OpenAI registry to be populated');
+
+        expect(() =>
+            createModelRegistry({
+                ...LLM_REGISTRY,
+                openai: {
+                    ...LLM_REGISTRY.openai,
+                    models: [
+                        bundledModel,
+                        { ...bundledModel, name: bundledModel.name.toUpperCase() },
+                    ],
+                },
+            })
+        ).toThrow("Duplicate registry model definition for 'openai/");
+    });
+
+    it('rejects malformed optional model metadata before activation', () => {
+        const bundledModel = getProvider('openai').models[0];
+        if (!bundledModel) throw new Error('Expected the bundled OpenAI registry to be populated');
+
+        const malformedModels = [
+            { modalities: { input: ['spreadsheet'], output: ['text'] } },
+            { providerMetadata: { npm: 42 } },
+            { interleaved: { field: 42 } },
+            { reasoning: 'yes' },
+            { displayName: 42 },
+            { pricing: { inputPerM: 1, outputPerM: 1, currency: 'EUR' } },
+            { pricing: { inputPerM: 1, outputPerM: 1, unit: 'per_token' } },
+        ];
+
+        for (const changes of malformedModels) {
+            expect(() =>
+                createModelRegistry(
+                    registryWithModel({
+                        ...bundledModel,
+                        name: `invalid-metadata-${Object.keys(changes)[0]}`,
+                        ...changes,
+                    } as ModelInfo)
+                )
+            ).toThrow(expect.objectContaining({ code: 'REGISTRY_INVALID' }));
+        }
+    });
+
     it('allows zero input-token limits for media models', () => {
         const bundledModel = getProvider('openai').models[0];
         if (!bundledModel) throw new Error('Expected the bundled OpenAI registry to be populated');

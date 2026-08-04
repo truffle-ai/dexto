@@ -279,6 +279,9 @@ export class ChatSession {
                 provider: modelInfo.provider,
                 model: modelInfo.model,
                 tokenUsage,
+                ...(this.services.llmRegistry === undefined
+                    ? {}
+                    : { llmRegistry: this.services.llmRegistry }),
             });
 
             // Fire and forget - don't block the event flow

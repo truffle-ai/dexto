@@ -15,6 +15,7 @@ import { ErrorScope, ErrorType } from '../errors/types.js';
 import type { SessionEventMap } from '../events/index.js';
 import { DextoRuntimeError } from '../errors/DextoRuntimeError.js';
 import { HookErrorCode } from '../hooks/error-codes.js';
+import { createModelRegistry, LLM_REGISTRY } from '@dexto/llm';
 
 // Mock all dependencies
 vi.mock('../llm/services/factory.js', () => ({
@@ -1210,6 +1211,48 @@ describe('ChatSession', () => {
                     provider: payloadProvider,
                     model: payloadModel,
                 })
+            );
+        });
+
+        test('calculates usage cost from the injected registry when the event has no estimate', async () => {
+            const bundledModel = LLM_REGISTRY.openai.models[0];
+            if (!bundledModel)
+                throw new Error('Expected the bundled OpenAI registry to be populated');
+
+            mockServices.llmRegistry = createModelRegistry({
+                ...LLM_REGISTRY,
+                openai: {
+                    ...LLM_REGISTRY.openai,
+                    models: [
+                        {
+                            ...bundledModel,
+                            name: 'cloud-added-model',
+                            pricing: { inputPerM: 12, outputPerM: 34 },
+                        },
+                    ],
+                },
+            });
+
+            chatSession.eventBus.emit(
+                'llm:response',
+                createModelResponseEvent({
+                    provider: 'openai',
+                    model: 'cloud-added-model',
+                    tokenUsage: {
+                        inputTokens: 1_000_000,
+                        outputTokens: 1_000_000,
+                        totalTokens: 2_000_000,
+                    },
+                })
+            );
+
+            await new Promise((resolve) => setTimeout(resolve, 0));
+
+            expect(mockServices.sessionManager.accumulateTokenUsage).toHaveBeenCalledWith(
+                sessionId,
+                expect.any(Object),
+                46,
+                { provider: 'openai', model: 'cloud-added-model' }
             );
         });
 

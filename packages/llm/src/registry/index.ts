@@ -73,6 +73,16 @@ const LONG_CONTEXT_PRICING_FIELDS = [
     'cacheWritePerM',
 ] as const;
 
+const MODEL_BOOLEAN_FIELDS = [
+    'default',
+    'reasoning',
+    'supportsTemperature',
+    'supportsInterleaved',
+    'supportsToolCall',
+] as const;
+const MODEL_STRING_FIELDS = ['displayName', 'releaseDate', 'status'] as const;
+const MODEL_MODALITIES = ['text', 'audio', 'image', 'video', 'pdf'] as const;
+
 function getNormalizedModelIdForLookup(model: string): string {
     const stripped = stripBedrockRegionPrefix(model);
     return stripped.toLowerCase();
@@ -648,6 +658,22 @@ function validateRegistryProviders(providers: Record<LLMProvider, ProviderInfo>)
             );
         }
 
+        if (
+            (providerInfo.supportsCustomModels !== undefined &&
+                typeof providerInfo.supportsCustomModels !== 'boolean') ||
+            (providerInfo.supportsAllRegistryModels !== undefined &&
+                typeof providerInfo.supportsAllRegistryModels !== 'boolean') ||
+            (providerInfo.modelsDev !== undefined &&
+                !isValidModelsDevMetadata(providerInfo.modelsDev))
+        ) {
+            throw new LlmCatalogError(
+                'REGISTRY_INVALID',
+                `Invalid registry provider metadata for '${provider}'`
+            );
+        }
+
+        const modelNames = new Set<string>();
+
         for (const [modelIndex, model] of providerInfo.models.entries()) {
             const modelObject = isRecord(model) ? model : null;
             const modelName =
@@ -667,6 +693,22 @@ function validateRegistryProviders(providers: Record<LLMProvider, ProviderInfo>)
                 throw new LlmCatalogError(
                     'REGISTRY_INVALID',
                     `Invalid registry model definition for '${provider}/${modelName}'`
+                );
+            }
+
+            const normalizedModelName = modelObject.name.toLowerCase();
+            if (modelNames.has(normalizedModelName)) {
+                throw new LlmCatalogError(
+                    'REGISTRY_INVALID',
+                    `Duplicate registry model definition for '${provider}/${modelObject.name}'`
+                );
+            }
+            modelNames.add(normalizedModelName);
+
+            if (!isValidModelMetadata(modelObject)) {
+                throw new LlmCatalogError(
+                    'REGISTRY_INVALID',
+                    `Invalid registry metadata for '${provider}/${modelObject.name}'`
                 );
             }
 
@@ -695,9 +737,76 @@ function isValidPricingNumber(value: unknown): value is number {
     return typeof value === 'number' && Number.isFinite(value) && value >= 0;
 }
 
+function isValidModelsDevMetadata(value: unknown): boolean {
+    if (!isRecord(value) || !Array.isArray(value.env) || !value.env.every(isString)) {
+        return false;
+    }
+
+    return ['npm', 'api', 'doc'].every(
+        (field) => value[field] === undefined || isString(value[field])
+    );
+}
+
+function isValidModelMetadata(value: Record<string, unknown>): boolean {
+    if (
+        !MODEL_BOOLEAN_FIELDS.every(
+            (field) => value[field] === undefined || typeof value[field] === 'boolean'
+        ) ||
+        !MODEL_STRING_FIELDS.every((field) => value[field] === undefined || isString(value[field]))
+    ) {
+        return false;
+    }
+
+    if (value.modalities !== undefined && !isValidModelModalities(value.modalities)) {
+        return false;
+    }
+    if (value.providerMetadata !== undefined && !isValidProviderMetadata(value.providerMetadata)) {
+        return false;
+    }
+    if (value.interleaved !== undefined && !isValidInterleavedMetadata(value.interleaved)) {
+        return false;
+    }
+
+    return true;
+}
+
+function isValidModelModalities(value: unknown): boolean {
+    if (!isRecord(value) || !Array.isArray(value.input) || !Array.isArray(value.output)) {
+        return false;
+    }
+
+    return (
+        value.input.every(isSupportedModelModality) && value.output.every(isSupportedModelModality)
+    );
+}
+
+function isValidProviderMetadata(value: unknown): boolean {
+    return (
+        isRecord(value) &&
+        ['npm', 'api'].every((field) => value[field] === undefined || isString(value[field]))
+    );
+}
+
+function isValidInterleavedMetadata(value: unknown): boolean {
+    return (
+        value === true || (isRecord(value) && (value.field === undefined || isString(value.field)))
+    );
+}
+
+function isSupportedModelModality(value: unknown): boolean {
+    return typeof value === 'string' && MODEL_MODALITIES.some((modality) => modality === value);
+}
+
+function isString(value: unknown): value is string {
+    return typeof value === 'string';
+}
+
 function isValidModelPricing(value: unknown): boolean {
     if (value === undefined) return true;
     if (!isRecord(value)) return false;
+
+    if (value.currency !== undefined && value.currency !== 'USD') return false;
+    if (value.unit !== undefined && value.unit !== 'per_million_tokens') return false;
 
     for (const field of MODEL_PRICING_FIELDS) {
         if (field in value && !isValidPricingNumber(value[field])) return false;
@@ -709,6 +818,16 @@ function isValidModelPricing(value: unknown): boolean {
     const longContextPricing = value.contextOver200kPerM;
     if (longContextPricing === undefined) return true;
     if (!isRecord(longContextPricing)) return false;
+
+    const inputTokensAbove = longContextPricing.inputTokensAbove;
+    if (
+        inputTokensAbove !== undefined &&
+        (typeof inputTokensAbove !== 'number' ||
+            !Number.isInteger(inputTokensAbove) ||
+            inputTokensAbove < 0)
+    ) {
+        return false;
+    }
 
     for (const field of LONG_CONTEXT_PRICING_FIELDS) {
         if (field in longContextPricing && !isValidPricingNumber(longContextPricing[field])) {

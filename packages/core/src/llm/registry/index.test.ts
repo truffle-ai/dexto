@@ -33,6 +33,7 @@ import { DextoRuntimeError } from '../../errors/DextoRuntimeError.js';
 import type { Logger } from '../../logger/v2/types.js';
 import {
     getCachedOpenRouterModelsWithInfo,
+    getOpenRouterModelContextLength,
     getOpenRouterModelCacheInfo,
 } from '../providers/openrouter-model-registry.js';
 
@@ -367,6 +368,22 @@ describe('getEffectiveMaxInputTokens', () => {
             } as any;
             expect(getEffectiveMaxInputTokens(config, mockLogger)).toBe(128000);
         });
+
+        it('does not use the default OpenRouter fallback for an injected registry', () => {
+            const registry = createModelRegistry(LLM_REGISTRY);
+            vi.mocked(getOpenRouterModelContextLength).mockClear();
+
+            expect(() =>
+                getMaxInputTokensForModel('openrouter', 'unknown/model', mockLogger, registry)
+            ).toThrow(
+                expect.objectContaining({
+                    code: LLMErrorCode.MODEL_UNKNOWN,
+                    scope: ErrorScope.LLM,
+                    type: ErrorType.USER,
+                })
+            );
+            expect(getOpenRouterModelContextLength).not.toHaveBeenCalled();
+        });
     });
 });
 
@@ -443,6 +460,33 @@ describe('File Support Functions', () => {
                     scope: ErrorScope.LLM,
                     type: ErrorType.USER,
                 })
+            );
+        });
+
+        it('uses file capabilities from an injected registry', () => {
+            const bundledModel = LLM_REGISTRY.openai.models[0];
+            if (!bundledModel)
+                throw new Error('Expected the bundled OpenAI registry to be populated');
+
+            const registry = createModelRegistry({
+                ...LLM_REGISTRY,
+                openai: {
+                    ...LLM_REGISTRY.openai,
+                    models: [
+                        {
+                            ...bundledModel,
+                            name: 'registry-file-model',
+                            supportedFileTypes: ['audio'],
+                        },
+                    ],
+                },
+            });
+
+            expect(modelSupportsFileType('openai', 'registry-file-model', 'audio', registry)).toBe(
+                true
+            );
+            expect(modelSupportsFileType('openai', 'registry-file-model', 'image', registry)).toBe(
+                false
             );
         });
     });
