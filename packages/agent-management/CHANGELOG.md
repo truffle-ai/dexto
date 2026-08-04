@@ -1,5 +1,18 @@
 # @dexto/agent-management
 
+## 1.10.3
+
+### Patch Changes
+
+- cd4e593: Route user-facing CLI and package documentation links through `cli.dexto.ai`.
+- Updated dependencies [cd4e593]
+- Updated dependencies [dd77b34]
+    - @dexto/core@1.10.3
+    - @dexto/llm@1.10.3
+    - @dexto/agent-config@1.10.3
+    - @dexto/orchestration@1.10.3
+    - @dexto/tools-builtins@1.10.3
+
 ## 1.10.2
 
 ### Patch Changes
