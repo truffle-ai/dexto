@@ -1,5 +1,11 @@
 # @dexto/llm
 
+## 1.10.3
+
+### Patch Changes
+
+- dd77b34: Add injectable model-registry support so hosts can validate and execute against an actively managed registry while preserving the bundled registry as the default.
+
 ## 1.10.2
 
 ### Patch Changes

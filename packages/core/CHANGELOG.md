@@ -1,5 +1,14 @@
 # @dexto/core
 
+## 1.10.3
+
+### Patch Changes
+
+- cd4e593: Route user-facing CLI and package documentation links through `cli.dexto.ai`.
+- dd77b34: Add injectable model-registry support so hosts can validate and execute against an actively managed registry while preserving the bundled registry as the default.
+- Updated dependencies [dd77b34]
+    - @dexto/llm@1.10.3
+
 ## 1.10.2
 
 ### Patch Changes
