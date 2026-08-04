@@ -15,6 +15,7 @@
 
 import {
     LLM_PROVIDERS,
+    SUPPORTED_FILE_TYPES,
     type LLMProvider,
     type SupportedFileType,
     type TokenUsage,
@@ -638,7 +639,8 @@ function validateRegistryProviders(providers: Record<LLMProvider, ProviderInfo>)
             !isRecord(providerInfo) ||
             !Array.isArray(providerInfo.models) ||
             !['none', 'optional', 'required'].includes(providerInfo.baseURLSupport) ||
-            !Array.isArray(providerInfo.supportedFileTypes)
+            !Array.isArray(providerInfo.supportedFileTypes) ||
+            !providerInfo.supportedFileTypes.every(isSupportedFileType)
         ) {
             throw new LlmCatalogError(
                 'REGISTRY_INVALID',
@@ -660,7 +662,7 @@ function validateRegistryProviders(providers: Record<LLMProvider, ProviderInfo>)
                 !Number.isInteger(modelObject.maxInputTokens) ||
                 modelObject.maxInputTokens < 0 ||
                 !Array.isArray(modelObject.supportedFileTypes) ||
-                !modelObject.supportedFileTypes.every((fileType) => typeof fileType === 'string')
+                !modelObject.supportedFileTypes.every(isSupportedFileType)
             ) {
                 throw new LlmCatalogError(
                     'REGISTRY_INVALID',
@@ -676,6 +678,13 @@ function validateRegistryProviders(providers: Record<LLMProvider, ProviderInfo>)
             }
         }
     }
+}
+
+function isSupportedFileType(value: unknown): value is SupportedFileType {
+    return (
+        typeof value === 'string' &&
+        SUPPORTED_FILE_TYPES.some((supportedFileType) => supportedFileType === value)
+    );
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

@@ -85,13 +85,14 @@ describe('ModelRegistry', () => {
     });
 
     it('does not mutate the input provider records', () => {
+        const bundledCount = LLM_REGISTRY.openai.models.length;
         const registry = createModelRegistry(LLM_REGISTRY);
 
         const provider = registry.getProvider('openai');
         provider.models.pop();
 
-        expect(registry.getSupportedModels('openai').length).toBeGreaterThan(0);
-        expect(LLM_REGISTRY.openai.models.length).toBeGreaterThan(0);
+        expect(registry.getSupportedModels('openai')).toHaveLength(bundledCount);
+        expect(LLM_REGISTRY.openai.models).toHaveLength(bundledCount);
     });
 
     it('rejects invalid model pricing before activation', () => {
@@ -151,6 +152,21 @@ describe('ModelRegistry', () => {
                 createModelRegistry(registryWithModel(malformedModel as ModelInfo))
             ).toThrow(expect.objectContaining({ code: 'REGISTRY_INVALID' }));
         }
+    });
+
+    it('rejects unknown supported file types before activation', () => {
+        const bundledModel = getProvider('openai').models[0];
+        if (!bundledModel) throw new Error('Expected the bundled OpenAI registry to be populated');
+
+        expect(() =>
+            createModelRegistry(
+                registryWithModel({
+                    ...bundledModel,
+                    name: 'invalid-file-type-model',
+                    supportedFileTypes: ['imag' as ModelInfo['supportedFileTypes'][number]],
+                })
+            )
+        ).toThrow(expect.objectContaining({ code: 'REGISTRY_INVALID' }));
     });
 
     it('allows zero input-token limits for media models', () => {
