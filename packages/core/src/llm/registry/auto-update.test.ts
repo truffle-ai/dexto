@@ -305,6 +305,9 @@ describe('llm registry auto-update', () => {
             'gpt-5-mini',
         ]);
         expect(registry.LLM_REGISTRY.openai.models[0]!.maxInputTokens).toBe(1500);
+        expect(registry.DEFAULT_MODEL_REGISTRY.getModel('openai', 'gpt-5-mini')).toMatchObject({
+            maxInputTokens: 800,
+        });
 
         const status = autoUpdate.getLlmRegistryAutoUpdateStatus();
         expect(status.source).toBe('remote');

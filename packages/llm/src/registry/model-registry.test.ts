@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
     createModelRegistry,
+    getModelPricing,
     getProvider,
     LLM_REGISTRY,
+    transformModelNameForProvider,
     type LLMProvider,
     type ModelInfo,
     type ProviderInfo,
@@ -82,6 +84,35 @@ describe('ModelRegistry', () => {
                 outputPerM: 78,
             },
         });
+    });
+
+    it('returns defensive pricing clones from the shared helper', () => {
+        const model = getProvider('openai').models.find((candidate) => candidate.pricing);
+        if (!model?.pricing) throw new Error('Expected a bundled model with pricing metadata');
+
+        const pricing = getModelPricing('openai', model.name);
+        if (!pricing) throw new Error('Expected shared pricing metadata');
+
+        pricing.inputPerM = 999;
+        expect(getModelPricing('openai', model.name)?.inputPerM).toBe(model.pricing.inputPerM);
+    });
+
+    it('uses an injected registry when resolving gateway model names', () => {
+        const openRouterModel = getProvider('openrouter').models[0];
+        if (!openRouterModel)
+            throw new Error('Expected the bundled OpenRouter registry to be populated');
+
+        const registry = createModelRegistry({
+            ...LLM_REGISTRY,
+            openrouter: {
+                ...LLM_REGISTRY.openrouter,
+                models: [{ ...openRouterModel, name: 'anthropic/custom-haiku' }],
+            },
+        });
+
+        expect(
+            transformModelNameForProvider('custom-haiku', 'anthropic', 'openrouter', registry)
+        ).toBe('anthropic/custom-haiku');
     });
 
     it('does not mutate the input provider records', () => {

@@ -1,6 +1,7 @@
 import { describe, test, expect } from 'vitest';
 import { resolveSubAgentLLM } from './llm-resolution.js';
 import type { LLMConfig } from '@dexto/core';
+import { createModelRegistry, getProvider, LLM_REGISTRY } from '@dexto/llm';
 
 describe('resolveSubAgentLLM', () => {
     // Common sub-agent config (like explore-agent)
@@ -54,6 +55,37 @@ describe('resolveSubAgentLLM', () => {
             expect(result.llm.provider).toBe('openrouter');
             expect(result.llm.model).toBe('openai/gpt-5-mini'); // Transformed
             expect(result.llm.apiKey).toBe('$OPENROUTER_API_KEY');
+        });
+
+        test('uses the parent host registry for gateway model transforms', () => {
+            const openRouterModel = getProvider('openrouter').models[0];
+            if (!openRouterModel)
+                throw new Error('Expected the bundled OpenRouter registry to be populated');
+
+            const registry = createModelRegistry({
+                ...LLM_REGISTRY,
+                openrouter: {
+                    ...LLM_REGISTRY.openrouter,
+                    models: [{ ...openRouterModel, name: 'anthropic/custom-haiku' }],
+                },
+            });
+
+            const result = resolveSubAgentLLM({
+                subAgentLLM: {
+                    provider: 'anthropic',
+                    model: 'custom-haiku',
+                    apiKey: '$ANTHROPIC_API_KEY',
+                },
+                parentLLM: {
+                    provider: 'openrouter',
+                    model: 'anthropic/claude-sonnet-4',
+                    apiKey: '$OPENROUTER_API_KEY',
+                },
+                registry,
+            });
+
+            expect(result.llm.model).toBe('anthropic/custom-haiku');
+            expect(result.resolution).toBe('gateway-transform');
         });
 
         test('parent with dexto-nova + sub-agent with google -> dexto-nova + transformed model', () => {

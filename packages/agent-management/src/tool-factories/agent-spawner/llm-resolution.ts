@@ -15,7 +15,12 @@
  */
 
 import type { LLMConfig } from '@dexto/core';
-import { hasAllRegistryModelsSupport, transformModelNameForProvider } from '@dexto/llm';
+import {
+    DEFAULT_MODEL_REGISTRY,
+    hasAllRegistryModelsSupport,
+    transformModelNameForProvider,
+    type ModelRegistry,
+} from '@dexto/llm';
 
 /**
  * Result of resolving a sub-agent's LLM configuration
@@ -37,6 +42,8 @@ export interface ResolveSubAgentLLMOptions {
     subAgentLLM: LLMConfig;
     /** The parent agent's LLM configuration (already has preferences applied) */
     parentLLM: LLMConfig;
+    /** The registry selected by the host for the parent agent. */
+    registry?: ModelRegistry;
     /** Sub-agent ID for logging purposes */
     subAgentId?: string;
 }
@@ -56,7 +63,7 @@ export interface ResolveSubAgentLLMOptions {
  * // Returns: { provider: 'dexto-nova', model: 'anthropic/claude-haiku-4.5', apiKey: '$DEXTO_API_KEY' }
  */
 export function resolveSubAgentLLM(options: ResolveSubAgentLLMOptions): SubAgentLLMResolution {
-    const { subAgentLLM, parentLLM, subAgentId } = options;
+    const { subAgentLLM, parentLLM, registry = DEFAULT_MODEL_REGISTRY, subAgentId } = options;
     const agentLabel = subAgentId ? `'${subAgentId}'` : 'sub-agent';
 
     const subAgentProvider = subAgentLLM.provider;
@@ -65,12 +72,13 @@ export function resolveSubAgentLLM(options: ResolveSubAgentLLMOptions): SubAgent
 
     // Case 1: Parent's provider is a gateway that can serve all models (dexto-nova, openrouter)
     // Transform sub-agent's model to gateway format and use parent's credentials
-    if (hasAllRegistryModelsSupport(parentProvider)) {
+    if (hasAllRegistryModelsSupport(parentProvider, registry)) {
         try {
             const transformedModel = transformModelNameForProvider(
                 subAgentModel,
                 subAgentProvider,
-                parentProvider
+                parentProvider,
+                registry
             );
 
             return {

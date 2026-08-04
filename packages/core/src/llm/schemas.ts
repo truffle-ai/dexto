@@ -280,7 +280,6 @@ export type LLMConfig = z.input<typeof LLMConfigSchema>;
 export type ValidatedLLMConfig = z.output<typeof LLMConfigSchema>;
 // PATCH-like schema for updates (switch flows)
 
-// TODO: when moving to zod v4 we might be able to set this as strict
 const LLMUpdatesBaseSchema = z
     .object({
         ...LLMConfigFields,
@@ -288,7 +287,8 @@ const LLMUpdatesBaseSchema = z
         // Full configs (LLMConfigSchema) still require `reasoning` to be an object when present.
         reasoning: LLMConfigFields.reasoning.nullable(),
     })
-    .partial();
+    .partial()
+    .strict();
 
 export const LLMUpdatesShapeSchema = LLMUpdatesBaseSchema.superRefine((data, ctx) => {
     if (!data.model && !data.provider) {

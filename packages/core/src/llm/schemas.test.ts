@@ -573,6 +573,11 @@ describe('LLMConfigSchema', () => {
                 expect(() => LLMUpdatesSchema.parse(updates)).toThrow();
             });
 
+            it('should reject unknown update fields instead of silently dropping them', () => {
+                const updates = { model: 'gpt-5', unsupportedOption: true } as const;
+                expect(() => LLMUpdatesSchema.parse(updates)).toThrow();
+            });
+
             it('should pass validation when model/provider with other fields', () => {
                 const updates = { model: 'gpt-5', maxIterations: 10 };
                 expect(() => LLMUpdatesSchema.parse(updates)).not.toThrow();

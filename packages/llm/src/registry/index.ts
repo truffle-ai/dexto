@@ -445,9 +445,20 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
 };
 
 export class ModelRegistry {
-    readonly #providers: Record<LLMProvider, ProviderInfo>;
+    #providers: Record<LLMProvider, ProviderInfo>;
 
     constructor(providers: Record<LLMProvider, ProviderInfo>) {
+        validateRegistryProviders(providers);
+        this.#providers = cloneRegistryProviders(providers);
+    }
+
+    /**
+     * Replaces the active provider snapshot after validating and cloning it.
+     *
+     * Hosts that refresh the bundled registry can update the shared default instance without
+     * exposing mutable provider records to consumers that already hold a ModelRegistry reference.
+     */
+    replaceProviders(providers: Record<LLMProvider, ProviderInfo>): void {
         validateRegistryProviders(providers);
         this.#providers = cloneRegistryProviders(providers);
     }
@@ -1152,9 +1163,11 @@ export function supportsCustomModels(provider: LLMProvider): boolean {
  * @param provider The name of the provider.
  * @returns True if the provider supports all registry models, false otherwise.
  */
-export function hasAllRegistryModelsSupport(provider: LLMProvider): boolean {
-    const providerInfo = LLM_REGISTRY[provider];
-    return providerInfo.supportsAllRegistryModels === true;
+export function hasAllRegistryModelsSupport(
+    provider: LLMProvider,
+    registry: ModelRegistry = DEFAULT_MODEL_REGISTRY
+): boolean {
+    return registry.hasAllRegistryModelsSupport(provider);
 }
 
 /**
@@ -1171,8 +1184,8 @@ const OPENROUTER_PREFIX_BY_PROVIDER: Partial<Record<LLMProvider, string>> = {
     glm: 'z-ai',
 };
 
-function getOpenRouterModelIdSet(): Set<string> {
-    return new Set(LLM_REGISTRY.openrouter.models.map((m) => m.name.toLowerCase()));
+function getOpenRouterModelIdSet(registry: ModelRegistry): Set<string> {
+    return new Set(registry.getSupportedModels('openrouter').map((model) => model.toLowerCase()));
 }
 
 export function getOpenRouterCandidateModelIds(
@@ -1204,8 +1217,11 @@ export function getOpenRouterCandidateModelIds(
     return [`${prefix}/${model}`];
 }
 
-function pickExistingOpenRouterModelId(candidates: string[]): string | null {
-    const openrouterSet = getOpenRouterModelIdSet();
+function pickExistingOpenRouterModelId(
+    candidates: string[],
+    registry: ModelRegistry
+): string | null {
+    const openrouterSet = getOpenRouterModelIdSet(registry);
     for (const candidate of candidates) {
         if (openrouterSet.has(candidate.toLowerCase())) {
             return candidate;
@@ -1317,15 +1333,16 @@ export function getAllModelsForProvider(
 export function transformModelNameForProvider(
     model: string,
     originalProvider: LLMProvider,
-    targetProvider: LLMProvider
+    targetProvider: LLMProvider,
+    registry: ModelRegistry = DEFAULT_MODEL_REGISTRY
 ): string {
     // Only transform when targeting gateway providers (those with supportsAllRegistryModels)
-    if (!hasAllRegistryModelsSupport(targetProvider)) {
+    if (!hasAllRegistryModelsSupport(targetProvider, registry)) {
         return model;
     }
 
     // If original provider is already a gateway, model is already in correct format
-    if (hasAllRegistryModelsSupport(originalProvider)) {
+    if (hasAllRegistryModelsSupport(originalProvider, registry)) {
         return model;
     }
 
@@ -1337,7 +1354,7 @@ export function transformModelNameForProvider(
     const candidates = getOpenRouterCandidateModelIds(model, originalProvider);
     if (candidates.length === 0) return model;
 
-    return pickExistingOpenRouterModelId(candidates) ?? candidates[0]!;
+    return pickExistingOpenRouterModelId(candidates, registry) ?? candidates[0]!;
 }
 
 /**
@@ -1652,7 +1669,7 @@ export function getModelPricing(provider: LLMProvider, model: string): ModelPric
     }
 
     const modelInfo = findModelInfo(provider, model);
-    return modelInfo?.pricing;
+    return modelInfo?.pricing ? cloneModelInfo(modelInfo).pricing : undefined;
 }
 
 /**

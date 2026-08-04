@@ -1065,6 +1065,7 @@ export class AgentSpawnerRuntime implements TaskForker {
                     const resolution = resolveSubAgentLLM({
                         subAgentLLM: loadedConfig.llm,
                         parentLLM: currentParentLLM,
+                        registry: this.parentAgent.llmRegistry,
                         subAgentId: agentId,
                     });
                     this.logger.debug(`Sub-agent LLM resolution: ${resolution.reason}`);
