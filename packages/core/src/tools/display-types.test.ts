@@ -14,10 +14,58 @@ describe('isValidDisplayData', () => {
         ).toBe(true);
     });
 
+    it('accepts the reusable result display variants with explicit fields', () => {
+        expect(
+            isValidDisplayData({
+                type: 'text',
+                title: null,
+                text: 'The operation returned plain text',
+            })
+        ).toBe(true);
+        expect(
+            isValidDisplayData({
+                type: 'status',
+                title: 'Sync',
+                status: 'success',
+                message: 'The workspace is up to date',
+            })
+        ).toBe(true);
+        expect(
+            isValidDisplayData({
+                type: 'record',
+                title: null,
+                fields: [{ label: 'status', value: 'ready' }],
+            })
+        ).toBe(true);
+        expect(
+            isValidDisplayData({
+                type: 'collection',
+                title: 'Files',
+                items: ['README.md', 'package.json'],
+            })
+        ).toBe(true);
+        expect(
+            isValidDisplayData({
+                type: 'process',
+                title: null,
+                processId: 'proc_123',
+                command: 'pnpm test',
+                state: 'succeeded',
+                exitCode: 0,
+                startedAt: '2026-08-17T00:00:00.000Z',
+                finishedAt: '2026-08-17T00:00:01.000Z',
+            })
+        ).toBe(true);
+    });
+
     it('rejects a display discriminator without the fields its renderer requires', () => {
         expect(isValidDisplayData({ type: 'diff' })).toBe(false);
         expect(isValidDisplayData({ type: 'shell', command: 'pnpm test' })).toBe(false);
         expect(isValidDisplayData({ type: 'file', path: 'config.json' })).toBe(false);
+        expect(isValidDisplayData({ type: 'text', title: null })).toBe(false);
+        expect(isValidDisplayData({ type: 'record', title: null, fields: [] })).toBe(true);
+        expect(isValidDisplayData({ type: 'collection', title: null, items: [1] })).toBe(false);
+        expect(isValidDisplayData({ type: 'process', title: null })).toBe(false);
     });
 
     it.each([

@@ -44,4 +44,38 @@ describe('wrapToolParametersSchema', () => {
 
         expect(schema.properties?.format).toEqual({ enum: ['email', 'sms'] });
     });
+
+    it('injects grouped model-authored call activity metadata', () => {
+        const schema = wrapToolParametersSchema({
+            type: 'object',
+            properties: {
+                path: { type: 'string' },
+            },
+        });
+
+        expect(schema.properties?.__meta).toEqual(
+            expect.objectContaining({
+                type: 'object',
+                additionalProperties: true,
+                properties: expect.objectContaining({
+                    callActivity: {
+                        type: 'object',
+                        properties: {
+                            running: expect.objectContaining({
+                                type: 'string',
+                                maxLength: expect.any(Number),
+                            }),
+                            completed: expect.objectContaining({
+                                type: 'string',
+                                maxLength: expect.any(Number),
+                            }),
+                        },
+                        required: ['running', 'completed'],
+                        additionalProperties: false,
+                        description: expect.any(String),
+                    },
+                }),
+            })
+        );
+    });
 });

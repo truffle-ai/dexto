@@ -1,6 +1,6 @@
 import type { LLMProvider, LLMPricingStatus, TokenUsage } from '@dexto/llm';
 import type { ToolDisplayData } from '../tools/display-types.js';
-import type { ToolPresentationSnapshotV1 } from '../tools/types.js';
+import type { ToolPresentationResultType, ToolPresentationSnapshotV1 } from '../tools/types.js';
 import type { ToolCallMetadata } from '../tools/tool-call-metadata.js';
 
 // =============================================================================
@@ -161,6 +161,8 @@ export interface SanitizedToolResult {
         success: boolean;
         /** Structured display data for tool-specific rendering (diffs, shell output, etc.) */
         display?: ToolDisplayData;
+        /** Serializable host result-presentation policy for this tool result. */
+        resultPresentation?: ToolPresentationResultType;
     };
 }
 

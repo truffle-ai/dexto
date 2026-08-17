@@ -174,6 +174,38 @@ describe('sanitizeToolResult success tracking', () => {
         expect(result.meta.toolCallId).toBe('call-123');
     });
 
+    it('keeps explicit display metadata out of model-visible content', async () => {
+        const display = {
+            type: 'status' as const,
+            title: null,
+            status: 'success' as const,
+            message: 'Workspace is ready',
+        };
+        const legacyDisplay = {
+            type: 'text' as const,
+            title: null,
+            text: 'Legacy display',
+        };
+
+        const result = await sanitizeToolResult(
+            { value: 'kept', _display: legacyDisplay },
+            {
+                display,
+                resultPresentation: 'display',
+                toolName: 'status_tool',
+                toolCallId: 'call-display',
+                success: true,
+            },
+            mockLogger
+        );
+
+        expect(result.meta.display).toEqual(display);
+        expect(result.meta.resultPresentation).toBe('display');
+        expect(JSON.stringify(result.content)).not.toContain('_display');
+        expect(JSON.stringify(result.content)).not.toContain('Legacy display');
+        expect(JSON.stringify(result.content)).toContain('kept');
+    });
+
     it('should include success=false in meta when tool fails', async () => {
         const result = await sanitizeToolResult(
             { error: 'Something went wrong' },
