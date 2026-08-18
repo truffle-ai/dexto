@@ -1,5 +1,13 @@
 # @dexto/core
 
+## 1.10.4
+
+### Patch Changes
+
+- 8d0d2d9: Add model-authored tool activity metadata plus explicit result presentation policies and reusable
+  structured display data while keeping legacy display metadata out of model-visible tool results.
+    - @dexto/llm@1.10.4
+
 ## 1.10.3
 
 ### Patch Changes
