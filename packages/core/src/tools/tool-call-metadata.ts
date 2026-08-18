@@ -6,7 +6,10 @@ export type ToolCallMetadata = Record<string, unknown> & {
     runInBackground?: boolean;
     timeoutMs?: number;
     notifyOnComplete?: boolean;
-    callDescription?: string;
+    callActivity?: {
+        running: string;
+        completed: string;
+    };
 };
 
 export type ToolCallMetaWrapper = {
@@ -28,9 +31,26 @@ const META_SCHEMA: JSONSchema7 = {
             type: 'boolean',
             description: 'Notify when the background task completes.',
         },
-        callDescription: {
-            type: 'string',
-            description: 'Optional description shown to the user when requesting approval.',
+        callActivity: {
+            type: 'object',
+            description:
+                'Concise action-only descriptions for the tool call. Use present-progressive tense while running and past tense when complete. Write in sentence case without terminal punctuation; do not speculate about the outcome.',
+            properties: {
+                running: {
+                    type: 'string',
+                    maxLength: 120,
+                    description:
+                        'Present-progressive description of the action currently being performed, in concise sentence case without terminal punctuation.',
+                },
+                completed: {
+                    type: 'string',
+                    maxLength: 120,
+                    description:
+                        'Past-tense description of the action that was performed, in concise sentence case without terminal punctuation.',
+                },
+            },
+            required: ['running', 'completed'],
+            additionalProperties: false,
         },
     },
     additionalProperties: true,

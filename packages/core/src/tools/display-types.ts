@@ -5,8 +5,9 @@
  * These types enable both CLI and WebUI to render tool results with
  * appropriate formatting (diffs, shell output, search results, etc.)
  *
- * Tools return `_display` field in their result, which is preserved
- * by the sanitizer in `SanitizedToolResult.meta.display`.
+ * Legacy tools may return a `_display` field in their result. Tool presentation resolvers can
+ * provide the same metadata without adding it to the model-visible result. Both paths end up in
+ * `SanitizedToolResult.meta.display`.
  */
 
 // =============================================================================
@@ -22,7 +23,58 @@ export type ToolDisplayData =
     | ShellDisplayData
     | SearchDisplayData
     | FileDisplayData
-    | GenericDisplayData;
+    | GenericDisplayData
+    | TextDisplayData
+    | StatusDisplayData
+    | RecordDisplayData
+    | CollectionDisplayData
+    | ProcessDisplayData;
+
+/** Display data for a plain text result. */
+export interface TextDisplayData {
+    type: 'text';
+    title: string | null;
+    text: string;
+}
+
+/** Display data for a single operation status. */
+export interface StatusDisplayData {
+    type: 'status';
+    title: string | null;
+    status: 'success' | 'error' | 'info' | 'warning';
+    message: string;
+}
+
+export interface ToolDisplayField {
+    label: string;
+    value: string;
+}
+
+/** Display data for one structured record. */
+export interface RecordDisplayData {
+    type: 'record';
+    title: string | null;
+    fields: ToolDisplayField[];
+}
+
+/** Display data for a list of values. */
+export interface CollectionDisplayData {
+    type: 'collection';
+    title: string | null;
+    items: string[];
+}
+
+/** Display data for a supervised process and its lifecycle state. */
+export interface ProcessDisplayData {
+    type: 'process';
+    title: string | null;
+    processId: string;
+    command: string | null;
+    state: 'running' | 'succeeded' | 'failed' | 'stopped' | 'interrupted';
+    exitCode: number | null;
+    startedAt: string | null;
+    finishedAt: string | null;
+}
 
 /**
  * Display data for file edit operations (edit_file, write_file overwrites).
@@ -171,6 +223,31 @@ export function isGenericDisplay(d: ToolDisplayData): d is GenericDisplayData {
     return d.type === 'generic';
 }
 
+/** Type guard for TextDisplayData. */
+export function isTextDisplay(d: ToolDisplayData): d is TextDisplayData {
+    return d.type === 'text';
+}
+
+/** Type guard for StatusDisplayData. */
+export function isStatusDisplay(d: ToolDisplayData): d is StatusDisplayData {
+    return d.type === 'status';
+}
+
+/** Type guard for RecordDisplayData. */
+export function isRecordDisplay(d: ToolDisplayData): d is RecordDisplayData {
+    return d.type === 'record';
+}
+
+/** Type guard for CollectionDisplayData. */
+export function isCollectionDisplay(d: ToolDisplayData): d is CollectionDisplayData {
+    return d.type === 'collection';
+}
+
+/** Type guard for ProcessDisplayData. */
+export function isProcessDisplay(d: ToolDisplayData): d is ProcessDisplayData {
+    return d.type === 'process';
+}
+
 // =============================================================================
 // Validation
 // =============================================================================
@@ -181,6 +258,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function isOptionalString(value: unknown): boolean {
     return value === undefined || typeof value === 'string';
+}
+
+function isNullableString(value: unknown): value is string | null {
+    return value === null || typeof value === 'string';
 }
 
 function isNonNegativeInteger(value: unknown): value is number {
@@ -203,6 +284,12 @@ function isSearchMatch(value: unknown): value is SearchMatch {
         typeof value['content'] === 'string' &&
         (context === undefined ||
             (Array.isArray(context) && context.every((line) => typeof line === 'string')))
+    );
+}
+
+function isToolDisplayField(value: unknown): value is ToolDisplayField {
+    return (
+        isRecord(value) && typeof value['label'] === 'string' && typeof value['value'] === 'string'
     );
 }
 
@@ -262,6 +349,44 @@ export function isValidDisplayData(d: unknown): d is ToolDisplayData {
             );
         case 'generic':
             return isOptionalString(d['title']);
+        case 'text':
+            return isNullableString(d['title']) && typeof d['text'] === 'string';
+        case 'status':
+            return (
+                isNullableString(d['title']) &&
+                (d['status'] === 'success' ||
+                    d['status'] === 'error' ||
+                    d['status'] === 'info' ||
+                    d['status'] === 'warning') &&
+                typeof d['message'] === 'string'
+            );
+        case 'record':
+            return (
+                isNullableString(d['title']) &&
+                Array.isArray(d['fields']) &&
+                d['fields'].every(isToolDisplayField)
+            );
+        case 'collection':
+            return (
+                isNullableString(d['title']) &&
+                Array.isArray(d['items']) &&
+                d['items'].every((item) => typeof item === 'string')
+            );
+        case 'process':
+            return (
+                isNullableString(d['title']) &&
+                typeof d['processId'] === 'string' &&
+                isNullableString(d['command']) &&
+                (d['state'] === 'running' ||
+                    d['state'] === 'succeeded' ||
+                    d['state'] === 'failed' ||
+                    d['state'] === 'stopped' ||
+                    d['state'] === 'interrupted') &&
+                (d['exitCode'] === null ||
+                    (typeof d['exitCode'] === 'number' && Number.isInteger(d['exitCode']))) &&
+                isNullableString(d['startedAt']) &&
+                isNullableString(d['finishedAt'])
+            );
         default:
             return false;
     }

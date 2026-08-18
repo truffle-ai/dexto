@@ -2,7 +2,12 @@ import { DextoRuntimeError } from '../../errors/index.js';
 import type { Logger } from '../../logger/v2/types.js';
 import type { AgentRunContext } from '../../runtime/run-context.js';
 import { ToolErrorCode } from '../error-codes.js';
-import type { Tool, ToolExecutionContext, ToolPresentationSnapshotV1 } from '../types.js';
+import type {
+    Tool,
+    ToolExecutionContext,
+    ToolPresentationResultType,
+    ToolPresentationSnapshotV1,
+} from '../types.js';
 import { isValidDisplayData, type ToolDisplayData } from '../display-types.js';
 
 const MCP_TOOL_PREFIX = 'mcp--';
@@ -251,6 +256,71 @@ export class ToolPresentation {
             ...(resultActivity ? { activity: resultActivity } : {}),
             ...(resultPresentation ? { result: resultPresentation } : {}),
         };
+    }
+
+    async resolveResultDisplay(input: {
+        toolName: string;
+        result: unknown;
+        args: Record<string, unknown>;
+        toolCallId: string;
+        sessionId?: string | undefined;
+        runContext?: AgentRunContext | undefined;
+    }): Promise<ToolDisplayData | undefined> {
+        if (input.toolName.startsWith(MCP_TOOL_PREFIX)) {
+            return undefined;
+        }
+
+        const policy = this.getLocalTool(input.toolName)?.presentation?.result;
+        if (policy === undefined || policy.type === 'none' || policy.type === 'content') {
+            return undefined;
+        }
+
+        if (policy.type === 'passthrough') {
+            return this.extractDisplayData(input.result);
+        }
+
+        let context: ToolExecutionContext;
+        try {
+            context = this.buildToolExecutionContext(input);
+        } catch (error) {
+            this.logger.debug(
+                `Tool result display context generation failed for '${input.toolName}': ${
+                    error instanceof Error ? error.message : String(error)
+                }`
+            );
+            return undefined;
+        }
+
+        try {
+            const display = await Promise.resolve(
+                policy.resolve(input.result, input.args, context)
+            );
+            if (display === null) {
+                return undefined;
+            }
+            if (!isValidDisplayData(display)) {
+                this.logger.debug(
+                    `Tool result display resolver returned invalid display data for '${input.toolName}'`
+                );
+                return undefined;
+            }
+            return display;
+        } catch (error) {
+            this.logger.debug(
+                `Tool result display resolution failed for '${input.toolName}': ${
+                    error instanceof Error ? error.message : String(error)
+                }`
+            );
+            return undefined;
+        }
+    }
+
+    getResultPolicyType(toolName: string): ToolPresentationResultType | undefined {
+        if (toolName.startsWith(MCP_TOOL_PREFIX)) {
+            return undefined;
+        }
+
+        return this.getLocalTool(toolName)?.presentation?.result?.type;
     }
 
     private extractDisplayData(result: unknown): ToolDisplayData | undefined {

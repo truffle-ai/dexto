@@ -850,13 +850,15 @@ export async function processStream(
                         }),
                     });
 
-                    // Add call description if present (dim styling, on new line)
-                    // NOTE: This should come from tool call metadata (e.g., __meta.callDescription),
-                    // not from tool args, to keep approval + history consistent.
+                    // Add the model-authored running description if present (dim styling, on new
+                    // line). Keep it in metadata so tool args remain execution-only.
                     let finalToolContent = toolContent;
-                    const callDescription = event.callDescription;
-                    if (typeof callDescription === 'string' && callDescription.trim().length > 0) {
-                        finalToolContent += `\n${chalk.dim(callDescription)}`;
+                    const runningDescription = event.meta?.callActivity?.running;
+                    if (
+                        typeof runningDescription === 'string' &&
+                        runningDescription.trim().length > 0
+                    ) {
+                        finalToolContent += `\n${chalk.dim(runningDescription)}`;
                     }
 
                     // Tool calls start in 'pending' state (don't know if approval needed yet)

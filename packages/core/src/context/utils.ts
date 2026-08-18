@@ -2005,6 +2005,8 @@ export async function sanitizeToolResult(
     result: unknown,
     options: {
         artifactStore?: import('../storage/artifacts/types.js').ArtifactStore;
+        display?: ToolDisplayData;
+        resultPresentation?: import('../tools/types.js').ToolPresentationResultType;
         toolName: string;
         toolCallId: string;
         success: boolean;
@@ -2016,9 +2018,17 @@ export async function sanitizeToolResult(
     let display: ToolDisplayData | undefined;
     let resultForNormalization = result;
 
+    if (options.display !== undefined) {
+        if (isValidDisplayData(options.display)) {
+            display = options.display;
+        } else {
+            logger.debug(`sanitizeToolResult: ignoring invalid explicit display data`);
+        }
+    }
+
     if (result && typeof result === 'object' && '_display' in result) {
         const { _display: rawDisplay, ...rest } = result as Record<string, unknown>;
-        if (isValidDisplayData(rawDisplay)) {
+        if (display === undefined && isValidDisplayData(rawDisplay)) {
             display = rawDisplay;
             logger.debug(
                 `sanitizeToolResult: extracted display data (type=${display.type}) for ${options.toolName}`
@@ -2061,6 +2071,9 @@ export async function sanitizeToolResult(
             toolCallId: options.toolCallId,
             success: options.success,
             ...(display ? { display } : {}),
+            ...(options.resultPresentation
+                ? { resultPresentation: options.resultPresentation }
+                : {}),
         },
     };
 }

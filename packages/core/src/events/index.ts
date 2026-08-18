@@ -533,8 +533,6 @@ interface SessionEventMapBase {
         args: Record<string, any>;
         /** Optional non-execution metadata from the reserved __meta wrapper */
         meta?: ToolCallMetadata;
-        /** Optional user-facing description from tool call metadata (e.g., __meta.callDescription) */
-        callDescription?: string;
         callId: string;
     };
 
@@ -542,8 +540,6 @@ interface SessionEventMapBase {
     'llm:tool-call-partial': {
         toolName: string;
         args: Record<string, any>;
-        /** Optional user-facing description from tool call metadata (e.g., __meta.callDescription) */
-        callDescription?: string;
         callId: string;
         isComplete?: boolean;
     };

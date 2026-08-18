@@ -1,6 +1,7 @@
 import { createHash } from 'crypto';
 import { z } from 'zod';
-import type { ToolExecutionResult } from '../../tools/types.js';
+import type { ToolExecutionResult, ToolPresentationResultType } from '../../tools/types.js';
+import { isValidDisplayData, type ToolDisplayData } from '../../tools/display-types.js';
 import { ToolPresentationSnapshotV1Schema } from '../../tools/presentation-schema.js';
 import type { ToolCallMetadata } from '../../tools/tool-call-metadata.js';
 
@@ -16,6 +17,15 @@ export const ToolExecutionIdentitySchema = z
 const ToolExecutionResultMetadataSchema = z
     .object({
         presentationSnapshot: ToolPresentationSnapshotV1Schema.optional(),
+        display: z.custom<ToolDisplayData>(isValidDisplayData).optional(),
+        resultPresentation: z
+            .enum([
+                'none',
+                'content',
+                'passthrough',
+                'display',
+            ] satisfies ToolPresentationResultType[])
+            .optional(),
         meta: z.custom<ToolCallMetadata>().optional(),
         requireApproval: z.boolean().optional(),
         approvalStatus: z.enum(['approved', 'rejected']).optional(),
@@ -115,6 +125,12 @@ export function splitToolExecutionResult(result: ToolExecutionResult): {
     if (result.presentationSnapshot !== undefined) {
         resultMetadata.presentationSnapshot = result.presentationSnapshot;
     }
+    if (result.display !== undefined) {
+        resultMetadata.display = result.display;
+    }
+    if (result.resultPresentation !== undefined) {
+        resultMetadata.resultPresentation = result.resultPresentation;
+    }
     if (result.meta !== undefined) {
         resultMetadata.meta = result.meta;
     }
@@ -136,6 +152,12 @@ export function completedToolExecutionToResult(
 ): ToolExecutionResult {
     return {
         result: record.modelOutput,
+        ...(record.resultMetadata?.display !== undefined
+            ? { display: record.resultMetadata.display }
+            : {}),
+        ...(record.resultMetadata?.resultPresentation !== undefined
+            ? { resultPresentation: record.resultMetadata.resultPresentation }
+            : {}),
         ...(record.resultMetadata?.presentationSnapshot !== undefined
             ? { presentationSnapshot: record.resultMetadata.presentationSnapshot }
             : {}),

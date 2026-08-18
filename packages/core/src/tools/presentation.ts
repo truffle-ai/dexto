@@ -2,6 +2,11 @@ import type { ToolPresentationSnapshotV1 } from './types.js';
 
 export type { ToolDisplayData } from './display-types.js';
 export { isValidDisplayData } from './display-types.js';
+export type {
+    ToolPresentationResultPolicy,
+    ToolPresentationResultResolver,
+    ToolPresentationResultType,
+} from './types.js';
 export type { ToolPresentationSnapshotV1 } from './presentation-schema.js';
 export {
     isToolPresentationSnapshotV1,

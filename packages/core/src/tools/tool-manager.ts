@@ -77,7 +77,6 @@ export type ExecutableToolCall = {
         approvalStatus: 'approved';
         requireApproval: true;
     };
-    callDescription?: string;
     input: Record<string, unknown>;
     meta?: ToolCallMetadata;
     presentationSnapshot: ToolPresentationSnapshotV1;
@@ -1079,9 +1078,9 @@ export class ToolManager {
         const { toolArgs: rawToolArgs, meta } = extractToolCallMeta(input.input);
         const eventMeta: ToolCallMetadata | undefined =
             Object.keys(meta).length > 0 ? meta : undefined;
-        const callDescription =
-            typeof meta.callDescription === 'string'
-                ? meta.callDescription
+        const approvalDescription =
+            typeof meta.callActivity?.running === 'string'
+                ? meta.callActivity.running
                 : typeof rawToolArgs.description === 'string'
                   ? rawToolArgs.description
                   : undefined;
@@ -1110,7 +1109,6 @@ export class ToolManager {
             source,
             toolCallId: input.toolCallId,
             toolName: input.toolName,
-            ...(callDescription !== undefined ? { callDescription } : {}),
             ...(eventMeta !== undefined ? { meta: eventMeta } : {}),
         };
 
@@ -1134,7 +1132,7 @@ export class ToolManager {
             approvalGate,
             args: validatedArgs,
             call,
-            ...(callDescription !== undefined ? { callDescription } : {}),
+            ...(approvalDescription !== undefined ? { approvalDescription } : {}),
             ...(input.runContext !== undefined ? { runContext: input.runContext } : {}),
             ...(sessionId !== undefined ? { sessionId } : {}),
             toolCallId: input.toolCallId,
@@ -1146,7 +1144,7 @@ export class ToolManager {
         approvalGate: Extract<ToolApprovalGate, { kind: 'approval-required' }>;
         args: Record<string, unknown>;
         call: ExecutableToolCall;
-        callDescription?: string | undefined;
+        approvalDescription?: string | undefined;
         runContext?: AgentRunContext | undefined;
         sessionId?: string | undefined;
         toolCallId: string;
@@ -1172,8 +1170,8 @@ export class ToolManager {
                 presentationSnapshot: input.call.presentationSnapshot,
                 toolCallId: input.toolCallId,
                 args: input.args,
-                ...(input.callDescription !== undefined
-                    ? { description: input.callDescription }
+                ...(input.approvalDescription !== undefined
+                    ? { description: input.approvalDescription }
                     : {}),
                 ...(displayPreview !== undefined ? { displayPreview } : {}),
             },
@@ -1497,9 +1495,6 @@ export class ToolManager {
             }),
             args: call.input,
             ...(call.meta !== undefined ? { meta: call.meta } : {}),
-            ...(call.callDescription !== undefined
-                ? { callDescription: call.callDescription }
-                : {}),
             callId: call.toolCallId,
             sessionId,
             ...(hostRuntime !== undefined && { hostRuntime }),
@@ -1920,9 +1915,20 @@ export class ToolManager {
                 ...(sessionId !== undefined ? { sessionId } : {}),
                 ...(runContext !== undefined ? { runContext } : {}),
             });
+            const display = await this.toolPresentation.resolveResultDisplay({
+                toolName: call.toolName,
+                result,
+                args: toolArgs,
+                toolCallId: call.toolCallId,
+                ...(sessionId !== undefined ? { sessionId } : {}),
+                ...(runContext !== undefined ? { runContext } : {}),
+            });
+            const resultPresentation = this.toolPresentation.getResultPolicyType(call.toolName);
 
             const executionResult = {
                 result,
+                ...(display !== undefined ? { display } : {}),
+                ...(resultPresentation !== undefined ? { resultPresentation } : {}),
                 ...(presentationSnapshot !== undefined && { presentationSnapshot }),
                 ...(call.meta !== undefined ? { meta: call.meta } : {}),
                 ...(call.approval !== undefined ? call.approval : {}),

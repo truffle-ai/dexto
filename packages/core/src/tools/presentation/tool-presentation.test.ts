@@ -179,4 +179,126 @@ describe('ToolPresentation', () => {
             result: { summaryText: 'written' },
         });
     });
+
+    it('resolves explicit display policies without adding display data to the tool result', async () => {
+        const display = {
+            type: 'record' as const,
+            title: null,
+            fields: [{ label: 'status', value: 'ready' }],
+        };
+        const resolve = vi.fn(() => display);
+        const tool = defineTool({
+            id: 'status',
+            description: 'Read status',
+            inputSchema: z.object({ value: z.string() }).strict(),
+            execute: vi.fn(),
+            presentation: {
+                result: { type: 'display', resolve },
+            },
+        });
+        const presentation = new ToolPresentation(
+            () => tool,
+            (_toolName, args) => args,
+            (context) => ({ ...context, logger: createMockLogger() }),
+            createMockLogger()
+        );
+
+        await expect(
+            presentation.resolveResultDisplay({
+                toolName: 'status',
+                result: { ok: true },
+                args: { value: 'workspace' },
+                toolCallId: 'call-1',
+            })
+        ).resolves.toEqual(display);
+        expect(resolve).toHaveBeenCalledWith(
+            { ok: true },
+            { value: 'workspace' },
+            expect.objectContaining({ logger: expect.anything() })
+        );
+    });
+
+    it.each([{ type: 'none' as const }, { type: 'content' as const }])(
+        'does not synthesize display data for a %s result policy',
+        async (result) => {
+            const tool = defineTool({
+                id: 'status',
+                description: 'Read status',
+                inputSchema: z.object({}).strict(),
+                execute: vi.fn(),
+                presentation: { result },
+            });
+            const presentation = new ToolPresentation(
+                () => tool,
+                (_toolName, args) => args,
+                (context) => ({ ...context, logger: createMockLogger() }),
+                createMockLogger()
+            );
+
+            await expect(
+                presentation.resolveResultDisplay({
+                    toolName: 'status',
+                    result: { ok: true },
+                    args: {},
+                    toolCallId: 'call-1',
+                })
+            ).resolves.toBeUndefined();
+        }
+    );
+
+    it.each([
+        { type: 'none' as const },
+        { type: 'content' as const },
+        { type: 'passthrough' as const },
+        {
+            type: 'display' as const,
+            resolve: () => ({ type: 'text' as const, title: null, text: 'Done' }),
+        },
+    ])('exposes the declared result policy type for a %s tool', (result) => {
+        const tool = defineTool({
+            id: 'status',
+            description: 'Read status',
+            inputSchema: z.object({}).strict(),
+            execute: vi.fn(),
+            presentation: { result },
+        });
+        const presentation = new ToolPresentation(
+            () => tool,
+            (_toolName, args) => args,
+            (context) => ({ ...context, logger: createMockLogger() }),
+            createMockLogger()
+        );
+
+        expect(presentation.getResultPolicyType('status')).toBe(result.type);
+    });
+
+    it('extracts legacy display data only for a passthrough result policy', async () => {
+        const display = {
+            type: 'text' as const,
+            title: null,
+            text: 'Done',
+        };
+        const tool = defineTool({
+            id: 'status',
+            description: 'Read status',
+            inputSchema: z.object({}).strict(),
+            execute: vi.fn(),
+            presentation: { result: { type: 'passthrough' } },
+        });
+        const presentation = new ToolPresentation(
+            () => tool,
+            (_toolName, args) => args,
+            (context) => ({ ...context, logger: createMockLogger() }),
+            createMockLogger()
+        );
+
+        await expect(
+            presentation.resolveResultDisplay({
+                toolName: 'status',
+                result: { ok: true, _display: display },
+                args: {},
+                toolCallId: 'call-1',
+            })
+        ).resolves.toEqual(display);
+    });
 });

@@ -107,6 +107,10 @@ export interface ToolExecutionContext extends ToolExecutionContextBase {
 export interface ToolExecutionResult {
     /** The actual result data from tool execution */
     result: unknown;
+    /** Structured display metadata resolved by tool presentation, never sent to the model */
+    display?: ToolDisplayData;
+    /** Serializable result-presentation policy used by the host UI for the completed result */
+    resultPresentation?: ToolPresentationResultType;
     /** Optional UI-agnostic presentation snapshot for this call/result */
     presentationSnapshot?: ToolPresentationSnapshotV1;
     /** Optional non-execution metadata carried through the tool lifecycle */
@@ -199,9 +203,29 @@ export type ToolNeedsApproval<TSchema extends ZodTypeAny = ZodTypeAny> =
           context: ToolExecutionContext
       ) => Promise<ToolApprovalDecision> | ToolApprovalDecision);
 
+/** Resolves structured UI display metadata from a completed tool result. */
+export type ToolPresentationResultResolver<TSchema extends ZodTypeAny = ZodTypeAny> = (
+    result: unknown,
+    input: z.output<TSchema>,
+    context: ToolExecutionContext
+) => Promise<ToolDisplayData | null> | ToolDisplayData | null;
+
+/** Declares how a tool result should be surfaced to a host UI. */
+export type ToolPresentationResultPolicy<TSchema extends ZodTypeAny = ZodTypeAny> =
+    | { type: 'none' }
+    | { type: 'content' }
+    | { type: 'passthrough' }
+    | { type: 'display'; resolve: ToolPresentationResultResolver<TSchema> };
+
+/** Serializable result-presentation discriminator carried alongside a completed tool result. */
+export type ToolPresentationResultType = ToolPresentationResultPolicy['type'];
+
 export interface ToolPresentation<TSchema extends ZodTypeAny = ZodTypeAny> {
     /** Deterministic lifecycle copy and aggregation grammar for this first-party tool. */
     activity?: ToolActivityPresentation;
+
+    /** Explicit contract for the tool's post-execution result presentation. */
+    result?: ToolPresentationResultPolicy<TSchema>;
 
     /**
      * Optional rich preview used in approval prompts.

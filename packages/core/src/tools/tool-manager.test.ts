@@ -1818,6 +1818,80 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             expect(result).toEqual(expect.objectContaining({ result: 'Hello, World' }));
         });
 
+        it('carries resolved display data through durable execution replay', async () => {
+            mockMcpManager.getAllTools = vi.fn().mockResolvedValue({});
+            const execution = {
+                runId: 'run-1',
+                turnId: 'turn-1',
+                modelStepId: 'step-1',
+                toolCallId: 'call-display',
+            };
+            const toolExecutionStore = new InMemoryDextoStores().getStore('toolExecutions');
+            const toolManager = new ToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'auto-approve',
+                mockAgentEventBus,
+                { alwaysAllow: [] },
+                [
+                    defineTool({
+                        id: 'status',
+                        description: 'Read status',
+                        inputSchema: z.object({ scope: z.string() }).strict(),
+                        execute: vi.fn().mockResolvedValue({ ready: true }),
+                        presentation: {
+                            result: {
+                                type: 'display',
+                                resolve: (_result, input) => ({
+                                    type: 'text',
+                                    title: null,
+                                    text: `Ready in ${input.scope}`,
+                                }),
+                            },
+                        },
+                    }),
+                ],
+                mockLogger,
+                createInMemorySessionToolPreferencesStore(mockLogger),
+                toolExecutionStore
+            );
+            toolManager.setToolExecutionContextFactory((baseContext) => baseContext);
+
+            const first = await toolManager.executeTool(
+                'status',
+                { scope: 'workspace' },
+                execution.toolCallId,
+                { sessionId: 'session-1', executionIdentity: execution }
+            );
+            const replayed = await toolManager.executeTool(
+                'status',
+                { scope: 'workspace' },
+                execution.toolCallId,
+                { sessionId: 'session-1', executionIdentity: execution }
+            );
+
+            expect(first.display).toEqual({
+                type: 'text',
+                title: null,
+                text: 'Ready in workspace',
+            });
+            expect(first.resultPresentation).toBe('display');
+            expect(replayed.display).toEqual(first.display);
+            expect(replayed.resultPresentation).toBe('display');
+            await expect(
+                toolExecutionStore.get({ executionId: createToolExecutionId(execution) })
+            ).resolves.toEqual(
+                expect.objectContaining({
+                    status: 'completed',
+                    resultMetadata: expect.objectContaining({
+                        display: first.display,
+                        resultPresentation: 'display',
+                    }),
+                })
+            );
+        });
+
         it('replays a completed durable execution without invoking the tool body again', async () => {
             mockMcpManager.getAllTools = vi.fn().mockResolvedValue({});
             const execute = vi.fn().mockResolvedValue('created file');
@@ -2241,7 +2315,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
     });
 
     describe('Approval Flow Logic', () => {
-        it('should emit callDescription on llm:tool-call events when __meta.callDescription is provided', async () => {
+        it('should emit model-authored call activity metadata on llm:tool-call events', async () => {
             mockMcpManager.getAllTools = vi.fn().mockResolvedValue({});
 
             const tool = defineTool({
@@ -2269,7 +2343,15 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
 
             await toolManager.executeTool(
                 'typed',
-                { count: 5, __meta: { callDescription: 'Read test file' } },
+                {
+                    count: 5,
+                    __meta: {
+                        callActivity: {
+                            running: 'Reading the test file',
+                            completed: 'Read the test file',
+                        },
+                    },
+                },
                 'call-1',
                 { sessionId: 'session-1' }
             );
@@ -2279,7 +2361,12 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 expect.objectContaining({
                     toolName: 'typed',
                     args: { count: 5 },
-                    callDescription: 'Read test file',
+                    meta: {
+                        callActivity: {
+                            running: 'Reading the test file',
+                            completed: 'Read the test file',
+                        },
+                    },
                     callId: 'call-1',
                     sessionId: 'session-1',
                 })
@@ -2317,7 +2404,10 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 {
                     count: 5,
                     __meta: {
-                        callDescription: 'Read test file',
+                        callActivity: {
+                            running: 'Reading the test file',
+                            completed: 'Read the test file',
+                        },
                         reactiveUi: {
                             type: 'open',
                             surface: 'browser',
@@ -2334,13 +2424,15 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     toolName: 'typed',
                     args: { count: 5 },
                     meta: {
-                        callDescription: 'Read test file',
+                        callActivity: {
+                            running: 'Reading the test file',
+                            completed: 'Read the test file',
+                        },
                         reactiveUi: {
                             type: 'open',
                             surface: 'browser',
                         },
                     },
-                    callDescription: 'Read test file',
                     callId: 'call-1',
                     sessionId: 'session-1',
                 })
@@ -2348,7 +2440,10 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             expect(result).toEqual(
                 expect.objectContaining({
                     meta: {
-                        callDescription: 'Read test file',
+                        callActivity: {
+                            running: 'Reading the test file',
+                            completed: 'Read the test file',
+                        },
                         reactiveUi: {
                             type: 'open',
                             surface: 'browser',
@@ -2358,7 +2453,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             );
         });
 
-        it('should emit callDescription on llm:tool-call events when args.description is provided', async () => {
+        it('should not promote args.description into llm:tool-call metadata', async () => {
             mockMcpManager.executeTool = vi.fn().mockResolvedValue('result');
 
             const toolManager = createToolManager(
@@ -2384,7 +2479,6 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 expect.objectContaining({
                     toolName: 'mcp--file_read',
                     args: { path: '/test', description: 'Read test file' },
-                    callDescription: 'Read test file',
                     callId: 'call-1',
                     sessionId: 'session-1',
                 })
@@ -2581,7 +2675,10 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 {
                     path: '/test',
                     __meta: {
-                        callDescription: 'Read test file',
+                        callActivity: {
+                            running: 'Reading the test file',
+                            completed: 'Read the test file',
+                        },
                     },
                 },
                 'call-123',
@@ -2596,7 +2693,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                         toolName: 'mcp--file_read',
                         toolCallId: 'call-123',
                         args: { path: '/test' },
-                        description: 'Read test file',
+                        description: 'Reading the test file',
                         presentationSnapshot: expect.objectContaining({ version: 1 }),
                     }),
                 }),
@@ -2632,7 +2729,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     toolName: 'mcp--file_read',
                     toolCallId: 'call-123',
                     args: { path: '/test' },
-                    description: 'Read test file',
+                    description: 'Reading the test file',
                     sessionId: 'session123',
                     presentationSnapshot: expect.objectContaining({ version: 1 }),
                 })
@@ -2798,7 +2895,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             expect(mockAllowedToolsProvider.allowTool).not.toHaveBeenCalled();
         });
 
-        it('should fall back to args.description for approval description when __meta.callDescription is missing', async () => {
+        it('should fall back to args.description for approval description when call activity is missing', async () => {
             mockMcpManager.executeTool = vi.fn().mockResolvedValue('result');
 
             const toolManager = createToolManager(
