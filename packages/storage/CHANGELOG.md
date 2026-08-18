@@ -1,5 +1,12 @@
 # @dexto/storage
 
+## 1.10.4
+
+### Patch Changes
+
+- Updated dependencies [8d0d2d9]
+    - @dexto/core@1.10.4
+
 ## 1.10.3
 
 ### Patch Changes
