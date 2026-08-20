@@ -260,6 +260,25 @@
     "matchIds": ["hf", "huggingface"]
   },
   {
+    "id": "parallel-search",
+    "name": "Parallel Search",
+    "description": "Search the web and retrieve relevant content with source citations",
+    "category": "research",
+    "icon": "🔍",
+    "config": {
+      "type": "http",
+      "url": "https://search.parallel.ai/mcp",
+      "headers": {},
+      "timeout": 30000
+    },
+    "tags": ["search", "web", "research", "citations"],
+    "isOfficial": true,
+    "isInstalled": false,
+    "author": "Parallel",
+    "homepage": "https://parallel.ai",
+    "matchIds": ["parallel-search", "parallel_search", "parallel"]
+  },
+  {
     "id": "tavily",
     "name": "Tavily Search",
     "description": "Web search and research using Tavily AI search engine",
