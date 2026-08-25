@@ -143,6 +143,15 @@
       "tags": ["explore", "search", "understand", "find", "research"],
       "source": "explore-agent/",
       "main": "explore-agent.yml"
+    },
+    "aeon-agent": {
+      "id": "aeon-agent",
+      "name": "Aeon Agent",
+      "description": "Operator agent for setting up and running an Aeon autonomous agent instance - enable, schedule, and edit skills that run on a cron in GitHub Actions, and debug runs.",
+      "author": "Aeon Inc",
+      "tags": ["automation", "github", "scheduling", "agents", "devops", "mcp"],
+      "source": "aeon-agent/",
+      "main": "aeon-agent.yml"
     }
   }
 }

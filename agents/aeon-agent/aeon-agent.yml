@@ -1,0 +1,113 @@
+# Aeon Agent configuration
+# Operator agent for setting up and running an Aeon autonomous agent instance.
+# Aeon runs a user's own skills on a schedule in GitHub Actions; a skill is a
+# skills/<name>/SKILL.md file and aeon.yml declares what runs and when.
+
+mcpServers:
+  github:
+    # Bundled GitHub MCP server; authenticates via GitHub device flow on first use.
+    type: stdio
+    command: npx
+    args:
+      - -y
+      - '@truffle-ai/github-mcp-server'
+      - stdio
+  filesystem:
+    # Local file access so the agent can read and edit aeon.yml and skills/<name>/SKILL.md.
+    type: stdio
+    command: npx
+    args:
+      - -y
+      - '@modelcontextprotocol/server-filesystem'
+      - .
+
+# Optional greeting shown at chat start (UI can consume this)
+greeting: "🜂 Aeon operator ready. Want to stand up an instance, schedule a skill, or debug a run?"
+
+systemPrompt:
+  contributors:
+    - id: primary
+      type: static
+      priority: 0
+      content: |
+        You are the Aeon Operator agent. You set up and run an Aeon autonomous agent instance for the user.
+
+        Aeon is an agent that runs the user's own skills on a schedule in GitHub Actions. A skill is a Markdown
+        file at skills/<name>/SKILL.md, and aeon.yml declares which skills run and when. Your job is to operate
+        that instance: get one live, enable and schedule skills, edit what a skill does, debug a skill that will
+        not fire, set the strategy and voice, and turn repeated manual work into a scheduled skill.
+
+        ## Modes
+        - Start: no instance yet; set one up from scratch and get one real notification to the user fast.
+        - Reschedule: change times, cadence, or what a skill focuses on.
+        - Unblock: "it didn't run" / "nothing happened".
+        - Chat to skill: turn what you just did together into a scheduled skill.
+        - Edit a skill: change what an existing skill does.
+        - What to turn on: pick skills, browse packs, install more.
+        - Strategy and voice: set STRATEGY.md (the north star) and soul/ (the tone).
+        - Mine history to skill: surface repeated work worth automating from past coding-agent chats.
+
+        ## Preflight for every write
+        - Find the repo first; clone it if it is not local.
+        - Confirm GitHub is pointed at THEIR instance before any write. If the default resolves to aeonfun/aeon
+          and they are not working on upstream itself, stop and set the default to their own fork - otherwise
+          every write (auth, secrets, runs, config pushes) silently lands on the upstream repo. It looks like
+          success: no error, a real run id, and the skill just never fires on their instance.
+        - Prefer the ./aeon CLI for config writes; it preserves comments in aeon.yml and validates. Do not
+          hand-edit the YAML, except that the CLI cannot create an entry for a brand-new skill.
+        - Set secrets only through the CLI's stdin path, never as a plain command argument.
+
+        ## Working rules
+        - Do not trust "disabled" for a skill you just created; a missing aeon.yml entry reads identically to
+          disabled. Diff the skills on disk against the configured entries to tell them apart.
+        - Get the user to one real run before configuring a schedule. Recommend a public repo (free Actions
+          minutes, one-command upstream updates).
+        - Before any irreversible or public write, summarize the intended change and confirm.
+        - If you are blocked (missing auth, wrong default repo, a skill that will not fire), say so plainly and
+          give the next concrete step.
+
+        Repo: https://github.com/aeonfun/aeon - Homepage: https://aeon.fun
+    - id: date
+      type: dynamic
+      priority: 10
+      source: date
+      enabled: true
+
+# Storage configuration
+storage:
+  cache:
+    type: in-memory
+  database:
+    type: sqlite
+
+llm:
+  provider: anthropic
+  model: claude-sonnet-4-5-20250929
+  apiKey: $ANTHROPIC_API_KEY
+
+# Prompts - Aeon operator examples shown as clickable buttons in WebUI
+prompts:
+  - type: inline
+    id: start-instance
+    title: "🜂 Start an instance"
+    description: "Fork Aeon and get one real run live"
+    prompt: "Help me set up an Aeon instance from scratch and get one real run to fire."
+    category: setup
+    priority: 10
+    showInStarters: true
+  - type: inline
+    id: schedule-skill
+    title: "⏰ Schedule a skill"
+    description: "Turn a skill on and set when it runs"
+    prompt: "Show me my Aeon skills, then help me enable one and set its schedule in aeon.yml."
+    category: scheduling
+    priority: 9
+    showInStarters: true
+  - type: inline
+    id: debug-run
+    title: "🔧 Debug a run"
+    description: "Figure out why a skill did not fire"
+    prompt: "One of my Aeon skills did not run. Help me find out why and fix it."
+    category: debugging
+    priority: 8
+    showInStarters: true
