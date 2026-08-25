@@ -14,6 +14,7 @@ const AGENTS_TO_COPY = [
     'default-agent.yml',
 
     // Agent directories
+    'aeon-agent/',
     'coding-agent/',
     'database-agent/',
     'explore-agent/',
