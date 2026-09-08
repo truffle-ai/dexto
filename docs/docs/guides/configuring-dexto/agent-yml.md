@@ -137,7 +137,7 @@ tools:
   - type: builtin-tools
     enabledTools:
       - ask_user
-      - invoke_skill
+      - skill_load
       - delegate_to_url
 
   - type: filesystem-tools
@@ -863,9 +863,9 @@ Use this when you need explicit control over storage isolation or have multiple 
 Reusable prompt-only templates that can be defined inline or loaded from markdown files. Prompts
 with `showInStarters: true` appear as clickable buttons in the WebUI.
 
-Skills are separate first-class capabilities loaded by `SkillManager`. Do not add skills to
-`prompts`; put skills in `skills/<id>/SKILL.md` directories or provide a `SkillSource` through the
-active image.
+Skills are separate first-class capabilities loaded by `skill_load`. Do not add skills to
+`prompts`; provide one host `Skills` implementation through the active image. See the
+[Skills contract](../../architecture/skills.md) for the exact result shape.
 
 ### Schema
 

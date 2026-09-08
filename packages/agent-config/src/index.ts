@@ -7,6 +7,7 @@ export type {
     ImageResolutionContext,
     LoggerFactory,
     ResolveImageRuntimeConfigOptions,
+    SkillsFactory,
     StorageFactory,
     HookFactory,
     ToolFactory,

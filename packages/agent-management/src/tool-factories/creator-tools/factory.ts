@@ -8,16 +8,19 @@ import {
     assertValidPromptName,
     type Tool,
     type ToolExecutionContext,
-    type SkillSummary,
 } from '@dexto/core';
-import { discoverStandaloneSkills, getSkillSearchPaths } from '../../plugins/discover-skills.js';
+import {
+    discoverStandaloneSkills,
+    getSkillSearchPaths,
+    getStandaloneSkillPaths,
+} from '../../plugins/discover-skills.js';
+import { getSkillFrontmatter } from '../../plugins/skill-markdown.js';
 import {
     CREATOR_TOOL_NAMES,
     CreatorToolsConfigSchema,
     type CreatorToolName,
     type CreatorToolsConfig,
 } from './schemas.js';
-import { getDextoGlobalPath } from '../../utils/path.js';
 import { z } from 'zod';
 
 /**
@@ -25,7 +28,7 @@ import { z } from 'zod';
  * - validation (ids + inputs)
  * - safety (path confinement)
  * - consistent frontmatter shaping
- * - skill refresh so skills are immediately available
+ * - exact canonical names for skill lookup
  * - scope-aware paths (workspace/global)
  */
 const SkillCreateInputSchema = z
@@ -59,7 +62,7 @@ const SkillListInputSchema = z
 
 const SkillRefreshInputSchema = z
     .object({
-        id: z.string().min(1).describe('Skill id to refresh in the running agent session.'),
+        id: z.string().min(1).describe('Skill id to re-read in the running agent session.'),
         scope: z.enum(['global', 'workspace']).optional(),
     })
     .strict();
@@ -102,12 +105,6 @@ const ToolCatalogInputSchema = z
     })
     .strict();
 
-type SkillSearchEntry = {
-    id: string;
-    name: string;
-    description?: string;
-};
-
 type ToolCatalogEntry = {
     id: string;
     description?: string;
@@ -130,10 +127,6 @@ function matchesSkillQuery(value: string | undefined, query: string): boolean {
     return normalizeSkillQuery(value).includes(normalizedQuery);
 }
 
-function resolveSkillName(info: SkillSummary): string {
-    return info.displayName || info.id;
-}
-
 function resolveWorkspaceBasePath(context: ToolExecutionContext): string {
     const workspacePath = context.workspace?.path;
     const fallbackWorkingDir = context.services
@@ -146,73 +139,85 @@ function resolveWorkspaceBasePath(context: ToolExecutionContext): string {
     return workspacePath || fallbackWorkingDir || process.cwd();
 }
 
-function resolveWorkspaceSkillDirs(context: ToolExecutionContext): {
-    primary: string;
-    secondary: string;
-    legacy: string;
-} {
+function resolveWorkspaceSkillsDirectory(context: ToolExecutionContext): string {
     const base = resolveWorkspaceBasePath(context);
-    return {
-        primary: path.join(base, 'skills'),
-        secondary: path.join(base, '.agents', 'skills'),
-        legacy: path.join(base, '.dexto', 'skills'),
-    };
+    return getStandaloneSkillPaths(base).project;
 }
 
-function resolveSkillBaseDirectory(
-    scope: 'global' | 'workspace' | undefined,
+function resolveGlobalSkillsDirectory(): string {
+    return getStandaloneSkillPaths().user;
+}
+
+function resolveSkillSearchDirectories(
+    scope: SkillScope,
     context: ToolExecutionContext
-): { baseDir: string; scope: 'global' | 'workspace' } {
+): readonly string[] {
+    const paths =
+        scope === 'global'
+            ? getStandaloneSkillPaths()
+            : getStandaloneSkillPaths(resolveWorkspaceBasePath(context));
+
+    return scope === 'global'
+        ? [paths.user, ...paths.legacyUser]
+        : [paths.project, ...paths.legacyProject];
+}
+
+type SkillScope = 'global' | 'workspace';
+
+function resolveSkillBaseDirectory(
+    scope: SkillScope | undefined,
+    context: ToolExecutionContext
+): { baseDir: string; scope: SkillScope } {
     if (scope === 'global') {
-        return { baseDir: getDextoGlobalPath('skills'), scope: 'global' };
+        return { baseDir: resolveGlobalSkillsDirectory(), scope: 'global' };
     }
 
-    return { baseDir: resolveWorkspaceSkillDirs(context).primary, scope: 'workspace' };
+    return { baseDir: resolveWorkspaceSkillsDirectory(context), scope: 'workspace' };
 }
 
 function resolveSkillDirectory(
     input: z.output<typeof SkillCreateInputSchema>,
     context: ToolExecutionContext
-): { baseDir: string; scope: 'global' | 'workspace' } {
+): { baseDir: string; scope: SkillScope } {
     return resolveSkillBaseDirectory(input.scope, context);
 }
 
 async function pathExists(filePath: string): Promise<boolean> {
     return await fs
-        .stat(filePath)
+        .lstat(filePath)
         .then(() => true)
         .catch(() => false);
 }
 
-async function resolveSkillUpdateDirectory(
+async function isSafeExistingSkillFile(baseDir: string, skillFile: string): Promise<boolean> {
+    try {
+        const [fileStat, physicalBaseDir, physicalSkillFile] = await Promise.all([
+            fs.lstat(skillFile),
+            fs.realpath(baseDir),
+            fs.realpath(skillFile),
+        ]);
+        if (!fileStat.isFile() || fileStat.isSymbolicLink()) return false;
+
+        const relativePath = path.relative(physicalBaseDir, physicalSkillFile);
+        return (
+            relativePath.length > 0 &&
+            relativePath !== '..' &&
+            !relativePath.startsWith(`..${path.sep}`) &&
+            !path.isAbsolute(relativePath)
+        );
+    } catch {
+        return false;
+    }
+}
+
+function resolveSkillUpdateDirectory(
     input: {
         id: string;
         scope?: 'global' | 'workspace' | undefined;
     },
     context: ToolExecutionContext
-): Promise<{ baseDir: string; scope: 'global' | 'workspace' }> {
-    if (input.scope === 'global') {
-        return resolveSkillBaseDirectory('global', context);
-    }
-
-    const { primary, secondary, legacy } = resolveWorkspaceSkillDirs(context);
-    const skillId = input.id.trim();
-    const primaryFile = path.join(primary, skillId, 'SKILL.md');
-    if (await pathExists(primaryFile)) {
-        return { baseDir: primary, scope: 'workspace' };
-    }
-
-    const secondaryFile = path.join(secondary, skillId, 'SKILL.md');
-    if (await pathExists(secondaryFile)) {
-        return { baseDir: secondary, scope: 'workspace' };
-    }
-
-    const legacyFile = path.join(legacy, skillId, 'SKILL.md');
-    if (await pathExists(legacyFile)) {
-        return { baseDir: legacy, scope: 'workspace' };
-    }
-
-    return { baseDir: primary, scope: 'workspace' };
+): { baseDir: string; scope: SkillScope } {
+    return resolveSkillBaseDirectory(input.scope, context);
 }
 
 async function resolveExistingSkillLocation(
@@ -220,22 +225,38 @@ async function resolveExistingSkillLocation(
         id: string;
         scope?: 'global' | 'workspace' | undefined;
     },
-    context: ToolExecutionContext
+    context: ToolExecutionContext,
+    toolId: 'skill_update' | 'skill_refresh'
 ): Promise<{
     baseDir: string;
     scope: 'global' | 'workspace';
     skillDir: string;
     skillFile: string;
 }> {
-    const { baseDir, scope } = await resolveSkillUpdateDirectory(input, context);
+    const { baseDir, scope } = resolveSkillUpdateDirectory(input, context);
+    const searchDirectories = resolveSkillSearchDirectories(scope, context);
+
+    for (const searchDirectory of searchDirectories) {
+        const skillDir = path.join(searchDirectory, input.id.trim());
+        ensurePathWithinBase(searchDirectory, skillDir, toolId);
+        const skillFile = path.join(skillDir, 'SKILL.md');
+        if (await isSafeExistingSkillFile(searchDirectory, skillFile)) {
+            return {
+                baseDir: searchDirectory,
+                scope,
+                skillDir,
+                skillFile,
+            };
+        }
+    }
+
     const skillDir = path.join(baseDir, input.id.trim());
-    ensurePathWithinBase(baseDir, skillDir, 'skill_refresh');
-    const skillFile = path.join(skillDir, 'SKILL.md');
+    ensurePathWithinBase(baseDir, skillDir, toolId);
     return {
         baseDir,
         scope,
         skillDir,
-        skillFile,
+        skillFile: path.join(skillDir, 'SKILL.md'),
     };
 }
 
@@ -319,31 +340,19 @@ function buildSkillMarkdown(input: ResolvedSkillCreateInput): string {
     });
 }
 
-function frontmatterDescription(markdown: string): string | undefined {
-    if (!markdown.startsWith('---\n')) return undefined;
-    const end = markdown.indexOf('\n---', 4);
-    if (end < 0) return undefined;
-    const line = markdown
-        .slice(4, end)
-        .split('\n')
-        .find((candidate) => candidate.trim().startsWith('description:'));
-    return line?.split(':').slice(1).join(':').trim().replace(/^"|"$/g, '') || undefined;
-}
-
 async function readSkillDescription(skillFile: string): Promise<string | undefined> {
     try {
         const raw = await fs.readFile(skillFile, 'utf-8');
-        return frontmatterDescription(raw);
+        return getSkillFrontmatter(raw).description;
     } catch {
         return undefined;
     }
 }
 
-async function refreshAgentSkills(context: ToolExecutionContext): Promise<boolean> {
-    const skillManager = context.services?.skills;
-    if (!skillManager) return false;
-    await skillManager.refresh();
-    return true;
+async function checkSkillAvailable(context: ToolExecutionContext, name: string): Promise<boolean> {
+    const skills = context.services?.skills;
+    if (!skills) return false;
+    return (await skills.load(name)) !== null;
 }
 
 function inspectSkillBundle(): {
@@ -352,7 +361,7 @@ function inspectSkillBundle(): {
     return {
         notes: [
             'Files under mcps/ are inert bundled files. Configure MCP servers through normal MCP configuration paths.',
-            'After editing SKILL.md or bundled files with non-creator tools, run skill_refresh so the current session sees the latest skill content.',
+            'Skills are read from their current files, so edits are visible to the next skill_load call.',
         ],
     };
 }
@@ -403,21 +412,20 @@ export const creatorToolsFactory: ToolFactory<CreatorToolsConfig> = {
                     )
                 );
 
-                const refreshed = await refreshAgentSkills(context);
-                const displayName = titleizeSkillId(skillId) || skillId;
+                const skillsAvailable = await checkSkillAvailable(context, skillId);
                 const bundleDetails = inspectSkillBundle();
 
                 return {
                     created: true,
                     id: skillId,
-                    name: displayName,
+                    name: skillId,
                     description: resolvedInput.description.trim(),
                     scope,
                     path: skillFile,
                     resourceDirectories: SKILL_RESOURCE_DIRECTORIES.map((directory) =>
                         path.join(skillDir, directory)
                     ),
-                    skillsRefreshed: refreshed,
+                    skillsAvailable,
                     ...bundleDetails,
                 };
             },
@@ -435,7 +443,11 @@ export const creatorToolsFactory: ToolFactory<CreatorToolsConfig> = {
                     hint: 'Use kebab-case skill ids (e.g., release-notes)',
                 });
 
-                const { scope, skillFile } = await resolveExistingSkillLocation(input, context);
+                const { scope, skillFile } = await resolveExistingSkillLocation(
+                    input,
+                    context,
+                    'skill_update'
+                );
                 const exists = await pathExists(skillFile);
                 if (!exists) {
                     throw ToolError.validationFailed(
@@ -460,7 +472,7 @@ export const creatorToolsFactory: ToolFactory<CreatorToolsConfig> = {
                 });
 
                 await fs.writeFile(skillFile, markdown, 'utf-8');
-                const refreshed = await refreshAgentSkills(context);
+                const skillsAvailable = await checkSkillAvailable(context, skillId);
                 const bundleDetails = inspectSkillBundle();
 
                 return {
@@ -469,7 +481,7 @@ export const creatorToolsFactory: ToolFactory<CreatorToolsConfig> = {
                     description,
                     scope,
                     path: skillFile,
-                    skillsRefreshed: refreshed,
+                    skillsAvailable,
                     ...bundleDetails,
                 };
             },
@@ -478,7 +490,7 @@ export const creatorToolsFactory: ToolFactory<CreatorToolsConfig> = {
         const skillRefreshTool = defineTool({
             id: 'skill_refresh',
             description:
-                'Refresh one standalone skill bundle in the current session after editing SKILL.md, handlers/, scripts/, mcps/, or references/.',
+                'Re-read one standalone skill bundle in the current session after editing SKILL.md, handlers/, scripts/, mcps/, or references/.',
             inputSchema: SkillRefreshInputSchema,
             presentation: { activity: TOOL_ACTIVITY.refreshSkill },
             execute: async (input, context) => {
@@ -494,7 +506,11 @@ export const creatorToolsFactory: ToolFactory<CreatorToolsConfig> = {
                     );
                 }
 
-                const { scope, skillFile } = await resolveExistingSkillLocation(input, context);
+                const { scope, skillFile } = await resolveExistingSkillLocation(
+                    input,
+                    context,
+                    'skill_refresh'
+                );
                 const exists = await pathExists(skillFile);
                 if (!exists) {
                     throw ToolError.validationFailed(
@@ -503,7 +519,7 @@ export const creatorToolsFactory: ToolFactory<CreatorToolsConfig> = {
                     );
                 }
 
-                const refreshed = await refreshAgentSkills(context);
+                const skillsAvailable = await checkSkillAvailable(context, skillId);
                 const bundleDetails = inspectSkillBundle();
 
                 return {
@@ -511,7 +527,7 @@ export const creatorToolsFactory: ToolFactory<CreatorToolsConfig> = {
                     id: skillId,
                     scope,
                     path: skillFile,
-                    skillsRefreshed: refreshed,
+                    skillsAvailable,
                     ...bundleDetails,
                 };
             },
@@ -527,23 +543,18 @@ export const creatorToolsFactory: ToolFactory<CreatorToolsConfig> = {
                 const normalizedQuery = normalizeSkillQuery(query);
                 const hasQuery = normalizedQuery.length > 0;
                 const limit = input.limit ?? (hasQuery ? undefined : 50);
-                const skillManager = context.services?.skills;
-                if (!skillManager) {
+                const skills = context.services?.skills;
+                if (!skills) {
                     throw ToolError.configInvalid(
                         'skill_search requires ToolExecutionContext.services.skills'
                     );
                 }
 
-                const loaded = await skillManager.list();
-                let results: SkillSearchEntry[] = loaded.map((info) => ({
-                    id: info.id,
-                    name: resolveSkillName(info),
-                    ...(info.description ? { description: info.description } : {}),
-                }));
+                const loaded = await skills.list();
+                let results = [...loaded];
 
                 if (hasQuery && normalizedQuery) {
                     results = results.filter((entry) => {
-                        if (matchesSkillQuery(entry.id, normalizedQuery)) return true;
                         if (matchesSkillQuery(entry.name, normalizedQuery)) return true;
                         if (matchesSkillQuery(entry.description, normalizedQuery)) return true;
                         return false;
@@ -560,7 +571,7 @@ export const creatorToolsFactory: ToolFactory<CreatorToolsConfig> = {
                     skills: limited,
                     _hint:
                         limited.length > 0
-                            ? 'Use invoke_skill with the skill id or commandName for loaded skills.'
+                            ? 'Use skill_load with the exact name for a matching skill.'
                             : 'No skills matched the query.',
                 };
             },
@@ -584,7 +595,7 @@ export const creatorToolsFactory: ToolFactory<CreatorToolsConfig> = {
                       })
                     : skills;
                 return {
-                    searchPaths: getSkillSearchPaths(),
+                    searchPaths: getSkillSearchPaths(input.projectPath),
                     skills: filtered,
                 };
             },

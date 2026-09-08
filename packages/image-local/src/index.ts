@@ -61,7 +61,7 @@ import { schedulerToolsFactory } from '@dexto/tools-scheduler';
 import { lifecycleToolsFactory } from '@dexto/tools-lifecycle';
 import {
     agentSpawnerToolsFactory,
-    createLocalSkillSources,
+    createLocalSkills,
     creatorToolsFactory,
     getDextoPackageRoot,
 } from '@dexto/agent-management';
@@ -341,8 +341,8 @@ const imageLocal: DextoImage = {
     },
     skills: {
         create: (context) =>
-            createLocalSkillSources({
-                workspaceRoot: context?.hostContext?.workspaceRoot,
+            createLocalSkills({
+                workspaceRoot: context.hostContext?.workspaceRoot,
             }),
     },
 };

@@ -9,8 +9,7 @@
  * - delegate_to_url
  * - list_resources
  * - get_resource
- * - invoke_skill
- * - read_skill
+ * - skill_load
  */
 export { builtinToolsFactory, BuiltinToolsConfigSchema } from './builtin-tools-factory.js';
 export { BUILTIN_TOOL_NAMES } from './builtin-tools-factory.js';

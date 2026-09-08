@@ -283,6 +283,7 @@ export * from './tool-factories/creator-tools/index.js';
 export {
     // Discovery
     discoverClaudeCodePlugins,
+    discoverStandaloneSkills,
     getPluginSearchPaths,
     // Loading
     loadClaudeCodePlugin,
@@ -314,8 +315,8 @@ export {
     listAllMarketplacePlugins,
     installPluginFromMarketplace,
     getUninstalledDefaults,
-    createLocalSkillSources,
-    LocalSkillSource,
+    createLocalSkills,
+    LocalSkills,
     isDefaultMarketplace,
     MarketplaceErrorCode,
     MarketplaceError,
@@ -336,7 +337,7 @@ export {
     type ValidatedPluginMCPConfig,
     type InstallPluginOptions,
     type UninstallPluginOptions,
-    type CreateLocalSkillSourcesOptions,
+    type CreateLocalSkillsOptions,
     type LocalSkillRoot,
     // Marketplace types
     type MarketplaceEntry,

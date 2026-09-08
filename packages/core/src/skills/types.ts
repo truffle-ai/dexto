@@ -1,26 +1,21 @@
 export interface SkillSummary {
-    id: string;
-    displayName: string;
-    description?: string | undefined;
+    /** Exact canonical name accepted by `skill_load`. */
+    name: string;
+    /** Short routing guidance shown in the system prompt. */
+    description: string;
 }
 
-export interface SkillDocument extends SkillSummary {
+export interface LoadedSkill {
+    /** Exact canonical name requested by the caller. */
+    name: string;
     instructions: string;
+    supportingFiles: readonly string[];
+    filesLocation: 'hosted' | 'workspace';
+    baseDirectory: string | null;
 }
 
-export interface SkillSource {
-    id: string;
-    list(): Promise<SkillSummary[]>;
-    get?(id: string): Promise<SkillDocument | null>;
-    readFile?(skillId: string, path: string): Promise<string>;
-    invoke?(id: string, args?: Record<string, string>): Promise<SkillDocument | null>;
-    refresh?(): Promise<void>;
-}
-
-export interface SkillManager {
-    list(): Promise<SkillSummary[]>;
-    get(id: string): Promise<SkillDocument | null>;
-    readFile(skillId: string, path: string): Promise<string>;
-    invoke(id: string, args?: Record<string, string>): Promise<SkillDocument | null>;
-    refresh(): Promise<void>;
+export interface Skills {
+    list(): Promise<readonly SkillSummary[]>;
+    load(name: string): Promise<LoadedSkill | null>;
+    readFile(name: string, path: string): Promise<string>;
 }

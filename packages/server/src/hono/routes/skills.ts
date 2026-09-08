@@ -1,4 +1,5 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
+import type { LoadedSkill } from '@dexto/core';
 import {
     ApiErrorResponseSchema,
     InternalErrorResponse,
@@ -28,13 +29,19 @@ const GetSkillResponseSchema = z
     .describe('Get skill response');
 
 function serializeSkillSummary(skill: z.input<typeof SkillSummarySchema>) {
-    const { id, displayName, description } = skill;
-    return SkillSummarySchema.parse({ id, displayName, description });
+    const { name, description } = skill;
+    return SkillSummarySchema.parse({ name, description });
 }
 
-function serializeSkillDocument(skill: z.input<typeof SkillDocumentSchema>) {
-    const { id, displayName, description, instructions } = skill;
-    return SkillDocumentSchema.parse({ id, displayName, description, instructions });
+function serializeSkillDocument(skill: LoadedSkill) {
+    const { name, instructions, supportingFiles, filesLocation, baseDirectory } = skill;
+    return SkillDocumentSchema.parse({
+        name,
+        instructions,
+        supportingFiles: [...supportingFiles],
+        filesLocation,
+        baseDirectory,
+    });
 }
 
 const listRoute = createRoute({
@@ -88,14 +95,14 @@ export function createSkillsRouter(getAgent: GetAgentFn) {
     return app
         .openapi(listRoute, async (ctx) => {
             const agent = await getAgent(ctx);
-            const skills = await agent.skillManager.list();
+            const skills = (await agent.skills?.list()) ?? [];
             const list = skills.map(serializeSkillSummary);
             return ctx.json(ListSkillsResponseSchema.parse({ skills: list }), 200);
         })
         .openapi(getSkillRoute, async (ctx) => {
             const agent = await getAgent(ctx);
             const { id } = ctx.req.valid('param');
-            const skill = await agent.skillManager.get(id);
+            const skill = await agent.skills?.load(id);
             if (!skill) {
                 return ctx.json(
                     ApiErrorResponseSchema.parse({
@@ -108,7 +115,9 @@ export function createSkillsRouter(getAgent: GetAgentFn) {
             }
 
             return ctx.json(
-                GetSkillResponseSchema.parse({ skill: serializeSkillDocument(skill) }),
+                GetSkillResponseSchema.parse({
+                    skill: serializeSkillDocument(skill),
+                }),
                 200
             );
         });

@@ -4,7 +4,7 @@ import type {
     EventArgs,
     EventListener,
     SessionMetadata,
-    SkillManager,
+    Skills,
 } from '@dexto/core';
 import type { CommandDefinition } from './interactive-commands/command-parser.js';
 
@@ -149,7 +149,7 @@ export interface TuiAgentBackend
             getHookNames: () => string[];
         };
     };
-    skillManager?: SkillManager | undefined;
+    skills?: Skills | undefined;
     capabilities?: TuiAgentCapabilities;
 }
 
@@ -197,7 +197,7 @@ export function getTuiCapabilities(agent: TuiAgentBackend): TuiAgentCapabilities
 
     return {
         ...mergedCapabilities,
-        skills: mergedCapabilities.skills === false ? false : Boolean(agent.skillManager),
+        skills: mergedCapabilities.skills === false ? false : Boolean(agent.skills),
         ...(agent.capabilities?.supportedCommands
             ? {
                   supportedCommands: agent.capabilities.supportedCommands.map(normalizeCommandName),

@@ -9,7 +9,7 @@ This package default-exports a typed `DextoImage` (no side effects, no registrie
 
 - **Stores**: local `DextoStores` built with filesystem artifacts, SQLite session data, and in-memory fast state by default
 - **Workspace handles**: local filesystem workspace handles for local CLI/app runs
-- **Skill sources**: local and plugin skill directories loaded through `SkillManager`
+- **Skills**: local and plugin skill directories exposed through the Core `Skills` contract
 - **Tool factories**: builtin, filesystem, process, todo, plan, agent-spawner
 - **Hooks**: content-policy, response-sanitizer
 - **Compaction**: reactive-overflow, noop

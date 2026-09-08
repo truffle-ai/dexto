@@ -2,9 +2,8 @@ import { mkdtemp, mkdir, realpath, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { AgentEventBus, createLogger, WorkspaceManager, WorkspaceSkillSource } from '@dexto/core';
-import { InMemoryDextoStores } from '@dexto/core/storage';
 import type { WorkspaceContext } from '@dexto/core/workspace';
+import { LocalSkills } from '@dexto/agent-management';
 import { LocalWorkspaceHandleProvider } from '../src/local-workspace-handle-provider.js';
 
 describe('LocalWorkspaceHandleProvider', () => {
@@ -94,29 +93,29 @@ describe('LocalWorkspaceHandleProvider', () => {
         await rm(outsideFile, { force: true });
     });
 
-    it('lets WorkspaceSkillSource discover skills through WorkspaceManager.open', async () => {
+    it('lets LocalSkills discover workspace skills with supporting files', async () => {
         const skillDir = path.join(workspaceRoot, '.agents', 'skills', 'local');
         await mkdir(path.join(skillDir, 'references'), { recursive: true });
         await writeFile(path.join(skillDir, 'SKILL.md'), '# Local Skill\n', 'utf-8');
         await writeFile(path.join(skillDir, 'references', 'guide.md'), 'Local guide.\n', 'utf-8');
 
-        const stores = new InMemoryDextoStores();
-        await stores.connect();
-        const logger = createLogger({
-            agentId: 'test-agent',
-            config: { level: 'error', transports: [{ type: 'silent' }] },
-        });
-        const workspaceManager = new WorkspaceManager(
-            stores.getStore('workspaces'),
-            new AgentEventBus(),
-            logger,
-            new LocalWorkspaceHandleProvider()
-        );
-        await workspaceManager.setWorkspace({ path: workspaceRoot });
-        const source = new WorkspaceSkillSource(workspaceManager);
+        const skills = new LocalSkills(() => [
+            {
+                name: 'local',
+                skillFile: path.join(skillDir, 'SKILL.md'),
+            },
+        ]);
 
-        await expect(source.list()).resolves.toEqual([{ id: 'local', displayName: 'Local Skill' }]);
-        await expect(source.readFile('local', 'references/guide.md')).resolves.toBe(
+        await expect(skills.list()).resolves.toEqual([
+            { name: 'local', description: 'Instructions for the local skill.' },
+        ]);
+        await expect(skills.load('local')).resolves.toMatchObject({
+            name: 'local',
+            supportingFiles: ['references/guide.md'],
+            filesLocation: 'workspace',
+            baseDirectory: skillDir,
+        });
+        await expect(skills.readFile('local', 'references/guide.md')).resolves.toBe(
             'Local guide.\n'
         );
     });

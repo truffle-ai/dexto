@@ -60,6 +60,11 @@ describe('toDextoAgentOptions', () => {
         });
 
         const logger = createMockLogger();
+        const skills = {
+            list: async () => [],
+            load: async () => null,
+            readFile: async () => '',
+        };
         const services: ResolvedServices = {
             logger,
             stores: createMockStores(),
@@ -67,7 +72,7 @@ describe('toDextoAgentOptions', () => {
             toolkitLoader: async () => [],
             hooks: [],
             compaction: null,
-            skillSources: [],
+            skills,
         };
 
         const options = toDextoAgentOptions({
@@ -93,6 +98,7 @@ describe('toDextoAgentOptions', () => {
         expect(options.hooks).toEqual([]);
         expect(options.compaction).toBeNull();
         expect(options.toolkitLoader).toBe(services.toolkitLoader);
+        expect(options.skills).toBe(skills);
     });
 
     it('passes resolved workspace handle provider through service overrides', () => {
@@ -117,7 +123,6 @@ describe('toDextoAgentOptions', () => {
             tools: [],
             hooks: [],
             compaction: null,
-            skillSources: [],
             workspaceHandleProvider,
         };
 
@@ -153,7 +158,6 @@ describe('toDextoAgentOptions', () => {
             toolkitLoader: async () => [],
             hooks: [],
             compaction: null,
-            skillSources: [],
         };
 
         const options = toDextoAgentOptions({
@@ -191,7 +195,6 @@ describe('toDextoAgentOptions', () => {
             toolkitLoader: async () => [],
             hooks: [],
             compaction: null,
-            skillSources: [],
         };
 
         type HostedContext = DextoHostContext<

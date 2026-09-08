@@ -53,7 +53,7 @@ function applySubAgentToolConstraints(config: AgentConfig): AgentConfig {
         return config;
     }
 
-    const disabledBuiltinTools = new Set(['ask_user', 'invoke_skill']);
+    const disabledBuiltinTools = new Set(['ask_user', 'skill_load']);
 
     const constrainedTools = tools
         // Prevent nested spawning.

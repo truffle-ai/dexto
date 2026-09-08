@@ -9,8 +9,9 @@ Custom slash commands are file prompts: reusable prompt templates that work like
 Dexto CLI and Web UI. Think of them as your personal command library that you can invoke with a
 simple `/command-name` syntax.
 
-They are not skills. Skills live in `skills/<id>/SKILL.md` directories, are managed by
-`SkillManager`, and are listed with `/skills` or the server skill catalog API (`GET /api/skills`).
+They are not skills. Skills live in `.agents/skills/<id>/SKILL.md` directories, are managed by
+the host `Skills` implementation, and are listed with `/skills` or the server skill catalog API
+(`GET /api/skills`).
 
 ## What are Custom Slash Commands?
 

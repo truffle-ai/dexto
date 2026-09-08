@@ -2,7 +2,7 @@
   "openapi": "3.0.0",
   "info": {
     "title": "Dexto API",
-    "version": "1.10.2",
+    "version": "1.10.4",
     "description": "OpenAPI spec for the Dexto REST API server"
   },
   "servers": [
@@ -36567,22 +36567,20 @@
                       "items": {
                         "type": "object",
                         "properties": {
-                          "id": {
+                          "name": {
                             "type": "string",
-                            "description": "Skill identifier"
-                          },
-                          "displayName": {
-                            "type": "string",
-                            "description": "Human-readable skill name"
+                            "minLength": 1,
+                            "description": "Exact skill name accepted by skill_load"
                           },
                           "description": {
                             "type": "string",
-                            "description": "Skill description"
+                            "minLength": 1,
+                            "description": "Skill routing description"
                           }
                         },
                         "required": [
-                          "id",
-                          "displayName"
+                          "name",
+                          "description"
                         ],
                         "additionalProperties": false,
                         "description": "Skill catalog entry"
@@ -36786,27 +36784,42 @@
                     "skill": {
                       "type": "object",
                       "properties": {
-                        "id": {
+                        "name": {
                           "type": "string",
-                          "description": "Skill identifier"
-                        },
-                        "displayName": {
-                          "type": "string",
-                          "description": "Human-readable skill name"
-                        },
-                        "description": {
-                          "type": "string",
-                          "description": "Skill description"
+                          "minLength": 1,
+                          "description": "Exact skill name accepted by skill_load"
                         },
                         "instructions": {
                           "type": "string",
                           "description": "Full skill instructions"
+                        },
+                        "supportingFiles": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          },
+                          "description": "Relative supporting file paths"
+                        },
+                        "filesLocation": {
+                          "type": "string",
+                          "enum": [
+                            "hosted",
+                            "workspace"
+                          ],
+                          "description": "Where supporting files are read"
+                        },
+                        "baseDirectory": {
+                          "type": "string",
+                          "nullable": true,
+                          "description": "Workspace directory for supporting files, or null for hosted files"
                         }
                       },
                       "required": [
-                        "id",
-                        "displayName",
-                        "instructions"
+                        "name",
+                        "instructions",
+                        "supportingFiles",
+                        "filesLocation",
+                        "baseDirectory"
                       ],
                       "additionalProperties": false,
                       "description": "Skill document"

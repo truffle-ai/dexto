@@ -37,8 +37,7 @@ describe('skill_search tool', () => {
         const logger = createMockLogger();
         const skills: SkillSummary[] = [
             {
-                id: 'create-automation',
-                displayName: 'create-automation',
+                name: 'create-automation',
                 description: 'Create automations',
             },
         ];
@@ -50,7 +49,7 @@ describe('skill_search tool', () => {
                     list: async () => skills,
                 },
             },
-        } as ToolExecutionContext;
+        } as unknown as ToolExecutionContext;
 
         const tool = getSkillSearchTool();
         const input = tool.inputSchema.parse({ query: 'create automation' });
@@ -68,13 +67,11 @@ describe('skill_search tool', () => {
         const logger = createMockLogger();
         const skills: SkillSummary[] = [
             {
-                id: 'create-automation',
-                displayName: 'create-automation',
+                name: 'create-automation',
                 description: 'Create automations',
             },
             {
-                id: 'archived-skill',
-                displayName: 'archived-skill',
+                name: 'archived-skill',
                 description: 'Hidden but loaded',
             },
         ];
@@ -86,7 +83,7 @@ describe('skill_search tool', () => {
                     list: async () => skills,
                 },
             },
-        } as ToolExecutionContext;
+        } as unknown as ToolExecutionContext;
 
         const tool = getSkillSearchTool();
         const input = tool.inputSchema.parse({});

@@ -81,5 +81,5 @@ Images may also provide:
 
 - `workspace.create(...)`: returns a `WorkspaceHandleProvider`. Local images usually return local
   filesystem handles; hosted images can return handles backed by their own workspace runtime.
-- `skills.create(...)`: returns `SkillSource` instances consumed by `SkillManager`. Skills stay out
-  of prompt config; prompts remain prompt-only.
+- `skills.create(...)`: returns one `Skills` implementation consumed by `DextoAgent`. Skills stay
+  out of prompt config; prompts remain prompt-only.

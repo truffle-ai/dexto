@@ -129,18 +129,18 @@ describe('init command', () => {
         expect(result.agentsFile.status).toBe('created');
         expect(result.directories).toEqual([
             { path: path.join(tempDir, 'agents'), status: 'created' },
-            { path: path.join(tempDir, 'skills'), status: 'created' },
+            { path: path.join(tempDir, '.agents', 'skills'), status: 'created' },
         ]);
 
         const agentsMd = await fs.readFile(path.join(tempDir, 'AGENTS.md'), 'utf8');
         expect(agentsMd).toContain('# Dexto Workspace');
         expect(agentsMd).toContain('agents/');
-        expect(agentsMd).toContain('skills/<skill-id>/');
+        expect(agentsMd).toContain('.agents/skills/<skill-id>/');
         expect(agentsMd).toContain('`SKILL.md` plus optional `handlers/`');
         expect(agentsMd).toContain('.dexto/');
 
         expect((await fs.stat(path.join(tempDir, 'agents'))).isDirectory()).toBe(true);
-        expect((await fs.stat(path.join(tempDir, 'skills'))).isDirectory()).toBe(true);
+        expect((await fs.stat(path.join(tempDir, '.agents', 'skills'))).isDirectory()).toBe(true);
     });
 
     it('does not overwrite an existing AGENTS.md file', async () => {
@@ -152,7 +152,7 @@ describe('init command', () => {
         expect(result.agentsFile.status).toBe('existing');
         expect(result.directories).toEqual([
             { path: path.join(tempDir, 'agents'), status: 'created' },
-            { path: path.join(tempDir, 'skills'), status: 'created' },
+            { path: path.join(tempDir, '.agents', 'skills'), status: 'created' },
         ]);
         await expect(fs.readFile(path.join(tempDir, 'AGENTS.md'), 'utf8')).resolves.toBe(
             customAgentsMd
@@ -167,7 +167,7 @@ describe('init command', () => {
         );
 
         await expect(fs.access(path.join(tempDir, 'AGENTS.md'))).rejects.toThrow();
-        await expect(fs.access(path.join(tempDir, 'skills'))).rejects.toThrow();
+        await expect(fs.access(path.join(tempDir, '.agents', 'skills'))).rejects.toThrow();
     });
 
     it('creates a workspace agent and project registry when missing', async () => {
@@ -284,7 +284,7 @@ describe('init command', () => {
                 tools: [
                     {
                         type: 'builtin-tools',
-                        enabledTools: ['ask_user', 'invoke_skill'],
+                        enabledTools: ['ask_user', 'skill_load'],
                     },
                     {
                         type: 'plan-tools',
@@ -334,7 +334,7 @@ describe('init command', () => {
         expect(configContent.tools).toEqual([
             {
                 type: 'builtin-tools',
-                enabledTools: ['ask_user', 'invoke_skill'],
+                enabledTools: ['ask_user', 'skill_load'],
             },
             {
                 type: 'plan-tools',
@@ -525,7 +525,7 @@ describe('init command', () => {
         );
     });
 
-    it('creates a skill scaffold under skills/<id>/SKILL.md', async () => {
+    it('creates a skill scaffold under .agents/skills/<id>/SKILL.md', async () => {
         const result = await createWorkspaceSkillScaffold('code-review', tempDir);
 
         expect(result.workspace.agentsFile.status).toBe('created');
@@ -533,26 +533,26 @@ describe('init command', () => {
         expect(result.resourceDirectories).toEqual(
             expect.arrayContaining([
                 expect.objectContaining({
-                    path: path.join(tempDir, 'skills', 'code-review', 'handlers'),
+                    path: path.join(tempDir, '.agents', 'skills', 'code-review', 'handlers'),
                     status: 'created',
                 }),
                 expect.objectContaining({
-                    path: path.join(tempDir, 'skills', 'code-review', 'scripts'),
+                    path: path.join(tempDir, '.agents', 'skills', 'code-review', 'scripts'),
                     status: 'created',
                 }),
                 expect.objectContaining({
-                    path: path.join(tempDir, 'skills', 'code-review', 'mcps'),
+                    path: path.join(tempDir, '.agents', 'skills', 'code-review', 'mcps'),
                     status: 'created',
                 }),
                 expect.objectContaining({
-                    path: path.join(tempDir, 'skills', 'code-review', 'references'),
+                    path: path.join(tempDir, '.agents', 'skills', 'code-review', 'references'),
                     status: 'created',
                 }),
             ])
         );
 
         const skillContent = await fs.readFile(
-            path.join(tempDir, 'skills', 'code-review', 'SKILL.md'),
+            path.join(tempDir, '.agents', 'skills', 'code-review', 'SKILL.md'),
             'utf8'
         );
         expect(skillContent).toContain('name: "code-review"');
@@ -568,23 +568,39 @@ describe('init command', () => {
         await handleInitCommand(tempDir);
 
         await expect(
-            fs.readFile(path.join(tempDir, 'skills', 'create-skill', 'SKILL.md'), 'utf8')
+            fs.readFile(path.join(tempDir, '.agents', 'skills', 'create-skill', 'SKILL.md'), 'utf8')
         ).resolves.toContain('Read `references/skill-anatomy.md`');
         await expect(
             fs.readFile(
-                path.join(tempDir, 'skills', 'create-skill', 'references', 'skill-anatomy.md'),
+                path.join(
+                    tempDir,
+                    '.agents',
+                    'skills',
+                    'create-skill',
+                    'references',
+                    'skill-anatomy.md'
+                ),
                 'utf8'
             )
         ).resolves.toContain('## Canonical Layout');
         await expect(
             fs.readFile(
-                path.join(tempDir, 'skills', 'create-skill', 'references', 'mcp-server-pattern.md'),
+                path.join(
+                    tempDir,
+                    '.agents',
+                    'skills',
+                    'create-skill',
+                    'references',
+                    'mcp-server-pattern.md'
+                ),
                 'utf8'
             )
         ).resolves.toContain(
             "import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';"
         );
-        await expect(fs.access(path.join(tempDir, 'skills', 'echo-custom-mcp'))).rejects.toThrow();
+        await expect(
+            fs.access(path.join(tempDir, '.agents', 'skills', 'echo-custom-mcp'))
+        ).rejects.toThrow();
     });
 
     it('reports when the workspace is already initialized', async () => {
@@ -703,7 +719,7 @@ describe('init command', () => {
         expect(configContent.tools).toEqual([
             {
                 type: 'builtin-tools',
-                enabledTools: ['ask_user', 'invoke_skill', 'sleep'],
+                enabledTools: ['ask_user', 'skill_load', 'sleep'],
             },
             {
                 type: 'creator-tools',

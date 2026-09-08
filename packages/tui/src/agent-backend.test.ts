@@ -7,18 +7,16 @@ import {
 
 function createAgent(
     capabilities?: TuiAgentCapabilities,
-    options: { hasSkillManager?: boolean } = {}
+    options: { hasSkills?: boolean } = {}
 ): TuiAgentBackend {
     return {
         capabilities,
-        ...(options.hasSkillManager
+        ...(options.hasSkills
             ? {
-                  skillManager: {
+                  skills: {
                       list: async () => [],
-                      get: async () => null,
+                      load: async () => null,
                       readFile: async () => null,
-                      invoke: async () => null,
-                      refresh: async () => {},
                   },
               }
             : {}),
@@ -53,8 +51,8 @@ describe('isCommandSupported', () => {
     });
 
     it('gates skill commands separately from prompt commands', () => {
-        const promptlessAgent = createAgent({ prompts: false }, { hasSkillManager: true });
-        const skilllessAgent = createAgent({ skills: false }, { hasSkillManager: true });
+        const promptlessAgent = createAgent({ prompts: false }, { hasSkills: true });
+        const skilllessAgent = createAgent({ skills: false }, { hasSkills: true });
 
         expect(isCommandSupported(promptlessAgent, 'skills', { name: 'skills', aliases: [] })).toBe(
             true
@@ -64,7 +62,7 @@ describe('isCommandSupported', () => {
         );
     });
 
-    it('requires a real SkillManager for skill commands', () => {
+    it('requires a real Skills implementation for skill commands', () => {
         const agent = createAgent();
 
         expect(isCommandSupported(agent, 'skills', { name: 'skills', aliases: [] })).toBe(false);

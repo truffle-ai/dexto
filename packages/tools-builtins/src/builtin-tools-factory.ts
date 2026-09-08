@@ -4,8 +4,7 @@ import type { Tool } from '@dexto/core/tools';
 import { createAskUserTool } from './implementations/ask-user-tool.js';
 import { createDelegateToUrlTool } from './implementations/delegate-to-url-tool.js';
 import { createGetResourceTool } from './implementations/get-resource-tool.js';
-import { createInvokeSkillTool } from './implementations/invoke-skill-tool.js';
-import { createReadSkillTool } from './implementations/read-skill-tool.js';
+import { createSkillLoadTool } from './implementations/skill-load-tool.js';
 import { createListResourcesTool } from './implementations/list-resources-tool.js';
 import { createHttpRequestTool } from './implementations/http-request-tool.js';
 import { createSleepTool } from './implementations/sleep-tool.js';
@@ -17,8 +16,7 @@ export const BUILTIN_TOOL_NAMES = [
     'delegate_to_url',
     'list_resources',
     'get_resource',
-    'invoke_skill',
-    'read_skill',
+    'skill_load',
     'http_request',
     'sleep',
     'web_search',
@@ -48,10 +46,8 @@ function createToolByName(name: BuiltinToolName): Tool {
             return createListResourcesTool();
         case 'get_resource':
             return createGetResourceTool();
-        case 'invoke_skill':
-            return createInvokeSkillTool();
-        case 'read_skill':
-            return createReadSkillTool();
+        case 'skill_load':
+            return createSkillLoadTool();
         case 'http_request':
             return createHttpRequestTool();
         case 'sleep':

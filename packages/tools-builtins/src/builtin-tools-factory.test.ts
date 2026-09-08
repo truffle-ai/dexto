@@ -10,8 +10,7 @@ describe('builtinToolsFactory', () => {
             'delegate_to_url',
             'list_resources',
             'get_resource',
-            'invoke_skill',
-            'read_skill',
+            'skill_load',
             'http_request',
             'sleep',
             'web_search',
@@ -22,8 +21,8 @@ describe('builtinToolsFactory', () => {
     it('creates only the selected builtins when enabledTools is provided', () => {
         const tools: Tool[] = builtinToolsFactory.create({
             type: 'builtin-tools',
-            enabledTools: ['ask_user', 'read_skill'],
+            enabledTools: ['ask_user', 'skill_load'],
         });
-        expect(tools.map((t) => t.id)).toEqual(['ask_user', 'read_skill']);
+        expect(tools.map((t) => t.id)).toEqual(['ask_user', 'skill_load']);
     });
 });

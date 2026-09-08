@@ -79,13 +79,13 @@ custom prompt storage, or MCP servers.
 
 ## Skills
 
-Skills are first-class capabilities backed by `SkillManager`, not prompts. The model can use them
+Skills are first-class capabilities backed by the Core `Skills` contract, not prompts. The model can use them
 through skill tools when enabled, and users can inspect the catalog separately.
 
 | Command | Description |
 |---------|-------------|
 | `/skills` | List available skills |
-| `/skills <skill-id>` | Read a skill document |
+| `/skills <skill-name>` | Read a skill document |
 
 ## Keyboard Shortcuts
 

@@ -48,12 +48,14 @@ export {
 } from './discover-plugins.js';
 
 // Standalone skill discovery
-export { discoverStandaloneSkills, getSkillSearchPaths } from './discover-skills.js';
-export type { DiscoveredSkill } from './discover-skills.js';
-export { LocalSkillSource } from './local-skill-source.js';
-export type { LocalSkillRoot } from './local-skill-source.js';
-export { createLocalSkillSources } from './local-skill-sources.js';
-export type { CreateLocalSkillSourcesOptions } from './local-skill-sources.js';
+export {
+    discoverStandaloneSkills,
+    getSkillSearchPaths,
+    getStandaloneSkillPaths,
+} from './discover-skills.js';
+export type { DiscoveredSkill, StandaloneSkillPaths } from './discover-skills.js';
+export { createLocalSkills, LocalSkills } from './local-skills.js';
+export type { CreateLocalSkillsOptions, LocalSkillRoot } from './local-skills.js';
 
 // Loading
 export { loadClaudeCodePlugin } from './load-plugin.js';

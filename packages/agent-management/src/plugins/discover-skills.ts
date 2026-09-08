@@ -5,9 +5,10 @@
  * These are different from plugin skills - they're just directories containing a SKILL.md file.
  *
  * Structure:
- * skills/
+ * .agents/skills/
+ * skills/ (legacy project root, still discovered for compatibility)
+ * .dexto/skills/ (legacy project/user root, still discovered for compatibility)
  * ~/.agents/skills/
- * ~/.dexto/skills/
  * └── skill-name/
  *     ├── SKILL.md          (required - skill instructions)
  *     ├── handlers/         (optional - workflow helper files)
@@ -20,6 +21,7 @@
 
 import * as path from 'path';
 import { existsSync, readdirSync } from 'fs';
+import { homedir } from 'os';
 
 /**
  * Represents a discovered standalone skill
@@ -39,15 +41,34 @@ export interface DiscoveredSkill {
     warnings?: string[] | undefined;
 }
 
+export interface StandaloneSkillPaths {
+    project: string;
+    user: string;
+    legacyProject: readonly string[];
+    legacyUser: readonly string[];
+}
+
+/**
+ * Resolves the canonical standalone Skill roots used by discovery and creator tools.
+ */
+export function getStandaloneSkillPaths(projectPath?: string): StandaloneSkillPaths {
+    const homeDir = process.env.HOME || process.env.USERPROFILE || homedir();
+    const cwd = projectPath || process.cwd();
+
+    return {
+        project: path.join(cwd, '.agents', 'skills'),
+        user: path.join(homeDir, '.agents', 'skills'),
+        legacyProject: [path.join(cwd, 'skills'), path.join(cwd, '.dexto', 'skills')],
+        legacyUser: [path.join(homeDir, '.dexto', 'skills')],
+    };
+}
+
 /**
  * Discovers standalone skills from standard locations.
  *
  * Search Locations:
- * 1. <projectRoot>/skills/*          (project)
- * 2. <projectRoot>/.agents/skills/*  (project)
- * 3. <projectRoot>/.dexto/skills/*   (project)
- * 4. ~/.agents/skills/*              (user)
- * 5. ~/.dexto/skills/*               (user)
+ * 1. <projectRoot>/.agents/skills/*  (project)
+ * 2. ~/.agents/skills/*              (user)
  *
  * @param projectPath Optional project path (defaults to cwd)
  * @returns Array of discovered skills
@@ -55,8 +76,7 @@ export interface DiscoveredSkill {
 export function discoverStandaloneSkills(projectPath?: string): DiscoveredSkill[] {
     const skills: DiscoveredSkill[] = [];
     const seenNames = new Set<string>();
-    const homeDir = process.env.HOME || process.env.USERPROFILE || '';
-    const cwd = projectPath || process.cwd();
+    const skillPaths = getStandaloneSkillPaths(projectPath);
 
     /**
      * Adds a skill if not already seen (deduplication by name)
@@ -102,19 +122,17 @@ export function discoverStandaloneSkills(projectPath?: string): DiscoveredSkill[
     };
 
     // === Project skills ===
-    // 1. Top-level project skills: <projectRoot>/skills/
-    scanSkillsDir(path.join(cwd, 'skills'), 'project');
-    // 2. Agents project skills: <projectRoot>/.agents/skills/
-    scanSkillsDir(path.join(cwd, '.agents', 'skills'), 'project');
-    // 3. Dexto project skills: <projectRoot>/.dexto/skills/
-    scanSkillsDir(path.join(cwd, '.dexto', 'skills'), 'project');
+    // Project-authored Skills prefer the canonical root, while retaining legacy roots so
+    // initialization never makes existing bundles disappear.
+    scanSkillsDir(skillPaths.project, 'project');
+    for (const legacyRoot of skillPaths.legacyProject) {
+        scanSkillsDir(legacyRoot, 'project');
+    }
 
-    // === User skills ===
-    // 4. Agents user skills: ~/.agents/skills/
-    // 5. Dexto user skills: ~/.dexto/skills/
-    if (homeDir) {
-        scanSkillsDir(path.join(homeDir, '.agents', 'skills'), 'user');
-        scanSkillsDir(path.join(homeDir, '.dexto', 'skills'), 'user');
+    // User-authored Skills also prefer the canonical root, with the legacy root retained.
+    scanSkillsDir(skillPaths.user, 'user');
+    for (const legacyRoot of skillPaths.legacyUser) {
+        scanSkillsDir(legacyRoot, 'user');
     }
 
     return skills;
@@ -126,15 +144,12 @@ export function discoverStandaloneSkills(projectPath?: string): DiscoveredSkill[
  *
  * @returns Array of skill search paths
  */
-export function getSkillSearchPaths(): string[] {
-    const homeDir = process.env.HOME || process.env.USERPROFILE || '';
-    const cwd = process.cwd();
-
+export function getSkillSearchPaths(projectPath?: string): string[] {
+    const skillPaths = getStandaloneSkillPaths(projectPath);
     return [
-        path.join(cwd, 'skills'),
-        path.join(cwd, '.agents', 'skills'),
-        path.join(cwd, '.dexto', 'skills'),
-        homeDir ? path.join(homeDir, '.agents', 'skills') : '',
-        homeDir ? path.join(homeDir, '.dexto', 'skills') : '',
-    ].filter(Boolean);
+        skillPaths.project,
+        ...skillPaths.legacyProject,
+        skillPaths.user,
+        ...skillPaths.legacyUser,
+    ];
 }

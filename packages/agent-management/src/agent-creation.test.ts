@@ -41,7 +41,7 @@ vi.mock('@dexto/core', () => {
 });
 
 vi.mock('@dexto/tools-builtins', () => ({
-    BUILTIN_TOOL_NAMES: ['ask_user', 'invoke_skill', 'delegate_to_url'],
+    BUILTIN_TOOL_NAMES: ['ask_user', 'skill_load', 'delegate_to_url'],
 }));
 
 vi.mock('./config/index.js', () => ({
@@ -49,7 +49,7 @@ vi.mock('./config/index.js', () => ({
 }));
 
 describe('createDextoAgentFromConfig', () => {
-    it('applies sub-agent tool constraints (disable ask_user/invoke_skill and remove agent-spawner)', async () => {
+    it('applies sub-agent tool constraints (disable ask_user/skill_load and remove agent-spawner)', async () => {
         const previousEnv = process.env.DEXTO_IMAGE;
         delete process.env.DEXTO_IMAGE;
 

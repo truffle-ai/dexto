@@ -7,8 +7,8 @@ Use this pattern when a skill needs to bundle a real MCP server in `scripts/`.
 - Use the official `@modelcontextprotocol/sdk` server APIs.
 - Use `StdioServerTransport` for bundled local servers.
 - Keep the MCP config in `mcps/*.json` simple and skill-relative:
-  - `command`: usually `node`
-  - `args`: usually `["scripts/<server-file>.mjs"]`
+    - `command`: usually `node`
+    - `args`: usually `["scripts/<server-file>.mjs"]`
 - Prefer `.mjs` for bundled MCP server scripts to avoid CommonJS/ESM ambiguity.
 
 ## Avoid
@@ -85,21 +85,21 @@ await server.connect(transport);
 
 ```json
 {
-  "mcpServers": {
-    "my_server": {
-      "type": "stdio",
-      "command": "node",
-      "args": ["scripts/my-skill-server.mjs"]
+    "mcpServers": {
+        "my_server": {
+            "type": "stdio",
+            "command": "node",
+            "args": ["scripts/my-skill-server.mjs"]
+        }
     }
-  }
 }
 ```
 
 ## Verification Sequence
 
 1. Create or update `SKILL.md`, `scripts/`, and `mcps/`.
-2. Run `skill_refresh` after non-creator file edits.
-3. Invoke the skill in the current session.
+2. Use `skill_load` after non-creator file edits to reread the current skill.
+3. Exercise the configured MCP server through its normal runtime path.
 4. Confirm the bundled MCP connects and the new MCP tool appears.
 5. Call the MCP tool once with a simple input and confirm the result.
 

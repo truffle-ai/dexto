@@ -18,7 +18,7 @@ import type { SearchService } from '../search/search-service.js';
 import type { Logger } from '../logger/v2/types.js';
 import type { HostRuntimeContext } from '../runtime/index.js';
 import type { AgentRunContext } from '../runtime/run-context.js';
-import type { SkillManager } from '../skills/index.js';
+import type { Skills } from '../skills/index.js';
 import type { WorkspaceManager } from '../workspace/index.js';
 
 /**
@@ -54,7 +54,7 @@ export interface ToolServices {
     search: SearchService;
     resources: ResourceManager;
     prompts: PromptManager;
-    skills: SkillManager;
+    skills: Skills | undefined;
     mcp: MCPManager;
     taskForker: TaskForker | null;
     workspaceManager: WorkspaceManager;

@@ -5,7 +5,7 @@ import type { Logger } from '../logger/v2/types.js';
 import { SystemPromptError } from './errors.js';
 import { DextoRuntimeError } from '../errors/DextoRuntimeError.js';
 import type { MemoryManager } from '../memory/index.js';
-import type { SkillManager } from '../skills/index.js';
+import type { Skills } from '../skills/index.js';
 import { recordOperationSpan } from '../telemetry/operation-span.js';
 
 export class StaticContributor implements SystemPromptContributor {
@@ -239,7 +239,7 @@ export class MemoryContributor implements SystemPromptContributor {
 }
 
 /**
- * SkillsContributor lists available skills that the LLM can invoke via the invoke_skill tool.
+ * SkillsContributor lists available skills that the LLM can load via the skill_load tool.
  * This enables the LLM to know what skills are available without hardcoding them.
  */
 export class SkillsContributor implements SystemPromptContributor {
@@ -248,7 +248,7 @@ export class SkillsContributor implements SystemPromptContributor {
     constructor(
         public id: string,
         public priority: number,
-        private skillManager: SkillManager,
+        private skills: Skills,
         logger: Logger
     ) {
         this.logger = logger;
@@ -263,7 +263,7 @@ export class SkillsContributor implements SystemPromptContributor {
                     componentName: 'SkillsContributor',
                     resultAttributes: (skills) => ({ 'skills.count': skills.length }),
                 },
-                () => this.skillManager.list(),
+                () => this.skills.list(),
                 this.logger
             );
             if (skills.length === 0) {
@@ -271,15 +271,12 @@ export class SkillsContributor implements SystemPromptContributor {
             }
 
             const skillsList = skills
-                .map((skill) => {
-                    const desc = skill.description ? ` - ${skill.description}` : '';
-                    return `- ${skill.displayName}${desc}`;
-                })
+                .map((skill) => `- ${skill.name} - ${skill.description}`)
                 .join('\n');
 
             const result = `## Available Skills
 
-Use \`invoke_skill\` when one of these skills is relevant:
+Use \`skill_load\` when one of these skills is relevant:
 
 ${skillsList}`;
 

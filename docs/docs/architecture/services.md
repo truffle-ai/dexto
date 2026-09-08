@@ -15,7 +15,7 @@ Dexto's architecture is built around core services that handle different aspects
 | **DextoStores** | Data persistence | Provides typed stores for conversations, sessions, memory, artifacts, tools, workspaces, and runtime state |
 | **SystemPromptManager** | System prompts | Manages system prompt assembly and dynamic content |
 | **PromptManager** | Prompts | Manages prompt-only slash commands and MCP prompt templates |
-| **SkillManager** | Skills | Lists and reads first-class skills for tools, CLI commands, and API catalog endpoints |
+| **Skills** | Skills | Lists and loads first-class skills for tools, CLI commands, and API catalog endpoints |
 | **AgentEventBus** | Event coordination | Handles inter-service communication |
 
 ## Service Relationships
@@ -28,7 +28,7 @@ graph TB
     DA --> TM[ToolManager]
     DA --> SPM[SystemPromptManager]
     DA --> PM[PromptManager]
-    DA --> SK[SkillManager]
+    DA --> SK[Skills]
     DA --> DS[DextoStores]
     DA --> AEB[AgentEventBus]
 
@@ -37,7 +37,6 @@ graph TB
     SM --> DS
     SPM --> DS
     PM --> DS
-    SK --> DS
 
     subgraph "Typed Store Layer"
         DS
@@ -208,17 +207,13 @@ prompts:
     showInStarters: true
 ```
 
-## SkillManager
+## Skills
 
-**First-class skill catalog** for agent capabilities.
+**First-class skill capability** for agent tools and host interfaces.
 
-Skills are discovered from skill sources, exposed through `agent.skillManager`, and used by
-`read_skill` / `invoke_skill` tools when enabled. They are listed separately from prompts in the
-CLI with `/skills` and through the server catalog API at `GET /api/skills` and
-`GET /api/skills/{id}`.
-
-Skills are not prompt templates. Do not add skills to `prompts`; put them in skill directories or
-provide a `SkillSource` through the active image.
+Core receives one host-provided `Skills` implementation through `DextoAgentOptions.skills`. It does
+not discover storage roots or combine multiple sources. See the [Skills contract](./skills.md) for
+the exact interface and loaded result shape.
 
 ## SystemPromptManager
 
@@ -278,7 +273,7 @@ Services are initialized automatically when `DextoAgent.start()` is called:
 
 1. **Stores** - Typed store connection
 2. **Events** - Event bus setup
-3. **Prompts and skills** - PromptManager and SkillManager setup
+3. **Prompts and skills** - PromptManager and the injected Skills capability
 4. **System prompt** - Contributor assembly
 5. **MCP** - Server connections
 6. **Tools** - Tool discovery and validation

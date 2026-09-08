@@ -102,7 +102,7 @@ describe('getDextoPath', () => {
         it('uses project-local paths for AGENTS.md workspaces with authored directories', () => {
             tempDir = createTempDirStructure({
                 'AGENTS.md': '# Dexto Workspace',
-                'skills/.gitkeep': '',
+                '.agents/skills/.gitkeep': '',
             });
 
             const result = getDextoPath('logs', 'workspace.log', tempDir);
@@ -113,7 +113,7 @@ describe('getDextoPath', () => {
         it('falls back to global paths for generic AGENTS.md plus authored directories', () => {
             tempDir = createTempDirStructure({
                 'AGENTS.md': '# Generic instructions',
-                'skills/.gitkeep': '',
+                '.agents/skills/.gitkeep': '',
             });
 
             const result = getDextoPath('logs', 'workspace.log', tempDir);
@@ -121,9 +121,9 @@ describe('getDextoPath', () => {
             expect(result).toBe(path.join(homedir(), '.dexto', 'logs', 'workspace.log'));
         });
 
-        it('falls back to global paths for skills/ alone', () => {
+        it('falls back to global paths for .agents/skills/ alone', () => {
             tempDir = createTempDirStructure({
-                'skills/release-check/SKILL.md': '# Release Check',
+                '.agents/skills/release-check/SKILL.md': '# Release Check',
             });
             const nestedDir = path.join(tempDir, 'nested');
             fs.mkdirSync(nestedDir, { recursive: true });

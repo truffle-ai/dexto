@@ -5,75 +5,66 @@ import { createSkillsRouter } from './skills.js';
 function createAgent() {
     const list = vi.fn(async () => [
         {
-            id: 'review',
-            displayName: 'Code Review',
+            name: 'review',
             description: 'Review a change',
         },
     ]);
-    const get = vi.fn(async (id: string) =>
-        id === 'review'
+    const load = vi.fn(async (name: string) =>
+        name === 'review'
             ? {
-                  id: 'review',
-                  displayName: 'Code Review',
-                  description: 'Review a change',
+                  name: 'review',
                   instructions: 'Inspect the diff and report risks.',
+                  supportingFiles: [],
+                  filesLocation: 'hosted' as const,
+                  baseDirectory: null,
               }
             : null
     );
-    const invoke = vi.fn();
 
     return {
         agent: {
-            skillManager: {
-                list,
-                get,
-                invoke,
-                readFile: vi.fn(),
-                refresh: vi.fn(),
-            },
+            skills: { list, load, readFile: vi.fn() },
         } as unknown as DextoAgent,
         list,
-        get,
-        invoke,
+        load,
     };
 }
 
 describe('createSkillsRouter', () => {
-    it('lists skills from SkillManager without invoking them', async () => {
-        const { agent, list, invoke } = createAgent();
+    it('lists skill summaries without loading them', async () => {
+        const { agent, list, load } = createAgent();
         const app = createSkillsRouter(async () => agent);
 
         const response = await app.request('/skills');
 
         expect(response.status).toBe(200);
         expect(list).toHaveBeenCalledOnce();
-        expect(invoke).not.toHaveBeenCalled();
+        expect(load).not.toHaveBeenCalled();
         await expect(response.json()).resolves.toEqual({
             skills: [
                 {
-                    id: 'review',
-                    displayName: 'Code Review',
+                    name: 'review',
                     description: 'Review a change',
                 },
             ],
         });
     });
 
-    it('reads one skill document from SkillManager', async () => {
-        const { agent, get, invoke } = createAgent();
+    it('loads one skill by its exact name', async () => {
+        const { agent, load } = createAgent();
         const app = createSkillsRouter(async () => agent);
 
         const response = await app.request('/skills/review');
 
         expect(response.status).toBe(200);
-        expect(get).toHaveBeenCalledWith('review');
-        expect(invoke).not.toHaveBeenCalled();
+        expect(load).toHaveBeenCalledWith('review');
         await expect(response.json()).resolves.toEqual({
             skill: {
-                id: 'review',
-                displayName: 'Code Review',
-                description: 'Review a change',
+                name: 'review',
                 instructions: 'Inspect the diff and report risks.',
+                supportingFiles: [],
+                filesLocation: 'hosted',
+                baseDirectory: null,
             },
         });
     });

@@ -28,6 +28,6 @@ See [Core Services](./services.md) for detailed information about:
 - **DextoStores** - Typed stores for conversation, sessions, memory, artifacts, tools, workspaces, and runtime state
 - **SystemPromptManager** - System prompts
 - **PromptManager** - Prompt-only slash commands and MCP prompt templates
-- **SkillManager** - First-class skill catalog used by `read_skill`, `invoke_skill`, `/skills`, and `/api/skills`
+- **Skills** - First-class skill contract used by `skill_load`, `/skills`, and `/api/skills`
 - **AgentEventBus** - Event coordination
 - **Telemetry** - Distributed tracing and observability

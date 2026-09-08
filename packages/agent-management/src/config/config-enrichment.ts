@@ -270,7 +270,7 @@ export function enrichAgentConfig(
                 console.warn(`[plugin] ${warning}`);
             }
 
-            // Add commands as prompts with namespace. Skills are discovered by SkillManager.
+            // Add commands as prompts with namespace. Skills are discovered by the host Skills implementation.
             for (const cmd of loaded.commands) {
                 if (cmd.isSkill) continue;
 

@@ -45,6 +45,7 @@ These rules are intended to prevent stack fragmentation and review churn.
 ### Core (`packages/core`)
 
 - Core is the business logic layer. Keep policy, validation boundaries, and reusable services here.
+- Skills are host/image-owned: Core defines only the compact `Skills` contract and exact `skill_load` boundary; storage, discovery, resolution, and materialization belong to host/image implementations.
 
 ### CLI (`packages/cli`)
 
@@ -70,6 +71,7 @@ Images are pre-configured bundles of providers, tools, and defaults for specific
 
 - **`@dexto/image-local`**: Local development image with filesystem/process tools, SQLite storage.
 - **`@dexto/image-bundler`**: Build tool for bundling images (`dexto-bundle` CLI).
+- Images provide the `skills.create(context)` implementation. Local filesystem/plugin discovery remains in `@dexto/agent-management`, while hosted storage and resolution remain host-owned.
 
 Image definition files use the convention `dexto.image.ts` and register providers (blob stores, custom tools) as side-effects when imported.
 

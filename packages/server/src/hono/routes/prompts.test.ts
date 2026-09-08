@@ -3,7 +3,7 @@ import type { DextoAgent } from '@dexto/core';
 import { createPromptsRouter } from './prompts.js';
 
 describe('createPromptsRouter', () => {
-    it('lists prompts from prompt APIs without reading SkillManager', async () => {
+    it('lists prompts from prompt APIs without reading Skills', async () => {
         const listPrompts = vi.fn(async () => ({
             'starter:help': {
                 name: 'starter:help',
@@ -14,13 +14,13 @@ describe('createPromptsRouter', () => {
         }));
         const listSkills = vi.fn(async () => [
             {
-                id: 'review',
-                displayName: 'Code Review',
+                name: 'review',
+                description: 'Review code changes',
             },
         ]);
         const agent = {
             listPrompts,
-            skillManager: {
+            skills: {
                 list: listSkills,
             },
         } as unknown as DextoAgent;

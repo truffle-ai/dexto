@@ -6,7 +6,7 @@ import type {
     CompactionStrategy as CompactionStrategy,
     Tool,
     WorkspaceHandleProvider,
-    SkillSource,
+    Skills,
 } from '@dexto/core';
 import type { z } from 'zod';
 import type { AgentConfig, ValidatedAgentConfig } from '../schemas/agent-config.js';
@@ -154,8 +154,8 @@ export interface WorkspaceHandleProviderFactory<
     metadata?: Record<string, unknown> | undefined;
 }
 
-export interface SkillSourceFactory<THostContext extends DextoHostContext = DextoHostContext> {
-    create(context?: ImageResolutionContext<THostContext>): SkillSource[] | Promise<SkillSource[]>;
+export interface SkillsFactory<THostContext extends DextoHostContext = DextoHostContext> {
+    create(context: ImageResolutionContext<THostContext>): Skills | Promise<Skills>;
     metadata?: Record<string, unknown> | undefined;
 }
 
@@ -193,7 +193,7 @@ export interface DextoImage<THostContext extends DextoHostContext = DextoHostCon
     compaction: Record<string, CompactionFactory<unknown, THostContext>>;
     logger: LoggerFactory<unknown, THostContext>;
     workspace?: WorkspaceHandleProviderFactory<THostContext> | undefined;
-    skills?: SkillSourceFactory<THostContext> | undefined;
+    skills?: SkillsFactory<THostContext> | undefined;
     resolveRuntimeConfig?(
         options: ResolveImageRuntimeConfigOptions<THostContext>
     ): DextoImageRuntimeConfigOverrides | undefined;

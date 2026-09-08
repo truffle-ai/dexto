@@ -3,7 +3,7 @@
 ## Canonical Layout
 
 ```text
-skills/<skill-id>/
+.agents/skills/<skill-id>/
 ├── SKILL.md
 ├── handlers/
 ├── scripts/
@@ -32,12 +32,12 @@ skills/<skill-id>/
 
 - `mcps/` stores bundled MCP config, not the MCP implementation itself.
 - Only say a skill ships a real MCP when the config points to:
-  - a runnable bundled server in the same skill, or
-  - a verified external package/command the user asked for
+    - a runnable bundled server in the same skill, or
+    - a verified external package/command the user asked for
 - If you only scaffolded config, describe it as scaffolding or wiring, not implementation.
 
-## Refresh Notes
+## Reload Notes
 
-- `skill_create` and `skill_update` refresh prompt registration for `SKILL.md`.
-- If you edit `SKILL.md`, `mcps/`, `scripts/`, or `references/` with other tools, run `skill_refresh`.
-- After `skill_refresh`, invoke the skill again so bundled MCP metadata is re-read and the MCP can connect in the same session.
+- `skill_create` and `skill_update` write the skill bundle to the canonical workspace root.
+- If you edit `SKILL.md`, `mcps/`, `scripts/`, or `references/` with other tools, use `skill_load` to reread the current files.
+- Configure runtime MCP servers through normal MCP configuration paths; bundled `mcps/` files are supporting files, not a refresh mechanism.

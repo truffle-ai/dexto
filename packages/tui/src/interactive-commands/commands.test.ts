@@ -3,18 +3,16 @@ import { executeCommand } from './commands.js';
 import type { TuiAgentBackend, TuiAgentCapabilities } from '../agent-backend.js';
 
 function createAgent(capabilities?: TuiAgentCapabilities): TuiAgentBackend {
-    const skillManager = {
+    const skills = {
         list: vi.fn().mockResolvedValue([]),
-        get: vi.fn().mockResolvedValue(null),
+        load: vi.fn().mockResolvedValue(null),
         readFile: vi.fn(),
-        invoke: vi.fn(),
-        refresh: vi.fn(),
     };
 
     return {
         capabilities,
         listPrompts: vi.fn(),
-        skillManager,
+        skills,
         logger: {
             debug: vi.fn(),
             info: vi.fn(),
@@ -43,42 +41,42 @@ describe('executeCommand', () => {
         expect(result).toBe('⚠️  Command /prompts is not available for this chat target.');
     });
 
-    it('lists skills through SkillManager when prompt commands are disabled', async () => {
+    it('lists skills through Skills when prompt commands are disabled', async () => {
         const agent = createAgent({ prompts: false });
-        const skillManager = agent.skillManager;
-        if (!skillManager) throw new Error('Expected test agent to have skills');
-        vi.mocked(skillManager.list).mockResolvedValue([
+        const skills = agent.skills;
+        if (!skills) throw new Error('Expected test agent to have skills');
+        vi.mocked(skills.list).mockResolvedValue([
             {
-                id: 'review',
-                displayName: 'Code Review',
+                name: 'review',
                 description: 'Review code changes',
             },
         ]);
 
         const result = await executeCommand('skills', [], agent);
 
-        expect(skillManager.list).toHaveBeenCalled();
+        expect(skills.list).toHaveBeenCalled();
         expect(agent.listPrompts).not.toHaveBeenCalled();
         expect(result).toContain('Available Skills');
-        expect(result).toContain('Code Review');
+        expect(result).toContain('review');
     });
 
-    it('reads one skill through SkillManager', async () => {
+    it('loads one skill through Skills', async () => {
         const agent = createAgent();
-        const skillManager = agent.skillManager;
-        if (!skillManager) throw new Error('Expected test agent to have skills');
-        vi.mocked(skillManager.get).mockResolvedValue({
-            id: 'review',
-            displayName: 'Code Review',
-            description: 'Review code changes',
+        const skills = agent.skills;
+        if (!skills) throw new Error('Expected test agent to have skills');
+        vi.mocked(skills.load).mockResolvedValue({
+            name: 'review',
             instructions: 'Check tests and edge cases.',
+            supportingFiles: [],
+            filesLocation: 'hosted',
+            baseDirectory: null,
         });
 
         const result = await executeCommand('skills', ['review'], agent);
 
-        expect(skillManager.get).toHaveBeenCalledWith('review');
+        expect(skills.load).toHaveBeenCalledWith('review');
         expect(agent.listPrompts).not.toHaveBeenCalled();
-        expect(result).toContain('Code Review');
+        expect(result).toContain('review');
         expect(result).toContain('Check tests and edge cases.');
     });
 });

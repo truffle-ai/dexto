@@ -17,6 +17,7 @@ import { LLMErrorCode } from '../llm/error-codes.js';
 import { createLogger } from '../logger/factory.js';
 import { AgentEventBus, type StreamingEvent } from '../events/index.js';
 import { InMemoryDextoStores } from '../storage/index.js';
+import type { Skills } from '../skills/index.js';
 
 // Mock the createAgentServices function
 vi.mock('../utils/service-initializer.js', () => ({
@@ -360,6 +361,80 @@ describe('DextoAgent Lifecycle Management', () => {
                 sessionId: 'session-1',
                 hostRuntime,
             });
+        });
+
+        test('should rebind workspace-aware Skills when the active workspace changes', async () => {
+            const setWorkspaceRoot = vi.fn();
+            const skills: Skills & { setWorkspaceRoot: typeof setWorkspaceRoot } = {
+                list: vi.fn().mockResolvedValue([]),
+                load: vi.fn().mockResolvedValue(null),
+                readFile: vi.fn().mockResolvedValue(''),
+                setWorkspaceRoot,
+            };
+            const initialWorkspace = {
+                id: 'workspace-1',
+                path: '/workspaces/active',
+                createdAt: 1,
+                lastActiveAt: 1,
+            };
+            mockServices.workspaceManager.getWorkspace = vi.fn(async () => initialWorkspace);
+
+            const agent = new DextoAgent({
+                ...mockValidatedConfig,
+                logger: createLogger({
+                    config: LoggerConfigSchema.parse({
+                        level: 'error',
+                        transports: [{ type: 'silent' }],
+                    }),
+                    agentId: mockValidatedConfig.agentId,
+                }),
+                stores: new InMemoryDextoStores(),
+                tools: [],
+                hooks: [],
+                skills,
+            });
+
+            await agent.start();
+
+            expect(setWorkspaceRoot).toHaveBeenCalledWith('/workspaces/active');
+
+            const eventBus = mockCreateAgentServices.mock.calls[0]?.[2];
+            expect(eventBus).toBeDefined();
+            eventBus?.emit('workspace:changed', {
+                workspace: { ...initialWorkspace, path: '/workspaces/next' },
+            });
+            eventBus?.emit('workspace:changed', { workspace: null });
+
+            expect(setWorkspaceRoot).toHaveBeenNthCalledWith(2, '/workspaces/next');
+            expect(setWorkspaceRoot).toHaveBeenNthCalledWith(3, undefined);
+        });
+
+        test('should reset workspace-aware Skills when no workspace is persisted', async () => {
+            const setWorkspaceRoot = vi.fn();
+            const skills: Skills & { setWorkspaceRoot: typeof setWorkspaceRoot } = {
+                list: vi.fn().mockResolvedValue([]),
+                load: vi.fn().mockResolvedValue(null),
+                readFile: vi.fn().mockResolvedValue(''),
+                setWorkspaceRoot,
+            };
+            const agent = new DextoAgent({
+                ...mockValidatedConfig,
+                logger: createLogger({
+                    config: LoggerConfigSchema.parse({
+                        level: 'error',
+                        transports: [{ type: 'silent' }],
+                    }),
+                    agentId: mockValidatedConfig.agentId,
+                }),
+                stores: new InMemoryDextoStores(),
+                tools: [],
+                hooks: [],
+                skills,
+            });
+
+            await agent.start();
+
+            expect(setWorkspaceRoot).toHaveBeenCalledWith(undefined);
         });
 
         test('should start with per-server connection modes in config', async () => {

@@ -7,7 +7,7 @@ import { DextoRuntimeError } from '../errors/DextoRuntimeError.js';
 import { SystemPromptErrorCode } from './error-codes.js';
 import { ErrorScope, ErrorType } from '../errors/types.js';
 import { createMockLogger } from '../logger/v2/test-utils.js';
-import type { SkillManager } from '../skills/index.js';
+import type { Skills } from '../skills/index.js';
 
 const mockLogger = createMockLogger();
 
@@ -265,39 +265,45 @@ describe('SkillsContributor', () => {
         mcpManager: {} as any,
     };
 
-    it('lists concise skills from SkillManager', async () => {
-        const skillManager = {
+    it('lists concise skills from Skills', async () => {
+        const skills: Skills = {
             list: async () => [
-                { id: 'alpha', displayName: 'Alpha', description: 'Use alpha' },
-                { id: 'beta', displayName: 'Beta' },
+                { name: 'alpha', description: 'Use alpha' },
+                { name: 'beta', description: 'Use beta' },
             ],
-        } as SkillManager;
-        const contributor = new SkillsContributor('skills', 50, skillManager, mockLogger);
+            load: async () => null,
+            readFile: async () => '',
+        };
+        const contributor = new SkillsContributor('skills', 50, skills, mockLogger);
 
         await expect(contributor.getContent(mockContext)).resolves.toBe(`## Available Skills
 
-Use \`invoke_skill\` when one of these skills is relevant:
+Use \`skill_load\` when one of these skills is relevant:
 
-- Alpha - Use alpha
-- Beta`);
+- alpha - Use alpha
+- beta - Use beta`);
     });
 
     it('returns empty content when no skills are available', async () => {
-        const skillManager = {
+        const skills = {
             list: async () => [],
-        } as unknown as SkillManager;
-        const contributor = new SkillsContributor('skills', 50, skillManager, mockLogger);
+            load: async () => null,
+            readFile: async () => '',
+        } satisfies Skills;
+        const contributor = new SkillsContributor('skills', 50, skills, mockLogger);
 
         await expect(contributor.getContent(mockContext)).resolves.toBe('');
     });
 
-    it('returns empty content when SkillManager listing fails', async () => {
-        const skillManager = {
+    it('returns empty content when Skills listing fails', async () => {
+        const skills = {
             list: async () => {
                 throw new Error('boom');
             },
-        } as unknown as SkillManager;
-        const contributor = new SkillsContributor('skills', 50, skillManager, mockLogger);
+            load: async () => null,
+            readFile: async () => '',
+        } satisfies Skills;
+        const contributor = new SkillsContributor('skills', 50, skills, mockLogger);
 
         await expect(contributor.getContent(mockContext)).resolves.toBe('');
     });

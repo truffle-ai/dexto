@@ -17,7 +17,7 @@ import {
 import { builtinToolsFactory } from '@dexto/tools-builtins';
 import { enrichAgentConfig } from './config-enrichment.js';
 import { creatorToolsFactory } from '../tool-factories/creator-tools/factory.js';
-import { createLocalSkillSources } from '../plugins/local-skill-sources.js';
+import { createLocalSkills } from '../plugins/local-skills.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SAMPLE_SKILL_DIR = path.resolve(__dirname, '../../../../examples/skills/echo-custom-mcp');
@@ -92,7 +92,7 @@ function createRuntimeAgentOptions(
         logger,
         stores: createInMemoryStores(logger),
         tools,
-        skillSources: createLocalSkillSources({ workspaceRoot }),
+        skills: createLocalSkills({ workspaceRoot }),
         hooks: [],
         overrides: {
             workspaceHandleProvider: createWorkspaceHandleProvider(workspaceRoot),
@@ -134,8 +134,8 @@ describe('skill bundle integration', () => {
 
     it('discovers standalone, user-global, and plugin skills and reads bundled files as plain files', async () => {
         const workspaceRoot = path.join(tempDir, 'workspace');
-        const skillDir = path.join(workspaceRoot, 'skills', 'echo-custom-mcp');
-        const globalSkillDir = path.join(tempDir, 'home', '.dexto', 'skills', 'global-review');
+        const skillDir = path.join(workspaceRoot, '.agents', 'skills', 'echo-custom-mcp');
+        const globalSkillDir = path.join(tempDir, 'home', '.agents', 'skills', 'global-review');
         const pluginSkillDir = path.join(
             workspaceRoot,
             '.dexto',
@@ -207,7 +207,7 @@ describe('skill bundle integration', () => {
                 enriched,
                 builtinToolsFactory.create({
                     type: 'builtin-tools',
-                    enabledTools: ['invoke_skill', 'read_skill'],
+                    enabledTools: ['skill_load'],
                 }),
                 workspaceRoot
             )
@@ -223,37 +223,39 @@ describe('skill bundle integration', () => {
                 Object.keys(toolsBefore).some((toolName) => toolName.includes('echo_message'))
             ).toBe(false);
 
-            const discoveredSkills = await agent.skillManager.list();
-            expect(discoveredSkills.map((skill) => skill.id).sort()).toEqual([
+            const discoveredSkills = await agent.skills?.list();
+            expect(discoveredSkills?.map((skill) => skill.name).sort()).toEqual([
                 'echo-custom-mcp',
                 'global-review',
                 'review:audit',
             ]);
 
             const session = await agent.createSession('skill-bundle-session');
-            const invokeResult = await agent.toolManager.executeTool(
-                'invoke_skill',
-                { skill: 'echo-custom-mcp' },
+            const loadResult = await agent.toolManager.executeTool(
+                'skill_load',
+                { name: 'echo-custom-mcp' },
                 'call-1',
                 { sessionId: session.id }
             );
 
-            expect(invokeResult.result).toMatchObject({
-                skill: 'echo-custom-mcp',
+            expect(loadResult.result).toMatchObject({
+                name: 'echo-custom-mcp',
+                filesLocation: 'workspace',
             });
             expect(
-                (invokeResult.result as { content: string }).content.includes('bundled files')
+                (loadResult.result as { instructions: string }).instructions.includes(
+                    'bundled files'
+                )
             ).toBe(true);
 
             const referenceResult = await agent.toolManager.executeTool(
-                'read_skill',
-                { skill: 'echo-custom-mcp', path: 'references/usage.md' },
+                'skill_load',
+                { name: 'echo-custom-mcp', path: 'references/usage.md' },
                 'call-2',
                 { sessionId: session.id }
             );
             expect(referenceResult.result).toMatchObject({
-                success: true,
-                skill: 'echo-custom-mcp',
+                name: 'echo-custom-mcp',
                 path: 'references/usage.md',
             });
             expect((referenceResult.result as { content: string }).content).toContain(
@@ -261,8 +263,8 @@ describe('skill bundle integration', () => {
             );
 
             const scriptResult = await agent.toolManager.executeTool(
-                'read_skill',
-                { skill: 'echo-custom-mcp', path: 'scripts/echo-mcp-server.mjs' },
+                'skill_load',
+                { name: 'echo-custom-mcp', path: 'scripts/echo-mcp-server.mjs' },
                 'call-3',
                 { sessionId: session.id }
             );
@@ -271,8 +273,8 @@ describe('skill bundle integration', () => {
             );
 
             const mcpFileResult = await agent.toolManager.executeTool(
-                'read_skill',
-                { skill: 'echo-custom-mcp', path: 'mcps/echo.json' },
+                'skill_load',
+                { name: 'echo-custom-mcp', path: 'mcps/echo.json' },
                 'call-4',
                 { sessionId: session.id }
             );
@@ -289,9 +291,9 @@ describe('skill bundle integration', () => {
         }
     }, 20000);
 
-    it('refreshes a skill bundle so later SKILL.md and resource edits are visible without restarting the session', async () => {
+    it('rereads a skill bundle so later SKILL.md and resource edits are visible without restarting the session', async () => {
         const workspaceRoot = path.join(tempDir, 'workspace');
-        const skillDir = path.join(workspaceRoot, 'skills', 'echo-custom-mcp');
+        const skillDir = path.join(workspaceRoot, '.agents', 'skills', 'echo-custom-mcp');
         await fs.mkdir(path.join(workspaceRoot, 'agents'), { recursive: true });
         await fs.cp(SAMPLE_SKILL_DIR, skillDir, { recursive: true });
         await fs.writeFile(
@@ -344,7 +346,7 @@ describe('skill bundle integration', () => {
                 [
                     ...builtinToolsFactory.create({
                         type: 'builtin-tools',
-                        enabledTools: ['invoke_skill', 'read_skill'],
+                        enabledTools: ['skill_load'],
                     }),
                     ...creatorToolsFactory.create({
                         type: 'creator-tools',
@@ -362,17 +364,17 @@ describe('skill bundle integration', () => {
             const session = await agent.createSession('skill-refresh-session');
 
             const staleInvoke = await agent.toolManager.executeTool(
-                'invoke_skill',
-                { skill: 'echo-custom-mcp' },
+                'skill_load',
+                { name: 'echo-custom-mcp' },
                 'call-stale',
                 { sessionId: session.id }
             );
 
             expect(staleInvoke.result).toMatchObject({
-                skill: 'echo-custom-mcp',
+                name: 'echo-custom-mcp',
             });
             expect(
-                (staleInvoke.result as { content: string }).content.includes(
+                (staleInvoke.result as { instructions: string }).instructions.includes(
                     'loaded before resource edits'
                 )
             ).toBe(true);
@@ -389,7 +391,7 @@ describe('skill bundle integration', () => {
                     '# Echo Updated',
                     '',
                     '## Purpose',
-                    'Verify that skill_refresh refreshes SkillManager entries and instructions.',
+                    'Verify that the exact skill_load contract sees updated instructions.',
                 ].join('\n'),
                 'utf8'
             );
@@ -412,30 +414,30 @@ describe('skill bundle integration', () => {
             });
             expect(refreshResult.result).not.toHaveProperty('bundledMcpServers');
 
-            const refreshedSkills = await agent.skillManager.list();
+            const refreshedSkills = await agent.skills?.list();
             expect(refreshedSkills).toContainEqual(
                 expect.objectContaining({
-                    id: 'echo-custom-mcp',
-                    displayName: 'Echo Updated',
+                    name: 'echo-custom-mcp',
+                    description: 'Use bundled files for quick skill checks.',
                 })
             );
 
             const freshInvoke = await agent.toolManager.executeTool(
-                'invoke_skill',
-                { skill: 'echo-custom-mcp' },
+                'skill_load',
+                { name: 'echo-custom-mcp' },
                 'call-fresh',
                 { sessionId: session.id }
             );
 
             expect(
-                (freshInvoke.result as { content: string }).content.includes(
-                    'refreshes SkillManager entries and instructions'
+                (freshInvoke.result as { instructions: string }).instructions.includes(
+                    'exact skill_load contract sees updated instructions'
                 )
             ).toBe(true);
 
             const referenceResult = await agent.toolManager.executeTool(
-                'read_skill',
-                { skill: 'echo-custom-mcp', path: 'references/usage.md' },
+                'skill_load',
+                { name: 'echo-custom-mcp', path: 'references/usage.md' },
                 'call-reference',
                 { sessionId: session.id }
             );

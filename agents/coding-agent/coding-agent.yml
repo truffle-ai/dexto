@@ -148,7 +148,7 @@ tools:
   - type: builtin-tools
     enabledTools:
       - ask_user       # Ask questions and collect input
-      - invoke_skill   # Invoke skills/prompts during execution
+      - skill_load     # Load a skill's instructions or supporting file during execution
       - http_request   # Fetch web pages and APIs
       - web_search     # Web search via Exa MCP (internal tool)
       - code_search    # Code/context search via Exa MCP (internal tool)
@@ -238,11 +238,11 @@ resources:
 
 # Prompts - coding-focused examples shown as clickable buttons in WebUI
 prompts:
-  # Skills - can be invoked by the LLM via invoke_skill tool
+  # Skills - can be loaded by the LLM via the skill_load tool
   - type: file
     file: "${{dexto.agent_dir}}/skills/code-review.md"
     # user-invocable: true (default) - appears as /code-review slash command
-    # disable-model-invocation: false (default) - LLM can invoke via invoke_skill
+    # disable-model-invocation: false (default) - LLM can load via skill_load
   - type: inline
     id: analyze-codebase
     title: "🔍 Analyze Codebase"

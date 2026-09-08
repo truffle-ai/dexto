@@ -52,7 +52,7 @@ export function toDextoAgentOptions<THostContext extends DextoHostContext = Dext
         logger: services.logger,
         stores: services.stores,
         tools: services.tools,
-        skillSources: services.skillSources,
+        ...(services.skills !== undefined ? { skills: services.skills } : {}),
         toolkitLoader: services.toolkitLoader,
         hooks: services.hooks,
         compaction: services.compaction,

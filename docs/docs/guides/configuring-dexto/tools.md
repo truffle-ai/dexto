@@ -20,7 +20,7 @@ tools:
   - type: builtin-tools
     enabledTools:
       - ask_user
-      - invoke_skill
+      - skill_load
       - delegate_to_url
 
   - type: filesystem-tools

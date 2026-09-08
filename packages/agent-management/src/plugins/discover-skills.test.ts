@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import * as fs from 'fs';
+import * as path from 'path';
+import { homedir } from 'os';
 
-// Mock fs module
 vi.mock('fs', async () => {
     const actual = await vi.importActual<typeof import('fs')>('fs');
     return {
@@ -13,44 +14,25 @@ vi.mock('fs', async () => {
 
 import { discoverStandaloneSkills, getSkillSearchPaths } from './discover-skills.js';
 
-// Mock Dirent type that matches fs.Dirent interface
-interface MockDirent
-    extends Pick<
-        fs.Dirent,
-        | 'name'
-        | 'isFile'
-        | 'isDirectory'
-        | 'isBlockDevice'
-        | 'isCharacterDevice'
-        | 'isSymbolicLink'
-        | 'isFIFO'
-        | 'isSocket'
-        | 'path'
-        | 'parentPath'
-    > {}
+type MockDirent = {
+    name: string;
+    isDirectory: () => boolean;
+};
 
 describe('discoverStandaloneSkills', () => {
     const originalCwd = process.cwd;
     const originalEnv = { ...process.env };
 
-    // Helper to create mock Dirent-like objects
-    const createDirent = (name: string, isDir: boolean): MockDirent => ({
+    const createDirent = (name: string, isDirectory: boolean): MockDirent => ({
         name,
-        isFile: () => !isDir,
-        isDirectory: () => isDir,
-        isBlockDevice: () => false,
-        isCharacterDevice: () => false,
-        isSymbolicLink: () => false,
-        isFIFO: () => false,
-        isSocket: () => false,
-        path: '',
-        parentPath: '',
+        isDirectory: () => isDirectory,
     });
 
     beforeEach(() => {
         vi.resetAllMocks();
         process.cwd = vi.fn(() => '/test/project');
         process.env.HOME = '/home/user';
+        process.env.USERPROFILE = '/home/user';
     });
 
     afterEach(() => {
@@ -58,340 +40,156 @@ describe('discoverStandaloneSkills', () => {
         process.env = { ...originalEnv };
     });
 
-    describe('skill discovery from user directory', () => {
-        it('should discover skills from ~/.agents/skills/', () => {
-            vi.mocked(fs.existsSync).mockImplementation((p) => {
-                if (p === '/home/user/.agents/skills') return true;
-                if (p === '/home/user/.agents/skills/remotion-video/SKILL.md') return true;
-                return false;
-            });
-
-            vi.mocked(fs.readdirSync).mockImplementation((dir) => {
-                if (dir === '/home/user/.agents/skills') {
-                    return [createDirent('remotion-video', true)] as unknown as ReturnType<
-                        typeof fs.readdirSync
-                    >;
-                }
-                return [];
-            });
-
-            const result = discoverStandaloneSkills();
-
-            expect(result).toHaveLength(1);
-            expect(result[0]).toMatchObject({
-                name: 'remotion-video',
-                path: '/home/user/.agents/skills/remotion-video',
-                skillFile: '/home/user/.agents/skills/remotion-video/SKILL.md',
-                source: 'user',
-            });
+    it('discovers user skills from the canonical ~/.agents/skills root', () => {
+        vi.mocked(fs.existsSync).mockImplementation((entry) => {
+            const value = String(entry);
+            return (
+                value === '/home/user/.agents/skills' ||
+                value === '/home/user/.agents/skills/review/SKILL.md'
+            );
+        });
+        vi.mocked(fs.readdirSync).mockImplementation((entry) => {
+            if (String(entry) === '/home/user/.agents/skills') {
+                return [createDirent('review', true)] as unknown as ReturnType<
+                    typeof fs.readdirSync
+                >;
+            }
+            return [];
         });
 
-        it('should discover skills from ~/.dexto/skills/', () => {
-            vi.mocked(fs.existsSync).mockImplementation((p) => {
-                if (p === '/home/user/.dexto/skills') return true;
-                if (p === '/home/user/.dexto/skills/remotion-video/SKILL.md') return true;
-                return false;
-            });
-
-            vi.mocked(fs.readdirSync).mockImplementation((dir) => {
-                if (dir === '/home/user/.dexto/skills') {
-                    return [createDirent('remotion-video', true)] as unknown as ReturnType<
-                        typeof fs.readdirSync
-                    >;
-                }
-                return [];
-            });
-
-            const result = discoverStandaloneSkills();
-
-            expect(result).toHaveLength(1);
-            expect(result[0]).toMatchObject({
-                name: 'remotion-video',
-                path: '/home/user/.dexto/skills/remotion-video',
-                skillFile: '/home/user/.dexto/skills/remotion-video/SKILL.md',
+        expect(discoverStandaloneSkills()).toEqual([
+            {
+                name: 'review',
+                path: '/home/user/.agents/skills/review',
+                skillFile: '/home/user/.agents/skills/review/SKILL.md',
                 source: 'user',
-            });
+            },
+        ]);
+    });
+
+    it('prioritizes project skills over user skills with the same name', () => {
+        vi.mocked(fs.existsSync).mockImplementation((entry) => {
+            const value = String(entry);
+            return (
+                value === '/test/project/.agents/skills' ||
+                value === '/test/project/.agents/skills/review/SKILL.md' ||
+                value === '/home/user/.agents/skills' ||
+                value === '/home/user/.agents/skills/review/SKILL.md'
+            );
+        });
+        vi.mocked(fs.readdirSync).mockImplementation((entry) => {
+            const value = String(entry);
+            if (value === '/test/project/.agents/skills') {
+                return [createDirent('review', true)] as unknown as ReturnType<
+                    typeof fs.readdirSync
+                >;
+            }
+            if (value === '/home/user/.agents/skills') {
+                return [createDirent('review', true)] as unknown as ReturnType<
+                    typeof fs.readdirSync
+                >;
+            }
+            return [];
         });
 
-        it('should skip directories without SKILL.md', () => {
-            vi.mocked(fs.existsSync).mockImplementation((p) => {
-                if (p === '/home/user/.dexto/skills') return true;
-                // SKILL.md does not exist
-                return false;
-            });
+        const result = discoverStandaloneSkills();
 
-            vi.mocked(fs.readdirSync).mockImplementation((dir) => {
-                if (dir === '/home/user/.dexto/skills') {
-                    return [createDirent('incomplete-skill', true)] as unknown as ReturnType<
-                        typeof fs.readdirSync
-                    >;
-                }
-                return [];
-            });
-
-            const result = discoverStandaloneSkills();
-
-            expect(result).toHaveLength(0);
+        expect(result).toHaveLength(1);
+        expect(result[0]).toMatchObject({
+            name: 'review',
+            path: '/test/project/.agents/skills/review',
+            source: 'project',
         });
     });
 
-    describe('skill discovery from project directory', () => {
-        it('should discover skills from <cwd>/skills/', () => {
-            vi.mocked(fs.existsSync).mockImplementation((p) => {
-                if (p === '/test/project/skills') return true;
-                if (p === '/test/project/skills/my-project-skill/SKILL.md') return true;
-                return false;
-            });
-
-            vi.mocked(fs.readdirSync).mockImplementation((dir) => {
-                if (dir === '/test/project/skills') {
-                    return [createDirent('my-project-skill', true)] as unknown as ReturnType<
-                        typeof fs.readdirSync
-                    >;
-                }
-                return [];
-            });
-
-            const result = discoverStandaloneSkills();
-
-            expect(result).toHaveLength(1);
-            expect(result[0]).toMatchObject({
-                name: 'my-project-skill',
-                path: '/test/project/skills/my-project-skill',
-                skillFile: '/test/project/skills/my-project-skill/SKILL.md',
-                source: 'project',
-            });
+    it('preserves legacy project and user skill roots for compatibility', () => {
+        vi.mocked(fs.existsSync).mockImplementation((entry) => {
+            const value = String(entry);
+            return (
+                value === '/test/project/skills' ||
+                value === '/test/project/skills/legacy-project/SKILL.md' ||
+                value === '/test/project/.dexto/skills' ||
+                value === '/test/project/.dexto/skills/legacy-dexto/SKILL.md' ||
+                value === '/home/user/.dexto/skills' ||
+                value === '/home/user/.dexto/skills/legacy-user/SKILL.md'
+            );
+        });
+        vi.mocked(fs.readdirSync).mockImplementation((entry) => {
+            const value = String(entry);
+            if (value === '/test/project/skills') {
+                return [createDirent('legacy-project', true)] as unknown as ReturnType<
+                    typeof fs.readdirSync
+                >;
+            }
+            if (value === '/test/project/.dexto/skills') {
+                return [createDirent('legacy-dexto', true)] as unknown as ReturnType<
+                    typeof fs.readdirSync
+                >;
+            }
+            if (value === '/home/user/.dexto/skills') {
+                return [createDirent('legacy-user', true)] as unknown as ReturnType<
+                    typeof fs.readdirSync
+                >;
+            }
+            return [];
         });
 
-        it('should discover skills from <cwd>/.agents/skills/', () => {
-            vi.mocked(fs.existsSync).mockImplementation((p) => {
-                if (p === '/test/project/.agents/skills') return true;
-                if (p === '/test/project/.agents/skills/my-project-skill/SKILL.md') return true;
-                return false;
-            });
-
-            vi.mocked(fs.readdirSync).mockImplementation((dir) => {
-                if (dir === '/test/project/.agents/skills') {
-                    return [createDirent('my-project-skill', true)] as unknown as ReturnType<
-                        typeof fs.readdirSync
-                    >;
-                }
-                return [];
-            });
-
-            const result = discoverStandaloneSkills();
-
-            expect(result).toHaveLength(1);
-            expect(result[0]).toMatchObject({
-                name: 'my-project-skill',
-                source: 'project',
-            });
-        });
-
-        it('should discover skills from <cwd>/.dexto/skills/', () => {
-            vi.mocked(fs.existsSync).mockImplementation((p) => {
-                if (p === '/test/project/.dexto/skills') return true;
-                if (p === '/test/project/.dexto/skills/my-project-skill/SKILL.md') return true;
-                return false;
-            });
-
-            vi.mocked(fs.readdirSync).mockImplementation((dir) => {
-                if (dir === '/test/project/.dexto/skills') {
-                    return [createDirent('my-project-skill', true)] as unknown as ReturnType<
-                        typeof fs.readdirSync
-                    >;
-                }
-                return [];
-            });
-
-            const result = discoverStandaloneSkills();
-
-            expect(result).toHaveLength(1);
-            expect(result[0]).toMatchObject({
-                name: 'my-project-skill',
-                source: 'project',
-            });
-        });
-
-        it('should prioritize project skills over user skills with same name', () => {
-            vi.mocked(fs.existsSync).mockImplementation((p) => {
-                if (p === '/test/project/.dexto/skills') return true;
-                if (p === '/test/project/.dexto/skills/shared-skill/SKILL.md') return true;
-                if (p === '/home/user/.dexto/skills') return true;
-                if (p === '/home/user/.dexto/skills/shared-skill/SKILL.md') return true;
-                return false;
-            });
-
-            vi.mocked(fs.readdirSync).mockImplementation((dir) => {
-                if (dir === '/test/project/.dexto/skills') {
-                    return [createDirent('shared-skill', true)] as unknown as ReturnType<
-                        typeof fs.readdirSync
-                    >;
-                }
-                if (dir === '/home/user/.dexto/skills') {
-                    return [createDirent('shared-skill', true)] as unknown as ReturnType<
-                        typeof fs.readdirSync
-                    >;
-                }
-                return [];
-            });
-
-            const result = discoverStandaloneSkills();
-
-            // Should only have one skill (project takes priority)
-            expect(result).toHaveLength(1);
-            expect(result[0]!.source).toBe('project');
-            expect(result[0]!.path).toBe('/test/project/.dexto/skills/shared-skill');
-        });
-
-        it('should prefer .agents over .dexto skills with same name', () => {
-            vi.mocked(fs.existsSync).mockImplementation((p) => {
-                if (p === '/test/project/.agents/skills') return true;
-                if (p === '/test/project/.agents/skills/shared-skill/SKILL.md') return true;
-                if (p === '/test/project/.dexto/skills') return true;
-                if (p === '/test/project/.dexto/skills/shared-skill/SKILL.md') return true;
-                return false;
-            });
-
-            vi.mocked(fs.readdirSync).mockImplementation((dir) => {
-                if (dir === '/test/project/.agents/skills') {
-                    return [createDirent('shared-skill', true)] as unknown as ReturnType<
-                        typeof fs.readdirSync
-                    >;
-                }
-                if (dir === '/test/project/.dexto/skills') {
-                    return [createDirent('shared-skill', true)] as unknown as ReturnType<
-                        typeof fs.readdirSync
-                    >;
-                }
-                return [];
-            });
-
-            const result = discoverStandaloneSkills();
-
-            expect(result).toHaveLength(1);
-            expect(result[0]!.path).toBe('/test/project/.agents/skills/shared-skill');
-        });
-
-        it('should prefer top-level skills over hidden project skills with same name', () => {
-            vi.mocked(fs.existsSync).mockImplementation((p) => {
-                if (p === '/test/project/skills') return true;
-                if (p === '/test/project/skills/shared-skill/SKILL.md') return true;
-                if (p === '/test/project/.agents/skills') return true;
-                if (p === '/test/project/.agents/skills/shared-skill/SKILL.md') return true;
-                if (p === '/test/project/.dexto/skills') return true;
-                if (p === '/test/project/.dexto/skills/shared-skill/SKILL.md') return true;
-                return false;
-            });
-
-            vi.mocked(fs.readdirSync).mockImplementation((dir) => {
-                if (dir === '/test/project/skills') {
-                    return [createDirent('shared-skill', true)] as unknown as ReturnType<
-                        typeof fs.readdirSync
-                    >;
-                }
-                if (dir === '/test/project/.agents/skills') {
-                    return [createDirent('shared-skill', true)] as unknown as ReturnType<
-                        typeof fs.readdirSync
-                    >;
-                }
-                if (dir === '/test/project/.dexto/skills') {
-                    return [createDirent('shared-skill', true)] as unknown as ReturnType<
-                        typeof fs.readdirSync
-                    >;
-                }
-                return [];
-            });
-
-            const result = discoverStandaloneSkills();
-
-            expect(result).toHaveLength(1);
-            expect(result[0]!.path).toBe('/test/project/skills/shared-skill');
-        });
+        expect(discoverStandaloneSkills().map((skill) => skill.name)).toEqual([
+            'legacy-project',
+            'legacy-dexto',
+            'legacy-user',
+        ]);
     });
 
-    describe('edge cases', () => {
-        it('should return empty array when no skills directories exist', () => {
-            vi.mocked(fs.existsSync).mockReturnValue(false);
-
-            const result = discoverStandaloneSkills();
-
-            expect(result).toEqual([]);
+    it('skips incomplete and non-directory entries', () => {
+        vi.mocked(fs.existsSync).mockImplementation((entry) => {
+            const value = String(entry);
+            return (
+                value === '/home/user/.agents/skills' ||
+                value === '/home/user/.agents/skills/valid/SKILL.md'
+            );
+        });
+        vi.mocked(fs.readdirSync).mockImplementation((entry) => {
+            if (String(entry) === '/home/user/.agents/skills') {
+                return [
+                    createDirent('valid', true),
+                    createDirent('incomplete', true),
+                    createDirent('not-a-directory.md', false),
+                ] as unknown as ReturnType<typeof fs.readdirSync>;
+            }
+            return [];
         });
 
-        it('should skip non-directory entries', () => {
-            vi.mocked(fs.existsSync).mockImplementation((p) => {
-                if (p === '/home/user/.dexto/skills') return true;
-                if (p === '/home/user/.dexto/skills/valid-skill/SKILL.md') return true;
-                return false;
-            });
+        expect(discoverStandaloneSkills().map((skill) => skill.name)).toEqual(['valid']);
+    });
 
-            vi.mocked(fs.readdirSync).mockImplementation((dir) => {
-                if (dir === '/home/user/.dexto/skills') {
-                    return [
-                        createDirent('valid-skill', true),
-                        createDirent('some-file.md', false), // File, not directory
-                    ] as unknown as ReturnType<typeof fs.readdirSync>;
-                }
-                return [];
-            });
-
-            const result = discoverStandaloneSkills();
-
-            expect(result).toHaveLength(1);
-            expect(result[0]!.name).toBe('valid-skill');
+    it('still discovers project skills when HOME is unavailable', () => {
+        delete process.env.HOME;
+        delete process.env.USERPROFILE;
+        vi.mocked(fs.existsSync).mockImplementation((entry) => {
+            const value = String(entry);
+            return (
+                value === '/test/project/.agents/skills' ||
+                value === '/test/project/.agents/skills/local/SKILL.md'
+            );
+        });
+        vi.mocked(fs.readdirSync).mockImplementation((entry) => {
+            if (String(entry) === '/test/project/.agents/skills') {
+                return [createDirent('local', true)] as unknown as ReturnType<
+                    typeof fs.readdirSync
+                >;
+            }
+            return [];
         });
 
-        it('should handle missing HOME environment variable', () => {
-            delete process.env.HOME;
-            delete process.env.USERPROFILE;
+        expect(discoverStandaloneSkills()).toHaveLength(1);
+    });
 
-            vi.mocked(fs.existsSync).mockImplementation((p) => {
-                if (p === '/test/project/.dexto/skills') return true;
-                if (p === '/test/project/.dexto/skills/local-skill/SKILL.md') return true;
-                return false;
-            });
+    it('falls back to the operating-system home directory when env vars are unavailable', () => {
+        delete process.env.HOME;
+        delete process.env.USERPROFILE;
 
-            vi.mocked(fs.readdirSync).mockImplementation((dir) => {
-                if (dir === '/test/project/.dexto/skills') {
-                    return [createDirent('local-skill', true)] as unknown as ReturnType<
-                        typeof fs.readdirSync
-                    >;
-                }
-                return [];
-            });
-
-            const result = discoverStandaloneSkills();
-
-            // Should still work for project skills
-            expect(result).toHaveLength(1);
-        });
-
-        it('should discover multiple skills from same directory', () => {
-            vi.mocked(fs.existsSync).mockImplementation((p) => {
-                if (p === '/home/user/.dexto/skills') return true;
-                if (p === '/home/user/.dexto/skills/skill-a/SKILL.md') return true;
-                if (p === '/home/user/.dexto/skills/skill-b/SKILL.md') return true;
-                if (p === '/home/user/.dexto/skills/skill-c/SKILL.md') return true;
-                return false;
-            });
-
-            vi.mocked(fs.readdirSync).mockImplementation((dir) => {
-                if (dir === '/home/user/.dexto/skills') {
-                    return [
-                        createDirent('skill-a', true),
-                        createDirent('skill-b', true),
-                        createDirent('skill-c', true),
-                    ] as unknown as ReturnType<typeof fs.readdirSync>;
-                }
-                return [];
-            });
-
-            const result = discoverStandaloneSkills();
-
-            expect(result).toHaveLength(3);
-            expect(result.map((s) => s.name).sort()).toEqual(['skill-a', 'skill-b', 'skill-c']);
-        });
+        expect(getSkillSearchPaths()).toContain(path.join(homedir(), '.agents', 'skills'));
     });
 });
 
@@ -409,13 +207,21 @@ describe('getSkillSearchPaths', () => {
         process.env = { ...originalEnv };
     });
 
-    it('should return all search paths in priority order', () => {
-        const paths = getSkillSearchPaths();
-
-        expect(paths).toEqual([
-            '/test/project/skills',
+    it('returns canonical and legacy roots in priority order', () => {
+        expect(getSkillSearchPaths()).toEqual([
             '/test/project/.agents/skills',
+            '/test/project/skills',
             '/test/project/.dexto/skills',
+            '/home/user/.agents/skills',
+            '/home/user/.dexto/skills',
+        ]);
+    });
+
+    it('uses an explicit project path for the project root', () => {
+        expect(getSkillSearchPaths('/other/project')).toEqual([
+            '/other/project/.agents/skills',
+            '/other/project/skills',
+            '/other/project/.dexto/skills',
             '/home/user/.agents/skills',
             '/home/user/.dexto/skills',
         ]);

@@ -768,18 +768,25 @@ export type Workspace = z.output<typeof WorkspaceSchema>;
 
 export const SkillSummarySchema = z
     .object({
-        id: z.string().describe('Skill identifier'),
-        displayName: z.string().describe('Human-readable skill name'),
-        description: z.string().optional().describe('Skill description'),
+        name: z.string().min(1).describe('Exact skill name accepted by skill_load'),
+        description: z.string().min(1).describe('Skill routing description'),
     })
     .strict()
     .describe('Skill catalog entry');
 
 export type SkillSummary = z.output<typeof SkillSummarySchema>;
 
-export const SkillDocumentSchema = SkillSummarySchema.extend({
-    instructions: z.string().describe('Full skill instructions'),
-})
+export const SkillDocumentSchema = z
+    .object({
+        name: z.string().min(1).describe('Exact skill name accepted by skill_load'),
+        instructions: z.string().describe('Full skill instructions'),
+        supportingFiles: z.array(z.string()).describe('Relative supporting file paths'),
+        filesLocation: z.enum(['hosted', 'workspace']).describe('Where supporting files are read'),
+        baseDirectory: z
+            .string()
+            .nullable()
+            .describe('Workspace directory for supporting files, or null for hosted files'),
+    })
     .strict()
     .describe('Skill document');
 
