@@ -821,3 +821,132 @@ describe('MessageQueueService', () => {
         });
     });
 });
+
+describe('MessageQueueService restored entries (issue #743)', () => {
+    let eventBus: SessionEventBus;
+    let logger: Logger;
+
+    function restoredEntry(id: string, text: string): QueuedMessage {
+        return { id, content: [{ type: 'text', text }], queuedAt: 1 };
+    }
+
+    async function createRestoredQueue(entries: QueuedMessage[]) {
+        const store = createInMemoryMessageQueueStore();
+        for (const entry of entries) {
+            await store.append({ sessionId: 'session-1', message: entry });
+        }
+        eventBus = createMockEventBus();
+        logger = createMockLogger();
+        const service = new MessageQueueService(eventBus, logger, 'session-1', store, 'follow-up');
+        await service.initialize();
+        return { store, service };
+    }
+
+    it('holds entries that were already persisted when the service initializes', async () => {
+        const { service } = await createRestoredQueue([restoredEntry('old-1', 'restored')]);
+
+        expect(service.getHeld().map((m) => m.id)).toEqual(['old-1']);
+        expect(service.getAll().map((m) => m.id)).toEqual(['old-1']);
+        expect(service.pendingCount()).toBe(1);
+        expect(service.hasPending()).toBe(false);
+    });
+
+    it('does not drain held entries through dequeueAll, but drains live ones around them', async () => {
+        const { store, service } = await createRestoredQueue([restoredEntry('old-1', 'restored')]);
+
+        expect(await service.dequeueAll()).toBeNull();
+        expect(await store.list({ sessionId: 'session-1' })).toHaveLength(1);
+
+        await service.enqueue({ content: [{ type: 'text', text: 'live' }] });
+        expect(service.hasPending()).toBe(true);
+
+        const coalesced = await service.dequeueAll();
+        expect(coalesced?.messages.map((m) => m.content)).toEqual([
+            [{ type: 'text', text: 'live' }],
+        ]);
+        expect(service.getHeld().map((m) => m.id)).toEqual(['old-1']);
+        expect(await store.list({ sessionId: 'session-1' })).toHaveLength(1);
+        expect(service.hasPending()).toBe(false);
+    });
+
+    it('takeHeld removes the held entries durably, returns them once, and emits message:dequeued', async () => {
+        const { store, service } = await createRestoredQueue([
+            restoredEntry('old-1', 'first'),
+            restoredEntry('old-2', 'second'),
+        ]);
+
+        const taken = await service.takeHeld();
+        expect(taken.map((m) => m.id)).toEqual(['old-1', 'old-2']);
+        expect(await store.list({ sessionId: 'session-1' })).toEqual([]);
+        expect(service.getHeld()).toEqual([]);
+        expect(service.pendingCount()).toBe(0);
+        expect(eventBus.emit).toHaveBeenCalledWith(
+            'message:dequeued',
+            expect.objectContaining({
+                ids: ['old-1', 'old-2'],
+                queue: 'follow-up',
+                coalesced: true,
+                count: 2,
+            })
+        );
+
+        expect(await service.takeHeld()).toEqual([]);
+    });
+
+    it('takeHeld skips entries another actor already removed from the store', async () => {
+        const { store, service } = await createRestoredQueue([
+            restoredEntry('old-1', 'first'),
+            restoredEntry('old-2', 'second'),
+        ]);
+        await store.remove({ sessionId: 'session-1', id: 'old-1' });
+
+        const taken = await service.takeHeld();
+        expect(taken.map((m) => m.id)).toEqual(['old-2']);
+    });
+
+    it('discardHeld removes held entries without returning them and emits message:removed', async () => {
+        const { store, service } = await createRestoredQueue([
+            restoredEntry('old-1', 'first'),
+            restoredEntry('old-2', 'second'),
+        ]);
+        await service.enqueue({ content: [{ type: 'text', text: 'live' }] });
+
+        expect(await service.discardHeld()).toBe(2);
+        expect(eventBus.emit).toHaveBeenCalledWith('message:removed', {
+            id: 'old-1',
+            queue: 'follow-up',
+        });
+        expect(eventBus.emit).toHaveBeenCalledWith('message:removed', {
+            id: 'old-2',
+            queue: 'follow-up',
+        });
+        expect(service.getHeld()).toEqual([]);
+        expect((await store.list({ sessionId: 'session-1' })).map((m) => m.content)).toEqual([
+            [{ type: 'text', text: 'live' }],
+        ]);
+        expect(await service.discardHeld()).toBe(0);
+    });
+
+    it('remove() and clear() also release held entries', async () => {
+        const { service } = await createRestoredQueue([
+            restoredEntry('old-1', 'first'),
+            restoredEntry('old-2', 'second'),
+        ]);
+
+        expect(await service.remove('old-1')).toBe(true);
+        expect(service.getHeld().map((m) => m.id)).toEqual(['old-2']);
+
+        await service.clear();
+        expect(service.getHeld()).toEqual([]);
+        expect(service.pendingCount()).toBe(0);
+    });
+
+    it('entries appended after initialization are never held', async () => {
+        const { service } = await createRestoredQueue([]);
+        await service.enqueue({ content: [{ type: 'text', text: 'live' }] });
+
+        expect(service.getHeld()).toEqual([]);
+        expect(service.hasPending()).toBe(true);
+        expect(await service.takeHeld()).toEqual([]);
+    });
+});

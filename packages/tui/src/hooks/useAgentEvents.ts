@@ -22,7 +22,12 @@
 import type React from 'react';
 import { useEffect, useRef } from 'react';
 import { setMaxListeners } from 'events';
-import { parseCodexBaseURL, type QueuedMessage, type ContentPart } from '@dexto/core';
+import {
+    parseCodexBaseURL,
+    type QueuedMessage,
+    type ContentPart,
+    type RestoredPendingInput,
+} from '@dexto/core';
 import { getModelDisplayName } from '@dexto/llm';
 import type { Message, UIState, SessionState, InputState } from '../state/types.js';
 import type { ApprovalRequest } from '../components/ApprovalPrompt.js';
@@ -41,6 +46,7 @@ interface UseAgentEventsProps {
     setApprovalQueue: React.Dispatch<React.SetStateAction<ApprovalRequest[]>>;
     setSteerMessages: React.Dispatch<React.SetStateAction<QueuedMessage[]>>;
     setQueuedMessages: React.Dispatch<React.SetStateAction<QueuedMessage[]>>;
+    setRestoredPendingInput: React.Dispatch<React.SetStateAction<RestoredPendingInput>>;
     /** Current session ID for filtering events */
     currentSessionId: string | null;
     /** Text buffer for input (source of truth) - needed to clear on session reset */
@@ -74,6 +80,7 @@ export function useAgentEvents({
     setApprovalQueue,
     setSteerMessages,
     setQueuedMessages,
+    setRestoredPendingInput,
     currentSessionId,
     buffer,
 }: UseAgentEventsProps): void {
@@ -106,6 +113,18 @@ export function useAgentEvents({
                 })
                 .catch(() => {
                     // Silently ignore - queue state will sync on next event
+                });
+        };
+
+        // Restored input on hold changes only through /queue resume|discard or a manual remove,
+        // all of which emit queue events; re-read it so the on-hold section stays accurate.
+        const syncRestoredPendingInput = (sessionId: string): void => {
+            if (sessionId !== currentSessionId) return;
+            void agent
+                .getRestoredPendingInput(sessionId)
+                .then((pending) => setRestoredPendingInput(pending))
+                .catch(() => {
+                    // Silently ignore - will sync on next event
                 });
         };
 
@@ -406,6 +425,7 @@ export function useAgentEvents({
             (payload) => {
                 if (!payload.sessionId) return;
                 syncQueue(payload.sessionId, payload.queue);
+                syncRestoredPendingInput(payload.sessionId);
             },
             { signal }
         );
@@ -423,12 +443,22 @@ export function useAgentEvents({
                     return;
                 }
                 syncQueue(payload.sessionId, payload.queue);
+                syncRestoredPendingInput(payload.sessionId);
             },
             { signal }
         );
 
         // Note: message:dequeued is handled in processStream (via iterator) for proper synchronization
-        // with streaming events. Don't handle it here via event bus.
+        // with streaming events. Only the on-hold restored input is refreshed here, because
+        // /queue resume dequeues it before any stream starts.
+        agent.on(
+            'message:dequeued',
+            (payload) => {
+                if (!payload.sessionId) return;
+                syncRestoredPendingInput(payload.sessionId);
+            },
+            { signal }
+        );
 
         // ============================================================================
         // EXTERNAL TRIGGER HANDLING (scheduler, A2A, API)
@@ -617,6 +647,7 @@ export function useAgentEvents({
         setApprovalQueue,
         setSteerMessages,
         setQueuedMessages,
+        setRestoredPendingInput,
         currentSessionId,
         buffer,
     ]);

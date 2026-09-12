@@ -719,7 +719,7 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
 
                             // Send through normal streaming flow (matches WebUI pattern)
                             const iterator = await agent.stream(
-                                result.messageToSend,
+                                result.contentToSend ?? result.messageToSend,
                                 currentSessionId
                             );
                             await processStream(

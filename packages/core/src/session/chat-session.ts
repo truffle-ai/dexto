@@ -32,8 +32,12 @@ import { DextoLogComponent } from '../logger/v2/types.js';
 import { DextoRuntimeError, ErrorScope, ErrorType } from '../errors/index.js';
 import { HookErrorCode } from '../hooks/error-codes.js';
 import type { InternalMessage, ContentPart } from '../context/types.js';
-import type { QueuedMessage } from './types.js';
-import { MessageQueueService, type UserMessageInput } from './message-queue.js';
+import type { CoalescedMessage, QueuedMessage, RestoredPendingInput } from './types.js';
+import {
+    MessageQueueService,
+    coalesceQueuedMessages,
+    type UserMessageInput,
+} from './message-queue.js';
 import type { SessionMessageQueueStore } from '../storage/message-queue/types.js';
 import type { ContentInput } from '../agent/types.js';
 import {
@@ -1097,6 +1101,61 @@ export class ChatSession {
         const [steerCount, followUpCount] = await Promise.all([
             this.clearSteerQueue(),
             this.clearFollowUpQueue(),
+        ]);
+        return steerCount + followUpCount;
+    }
+
+    /**
+     * Get the queued input restored from storage for a run that no longer exists.
+     *
+     * These entries were queued while an earlier run was active and survived an interruption.
+     * They stay durable and visible in the steer/follow-up lists, but the executor never drains
+     * them: a new unrelated turn does not pick them up. Only takeRestoredPendingInput() (resume)
+     * or discardRestoredPendingInput() consumes them.
+     */
+    public getRestoredPendingInput(): RestoredPendingInput {
+        return {
+            steer: this.llmService.getSteerQueue().getHeld(),
+            followUp: this.llmService.getFollowUpQueue().getHeld(),
+        };
+    }
+
+    /**
+     * Resume decision for restored pending input.
+     *
+     * Removes the restored entries from durable storage and returns them coalesced (steer
+     * entries first, then follow-ups, each in queue order) so the host can run them as the next
+     * turn's input. Repeated calls return null once the entries have been taken; an entry can
+     * never be taken twice, even across processes sharing the same storage.
+     *
+     * Refused while a run is active: the caller could not start the resumed turn, and the
+     * entries would have left the queue for nothing.
+     *
+     * @returns Coalesced restored input, or null when nothing is pending
+     * @throws SessionError.busy when a run is in progress
+     */
+    public async takeRestoredPendingInput(): Promise<CoalescedMessage | null> {
+        if (this.isBusy()) {
+            throw SessionError.busy(this.id);
+        }
+        const steer = await this.llmService.getSteerQueue().takeHeld();
+        const followUp = await this.llmService.getFollowUpQueue().takeHeld();
+        const messages = [...steer, ...followUp];
+        if (messages.length === 0) {
+            return null;
+        }
+        return coalesceQueuedMessages(messages);
+    }
+
+    /**
+     * Discard decision for restored pending input: drop the entries without running them.
+     *
+     * @returns Number of restored entries removed
+     */
+    public async discardRestoredPendingInput(): Promise<number> {
+        const [steerCount, followUpCount] = await Promise.all([
+            this.llmService.getSteerQueue().discardHeld(),
+            this.llmService.getFollowUpQueue().discardHeld(),
         ]);
         return steerCount + followUpCount;
     }

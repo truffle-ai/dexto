@@ -41,3 +41,12 @@ export interface CoalescedMessage {
     firstQueuedAt: number;
     lastQueuedAt: number;
 }
+
+/**
+ * Queued input restored from storage for a run that no longer exists (interrupted process or
+ * evicted session). Held for an explicit resume/discard decision; never executed on its own.
+ */
+export interface RestoredPendingInput {
+    steer: QueuedMessage[];
+    followUp: QueuedMessage[];
+}

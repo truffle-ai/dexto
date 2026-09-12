@@ -88,3 +88,29 @@ describe('InMemoryDextoStores', () => {
         ).toEqual(['queued-later-timestamp', 'queued-earlier-timestamp']);
     });
 });
+
+describe('InMemoryDextoStores message queue takeAll', () => {
+    it('leaves excluded ids in place and takes the rest in order', async () => {
+        const storage = new InMemoryDextoStores();
+        const followUpQueue = storage.getStore('followUpQueue');
+        for (const id of ['keep-1', 'take-1', 'take-2']) {
+            await followUpQueue.append({
+                sessionId: 'session-1',
+                message: { id, content: [{ type: 'text', text: id }], queuedAt: 1 },
+            });
+        }
+
+        const taken = await followUpQueue.takeAll({
+            sessionId: 'session-1',
+            excludeIds: ['keep-1'],
+        });
+
+        expect(taken.map((message) => message.id)).toEqual(['take-1', 'take-2']);
+        expect(
+            (await followUpQueue.list({ sessionId: 'session-1' })).map((message) => message.id)
+        ).toEqual(['keep-1']);
+
+        expect(await followUpQueue.takeAll({ sessionId: 'session-1' })).toHaveLength(1);
+        expect(await followUpQueue.list({ sessionId: 'session-1' })).toEqual([]);
+    });
+});
