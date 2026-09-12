@@ -283,6 +283,20 @@ https://cli.dexto.ai/api/dexto-agent/
 
 ---
 
+## Runtime-free config imports
+
+`@dexto/core` routes to a full Node runtime. Consumers that only assemble or validate agent
+configuration (for example `@dexto/agent-config`, or a Cloudflare Worker that builds a config)
+should import schemas from the curated `@dexto/core/config` facade instead of the root:
+
+```typescript
+import { AgentCardSchema, LLMConfigSchema, createLLMConfigSchema } from '@dexto/core/config';
+```
+
+The facade exposes configuration schemas and their types only. It never re-exports managers,
+services, storage or tool execution code, and its import graph contains no Node builtins, so it
+bundles for browser and Worker targets without polyfills. Root imports keep working unchanged.
+
 ## Links
 
 - Docs: https://cli.dexto.ai/

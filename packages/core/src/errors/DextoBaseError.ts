@@ -1,5 +1,3 @@
-import { randomUUID } from 'crypto';
-
 /**
  * Abstract base class for all Dexto errors
  * Provides common functionality like trace ID generation and JSON serialization
@@ -9,7 +7,7 @@ export abstract class DextoBaseError extends Error {
 
     constructor(message: string, traceId?: string) {
         super(message);
-        this.traceId = traceId || randomUUID();
+        this.traceId = traceId || globalThis.crypto.randomUUID();
         // Ensure the name is set to the actual class name
         this.name = this.constructor.name;
     }
