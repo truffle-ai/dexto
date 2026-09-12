@@ -85,7 +85,14 @@ import InsufficientCreditsOverlay, {
 } from '../components/overlays/InsufficientCreditsOverlay.js';
 import { getLLMProviderDisplayName } from '../utils/llm-provider-display.js';
 import { resolveChatGPTFallbackModel } from '../utils/chatgpt-rate-limit.js';
-import { setReasoningBudgetTokens, switchModelWithReasoning } from '../utils/reasoning-switch.js';
+import {
+    applyReasoningSwitchPlan,
+    describeStaleReasoningSettings,
+    planReasoningSwitch,
+    setReasoningBudgetTokens,
+    switchModelWithReasoning,
+    type ReasoningSwitchPlan,
+} from '../utils/reasoning-switch.js';
 import {
     getProviderKeyStatus,
     loadGlobalPreferences,
@@ -152,7 +159,7 @@ import type { PromptAddScope } from '../state/types.js';
 import type { PromptInfo, ResourceMetadata, SearchResult } from '@dexto/core';
 import type { LLMProvider, ReasoningVariant } from '@dexto/llm';
 import type { LogLevel } from '@dexto/core';
-import { LLM_PROVIDERS, getModelDisplayName, getReasoningProfile } from '@dexto/llm';
+import { LLM_PROVIDERS, getModelDisplayName } from '@dexto/llm';
 import { DextoValidationError, LLMErrorCode } from '@dexto/core';
 import { InputService } from '../services/InputService.js';
 import { createUserMessage, convertHistoryToUIMessages } from '../utils/messageFormatting.js';
@@ -519,6 +526,39 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
             return null;
         };
 
+        // Report what the reasoning preference store contributed to a switch (restored or stale).
+        const notifyReasoningPlan = useCallback(
+            (modelLabel: string, plan: ReasoningSwitchPlan) => {
+                const notes: string[] = [];
+                if (plan.hydrated) {
+                    const restored = plan.update.reasoning;
+                    notes.push(
+                        restored
+                            ? `🧠 Restored saved reasoning for ${modelLabel}: variant ${restored.variant}` +
+                                  (restored.budgetTokens !== undefined
+                                      ? `, budget ${restored.budgetTokens}`
+                                      : '')
+                            : `🧠 Restored saved reasoning for ${modelLabel}: provider defaults`
+                    );
+                }
+                const stale = describeStaleReasoningSettings(modelLabel, plan.stale);
+                if (stale) {
+                    notes.push(`⚠️ ${stale}`);
+                }
+                if (notes.length === 0) return;
+                setMessages((prev) => [
+                    ...prev,
+                    ...notes.map((content) => ({
+                        id: generateMessageId('system'),
+                        role: 'system' as const,
+                        content,
+                        timestamp: new Date(),
+                    })),
+                ]);
+            },
+            [setMessages]
+        );
+
         const persistRecentModel = useCallback(
             async (provider: LLMProvider, model: string, baseURL?: string) => {
                 try {
@@ -603,7 +643,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         },
                     ]);
 
-                    await switchModelWithReasoning(agent, {
+                    const plan = await switchModelWithReasoning(agent, {
                         target: { provider, model, baseURL, reasoningVariant },
                         sessionId: session.id || undefined,
                     });
@@ -621,6 +661,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             timestamp: new Date(),
                         },
                     ]);
+                    notifyReasoningPlan(displayName || model, plan);
                 } catch (error) {
                     // Check if error is due to missing API key
                     const missingProvider = isApiKeyMissingError(error);
@@ -674,6 +715,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                 session.id,
                 buffer,
                 persistRecentModel,
+                notifyReasoningPlan,
             ]
         );
 
@@ -707,18 +749,19 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         existing = null;
                     }
 
-                    const existingReasoning = existing?.llm.reasoning;
-                    const defaultReasoningVariant = getReasoningProfile(
+                    // Plan first so the model's saved reasoning (e.g. budget) also lands in
+                    // global preferences and survives restarts for the default model.
+                    const plan = await planReasoningSwitch(agent, {
                         provider,
-                        model
-                    ).defaultVariant;
+                        model,
+                        baseURL,
+                        reasoningVariant,
+                    });
+                    const existingReasoning = existing?.llm.reasoning;
                     const nextReasoning =
-                        reasoningVariant === undefined
-                            ? existingReasoning
-                            : defaultReasoningVariant !== undefined &&
-                                reasoningVariant === defaultReasoningVariant
-                              ? undefined
-                              : { variant: reasoningVariant };
+                        'reasoning' in plan.update
+                            ? (plan.update.reasoning ?? undefined)
+                            : existingReasoning;
 
                     type GlobalLLMPreferences = Awaited<
                         ReturnType<typeof loadGlobalPreferences>
@@ -744,9 +787,10 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                     });
 
                     try {
-                        await switchModelWithReasoning(agent, {
+                        await applyReasoningSwitchPlan(agent, {
                             target: { provider, model, baseURL, reasoningVariant },
                             sessionId: session.id || undefined,
+                            plan,
                         });
                         await persistRecentModel(provider, model, baseURL);
                         setSession((prev) => ({ ...prev, modelName: displayName || model }));
@@ -760,6 +804,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                                 timestamp: new Date(),
                             },
                         ]);
+                        notifyReasoningPlan(displayName || model, plan);
                     } catch (error) {
                         const missingProvider = isApiKeyMissingError(error);
                         if (missingProvider) {
@@ -805,7 +850,15 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                     ]);
                 }
             },
-            [agent, setMessages, setSession, setUi, session.id, persistRecentModel]
+            [
+                agent,
+                setMessages,
+                setSession,
+                setUi,
+                session.id,
+                persistRecentModel,
+                notifyReasoningPlan,
+            ]
         );
 
         // State for editing custom model
@@ -998,7 +1051,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         },
                     ]);
 
-                    await switchModelWithReasoning(agent, {
+                    const plan = await switchModelWithReasoning(agent, {
                         target: {
                             provider: pending.provider,
                             model: pending.model,
@@ -1025,6 +1078,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             timestamp: new Date(),
                         },
                     ]);
+                    notifyReasoningPlan(pendingDisplayName, plan);
                 } catch (error) {
                     setMessages((prev) => [
                         ...prev,
@@ -1045,6 +1099,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                 agent,
                 session.id,
                 persistRecentModel,
+                notifyReasoningPlan,
             ]
         );
 

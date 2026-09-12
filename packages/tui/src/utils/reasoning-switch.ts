@@ -1,11 +1,24 @@
 /**
  * Reasoning-aware model switching shared by every TUI entry point that changes the
- * active model (model selector, default-model action, API-key retry, usage-cap fallback).
+ * active model or its reasoning settings (model selector, default-model action, API-key
+ * retry, usage-cap fallback, /reasoning budget edits, Tab variant cycling).
+ *
+ * Every explicit change is remembered per model in the CLI reasoning preference store and
+ * hydrated back the next time that model is selected, including after a restart.
  */
 
-import type { LLMProvider, ReasoningVariant } from '@dexto/llm';
+import type { LLMProvider, ReasoningProfile, ReasoningVariant } from '@dexto/llm';
 import { getReasoningProfile } from '@dexto/llm';
+import {
+    getModelReasoningPreference,
+    rememberModelReasoningPreference,
+    resolveModelReasoningPreference,
+    type ModelReasoningOverride,
+    type StaleModelReasoningSetting,
+} from '@dexto/agent-management';
 import type { TuiAgentBackend } from '../agent-backend.js';
+
+type ReasoningSwitchAgent = Pick<TuiAgentBackend, 'switchLLM' | 'getCurrentLLMConfig' | 'logger'>;
 
 export interface ReasoningSwitchTarget {
     provider: LLMProvider;
@@ -15,43 +28,199 @@ export interface ReasoningSwitchTarget {
     reasoningVariant?: ReasoningVariant | undefined;
 }
 
-export type ReasoningSwitchUpdate = { reasoning?: { variant: ReasoningVariant } | null };
+export type ReasoningSwitchUpdate = {
+    reasoning?: { variant: ReasoningVariant; budgetTokens?: number } | null;
+};
 
-export function buildReasoningSwitchUpdate(
-    provider: LLMProvider,
-    model: string,
-    reasoningVariant: ReasoningVariant | undefined
+export interface ReasoningSwitchPlan {
+    /** Reasoning portion of the `switchLLM` update (absent key = let core apply target defaults). */
+    update: ReasoningSwitchUpdate;
+    /** True when a saved preference contributed to the update. */
+    hydrated: boolean;
+    /** Saved settings this model no longer supports; reported to the user, never applied. */
+    stale: StaleModelReasoningSetting[];
+}
+
+function identityOf(target: ReasoningSwitchTarget) {
+    return {
+        provider: target.provider,
+        model: target.model,
+        ...(target.baseURL ? { baseURL: target.baseURL } : {}),
+    };
+}
+
+function buildReasoningUpdate(
+    profile: ReasoningProfile,
+    variant: ReasoningVariant | undefined,
+    budgetTokens: number | undefined
 ): ReasoningSwitchUpdate {
-    if (reasoningVariant === undefined) {
+    if (variant === undefined && budgetTokens === undefined) {
         return {};
     }
 
-    const defaultVariant = getReasoningProfile(provider, model).defaultVariant;
-    if (defaultVariant !== undefined && reasoningVariant === defaultVariant) {
+    const defaultVariant = profile.defaultVariant;
+    if (budgetTokens === undefined && defaultVariant !== undefined && variant === defaultVariant) {
         return { reasoning: null };
     }
 
-    return { reasoning: { variant: reasoningVariant } };
+    const effectiveVariant = variant ?? defaultVariant ?? profile.supportedVariants[0];
+    if (effectiveVariant === undefined) {
+        return {};
+    }
+
+    return {
+        reasoning: {
+            variant: effectiveVariant,
+            ...(budgetTokens !== undefined ? { budgetTokens } : {}),
+        },
+    };
 }
 
 /**
- * Switch the active model (session-scoped when `sessionId` is set) applying the
- * reasoning update derived from the user's explicit variant choice.
+ * Combine the user's explicit variant choice (if any) with the saved preference for the
+ * target model, validated against the model's current reasoning profile.
  */
-export async function switchModelWithReasoning(
-    agent: Pick<TuiAgentBackend, 'switchLLM'>,
-    input: { target: ReasoningSwitchTarget; sessionId: string | undefined }
+export async function planReasoningSwitch(
+    agent: Pick<TuiAgentBackend, 'logger'>,
+    target: ReasoningSwitchTarget
+): Promise<ReasoningSwitchPlan> {
+    const profile = getReasoningProfile(target.provider, target.model);
+
+    let saved: ReturnType<typeof resolveModelReasoningPreference> = {
+        reasoning: undefined,
+        stale: [],
+    };
+    try {
+        const { entry, warnings } = await getModelReasoningPreference(identityOf(target));
+        for (const warning of warnings) {
+            agent.logger.warn(warning);
+        }
+        saved = resolveModelReasoningPreference({ entry, profile });
+    } catch (error) {
+        agent.logger.debug(
+            `Failed to read reasoning preferences for ${target.provider}/${target.model}: ${
+                error instanceof Error ? error.message : String(error)
+            }`
+        );
+    }
+
+    const explicitVariant = target.reasoningVariant;
+    const savedOverride = saved.reasoning ?? undefined;
+    const variant = explicitVariant ?? savedOverride?.variant;
+    const budgetTokens = savedOverride?.budgetTokens;
+
+    if (variant === undefined && budgetTokens === undefined) {
+        return {
+            update: saved.reasoning === null ? { reasoning: null } : {},
+            hydrated: saved.reasoning === null,
+            stale: saved.stale,
+        };
+    }
+
+    return {
+        update: buildReasoningUpdate(profile, variant, budgetTokens),
+        hydrated:
+            (explicitVariant === undefined && savedOverride?.variant !== undefined) ||
+            budgetTokens !== undefined,
+        stale: saved.stale,
+    };
+}
+
+/**
+ * Remember the active model's current reasoning settings as the user's explicit choice.
+ * `reasoning` unset on the config is recorded as an explicit reset to provider defaults.
+ * Never throws: persistence failures are logged and the switch itself stands.
+ */
+export async function rememberReasoningPreferenceFromConfig(
+    agent: Pick<TuiAgentBackend, 'getCurrentLLMConfig' | 'logger'>,
+    sessionId: string | undefined
 ): Promise<void> {
-    const { provider, model, baseURL, reasoningVariant } = input.target;
+    const config = agent.getCurrentLLMConfig(sessionId);
+    const reasoning: ModelReasoningOverride | null = config.reasoning
+        ? {
+              variant: config.reasoning.variant,
+              ...(config.reasoning.budgetTokens !== undefined
+                  ? { budgetTokens: config.reasoning.budgetTokens }
+                  : {}),
+          }
+        : null;
+
+    try {
+        await rememberModelReasoningPreference({
+            model: {
+                provider: config.provider,
+                model: config.model,
+                ...(config.baseURL ? { baseURL: config.baseURL } : {}),
+            },
+            reasoning,
+        });
+    } catch (error) {
+        agent.logger.debug(
+            `Failed to persist reasoning preference for ${config.provider}/${config.model}: ${
+                error instanceof Error ? error.message : String(error)
+            }`
+        );
+    }
+}
+
+/**
+ * Apply a planned switch. When the user made an explicit variant choice the resulting
+ * settings are persisted for the target model.
+ */
+export async function applyReasoningSwitchPlan(
+    agent: ReasoningSwitchAgent,
+    input: {
+        target: ReasoningSwitchTarget;
+        sessionId: string | undefined;
+        plan: ReasoningSwitchPlan;
+    }
+): Promise<void> {
+    const { target, sessionId, plan } = input;
 
     await agent.switchLLM(
         {
-            provider,
-            model,
-            ...(baseURL ? { baseURL } : {}),
-            ...buildReasoningSwitchUpdate(provider, model, reasoningVariant),
+            provider: target.provider,
+            model: target.model,
+            ...(target.baseURL ? { baseURL: target.baseURL } : {}),
+            ...plan.update,
         },
-        input.sessionId
+        sessionId
+    );
+
+    if (target.reasoningVariant !== undefined) {
+        await rememberReasoningPreferenceFromConfig(agent, sessionId);
+    }
+}
+
+/**
+ * Switch the active model (session-scoped when `sessionId` is set), restoring the
+ * model's saved reasoning settings and persisting explicit choices.
+ */
+export async function switchModelWithReasoning(
+    agent: ReasoningSwitchAgent,
+    input: { target: ReasoningSwitchTarget; sessionId: string | undefined }
+): Promise<ReasoningSwitchPlan> {
+    const plan = await planReasoningSwitch(agent, input.target);
+    await applyReasoningSwitchPlan(agent, { ...input, plan });
+    return plan;
+}
+
+/** One-line user-facing description of saved settings that could not be applied. */
+export function describeStaleReasoningSettings(
+    modelLabel: string,
+    stale: StaleModelReasoningSetting[]
+): string | null {
+    if (stale.length === 0) return null;
+    const details = stale
+        .map((item) =>
+            item.field === 'variant'
+                ? `variant '${item.value}' (${item.reason})`
+                : `budget ${item.value} (${item.reason})`
+        )
+        .join('; ');
+    return (
+        `Saved reasoning settings for ${modelLabel} were not applied: ${details}. ` +
+        `Using provider defaults; pick a variant (Tab) or set a budget (/reasoning) to update them.`
     );
 }
 
@@ -60,7 +229,7 @@ export async function switchModelWithReasoning(
  * Keeps the current variant; clearing the budget on the default variant clears the override entirely.
  */
 export async function setReasoningBudgetTokens(
-    agent: Pick<TuiAgentBackend, 'switchLLM' | 'getCurrentLLMConfig'>,
+    agent: ReasoningSwitchAgent,
     input: { sessionId: string | undefined; budgetTokens: number | undefined }
 ): Promise<void> {
     const { sessionId, budgetTokens } = input;
@@ -90,6 +259,7 @@ export async function setReasoningBudgetTokens(
         },
         sessionId
     );
+    await rememberReasoningPreferenceFromConfig(agent, sessionId);
 }
 
 export type CycleReasoningVariantResult =
@@ -101,7 +271,7 @@ export type CycleReasoningVariantResult =
  * Preserves any explicit budget override across the cycle.
  */
 export async function cycleReasoningVariant(
-    agent: Pick<TuiAgentBackend, 'switchLLM' | 'getCurrentLLMConfig'>,
+    agent: ReasoningSwitchAgent,
     input: { sessionId: string | undefined }
 ): Promise<CycleReasoningVariantResult> {
     const { sessionId } = input;
@@ -139,6 +309,7 @@ export async function cycleReasoningVariant(
         },
         sessionId
     );
+    await rememberReasoningPreferenceFromConfig(agent, sessionId);
 
     return { status: 'switched', variant: nextVariant };
 }

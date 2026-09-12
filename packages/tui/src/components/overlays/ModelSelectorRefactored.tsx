@@ -42,6 +42,8 @@ import {
     toModelPickerKey,
     type CustomModel,
     type ModelPickerState,
+    getModelReasoningPreference,
+    resolveModelReasoningPreference,
 } from '@dexto/agent-management';
 import { getLLMProviderDisplayName } from '../../utils/llm-provider-display.js';
 import { getMaxVisibleItemsForTerminalRows } from '../../utils/overlaySizing.js';
@@ -557,6 +559,7 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
     const selectedIndexRef = useRef(0);
     const deleteTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const maxVisibleItemsRef = useRef(maxVisibleItems);
+    const reasoningPreferenceRequestRef = useRef(0);
 
     // Reasoning variant sub-step state
     const [pendingReasoningModel, setPendingReasoningModel] = useState<ModelOption | null>(null);
@@ -1281,6 +1284,31 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
         setReasoningVariantIndex(
             getInitialVariantIndex(item.reasoningVariant, options, support.defaultVariant)
         );
+
+        // Pre-highlight the variant last chosen for this exact model (provider+model+baseURL),
+        // so Enter restores it. Only the latest request may move the cursor.
+        const requestId = ++reasoningPreferenceRequestRef.current;
+        void getModelReasoningPreference({
+            provider: item.provider,
+            model: item.name,
+            ...(item.baseURL ? { baseURL: item.baseURL } : {}),
+        })
+            .then(({ entry }) => {
+                if (reasoningPreferenceRequestRef.current !== requestId) return;
+                const saved = resolveModelReasoningPreference({ entry, profile: support });
+                const savedVariant = saved.reasoning?.variant;
+                if (savedVariant === undefined) return;
+                setReasoningVariantIndex(
+                    getInitialVariantIndex(savedVariant, options, support.defaultVariant)
+                );
+            })
+            .catch((error: unknown) => {
+                agent.logger.debug(
+                    `Failed to read saved reasoning variant for ${item.provider}/${item.name}: ${
+                        error instanceof Error ? error.message : String(error)
+                    }`
+                );
+            });
         return true;
     };
 
