@@ -86,6 +86,14 @@ import InsufficientCreditsOverlay, {
 import { getLLMProviderDisplayName } from '../utils/llm-provider-display.js';
 import { resolveChatGPTFallbackModel } from '../utils/chatgpt-rate-limit.js';
 import {
+    applyReasoningSwitchPlan,
+    describeStaleReasoningSettings,
+    planReasoningSwitch,
+    setReasoningBudgetTokens,
+    switchModelWithReasoning,
+    type ReasoningSwitchPlan,
+} from '../utils/reasoning-switch.js';
+import {
     getProviderKeyStatus,
     loadGlobalPreferences,
     recordRecentModel,
@@ -151,7 +159,7 @@ import type { PromptAddScope } from '../state/types.js';
 import type { PromptInfo, ResourceMetadata, SearchResult } from '@dexto/core';
 import type { LLMProvider, ReasoningVariant } from '@dexto/llm';
 import type { LogLevel } from '@dexto/core';
-import { LLM_PROVIDERS, getModelDisplayName, getReasoningProfile } from '@dexto/llm';
+import { LLM_PROVIDERS, getModelDisplayName } from '@dexto/llm';
 import { DextoValidationError, LLMErrorCode } from '@dexto/core';
 import { InputService } from '../services/InputService.js';
 import { createUserMessage, convertHistoryToUIMessages } from '../utils/messageFormatting.js';
@@ -173,23 +181,6 @@ function getProviderFromIssueContext(context: unknown): LLMProvider | null {
     if (typeof context !== 'object' || context === null) return null;
     const provider = Reflect.get(context, 'provider');
     return isLLMProvider(provider) ? provider : null;
-}
-
-function buildReasoningSwitchUpdate(
-    provider: LLMProvider,
-    model: string,
-    reasoningVariant: ReasoningVariant | undefined
-): { reasoning?: { variant: ReasoningVariant } | null } {
-    if (reasoningVariant === undefined) {
-        return {};
-    }
-
-    const defaultVariant = getReasoningProfile(provider, model).defaultVariant;
-    if (defaultVariant !== undefined && reasoningVariant === defaultVariant) {
-        return { reasoning: null };
-    }
-
-    return { reasoning: { variant: reasoningVariant } };
 }
 
 export interface OverlayContainerHandle {
@@ -535,6 +526,39 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
             return null;
         };
 
+        // Report what the reasoning preference store contributed to a switch (restored or stale).
+        const notifyReasoningPlan = useCallback(
+            (modelLabel: string, plan: ReasoningSwitchPlan) => {
+                const notes: string[] = [];
+                if (plan.hydrated) {
+                    const restored = plan.update.reasoning;
+                    notes.push(
+                        restored
+                            ? `🧠 Restored saved reasoning for ${modelLabel}: variant ${restored.variant}` +
+                                  (restored.budgetTokens !== undefined
+                                      ? `, budget ${restored.budgetTokens}`
+                                      : '')
+                            : `🧠 Restored saved reasoning for ${modelLabel}: provider defaults`
+                    );
+                }
+                const stale = describeStaleReasoningSettings(modelLabel, plan.stale);
+                if (stale) {
+                    notes.push(`⚠️ ${stale}`);
+                }
+                if (notes.length === 0) return;
+                setMessages((prev) => [
+                    ...prev,
+                    ...notes.map((content) => ({
+                        id: generateMessageId('system'),
+                        role: 'system' as const,
+                        content,
+                        timestamp: new Date(),
+                    })),
+                ]);
+            },
+            [setMessages]
+        );
+
         const persistRecentModel = useCallback(
             async (provider: LLMProvider, model: string, baseURL?: string) => {
                 try {
@@ -619,15 +643,10 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         },
                     ]);
 
-                    await agent.switchLLM(
-                        {
-                            provider,
-                            model,
-                            baseURL,
-                            ...buildReasoningSwitchUpdate(provider, model, reasoningVariant),
-                        },
-                        session.id || undefined
-                    );
+                    const plan = await switchModelWithReasoning(agent, {
+                        target: { provider, model, baseURL, reasoningVariant },
+                        sessionId: session.id || undefined,
+                    });
                     await persistRecentModel(provider as LLMProvider, model, baseURL);
 
                     // Update session state with display name (fallback to model ID)
@@ -642,6 +661,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             timestamp: new Date(),
                         },
                     ]);
+                    notifyReasoningPlan(displayName || model, plan);
                 } catch (error) {
                     // Check if error is due to missing API key
                     const missingProvider = isApiKeyMissingError(error);
@@ -695,6 +715,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                 session.id,
                 buffer,
                 persistRecentModel,
+                notifyReasoningPlan,
             ]
         );
 
@@ -728,18 +749,19 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         existing = null;
                     }
 
-                    const existingReasoning = existing?.llm.reasoning;
-                    const defaultReasoningVariant = getReasoningProfile(
+                    // Plan first so the model's saved reasoning (e.g. budget) also lands in
+                    // global preferences and survives restarts for the default model.
+                    const plan = await planReasoningSwitch(agent, {
                         provider,
-                        model
-                    ).defaultVariant;
+                        model,
+                        baseURL,
+                        reasoningVariant,
+                    });
+                    const existingReasoning = existing?.llm.reasoning;
                     const nextReasoning =
-                        reasoningVariant === undefined
-                            ? existingReasoning
-                            : defaultReasoningVariant !== undefined &&
-                                reasoningVariant === defaultReasoningVariant
-                              ? undefined
-                              : { variant: reasoningVariant };
+                        'reasoning' in plan.update
+                            ? (plan.update.reasoning ?? undefined)
+                            : existingReasoning;
 
                     type GlobalLLMPreferences = Awaited<
                         ReturnType<typeof loadGlobalPreferences>
@@ -751,12 +773,6 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         ...(baseURL ? { baseURL } : {}),
                         ...(nextReasoning ? { reasoning: nextReasoning } : {}),
                     };
-
-                    const switchReasoningUpdate = buildReasoningSwitchUpdate(
-                        provider,
-                        model,
-                        reasoningVariant
-                    );
 
                     // Only preserve the API key if the provider hasn't changed
                     // If provider changed, use the new provider's env var
@@ -771,15 +787,11 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                     });
 
                     try {
-                        await agent.switchLLM(
-                            {
-                                provider,
-                                model,
-                                ...(baseURL ? { baseURL } : {}),
-                                ...switchReasoningUpdate,
-                            },
-                            session.id || undefined
-                        );
+                        await applyReasoningSwitchPlan(agent, {
+                            target: { provider, model, baseURL, reasoningVariant },
+                            sessionId: session.id || undefined,
+                            plan,
+                        });
                         await persistRecentModel(provider, model, baseURL);
                         setSession((prev) => ({ ...prev, modelName: displayName || model }));
 
@@ -792,6 +804,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                                 timestamp: new Date(),
                             },
                         ]);
+                        notifyReasoningPlan(displayName || model, plan);
                     } catch (error) {
                         const missingProvider = isApiKeyMissingError(error);
                         if (missingProvider) {
@@ -837,7 +850,15 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                     ]);
                 }
             },
-            [agent, setMessages, setSession, setUi, session.id, persistRecentModel]
+            [
+                agent,
+                setMessages,
+                setSession,
+                setUi,
+                session.id,
+                persistRecentModel,
+                notifyReasoningPlan,
+            ]
         );
 
         // State for editing custom model
@@ -1030,19 +1051,15 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         },
                     ]);
 
-                    await agent.switchLLM(
-                        {
+                    const plan = await switchModelWithReasoning(agent, {
+                        target: {
                             provider: pending.provider,
                             model: pending.model,
-                            ...(pending.baseURL && { baseURL: pending.baseURL }),
-                            ...buildReasoningSwitchUpdate(
-                                pending.provider,
-                                pending.model,
-                                pending.reasoningVariant
-                            ),
+                            baseURL: pending.baseURL,
+                            reasoningVariant: pending.reasoningVariant,
                         },
-                        session.id || undefined
-                    );
+                        sessionId: session.id || undefined,
+                    });
                     await persistRecentModel(
                         pending.provider as LLMProvider,
                         pending.model,
@@ -1061,6 +1078,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             timestamp: new Date(),
                         },
                     ]);
+                    notifyReasoningPlan(pendingDisplayName, plan);
                 } catch (error) {
                     setMessages((prev) => [
                         ...prev,
@@ -1081,6 +1099,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                 agent,
                 session.id,
                 persistRecentModel,
+                notifyReasoningPlan,
             ]
         );
 
@@ -1704,36 +1723,10 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
 
         const handleSetReasoningBudgetTokens = useCallback(
             async (budgetTokens: number | undefined) => {
-                const sessionId = session.id || undefined;
-                const current = agent.getCurrentLLMConfig(sessionId);
-                const profile = getReasoningProfile(current.provider, current.model);
-                const defaultVariant = profile.defaultVariant;
-                const variant =
-                    current.reasoning?.variant ?? defaultVariant ?? profile.supportedVariants[0];
-                if (variant === undefined) {
-                    return;
-                }
-
-                const reasoningUpdate =
-                    budgetTokens === undefined &&
-                    defaultVariant !== undefined &&
-                    variant === defaultVariant
-                        ? ({ reasoning: null } as const)
-                        : {
-                              reasoning: {
-                                  variant,
-                                  ...(typeof budgetTokens === 'number' ? { budgetTokens } : {}),
-                              },
-                          };
-
-                await agent.switchLLM(
-                    {
-                        provider: current.provider,
-                        model: current.model,
-                        ...reasoningUpdate,
-                    },
-                    sessionId
-                );
+                await setReasoningBudgetTokens(agent, {
+                    sessionId: session.id || undefined,
+                    budgetTokens,
+                });
             },
             [agent, session.id]
         );
