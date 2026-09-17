@@ -38,10 +38,22 @@ export function createInMemoryMessageQueueStore(): SessionMessageQueueStore {
             queues.set(input.sessionId, queue);
             return { position: queue.length };
         },
-        async takeAll(input: { sessionId: string }): Promise<QueuedMessage[]> {
-            const queue = cloneQueuedMessages(queues.get(input.sessionId) ?? []);
-            queues.delete(input.sessionId);
-            return queue;
+        async takeAll(input: {
+            sessionId: string;
+            excludeIds?: readonly string[];
+        }): Promise<QueuedMessage[]> {
+            const excludeIds = new Set(input.excludeIds ?? []);
+            const queue = queues.get(input.sessionId) ?? [];
+            const kept = queue.filter((message) => excludeIds.has(message.id));
+            const taken = cloneQueuedMessages(
+                queue.filter((message) => !excludeIds.has(message.id))
+            );
+            if (kept.length === 0) {
+                queues.delete(input.sessionId);
+            } else {
+                queues.set(input.sessionId, kept);
+            }
+            return taken;
         },
         async remove(input: { sessionId: string; id: string }): Promise<boolean> {
             const queue = queues.get(input.sessionId) ?? [];

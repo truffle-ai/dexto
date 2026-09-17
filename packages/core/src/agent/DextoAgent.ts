@@ -14,7 +14,12 @@ import { PromptManager } from '../prompts/index.js';
 import type { PromptsConfig } from '../prompts/schemas.js';
 import { AgentStateManager } from './state-manager.js';
 import { SessionManager, ChatSession, SessionError } from '../session/index.js';
-import type { QueuedMessage, SessionMetadata } from '../session/index.js';
+import type {
+    CoalescedMessage,
+    QueuedMessage,
+    RestoredPendingInput,
+    SessionMetadata,
+} from '../session/index.js';
 import type { UserMessageInput } from '../session/message-queue.js';
 import {
     AgentServices,
@@ -1639,6 +1644,56 @@ export class DextoAgent {
             throw SessionError.notFound(sessionId);
         }
         return session.clearPendingInput();
+    }
+
+    /**
+     * Get the queued input restored for a session from an interrupted run.
+     *
+     * Restored steer/follow-up entries never run on their own and are not attached to the next
+     * unrelated message; they wait for takeRestoredPendingInput() or
+     * discardRestoredPendingInput(). Restores the session from storage when it is not in memory,
+     * since this is the first thing a host checks when reopening a session.
+     *
+     * @param sessionId Session id
+     */
+    public async getRestoredPendingInput(sessionId: string): Promise<RestoredPendingInput> {
+        this.ensureStarted();
+        const session = await this.sessionManager.getSession(sessionId);
+        if (!session) {
+            throw SessionError.notFound(sessionId);
+        }
+        return session.getRestoredPendingInput();
+    }
+
+    /**
+     * Resume restored pending input: take the entries out of the queue (durably, exactly once)
+     * and return them coalesced so the caller can run them with stream() or generate().
+     *
+     * @param sessionId Session id
+     * @returns Coalesced restored input, or null when nothing is pending
+     */
+    public async takeRestoredPendingInput(sessionId: string): Promise<CoalescedMessage | null> {
+        this.ensureStarted();
+        const session = await this.sessionManager.getSession(sessionId);
+        if (!session) {
+            throw SessionError.notFound(sessionId);
+        }
+        return session.takeRestoredPendingInput();
+    }
+
+    /**
+     * Discard restored pending input for a session without running it.
+     *
+     * @param sessionId Session id
+     * @returns Number of restored entries removed
+     */
+    public async discardRestoredPendingInput(sessionId: string): Promise<number> {
+        this.ensureStarted();
+        const session = await this.sessionManager.getSession(sessionId);
+        if (!session) {
+            throw SessionError.notFound(sessionId);
+        }
+        return session.discardRestoredPendingInput();
     }
 
     /**

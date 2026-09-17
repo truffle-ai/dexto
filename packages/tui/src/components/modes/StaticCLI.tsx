@@ -32,7 +32,13 @@ import { useGitBranch } from '../../hooks/useGitBranch.js';
 // Components
 import { Header } from '../chat/Header.js';
 import { MessageItem } from '../chat/MessageItem.js';
-import { QUEUE_EDIT_SHORTCUTS, QueuedMessagesDisplay } from '../chat/QueuedMessagesDisplay.js';
+import {
+    QUEUE_EDIT_SHORTCUTS,
+    QUEUE_RESTORED_HINT,
+    QUEUE_RESTORED_LABEL,
+    QueuedMessagesDisplay,
+} from '../chat/QueuedMessagesDisplay.js';
+import { withoutRestoredPendingInput } from '../../utils/restoredPendingInput.js';
 import { StatusBar } from '../StatusBar.js';
 import { HistorySearchBar } from '../HistorySearchBar.js';
 import { Footer } from '../Footer.js';
@@ -76,6 +82,7 @@ export function StaticCLI({
         setSteerMessages,
         queuedMessages,
         setQueuedMessages,
+        restoredPendingInput,
         todos,
         setTodos,
         ui,
@@ -263,12 +270,26 @@ export function StaticCLI({
                             />
 
                             <QueuedMessagesDisplay
-                                messages={steerMessages}
+                                messages={[
+                                    ...restoredPendingInput.steer,
+                                    ...restoredPendingInput.followUp,
+                                ]}
+                                label={QUEUE_RESTORED_LABEL}
+                                hint={QUEUE_RESTORED_HINT}
+                            />
+                            <QueuedMessagesDisplay
+                                messages={withoutRestoredPendingInput(
+                                    steerMessages,
+                                    restoredPendingInput
+                                )}
                                 label="current-turn input"
                                 hint={QUEUE_EDIT_SHORTCUTS.currentTurn}
                             />
                             <QueuedMessagesDisplay
-                                messages={queuedMessages}
+                                messages={withoutRestoredPendingInput(
+                                    queuedMessages,
+                                    restoredPendingInput
+                                )}
                                 label="queued follow-up"
                                 hint={QUEUE_EDIT_SHORTCUTS.followUp}
                             />

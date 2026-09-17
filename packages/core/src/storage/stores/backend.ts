@@ -562,12 +562,19 @@ export class DatabaseBackedSessionMessageQueueStore implements SessionMessageQue
         return result;
     }
 
-    async takeAll(input: { sessionId: string }): Promise<QueuedMessage[]> {
+    async takeAll(input: {
+        sessionId: string;
+        excludeIds?: readonly string[];
+    }): Promise<QueuedMessage[]> {
         const key = this.key(input.sessionId);
-        const queue = await this.database.updateList<unknown, QueuedMessage[]>(key, (stored) => ({
-            items: [],
-            result: this.parseQueue(key, stored),
-        }));
+        const excludeIds = new Set(input.excludeIds ?? []);
+        const queue = await this.database.updateList<unknown, QueuedMessage[]>(key, (stored) => {
+            const current = this.parseQueue(key, stored);
+            return {
+                items: current.filter((message) => excludeIds.has(message.id)),
+                result: current.filter((message) => !excludeIds.has(message.id)),
+            };
+        });
         return queue;
     }
 

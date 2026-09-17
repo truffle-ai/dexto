@@ -8,6 +8,7 @@ import { executeCommand } from '../interactive-commands/commands.js';
 import type { CommandResult } from '../interactive-commands/command-parser.js';
 import type { StyledMessageType, StyledData } from '../state/types.js';
 import type { TuiAgentBackend } from '../agent-backend.js';
+import type { ContentPart } from '@dexto/core';
 
 /**
  * Styled output for command execution
@@ -27,6 +28,8 @@ export interface CommandExecutionResult {
     styled?: StyledOutput;
     /** Message text to send through normal streaming flow (for prompt commands) */
     messageToSend?: string;
+    /** Structured content to send instead of messageToSend when the command carries attachments */
+    contentToSend?: ContentPart[];
 }
 
 /**
@@ -48,6 +51,8 @@ export function isStyledOutput(result: unknown): result is StyledOutput {
 export interface SendMessageMarker {
     __sendMessage: true;
     text: string;
+    /** Structured content that takes precedence over text when present (keeps images/files) */
+    content?: ContentPart[];
 }
 
 /**
@@ -55,6 +60,18 @@ export interface SendMessageMarker {
  */
 export function createSendMessageMarker(text: string): SendMessageMarker {
     return { __sendMessage: true, text };
+}
+
+/**
+ * Create a send message marker carrying structured content (used when resuming queued input).
+ * The text is a plain preview of the content for logging and fallback display.
+ */
+export function createSendContentMarker(content: ContentPart[]): SendMessageMarker {
+    const text = content
+        .filter((part): part is Extract<ContentPart, { type: 'text' }> => part.type === 'text')
+        .map((part) => part.text)
+        .join('\n');
+    return { __sendMessage: true, text, content };
 }
 
 /**
@@ -96,7 +113,11 @@ export class CommandService {
 
         // If result is a send message marker, return the text to send through normal flow
         if (isSendMessageMarker(result)) {
-            return { type: 'sendMessage' as const, messageToSend: result.text };
+            return {
+                type: 'sendMessage' as const,
+                messageToSend: result.text,
+                ...(result.content !== undefined && { contentToSend: result.content }),
+            };
         }
 
         // If result is a string, it's output for display
