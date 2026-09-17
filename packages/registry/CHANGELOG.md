@@ -1,5 +1,11 @@
 # @dexto/registry
 
+## 1.12.0
+
+### Minor Changes
+
+- ac56fbf: Add Parallel Search to the MCP server registry.
+
 ## 1.11.0
 
 ## 1.10.4
