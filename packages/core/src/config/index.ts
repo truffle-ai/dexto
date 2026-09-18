@@ -2,7 +2,12 @@ export { AgentCardSchema, type AgentCard, type ValidatedAgentCard } from '../age
 export { EnvExpandedString, NonEmptyEnvExpandedString, RequiredEnvURL } from '../utils/result.js';
 export { ErrorScope, ErrorType } from '../errors/types.js';
 export { StorageErrorCode } from '../storage/error-codes.js';
-export { LLMConfigSchema, type LLMConfig, type ValidatedLLMConfig } from '../llm/schemas.js';
+export {
+    LLMConfigSchema,
+    createLLMConfigSchema,
+    type LLMConfig,
+    type ValidatedLLMConfig,
+} from '../llm/schemas.js';
 export { LoggerConfigSchema, type LoggerConfig } from '../logger/v2/schemas.js';
 export {
     ServersConfigSchema,
