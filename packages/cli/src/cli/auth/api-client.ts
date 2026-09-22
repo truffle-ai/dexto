@@ -212,14 +212,14 @@ function parseSupabaseUser(payload: unknown): AuthenticatedUser | null {
 
 function parseRecentUsage(payload: unknown): UsageSummaryResponse['recent_model_usage'] {
     if (!Array.isArray(payload)) {
-        return [];
+        throw new Error('Invalid response from API');
     }
 
     const entries: UsageSummaryResponse['recent_model_usage'] = [];
 
     for (const entry of payload) {
         if (typeof entry !== 'object' || entry === null) {
-            continue;
+            throw new Error('Invalid response from API');
         }
 
         const timestamp = parseString(Reflect.get(entry, 'timestamp'));
@@ -235,7 +235,7 @@ function parseRecentUsage(payload: unknown): UsageSummaryResponse['recent_model_
             inputTokens === null ||
             outputTokens === null
         ) {
-            continue;
+            throw new Error('Invalid response from API');
         }
 
         entries.push({
@@ -385,6 +385,18 @@ function formatHttpFailure(status: number, payload: unknown, rawText: string): s
     return `${status}`;
 }
 
+function normalizePublicApiBaseUrl(value: string): string {
+    const normalized = value.replace(/\/+$/, '');
+    const url = new URL(normalized);
+    const isLoopback = ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname);
+
+    if (url.protocol !== 'https:' && !(url.protocol === 'http:' && isLoopback)) {
+        throw new Error('publicApiBaseUrl must use HTTPS unless it targets a loopback host');
+    }
+
+    return normalized;
+}
+
 /**
  * Dexto API client for key management
  */
@@ -405,7 +417,7 @@ export class DextoApiClient {
         if (typeof baseUrl === 'string') {
             const normalized = baseUrl.replace(/\/+$/, '');
             this.platformBaseUrl = normalized;
-            this.publicApiBaseUrl = normalized;
+            this.publicApiBaseUrl = normalizePublicApiBaseUrl(normalized);
             return;
         }
 
@@ -414,9 +426,8 @@ export class DextoApiClient {
             baseUrl.gatewayBaseUrl ??
             DEXTO_PLATFORM_URL
         ).replace(/\/+$/, '');
-        this.publicApiBaseUrl = (baseUrl.publicApiBaseUrl ?? DEXTO_PUBLIC_API_URL).replace(
-            /\/+$/,
-            ''
+        this.publicApiBaseUrl = normalizePublicApiBaseUrl(
+            baseUrl.publicApiBaseUrl ?? DEXTO_PUBLIC_API_URL
         );
     }
 
