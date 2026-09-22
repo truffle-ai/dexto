@@ -22,6 +22,22 @@ describe('auth constants', () => {
         expect(DEXTO_API_URL).toBe('https://app.dexto.ai');
     });
 
+    it('defaults the versioned API host to api.dexto.ai', async () => {
+        delete process.env.DEXTO_PUBLIC_API_URL;
+
+        const { DEXTO_PUBLIC_API_URL } = await import('./constants.js');
+
+        expect(DEXTO_PUBLIC_API_URL).toBe('https://api.dexto.ai');
+    });
+
+    it('honors DEXTO_PUBLIC_API_URL overrides', async () => {
+        vi.stubEnv('DEXTO_PUBLIC_API_URL', 'https://api.preview.dexto.ai');
+
+        const { DEXTO_PUBLIC_API_URL } = await import('./constants.js');
+
+        expect(DEXTO_PUBLIC_API_URL).toBe('https://api.preview.dexto.ai');
+    });
+
     it('honors DEXTO_PLATFORM_URL overrides', async () => {
         vi.stubEnv('DEXTO_PLATFORM_URL', 'https://platform.preview.dexto.ai');
 

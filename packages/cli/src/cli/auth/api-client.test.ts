@@ -16,20 +16,21 @@ describe('DextoApiClient', () => {
         vi.unstubAllGlobals();
     });
 
-    it('validates API keys against the platform validate endpoint', async () => {
-        const fetchMock = vi.fn().mockResolvedValue(createJsonResponse({ valid: true }));
+    it('validates API keys against the public models endpoint', async () => {
+        const fetchMock = vi.fn().mockResolvedValue(createJsonResponse({ data: [] }));
         vi.stubGlobal('fetch', fetchMock);
 
         const client = new DextoApiClient({
             gatewayBaseUrl: 'http://gateway.local',
             platformBaseUrl: 'http://platform.local',
+            publicApiBaseUrl: 'http://api.local',
         });
 
         const result = await client.validateDextoApiKey('dxt_test');
 
         expect(result).toBe(true);
         expect(fetchMock).toHaveBeenCalledWith(
-            'http://platform.local/api/keys/validate',
+            'http://api.local/v1/models',
             expect.objectContaining({
                 method: 'GET',
                 headers: {
@@ -39,19 +40,38 @@ describe('DextoApiClient', () => {
         );
     });
 
+    it('returns false only for an unauthorized API key', async () => {
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 401 })));
+
+        const client = new DextoApiClient('http://api.local');
+        await expect(client.validateDextoApiKey('bad-key')).resolves.toBe(false);
+    });
+
+    it('does not mistake a rate limit or network failure for an invalid key', async () => {
+        const fetchMock = vi
+            .fn()
+            .mockResolvedValueOnce(new Response(null, { status: 429 }))
+            .mockRejectedValueOnce(new TypeError('fetch failed'));
+        vi.stubGlobal('fetch', fetchMock);
+
+        const client = new DextoApiClient('http://api.local');
+        await expect(client.validateDextoApiKey('valid-key')).rejects.toThrow('HTTP 429');
+        await expect(client.validateDextoApiKey('valid-key')).rejects.toThrow('fetch failed');
+    });
+
     it('uses the overridden base URL for control-plane endpoints when provided as a string', async () => {
         const fetchMock = vi
             .fn()
-            .mockResolvedValueOnce(createJsonResponse({ valid: true }))
+            .mockResolvedValueOnce(createJsonResponse({ data: [] }))
             .mockResolvedValueOnce(
                 createJsonResponse({
-                    credits_usd: 42,
-                    mtd_usage: {
+                    balance_usd: 42,
+                    last_30_days: {
+                        since: '2026-08-22T00:00:00.000Z',
                         total_cost_usd: 1.5,
                         total_requests: 12,
-                        by_model: {},
                     },
-                    recent: [],
+                    recent_model_usage: [],
                 })
             );
         vi.stubGlobal('fetch', fetchMock);
@@ -59,16 +79,24 @@ describe('DextoApiClient', () => {
         const client = new DextoApiClient('http://gateway.local');
 
         await client.validateDextoApiKey('dxt_test');
-        await client.getUsageSummary('dxt_test');
+        await expect(client.getUsageSummary('dxt_test')).resolves.toEqual({
+            balance_usd: 42,
+            last_30_days: {
+                since: '2026-08-22T00:00:00.000Z',
+                total_cost_usd: 1.5,
+                total_requests: 12,
+            },
+            recent_model_usage: [],
+        });
 
         expect(fetchMock).toHaveBeenNthCalledWith(
             1,
-            'http://gateway.local/api/keys/validate',
+            'http://gateway.local/v1/models',
             expect.objectContaining({ method: 'GET' })
         );
         expect(fetchMock).toHaveBeenNthCalledWith(
             2,
-            'http://gateway.local/api/account/usage',
+            'http://gateway.local/v1/billing/summary',
             expect.objectContaining({ method: 'GET' })
         );
     });
@@ -158,25 +186,22 @@ describe('DextoApiClient', () => {
             .fn()
             .mockResolvedValueOnce(
                 createJsonResponse({
-                    success: true,
-                    data: [
+                    apiKeys: [
                         {
                             id: 'key-1',
                             name: 'Dexto CLI Key',
                             status: 'active',
-                            isActive: true,
                         },
                     ],
                 })
             )
-            .mockResolvedValueOnce(createJsonResponse({ success: true }))
+            .mockResolvedValueOnce(new Response(null, { status: 204 }))
             .mockResolvedValueOnce(
                 createJsonResponse({
-                    success: true,
-                    data: {
+                    apiKey: {
                         id: 'key-2',
-                        fullKey: 'dxt_new_key',
                     },
+                    fullKey: 'dxt_new_key',
                 })
             );
         vi.stubGlobal('fetch', fetchMock);
@@ -194,17 +219,17 @@ describe('DextoApiClient', () => {
         });
         expect(fetchMock).toHaveBeenNthCalledWith(
             1,
-            'http://platform.local/api/keys',
+            'http://platform.local/api/api-keys',
             expect.objectContaining({ method: 'GET' })
         );
         expect(fetchMock).toHaveBeenNthCalledWith(
             2,
-            'http://platform.local/api/keys/key-1',
+            'http://platform.local/api/api-keys/key-1',
             expect.objectContaining({ method: 'DELETE' })
         );
         expect(fetchMock).toHaveBeenNthCalledWith(
             3,
-            'http://platform.local/api/keys',
+            'http://platform.local/api/api-keys',
             expect.objectContaining({
                 method: 'POST',
                 headers: {
@@ -220,25 +245,22 @@ describe('DextoApiClient', () => {
             .fn()
             .mockResolvedValueOnce(
                 createJsonResponse({
-                    success: true,
-                    data: [
+                    apiKeys: [
                         {
                             id: 'key-1',
                             name: 'Dexto CLI Key',
                             status: 'active',
-                            isActive: true,
                         },
                     ],
                 })
             )
-            .mockResolvedValueOnce(createJsonResponse({ success: true }))
+            .mockResolvedValueOnce(new Response(null, { status: 204 }))
             .mockResolvedValueOnce(
                 createJsonResponse({
-                    success: true,
-                    data: {
+                    apiKey: {
                         id: 'key-2',
-                        fullKey: 'dxt_new_key',
                     },
+                    fullKey: 'dxt_new_key',
                 })
             );
         vi.stubGlobal('fetch', fetchMock);
@@ -256,17 +278,17 @@ describe('DextoApiClient', () => {
         });
         expect(fetchMock).toHaveBeenNthCalledWith(
             1,
-            'http://platform.local/api/keys',
+            'http://platform.local/api/api-keys',
             expect.objectContaining({ method: 'GET' })
         );
         expect(fetchMock).toHaveBeenNthCalledWith(
             2,
-            'http://platform.local/api/keys/key-1',
+            'http://platform.local/api/api-keys/key-1',
             expect.objectContaining({ method: 'DELETE' })
         );
         expect(fetchMock).toHaveBeenNthCalledWith(
             3,
-            'http://platform.local/api/keys',
+            'http://platform.local/api/api-keys',
             expect.objectContaining({
                 method: 'POST',
                 headers: {
