@@ -63,7 +63,7 @@ export interface UsageSummaryResponse {
     last_30_days: {
         since: string;
         total_cost_usd: number;
-        total_requests: number;
+        total_usage_events: number;
     };
     recent_model_usage: Array<{
         timestamp: string;
@@ -264,9 +264,9 @@ function parseUsageSummaryResponse(payload: unknown): UsageSummaryResponse {
 
     const since = parseString(Reflect.get(last30Days, 'since'));
     const totalCostUsd = parseNumber(Reflect.get(last30Days, 'total_cost_usd'));
-    const totalRequests = parseNumber(Reflect.get(last30Days, 'total_requests'));
+    const totalUsageEvents = parseNumber(Reflect.get(last30Days, 'total_usage_events'));
 
-    if (!since || totalCostUsd === null || totalRequests === null) {
+    if (!since || totalCostUsd === null || totalUsageEvents === null) {
         throw new Error('Invalid response from API');
     }
 
@@ -277,7 +277,7 @@ function parseUsageSummaryResponse(payload: unknown): UsageSummaryResponse {
         last_30_days: {
             since,
             total_cost_usd: totalCostUsd,
-            total_requests: totalRequests,
+            total_usage_events: totalUsageEvents,
         },
         recent_model_usage: recent,
     };

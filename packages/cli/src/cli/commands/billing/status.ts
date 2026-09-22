@@ -51,7 +51,9 @@ export async function handleBillingStatusCommand(options: { buy?: boolean } = {}
         console.log(
             `   Spent: ${chalk.yellow('$' + usage.last_30_days.total_cost_usd.toFixed(4))}`
         );
-        console.log(`   Requests: ${chalk.yellow(usage.last_30_days.total_requests.toString())}`);
+        console.log(
+            `   Usage events: ${chalk.yellow(usage.last_30_days.total_usage_events.toString())}`
+        );
 
         // Show recent usage if any
         if (usage.recent_model_usage.length > 0) {

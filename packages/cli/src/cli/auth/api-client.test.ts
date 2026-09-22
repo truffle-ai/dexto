@@ -69,7 +69,7 @@ describe('DextoApiClient', () => {
                     last_30_days: {
                         since: '2026-08-22T00:00:00.000Z',
                         total_cost_usd: 1.5,
-                        total_requests: 12,
+                        total_usage_events: 12,
                     },
                     recent_model_usage: [],
                 })
@@ -84,7 +84,7 @@ describe('DextoApiClient', () => {
             last_30_days: {
                 since: '2026-08-22T00:00:00.000Z',
                 total_cost_usd: 1.5,
-                total_requests: 12,
+                total_usage_events: 12,
             },
             recent_model_usage: [],
         });
