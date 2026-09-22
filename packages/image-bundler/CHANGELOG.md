@@ -1,5 +1,12 @@
 # @dexto/image-bundler
 
+## 1.12.0
+
+### Patch Changes
+
+- @dexto/core@1.12.0
+- @dexto/agent-config@1.12.0
+
 ## 1.11.0
 
 ### Patch Changes

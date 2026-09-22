@@ -1,5 +1,15 @@
 # @dexto/agent-management
 
+## 1.12.0
+
+### Patch Changes
+
+- @dexto/core@1.12.0
+- @dexto/llm@1.12.0
+- @dexto/agent-config@1.12.0
+- @dexto/tools-builtins@1.12.0
+- @dexto/orchestration@1.12.0
+
 ## 1.11.0
 
 ### Minor Changes

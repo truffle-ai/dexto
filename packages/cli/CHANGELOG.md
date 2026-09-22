@@ -1,5 +1,24 @@
 # dexto
 
+## 1.12.0
+
+### Patch Changes
+
+- 7cd10b7: Move CLI key management and billing to the canonical Dexto API routes.
+- Updated dependencies [ac56fbf]
+    - @dexto/registry@1.12.0
+    - @dexto/tui@1.12.0
+    - @dexto/core@1.12.0
+    - @dexto/storage@1.12.0
+    - @dexto/llm@1.12.0
+    - @dexto/agent-config@1.12.0
+    - @dexto/client-sdk@1.12.0
+    - @dexto/agent-management@1.12.0
+    - @dexto/analytics@1.12.0
+    - @dexto/server@1.12.0
+    - @dexto/image-local@1.12.0
+    - @dexto/image-logger-agent@1.12.0
+
 ## 1.11.0
 
 ### Minor Changes
