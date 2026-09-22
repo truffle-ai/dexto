@@ -9,29 +9,27 @@
 // Currently using plain fetch() with runtime response validation.
 
 import { logger } from '@dexto/core';
-import { DEXTO_PLATFORM_URL, SUPABASE_ANON_KEY, SUPABASE_URL } from './constants.js';
+import {
+    DEXTO_PLATFORM_URL,
+    DEXTO_PUBLIC_API_URL,
+    SUPABASE_ANON_KEY,
+    SUPABASE_URL,
+} from './constants.js';
 import type { AuthenticatedUser } from './types.js';
 
 interface PlatformKeyRecord {
     id: string;
-    name: string | null;
+    name: string;
     status: string;
-    isActive: boolean;
 }
 
 interface PlatformKeyListResponse {
-    success: boolean;
-    data: PlatformKeyRecord[];
-    error?: string;
+    apiKeys: PlatformKeyRecord[];
 }
 
 interface PlatformCreateKeyResponse {
-    success: boolean;
-    data?: {
-        id: string;
-        fullKey: string;
-    };
-    error?: string;
+    apiKey: { id: string };
+    fullKey: string;
 }
 
 export interface DeviceCodeStartResponse {
@@ -61,20 +59,13 @@ export type DeviceCodePollResponse =
     | { status: 'approved'; apiKey: DeviceCodeApiKeyResponse };
 
 export interface UsageSummaryResponse {
-    credits_usd: number;
-    mtd_usage: {
+    balance_usd: number;
+    last_30_days: {
+        since: string;
         total_cost_usd: number;
-        total_requests: number;
-        by_model: Record<
-            string,
-            {
-                requests: number;
-                cost_usd: number;
-                tokens: number;
-            }
-        >;
+        total_usage_events: number;
     };
-    recent: Array<{
+    recent_model_usage: Array<{
         timestamp: string;
         model: string;
         cost_usd: number;
@@ -98,10 +89,6 @@ interface RequestOptions {
 
 function parseString(value: unknown): string | null {
     return typeof value === 'string' && value.trim().length > 0 ? value : null;
-}
-
-function parseBoolean(value: unknown): boolean | null {
-    return typeof value === 'boolean' ? value : null;
 }
 
 function parseNumber(value: unknown): number | null {
@@ -223,46 +210,16 @@ function parseSupabaseUser(payload: unknown): AuthenticatedUser | null {
     };
 }
 
-function parseUsageByModel(payload: unknown): UsageSummaryResponse['mtd_usage']['by_model'] {
-    if (typeof payload !== 'object' || payload === null) {
-        return {};
-    }
-
-    const byModel: UsageSummaryResponse['mtd_usage']['by_model'] = {};
-
-    for (const [model, value] of Object.entries(payload)) {
-        if (typeof value !== 'object' || value === null) {
-            continue;
-        }
-
-        const requests = parseNumber(Reflect.get(value, 'requests'));
-        const costUsd = parseNumber(Reflect.get(value, 'cost_usd'));
-        const tokens = parseNumber(Reflect.get(value, 'tokens'));
-
-        if (requests === null || costUsd === null || tokens === null) {
-            continue;
-        }
-
-        byModel[model] = {
-            requests,
-            cost_usd: costUsd,
-            tokens,
-        };
-    }
-
-    return byModel;
-}
-
-function parseRecentUsage(payload: unknown): UsageSummaryResponse['recent'] {
+function parseRecentUsage(payload: unknown): UsageSummaryResponse['recent_model_usage'] {
     if (!Array.isArray(payload)) {
-        return [];
+        throw new Error('Invalid response from API');
     }
 
-    const entries: UsageSummaryResponse['recent'] = [];
+    const entries: UsageSummaryResponse['recent_model_usage'] = [];
 
     for (const entry of payload) {
         if (typeof entry !== 'object' || entry === null) {
-            continue;
+            throw new Error('Invalid response from API');
         }
 
         const timestamp = parseString(Reflect.get(entry, 'timestamp'));
@@ -278,7 +235,7 @@ function parseRecentUsage(payload: unknown): UsageSummaryResponse['recent'] {
             inputTokens === null ||
             outputTokens === null
         ) {
-            continue;
+            throw new Error('Invalid response from API');
         }
 
         entries.push({
@@ -298,31 +255,31 @@ function parseUsageSummaryResponse(payload: unknown): UsageSummaryResponse {
         throw new Error('Invalid response from API');
     }
 
-    const creditsUsd = parseNumber(Reflect.get(payload, 'credits_usd'));
-    const mtdUsage = Reflect.get(payload, 'mtd_usage');
+    const balanceUsd = parseNumber(Reflect.get(payload, 'balance_usd'));
+    const last30Days = Reflect.get(payload, 'last_30_days');
 
-    if (creditsUsd === null || typeof mtdUsage !== 'object' || mtdUsage === null) {
+    if (balanceUsd === null || typeof last30Days !== 'object' || last30Days === null) {
         throw new Error('Invalid response from API');
     }
 
-    const totalCostUsd = parseNumber(Reflect.get(mtdUsage, 'total_cost_usd'));
-    const totalRequests = parseNumber(Reflect.get(mtdUsage, 'total_requests'));
+    const since = parseString(Reflect.get(last30Days, 'since'));
+    const totalCostUsd = parseNumber(Reflect.get(last30Days, 'total_cost_usd'));
+    const totalUsageEvents = parseNumber(Reflect.get(last30Days, 'total_usage_events'));
 
-    if (totalCostUsd === null || totalRequests === null) {
+    if (!since || totalCostUsd === null || totalUsageEvents === null) {
         throw new Error('Invalid response from API');
     }
 
-    const byModel = parseUsageByModel(Reflect.get(mtdUsage, 'by_model'));
-    const recent = parseRecentUsage(Reflect.get(payload, 'recent'));
+    const recent = parseRecentUsage(Reflect.get(payload, 'recent_model_usage'));
 
     return {
-        credits_usd: creditsUsd,
-        mtd_usage: {
+        balance_usd: balanceUsd,
+        last_30_days: {
+            since,
             total_cost_usd: totalCostUsd,
-            total_requests: totalRequests,
-            by_model: byModel,
+            total_usage_events: totalUsageEvents,
         },
-        recent,
+        recent_model_usage: recent,
     };
 }
 
@@ -364,27 +321,12 @@ function parseBillingCheckoutSessionResponse(payload: unknown): BillingCheckoutS
     };
 }
 
-function parseValidateResponse(payload: unknown): boolean {
-    if (typeof payload !== 'object' || payload === null) {
-        return false;
-    }
-
-    const valid = parseBoolean(Reflect.get(payload, 'valid'));
-    return valid ?? false;
-}
-
 function parsePlatformKeyListResponse(payload: unknown): PlatformKeyListResponse {
     if (typeof payload !== 'object' || payload === null) {
         throw new Error('Invalid response from API');
     }
 
-    const success = parseBoolean(Reflect.get(payload, 'success'));
-    if (success !== true) {
-        const error = parseString(Reflect.get(payload, 'error'));
-        throw new Error(error || 'Failed to fetch API keys');
-    }
-
-    const data = Reflect.get(payload, 'data');
+    const data = Reflect.get(payload, 'apiKeys');
     if (!Array.isArray(data)) {
         throw new Error('Invalid response from API');
     }
@@ -398,16 +340,15 @@ function parsePlatformKeyListResponse(payload: unknown): PlatformKeyListResponse
         const id = parseString(Reflect.get(entry, 'id'));
         const name = parseString(Reflect.get(entry, 'name'));
         const status = parseString(Reflect.get(entry, 'status'));
-        const isActive = parseBoolean(Reflect.get(entry, 'isActive'));
 
-        if (!id || !status || isActive === null) {
+        if (!id || !name || !status) {
             continue;
         }
 
-        keys.push({ id, name, status, isActive });
+        keys.push({ id, name, status });
     }
 
-    return { success: true, data: keys };
+    return { apiKeys: keys };
 }
 
 function parsePlatformCreateKeyResponse(payload: unknown): PlatformCreateKeyResponse {
@@ -415,26 +356,20 @@ function parsePlatformCreateKeyResponse(payload: unknown): PlatformCreateKeyResp
         throw new Error('Invalid response from API');
     }
 
-    const success = parseBoolean(Reflect.get(payload, 'success'));
-    if (success !== true) {
-        const error = parseString(Reflect.get(payload, 'error'));
-        return { success: false, error: error || 'Failed to create API key' };
-    }
-
-    const data = Reflect.get(payload, 'data');
+    const data = Reflect.get(payload, 'apiKey');
     if (typeof data !== 'object' || data === null) {
         throw new Error('Invalid response from API');
     }
 
     const id = parseString(Reflect.get(data, 'id'));
-    const fullKey = parseString(Reflect.get(data, 'fullKey'));
+    const fullKey = parseString(Reflect.get(payload, 'fullKey'));
     if (!id || !fullKey) {
         throw new Error('Invalid response from API');
     }
 
     return {
-        success: true,
-        data: { id, fullKey },
+        apiKey: { id },
+        fullKey,
     };
 }
 
@@ -450,11 +385,24 @@ function formatHttpFailure(status: number, payload: unknown, rawText: string): s
     return `${status}`;
 }
 
+function normalizePublicApiBaseUrl(value: string): string {
+    const normalized = value.replace(/\/+$/, '');
+    const url = new URL(normalized);
+    const isLoopback = ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname);
+
+    if (url.protocol !== 'https:' && !(url.protocol === 'http:' && isLoopback)) {
+        throw new Error('publicApiBaseUrl must use HTTPS unless it targets a loopback host');
+    }
+
+    return normalized;
+}
+
 /**
  * Dexto API client for key management
  */
 export class DextoApiClient {
     private readonly platformBaseUrl: string;
+    private readonly publicApiBaseUrl: string;
     private readonly timeoutMs = 10_000;
 
     constructor(
@@ -463,11 +411,13 @@ export class DextoApiClient {
             | {
                   gatewayBaseUrl?: string | undefined;
                   platformBaseUrl?: string | undefined;
+                  publicApiBaseUrl?: string | undefined;
               } = {}
     ) {
         if (typeof baseUrl === 'string') {
             const normalized = baseUrl.replace(/\/+$/, '');
             this.platformBaseUrl = normalized;
+            this.publicApiBaseUrl = normalizePublicApiBaseUrl(normalized);
             return;
         }
 
@@ -476,6 +426,9 @@ export class DextoApiClient {
             baseUrl.gatewayBaseUrl ??
             DEXTO_PLATFORM_URL
         ).replace(/\/+$/, '');
+        this.publicApiBaseUrl = normalizePublicApiBaseUrl(
+            baseUrl.publicApiBaseUrl ?? DEXTO_PUBLIC_API_URL
+        );
     }
 
     private createRequestSignal(signal: AbortSignal | undefined): AbortSignal {
@@ -491,8 +444,12 @@ export class DextoApiClient {
         return `${this.platformBaseUrl}${path}`;
     }
 
+    private getPublicApiUrl(path: string): string {
+        return `${this.publicApiBaseUrl}${path}`;
+    }
+
     private async listPlatformApiKeys(authToken: string): Promise<PlatformKeyRecord[]> {
-        const response = await fetch(this.getPlatformUrl('/api/keys'), {
+        const response = await fetch(this.getPlatformUrl('/api/api-keys'), {
             method: 'GET',
             headers: {
                 Authorization: `Bearer ${authToken}`,
@@ -508,14 +465,14 @@ export class DextoApiClient {
         }
 
         const payload: unknown = await response.json();
-        return parsePlatformKeyListResponse(payload).data;
+        return parsePlatformKeyListResponse(payload).apiKeys;
     }
 
     private async createPlatformApiKey(
         authToken: string,
         name: string
     ): Promise<{ dextoApiKey: string; keyId: string }> {
-        const response = await fetch(this.getPlatformUrl('/api/keys'), {
+        const response = await fetch(this.getPlatformUrl('/api/api-keys'), {
             method: 'POST',
             headers: {
                 Authorization: `Bearer ${authToken}`,
@@ -535,19 +492,15 @@ export class DextoApiClient {
         const payload: unknown = await response.json();
         const result = parsePlatformCreateKeyResponse(payload);
 
-        if (!result.success || !result.data) {
-            throw new Error(result.error || 'Failed to create Dexto API key');
-        }
-
         return {
-            dextoApiKey: result.data.fullKey,
-            keyId: result.data.id,
+            dextoApiKey: result.fullKey,
+            keyId: result.apiKey.id,
         };
     }
 
     private async deletePlatformApiKey(authToken: string, keyId: string): Promise<void> {
         const response = await fetch(
-            this.getPlatformUrl(`/api/keys/${encodeURIComponent(keyId)}`),
+            this.getPlatformUrl(`/api/api-keys/${encodeURIComponent(keyId)}`),
             {
                 method: 'DELETE',
                 headers: {
@@ -569,27 +522,24 @@ export class DextoApiClient {
      * Validate if a Dexto API key is valid
      */
     async validateDextoApiKey(apiKey: string): Promise<boolean> {
-        try {
-            logger.debug('Validating DEXTO_API_KEY');
+        logger.debug('Validating DEXTO_API_KEY');
+        const response = await fetch(this.getPublicApiUrl('/v1/models'), {
+            method: 'GET',
+            headers: {
+                Authorization: `Bearer ${apiKey}`,
+            },
+            signal: this.createRequestSignal(undefined),
+        });
 
-            const response = await fetch(this.getPlatformUrl('/api/keys/validate'), {
-                method: 'GET',
-                headers: {
-                    Authorization: `Bearer ${apiKey}`,
-                },
-                signal: this.createRequestSignal(undefined),
-            });
-
-            if (!response.ok) {
-                return false;
-            }
-
-            const payload: unknown = await response.json();
-            return parseValidateResponse(payload);
-        } catch (error) {
-            logger.error(`Error validating Dexto API key: ${error}`);
+        if (response.status === 401) {
             return false;
         }
+
+        if (!response.ok) {
+            throw new Error(`Unable to validate Dexto API key: HTTP ${response.status}`);
+        }
+
+        return true;
     }
 
     /**
@@ -607,7 +557,7 @@ export class DextoApiClient {
             );
 
             const matchingKeys = (await this.listPlatformApiKeys(authToken)).filter(
-                (key) => key.isActive && key.name === name
+                (key) => key.status === 'active' && key.name === name
             );
 
             if (matchingKeys.length > 0) {
@@ -634,13 +584,13 @@ export class DextoApiClient {
     }
 
     /**
-     * Get usage summary (balance + MTD usage + recent history)
+     * Get usage summary (balance + last 30 days + recent model activity)
      */
     async getUsageSummary(apiKey: string): Promise<UsageSummaryResponse> {
         try {
             logger.debug('Fetching usage summary');
 
-            const response = await fetch(this.getPlatformUrl('/api/account/usage'), {
+            const response = await fetch(this.getPublicApiUrl('/v1/billing/summary'), {
                 method: 'GET',
                 headers: {
                     Authorization: `Bearer ${apiKey}`,
