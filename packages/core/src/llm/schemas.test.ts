@@ -12,13 +12,15 @@ vi.mock('../logger/index.js', () => ({
 import { z } from 'zod';
 import { LLMErrorCode } from './error-codes.js';
 import {
+    createLLMConfigSchema,
+    createLLMUpdatesSchema,
     LLMConfigSchema,
     LLMUpdatesSchema,
     LLMUpdatesShapeSchema,
     type LLMConfig,
     type ValidatedLLMConfig,
 } from './schemas.js';
-import { LLM_PROVIDERS } from '@dexto/llm';
+import { createModelRegistry, LLM_PROVIDERS, LLM_REGISTRY } from '@dexto/llm';
 import {
     getSupportedModels,
     requiresBaseURL,
@@ -518,6 +520,29 @@ describe('LLMConfigSchema', () => {
                 );
                 expect(variantIssue).toBeDefined();
             }
+        });
+
+        it('accepts variants allowed by a host reasoning profile', () => {
+            const registry = createModelRegistry(LLM_REGISTRY, {
+                getReasoningProfile: () => ({
+                    capable: true,
+                    paradigm: 'adaptive-effort',
+                    variants: [{ id: 'max', label: 'max' }],
+                    supportedVariants: ['max'],
+                    defaultVariant: 'max',
+                    supportsBudgetTokens: false,
+                }),
+            });
+            const config: LLMConfig = {
+                provider: 'openrouter',
+                model: 'anthropic/claude-sonnet-4.5',
+                apiKey: 'test-key',
+                reasoning: { variant: 'max' },
+            };
+
+            expect(LLMConfigSchema.safeParse(config).success).toBe(false);
+            expect(createLLMConfigSchema(registry).safeParse(config).success).toBe(true);
+            expect(createLLMUpdatesSchema(registry).safeParse(config).success).toBe(true);
         });
 
         it('accepts budgetTokens for gateway models that expose budget support', () => {

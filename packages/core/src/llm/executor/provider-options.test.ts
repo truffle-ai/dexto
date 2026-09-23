@@ -1,8 +1,84 @@
 import { describe, expect, it } from 'vitest';
 import { buildProviderOptions, getEffectiveReasoningBudgetTokens } from './provider-options.js';
-import { ANTHROPIC_INTERLEAVED_THINKING_BETA } from '@dexto/llm';
+import {
+    ANTHROPIC_INTERLEAVED_THINKING_BETA,
+    createModelRegistry,
+    LLM_REGISTRY,
+    type ReasoningProfile,
+} from '@dexto/llm';
 
 describe('buildProviderOptions', () => {
+    describe('host reasoning profile', () => {
+        const hostProfile: ReasoningProfile = {
+            capable: true,
+            paradigm: 'effort',
+            variants: ['none', 'low', 'medium', 'high', 'xhigh', 'max'].map((id) => ({
+                id,
+                label: id,
+            })),
+            supportedVariants: ['none', 'low', 'medium', 'high', 'xhigh', 'max'],
+            defaultVariant: 'medium',
+            supportsBudgetTokens: false,
+        };
+        const llmRegistry = createModelRegistry(LLM_REGISTRY, {
+            getReasoningProfile: () => hostProfile,
+        });
+
+        it.each([
+            {
+                provider: 'dexto-nova' as const,
+                model: 'anthropic/claude-opus-5.5',
+                variant: 'max',
+                expected: {
+                    openrouter: {
+                        include_reasoning: true,
+                        reasoning: { enabled: true, effort: 'max' },
+                    },
+                },
+            },
+            {
+                provider: 'openrouter' as const,
+                model: 'openai/gpt-6-mini',
+                variant: 'xhigh',
+                expected: {
+                    openrouter: {
+                        include_reasoning: true,
+                        reasoning: { enabled: true, effort: 'xhigh' },
+                    },
+                },
+            },
+            {
+                provider: 'anthropic' as const,
+                model: 'claude-sonnet-5',
+                variant: 'max',
+                expected: {
+                    anthropic: {
+                        cacheControl: { type: 'ephemeral' },
+                        sendReasoning: true,
+                        thinking: { type: 'adaptive' },
+                        effort: 'max',
+                    },
+                },
+            },
+            {
+                provider: 'openai' as const,
+                model: 'gpt-6-mini',
+                variant: 'xhigh',
+                expected: { openai: { reasoningEffort: 'xhigh', reasoningSummary: 'auto' } },
+            },
+        ])(
+            'emits $variant for $provider/$model when the host profile allows it',
+            ({ provider, model, variant, expected }) => {
+                expect(
+                    buildProviderOptions({ provider, model, reasoning: { variant } })
+                ).toBeUndefined();
+                expect(
+                    buildProviderOptions({ provider, model, reasoning: { variant }, llmRegistry })
+                ).toEqual(expected);
+            }
+        );
+    });
+
     it('returns undefined for providers with no special options', () => {
         expect(
             buildProviderOptions({ provider: 'groq', model: 'llama-3.1-70b', reasoning: undefined })
@@ -448,6 +524,22 @@ describe('buildProviderOptions', () => {
             ).toEqual({
                 openrouter: {
                     include_reasoning: false,
+                    reasoning: { enabled: false },
+                },
+            });
+        });
+
+        it('turns reasoning off for the none effort on gateway providers', () => {
+            expect(
+                buildProviderOptions({
+                    provider: 'dexto-nova',
+                    model: 'openai/gpt-5.2-codex',
+                    reasoning: { variant: 'none' },
+                })
+            ).toEqual({
+                openrouter: {
+                    include_reasoning: false,
+                    reasoning: { enabled: false },
                 },
             });
         });

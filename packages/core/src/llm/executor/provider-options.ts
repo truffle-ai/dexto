@@ -13,7 +13,6 @@ import {
     isOpenRouterGatewayProvider,
     isReasoningCapableModel,
     supportsAnthropicInterleavedThinking,
-    supportsOpenAIReasoningEffort,
     type OpenAIReasoningEffort,
 } from '@dexto/llm';
 
@@ -174,8 +173,8 @@ function buildOpenRouterProviderOptions(config: {
         return undefined;
     }
 
-    if (reasoningVariant === 'disabled') {
-        return { openrouter: { include_reasoning: false } };
+    if (reasoningVariant === 'disabled' || reasoningVariant === 'none') {
+        return { openrouter: { include_reasoning: false, reasoning: { enabled: false } } };
     }
 
     if (budgetTokens !== undefined) {
@@ -362,13 +361,14 @@ export function buildProviderOptions(
     }
 
     if (provider === 'openai') {
-        const effortCandidate = toOpenAIReasoningEffort(reasoningVariant);
+        // The selected variant was already checked against the model's reasoning profile.
+        const reasoningEffort = toOpenAIReasoningEffort(reasoningVariant);
 
-        if (effortCandidate && supportsOpenAIReasoningEffort(model, effortCandidate)) {
+        if (reasoningEffort) {
             return {
                 openai: {
-                    reasoningEffort: effortCandidate,
-                    ...(effortCandidate !== 'none' && { reasoningSummary: 'auto' }),
+                    reasoningEffort,
+                    ...(reasoningEffort !== 'none' && { reasoningSummary: 'auto' }),
                 },
             };
         }

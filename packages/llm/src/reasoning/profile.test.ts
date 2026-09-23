@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { getSupportedModels, getSupportedProviders } from '@dexto/llm';
+import { createModelRegistry, LLM_REGISTRY } from '../registry/index.js';
 import { getReasoningProfile, supportsReasoningVariant } from './profile.js';
 
 describe('getReasoningProfile', () => {
@@ -235,6 +236,40 @@ describe('getReasoningProfile', () => {
                 expect(gatewayProfile.defaultVariant).toBe(native.defaultVariant);
             }
         }
+    });
+
+    it('returns the registry host profile as-is for native and gateway providers', () => {
+        const hostProfile = {
+            capable: true,
+            paradigm: 'adaptive-effort' as const,
+            variants: [
+                { id: 'high', label: 'high' },
+                { id: 'max', label: 'max' },
+            ],
+            supportedVariants: ['high', 'max'],
+            defaultVariant: 'max',
+            supportsBudgetTokens: false,
+        };
+        const calls: Array<[string, string]> = [];
+        const registry = createModelRegistry(LLM_REGISTRY, {
+            getReasoningProfile: (provider, model) => {
+                calls.push([provider, model]);
+                return hostProfile;
+            },
+        });
+
+        expect(getReasoningProfile('anthropic', 'claude-opus-5-5', registry)).toBe(hostProfile);
+        expect(getReasoningProfile('openrouter', 'anthropic/claude-opus-5.5', registry)).toBe(
+            hostProfile
+        );
+        expect(getReasoningProfile('dexto-nova', 'anthropic/claude-opus-5.5', registry)).toBe(
+            hostProfile
+        );
+        expect(calls).toEqual([
+            ['anthropic', 'claude-opus-5-5'],
+            ['openrouter', 'anthropic/claude-opus-5.5'],
+            ['dexto-nova', 'anthropic/claude-opus-5.5'],
+        ]);
     });
 
     it('returns non-capable profile for OpenRouter excluded families', () => {

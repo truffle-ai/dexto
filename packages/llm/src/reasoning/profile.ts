@@ -121,12 +121,19 @@ function toGatewayReasoningProfile(nativeProfile: ReasoningProfile): ReasoningPr
  * This is intentionally strict:
  * - No generic preset abstraction at this layer
  * - No guessed variants for unknown paradigms
+ *
+ * A registry created with a host `getReasoningProfile` resolver is authoritative: its answer is
+ * returned as-is for every provider, gateways included.
  */
 export function getReasoningProfile(
     provider: LLMProvider,
     model: string,
     registry: ModelRegistry = DEFAULT_MODEL_REGISTRY
 ): ReasoningProfile {
+    if (registry.getReasoningProfile) {
+        return registry.getReasoningProfile(provider, model);
+    }
+
     if (isOpenRouterGatewayProvider(provider)) {
         const target = getOpenRouterReasoningTarget(model);
         if (!target) {
