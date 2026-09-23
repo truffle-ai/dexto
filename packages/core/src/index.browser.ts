@@ -5,7 +5,7 @@
 export { toError } from './utils/error-conversion.js'; // Used by webui package
 export { zodToIssues } from './utils/result.js'; // Used by client-sdk package
 export { EnvExpandedString } from './utils/result.js'; // Used by @dexto/storage schemas in browser bundles
-export { ErrorScope, ErrorType } from './errors/types.js'; // Used by client-sdk package
+export { ERROR_SCOPES, ERROR_TYPES, ErrorScope, ErrorType } from './errors/types.js'; // Used by client-sdk package
 
 // Type-only exports (used as types, no runtime overhead)
 export type { Issue, Severity, DextoErrorCode } from './errors/types.js';
@@ -57,7 +57,7 @@ export {
 } from './mcp/schemas.js';
 
 // Storage errors (used by @dexto/storage schemas in browser bundles)
-export { StorageErrorCode } from './storage/error-codes.js';
+export { STORAGE_ERROR_CODES, StorageErrorCode } from './storage/error-codes.js';
 
 // Tool permissions types and constants (used by webui)
 export type { PermissionsMode, AllowedToolsStorageType } from './tools/schemas.js';
