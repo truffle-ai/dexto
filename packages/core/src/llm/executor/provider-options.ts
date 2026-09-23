@@ -13,7 +13,6 @@ import {
     isOpenRouterGatewayProvider,
     isReasoningCapableModel,
     supportsAnthropicInterleavedThinking,
-    supportsOpenAIReasoningEffort,
     type OpenAIReasoningEffort,
 } from '@dexto/llm';
 
@@ -362,13 +361,14 @@ export function buildProviderOptions(
     }
 
     if (provider === 'openai') {
-        const effortCandidate = toOpenAIReasoningEffort(reasoningVariant);
+        // The selected variant was already checked against the model's reasoning profile.
+        const reasoningEffort = toOpenAIReasoningEffort(reasoningVariant);
 
-        if (effortCandidate && supportsOpenAIReasoningEffort(model, effortCandidate)) {
+        if (reasoningEffort) {
             return {
                 openai: {
-                    reasoningEffort: effortCandidate,
-                    ...(effortCandidate !== 'none' && { reasoningSummary: 'auto' }),
+                    reasoningEffort,
+                    ...(reasoningEffort !== 'none' && { reasoningSummary: 'auto' }),
                 },
             };
         }

@@ -25,6 +25,7 @@ import {
     MODELS_DEV_PROVIDER_METADATA_BY_PROVIDER,
 } from './models.generated.js';
 import { MANUAL_MODELS_BY_PROVIDER } from './models.manual.js';
+import type { ReasoningProfile } from '../reasoning/profiles/shared.js';
 
 export interface LlmCatalogLogger {
     debug(message: string): void;
@@ -444,12 +445,24 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
     },
 };
 
+/**
+ * Host-owned reasoning profile lookup. When a registry has one, its answer replaces the built-in
+ * reasoning rules for every provider, including OpenRouter-style gateways.
+ */
+export type ReasoningProfileResolver = (provider: LLMProvider, model: string) => ReasoningProfile;
+
+export interface ModelRegistryOptions {
+    getReasoningProfile?: ReasoningProfileResolver;
+}
+
 export class ModelRegistry {
     #providers: Record<LLMProvider, ProviderInfo>;
+    readonly getReasoningProfile: ReasoningProfileResolver | undefined;
 
-    constructor(providers: Record<LLMProvider, ProviderInfo>) {
+    constructor(providers: Record<LLMProvider, ProviderInfo>, options: ModelRegistryOptions = {}) {
         validateRegistryProviders(providers);
         this.#providers = cloneRegistryProviders(providers);
+        this.getReasoningProfile = options.getReasoningProfile;
     }
 
     /**
@@ -637,8 +650,11 @@ export class ModelRegistry {
     }
 }
 
-export function createModelRegistry(providers: Record<LLMProvider, ProviderInfo>): ModelRegistry {
-    return new ModelRegistry(providers);
+export function createModelRegistry(
+    providers: Record<LLMProvider, ProviderInfo>,
+    options: ModelRegistryOptions = {}
+): ModelRegistry {
+    return new ModelRegistry(providers, options);
 }
 
 export const DEFAULT_MODEL_REGISTRY = createModelRegistry(LLM_REGISTRY);
