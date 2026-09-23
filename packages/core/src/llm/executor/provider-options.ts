@@ -173,8 +173,8 @@ function buildOpenRouterProviderOptions(config: {
         return undefined;
     }
 
-    if (reasoningVariant === 'disabled') {
-        return { openrouter: { include_reasoning: false } };
+    if (reasoningVariant === 'disabled' || reasoningVariant === 'none') {
+        return { openrouter: { include_reasoning: false, reasoning: { enabled: false } } };
     }
 
     if (budgetTokens !== undefined) {

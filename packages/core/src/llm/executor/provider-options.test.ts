@@ -524,6 +524,22 @@ describe('buildProviderOptions', () => {
             ).toEqual({
                 openrouter: {
                     include_reasoning: false,
+                    reasoning: { enabled: false },
+                },
+            });
+        });
+
+        it('turns reasoning off for the none effort on gateway providers', () => {
+            expect(
+                buildProviderOptions({
+                    provider: 'dexto-nova',
+                    model: 'openai/gpt-5.2-codex',
+                    reasoning: { variant: 'none' },
+                })
+            ).toEqual({
+                openrouter: {
+                    include_reasoning: false,
+                    reasoning: { enabled: false },
                 },
             });
         });
