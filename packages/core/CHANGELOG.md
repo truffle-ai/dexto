@@ -1,5 +1,13 @@
 # @dexto/core
 
+## 1.12.1
+
+### Patch Changes
+
+- 3226ccd: Let hosts supply an authoritative reasoning profile through `createModelRegistry(providers, { getReasoningProfile })`, so core accepts and sends reasoning variants the host allows (including on OpenRouter/Dexto Nova). Turning reasoning off on OpenRouter/Dexto Nova (`disabled` or `none`) now sends `reasoning: { enabled: false }` instead of only hiding reasoning output.
+- Updated dependencies [3226ccd]
+    - @dexto/llm@1.12.1
+
 ## 1.12.0
 
 ### Patch Changes
