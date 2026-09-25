@@ -285,7 +285,8 @@ https://cli.dexto.ai/api/dexto-agent/
 
 ## Runtime-free config imports
 
-`@dexto/core` routes to a full Node runtime. Consumers that only assemble or validate agent
+The default `@dexto/core` entry routes to a full Node runtime (a `browser` condition resolves the
+root to a browser build instead). Consumers that only assemble or validate agent
 configuration (for example `@dexto/agent-config`, or a Cloudflare Worker that builds a config)
 should import schemas from the curated `@dexto/core/config` facade instead of the root:
 
