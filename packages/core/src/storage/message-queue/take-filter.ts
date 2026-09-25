@@ -15,13 +15,20 @@ export function createQueueTakeFilter(input: {
         !excludeIds.has(message.id) && (onlyIds === null || onlyIds.has(message.id));
 }
 
-/** Copies of `messages` whose ids are not already in `queue`, in order (for `prepend`). */
+/**
+ * Copies of `messages` whose ids are not already in `queue`, in order, keeping only the first
+ * occurrence of an id repeated within `messages` (for `prepend`).
+ */
 export function selectMissingMessages(
     queue: readonly QueuedMessage[],
     messages: readonly QueuedMessage[]
 ): QueuedMessage[] {
     const present = new Set(queue.map((message) => message.id));
-    return messages
-        .filter((message) => !present.has(message.id))
-        .map((message) => cloneQueuedMessage(message));
+    const missing: QueuedMessage[] = [];
+    for (const message of messages) {
+        if (present.has(message.id)) continue;
+        present.add(message.id);
+        missing.push(cloneQueuedMessage(message));
+    }
+    return missing;
 }

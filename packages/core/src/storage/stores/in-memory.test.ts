@@ -134,6 +134,22 @@ describe('InMemoryDextoStores message queue takeAll', () => {
         ).toEqual(['held-1', 'held-2', 'live-1']);
     });
 
+    it('prepends a message id repeated within one batch only once', async () => {
+        const storage = new InMemoryDextoStores();
+        const followUpQueue = storage.getStore('followUpQueue');
+        const message = {
+            id: 'held-1',
+            content: [{ type: 'text' as const, text: 'x' }],
+            queuedAt: 1,
+        };
+
+        await followUpQueue.prepend({ sessionId: 'session-1', messages: [message, message] });
+
+        expect(
+            (await followUpQueue.list({ sessionId: 'session-1' })).map((entry) => entry.id)
+        ).toEqual(['held-1']);
+    });
+
     it('takes only the listed ids when onlyIds is set', async () => {
         const storage = new InMemoryDextoStores();
         const followUpQueue = storage.getStore('followUpQueue');
