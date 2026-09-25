@@ -932,6 +932,25 @@ describe('MessageQueueService restored entries (issue #743)', () => {
         expect(service.pendingCount()).toBe(0);
     });
 
+    it('takeHeld returns the removed entries even if a message:dequeued listener throws', async () => {
+        const { store, service } = await createRestoredQueue([
+            restoredEntry('old-1', 'first'),
+            restoredEntry('old-2', 'second'),
+        ]);
+        vi.mocked(eventBus.emit).mockImplementation((event) => {
+            if (event === 'message:dequeued') {
+                throw new Error('listener failed');
+            }
+            return true;
+        });
+
+        const taken = await service.takeHeld();
+
+        expect(taken.map((m) => m.id)).toEqual(['old-1', 'old-2']);
+        expect(await store.list({ sessionId: 'session-1' })).toEqual([]);
+        expect(logger.error).toHaveBeenCalledWith(expect.stringContaining('old-1, old-2'));
+    });
+
     it('discardHeld removes held entries without returning them and emits message:removed', async () => {
         const { store, service } = await createRestoredQueue([
             restoredEntry('old-1', 'first'),

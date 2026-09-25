@@ -359,14 +359,21 @@ export class MessageQueueService {
             this.logger.debug(
                 `Resumed ${taken.length} held ${this.queueKind} message(s): ${taken.map((m) => m.id).join(', ')}`
             );
-            this.eventBus.emit('message:dequeued', {
-                count: taken.length,
-                ids: taken.map((m) => m.id),
-                queue: this.queueKind,
-                coalesced: taken.length > 1,
-                content: coalesceQueuedMessages(taken).combinedContent,
-                messages: cloneQueuedMessages(taken),
-            });
+            // The entries already left storage, so a throwing listener must not lose them.
+            try {
+                this.eventBus.emit('message:dequeued', {
+                    count: taken.length,
+                    ids: taken.map((m) => m.id),
+                    queue: this.queueKind,
+                    coalesced: taken.length > 1,
+                    content: coalesceQueuedMessages(taken).combinedContent,
+                    messages: cloneQueuedMessages(taken),
+                });
+            } catch (error) {
+                this.logger.error(
+                    `A message:dequeued listener failed after resuming ${this.queueKind} message(s) ${taken.map((m) => m.id).join(', ')}: ${error instanceof Error ? error.message : String(error)}`
+                );
+            }
             return taken;
         });
     }
