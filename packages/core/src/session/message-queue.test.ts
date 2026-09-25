@@ -904,6 +904,34 @@ describe('MessageQueueService restored entries (issue #743)', () => {
         expect(taken.map((m) => m.id)).toEqual(['old-2']);
     });
 
+    it('takeHeld returns the removed entries even if re-reading the store fails afterwards', async () => {
+        const { store, service } = await createRestoredQueue([
+            restoredEntry('old-1', 'first'),
+            restoredEntry('old-2', 'second'),
+        ]);
+        const takeAll = store.takeAll.bind(store);
+        const list = store.list.bind(store);
+        let tookEntries = false;
+        vi.spyOn(store, 'takeAll').mockImplementation(async (input) => {
+            const taken = await takeAll(input);
+            tookEntries = true;
+            return taken;
+        });
+        vi.spyOn(store, 'list').mockImplementation(async (input) => {
+            if (tookEntries) {
+                throw new Error('queue storage read failed');
+            }
+            return await list(input);
+        });
+
+        const taken = await service.takeHeld();
+
+        expect(taken.map((m) => m.id)).toEqual(['old-1', 'old-2']);
+        expect(await takeAll({ sessionId: 'session-1' })).toEqual([]);
+        expect(service.getHeld()).toEqual([]);
+        expect(service.pendingCount()).toBe(0);
+    });
+
     it('discardHeld removes held entries without returning them and emits message:removed', async () => {
         const { store, service } = await createRestoredQueue([
             restoredEntry('old-1', 'first'),

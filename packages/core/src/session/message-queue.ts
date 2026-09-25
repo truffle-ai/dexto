@@ -345,10 +345,13 @@ export class MessageQueueService {
                 sessionId: this.sessionId,
                 onlyIds: heldIds,
             });
+            // The entries have left storage: from here on nothing may fail before they are
+            // returned, so update the snapshot locally instead of re-reading the store.
+            const requested = new Set(heldIds);
             for (const id of heldIds) {
                 this.heldIds.delete(id);
             }
-            await this.refreshFromStore();
+            this.queueSnapshot = this.queueSnapshot.filter((message) => !requested.has(message.id));
             if (taken.length === 0) {
                 return taken;
             }
