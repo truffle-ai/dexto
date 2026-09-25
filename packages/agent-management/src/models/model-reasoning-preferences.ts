@@ -4,8 +4,8 @@
  * Remembers the last explicit reasoning choice (variant and/or budget tokens) per
  * canonical model identity so switching A -> B -> A restores A's settings, across restarts.
  *
- * - Key: provider + model (+ baseURL when set), shared with the model picker state so the
- *   same model on two providers/endpoints never collides.
+ * - Key: provider + model (+ baseURL when set), in the model picker key format with each
+ *   component escaped, so the same model on two providers/endpoints never collides.
  * - Value: an explicit override, or `null` when the user explicitly reset to provider defaults.
  *   A missing entry means "never chosen".
  * - Saved values are validated against the model's current reasoning profile before use;
@@ -73,16 +73,26 @@ function createDefaultState(): ModelReasoningPreferencesState {
     return { version: MODEL_REASONING_PREFERENCES_VERSION, models: {} };
 }
 
+/** Escape `%` and the `|` separator so no component can forge a separator. */
+function escapeKeyComponent(value: string): string {
+    return value.replace(/%/g, '%25').replace(/\|/g, '%7C');
+}
+
 /**
  * Canonical identity key: `provider|model` plus `|baseURL` when an endpoint is set.
- * Shared with the model picker so recents/favorites/preferences agree on identity.
+ * Components are escaped, so `{ model: 'a|b' }` and `{ model: 'a', baseURL: 'b' }` never
+ * share a key. Identical to the model picker key whenever no component contains `|` or `%`.
  */
 export function toModelReasoningPreferenceKey(model: {
     provider: LLMProvider;
     model: string;
     baseURL?: string | undefined;
 }): string {
-    return toModelPickerKey(model);
+    return toModelPickerKey({
+        provider: model.provider,
+        model: escapeKeyComponent(model.model),
+        ...(model.baseURL ? { baseURL: escapeKeyComponent(model.baseURL) } : {}),
+    });
 }
 
 function describeIssues(error: z.ZodError): string {

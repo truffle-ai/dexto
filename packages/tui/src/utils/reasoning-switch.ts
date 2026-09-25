@@ -77,6 +77,35 @@ function buildReasoningUpdate(
 }
 
 /**
+ * Reasoning to store with a new default model in global preferences.
+ * An explicit plan update wins. Otherwise the previous default's reasoning is kept only when
+ * the default stays the same provider + model + endpoint; it never carries over to another model.
+ */
+export function resolveDefaultModelReasoning<TReasoning>(input: {
+    existing:
+        | {
+              provider: LLMProvider;
+              model: string;
+              baseURL?: string | undefined;
+              reasoning?: TReasoning | undefined;
+          }
+        | undefined;
+    target: ReasoningSwitchTarget;
+    plan: ReasoningSwitchPlan;
+}): TReasoning | NonNullable<ReasoningSwitchUpdate['reasoning']> | undefined {
+    const { existing, target, plan } = input;
+    if ('reasoning' in plan.update) {
+        return plan.update.reasoning ?? undefined;
+    }
+    const sameModelIdentity =
+        existing !== undefined &&
+        existing.provider === target.provider &&
+        existing.model === target.model &&
+        (existing.baseURL || undefined) === (target.baseURL || undefined);
+    return sameModelIdentity ? existing.reasoning : undefined;
+}
+
+/**
  * Combine the user's explicit variant choice (if any) with the saved preference for the
  * target model, validated against the model's current reasoning profile.
  */

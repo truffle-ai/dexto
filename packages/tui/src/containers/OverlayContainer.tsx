@@ -89,6 +89,7 @@ import {
     applyReasoningSwitchPlan,
     describeStaleReasoningSettings,
     planReasoningSwitch,
+    resolveDefaultModelReasoning,
     setReasoningBudgetTokens,
     switchModelWithReasoning,
     type ReasoningSwitchPlan,
@@ -757,11 +758,11 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         baseURL,
                         reasoningVariant,
                     });
-                    const existingReasoning = existing?.llm.reasoning;
-                    const nextReasoning =
-                        'reasoning' in plan.update
-                            ? (plan.update.reasoning ?? undefined)
-                            : existingReasoning;
+                    const nextReasoning = resolveDefaultModelReasoning({
+                        existing: existing?.llm,
+                        target: { provider, model, baseURL },
+                        plan,
+                    });
 
                     type GlobalLLMPreferences = Awaited<
                         ReturnType<typeof loadGlobalPreferences>

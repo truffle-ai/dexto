@@ -560,6 +560,9 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
     const deleteTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const maxVisibleItemsRef = useRef(maxVisibleItems);
     const reasoningPreferenceRequestRef = useRef(0);
+    // True while the latest saved-variant lookup is pending; variant input waits for it so a
+    // late result cannot move the cursor after the user did, or Enter commit the wrong variant.
+    const [isHydratingReasoningPreference, setIsHydratingReasoningPreference] = useState(false);
 
     // Reasoning variant sub-step state
     const [pendingReasoningModel, setPendingReasoningModel] = useState<ModelOption | null>(null);
@@ -1288,6 +1291,7 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
         // Pre-highlight the variant last chosen for this exact model (provider+model+baseURL),
         // so Enter restores it. Only the latest request may move the cursor.
         const requestId = ++reasoningPreferenceRequestRef.current;
+        setIsHydratingReasoningPreference(true);
         void getModelReasoningPreference({
             provider: item.provider,
             model: item.name,
@@ -1308,6 +1312,10 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                         error instanceof Error ? error.message : String(error)
                     }`
                 );
+            })
+            .finally(() => {
+                if (reasoningPreferenceRequestRef.current !== requestId) return;
+                setIsHydratingReasoningPreference(false);
             });
         return true;
     };
@@ -1333,6 +1341,10 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                         // Go back to model selection
                         setPendingReasoningModel(null);
                         setIsSettingDefault(false);
+                        return true;
+                    }
+                    if (isHydratingReasoningPreference) {
+                        // Ignore navigation and Enter until the saved variant is applied.
                         return true;
                     }
                     if (key.upArrow) {
@@ -1693,6 +1705,7 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
             pendingReasoningModel,
             reasoningVariantIndex,
             reasoningVariantOptions,
+            isHydratingReasoningPreference,
             isSettingDefault,
             activeTab,
             agent,

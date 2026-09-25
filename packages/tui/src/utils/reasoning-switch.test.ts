@@ -9,6 +9,7 @@ import { rememberModelReasoningPreference } from '@dexto/agent-management';
 import {
     cycleReasoningVariant,
     planReasoningSwitch,
+    resolveDefaultModelReasoning,
     setReasoningBudgetTokens,
     switchModelWithReasoning,
 } from './reasoning-switch.js';
@@ -312,5 +313,54 @@ describe('reasoning-switch: per-model reasoning preferences', () => {
             explicitBudgetTokens: undefined,
             effectiveBudgetTokens: 16000,
         });
+    });
+});
+
+describe('reasoning-switch: default-model reasoning in global preferences', () => {
+    const previousDefault = {
+        provider: 'anthropic' as const,
+        model: 'claude-sonnet-4-5',
+        reasoning: { variant: 'high', budgetTokens: 4096 },
+    };
+
+    it('does not carry the previous default model reasoning over to a different model', () => {
+        expect(
+            resolveDefaultModelReasoning({
+                existing: previousDefault,
+                target: { provider: 'openai', model: 'gpt-5' },
+                plan: { update: {}, hydrated: false, stale: [] },
+            })
+        ).toBeUndefined();
+        expect(
+            resolveDefaultModelReasoning({
+                existing: previousDefault,
+                target: { ...previousDefault, baseURL: 'https://proxy.example/v1' },
+                plan: { update: {}, hydrated: false, stale: [] },
+            })
+        ).toBeUndefined();
+    });
+
+    it('keeps reasoning for the same default identity and honors explicit plan updates', () => {
+        expect(
+            resolveDefaultModelReasoning({
+                existing: previousDefault,
+                target: { provider: 'anthropic', model: 'claude-sonnet-4-5' },
+                plan: { update: {}, hydrated: false, stale: [] },
+            })
+        ).toEqual(previousDefault.reasoning);
+        expect(
+            resolveDefaultModelReasoning({
+                existing: previousDefault,
+                target: { provider: 'openai', model: 'gpt-5' },
+                plan: { update: { reasoning: { variant: 'low' } }, hydrated: false, stale: [] },
+            })
+        ).toEqual({ variant: 'low' });
+        expect(
+            resolveDefaultModelReasoning({
+                existing: previousDefault,
+                target: { provider: 'anthropic', model: 'claude-sonnet-4-5' },
+                plan: { update: { reasoning: null }, hydrated: true, stale: [] },
+            })
+        ).toBeUndefined();
     });
 });

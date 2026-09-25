@@ -89,6 +89,37 @@ describe('model-reasoning-preferences', () => {
             });
             expect(new Set([openai, compatible, endpointA, endpointB]).size).toBe(4);
         });
+
+        it('keeps identities distinct when a component contains the key separator', async () => {
+            const pipedModel = { provider: 'openai-compatible' as const, model: 'a|b' };
+            const modelWithEndpoint = {
+                provider: 'openai-compatible' as const,
+                model: 'a',
+                baseURL: 'b',
+            };
+            expect(toModelReasoningPreferenceKey(pipedModel)).not.toBe(
+                toModelReasoningPreferenceKey(modelWithEndpoint)
+            );
+
+            await rememberModelReasoningPreference({
+                model: pipedModel,
+                reasoning: { variant: 'high' },
+            });
+            await rememberModelReasoningPreference({
+                model: modelWithEndpoint,
+                reasoning: { variant: 'low' },
+            });
+
+            const piped = await getModelReasoningPreference(pipedModel);
+            const withEndpoint = await getModelReasoningPreference(modelWithEndpoint);
+            expect(piped.entry).toMatchObject({ model: 'a|b', reasoning: { variant: 'high' } });
+            expect(withEndpoint.entry).toMatchObject({
+                model: 'a',
+                baseURL: 'b',
+                reasoning: { variant: 'low' },
+            });
+            expect(piped.warnings).toEqual([]);
+        });
     });
 
     describe('store', () => {
