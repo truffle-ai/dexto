@@ -23,6 +23,7 @@ import type {
 import type { ConversationStore, ModelHistoryLoad } from '../conversation/types.js';
 import type { MemoryStore } from '../memories/types.js';
 import type { SessionMessageQueueStore } from '../message-queue/types.js';
+import { createQueueTakeFilter, selectMissingMessages } from '../message-queue/take-filter.js';
 import type { CustomPromptStore } from '../prompts/types.js';
 import type { RuntimeEventRecord, RuntimeEventStore } from '../runtime-events/types.js';
 import type { SessionStore } from '../sessions/types.js';
@@ -343,10 +344,29 @@ class InMemorySessionMessageQueueStore implements SessionMessageQueueStore {
         return { position: queue.length };
     }
 
-    async takeAll(input: { sessionId: string }): Promise<QueuedMessage[]> {
-        const queue = cloneQueuedMessages(this.queues.get(input.sessionId) ?? []);
-        this.queues.delete(input.sessionId);
-        return queue;
+    async takeAll(input: {
+        sessionId: string;
+        excludeIds?: readonly string[];
+        onlyIds?: readonly string[];
+    }): Promise<QueuedMessage[]> {
+        const isTaken = createQueueTakeFilter(input);
+        const queue = this.queues.get(input.sessionId) ?? [];
+        const kept = queue.filter((message) => !isTaken(message));
+        const taken = cloneQueuedMessages(queue.filter(isTaken));
+        if (kept.length === 0) {
+            this.queues.delete(input.sessionId);
+        } else {
+            this.queues.set(input.sessionId, kept);
+        }
+        return taken;
+    }
+
+    async prepend(input: { sessionId: string; messages: readonly QueuedMessage[] }): Promise<void> {
+        const queue = this.queues.get(input.sessionId) ?? [];
+        const restored = selectMissingMessages(queue, input.messages);
+        if (restored.length > 0) {
+            this.queues.set(input.sessionId, [...restored, ...queue]);
+        }
     }
 
     async remove(input: { sessionId: string; id: string }): Promise<boolean> {

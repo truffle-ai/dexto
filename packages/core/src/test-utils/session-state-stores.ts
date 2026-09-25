@@ -3,6 +3,10 @@ import { cloneQueuedMessage, cloneQueuedMessages } from '../session/queue-clone.
 import type { QueuedMessage } from '../session/types.js';
 import type { ApprovalStore } from '../storage/approvals/types.js';
 import type { SessionMessageQueueStore } from '../storage/message-queue/types.js';
+import {
+    createQueueTakeFilter,
+    selectMissingMessages,
+} from '../storage/message-queue/take-filter.js';
 import { InMemoryDextoStores } from '../storage/stores/in-memory.js';
 import { SessionToolPreferencesStore } from '../tools/session-tool-preferences-store.js';
 
@@ -38,10 +42,31 @@ export function createInMemoryMessageQueueStore(): SessionMessageQueueStore {
             queues.set(input.sessionId, queue);
             return { position: queue.length };
         },
-        async takeAll(input: { sessionId: string }): Promise<QueuedMessage[]> {
-            const queue = cloneQueuedMessages(queues.get(input.sessionId) ?? []);
-            queues.delete(input.sessionId);
-            return queue;
+        async takeAll(input: {
+            sessionId: string;
+            excludeIds?: readonly string[];
+            onlyIds?: readonly string[];
+        }): Promise<QueuedMessage[]> {
+            const isTaken = createQueueTakeFilter(input);
+            const queue = queues.get(input.sessionId) ?? [];
+            const kept = queue.filter((message) => !isTaken(message));
+            const taken = cloneQueuedMessages(queue.filter(isTaken));
+            if (kept.length === 0) {
+                queues.delete(input.sessionId);
+            } else {
+                queues.set(input.sessionId, kept);
+            }
+            return taken;
+        },
+        async prepend(input: {
+            sessionId: string;
+            messages: readonly QueuedMessage[];
+        }): Promise<void> {
+            const queue = queues.get(input.sessionId) ?? [];
+            const restored = selectMissingMessages(queue, input.messages);
+            if (restored.length > 0) {
+                queues.set(input.sessionId, [...restored, ...queue]);
+            }
         },
         async remove(input: { sessionId: string; id: string }): Promise<boolean> {
             const queue = queues.get(input.sessionId) ?? [];

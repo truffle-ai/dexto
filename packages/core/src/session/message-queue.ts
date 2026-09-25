@@ -4,6 +4,10 @@ import type { QueuedMessage, CoalescedMessage } from './types.js';
 import type { ContentPart } from '../context/types.js';
 import type { Logger } from '../logger/v2/types.js';
 import type { SessionMessageQueueStore } from '../storage/message-queue/types.js';
+import {
+    createQueueTakeFilter,
+    selectMissingMessages,
+} from '../storage/message-queue/take-filter.js';
 
 type MessageQueueBackingStore = SessionMessageQueueStore;
 
@@ -24,11 +28,21 @@ class EphemeralMessageQueueStore implements MessageQueueBackingStore {
         return { position: this.queue.length };
     }
 
-    async takeAll(input: { sessionId: string }): Promise<QueuedMessage[]> {
+    async takeAll(input: {
+        sessionId: string;
+        excludeIds?: readonly string[];
+        onlyIds?: readonly string[];
+    }): Promise<QueuedMessage[]> {
         void input.sessionId;
-        const messages = cloneQueuedMessages(this.queue);
-        this.queue = [];
-        return messages;
+        const isTaken = createQueueTakeFilter(input);
+        const taken = cloneQueuedMessages(this.queue.filter(isTaken));
+        this.queue = this.queue.filter((message) => !isTaken(message));
+        return taken;
+    }
+
+    async prepend(input: { sessionId: string; messages: readonly QueuedMessage[] }): Promise<void> {
+        void input.sessionId;
+        this.queue = [...selectMissingMessages(this.queue, input.messages), ...this.queue];
     }
 
     async remove(input: { sessionId: string; id: string }): Promise<boolean> {
@@ -76,6 +90,11 @@ export interface UserMessageInput {
  * This enables user guidance where users can send
  * mid-task instructions like "stop" or "try a different approach".
  *
+ * Restored entries: messages already in the backing store when the service initializes were
+ * queued for a run that no longer exists (the process was interrupted or the session was
+ * evicted). They are kept durable and visible, but held back from the executor until the host
+ * makes an explicit decision through {@link takeHeld} (resume) or {@link discardHeld}.
+ *
  * @example
  * ```typescript
  * // In API handler - queue message if agent is busy
@@ -95,6 +114,8 @@ export interface UserMessageInput {
  */
 export class MessageQueueService {
     private queueSnapshot: QueuedMessage[] = [];
+    /** Ids of restored entries awaiting an explicit resume/discard decision. */
+    private heldIds = new Set<string>();
     private mutationLock: Promise<void> = Promise.resolve();
     private initialized = false;
     private initializationPromise: Promise<void> | null = null;
@@ -129,9 +150,11 @@ export class MessageQueueService {
             }
 
             this.queueSnapshot = await this.store.list({ sessionId: this.sessionId });
+            this.heldIds = new Set(this.queueSnapshot.map((message) => message.id));
             if (this.queueSnapshot.length > 0) {
-                this.logger.debug(
-                    `Restored ${this.queueSnapshot.length} queued message(s) for session ${this.sessionId}`
+                this.logger.info(
+                    `Restored ${this.queueSnapshot.length} queued ${this.queueKind} message(s) for session ${this.sessionId}; held until explicitly resumed or discarded`,
+                    { sessionId: this.sessionId, queue: this.queueKind }
                 );
             }
 
@@ -146,6 +169,28 @@ export class MessageQueueService {
 
     private async refreshFromStore(): Promise<void> {
         this.queueSnapshot = await this.store.list({ sessionId: this.sessionId });
+        this.pruneHeldIds();
+    }
+
+    /** Drop held ids that no longer exist in the store (removed here or by another process). */
+    private pruneHeldIds(): void {
+        if (this.heldIds.size === 0) {
+            return;
+        }
+        const present = new Set(this.queueSnapshot.map((message) => message.id));
+        for (const id of this.heldIds) {
+            if (!present.has(id)) {
+                this.heldIds.delete(id);
+            }
+        }
+    }
+
+    private runnableMessages(): QueuedMessage[] {
+        return this.queueSnapshot.filter((message) => !this.heldIds.has(message.id));
+    }
+
+    private heldMessages(): QueuedMessage[] {
+        return this.queueSnapshot.filter((message) => this.heldIds.has(message.id));
     }
 
     private runWithMutationLock<T>(fn: () => Promise<T>): Promise<T> {
@@ -202,9 +247,10 @@ export class MessageQueueService {
     }
 
     /**
-     * Dequeue ALL pending messages and coalesce into single injection.
+     * Dequeue ALL runnable messages and coalesce into single injection.
      * Called by executor between steps.
      *
+     * Restored entries held for an explicit decision are left in the queue untouched.
      * Multiple queued messages become ONE combined message to the LLM.
      *
      * @example
@@ -224,11 +270,14 @@ export class MessageQueueService {
      */
     async dequeueAll(): Promise<CoalescedMessage | null> {
         return await this.runWithMutationLock(async () => {
-            const messages = await this.store.takeAll({ sessionId: this.sessionId });
-            this.queueSnapshot = [];
+            const messages = await this.store.takeAll({
+                sessionId: this.sessionId,
+                excludeIds: Array.from(this.heldIds),
+            });
+            this.queueSnapshot = this.heldMessages();
             if (messages.length === 0) return null;
 
-            const combined = this.coalesce(messages);
+            const combined = coalesceQueuedMessages(messages);
 
             this.logger.debug(
                 `Dequeued ${messages.length} message(s): ${messages.map((m) => m.id).join(', ')}`
@@ -248,98 +297,11 @@ export class MessageQueueService {
     }
 
     /**
-     * Coalesce multiple messages into one (multimodal-aware).
-     * Strategy: Combine with per-kind formatting, preserve all media.
-     */
-    private coalesce(messages: QueuedMessage[]): CoalescedMessage {
-        // Single message - return as-is
-        if (messages.length === 1) {
-            const firstMsg = messages[0];
-            if (!firstMsg) {
-                // This should never happen since we check length === 1, but satisfies TypeScript
-                throw new Error('Unexpected empty messages array');
-            }
-            return {
-                messages,
-                combinedContent: firstMsg.content,
-                firstQueuedAt: firstMsg.queuedAt,
-                lastQueuedAt: firstMsg.queuedAt,
-            };
-        }
-
-        const combinedContent: ContentPart[] = [];
-        let hasEntries = false;
-        let inUserSection = false;
-
-        for (const msg of messages) {
-            const isUserMessage = msg.kind !== 'background';
-
-            if (isUserMessage && !inUserSection) {
-                if (hasEntries) {
-                    combinedContent.push({ type: 'text', text: '\n\n' });
-                }
-                combinedContent.push({ type: 'text', text: 'Additional user input received:' });
-                combinedContent.push({ type: 'text', text: '\n\n' });
-                inUserSection = true;
-                hasEntries = false;
-            }
-
-            let prefixText = isUserMessage ? '- ' : '';
-
-            if (hasEntries && !isUserMessage) {
-                combinedContent.push({ type: 'text', text: '\n\n' });
-                inUserSection = false;
-            } else if (hasEntries && isUserMessage) {
-                prefixText = `\n\n${prefixText}`;
-            }
-
-            const entryStartIndex = combinedContent.length;
-            for (const part of msg.content) {
-                if (part.type === 'text') {
-                    if (prefixText) {
-                        combinedContent.push({ type: 'text', text: prefixText + part.text });
-                        prefixText = '';
-                    } else {
-                        combinedContent.push(part);
-                    }
-                } else {
-                    if (prefixText) {
-                        combinedContent.push({ type: 'text', text: prefixText });
-                        prefixText = '';
-                    }
-                    combinedContent.push(part);
-                }
-            }
-
-            if (prefixText && msg.content.length === 0) {
-                combinedContent.push({ type: 'text', text: prefixText + '[empty message]' });
-            }
-
-            if (combinedContent.length > entryStartIndex) {
-                hasEntries = true;
-            }
-        }
-
-        // Get first and last messages - safe because we checked length > 1 above
-        const firstMessage = messages[0];
-        const lastMessage = messages[messages.length - 1];
-        if (!firstMessage || !lastMessage) {
-            throw new Error('Unexpected undefined message in non-empty array');
-        }
-
-        return {
-            messages,
-            combinedContent,
-            firstQueuedAt: firstMessage.queuedAt,
-            lastQueuedAt: lastMessage.queuedAt,
-        };
-    }
-
-    /**
-     * Check if there are pending messages in the queue.
+     * Check if there are messages the executor may drain right now.
+     * Restored entries held for an explicit decision do not count.
      */
     hasPending(): boolean {
-        return this.queueSnapshot.length > 0;
+        return this.runnableMessages().length > 0;
     }
 
     async refresh(): Promise<void> {
@@ -349,25 +311,157 @@ export class MessageQueueService {
     }
 
     /**
-     * Get the number of pending messages.
+     * Get the number of messages in the queue, including held restored entries.
      */
     pendingCount(): number {
         return this.queueSnapshot.length;
     }
 
     /**
-     * Clear all pending messages without processing.
+     * Get the restored entries currently held for an explicit resume/discard decision.
+     * Returns defensive copies in queue order.
+     */
+    getHeld(): QueuedMessage[] {
+        return cloneQueuedMessages(this.heldMessages());
+    }
+
+    /**
+     * Resume decision: remove the held restored entries from the queue and return them so the
+     * host can run them as ordinary turn input. Entries leave durable storage before this
+     * resolves, so a repeated call (or a second process) cannot take the same entry twice.
+     * Entries that another actor already removed are skipped. The removal is one atomic store
+     * operation: if it fails, every held entry stays in the queue and stays held.
+     *
+     * @returns The taken entries in queue order; empty when nothing was held
+     */
+    async takeHeld(): Promise<QueuedMessage[]> {
+        return await this.runWithMutationLock(async () => {
+            await this.refreshFromStore();
+            const heldIds = Array.from(this.heldIds);
+            if (heldIds.length === 0) {
+                return [];
+            }
+            const taken = await this.store.takeAll({
+                sessionId: this.sessionId,
+                onlyIds: heldIds,
+            });
+            // The entries have left storage: from here on nothing may fail before they are
+            // returned, so update the snapshot locally instead of re-reading the store.
+            const requested = new Set(heldIds);
+            for (const id of heldIds) {
+                this.heldIds.delete(id);
+            }
+            this.queueSnapshot = this.queueSnapshot.filter((message) => !requested.has(message.id));
+            if (taken.length === 0) {
+                return taken;
+            }
+
+            this.logger.debug(
+                `Resumed ${taken.length} held ${this.queueKind} message(s): ${taken.map((m) => m.id).join(', ')}`
+            );
+            // The entries already left storage, so a throwing listener must not lose them.
+            try {
+                this.eventBus.emit('message:dequeued', {
+                    count: taken.length,
+                    ids: taken.map((m) => m.id),
+                    queue: this.queueKind,
+                    coalesced: taken.length > 1,
+                    content: cloneCoalescedMessage(coalesceQueuedMessages(taken)).combinedContent,
+                    messages: cloneQueuedMessages(taken),
+                });
+            } catch (error) {
+                this.logger.error(
+                    `A message:dequeued listener failed after resuming ${this.queueKind} message(s) ${taken.map((m) => m.id).join(', ')}: ${error instanceof Error ? error.message : String(error)}`
+                );
+            }
+            return taken;
+        });
+    }
+
+    /**
+     * Undo a {@link takeHeld} whose entries could not be handed to a turn: put them back at the
+     * head of the queue in one atomic store operation, held again for an explicit decision.
+     * On failure nothing is marked held and no events are emitted.
+     */
+    async restoreHeld(messages: readonly QueuedMessage[]): Promise<void> {
+        if (messages.length === 0) {
+            return;
+        }
+        await this.runWithMutationLock(async () => {
+            await this.store.prepend({
+                sessionId: this.sessionId,
+                messages: cloneQueuedMessages([...messages]),
+            });
+            messages.forEach((message, index) => {
+                this.heldIds.add(message.id);
+                this.eventBus.emit('message:queued', {
+                    position: index + 1,
+                    id: message.id,
+                    queue: this.queueKind,
+                });
+            });
+            await this.refreshFromStore();
+            this.logger.debug(
+                `Restored ${messages.length} held ${this.queueKind} message(s) after an incomplete resume`
+            );
+        });
+    }
+
+    /**
+     * Discard decision: remove the held restored entries from the queue without running them.
+     *
+     * @returns Number of entries removed
+     */
+    async discardHeld(): Promise<number> {
+        return await this.runWithMutationLock(async () => {
+            await this.refreshFromStore();
+            let removedCount = 0;
+            for (const message of this.heldMessages()) {
+                const removed = await this.store.remove({
+                    sessionId: this.sessionId,
+                    id: message.id,
+                });
+                this.heldIds.delete(message.id);
+                if (!removed) {
+                    continue;
+                }
+                removedCount += 1;
+                // The entry already left storage: a throwing listener must not stop the discard.
+                try {
+                    this.eventBus.emit('message:removed', {
+                        id: message.id,
+                        queue: this.queueKind,
+                    });
+                } catch (error) {
+                    this.logger.error(
+                        `A message:removed listener failed after discarding held ${this.queueKind} message ${message.id}: ${error instanceof Error ? error.message : String(error)}`
+                    );
+                }
+            }
+            await this.refreshFromStore();
+            if (removedCount > 0) {
+                this.logger.debug(
+                    `Discarded ${removedCount} held ${this.queueKind} message(s) for session ${this.sessionId}`
+                );
+            }
+            return removedCount;
+        });
+    }
+
+    /**
+     * Clear all pending messages without processing, including held restored entries.
      * Used during cleanup/abort.
      */
     async clear(): Promise<void> {
         await this.runWithMutationLock(async () => {
             await this.store.clear({ sessionId: this.sessionId });
             this.queueSnapshot = [];
+            this.heldIds.clear();
         });
     }
 
     /**
-     * Get all queued messages (for UI display).
+     * Get all queued messages (for UI display), including held restored entries.
      * Returns defensive copies to prevent external mutation.
      */
     getAll(): QueuedMessage[] {
@@ -401,4 +495,92 @@ export class MessageQueueService {
             return true;
         });
     }
+}
+
+/**
+ * Coalesce multiple queued messages into one (multimodal-aware).
+ * Strategy: Combine with per-kind formatting, preserve all media.
+ */
+export function coalesceQueuedMessages(messages: QueuedMessage[]): CoalescedMessage {
+    // Single message - return as-is
+    if (messages.length === 1) {
+        const firstMsg = messages[0];
+        if (!firstMsg) {
+            // This should never happen since we check length === 1, but satisfies TypeScript
+            throw new Error('Unexpected empty messages array');
+        }
+        return {
+            messages,
+            combinedContent: firstMsg.content,
+            firstQueuedAt: firstMsg.queuedAt,
+            lastQueuedAt: firstMsg.queuedAt,
+        };
+    }
+
+    const combinedContent: ContentPart[] = [];
+    let hasEntries = false;
+    let inUserSection = false;
+
+    for (const msg of messages) {
+        const isUserMessage = msg.kind !== 'background';
+
+        if (isUserMessage && !inUserSection) {
+            if (hasEntries) {
+                combinedContent.push({ type: 'text', text: '\n\n' });
+            }
+            combinedContent.push({ type: 'text', text: 'Additional user input received:' });
+            combinedContent.push({ type: 'text', text: '\n\n' });
+            inUserSection = true;
+            hasEntries = false;
+        }
+
+        let prefixText = isUserMessage ? '- ' : '';
+
+        if (hasEntries && !isUserMessage) {
+            combinedContent.push({ type: 'text', text: '\n\n' });
+            inUserSection = false;
+        } else if (hasEntries && isUserMessage) {
+            prefixText = `\n\n${prefixText}`;
+        }
+
+        const entryStartIndex = combinedContent.length;
+        for (const part of msg.content) {
+            if (part.type === 'text') {
+                if (prefixText) {
+                    combinedContent.push({ type: 'text', text: prefixText + part.text });
+                    prefixText = '';
+                } else {
+                    combinedContent.push(part);
+                }
+            } else {
+                if (prefixText) {
+                    combinedContent.push({ type: 'text', text: prefixText });
+                    prefixText = '';
+                }
+                combinedContent.push(part);
+            }
+        }
+
+        if (prefixText && msg.content.length === 0) {
+            combinedContent.push({ type: 'text', text: prefixText + '[empty message]' });
+        }
+
+        if (combinedContent.length > entryStartIndex) {
+            hasEntries = true;
+        }
+    }
+
+    // Get first and last messages - safe because we checked length > 1 above
+    const firstMessage = messages[0];
+    const lastMessage = messages[messages.length - 1];
+    if (!firstMessage || !lastMessage) {
+        throw new Error('Unexpected undefined message in non-empty array');
+    }
+
+    return {
+        messages,
+        combinedContent,
+        firstQueuedAt: firstMessage.queuedAt,
+        lastQueuedAt: lastMessage.queuedAt,
+    };
 }

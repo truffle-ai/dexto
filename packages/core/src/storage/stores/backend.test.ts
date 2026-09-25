@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { createMockLogger } from '../../logger/v2/test-utils.js';
 import { createApprovalRequest } from '../../approval/factory.js';
 import { ApprovalType } from '../../approval/types.js';
@@ -428,6 +428,94 @@ describe('DatabaseBackedToolExecutionStore', () => {
                 status: 'completed',
                 modelOutput: 'created file',
             })
+        );
+    });
+});
+
+describe('DatabaseBackedSessionMessageQueueStore takeAll', () => {
+    it('leaves excluded ids in place and takes the rest in order', async () => {
+        const database = createInMemoryDatabase();
+        const store = new DatabaseBackedSessionMessageQueueStore(
+            database,
+            createMockLogger(),
+            SESSION_FOLLOW_UP_QUEUE_KEY_PREFIX
+        );
+        for (const id of ['keep-1', 'take-1', 'keep-2', 'take-2']) {
+            await store.append({
+                sessionId: 'session-1',
+                message: { id, content: [{ type: 'text', text: id }], queuedAt: 1 },
+            });
+        }
+
+        const taken = await store.takeAll({
+            sessionId: 'session-1',
+            excludeIds: ['keep-1', 'keep-2'],
+        });
+
+        expect(taken.map((message) => message.id)).toEqual(['take-1', 'take-2']);
+        expect((await store.list({ sessionId: 'session-1' })).map((message) => message.id)).toEqual(
+            ['keep-1', 'keep-2']
+        );
+        expect(
+            await database.getRange(`${SESSION_FOLLOW_UP_QUEUE_KEY_PREFIX}:session-1`, 0, 10)
+        ).toHaveLength(2);
+
+        expect(
+            (await store.takeAll({ sessionId: 'session-1' })).map((message) => message.id)
+        ).toEqual(['keep-1', 'keep-2']);
+        expect(await store.list({ sessionId: 'session-1' })).toEqual([]);
+    });
+
+    it('prepends messages at the head in one operation and skips ids already queued', async () => {
+        const database = createInMemoryDatabase();
+        const store = new DatabaseBackedSessionMessageQueueStore(
+            database,
+            createMockLogger(),
+            SESSION_FOLLOW_UP_QUEUE_KEY_PREFIX
+        );
+        const message = (id: string) => ({
+            id,
+            content: [{ type: 'text' as const, text: id }],
+            queuedAt: 1,
+        });
+        await store.append({ sessionId: 'session-1', message: message('live-1') });
+        const updateList = vi.spyOn(database, 'updateList');
+
+        await store.prepend({
+            sessionId: 'session-1',
+            messages: [message('held-1'), message('live-1'), message('held-2')],
+        });
+
+        expect(updateList).toHaveBeenCalledTimes(1);
+        expect((await store.list({ sessionId: 'session-1' })).map((entry) => entry.id)).toEqual([
+            'held-1',
+            'held-2',
+            'live-1',
+        ]);
+    });
+
+    it('takes only the listed ids in one operation when onlyIds is set', async () => {
+        const database = createInMemoryDatabase();
+        const store = new DatabaseBackedSessionMessageQueueStore(
+            database,
+            createMockLogger(),
+            SESSION_FOLLOW_UP_QUEUE_KEY_PREFIX
+        );
+        for (const id of ['held-1', 'live-1', 'held-2']) {
+            await store.append({
+                sessionId: 'session-1',
+                message: { id, content: [{ type: 'text', text: id }], queuedAt: 1 },
+            });
+        }
+
+        const taken = await store.takeAll({
+            sessionId: 'session-1',
+            onlyIds: ['held-1', 'held-2', 'already-gone'],
+        });
+
+        expect(taken.map((message) => message.id)).toEqual(['held-1', 'held-2']);
+        expect((await store.list({ sessionId: 'session-1' })).map((message) => message.id)).toEqual(
+            ['live-1']
         );
     });
 });
