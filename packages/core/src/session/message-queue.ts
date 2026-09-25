@@ -366,7 +366,7 @@ export class MessageQueueService {
                     ids: taken.map((m) => m.id),
                     queue: this.queueKind,
                     coalesced: taken.length > 1,
-                    content: coalesceQueuedMessages(taken).combinedContent,
+                    content: cloneCoalescedMessage(coalesceQueuedMessages(taken)).combinedContent,
                     messages: cloneQueuedMessages(taken),
                 });
             } catch (error) {
@@ -426,7 +426,17 @@ export class MessageQueueService {
                     continue;
                 }
                 removedCount += 1;
-                this.eventBus.emit('message:removed', { id: message.id, queue: this.queueKind });
+                // The entry already left storage: a throwing listener must not stop the discard.
+                try {
+                    this.eventBus.emit('message:removed', {
+                        id: message.id,
+                        queue: this.queueKind,
+                    });
+                } catch (error) {
+                    this.logger.error(
+                        `A message:removed listener failed after discarding held ${this.queueKind} message ${message.id}: ${error instanceof Error ? error.message : String(error)}`
+                    );
+                }
             }
             await this.refreshFromStore();
             if (removedCount > 0) {

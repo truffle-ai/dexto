@@ -951,6 +951,40 @@ describe('MessageQueueService restored entries (issue #743)', () => {
         expect(logger.error).toHaveBeenCalledWith(expect.stringContaining('old-1, old-2'));
     });
 
+    it('a message:dequeued listener cannot change the entries takeHeld returns', async () => {
+        const { service } = await createRestoredQueue([restoredEntry('old-1', 'first')]);
+        vi.mocked(eventBus.emit).mockImplementation((event, payload) => {
+            if (event === 'message:dequeued') {
+                const content = (payload as { content: ContentPart[] }).content;
+                content.push({ type: 'text', text: 'injected by a listener' });
+                (content[0] as { text: string }).text = 'changed by a listener';
+            }
+            return true;
+        });
+
+        const taken = await service.takeHeld();
+
+        expect(taken.map((m) => m.content)).toEqual([[{ type: 'text', text: 'first' }]]);
+    });
+
+    it('discardHeld removes every held entry even if a message:removed listener throws', async () => {
+        const { store, service } = await createRestoredQueue([
+            restoredEntry('old-1', 'first'),
+            restoredEntry('old-2', 'second'),
+        ]);
+        vi.mocked(eventBus.emit).mockImplementation((event) => {
+            if (event === 'message:removed') {
+                throw new Error('listener failed');
+            }
+            return true;
+        });
+
+        expect(await service.discardHeld()).toBe(2);
+        expect(await store.list({ sessionId: 'session-1' })).toEqual([]);
+        expect(service.getHeld()).toEqual([]);
+        expect(logger.error).toHaveBeenCalledTimes(2);
+    });
+
     it('discardHeld removes held entries without returning them and emits message:removed', async () => {
         const { store, service } = await createRestoredQueue([
             restoredEntry('old-1', 'first'),
