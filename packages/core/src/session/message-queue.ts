@@ -4,6 +4,7 @@ import type { QueuedMessage, CoalescedMessage } from './types.js';
 import type { ContentPart } from '../context/types.js';
 import type { Logger } from '../logger/v2/types.js';
 import type { SessionMessageQueueStore } from '../storage/message-queue/types.js';
+import { createQueueTakeFilter } from '../storage/message-queue/take-filter.js';
 
 type MessageQueueBackingStore = SessionMessageQueueStore;
 
@@ -27,13 +28,12 @@ class EphemeralMessageQueueStore implements MessageQueueBackingStore {
     async takeAll(input: {
         sessionId: string;
         excludeIds?: readonly string[];
+        onlyIds?: readonly string[];
     }): Promise<QueuedMessage[]> {
         void input.sessionId;
-        const excludeIds = new Set(input.excludeIds ?? []);
-        const taken = cloneQueuedMessages(
-            this.queue.filter((message) => !excludeIds.has(message.id))
-        );
-        this.queue = this.queue.filter((message) => excludeIds.has(message.id));
+        const isTaken = createQueueTakeFilter(input);
+        const taken = cloneQueuedMessages(this.queue.filter(isTaken));
+        this.queue = this.queue.filter((message) => !isTaken(message));
         return taken;
     }
 
@@ -321,23 +321,24 @@ export class MessageQueueService {
      * Resume decision: remove the held restored entries from the queue and return them so the
      * host can run them as ordinary turn input. Entries leave durable storage before this
      * resolves, so a repeated call (or a second process) cannot take the same entry twice.
-     * Entries that another actor already removed are skipped.
+     * Entries that another actor already removed are skipped. The removal is one atomic store
+     * operation: if it fails, every held entry stays in the queue and stays held.
      *
      * @returns The taken entries in queue order; empty when nothing was held
      */
     async takeHeld(): Promise<QueuedMessage[]> {
         return await this.runWithMutationLock(async () => {
             await this.refreshFromStore();
-            const taken: QueuedMessage[] = [];
-            for (const message of this.heldMessages()) {
-                const removed = await this.store.remove({
-                    sessionId: this.sessionId,
-                    id: message.id,
-                });
-                if (removed) {
-                    taken.push(cloneQueuedMessage(message));
-                }
-                this.heldIds.delete(message.id);
+            const heldIds = Array.from(this.heldIds);
+            if (heldIds.length === 0) {
+                return [];
+            }
+            const taken = await this.store.takeAll({
+                sessionId: this.sessionId,
+                onlyIds: heldIds,
+            });
+            for (const id of heldIds) {
+                this.heldIds.delete(id);
             }
             await this.refreshFromStore();
             if (taken.length === 0) {
@@ -356,6 +357,34 @@ export class MessageQueueService {
                 messages: cloneQueuedMessages(taken),
             });
             return taken;
+        });
+    }
+
+    /**
+     * Undo a {@link takeHeld} whose entries could not be handed to a turn: put them back in the
+     * queue, held again for an explicit decision. They are appended after any newer entries.
+     */
+    async restoreHeld(messages: readonly QueuedMessage[]): Promise<void> {
+        if (messages.length === 0) {
+            return;
+        }
+        await this.runWithMutationLock(async () => {
+            for (const message of messages) {
+                const { position } = await this.store.append({
+                    sessionId: this.sessionId,
+                    message: cloneQueuedMessage(message),
+                });
+                this.heldIds.add(message.id);
+                this.eventBus.emit('message:queued', {
+                    position,
+                    id: message.id,
+                    queue: this.queueKind,
+                });
+            }
+            await this.refreshFromStore();
+            this.logger.debug(
+                `Restored ${messages.length} held ${this.queueKind} message(s) after an incomplete resume`
+            );
         });
     }
 

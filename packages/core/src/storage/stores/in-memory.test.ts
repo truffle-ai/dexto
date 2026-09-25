@@ -113,4 +113,25 @@ describe('InMemoryDextoStores message queue takeAll', () => {
         expect(await followUpQueue.takeAll({ sessionId: 'session-1' })).toHaveLength(1);
         expect(await followUpQueue.list({ sessionId: 'session-1' })).toEqual([]);
     });
+
+    it('takes only the listed ids when onlyIds is set', async () => {
+        const storage = new InMemoryDextoStores();
+        const followUpQueue = storage.getStore('followUpQueue');
+        for (const id of ['held-1', 'live-1', 'held-2']) {
+            await followUpQueue.append({
+                sessionId: 'session-1',
+                message: { id, content: [{ type: 'text', text: id }], queuedAt: 1 },
+            });
+        }
+
+        const taken = await followUpQueue.takeAll({
+            sessionId: 'session-1',
+            onlyIds: ['held-1', 'held-2'],
+        });
+
+        expect(taken.map((message) => message.id)).toEqual(['held-1', 'held-2']);
+        expect(
+            (await followUpQueue.list({ sessionId: 'session-1' })).map((message) => message.id)
+        ).toEqual(['live-1']);
+    });
 });

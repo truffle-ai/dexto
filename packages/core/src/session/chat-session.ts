@@ -161,6 +161,8 @@ export class ChatSession {
      * Calling cancel() aborts the in-flight LLM request and tool execution checks.
      */
     private currentRunController: AbortController | null = null;
+    /** Serializes takeRestoredPendingInput() calls so one caller at a time takes restored input. */
+    private restoredInputTake: Promise<void> = Promise.resolve();
 
     public readonly logger: Logger;
 
@@ -1129,17 +1131,46 @@ export class ChatSession {
      * never be taken twice, even across processes sharing the same storage.
      *
      * Refused while a run is active: the caller could not start the resumed turn, and the
-     * entries would have left the queue for nothing.
+     * entries would have left the queue for nothing. That includes a run that starts while the
+     * entries are being taken; they are then put back, still held. Likewise, if taking either
+     * queue fails, entries already taken are put back before the error propagates. Concurrent
+     * calls are serialized, so only one caller can receive the entries.
      *
      * @returns Coalesced restored input, or null when nothing is pending
      * @throws SessionError.busy when a run is in progress
      */
-    public async takeRestoredPendingInput(): Promise<CoalescedMessage | null> {
+    public takeRestoredPendingInput(): Promise<CoalescedMessage | null> {
+        const take = this.restoredInputTake.then(() => this.takeRestoredPendingInputNow());
+        this.restoredInputTake = take.then(
+            () => undefined,
+            () => undefined
+        );
+        return take;
+    }
+
+    private async takeRestoredPendingInputNow(): Promise<CoalescedMessage | null> {
         if (this.isBusy()) {
             throw SessionError.busy(this.id);
         }
-        const steer = await this.llmService.getSteerQueue().takeHeld();
-        const followUp = await this.llmService.getFollowUpQueue().takeHeld();
+        const steerQueue = this.llmService.getSteerQueue();
+        const followUpQueue = this.llmService.getFollowUpQueue();
+
+        const steer = await steerQueue.takeHeld();
+        let followUp: QueuedMessage[];
+        try {
+            followUp = await followUpQueue.takeHeld();
+        } catch (error) {
+            await steerQueue.restoreHeld(steer);
+            throw error;
+        }
+
+        if (this.isBusy()) {
+            // A turn started while storage was busy; the caller could not run this input now.
+            await steerQueue.restoreHeld(steer);
+            await followUpQueue.restoreHeld(followUp);
+            throw SessionError.busy(this.id);
+        }
+
         const messages = [...steer, ...followUp];
         if (messages.length === 0) {
             return null;

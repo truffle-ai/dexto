@@ -23,6 +23,7 @@ import type {
 import type { ConversationStore, ModelHistoryLoad } from '../conversation/types.js';
 import type { MemoryStore } from '../memories/types.js';
 import type { SessionMessageQueueStore } from '../message-queue/types.js';
+import { createQueueTakeFilter } from '../message-queue/take-filter.js';
 import type { CustomPromptStore } from '../prompts/types.js';
 import type { RuntimeEventRecord, RuntimeEventStore } from '../runtime-events/types.js';
 import type { SessionStore } from '../sessions/types.js';
@@ -346,11 +347,12 @@ class InMemorySessionMessageQueueStore implements SessionMessageQueueStore {
     async takeAll(input: {
         sessionId: string;
         excludeIds?: readonly string[];
+        onlyIds?: readonly string[];
     }): Promise<QueuedMessage[]> {
-        const excludeIds = new Set(input.excludeIds ?? []);
+        const isTaken = createQueueTakeFilter(input);
         const queue = this.queues.get(input.sessionId) ?? [];
-        const kept = queue.filter((message) => excludeIds.has(message.id));
-        const taken = cloneQueuedMessages(queue.filter((message) => !excludeIds.has(message.id)));
+        const kept = queue.filter((message) => !isTaken(message));
+        const taken = cloneQueuedMessages(queue.filter(isTaken));
         if (kept.length === 0) {
             this.queues.delete(input.sessionId);
         } else {

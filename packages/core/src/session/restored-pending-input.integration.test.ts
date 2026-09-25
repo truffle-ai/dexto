@@ -277,18 +277,23 @@ describe('Session Integration: Restored pending input after an interrupted run',
 
     /**
      * Start a run that stays busy behind the model gate, queue one steer and one follow-up while
-     * it is busy, then interrupt it. Returns the storage so a second agent can restart from it.
+     * it is busy, then interrupt it. Returns the storage so a second agent can restart from it,
+     * and the first run's promise: callers release the model after their restart assertions and
+     * await the run, so it settles before teardown disconnects the shared stores.
      */
-    async function interruptRunWithQueuedInput(options: {
-        graceful: boolean;
-    }): Promise<{ storage: SharedStorage; model: ScriptedModel; agent: DextoAgent }> {
+    async function interruptRunWithQueuedInput(options: { graceful: boolean }): Promise<{
+        storage: SharedStorage;
+        model: ScriptedModel;
+        agent: DextoAgent;
+        run: Promise<unknown>;
+    }> {
         const storage = createSharedStorage();
         const model = new ScriptedModel('first run reply');
         const agent = await createAgent('interrupted-agent', storage, model);
         await agent.createSession(sessionId);
 
         model.hold();
-        const run = agent.generate('start a long task', sessionId).catch(() => undefined);
+        const run = agent.generate('start a long task', sessionId);
         await model.waitForFirstCall();
 
         await agent.steer(sessionId, { content: [{ type: 'text', text: STEER_TEXT }] });
@@ -303,7 +308,8 @@ describe('Session Integration: Restored pending input after an interrupted run',
             // database wipes itself on disconnect, so the storage disconnect step is skipped.
             await agent.cancel(sessionId);
             model.release();
-            await run;
+            // The cancelled run settles by rejecting; anything else is a real failure.
+            await expect(run).rejects.toThrow('Stream did not complete successfully');
             await agent.sessionManager.cleanup();
             expect(await storage.database.getRange(steerKey, 0, 10)).toHaveLength(1);
             expect(await storage.database.getRange(followUpKey, 0, 10)).toHaveLength(1);
@@ -311,7 +317,8 @@ describe('Session Integration: Restored pending input after an interrupted run',
         // Abrupt: the process dies mid-run. Nothing is cancelled or cleaned up; the run stays
         // parked behind the gate and the persisted rows are all the next process sees.
 
-        return { storage, model, agent };
+        // Graceful: the run already settled above. Abrupt: it is still parked behind the gate.
+        return { storage, model, agent, run: options.graceful ? Promise.resolve() : run };
     }
 
     afterEach(async () => {
@@ -340,7 +347,11 @@ describe('Session Integration: Restored pending input after an interrupted run',
         'after $label, an unrelated new message on the reopened session does not execute the restored queue',
         async ({ graceful }) => {
             stashApiKey();
-            const { storage, model: firstModel } = await interruptRunWithQueuedInput({ graceful });
+            const {
+                storage,
+                model: firstModel,
+                run: firstRun,
+            } = await interruptRunWithQueuedInput({ graceful });
 
             try {
                 const restartedModel = new ScriptedModel('second run reply');
@@ -377,13 +388,18 @@ describe('Session Integration: Restored pending input after an interrupted run',
                 ]);
             } finally {
                 firstModel.release();
+                await firstRun;
             }
         }
     );
 
     test('reopening reveals restored pending input; resuming takes it exactly once and runs it as the next turn', async () => {
         stashApiKey();
-        const { storage, model: firstModel } = await interruptRunWithQueuedInput({
+        const {
+            storage,
+            model: firstModel,
+            run: firstRun,
+        } = await interruptRunWithQueuedInput({
             graceful: false,
         });
 
@@ -433,12 +449,17 @@ describe('Session Integration: Restored pending input after an interrupted run',
             expect(restartedModel.prompts[0]).toContain(FOLLOW_UP_TEXT);
         } finally {
             firstModel.release();
+            await firstRun;
         }
     });
 
     test('resume is refused while a run is active so entries cannot leave the queue unrun', async () => {
         stashApiKey();
-        const { storage, model: firstModel } = await interruptRunWithQueuedInput({
+        const {
+            storage,
+            model: firstModel,
+            run: firstRun,
+        } = await interruptRunWithQueuedInput({
             graceful: false,
         });
 
@@ -465,12 +486,121 @@ describe('Session Integration: Restored pending input after an interrupted run',
             expect(taken?.messages).toHaveLength(2);
         } finally {
             firstModel.release();
+            await firstRun;
+        }
+    });
+
+    /** Intercept the next `updateList` call on `key` (the queue stores' only write path). */
+    function interceptNextUpdate(
+        storage: SharedStorage,
+        key: string,
+        interceptor: () => Promise<void>
+    ): void {
+        const database = storage.database;
+        const original = database.updateList.bind(database);
+        let armed = true;
+        database.updateList = (async (listKey: string, updater: never) => {
+            if (armed && listKey === key) {
+                armed = false;
+                await interceptor();
+            }
+            return original(listKey, updater);
+        }) as typeof database.updateList;
+    }
+
+    test('a storage failure while taking restored input leaves every restored entry in place', async () => {
+        stashApiKey();
+        const {
+            storage,
+            model: firstModel,
+            run: firstRun,
+        } = await interruptRunWithQueuedInput({ graceful: false });
+
+        try {
+            const restartedModel = new ScriptedModel('resumed reply');
+            const restarted = await createAgent('failing-take-agent', storage, restartedModel);
+            expect(await restarted.getSession(sessionId)).toBeDefined();
+
+            // The steer take succeeds, then the follow-up take fails.
+            interceptNextUpdate(storage, followUpKey, async () => {
+                throw new Error('follow-up queue storage unavailable');
+            });
+            await expect(restarted.takeRestoredPendingInput(sessionId)).rejects.toThrow(
+                'follow-up queue storage unavailable'
+            );
+
+            expect(await storage.database.getRange(steerKey, 0, 10)).toHaveLength(1);
+            expect(await storage.database.getRange(followUpKey, 0, 10)).toHaveLength(1);
+            const pending = await restarted.getRestoredPendingInput(sessionId);
+            expect(pending.steer).toHaveLength(1);
+            expect(pending.followUp).toHaveLength(1);
+
+            // Still held: an unrelated turn does not pick them up, and a retry takes both.
+            const response = await restarted.generate(UNRELATED_TEXT, sessionId);
+            expect(response.content).toBe('resumed reply');
+            expect(restartedModel.prompts).toHaveLength(1);
+            expect(restartedModel.prompts[0]).not.toContain(STEER_TEXT);
+            const taken = await restarted.takeRestoredPendingInput(sessionId);
+            expect(taken?.messages).toHaveLength(2);
+        } finally {
+            firstModel.release();
+            await firstRun;
+        }
+    });
+
+    test('a turn that starts while restored input is being taken leaves the input in place', async () => {
+        stashApiKey();
+        const {
+            storage,
+            model: firstModel,
+            run: firstRun,
+        } = await interruptRunWithQueuedInput({ graceful: false });
+
+        try {
+            const restartedModel = new ScriptedModel('racing reply');
+            const restarted = await createAgent('racing-agent', storage, restartedModel);
+            expect(await restarted.getSession(sessionId)).toBeDefined();
+
+            // Pause queue storage inside the resume, and start a turn during the pause.
+            const storagePaused = createDeferred<void>();
+            const resumeStorage = createDeferred<void>();
+            interceptNextUpdate(storage, steerKey, async () => {
+                storagePaused.resolve();
+                await resumeStorage.promise;
+            });
+            const take = restarted.takeRestoredPendingInput(sessionId);
+            await storagePaused.promise;
+
+            restartedModel.hold();
+            const run = restarted.generate(UNRELATED_TEXT, sessionId);
+            await restartedModel.waitForFirstCall();
+            resumeStorage.resolve();
+
+            await expect(take).rejects.toMatchObject({ code: SessionErrorCode.SESSION_BUSY });
+            expect(await storage.database.getRange(steerKey, 0, 10)).toHaveLength(1);
+            expect(await storage.database.getRange(followUpKey, 0, 10)).toHaveLength(1);
+
+            restartedModel.release();
+            await run;
+            expect(restartedModel.prompts).toHaveLength(1);
+            expect(restartedModel.prompts[0]).not.toContain(STEER_TEXT);
+            expect(restartedModel.prompts[0]).not.toContain(FOLLOW_UP_TEXT);
+
+            const taken = await restarted.takeRestoredPendingInput(sessionId);
+            expect(taken?.messages).toHaveLength(2);
+        } finally {
+            firstModel.release();
+            await firstRun;
         }
     });
 
     test('discarding restored pending input is durable across another restart', async () => {
         stashApiKey();
-        const { storage, model: firstModel } = await interruptRunWithQueuedInput({
+        const {
+            storage,
+            model: firstModel,
+            run: firstRun,
+        } = await interruptRunWithQueuedInput({
             graceful: true,
         });
 
@@ -502,6 +632,7 @@ describe('Session Integration: Restored pending input after an interrupted run',
             expect(laterModel.prompts[0]).not.toContain(FOLLOW_UP_TEXT);
         } finally {
             firstModel.release();
+            await firstRun;
         }
     });
 

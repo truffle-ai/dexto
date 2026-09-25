@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { QueuedMessage, RestoredPendingInput } from '@dexto/core';
 import { queueCommand, formatRestoredPendingInput } from './queue-commands.js';
-import { isSendMessageMarker } from '../services/CommandService.js';
+import { getSendMessagePayload, isSendMessageMarker } from '../services/CommandService.js';
 
 function queued(id: string, text: string): QueuedMessage {
     return { id, content: [{ type: 'text', text }], queuedAt: 1 };
@@ -85,6 +85,38 @@ describe('/queue', () => {
             { type: 'image', image: 'aGVsbG8=', mimeType: 'image/png' },
         ]);
         expect(result.text).toBe('combined restored input');
+    });
+
+    it('resume of attachment-only input still produces a payload to stream', async () => {
+        const image = { type: 'image' as const, image: 'aGVsbG8=', mimeType: 'image/png' };
+        const agent = createAgent({ steer: [], followUp: [queued('f1', 'unused')] });
+        agent.takeRestoredPendingInput.mockResolvedValue({
+            messages: [{ id: 'f1', content: [image], queuedAt: 1 }],
+            combinedContent: [image],
+            firstQueuedAt: 1,
+            lastQueuedAt: 1,
+        });
+        const marker = await queueCommand.handler(['resume'], agent as never, ctx);
+        if (!isSendMessageMarker(marker)) {
+            throw new Error('expected a send marker');
+        }
+        expect(marker.text).toBe('');
+
+        // Same mapping CommandService.executeCommand applies to a send marker.
+        const payload = getSendMessagePayload({
+            type: 'sendMessage',
+            messageToSend: marker.text,
+            ...(marker.content !== undefined && { contentToSend: marker.content }),
+        });
+        expect(payload).toEqual([image]);
+    });
+
+    it('send payload is null when there is nothing to send', () => {
+        expect(getSendMessagePayload({ type: 'sendMessage', messageToSend: '' })).toBeNull();
+        expect(
+            getSendMessagePayload({ type: 'sendMessage', messageToSend: '', contentToSend: [] })
+        ).toBeNull();
+        expect(getSendMessagePayload({ type: 'sendMessage', messageToSend: 'hi' })).toBe('hi');
     });
 
     it('discard drops the restored input and reports the count', async () => {

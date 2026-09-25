@@ -29,6 +29,7 @@ import type { Cache } from '../cache/types.js';
 import type { Database } from '../database/types.js';
 import type { MemoryStore } from '../memories/types.js';
 import type { SessionMessageQueueStore } from '../message-queue/types.js';
+import { createQueueTakeFilter } from '../message-queue/take-filter.js';
 import type { CustomPromptStore } from '../prompts/types.js';
 import type { RuntimeEventRecord, RuntimeEventStore } from '../runtime-events/types.js';
 import type { SessionStore } from '../sessions/types.js';
@@ -565,14 +566,15 @@ export class DatabaseBackedSessionMessageQueueStore implements SessionMessageQue
     async takeAll(input: {
         sessionId: string;
         excludeIds?: readonly string[];
+        onlyIds?: readonly string[];
     }): Promise<QueuedMessage[]> {
         const key = this.key(input.sessionId);
-        const excludeIds = new Set(input.excludeIds ?? []);
+        const isTaken = createQueueTakeFilter(input);
         const queue = await this.database.updateList<unknown, QueuedMessage[]>(key, (stored) => {
             const current = this.parseQueue(key, stored);
             return {
-                items: current.filter((message) => excludeIds.has(message.id)),
-                result: current.filter((message) => !excludeIds.has(message.id)),
+                items: current.filter((message) => !isTaken(message)),
+                result: current.filter(isTaken),
             };
         });
         return queue;

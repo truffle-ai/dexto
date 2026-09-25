@@ -75,6 +75,18 @@ export function createSendContentMarker(content: ContentPart[]): SendMessageMark
 }
 
 /**
+ * What a `sendMessage` result should stream: structured content when it has any parts
+ * (attachment-only content has an empty text preview), otherwise non-empty text, else null.
+ */
+export function getSendMessagePayload(
+    result: CommandExecutionResult
+): string | ContentPart[] | null {
+    if (result.type !== 'sendMessage') return null;
+    if (result.contentToSend && result.contentToSend.length > 0) return result.contentToSend;
+    return result.messageToSend ? result.messageToSend : null;
+}
+
+/**
  * Check if a result is a send message marker
  */
 export function isSendMessageMarker(result: unknown): result is SendMessageMarker {

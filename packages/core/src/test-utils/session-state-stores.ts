@@ -3,6 +3,7 @@ import { cloneQueuedMessage, cloneQueuedMessages } from '../session/queue-clone.
 import type { QueuedMessage } from '../session/types.js';
 import type { ApprovalStore } from '../storage/approvals/types.js';
 import type { SessionMessageQueueStore } from '../storage/message-queue/types.js';
+import { createQueueTakeFilter } from '../storage/message-queue/take-filter.js';
 import { InMemoryDextoStores } from '../storage/stores/in-memory.js';
 import { SessionToolPreferencesStore } from '../tools/session-tool-preferences-store.js';
 
@@ -41,13 +42,12 @@ export function createInMemoryMessageQueueStore(): SessionMessageQueueStore {
         async takeAll(input: {
             sessionId: string;
             excludeIds?: readonly string[];
+            onlyIds?: readonly string[];
         }): Promise<QueuedMessage[]> {
-            const excludeIds = new Set(input.excludeIds ?? []);
+            const isTaken = createQueueTakeFilter(input);
             const queue = queues.get(input.sessionId) ?? [];
-            const kept = queue.filter((message) => excludeIds.has(message.id));
-            const taken = cloneQueuedMessages(
-                queue.filter((message) => !excludeIds.has(message.id))
-            );
+            const kept = queue.filter((message) => !isTaken(message));
+            const taken = cloneQueuedMessages(queue.filter(isTaken));
             if (kept.length === 0) {
                 queues.delete(input.sessionId);
             } else {

@@ -10,7 +10,7 @@ import React, { useCallback, useRef, useEffect, useImperativeHandle, forwardRef 
 import type { ContentPart, ImagePart, TextPart, QueuedMessage } from '@dexto/core';
 import { getReasoningProfile } from '@dexto/llm';
 import { InputArea, type OverlayTrigger } from '../components/input/InputArea.js';
-import { InputService, processStream } from '../services/index.js';
+import { InputService, getSendMessagePayload, processStream } from '../services/index.js';
 import { useSoundService } from '../contexts/index.js';
 import type {
     Message,
@@ -685,7 +685,8 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                         }
 
                         // Handle sendMessage - send through normal streaming flow
-                        if (result.type === 'sendMessage' && result.messageToSend) {
+                        const sendPayload = getSendMessagePayload(result);
+                        if (sendPayload !== null) {
                             let currentSessionId = session.id;
 
                             if (!currentSessionId) {
@@ -718,10 +719,7 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                             }
 
                             // Send through normal streaming flow (matches WebUI pattern)
-                            const iterator = await agent.stream(
-                                result.contentToSend ?? result.messageToSend,
-                                currentSessionId
-                            );
+                            const iterator = await agent.stream(sendPayload, currentSessionId);
                             await processStream(
                                 iterator,
                                 {

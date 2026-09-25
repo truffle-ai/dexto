@@ -122,7 +122,11 @@ export function useAgentEvents({
             if (sessionId !== currentSessionId) return;
             void agent
                 .getRestoredPendingInput(sessionId)
-                .then((pending) => setRestoredPendingInput(pending))
+                .then((pending) => {
+                    // The effect for this session was torn down (session switch or unmount).
+                    if (signal.aborted) return;
+                    setRestoredPendingInput(pending);
+                })
                 .catch(() => {
                     // Silently ignore - will sync on next event
                 });
