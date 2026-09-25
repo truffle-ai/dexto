@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { createMockLogger } from '../../logger/v2/test-utils.js';
 import { createApprovalRequest } from '../../approval/factory.js';
 import { ApprovalType } from '../../approval/types.js';
@@ -464,6 +464,34 @@ describe('DatabaseBackedSessionMessageQueueStore takeAll', () => {
             (await store.takeAll({ sessionId: 'session-1' })).map((message) => message.id)
         ).toEqual(['keep-1', 'keep-2']);
         expect(await store.list({ sessionId: 'session-1' })).toEqual([]);
+    });
+
+    it('prepends messages at the head in one operation and skips ids already queued', async () => {
+        const database = createInMemoryDatabase();
+        const store = new DatabaseBackedSessionMessageQueueStore(
+            database,
+            createMockLogger(),
+            SESSION_FOLLOW_UP_QUEUE_KEY_PREFIX
+        );
+        const message = (id: string) => ({
+            id,
+            content: [{ type: 'text' as const, text: id }],
+            queuedAt: 1,
+        });
+        await store.append({ sessionId: 'session-1', message: message('live-1') });
+        const updateList = vi.spyOn(database, 'updateList');
+
+        await store.prepend({
+            sessionId: 'session-1',
+            messages: [message('held-1'), message('live-1'), message('held-2')],
+        });
+
+        expect(updateList).toHaveBeenCalledTimes(1);
+        expect((await store.list({ sessionId: 'session-1' })).map((entry) => entry.id)).toEqual([
+            'held-1',
+            'held-2',
+            'live-1',
+        ]);
     });
 
     it('takes only the listed ids in one operation when onlyIds is set', async () => {

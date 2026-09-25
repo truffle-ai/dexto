@@ -594,6 +594,50 @@ describe('Session Integration: Restored pending input after an interrupted run',
         }
     });
 
+    test('when putting one queue back fails, the other is still restored and the busy error is kept', async () => {
+        stashApiKey();
+        const {
+            storage,
+            model: firstModel,
+            run: firstRun,
+        } = await interruptRunWithQueuedInput({ graceful: false });
+
+        try {
+            const restartedModel = new ScriptedModel('racing reply');
+            const restarted = await createAgent('failing-restore-agent', storage, restartedModel);
+            expect(await restarted.getSession(sessionId)).toBeDefined();
+
+            const storagePaused = createDeferred<void>();
+            const resumeStorage = createDeferred<void>();
+            interceptNextUpdate(storage, steerKey, async () => {
+                storagePaused.resolve();
+                await resumeStorage.promise;
+            });
+            const take = restarted.takeRestoredPendingInput(sessionId);
+            await storagePaused.promise;
+            // The steer take is paused; its rollback write will be the next steer update.
+            interceptNextUpdate(storage, steerKey, async () => {
+                throw new Error('steer queue storage unavailable');
+            });
+
+            restartedModel.hold();
+            const run = restarted.generate(UNRELATED_TEXT, sessionId);
+            await restartedModel.waitForFirstCall();
+            resumeStorage.resolve();
+
+            await expect(take).rejects.toMatchObject({ code: SessionErrorCode.SESSION_BUSY });
+            expect(await storage.database.getRange(followUpKey, 0, 10)).toHaveLength(1);
+            expect((await restarted.getRestoredPendingInput(sessionId)).followUp).toHaveLength(1);
+
+            restartedModel.release();
+            await run;
+            expect(restartedModel.prompts[0]).not.toContain(FOLLOW_UP_TEXT);
+        } finally {
+            firstModel.release();
+            await firstRun;
+        }
+    });
+
     test('discarding restored pending input is durable across another restart', async () => {
         stashApiKey();
         const {

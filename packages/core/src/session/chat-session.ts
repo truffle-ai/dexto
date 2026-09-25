@@ -1160,14 +1160,16 @@ export class ChatSession {
         try {
             followUp = await followUpQueue.takeHeld();
         } catch (error) {
-            await steerQueue.restoreHeld(steer);
+            await this.restoreTakenInput([{ queue: 'steer', messages: steer }]);
             throw error;
         }
 
         if (this.isBusy()) {
             // A turn started while storage was busy; the caller could not run this input now.
-            await steerQueue.restoreHeld(steer);
-            await followUpQueue.restoreHeld(followUp);
+            await this.restoreTakenInput([
+                { queue: 'steer', messages: steer },
+                { queue: 'follow-up', messages: followUp },
+            ]);
             throw SessionError.busy(this.id);
         }
 
@@ -1176,6 +1178,43 @@ export class ChatSession {
             return null;
         }
         return coalesceQueuedMessages(messages);
+    }
+
+    /**
+     * Put taken restored input back as held after a resume that cannot complete. Each queue is
+     * restored independently in one atomic store operation, so one failure does not skip the
+     * other. Restore failures are logged with the affected ids and never replace the error that
+     * caused the rollback, which the caller rethrows.
+     */
+    private async restoreTakenInput(
+        taken: Array<{ queue: 'steer' | 'follow-up'; messages: QueuedMessage[] }>
+    ): Promise<void> {
+        const results = await Promise.allSettled(
+            taken.map(({ queue, messages }) =>
+                (queue === 'steer'
+                    ? this.llmService.getSteerQueue()
+                    : this.llmService.getFollowUpQueue()
+                ).restoreHeld(messages)
+            )
+        );
+        results.forEach((result, index) => {
+            const entry = taken[index];
+            if (result.status === 'fulfilled' || !entry) {
+                return;
+            }
+            this.logger.error(
+                `Failed to restore ${entry.messages.length} held ${entry.queue} message(s) after an incomplete resume`,
+                {
+                    sessionId: this.id,
+                    queue: entry.queue,
+                    messageIds: entry.messages.map((message) => message.id),
+                    error:
+                        result.reason instanceof Error
+                            ? result.reason.message
+                            : String(result.reason),
+                }
+            );
+        });
     }
 
     /**

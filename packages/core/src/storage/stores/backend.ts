@@ -29,7 +29,7 @@ import type { Cache } from '../cache/types.js';
 import type { Database } from '../database/types.js';
 import type { MemoryStore } from '../memories/types.js';
 import type { SessionMessageQueueStore } from '../message-queue/types.js';
-import { createQueueTakeFilter } from '../message-queue/take-filter.js';
+import { createQueueTakeFilter, selectMissingMessages } from '../message-queue/take-filter.js';
 import type { CustomPromptStore } from '../prompts/types.js';
 import type { RuntimeEventRecord, RuntimeEventStore } from '../runtime-events/types.js';
 import type { SessionStore } from '../sessions/types.js';
@@ -578,6 +578,17 @@ export class DatabaseBackedSessionMessageQueueStore implements SessionMessageQue
             };
         });
         return queue;
+    }
+
+    async prepend(input: { sessionId: string; messages: readonly QueuedMessage[] }): Promise<void> {
+        const key = this.key(input.sessionId);
+        await this.database.updateList<unknown, void>(key, (stored) => {
+            const queue = this.parseQueue(key, stored);
+            return {
+                items: [...selectMissingMessages(queue, input.messages), ...queue],
+                result: undefined,
+            };
+        });
     }
 
     async remove(input: { sessionId: string; id: string }): Promise<boolean> {

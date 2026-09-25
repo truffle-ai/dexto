@@ -4,7 +4,10 @@ import type { QueuedMessage, CoalescedMessage } from './types.js';
 import type { ContentPart } from '../context/types.js';
 import type { Logger } from '../logger/v2/types.js';
 import type { SessionMessageQueueStore } from '../storage/message-queue/types.js';
-import { createQueueTakeFilter } from '../storage/message-queue/take-filter.js';
+import {
+    createQueueTakeFilter,
+    selectMissingMessages,
+} from '../storage/message-queue/take-filter.js';
 
 type MessageQueueBackingStore = SessionMessageQueueStore;
 
@@ -35,6 +38,11 @@ class EphemeralMessageQueueStore implements MessageQueueBackingStore {
         const taken = cloneQueuedMessages(this.queue.filter(isTaken));
         this.queue = this.queue.filter((message) => !isTaken(message));
         return taken;
+    }
+
+    async prepend(input: { sessionId: string; messages: readonly QueuedMessage[] }): Promise<void> {
+        void input.sessionId;
+        this.queue = [...selectMissingMessages(this.queue, input.messages), ...this.queue];
     }
 
     async remove(input: { sessionId: string; id: string }): Promise<boolean> {
@@ -361,26 +369,27 @@ export class MessageQueueService {
     }
 
     /**
-     * Undo a {@link takeHeld} whose entries could not be handed to a turn: put them back in the
-     * queue, held again for an explicit decision. They are appended after any newer entries.
+     * Undo a {@link takeHeld} whose entries could not be handed to a turn: put them back at the
+     * head of the queue in one atomic store operation, held again for an explicit decision.
+     * On failure nothing is marked held and no events are emitted.
      */
     async restoreHeld(messages: readonly QueuedMessage[]): Promise<void> {
         if (messages.length === 0) {
             return;
         }
         await this.runWithMutationLock(async () => {
-            for (const message of messages) {
-                const { position } = await this.store.append({
-                    sessionId: this.sessionId,
-                    message: cloneQueuedMessage(message),
-                });
+            await this.store.prepend({
+                sessionId: this.sessionId,
+                messages: cloneQueuedMessages([...messages]),
+            });
+            messages.forEach((message, index) => {
                 this.heldIds.add(message.id);
                 this.eventBus.emit('message:queued', {
-                    position,
+                    position: index + 1,
                     id: message.id,
                     queue: this.queueKind,
                 });
-            }
+            });
             await this.refreshFromStore();
             this.logger.debug(
                 `Restored ${messages.length} held ${this.queueKind} message(s) after an incomplete resume`

@@ -13,6 +13,11 @@ export interface SessionMessageQueueStore {
         excludeIds?: readonly string[];
         onlyIds?: readonly string[];
     }): Promise<QueuedMessage[]>;
+    /**
+     * Atomically put messages back at the head of the queue, in the given order, in one
+     * operation. Messages whose ids are already queued are skipped.
+     */
+    prepend(input: { sessionId: string; messages: readonly QueuedMessage[] }): Promise<void>;
     remove(input: { sessionId: string; id: string }): Promise<boolean>;
     clear(input: { sessionId: string }): Promise<void>;
 }
