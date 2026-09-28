@@ -109,13 +109,18 @@ export interface ToolExecutionStore {
 }
 
 export function createToolExecutionId(identity: ToolExecutionIdentity): string {
-    const key = JSON.stringify([
-        identity.runId,
-        identity.turnId,
-        identity.modelStepId,
-        identity.parentToolCallId ?? null,
-        identity.toolCallId,
-    ]);
+    // Top-level executions keep the original four-part key so their IDs survive the upgrade.
+    const key = JSON.stringify(
+        identity.parentToolCallId === undefined
+            ? [identity.runId, identity.turnId, identity.modelStepId, identity.toolCallId]
+            : [
+                  identity.runId,
+                  identity.turnId,
+                  identity.modelStepId,
+                  identity.parentToolCallId,
+                  identity.toolCallId,
+              ]
+    );
     return `tool-exec-${stableFingerprint(key)}`;
 }
 

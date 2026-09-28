@@ -1,3 +1,4 @@
+import { createHash } from 'crypto';
 import { describe, expect, it } from 'vitest';
 
 import { createToolExecutionId } from './types.js';
@@ -16,5 +17,18 @@ describe('createToolExecutionId', () => {
 
         expect(first).toMatch(/^tool-exec-[a-f0-9]{64}$/u);
         expect(first).not.toBe(second);
+    });
+
+    it('keeps the pre-nesting ID for top-level executions', () => {
+        const legacyKey = JSON.stringify(['run-1', 'turn-1', 'step-1', 'call-1']);
+
+        expect(
+            createToolExecutionId({
+                modelStepId: 'step-1',
+                runId: 'run-1',
+                toolCallId: 'call-1',
+                turnId: 'turn-1',
+            })
+        ).toBe(`tool-exec-${createHash('sha256').update(legacyKey).digest('hex')}`);
     });
 });
