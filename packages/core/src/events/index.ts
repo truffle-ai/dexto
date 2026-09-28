@@ -76,6 +76,7 @@ export const FORWARDED_SESSION_EVENT_NAMES = [
     'context:compacting',
     'context:compacted',
     'context:pruned',
+    'context:pruned-tool-call-repeated',
     'message:queued',
     'message:dequeued',
     'message:removed',
@@ -135,6 +136,7 @@ export const STREAMING_EVENTS = [
     'context:compacting',
     'context:compacted',
     'context:pruned',
+    'context:pruned-tool-call-repeated',
 
     // Message queue events (for mid-task user guidance)
     'message:queued',
@@ -632,6 +634,18 @@ interface SessionEventMapBase {
         savedTokens: number;
     };
 
+    /**
+     * The model repeated a tool call (same name and arguments) after that call's earlier result
+     * was pruned. A no-progress signal for hosts; the run continues. May be emitted more than once
+     * for the same toolCallId when a model request is re-prepared.
+     */
+    'context:pruned-tool-call-repeated': {
+        toolName: string;
+        toolCallId: string;
+        prunedToolCallId: string;
+        repeatCount: number;
+    };
+
     /** User message was queued during agent execution */
     'message:queued': {
         position: number;
@@ -1024,6 +1038,12 @@ export function forwardSessionEventsToAgentBus({
     on('context:pruned', (payload) => {
         agentEventBus.emit(
             'context:pruned',
+            withForwardedSessionContext(payload, sessionId, hostRuntime)
+        );
+    });
+    on('context:pruned-tool-call-repeated', (payload) => {
+        agentEventBus.emit(
+            'context:pruned-tool-call-repeated',
             withForwardedSessionContext(payload, sessionId, hostRuntime)
         );
     });
