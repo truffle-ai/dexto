@@ -1,3 +1,4 @@
+import type { ToolOutputStore } from '../storage/tool-outputs/types.js';
 import { randomUUID } from 'crypto';
 import { VercelMessageFormatter } from '../llm/formatters/vercel.js';
 import type { LLMContext } from '@dexto/llm';
@@ -12,7 +13,7 @@ import {
     estimateContextTokens,
     estimateMessagesTokens,
     isBinaryMediaMimeType,
-    PRUNED_TOOL_RESULT_PLACEHOLDER,
+    buildPrunedToolResultPlaceholder,
 } from './utils.js';
 import type { SanitizedToolResult } from './types.js';
 import { DynamicContributorContext } from '../systemPrompt/types.js';
@@ -277,6 +278,7 @@ export class ContextManager<TMessage = unknown> {
         sessionId: string,
         resourceManager: import('../resources/index.js').ResourceManager,
         logger: Logger,
+        private readonly toolOutputStore: ToolOutputStore,
         llmRegistry: ModelRegistry = DEFAULT_MODEL_REGISTRY
     ) {
         this.llmConfig = llmConfig;
@@ -392,6 +394,11 @@ export class ContextManager<TMessage = unknown> {
         }
 
         return data;
+    }
+
+    /** Stores a tool result's full text for `tool_output_read`, scoped to this session. */
+    async saveToolOutput(toolCallId: string, text: string): Promise<void> {
+        await this.toolOutputStore.save({ sessionId: this.sessionId, toolCallId, text });
     }
 
     /**
@@ -551,7 +558,12 @@ export class ContextManager<TMessage = unknown> {
                 prunedToolCount++;
                 return {
                     ...msg,
-                    content: [{ type: 'text' as const, text: PRUNED_TOOL_RESULT_PLACEHOLDER }],
+                    content: [
+                        {
+                            type: 'text' as const,
+                            text: buildPrunedToolResultPlaceholder(msg.toolCallId),
+                        },
+                    ],
                 };
             }
             return msg;

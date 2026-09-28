@@ -157,6 +157,7 @@ export async function createAgentServices(
     const approvalStore = stores.getStore('approvals');
     const sessionStore = stores.getStore('sessions');
     const conversationStore = stores.getStore('conversation');
+    const toolOutputStore = stores.getStore('toolOutputs');
     const sessionToolPreferencesStore = new SessionToolPreferencesStore(
         stores.getStore('toolPreferences'),
         logger,
@@ -312,6 +313,7 @@ export async function createAgentServices(
             agentEventBus,
             sessionStore,
             conversationStore,
+            toolOutputStore,
             resourceManager, // Add resource manager for blob storage
             hookManager, // Add hook manager for hook execution
             mcpManager, // Add MCP manager for ChatSession

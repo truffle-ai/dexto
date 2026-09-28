@@ -165,6 +165,11 @@ describe('SessionManager', () => {
             storageManager: mockStorageManager,
             sessionStore: mockSessionStore,
             conversationStore: mockConversationStore,
+            toolOutputStore: {
+                save: vi.fn().mockResolvedValue(undefined),
+                load: vi.fn().mockResolvedValue(undefined),
+                deleteSession: vi.fn().mockResolvedValue(undefined),
+            },
             resourceManager: {
                 getBlobStore: vi.fn(),
                 readResource: vi.fn(),
@@ -1638,6 +1643,7 @@ describe('SessionManager', () => {
             expect(session.clearPendingInput).toHaveBeenCalled();
             expect(mockServices.toolManager.deleteSessionState).toHaveBeenCalledWith(sessionId);
             expect(mockServices.approvalManager.deleteSessionState).toHaveBeenCalledWith(sessionId);
+            expect(mockServices.toolOutputStore.deleteSession).toHaveBeenCalledWith({ sessionId });
             expect(mockServices.stateManager.clearSessionOverride).toHaveBeenCalledWith(sessionId);
             expect(session.switchLLM).toHaveBeenCalledWith(mockLLMConfig);
             expect(mockStorageManager.database.set).toHaveBeenCalledWith(
@@ -1850,6 +1856,7 @@ describe('SessionManager', () => {
             expect(mockStorageManager.database.delete).toHaveBeenCalledWith(
                 `messages:${sessionId}`
             );
+            expect(mockServices.toolOutputStore.deleteSession).toHaveBeenCalledWith({ sessionId });
         });
 
         test('should handle multiple expired sessions without affecting storage', async () => {

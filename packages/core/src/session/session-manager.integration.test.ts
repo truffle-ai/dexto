@@ -28,6 +28,7 @@ import {
     DatabaseBackedToolExecutionStore,
     DatabaseBackedToolPreferenceStore,
     DatabaseBackedToolStateStore,
+    DatabaseBackedToolOutputStore,
     DatabaseBackedWorkspaceStore,
     InMemoryDextoStores,
     SESSION_FOLLOW_UP_QUEUE_KEY_PREFIX,
@@ -308,6 +309,43 @@ describe('Session Integration: Chat History Preservation', () => {
         expect(childSessionData?.llmOverride).toEqual(parentSessionData.llmOverride);
     });
 
+    test('full integration: forks copy stored tool output and deletes remove it per session', async () => {
+        const parentSessionId = 'fork-tool-output-parent';
+        await agent.createSession(parentSessionId);
+        const conversationStore = agent.services.stores.getStore('conversation');
+        const toolOutputs = agent.services.stores.getStore('toolOutputs');
+        await conversationStore.saveMessage({
+            sessionId: parentSessionId,
+            message: {
+                id: 'tool-msg-1',
+                role: 'tool',
+                toolCallId: 'call-1',
+                name: 'read_file',
+                content: [{ type: 'text', text: 'preview' }],
+            },
+        });
+        await toolOutputs.save({
+            sessionId: parentSessionId,
+            toolCallId: 'call-1',
+            text: 'full output',
+        });
+
+        const childSession = await agent.forkSession(parentSessionId);
+
+        expect(await toolOutputs.load({ sessionId: childSession.id, toolCallId: 'call-1' })).toBe(
+            'full output'
+        );
+
+        await agent.deleteSession(childSession.id);
+
+        expect(
+            await toolOutputs.load({ sessionId: childSession.id, toolCallId: 'call-1' })
+        ).toBeUndefined();
+        expect(await toolOutputs.load({ sessionId: parentSessionId, toolCallId: 'call-1' })).toBe(
+            'full output'
+        );
+    });
+
     test('full integration: multiple concurrent sessions with independent histories', async () => {
         const sessionIds = ['concurrent-1', 'concurrent-2', 'concurrent-3'];
         const histories = sessionIds.map((_, index): InternalMessage[] => [
@@ -448,6 +486,7 @@ describe('Session Integration: Core-owned Interaction State Persistence', () => 
                         logger
                     ),
                     toolState: new DatabaseBackedToolStateStore(storage.database),
+                    toolOutputs: new DatabaseBackedToolOutputStore(storage.database),
                     steerQueue: new DatabaseBackedSessionMessageQueueStore(
                         storage.database,
                         logger,

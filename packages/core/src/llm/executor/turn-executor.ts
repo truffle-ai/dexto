@@ -19,6 +19,7 @@ import type {
     ResourcePart,
     UIResourcePart,
     InternalMessage,
+    SanitizedToolResult,
 } from '../../context/types.js';
 import { sanitizeToolResult } from '../../context/utils.js';
 import {
@@ -32,7 +33,13 @@ import type { ToolExecutionResult, ToolPresentationSnapshotV1 } from '../../tool
 import type { ToolCallMetadata } from '../../tools/tool-call-metadata.js';
 import type { ToolExecutionIdentity } from '../../storage/tool-executions/types.js';
 import { StreamProcessor } from './stream-processor.js';
-import { truncateToolResult } from './tool-output-truncator.js';
+import {
+    planToolOutputSpills,
+    toolOutputBudget,
+    toolResultText,
+    TOOL_OUTPUT_READ_TOOL_NAME,
+    withToolOutputPreview,
+} from './tool-output-spill.js';
 import { findRepeatedPrunedToolCalls } from './repeated-pruned-tool-calls.js';
 import type { ExecutorResult, ModelToolCall, StreamProcessorResult } from './types.js';
 import { buildProviderOptions, getEffectiveReasoningBudgetTokens } from './provider-options.js';
@@ -1847,10 +1854,25 @@ export class TurnExecutor {
                 )
             )
         );
+        const sanitizedResults = await Promise.all(
+            toolCalls.map((toolCall, index) => {
+                const executionResult = executionResults[index];
+                if (executionResult === undefined) {
+                    throw new Error('Tool call result count must match emitted tool call count');
+                }
+                return this.sanitizeModelToolResult(toolCall, executionResult);
+            })
+        );
+        const modelResults = await this.storeOversizedToolOutputs(toolCalls, sanitizedResults);
         for (let index = 0; index < toolCalls.length; index += 1) {
             const toolCall = toolCalls[index];
             const executionResult = executionResults[index];
-            if (toolCall === undefined || executionResult === undefined) {
+            const modelResult = modelResults[index];
+            if (
+                toolCall === undefined ||
+                executionResult === undefined ||
+                modelResult === undefined
+            ) {
                 throw new Error('Tool call result count must match emitted tool call count');
             }
             await recordOperationSpan(
@@ -1863,7 +1885,7 @@ export class TurnExecutor {
                         'tool.success': this.isToolExecutionSuccessful(executionResult),
                     },
                 },
-                () => this.persistModelToolResult(toolCall, executionResult),
+                () => this.persistModelToolResult(toolCall, executionResult, modelResult),
                 this.logger
             );
         }
@@ -2095,12 +2117,12 @@ export class TurnExecutor {
         );
     }
 
-    private async persistModelToolResult(
+    private async sanitizeModelToolResult(
         toolCall: ModelToolCall,
         executionResult: ToolExecutionResult
-    ): Promise<void> {
+    ): Promise<SanitizedToolResult> {
         const success = this.isToolExecutionSuccessful(executionResult);
-        const sanitized = await sanitizeToolResult(
+        return await sanitizeToolResult(
             executionResult.result,
             {
                 artifactStore: this.resourceManager.getArtifactStore(),
@@ -2116,7 +2138,56 @@ export class TurnExecutor {
             },
             this.logger
         );
-        const truncated = truncateToolResult(sanitized);
+    }
+
+    /**
+     * Keeps oversized tool output out of model history: the full text goes to the session's tool
+     * output store and history keeps a head and tail preview that names `tool_output_read`. If
+     * storing fails, the full text stays inline so nothing is lost.
+     */
+    private async storeOversizedToolOutputs(
+        toolCalls: ModelToolCall[],
+        results: SanitizedToolResult[]
+    ): Promise<SanitizedToolResult[]> {
+        const texts = results.map(toolResultText);
+        const previewChars = planToolOutputSpills(
+            results.flatMap((result, index) =>
+                // A read of stored output is already bounded; storing it again could loop.
+                toolCalls[index]?.toolName === TOOL_OUTPUT_READ_TOOL_NAME
+                    ? []
+                    : [
+                          {
+                              toolCallId: result.meta.toolCallId,
+                              textLength: texts[index]?.length ?? 0,
+                          },
+                      ]
+            ),
+            toolOutputBudget(this.contextManager.getMaxInputTokens())
+        );
+        return await Promise.all(
+            results.map(async (result, index) => {
+                const chars = previewChars.get(result.meta.toolCallId);
+                const text = texts[index];
+                if (chars === undefined || text === undefined) return result;
+                try {
+                    await this.contextManager.saveToolOutput(result.meta.toolCallId, text);
+                } catch (error) {
+                    this.logger.warn(
+                        `Failed to store tool output for ${result.meta.toolCallId}; keeping it inline: ${error instanceof Error ? error.message : String(error)}`
+                    );
+                    return result;
+                }
+                return withToolOutputPreview(result, text, chars);
+            })
+        );
+    }
+
+    private async persistModelToolResult(
+        toolCall: ModelToolCall,
+        executionResult: ToolExecutionResult,
+        truncated: SanitizedToolResult
+    ): Promise<void> {
+        const success = this.isToolExecutionSuccessful(executionResult);
         const metadata = this.getToolExecutionMetadata(executionResult);
         const errorMessage = this.getToolExecutionErrorMessage(executionResult.result);
 

@@ -120,7 +120,8 @@ describe('Context Compaction Integration Tests', () => {
             conversationStore,
             sessionId,
             resourceManager,
-            logger
+            logger,
+            stores.getStore('toolOutputs')
         );
 
         // Create real compaction strategy

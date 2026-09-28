@@ -38,6 +38,7 @@ import { ApprovalStatus } from '../../approval/types.js';
 import type { ApprovalHandler, ApprovalRequest, ApprovalResponse } from '../../approval/types.js';
 import { createAgentRunContext, type AgentRunContext } from '../../runtime/run-context.js';
 import { createToolExecutionId } from '../../storage/tool-executions/types.js';
+import { createToolOutputReadTool } from '../../tools/tool-output-read.js';
 
 // Only mock the AI SDK's streamText/generateText - everything else is real
 vi.mock('ai', async (importOriginal) => {
@@ -309,7 +310,8 @@ describe('TurnExecutor Integration Tests', () => {
             conversationStore,
             sessionId,
             resourceManager,
-            logger
+            logger,
+            stores.getStore('toolOutputs')
         );
     }
 
@@ -4478,8 +4480,11 @@ describe('TurnExecutor Integration Tests', () => {
 
         it('does not loop re-reading parallel tool results that were pruned before the model saw them', async () => {
             const chatIds = Array.from({ length: 8 }, (_, index) => `chat-${index}`);
-            // ~11k estimated tokens each: 8 results exceed the old fixed 40k protect budget.
-            const chatText = (chatId: string) => `${chatId}:`.padEnd(44_000, 'x');
+            // ~18.75k estimated tokens each on a 400k window: together they exceed the 120k
+            // protect budget by more than the 20k pruning minimum, while each stays under the
+            // inline cap and the step stays under its budget, so the model sees them whole.
+            const chatText = (chatId: string) => `${chatId}:`.padEnd(75_000, 'x');
+            const windowContextManager = createContextManagerFromPersistedStore(400_000);
             toolManager.addTools([
                 defineTool({
                     id: 'read_chat',
@@ -4509,8 +4514,13 @@ describe('TurnExecutor Integration Tests', () => {
                 }) as unknown as ReturnType<typeof streamText>;
             });
 
-            await contextManager.addUserMessage([{ type: 'text', text: 'Summarize my chats' }]);
-            const result = await executor.execute({ mcpManager }, true);
+            await windowContextManager.addUserMessage([
+                { type: 'text', text: 'Summarize my chats' },
+            ]);
+            const result = await createExecutorWithContext(windowContextManager).execute(
+                { mcpManager },
+                true
+            );
 
             expect(result.text).toBe('Summarized every chat');
             expect(streamText).toHaveBeenCalledTimes(2);
@@ -4588,6 +4598,91 @@ describe('TurnExecutor Integration Tests', () => {
             expect(JSON.stringify(vi.mocked(streamText).mock.calls[0]?.[0].messages)).toContain(
                 visibleOutput
             );
+        });
+
+        it('stores oversized tool output and lets the model page it back without re-storing', async () => {
+            // ~75k chars: over the 40k-char inline cap of a 100k-token window. A 2000-line read
+            // back (~50k chars) is also over the cap, so it would be stored again if reads were
+            // not exempt.
+            const fullOutput = Array.from({ length: 3000 }, (_, index) =>
+                `row ${index + 1} `.padEnd(24, '-')
+            ).join('\n');
+            toolManager.registerCoreTools([
+                createToolOutputReadTool({
+                    conversation: stores.getStore('conversation'),
+                    toolOutputs: stores.getStore('toolOutputs'),
+                }),
+            ]);
+            toolManager.addTools([
+                defineTool({
+                    id: 'export_rows',
+                    description: 'Export rows',
+                    inputSchema: z.object({}).strict(),
+                    execute: async () => ({ content: [{ type: 'text', text: fullOutput }] }),
+                }),
+            ]);
+            const toolResults: Array<{ callId: string; text: string }> = [];
+            sessionEventBus.on('llm:tool-result', (event) => {
+                toolResults.push({
+                    callId: event.callId ?? '',
+                    text: JSON.stringify(event.sanitized?.content),
+                });
+            });
+            vi.mocked(streamText)
+                .mockImplementationOnce(
+                    () =>
+                        createMockStream({
+                            finishReason: 'tool-calls',
+                            toolCalls: [
+                                { toolCallId: 'call-export', toolName: 'export_rows', args: {} },
+                            ],
+                        }) as unknown as ReturnType<typeof streamText>
+                )
+                .mockImplementationOnce(
+                    () =>
+                        createMockStream({
+                            finishReason: 'tool-calls',
+                            toolCalls: [
+                                {
+                                    toolCallId: 'call-read',
+                                    toolName: 'tool_output_read',
+                                    args: { id: 'call-export', offset: 1, limit: 2000 },
+                                },
+                            ],
+                        }) as unknown as ReturnType<typeof streamText>
+                )
+                .mockImplementationOnce(
+                    () =>
+                        createMockStream({
+                            text: 'done',
+                            finishReason: 'stop',
+                        }) as unknown as ReturnType<typeof streamText>
+                );
+            await contextManager.addUserMessage([{ type: 'text', text: 'Export the rows' }]);
+
+            const result = await executor.execute({ mcpManager }, true);
+
+            expect(result.text).toBe('done');
+            expect(
+                await stores.getStore('toolOutputs').load({ sessionId, toolCallId: 'call-export' })
+            ).toBe(fullOutput);
+            const history = await contextManager.getHistory();
+            const exportText = JSON.stringify(
+                history.find(
+                    (message) => message.role === 'tool' && message.toolCallId === 'call-export'
+                )
+            );
+            expect(exportText).toContain('tool_output_read({ \\"id\\": \\"call-export\\"');
+            expect(exportText.length).toBeLessThan(fullOutput.length);
+            expect(toolResults.find((event) => event.callId === 'call-export')?.text).toContain(
+                'Output truncated'
+            );
+            const readText = toolResults.find((event) => event.callId === 'call-read')?.text;
+            expect(readText).toContain('1: row 1');
+            expect(readText).not.toContain('Output truncated');
+            expect(
+                await stores.getStore('toolOutputs').load({ sessionId, toolCallId: 'call-read' })
+            ).toBeUndefined();
         });
 
         it('reports a repeated tool call whose earlier result was pruned', async () => {

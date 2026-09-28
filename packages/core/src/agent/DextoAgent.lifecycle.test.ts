@@ -106,6 +106,7 @@ describe('DextoAgent Lifecycle Management', () => {
             } as any,
             toolManager: {
                 setTools: vi.fn(),
+                registerCoreTools: vi.fn(),
                 setToolExecutionContextFactory: vi.fn(),
                 buildContributorContext: vi.fn().mockResolvedValue({}),
                 initialize: vi.fn().mockResolvedValue(undefined),

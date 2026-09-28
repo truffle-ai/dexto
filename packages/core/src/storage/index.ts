@@ -32,6 +32,7 @@ export {
     DatabaseBackedToolExecutionStore,
     DatabaseBackedToolPreferenceStore,
     DatabaseBackedToolStateStore,
+    DatabaseBackedToolOutputStore,
     DatabaseBackedWorkspaceStore,
     SESSION_FOLLOW_UP_QUEUE_KEY_PREFIX,
     SESSION_STEER_QUEUE_KEY_PREFIX,
@@ -52,6 +53,7 @@ export { SessionApprovalStateSchema } from './approvals/types.js';
 export type { ApprovalStore, SessionApprovalState } from './approvals/types.js';
 export type { ToolPreferenceStore } from './tool-preferences/types.js';
 export type { ToolStateStore } from './tool-state/types.js';
+export type { ToolOutputStore } from './tool-outputs/types.js';
 export type { SessionMessageQueueStore } from './message-queue/types.js';
 export type {
     ArtifactData,

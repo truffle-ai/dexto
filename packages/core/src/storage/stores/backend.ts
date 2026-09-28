@@ -48,6 +48,7 @@ import {
     type ToolExecutionStore,
 } from '../tool-executions/types.js';
 import type { ToolStateStore } from '../tool-state/types.js';
+import type { ToolOutputStore } from '../tool-outputs/types.js';
 import type { ToolPreferenceStore } from '../tool-preferences/types.js';
 import type { WorkspaceStore } from '../workspaces/types.js';
 import type { DextoStoreMap, DextoStoreName, DextoStores } from './types.js';
@@ -62,6 +63,7 @@ const RUNTIME_EVENTS_LIMIT = 10000;
 const SESSION_MESSAGE_QUEUE_READ_LIMIT = 10000;
 const TOOL_EXECUTION_KEY_PREFIX = 'tool-execution:';
 const TOOL_STATE_KEY_PREFIX = 'tool-state:';
+const TOOL_OUTPUT_KEY_PREFIX = 'tool-output:';
 const WORKSPACE_KEY_PREFIX = 'workspace:item:';
 const WORKSPACE_CURRENT_KEY = 'workspace:current';
 export const SESSION_STEER_QUEUE_KEY_PREFIX = 'session-steer-queue';
@@ -724,6 +726,31 @@ export class DatabaseBackedToolStateStore implements ToolStateStore {
 
     private scopePrefix(toolName: string): string {
         return `${TOOL_STATE_KEY_PREFIX}${toolName}:`;
+    }
+}
+
+export class DatabaseBackedToolOutputStore implements ToolOutputStore {
+    constructor(private readonly database: Database) {}
+
+    async save(input: { sessionId: string; toolCallId: string; text: string }): Promise<void> {
+        await this.database.set(this.toKey(input), input.text);
+    }
+
+    async load(input: { sessionId: string; toolCallId: string }): Promise<string | undefined> {
+        return await this.database.get<string>(this.toKey(input));
+    }
+
+    async deleteSession(input: { sessionId: string }): Promise<void> {
+        const keys = await this.database.list(this.sessionPrefix(input.sessionId));
+        await Promise.all(keys.map((key) => this.database.delete(key)));
+    }
+
+    private toKey(input: { sessionId: string; toolCallId: string }): string {
+        return `${this.sessionPrefix(input.sessionId)}${input.toolCallId}`;
+    }
+
+    private sessionPrefix(sessionId: string): string {
+        return `${TOOL_OUTPUT_KEY_PREFIX}${sessionId}:`;
     }
 }
 

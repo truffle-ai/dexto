@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ContextManager } from './manager.js';
-import { PRUNED_TOOL_RESULT_PLACEHOLDER } from './utils.js';
+import { buildPrunedToolResultPlaceholder } from './utils.js';
 import { createMockLogger } from '../logger/v2/test-utils.js';
 import type { ContentPart, InternalMessage, SanitizedToolResult } from './types.js';
 import type { ValidatedLLMConfig } from '../llm/schemas.js';
@@ -77,7 +77,8 @@ function createContextManager(options?: {
         conversationStore,
         'test-session-id',
         resourceManager,
-        mockLogger
+        mockLogger,
+        new InMemoryDextoStores().getStore('toolOutputs')
     );
 }
 
@@ -916,7 +917,7 @@ describe('ContextManager', () => {
             expect(result.stats.prunedToolCount).toBe(1);
             const toolMsg = result.preparedHistory.find((m) => m.role === 'tool');
             expect(toolMsg?.content).toEqual([
-                { type: 'text', text: PRUNED_TOOL_RESULT_PLACEHOLDER },
+                { type: 'text', text: buildPrunedToolResultPlaceholder('call-1') },
             ]);
 
             // Verify original content is NOT in prepared history

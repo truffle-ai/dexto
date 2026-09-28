@@ -1,3 +1,4 @@
+import type { ToolOutputStore } from '../storage/tool-outputs/types.js';
 import { randomUUID } from 'crypto';
 import { ChatSession } from './chat-session.js';
 import { SystemPromptManager } from '../systemPrompt/manager.js';
@@ -155,6 +156,7 @@ export class SessionManager {
             agentEventBus: AgentEventBus;
             sessionStore: SessionStore;
             conversationStore: ConversationStore;
+            toolOutputStore: ToolOutputStore;
             resourceManager: import('../resources/index.js').ResourceManager;
             hookManager: HookManager;
             mcpManager: import('../mcp/manager.js').MCPManager;
@@ -376,6 +378,7 @@ export class SessionManager {
             await Promise.allSettled([
                 this.services.sessionStore.deleteSession({ sessionId: childSessionId }),
                 this.services.conversationStore.clearMessages({ sessionId: childSessionId }),
+                this.services.toolOutputStore.deleteSession({ sessionId: childSessionId }),
             ]);
 
             const inMemorySession = this.sessions.get(childSessionId);
@@ -440,6 +443,18 @@ export class SessionManager {
             await this.services.conversationStore.saveMessage({
                 sessionId: childSessionId,
                 message,
+            });
+            // Stored tool output is session-scoped, so the fork gets its own copy.
+            if (message.role !== 'tool') continue;
+            const storedOutput = await this.services.toolOutputStore.load({
+                sessionId: parentSessionId,
+                toolCallId: message.toolCallId,
+            });
+            if (storedOutput === undefined) continue;
+            await this.services.toolOutputStore.save({
+                sessionId: childSessionId,
+                toolCallId: message.toolCallId,
+                text: storedOutput,
             });
         }
     }
@@ -680,6 +695,7 @@ export class SessionManager {
         await this.deleteSessionInteractionState(sessionId);
         await this.deleteSessionPendingInput(sessionId);
         await this.services.conversationStore.clearMessages({ sessionId });
+        await this.services.toolOutputStore.deleteSession({ sessionId });
 
         this.logger.debug(`Deleted session and conversation history: ${sessionId}`);
     }
@@ -703,6 +719,7 @@ export class SessionManager {
         await Promise.all([
             this.services.toolManager.deleteSessionState(sessionId),
             this.services.approvalManager.deleteSessionState(sessionId),
+            this.services.toolOutputStore.deleteSession({ sessionId }),
         ]);
 
         if (this.services.stateManager.hasSessionLLMOverride(sessionId)) {

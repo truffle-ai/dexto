@@ -1,3 +1,4 @@
+import type { ToolOutputStore } from '../storage/tool-outputs/types.js';
 import { randomUUID } from 'crypto';
 import { createLLMService } from '../llm/services/factory.js';
 import type { ContextManager } from '../context/index.js';
@@ -179,6 +180,7 @@ export class ChatSession {
             toolManager: ToolManager;
             agentEventBus: AgentEventBus;
             conversationStore: ConversationStore;
+            toolOutputStore: ToolOutputStore;
             resourceManager: import('../resources/index.js').ResourceManager;
             hookManager: HookManager;
             mcpManager: MCPManager;
@@ -343,6 +345,7 @@ export class ChatSession {
             this.services.toolManager,
             this.services.systemPromptManager,
             this.conversationStore,
+            this.services.toolOutputStore,
             this.eventBus,
             this.id,
             this.services.resourceManager,

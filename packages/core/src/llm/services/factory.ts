@@ -1,3 +1,4 @@
+import type { ToolOutputStore } from '../../storage/tool-outputs/types.js';
 import { ToolManager } from '../../tools/tool-manager.js';
 import { ValidatedLLMConfig } from '../schemas.js';
 import { LLMError } from '../errors.js';
@@ -491,6 +492,7 @@ export async function createLLMService(
     toolManager: ToolManager,
     systemPromptManager: SystemPromptManager,
     conversationStore: ConversationStore,
+    toolOutputStore: ToolOutputStore,
     sessionEventBus: SessionEventBus,
     sessionId: string,
     resourceManager: import('../../resources/index.js').ResourceManager,
@@ -527,6 +529,7 @@ export async function createLLMService(
         model,
         systemPromptManager,
         conversationStore,
+        toolOutputStore,
         sessionEventBus,
         config,
         sessionId,

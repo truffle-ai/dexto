@@ -37,6 +37,7 @@ import type {
 } from '../tool-executions/types.js';
 import { splitToolExecutionResult } from '../tool-executions/types.js';
 import type { ToolStateStore } from '../tool-state/types.js';
+import type { ToolOutputStore } from '../tool-outputs/types.js';
 import type { ToolPreferenceStore } from '../tool-preferences/types.js';
 import type { WorkspaceStore } from '../workspaces/types.js';
 import type { ToolExecutionResult } from '../../tools/types.js';
@@ -539,6 +540,24 @@ class InMemoryRuntimeEventStore implements RuntimeEventStore {
     }
 }
 
+class InMemoryToolOutputStore implements ToolOutputStore {
+    private readonly outputs = new Map<string, Map<string, string>>();
+
+    async save(input: { sessionId: string; toolCallId: string; text: string }): Promise<void> {
+        const session = this.outputs.get(input.sessionId) ?? new Map<string, string>();
+        session.set(input.toolCallId, input.text);
+        this.outputs.set(input.sessionId, session);
+    }
+
+    async load(input: { sessionId: string; toolCallId: string }): Promise<string | undefined> {
+        return this.outputs.get(input.sessionId)?.get(input.toolCallId);
+    }
+
+    async deleteSession(input: { sessionId: string }): Promise<void> {
+        this.outputs.delete(input.sessionId);
+    }
+}
+
 class InMemoryToolStateStore implements ToolStateStore {
     private readonly values = new Map<string, unknown>();
 
@@ -679,6 +698,7 @@ export class InMemoryDextoStores implements DextoStores {
         artifacts: new InMemoryArtifactStore(),
         runtimeEvents: new InMemoryRuntimeEventStore(),
         toolExecutions: new InMemoryToolExecutionStore(),
+        toolOutputs: new InMemoryToolOutputStore(),
     };
 
     getStore<K extends DextoStoreName>(name: K): DextoStoreMap[K] {

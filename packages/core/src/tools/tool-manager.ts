@@ -196,6 +196,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 export class ToolManager {
     private mcpManager: MCPManager;
     private agentTools: Map<string, Tool> = new Map();
+    /** Core-owned tools: always registered, never replaced by host tools or filtered per session. */
+    private coreTools: Tool[] = [];
     private approvalManager: ApprovalManager;
     private allowedToolsProvider: AllowedToolsProvider;
     private approvalMode: 'manual' | 'auto-approve';
@@ -335,9 +337,24 @@ export class ToolManager {
         this.logger.debug('ToolManager initialization complete');
     }
 
+    registerCoreTools(tools: Tool[]): void {
+        this.coreTools = tools;
+        for (const tool of tools) {
+            this.agentTools.set(tool.id, tool);
+        }
+        this.invalidateCache();
+    }
+
     setTools(tools: Tool[]): void {
         this.agentTools.clear();
+        for (const tool of this.coreTools) {
+            this.agentTools.set(tool.id, tool);
+        }
         for (const tool of tools) {
+            if (this.coreTools.some((coreTool) => coreTool.id === tool.id)) {
+                this.logger.warn(`Ignoring host tool '${tool.id}': the id belongs to a core tool`);
+                continue;
+            }
             this.agentTools.set(tool.id, tool);
         }
         this.invalidateCache();
@@ -544,7 +561,12 @@ export class ToolManager {
      * Filter a tool set based on disabled tools for a session.
      */
     filterToolsForSession(toolSet: ToolSet, sessionId?: string): ToolSet {
-        return this.sessionToolPolicy.filterToolsForSession(toolSet, sessionId);
+        const filtered = this.sessionToolPolicy.filterToolsForSession(toolSet, sessionId);
+        for (const tool of this.coreTools) {
+            const definition = toolSet[tool.id];
+            if (definition !== undefined) filtered[tool.id] = definition;
+        }
+        return filtered;
     }
 
     /**

@@ -130,6 +130,14 @@ export const TOOL_ACTIVITY = {
         'a skill search',
         'skill searches'
     ),
+    readToolOutput: activity(
+        'tool-output',
+        'Reading earlier output',
+        'Read earlier output',
+        'Read',
+        'an earlier output',
+        'earlier outputs'
+    ),
     readResource: activity(
         'resource',
         'Reading resource',
