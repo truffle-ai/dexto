@@ -1,15 +1,16 @@
-import { createHash } from 'crypto';
 import { z } from 'zod';
 import type { ToolExecutionResult, ToolPresentationResultType } from '../../tools/types.js';
 import { isValidDisplayData, type ToolDisplayData } from '../../tools/display-types.js';
 import { ToolPresentationSnapshotV1Schema } from '../../tools/presentation-schema.js';
 import type { ToolCallMetadata } from '../../tools/tool-call-metadata.js';
+import { stableFingerprint } from '../../utils/stable-fingerprint.js';
 
 export const ToolExecutionIdentitySchema = z
     .object({
         runId: z.string().min(1),
         turnId: z.string().min(1),
         modelStepId: z.string().min(1),
+        parentToolCallId: z.string().min(1).optional(),
         toolCallId: z.string().min(1),
     })
     .strict();
@@ -108,13 +109,19 @@ export interface ToolExecutionStore {
 }
 
 export function createToolExecutionId(identity: ToolExecutionIdentity): string {
-    const key = JSON.stringify([
-        identity.runId,
-        identity.turnId,
-        identity.modelStepId,
-        identity.toolCallId,
-    ]);
-    return `tool-exec-${createHash('sha256').update(key).digest('hex')}`;
+    // Top-level executions keep the original four-part key so their IDs survive the upgrade.
+    const key = JSON.stringify(
+        identity.parentToolCallId === undefined
+            ? [identity.runId, identity.turnId, identity.modelStepId, identity.toolCallId]
+            : [
+                  identity.runId,
+                  identity.turnId,
+                  identity.modelStepId,
+                  identity.parentToolCallId,
+                  identity.toolCallId,
+              ]
+    );
+    return `tool-exec-${stableFingerprint(key)}`;
 }
 
 export function splitToolExecutionResult(result: ToolExecutionResult): {

@@ -67,8 +67,8 @@ import {
     createModelRequestDiagnostics,
     modelRequestDiagnosticAttributes,
 } from './model-request-diagnostics.js';
-import { ApprovalStatus, type ApprovalResponse } from '../../approval/types.js';
-import type { ApprovalDecisionInput } from '../../approval/manager.js';
+import type { ApprovalResponse } from '../../approval/types.js';
+import { approvalResponseToDecisionInput } from '../../approval/manager.js';
 import type { LLMExecutionControl } from '../services/types.js';
 import {
     describeContentPartsForAudit,
@@ -158,11 +158,23 @@ const ProviderOptionsStateSchema: z.ZodType<SharedV2ProviderOptions> = z.record(
 const JsonSchemaStateSchema = z.custom<JSONSchema7>(
     (value) => typeof value === 'object' && value !== null && !Array.isArray(value)
 );
+const ToolAnnotationsStateSchema = z
+    .object({
+        title: z.string().optional(),
+        readOnlyHint: z.boolean().optional(),
+        destructiveHint: z.boolean().optional(),
+        idempotentHint: z.boolean().optional(),
+        openWorldHint: z.boolean().optional(),
+    })
+    // MCP servers may add their own annotation fields; keep them instead of failing the checkpoint.
+    .catchall(JsonValueSchema);
 const ToolSetEntryStateSchema = z
     .object({
         name: z.string().optional(),
         description: z.string().optional(),
         parameters: JsonSchemaStateSchema,
+        outputSchema: JsonSchemaStateSchema.optional(),
+        annotations: ToolAnnotationsStateSchema.optional(),
         _meta: z.record(z.string(), JsonValueSchema).optional(),
     })
     .strict()
@@ -170,6 +182,8 @@ const ToolSetEntryStateSchema = z
         const tool: ToolSet[string] = { parameters: parsed.parameters };
         if (parsed.name !== undefined) tool.name = parsed.name;
         if (parsed.description !== undefined) tool.description = parsed.description;
+        if (parsed.outputSchema !== undefined) tool.outputSchema = parsed.outputSchema;
+        if (parsed.annotations !== undefined) tool.annotations = parsed.annotations;
         if (parsed._meta !== undefined) tool._meta = parsed._meta;
         return tool;
     });
@@ -1921,7 +1935,7 @@ export class TurnExecutor {
             if (approval.kind === 'terminal') {
                 return approval.modelVisibleResult;
             }
-            const decision = this.toApprovalDecisionInput(approval.response);
+            const decision = approvalResponseToDecisionInput(approval.response);
             const applied = await this.toolManager.applyApprovalDecision(recorded, decision);
             if (applied.kind === 'terminal') {
                 return applied.modelVisibleResult;
@@ -2166,30 +2180,6 @@ export class TurnExecutor {
             turnId: ids?.turnId ?? 'in-memory-turn',
             modelStepId: ids?.modelStepId ?? this.currentModelStepId,
             toolCallId,
-        };
-    }
-
-    private toApprovalDecisionInput(response: ApprovalResponse): ApprovalDecisionInput {
-        if (response.status === ApprovalStatus.APPROVED) {
-            return {
-                approvalId: response.approvalId,
-                status: ApprovalStatus.APPROVED,
-                ...(response.data !== undefined ? { data: response.data } : {}),
-            };
-        }
-
-        const status =
-            response.status === ApprovalStatus.DENIED
-                ? ApprovalStatus.DENIED
-                : ApprovalStatus.CANCELLED;
-
-        return {
-            approvalId: response.approvalId,
-            status,
-            ...(response.reason !== undefined ? { reason: response.reason } : {}),
-            ...(response.message !== undefined ? { message: response.message } : {}),
-            ...(response.timeoutMs !== undefined ? { timeoutMs: response.timeoutMs } : {}),
-            ...(response.data !== undefined ? { data: response.data } : {}),
         };
     }
 

@@ -22,6 +22,7 @@ import type { SessionToolPreferences } from './session-tool-preferences-store.js
 import { createAgentRunContext } from '../runtime/run-context.js';
 import { InMemoryDextoStores } from '../storage/index.js';
 import { createToolExecutionId } from '../storage/tool-executions/types.js';
+import type { ToolExecutionContext } from './types.js';
 
 function createDeferred<T>() {
     let resolve!: (value: T | PromiseLike<T>) => void;
@@ -99,6 +100,17 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
     beforeEach(() => {
         mockMcpManager = {
             getAllTools: vi.fn(),
+            getToolDescriptor: vi.fn().mockImplementation((toolName: string) => ({
+                name: toolName,
+                description: `MCP tool ${toolName}`,
+                identity: {
+                    type: 'mcp',
+                    connectionId: 'test-connection',
+                    toolName,
+                },
+                inputSchema: { type: 'object', additionalProperties: true },
+            })),
+            validateToolInput: vi.fn().mockImplementation((_toolName, input) => input),
             executeTool: vi.fn(),
             getToolClient: vi.fn(),
             refresh: vi.fn().mockResolvedValue(undefined),
@@ -290,7 +302,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                         toolName: 'typed',
                         toolCallId: 'call-1',
                         input: { count: 5 },
-                        source: 'local',
+                        identity: { type: 'local', toolId: 'typed' },
                     }),
                 })
             );
@@ -336,6 +348,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                         sessionId: 'session-1',
                         metadata: expect.objectContaining({
                             toolName: 'write_file',
+                            toolIdentity: { type: 'local', toolId: 'write_file' },
                             toolCallId: 'call-2',
                             args: { path: 'src/app.ts' },
                         }),
@@ -490,13 +503,63 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     kind: 'ready',
                     call: expect.objectContaining({
                         toolName: 'mcp--read_file',
-                        source: 'mcp',
+                        identity: {
+                            type: 'mcp',
+                            connectionId: 'test-connection',
+                            toolName: 'read_file',
+                        },
                         input: { path: '/tmp/file.txt' },
                     }),
                 })
             );
             expect(mockMcpManager.executeTool).not.toHaveBeenCalled();
             expect(mockApprovalManager.requestToolApproval).not.toHaveBeenCalled();
+        });
+
+        it('prepares invalid MCP input as a model-visible invalid-input result', async () => {
+            mockMcpManager.getAllTools = vi.fn().mockResolvedValue({
+                read_file: {
+                    name: 'read_file',
+                    description: 'Read file',
+                    parameters: {
+                        type: 'object',
+                        properties: { path: { type: 'string' } },
+                        required: ['path'],
+                        additionalProperties: false,
+                    },
+                },
+            });
+            const toolManager = createToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'auto-approve',
+                mockAgentEventBus,
+                { alwaysAllow: [] },
+                [],
+                mockLogger
+            );
+            mockMcpManager.validateToolInput = vi.fn(() => {
+                throw new Error("MCP tool 'read_file' received invalid arguments: /path: type");
+            });
+
+            const prepared = await toolManager.prepareToolCall({
+                toolName: 'mcp--read_file',
+                input: { path: 42 },
+                toolCallId: 'call-mcp-validation-characterization',
+            });
+
+            expect(prepared.kind).toBe('terminal');
+            if (prepared.kind !== 'terminal') {
+                throw new Error('Expected invalid-input prepared');
+            }
+            expect(prepared.reason).toBe('invalid-input');
+            expect(prepared.modelVisibleResult.result).toEqual(
+                expect.objectContaining({
+                    error: expect.stringContaining('received invalid arguments'),
+                })
+            );
+            expect(mockMcpManager.executeTool).not.toHaveBeenCalled();
         });
 
         it('records a prepared approval request with stable turn identity', async () => {
@@ -1281,6 +1344,51 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             );
         });
 
+        it('provides the durable execution identity to the executing tool', async () => {
+            const executionIdentity = {
+                runId: 'run-1',
+                turnId: 'turn-1',
+                modelStepId: 'step-1',
+                toolCallId: 'call-prepared-context',
+            };
+            const execute = vi.fn(
+                async (_input: { path: string }, context: ToolExecutionContext) =>
+                    context.executionIdentity
+            );
+            const toolManager = createToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'auto-approve',
+                mockAgentEventBus,
+                { alwaysAllow: [] },
+                [
+                    defineTool({
+                        id: 'write_file',
+                        description: 'Write file',
+                        inputSchema: z.object({ path: z.string() }).strict(),
+                        execute,
+                    }),
+                ],
+                mockLogger
+            );
+            const prepared = await toolManager.prepareToolCall({
+                toolName: 'write_file',
+                input: { path: 'src/app.ts' },
+                toolCallId: executionIdentity.toolCallId,
+                sessionId: 'session-1',
+            });
+            if (prepared.kind !== 'ready') {
+                throw new Error('Expected ready prepared call');
+            }
+
+            const result = await toolManager.executePreparedToolCall(prepared.call, {
+                executionIdentity,
+            });
+
+            expect(result.result).toEqual(executionIdentity);
+        });
+
         it('rejects prepared execution replay when the stored input differs', async () => {
             const execute = vi.fn().mockResolvedValue('created');
             const toolManager = createToolManager(
@@ -1460,6 +1568,131 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     success: true,
                 }),
                 expect.objectContaining({ toolManager })
+            );
+        });
+
+        it('records a nested prepared call as canonical child execution without model tool events', async () => {
+            const execute = vi.fn().mockResolvedValue({ found: true });
+            const toolExecutionStore = new InMemoryDextoStores().getStore('toolExecutions');
+            const toolManager = new ToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'auto-approve',
+                mockAgentEventBus,
+                { alwaysAllow: [] },
+                [
+                    defineTool({
+                        id: 'lookup',
+                        description: 'Lookup a record',
+                        inputSchema: z.object({ id: z.string() }).strict(),
+                        execute,
+                    }),
+                ],
+                mockLogger,
+                createInMemorySessionToolPreferencesStore(mockLogger),
+                toolExecutionStore
+            );
+            toolManager.setToolExecutionContextFactory((baseContext) => baseContext);
+            const executionIdentity = {
+                modelStepId: 'step-1',
+                parentToolCallId: 'code-execute-call',
+                runId: 'run-1',
+                toolCallId: 'code-execute-call:1',
+                turnId: 'turn-1',
+            };
+            const prepared = await toolManager.prepareToolCall({
+                input: { id: 'record-1' },
+                parentToolCallId: 'code-execute-call',
+                sessionId: 'session-1',
+                toolCallId: 'code-execute-call:1',
+                toolName: 'lookup',
+            });
+            if (prepared.kind !== 'ready') {
+                throw new Error('Expected ready nested call');
+            }
+
+            await expect(
+                toolManager.executePreparedToolCall(prepared.call, {
+                    executionIdentity,
+                    sessionId: 'session-1',
+                })
+            ).resolves.toEqual(
+                expect.objectContaining({
+                    result: { found: true },
+                })
+            );
+
+            expect(execute).toHaveBeenCalledWith(
+                { id: 'record-1' },
+                expect.objectContaining({
+                    parentToolCallId: 'code-execute-call',
+                    toolCallId: 'code-execute-call:1',
+                })
+            );
+            await expect(
+                toolExecutionStore.get({ executionId: createToolExecutionId(executionIdentity) })
+            ).resolves.toEqual(
+                expect.objectContaining({
+                    identity: executionIdentity,
+                    modelOutput: { found: true },
+                    status: 'completed',
+                })
+            );
+            expect(mockAgentEventBus.emit).toHaveBeenCalledWith(
+                'tool:running',
+                expect.objectContaining({
+                    parentToolCallId: 'code-execute-call',
+                    toolCallId: 'code-execute-call:1',
+                })
+            );
+            expect(mockAgentEventBus.emit).not.toHaveBeenCalledWith(
+                'llm:tool-call',
+                expect.anything()
+            );
+            expect(mockAgentEventBus.emit).not.toHaveBeenCalledWith(
+                'llm:tool-result',
+                expect.anything()
+            );
+        });
+
+        it('carries the owning parent into nested approval metadata', async () => {
+            const toolManager = createToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'manual',
+                mockAgentEventBus,
+                { alwaysAllow: [] },
+                [
+                    defineTool({
+                        id: 'update_record',
+                        description: 'Update a record',
+                        inputSchema: z.object({ id: z.string() }).strict(),
+                        execute: vi.fn(),
+                    }),
+                ],
+                mockLogger
+            );
+
+            const prepared = await toolManager.prepareToolCall({
+                input: { id: 'record-1' },
+                parentToolCallId: 'code-execute-call',
+                sessionId: 'session-1',
+                toolCallId: 'code-execute-call:2',
+                toolName: 'update_record',
+            });
+
+            expect(prepared).toEqual(
+                expect.objectContaining({
+                    kind: 'approval-required',
+                    requestDetails: expect.objectContaining({
+                        metadata: expect.objectContaining({
+                            parentToolCallId: 'code-execute-call',
+                            toolCallId: 'code-execute-call:2',
+                        }),
+                    }),
+                })
             );
         });
 
@@ -1784,6 +2017,46 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
     });
 
     describe('Local Tool Execution', () => {
+        it('passes the invocation abort signal to the local tool execution context', async () => {
+            const controller = new AbortController();
+            controller.abort('characterization');
+            const execute = vi.fn(
+                (_input: Record<string, never>, context: ToolExecutionContext) =>
+                    context.abortSignal?.aborted
+            );
+            const toolManager = createToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'auto-approve',
+                mockAgentEventBus,
+                { alwaysAllow: [] },
+                [
+                    defineTool({
+                        id: 'observe_abort',
+                        description: 'Observe cancellation',
+                        inputSchema: z.object({}).strict(),
+                        execute,
+                    }),
+                ],
+                mockLogger
+            );
+
+            await expect(
+                toolManager.executeTool('observe_abort', {}, 'call-abort-characterization', {
+                    abortSignal: controller.signal,
+                })
+            ).resolves.toEqual(
+                expect.objectContaining({
+                    result: true,
+                })
+            );
+            expect(execute).toHaveBeenCalledWith(
+                {},
+                expect.objectContaining({ abortSignal: controller.signal })
+            );
+        });
+
         it('should execute local tools provided to ToolManager', async () => {
             mockMcpManager.getAllTools = vi.fn().mockResolvedValue({});
 
@@ -3070,7 +3343,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             );
         });
 
-        it('should pass runContext through MCP execution', async () => {
+        it('should pass execution context through MCP execution', async () => {
             mockMcpManager.executeTool = vi.fn().mockResolvedValue('result');
 
             const toolManager = createToolManager(
@@ -3093,8 +3366,15 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 },
                 telemetryContext: {} as any,
             };
+            const executionIdentity = {
+                modelStepId: 'model-step-1',
+                runId: 'run-1',
+                toolCallId: 'call-789',
+                turnId: 'turn-1',
+            };
 
             await toolManager.executeTool('mcp--file_read', { path: '/test' }, 'call-789', {
+                executionIdentity,
                 runContext,
             });
 
@@ -3226,6 +3506,149 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
     });
 
     describe('Cache Management Logic', () => {
+        it('describes local and MCP tools without losing canonical schemas or identity', async () => {
+            mockMcpManager.getToolDescriptors = vi.fn().mockReturnValue([
+                {
+                    name: 'lookup',
+                    description: 'Look up a record',
+                    identity: {
+                        type: 'mcp',
+                        connectionId: 'connection-1',
+                        toolName: 'lookup',
+                    },
+                    inputSchema: {
+                        type: 'object',
+                        properties: { id: { type: 'string' } },
+                        required: ['id'],
+                        additionalProperties: false,
+                    },
+                    outputSchema: {
+                        type: 'object',
+                        properties: { value: { type: 'string' } },
+                        required: ['value'],
+                    },
+                    annotations: { readOnlyHint: true },
+                },
+            ]);
+            const toolManager = createToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'manual',
+                mockAgentEventBus,
+                { alwaysAllow: [] },
+                [
+                    defineTool({
+                        id: 'local_lookup',
+                        description: 'Look up local state',
+                        inputSchema: z.object({ id: z.string() }).strict(),
+                        outputSchema: z.object({ value: z.string() }).strict(),
+                        execute: vi.fn(),
+                    }),
+                ],
+                mockLogger
+            );
+
+            const descriptors = await toolManager.getToolDescriptors();
+
+            expect(descriptors).toEqual([
+                expect.objectContaining({
+                    approval: 'possible',
+                    name: 'local_lookup',
+                    description: 'Look up local state',
+                    identity: { type: 'local', toolId: 'local_lookup' },
+                    inputSchema: expect.objectContaining({
+                        type: 'object',
+                        required: ['id'],
+                    }),
+                    outputSchema: expect.objectContaining({
+                        type: 'object',
+                        required: ['value'],
+                    }),
+                }),
+                {
+                    approval: 'possible',
+                    name: 'mcp--lookup',
+                    description: 'Look up a record (via MCP servers)',
+                    identity: {
+                        type: 'mcp',
+                        connectionId: 'connection-1',
+                        toolName: 'lookup',
+                    },
+                    inputSchema: {
+                        type: 'object',
+                        properties: { id: { type: 'string' } },
+                        required: ['id'],
+                        additionalProperties: false,
+                    },
+                    outputSchema: {
+                        type: 'object',
+                        properties: { value: { type: 'string' } },
+                        required: ['value'],
+                    },
+                    annotations: { readOnlyHint: true },
+                },
+            ]);
+            expect(descriptors[0]?.inputSchema).not.toHaveProperty('properties.__meta');
+        });
+
+        it('marks descriptor approval capability conservatively for the current manager mode', async () => {
+            mockMcpManager.getToolDescriptors = vi.fn().mockReturnValue([]);
+            const tools = [
+                defineTool({
+                    id: 'always_allowed',
+                    description: 'Always allowed',
+                    inputSchema: z.object({}).strict(),
+                    needsApproval: false,
+                    execute: vi.fn(),
+                }),
+                defineTool({
+                    id: 'argument_dependent',
+                    description: 'Depends on arguments',
+                    inputSchema: z.object({ mutate: z.boolean() }).strict(),
+                    needsApproval: ({ mutate }) => mutate,
+                    execute: vi.fn(),
+                }),
+                defineTool({
+                    id: 'manual_default',
+                    description: 'Uses the manager default',
+                    inputSchema: z.object({}).strict(),
+                    execute: vi.fn(),
+                }),
+            ];
+            const manual = createToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'manual',
+                mockAgentEventBus,
+                { alwaysAllow: [] },
+                tools,
+                mockLogger
+            );
+            const automatic = createToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'auto-approve',
+                mockAgentEventBus,
+                { alwaysAllow: [] },
+                tools,
+                mockLogger
+            );
+
+            await expect(manual.getToolDescriptors()).resolves.toEqual([
+                expect.objectContaining({ approval: 'never', name: 'always_allowed' }),
+                expect.objectContaining({ approval: 'possible', name: 'argument_dependent' }),
+                expect.objectContaining({ approval: 'possible', name: 'manual_default' }),
+            ]);
+            await expect(automatic.getToolDescriptors()).resolves.toEqual([
+                expect.objectContaining({ approval: 'never', name: 'always_allowed' }),
+                expect.objectContaining({ approval: 'never', name: 'argument_dependent' }),
+                expect.objectContaining({ approval: 'never', name: 'manual_default' }),
+            ]);
+        });
+
         it('uses dynamic tool descriptions when provided', async () => {
             const getDescription = vi.fn().mockReturnValue('Dynamic description');
             mockMcpManager.getAllTools = vi.fn().mockResolvedValue({});

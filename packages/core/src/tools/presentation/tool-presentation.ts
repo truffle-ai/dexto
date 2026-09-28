@@ -15,6 +15,7 @@ const MCP_TOOL_PREFIX = 'mcp--';
 type BuildToolExecutionContext = (options: {
     sessionId?: string | undefined;
     toolCallId?: string | undefined;
+    parentToolCallId?: string | undefined;
     runContext?: AgentRunContext | undefined;
 }) => ToolExecutionContext;
 
@@ -60,6 +61,7 @@ export class ToolPresentation {
         toolName: string;
         args: Record<string, unknown>;
         toolCallId: string;
+        parentToolCallId?: string | undefined;
         sessionId?: string | undefined;
         runContext?: AgentRunContext | undefined;
     }): ToolPresentationSnapshotV1 {
@@ -117,6 +119,7 @@ export class ToolPresentation {
         toolName: string;
         args: Record<string, unknown>;
         toolCallId: string;
+        parentToolCallId?: string | undefined;
         sessionId?: string | undefined;
         runContext?: AgentRunContext | undefined;
     }): Promise<ToolPresentationSnapshotV1> {
@@ -193,6 +196,7 @@ export class ToolPresentation {
         result: unknown;
         args: Record<string, unknown>;
         toolCallId: string;
+        parentToolCallId?: string | undefined;
         sessionId?: string | undefined;
         runContext?: AgentRunContext | undefined;
     }): Promise<ToolPresentationSnapshotV1> {
@@ -335,6 +339,7 @@ export class ToolPresentation {
         toolName: string;
         args: Record<string, unknown>;
         toolCallId: string;
+        parentToolCallId?: string | undefined;
         sessionId?: string | undefined;
         runContext?: AgentRunContext | undefined;
     }): Promise<ToolDisplayData | undefined> {

@@ -66,6 +66,19 @@ function createDeferred<T>() {
     };
 }
 
+async function waitForDeferredBoundary(
+    boundary: Promise<void>,
+    execution: Promise<unknown>,
+    failureMessage: string
+): Promise<void> {
+    await Promise.race([
+        boundary,
+        execution.then(() => {
+            throw new Error(failureMessage);
+        }),
+    ]);
+}
+
 function serializeTurnDriverState(state: TurnDriverState): TurnDriverState {
     return parseTurnDriverState(JSON.parse(JSON.stringify(state)));
 }
@@ -700,6 +713,41 @@ describe('TurnExecutor Integration Tests', () => {
             } finally {
                 rehydratedDriver.dispose();
             }
+        });
+
+        it('keeps MCP annotation extensions in a prepared step checkpoint', async () => {
+            toolManager.addTools([
+                defineTool({
+                    id: 'annotated_tool',
+                    description: 'Tool with annotations',
+                    inputSchema: z.object({ value: z.string() }).strict(),
+                    execute: vi.fn().mockResolvedValue('unused'),
+                }),
+            ]);
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
+            const driver = await executor.createDriver({ mcpManager }, { streaming: true });
+            await driver.prepareNextModelStep();
+            const checkpoint: unknown = JSON.parse(JSON.stringify(driver.checkpoint()));
+            driver.dispose();
+
+            let annotated = false;
+            const annotate = (value: unknown): void => {
+                if (typeof value !== 'object' || value === null) return;
+                const toolDefinitions: unknown = Reflect.get(value, 'toolDefinitions');
+                const entry: unknown =
+                    typeof toolDefinitions === 'object' && toolDefinitions !== null
+                        ? Reflect.get(toolDefinitions, 'annotated_tool')
+                        : undefined;
+                if (typeof entry === 'object' && entry !== null) {
+                    Reflect.set(entry, 'annotations', { readOnlyHint: true, vendorHint: 'cached' });
+                    annotated = true;
+                }
+                for (const child of Object.values(value)) annotate(child);
+            };
+            annotate(checkpoint);
+
+            expect(annotated).toBe(true);
+            expect(() => parseTurnDriverState(checkpoint)).not.toThrow();
         });
 
         it('rehydrates a completed terminal model step before deciding and finishing', async () => {
@@ -2860,6 +2908,138 @@ describe('TurnExecutor Integration Tests', () => {
             expect(secondCallText).toContain('first result');
             expect(secondCallText).toContain('second result');
             expect(secondCallText).toContain('Steer after tools finish');
+        });
+
+        it('keeps steering queued until the code_execute outer tool completes', async () => {
+            const executionStarted = createDeferred<void>();
+            const finishExecution = createDeferred<void>();
+            toolManager.addTools([
+                defineTool({
+                    id: 'code_execute',
+                    description: 'Executes a composed Code Mode program',
+                    inputSchema: z.object({ code: z.string() }).strict(),
+                    execute: vi.fn().mockImplementation(async () => {
+                        executionStarted.resolve();
+                        await finishExecution.promise;
+                        return { status: 'completed' };
+                    }),
+                }),
+            ]);
+
+            vi.mocked(streamText)
+                .mockImplementationOnce(
+                    () =>
+                        createMockStream({
+                            finishReason: 'tool-calls',
+                            toolCalls: [
+                                {
+                                    toolCallId: 'code-call-1',
+                                    toolName: 'code_execute',
+                                    args: { code: 'async () => tools.read_data({})' },
+                                },
+                            ],
+                        }) as unknown as ReturnType<typeof streamText>
+                )
+                .mockImplementationOnce(
+                    () =>
+                        createMockStream({
+                            text: 'Code Mode finished',
+                            finishReason: 'stop',
+                        }) as unknown as ReturnType<typeof streamText>
+                );
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Run composed work' }]);
+            const execution = executor.execute({ mcpManager }, true);
+
+            await waitForDeferredBoundary(
+                executionStarted.promise,
+                execution,
+                'Code execution completed before entering the outer tool boundary'
+            );
+            try {
+                await steerQueue.enqueue({
+                    content: [{ type: 'text', text: 'Steer during code execution' }],
+                });
+                expect(streamText).toHaveBeenCalledTimes(1);
+                expect(JSON.stringify(await contextManager.getHistory())).not.toContain(
+                    'Steer during code execution'
+                );
+            } finally {
+                finishExecution.resolve();
+                await execution;
+            }
+
+            expect(streamText).toHaveBeenCalledTimes(2);
+            const history = await contextManager.getHistory();
+            const toolResultIndex = history.findIndex(
+                (message) => message.role === 'tool' && message.toolCallId === 'code-call-1'
+            );
+            const steerIndex = history.findIndex(
+                (message) =>
+                    message.role === 'user' &&
+                    JSON.stringify(message.content).includes('Steer during code execution')
+            );
+            expect(toolResultIndex).toBeGreaterThan(-1);
+            expect(steerIndex).toBeGreaterThan(toolResultIndex);
+            const secondCallText = JSON.stringify(
+                vi.mocked(streamText).mock.calls[1]?.[0].messages
+            );
+            expect(secondCallText).toContain('completed');
+            expect(secondCallText).toContain('Steer during code execution');
+        });
+
+        it('cancels code_execute immediately while the outer tool boundary is active', async () => {
+            const controller = new AbortController();
+            const executionStarted = createDeferred<void>();
+            const codeExecutionCancelled = createDeferred<void>();
+            toolManager.addTools([
+                defineTool({
+                    id: 'code_execute',
+                    description: 'Executes a composed Code Mode program',
+                    inputSchema: z.object({ code: z.string() }).strict(),
+                    execute: vi.fn().mockImplementation(async (_input, context) => {
+                        executionStarted.resolve();
+                        await new Promise<never>((_resolve, reject) => {
+                            const cancel = () => {
+                                codeExecutionCancelled.resolve();
+                                reject(new Error('Code execution was cancelled.'));
+                            };
+                            context.abortSignal?.addEventListener('abort', cancel, { once: true });
+                            if (context.abortSignal?.aborted === true) {
+                                cancel();
+                            }
+                        });
+                    }),
+                }),
+            ]);
+            const executorWithSignal = createExecutorWithContext(contextManager, controller.signal);
+            vi.mocked(streamText).mockImplementationOnce(
+                () =>
+                    createMockStream({
+                        finishReason: 'tool-calls',
+                        toolCalls: [
+                            {
+                                toolCallId: 'code-call-cancel',
+                                toolName: 'code_execute',
+                                args: { code: 'async () => tools.slow_read({})' },
+                            },
+                        ],
+                    }) as unknown as ReturnType<typeof streamText>
+            );
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Run slow code' }]);
+            const execution = executorWithSignal.execute({ mcpManager }, true);
+            await waitForDeferredBoundary(
+                executionStarted.promise,
+                execution,
+                'Code execution completed before cancellation could be observed'
+            );
+
+            controller.abort('user_cancelled');
+
+            await expect(codeExecutionCancelled.promise).resolves.toBeUndefined();
+            await expect(execution).resolves.toMatchObject({ finishReason: 'cancelled' });
+            expect(streamText).toHaveBeenCalledTimes(1);
         });
 
         it('keeps follow-up queued during sibling tools out of the immediate tool-result continuation', async () => {

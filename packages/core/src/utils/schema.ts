@@ -6,10 +6,14 @@ import type { Logger } from '../logger/v2/types.js';
  * Convert Zod schema to JSON Schema format for tool parameters
  *
  */
-export function convertZodSchemaToJsonSchema(zodSchema: z.ZodType, logger: Logger): JSONSchema7 {
+export function convertZodSchemaToJsonSchema(
+    zodSchema: z.ZodType,
+    logger: Logger,
+    io: 'input' | 'output' = 'input'
+): JSONSchema7 {
     try {
         const converted = z.toJSONSchema(zodSchema, {
-            io: 'input',
+            io,
             target: 'draft-07',
             unrepresentable: 'any',
         }) as unknown;

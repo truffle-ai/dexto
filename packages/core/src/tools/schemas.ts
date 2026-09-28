@@ -1,4 +1,5 @@
 import { z } from 'zod';
+export { ToolIdentitySchema } from './identity.js';
 
 export const PERMISSIONS_MODES = ['manual', 'auto-approve'] as const;
 export type PermissionsMode = (typeof PERMISSIONS_MODES)[number];
