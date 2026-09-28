@@ -261,14 +261,20 @@ export class AgentRuntime {
         this.pool.updateStatus(agentId, 'stopping');
 
         try {
-            // Cancel any pending approvals; a failed cancellation must not block shutdown.
-            try {
-                await handle.agent.services.approvalManager.cancelAllApprovals();
-            } catch (error) {
+            // Start cancelling pending approvals without letting a slow or failing handler block
+            // shutdown.
+            const logCancelFailure = (error: unknown) => {
                 const errorMessage = error instanceof Error ? error.message : String(error);
                 this.logger.warn(
                     `Failed to cancel pending approvals for agent '${agentId}': ${errorMessage}`
                 );
+            };
+            try {
+                void Promise.resolve(
+                    handle.agent.services.approvalManager.cancelAllApprovals()
+                ).catch(logCancelFailure);
+            } catch (error) {
+                logCancelFailure(error);
             }
 
             // Stop the agent
