@@ -4559,6 +4559,37 @@ describe('TurnExecutor Integration Tests', () => {
             );
         });
 
+        it('does not count tool results from stopped outputs toward the pruning budget', async () => {
+            // ~30k estimated tokens the model has seen; under the 40k budget on its own.
+            const visibleOutput = 'visible-output:'.padEnd(120_000, 'x');
+            const prunedHandler = vi.fn();
+            sessionEventBus.on('context:pruned', prunedHandler);
+            await contextManager.addUserMessage([{ type: 'text', text: 'Read the files' }]);
+            // ~30k tokens behind an output that was stopped, so the model never sees it.
+            await seedSeenToolResult(
+                contextManager,
+                'call-stopped',
+                'stopped.txt',
+                'stopped-output:'.padEnd(120_000, 'y')
+            );
+            const stoppedAssistant = (await contextManager.getHistory()).findLast(
+                (message) => message.role === 'assistant'
+            );
+            if (!stoppedAssistant?.id) throw new Error('Expected stopped assistant message id');
+            await contextManager.updateAssistantMessage(stoppedAssistant.id, {
+                assistantOutput: { status: 'stopped', reason: 'user_stopped' },
+            });
+            await seedSeenToolResult(contextManager, 'call-visible', 'visible.txt', visibleOutput);
+            await seedSeenToolResult(contextManager, 'call-recent', 'recent.txt', 'small');
+
+            await executor.execute({ mcpManager }, true);
+
+            expect(prunedHandler).not.toHaveBeenCalled();
+            expect(JSON.stringify(vi.mocked(streamText).mock.calls[0]?.[0].messages)).toContain(
+                visibleOutput
+            );
+        });
+
         it('reports a repeated tool call whose earlier result was pruned', async () => {
             toolManager.addTools([
                 defineTool({

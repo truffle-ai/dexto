@@ -1363,7 +1363,9 @@ export class TurnExecutor {
         // before compaction, so pruning can avoid unnecessary compaction.
         const modelHistory = await this.contextManager.getModelHistory();
         this.reportRepeatedPrunedToolCalls(modelHistory);
-        await this.pruneOldToolOutputs(modelHistory);
+        // Prune over what the model actually sees: stopped outputs and their results are excluded.
+        const { preparedHistory: visibleHistory } = await this.contextManager.prepareModelHistory();
+        await this.pruneOldToolOutputs(visibleHistory);
 
         let systemPrompt = await recordOperationSpan(
             {
