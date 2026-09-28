@@ -1685,9 +1685,24 @@ export class ToolManager {
                 `Tool execution already failed: ${executionId}`
             );
         }
+        if (this.resumesRunningExecution(call, record.status)) {
+            return undefined;
+        }
         throw ToolError.executionFailed(
             call.toolName,
             `Tool execution already ${record.status}: ${executionId}`
+        );
+    }
+
+    /** A `resumable` local tool re-enters its own matching record that is still running. */
+    private resumesRunningExecution(
+        call: ExecutableToolCall,
+        status: ToolExecutionRecord['status']
+    ): boolean {
+        return (
+            status === 'running' &&
+            call.identity.type === 'local' &&
+            this.agentTools.get(call.identity.toolId)?.resumable === true
         );
     }
 
@@ -1869,10 +1884,16 @@ export class ToolManager {
                     }
                     return this.createFailedPreparedToolResult(call, started.record.error);
                 }
-                throw ToolError.executionFailed(
-                    call.toolName,
-                    `Tool execution already ${started.record.status}: ${executionId}`
-                );
+                if (!this.resumesRunningExecution(call, started.record.status)) {
+                    throw ToolError.executionFailed(
+                        call.toolName,
+                        `Tool execution already ${started.record.status}: ${executionId}`
+                    );
+                }
+                this.logger.info('Resuming running prepared tool execution', {
+                    executionId,
+                    toolName: call.toolName,
+                });
             }
         }
 

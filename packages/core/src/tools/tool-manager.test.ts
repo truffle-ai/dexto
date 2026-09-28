@@ -2465,6 +2465,70 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             expect(execute).not.toHaveBeenCalled();
         });
 
+        it("re-enters a resumable tool's own running execution with the same input", async () => {
+            mockMcpManager.getAllTools = vi.fn().mockResolvedValue({});
+            const execute = vi.fn().mockResolvedValue('resumed');
+            const toolExecutionStore = new InMemoryDextoStores().getStore('toolExecutions');
+            const identity = {
+                runId: 'run-1',
+                turnId: 'turn-1',
+                modelStepId: 'step-1',
+                toolCallId: 'call-1',
+            };
+            const startedAt = new Date('2026-05-11T00:00:00.000Z');
+            await toolExecutionStore.start({
+                record: {
+                    executionId: createToolExecutionId(identity),
+                    identity,
+                    input: { code: 'async () => 1' },
+                    toolName: 'code_execute',
+                    status: 'running',
+                    startedAt,
+                    updatedAt: startedAt,
+                },
+            });
+            const toolManager = new ToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'auto-approve',
+                mockAgentEventBus,
+                { alwaysAllow: [] },
+                [
+                    defineTool({
+                        id: 'code_execute',
+                        description: 'Run a script',
+                        inputSchema: z.object({ code: z.string() }).strict(),
+                        execute,
+                        resumable: true,
+                    }),
+                ],
+                mockLogger,
+                createInMemorySessionToolPreferencesStore(mockLogger),
+                toolExecutionStore
+            );
+            toolManager.setToolExecutionContextFactory((baseContext) => baseContext);
+
+            await expect(
+                toolManager.executeTool('code_execute', { code: 'async () => 1' }, 'call-1', {
+                    sessionId: 'session-1',
+                    executionIdentity: identity,
+                })
+            ).resolves.toEqual(expect.objectContaining({ result: 'resumed' }));
+            expect(execute).toHaveBeenCalledOnce();
+            await expect(
+                toolExecutionStore.get({ executionId: createToolExecutionId(identity) })
+            ).resolves.toEqual(expect.objectContaining({ status: 'completed' }));
+
+            await expect(
+                toolManager.executeTool('code_execute', { code: 'async () => 2' }, 'call-1', {
+                    sessionId: 'session-1',
+                    executionIdentity: identity,
+                })
+            ).rejects.toThrow();
+            expect(execute).toHaveBeenCalledOnce();
+        });
+
         it('marks a durable execution failed when a pre-execution hook throws', async () => {
             mockMcpManager.getAllTools = vi.fn().mockResolvedValue({});
             const execute = vi.fn().mockResolvedValue('should not run');
