@@ -26,6 +26,14 @@ const ToolOutputReadInputSchema = z
             .min(1)
             .optional()
             .describe('1-based line to start reading from. Defaults to 1.'),
+        charOffset: z
+            .number()
+            .int()
+            .min(0)
+            .optional()
+            .describe(
+                '0-based character to start from within the offset line, for lines too long to read at once.'
+            ),
         limit: z
             .number()
             .int()
@@ -38,7 +46,7 @@ const ToolOutputReadInputSchema = z
             .min(1)
             .optional()
             .describe(
-                'Search instead of reading a range: returns matching lines with their line numbers. Regular expression, or plain text if it is not a valid one.'
+                'Search instead of reading a range: returns lines containing this text (case-insensitive) with their line numbers.'
             ),
         maxMatches: z
             .number()
@@ -69,7 +77,7 @@ export function createToolOutputReadTool(stores: {
                 createLocalToolCallHeader({
                     title: 'Read earlier output',
                     argsText:
-                        input.pattern === undefined ? input.id : `${input.id} /${input.pattern}/`,
+                        input.pattern === undefined ? input.id : `${input.id} "${input.pattern}"`,
                 }),
         },
         async execute(input, context) {
@@ -116,11 +124,16 @@ function readLines(text: string, input: ToolOutputReadInput): string {
     const end = Math.min(start - 1 + (input.limit ?? MAX_READ_LINES), lines.length);
     const selected: string[] = [];
     let chars = 0;
-    for (let line = start; line <= end; line += 1) {
-        const numbered = `${line}: ${lines[line - 1] ?? ''}`;
-        if (selected.length > 0 && chars + numbered.length > MAX_READ_CHARS) break;
-        selected.push(numbered);
-        chars += numbered.length + 1;
+    for (let line = start; line <= end && chars < MAX_READ_CHARS; line += 1) {
+        const full = lines[line - 1] ?? '';
+        const from = line === start ? Math.min(input.charOffset ?? 0, full.length) : 0;
+        const piece = full.slice(from, from + MAX_READ_CHARS - chars);
+        selected.push(`${line}: ${piece}`);
+        chars += piece.length + 1;
+        if (from + piece.length < full.length) {
+            const next = from + piece.length;
+            return `${selected.join('\n')}\n\n[Line ${line} continues (${full.length} characters). Use offset=${line} charOffset=${next} to continue.]`;
+        }
     }
     const last = start + selected.length - 1;
     const hint =
@@ -130,31 +143,23 @@ function readLines(text: string, input: ToolOutputReadInput): string {
     return `${selected.join('\n')}\n\n[${hint}]`;
 }
 
+/** Plain case-insensitive text search; model-supplied regular expressions could hang the host. */
 function searchLines(text: string, pattern: string, maxMatches: number): string {
-    const matches = matcherFor(pattern);
+    const needle = pattern.toLowerCase();
     const lines = text.split('\n');
     const found: string[] = [];
     let total = 0;
     lines.forEach((line, index) => {
-        if (!matches(line)) return;
+        if (!line.toLowerCase().includes(needle)) return;
         total += 1;
         if (found.length < maxMatches) {
             found.push(`${index + 1}: ${line.slice(0, MAX_MATCH_LINE_CHARS)}`);
         }
     });
-    if (total === 0) return `[No lines match "${pattern}" in ${lines.length} lines.]`;
+    if (total === 0) return `[No lines contain "${pattern}" in ${lines.length} lines.]`;
     const shown =
         total > found.length
             ? `Showing ${found.length} of ${total} matching lines; raise maxMatches or narrow the pattern.`
             : `${total} matching lines of ${lines.length}.`;
     return `${found.join('\n')}\n\n[${shown} Read around a match with offset.]`;
-}
-
-function matcherFor(pattern: string): (line: string) => boolean {
-    try {
-        const regex = new RegExp(pattern);
-        return (line) => regex.test(line);
-    } catch {
-        return (line) => line.includes(pattern);
-    }
 }

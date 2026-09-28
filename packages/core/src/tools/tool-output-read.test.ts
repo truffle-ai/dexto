@@ -12,11 +12,17 @@ async function setup() {
         conversation: stores.getStore('conversation'),
         toolOutputs,
     });
-    const read = async (sessionId: string | undefined, input: Record<string, unknown>) =>
-        tool.execute(tool.inputSchema.parse(input), {
+    const read = async (
+        sessionId: string | undefined,
+        input: Record<string, unknown>
+    ): Promise<string> => {
+        const result = await tool.execute(tool.inputSchema.parse(input), {
             logger: createMockLogger(),
             sessionId,
         } satisfies ToolExecutionContext);
+        if (typeof result !== 'string') throw new Error('Expected a text result');
+        return result;
+    };
     return { stores, toolOutputs, read };
 }
 
@@ -37,15 +43,38 @@ describe('tool_output_read', () => {
         );
     });
 
-    it('searches a stored output and reports matching line numbers', async () => {
+    it('searches a stored output as plain text and reports matching line numbers', async () => {
         const { toolOutputs, read } = await setup();
         await toolOutputs.save({ sessionId: 's1', toolCallId: 'call-1', text: numbered });
 
-        const found = await read('s1', { id: 'call-1', pattern: 'line 29\\d\\d$', maxMatches: 2 });
+        const found = await read('s1', { id: 'call-1', pattern: 'LINE 29', maxMatches: 2 });
+        const literal = await read('s1', { id: 'call-1', pattern: '(a+)+$' });
 
         expect(found).toBe(
-            '2900: line 2900\n2901: line 2901\n\n[Showing 2 of 100 matching lines; raise maxMatches or narrow the pattern. Read around a match with offset.]'
+            '29: line 29\n290: line 290\n\n[Showing 2 of 111 matching lines; raise maxMatches or narrow the pattern. Read around a match with offset.]'
         );
+        expect(literal).toBe('[No lines contain "(a+)+$" in 3000 lines.]');
+    });
+
+    it('pages through a line too long to read at once', async () => {
+        const { toolOutputs, read } = await setup();
+        const longLine = 'x'.repeat(120_000);
+        await toolOutputs.save({
+            sessionId: 's1',
+            toolCallId: 'call-1',
+            text: `${longLine}\nnext`,
+        });
+
+        const first = await read('s1', { id: 'call-1' });
+        const second = await read('s1', { id: 'call-1', offset: 1, charOffset: 50_000 });
+        const last = await read('s1', { id: 'call-1', offset: 1, charOffset: 100_000 });
+
+        expect(first.length).toBeLessThan(51_000);
+        expect(first).toContain(
+            '[Line 1 continues (120000 characters). Use offset=1 charOffset=50000 to continue.]'
+        );
+        expect(second).toContain('Use offset=1 charOffset=100000 to continue.');
+        expect(last).toBe(`1: ${'x'.repeat(20_000)}\n2: next\n\n[Showing lines 1-2 of 2.]`);
     });
 
     it('reads a pruned result back from the session history', async () => {

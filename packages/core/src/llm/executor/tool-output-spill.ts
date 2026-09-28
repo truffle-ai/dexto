@@ -79,7 +79,7 @@ export function withToolOutputPreview(
         `${fullText.slice(0, headChars)}\n\n` +
         `[Output truncated: showing the first ${headChars} and last ${tailChars} of ${fullText.length} characters. ` +
         `The full output is stored. Read any part with ${TOOL_OUTPUT_READ_TOOL_NAME}({ "id": "${id}", "offset": <line> }) ` +
-        `or search it with ${TOOL_OUTPUT_READ_TOOL_NAME}({ "id": "${id}", "pattern": "<text or regex>" }) instead of re-running the tool.]\n\n` +
+        `or search it with ${TOOL_OUTPUT_READ_TOOL_NAME}({ "id": "${id}", "pattern": "<text>" }) instead of re-running the tool.]\n\n` +
         fullText.slice(fullText.length - tailChars);
     const content: ContentPart[] = [];
     let previewAdded = false;

@@ -741,7 +741,9 @@ export class DatabaseBackedToolOutputStore implements ToolOutputStore {
     }
 
     async deleteSession(input: { sessionId: string }): Promise<void> {
-        const keys = await this.database.list(this.sessionPrefix(input.sessionId));
+        // Database listing may match `%` and `_` as wildcards, so keep only literal prefix matches.
+        const prefix = this.sessionPrefix(input.sessionId);
+        const keys = (await this.database.list(prefix)).filter((key) => key.startsWith(prefix));
         await Promise.all(keys.map((key) => this.database.delete(key)));
     }
 
@@ -749,8 +751,9 @@ export class DatabaseBackedToolOutputStore implements ToolOutputStore {
         return `${this.sessionPrefix(input.sessionId)}${input.toolCallId}`;
     }
 
+    /** Encoded so a `:` in one session id can never make it a prefix of another session's keys. */
     private sessionPrefix(sessionId: string): string {
-        return `${TOOL_OUTPUT_KEY_PREFIX}${sessionId}:`;
+        return `${TOOL_OUTPUT_KEY_PREFIX}${encodeURIComponent(sessionId)}:`;
     }
 }
 
