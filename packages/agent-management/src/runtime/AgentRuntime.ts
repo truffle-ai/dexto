@@ -262,7 +262,7 @@ export class AgentRuntime {
 
         try {
             // Cancel any pending approvals
-            handle.agent.services.approvalManager.cancelAllApprovals();
+            await handle.agent.services.approvalManager.cancelAllApprovals();
 
             // Stop the agent
             await handle.agent.stop();

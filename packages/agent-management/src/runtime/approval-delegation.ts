@@ -89,28 +89,31 @@ export function createDelegatingApprovalHandler(
             /**
              * Cancel a specific pending approval request
              */
-            cancel: (approvalId: string): void => {
+            cancel: async (approvalId: string): Promise<void> => {
                 if (pendingApprovalIds.has(approvalId)) {
                     logger.debug(
                         `Cancelling delegated approval '${approvalId}' for sub-agent '${subAgentId}'`
                     );
-                    parentApprovalManager.cancelApproval(approvalId);
                     pendingApprovalIds.delete(approvalId);
+                    await parentApprovalManager.cancelApproval(approvalId);
                 }
             },
 
             /**
              * Cancel all pending approval requests for this sub-agent
              */
-            cancelAll: (): void => {
+            cancelAll: async (): Promise<void> => {
                 if (pendingApprovalIds.size > 0) {
                     logger.debug(
                         `Cancelling all ${pendingApprovalIds.size} delegated approvals for sub-agent '${subAgentId}'`
                     );
-                    for (const approvalId of pendingApprovalIds) {
-                        parentApprovalManager.cancelApproval(approvalId);
-                    }
+                    const approvalIds = [...pendingApprovalIds];
                     pendingApprovalIds.clear();
+                    await Promise.all(
+                        approvalIds.map((approvalId) =>
+                            parentApprovalManager.cancelApproval(approvalId)
+                        )
+                    );
                 }
             },
 
