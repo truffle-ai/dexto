@@ -2276,7 +2276,14 @@ export class TurnExecutor {
             this.logger.warn(
                 `Model repeated ${repeat.toolName} after its earlier result was pruned (${repeat.repeatCount}x)`
             );
-            this.eventBus.emit('context:pruned-tool-call-repeated', repeat);
+            try {
+                this.eventBus.emit('context:pruned-tool-call-repeated', repeat);
+            } catch (error) {
+                // Alert-only signal: a failing listener must not stop the run.
+                this.logger.warn(
+                    `A context:pruned-tool-call-repeated listener failed: ${error instanceof Error ? error.message : String(error)}`
+                );
+            }
         }
     }
 

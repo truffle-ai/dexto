@@ -4601,6 +4601,10 @@ describe('TurnExecutor Integration Tests', () => {
             ]);
             const repeatedHandler = vi.fn();
             sessionEventBus.on('context:pruned-tool-call-repeated', repeatedHandler);
+            // An alert-only listener that fails must not stop the run.
+            sessionEventBus.on('context:pruned-tool-call-repeated', () => {
+                throw new Error('listener failed');
+            });
             vi.mocked(streamText)
                 .mockImplementationOnce(
                     () =>
