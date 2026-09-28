@@ -9,7 +9,7 @@ import type { SystemPromptManager } from '../systemPrompt/manager.js';
 import type { ResourceManager } from '../resources/manager.js';
 import type { DynamicContributorContext } from '../systemPrompt/types.js';
 import type { MCPManager } from '../mcp/manager.js';
-import { InMemoryDextoStores } from '../storage/stores/in-memory.js';
+import { InMemoryDextoStores, InMemoryToolOutputStore } from '../storage/stores/in-memory.js';
 import type { ConversationStore } from '../storage/conversation/types.js';
 
 // Create mock dependencies
@@ -78,7 +78,7 @@ function createContextManager(options?: {
         'test-session-id',
         resourceManager,
         mockLogger,
-        new InMemoryDextoStores().getStore('toolOutputs')
+        new InMemoryToolOutputStore()
     );
 }
 

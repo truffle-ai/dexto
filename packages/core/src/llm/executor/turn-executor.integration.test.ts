@@ -26,7 +26,7 @@ import type { ValidatedLLMConfig } from '../schemas.js';
 import type { Logger } from '../../logger/v2/types.js';
 import type { CompactionStrategy } from '../../context/compaction/types.js';
 import type { InternalMessage } from '../../context/types.js';
-import { InMemoryDextoStores } from '../../storage/stores/in-memory.js';
+import { InMemoryDextoStores, InMemoryToolOutputStore } from '../../storage/stores/in-memory.js';
 import type { DextoStores } from '../../storage/index.js';
 import type { ConversationStore } from '../../storage/conversation/types.js';
 import {
@@ -276,6 +276,7 @@ describe('TurnExecutor Integration Tests', () => {
     let mcpManager: MCPManager;
     let approvalManager: ApprovalManager;
     let stores: DextoStores;
+    let toolOutputStore: InMemoryToolOutputStore;
 
     const sessionId = 'test-session';
     const llmContext: LLMContext = { provider: 'openai', model: 'gpt-4' };
@@ -311,7 +312,7 @@ describe('TurnExecutor Integration Tests', () => {
             sessionId,
             resourceManager,
             logger,
-            stores.getStore('toolOutputs')
+            toolOutputStore
         );
     }
 
@@ -373,6 +374,7 @@ describe('TurnExecutor Integration Tests', () => {
 
         stores = new InMemoryDextoStores();
         await stores.connect();
+        toolOutputStore = new InMemoryToolOutputStore();
 
         // Create real MCP manager
         mcpManager = new MCPManager(logger, agentEventBus);
@@ -4610,7 +4612,7 @@ describe('TurnExecutor Integration Tests', () => {
             toolManager.registerCoreTools([
                 createToolOutputReadTool({
                     conversation: stores.getStore('conversation'),
-                    toolOutputs: stores.getStore('toolOutputs'),
+                    toolOutputs: toolOutputStore,
                 }),
             ]);
             toolManager.addTools([
@@ -4663,9 +4665,9 @@ describe('TurnExecutor Integration Tests', () => {
             const result = await executor.execute({ mcpManager }, true);
 
             expect(result.text).toBe('done');
-            expect(
-                await stores.getStore('toolOutputs').load({ sessionId, toolCallId: 'call-export' })
-            ).toBe(fullOutput);
+            expect(await toolOutputStore.load({ sessionId, toolCallId: 'call-export' })).toBe(
+                fullOutput
+            );
             const history = await contextManager.getHistory();
             const exportText = JSON.stringify(
                 history.find(
@@ -4681,7 +4683,7 @@ describe('TurnExecutor Integration Tests', () => {
             expect(readText).toContain('1: row 1');
             expect(readText).not.toContain('Output truncated');
             expect(
-                await stores.getStore('toolOutputs').load({ sessionId, toolCallId: 'call-read' })
+                await toolOutputStore.load({ sessionId, toolCallId: 'call-read' })
             ).toBeUndefined();
         });
 

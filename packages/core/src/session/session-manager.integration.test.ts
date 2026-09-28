@@ -313,7 +313,7 @@ describe('Session Integration: Chat History Preservation', () => {
         const parentSessionId = 'fork-tool-output-parent';
         await agent.createSession(parentSessionId);
         const conversationStore = agent.services.stores.getStore('conversation');
-        const toolOutputs = agent.services.stores.getStore('toolOutputs');
+        const toolOutputs = agent.services.toolOutputStore;
         await conversationStore.saveMessage({
             sessionId: parentSessionId,
             message: {

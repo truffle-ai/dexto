@@ -17,6 +17,7 @@ import { LLMErrorCode } from '../llm/error-codes.js';
 import { createLogger } from '../logger/factory.js';
 import { AgentEventBus, type StreamingEvent } from '../events/index.js';
 import { InMemoryDextoStores } from '../storage/index.js';
+import { InMemoryToolOutputStore } from '../storage/stores/in-memory.js';
 import type { Skills } from '../skills/index.js';
 
 // Mock the createAgentServices function
@@ -138,6 +139,7 @@ describe('DextoAgent Lifecycle Management', () => {
             } as any,
             searchService: {} as any,
             stores,
+            toolOutputStore: new InMemoryToolOutputStore(),
             resourceManager: {} as any,
             approvalManager: {
                 requestToolApproval: vi.fn(),

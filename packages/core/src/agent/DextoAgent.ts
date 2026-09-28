@@ -501,7 +501,7 @@ export class DextoAgent {
             services.toolManager.registerCoreTools([
                 createToolOutputReadTool({
                     conversation: services.stores.getStore('conversation'),
-                    toolOutputs: services.stores.getStore('toolOutputs'),
+                    toolOutputs: services.toolOutputStore,
                 }),
             ]);
             services.toolManager.setTools(agentTools);

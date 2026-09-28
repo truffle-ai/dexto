@@ -26,7 +26,8 @@ export interface DextoStoreMap {
     artifacts: ArtifactStore;
     runtimeEvents: RuntimeEventStore;
     toolExecutions: ToolExecutionStore;
-    toolOutputs: ToolOutputStore;
+    /** Optional for existing hosts: core falls back to a per-process in-memory store. */
+    toolOutputs?: ToolOutputStore;
 }
 
 export type DextoStoreName = keyof DextoStoreMap;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { InMemoryDextoStores } from '../storage/stores/in-memory.js';
+import { InMemoryDextoStores, InMemoryToolOutputStore } from '../storage/stores/in-memory.js';
 import type { InternalMessage } from '../context/types.js';
 import { createToolOutputReadTool } from './tool-output-read.js';
 import type { ToolExecutionContext } from './types.js';
@@ -7,26 +7,25 @@ import { createMockLogger } from '../logger/v2/test-utils.js';
 
 async function setup() {
     const stores = new InMemoryDextoStores();
+    const toolOutputs = new InMemoryToolOutputStore();
     const tool = createToolOutputReadTool({
         conversation: stores.getStore('conversation'),
-        toolOutputs: stores.getStore('toolOutputs'),
+        toolOutputs,
     });
     const read = async (sessionId: string | undefined, input: Record<string, unknown>) =>
         tool.execute(tool.inputSchema.parse(input), {
             logger: createMockLogger(),
             sessionId,
         } satisfies ToolExecutionContext);
-    return { stores, read };
+    return { stores, toolOutputs, read };
 }
 
 const numbered = Array.from({ length: 3000 }, (_, index) => `line ${index + 1}`).join('\n');
 
 describe('tool_output_read', () => {
     it('reads a stored output in pages with a continuation hint', async () => {
-        const { stores, read } = await setup();
-        await stores
-            .getStore('toolOutputs')
-            .save({ sessionId: 's1', toolCallId: 'call-1', text: numbered });
+        const { toolOutputs, read } = await setup();
+        await toolOutputs.save({ sessionId: 's1', toolCallId: 'call-1', text: numbered });
 
         const first = await read('s1', { id: 'call-1' });
         const next = await read('s1', { id: 'call-1', offset: 2001, limit: 2 });
@@ -39,10 +38,8 @@ describe('tool_output_read', () => {
     });
 
     it('searches a stored output and reports matching line numbers', async () => {
-        const { stores, read } = await setup();
-        await stores
-            .getStore('toolOutputs')
-            .save({ sessionId: 's1', toolCallId: 'call-1', text: numbered });
+        const { toolOutputs, read } = await setup();
+        await toolOutputs.save({ sessionId: 's1', toolCallId: 'call-1', text: numbered });
 
         const found = await read('s1', { id: 'call-1', pattern: 'line 29\\d\\d$', maxMatches: 2 });
 
@@ -68,10 +65,8 @@ describe('tool_output_read', () => {
     });
 
     it('never resolves an id from another session', async () => {
-        const { stores, read } = await setup();
-        await stores
-            .getStore('toolOutputs')
-            .save({ sessionId: 'owner-a', toolCallId: 'call-1', text: 'secret' });
+        const { stores, toolOutputs, read } = await setup();
+        await toolOutputs.save({ sessionId: 'owner-a', toolCallId: 'call-1', text: 'secret' });
         await stores.getStore('conversation').saveMessage({
             sessionId: 'owner-a',
             message: {

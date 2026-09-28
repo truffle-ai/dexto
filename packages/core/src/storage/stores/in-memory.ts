@@ -540,7 +540,7 @@ class InMemoryRuntimeEventStore implements RuntimeEventStore {
     }
 }
 
-class InMemoryToolOutputStore implements ToolOutputStore {
+export class InMemoryToolOutputStore implements ToolOutputStore {
     private readonly outputs = new Map<string, Map<string, string>>();
 
     async save(input: { sessionId: string; toolCallId: string; text: string }): Promise<void> {

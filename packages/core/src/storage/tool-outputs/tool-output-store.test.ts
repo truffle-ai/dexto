@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { InMemoryDextoStores } from '../stores/in-memory.js';
+import { InMemoryToolOutputStore } from '../stores/in-memory.js';
 import { DatabaseBackedToolOutputStore } from '../stores/backend.js';
 import { createInMemoryDatabase } from '../../test-utils/in-memory-storage.js';
 import type { ToolOutputStore } from './types.js';
 
 const stores: Array<[string, () => Promise<ToolOutputStore>]> = [
-    ['in-memory', async () => new InMemoryDextoStores().getStore('toolOutputs')],
+    ['in-memory', async () => new InMemoryToolOutputStore()],
     [
         'database-backed',
         async () => {
