@@ -28,7 +28,7 @@ const MAX_TOOL_TEXT_CHARS = 8000; // Truncate overly long tool text
 
 /** Shown to the model in place of a tool result that was pruned to free context space. */
 export const PRUNED_TOOL_RESULT_PLACEHOLDER =
-    '[Tool result cleared to free context space. Call the tool again if you still need this output.]';
+    '[Tool result cleared to free context space; this output is no longer available. If you still need it and the call only reads data, you can call the tool again.]';
 
 type ToolBlobNamingOptions = {
     toolName?: string;
