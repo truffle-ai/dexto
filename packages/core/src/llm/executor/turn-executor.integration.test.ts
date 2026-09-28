@@ -4572,9 +4572,9 @@ describe('TurnExecutor Integration Tests', () => {
                 'stopped.txt',
                 'stopped-output:'.padEnd(120_000, 'y')
             );
-            const stoppedAssistant = (await contextManager.getHistory()).findLast(
-                (message) => message.role === 'assistant'
-            );
+            const stoppedAssistant = (await contextManager.getHistory())
+                .filter((message) => message.role === 'assistant')
+                .at(-1);
             if (!stoppedAssistant?.id) throw new Error('Expected stopped assistant message id');
             await contextManager.updateAssistantMessage(stoppedAssistant.id, {
                 assistantOutput: { status: 'stopped', reason: 'user_stopped' },
