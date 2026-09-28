@@ -20,7 +20,8 @@ function canonicalJson(value: unknown): string {
     if (typeof value === 'object') {
         const properties = Object.entries(value)
             .filter(([, entry]) => entry !== undefined)
-            .sort(([left], [right]) => left.localeCompare(right))
+            // Code-unit order, so the fingerprint does not depend on the runtime's locale.
+            .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
             .map(([key, entry]) => `${JSON.stringify(key)}:${canonicalJson(entry)}`);
         return `{${properties.join(',')}}`;
     }

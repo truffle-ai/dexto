@@ -715,6 +715,41 @@ describe('TurnExecutor Integration Tests', () => {
             }
         });
 
+        it('keeps MCP annotation extensions in a prepared step checkpoint', async () => {
+            toolManager.addTools([
+                defineTool({
+                    id: 'annotated_tool',
+                    description: 'Tool with annotations',
+                    inputSchema: z.object({ value: z.string() }).strict(),
+                    execute: vi.fn().mockResolvedValue('unused'),
+                }),
+            ]);
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
+            const driver = await executor.createDriver({ mcpManager }, { streaming: true });
+            await driver.prepareNextModelStep();
+            const checkpoint: unknown = JSON.parse(JSON.stringify(driver.checkpoint()));
+            driver.dispose();
+
+            let annotated = false;
+            const annotate = (value: unknown): void => {
+                if (typeof value !== 'object' || value === null) return;
+                const toolDefinitions: unknown = Reflect.get(value, 'toolDefinitions');
+                const entry: unknown =
+                    typeof toolDefinitions === 'object' && toolDefinitions !== null
+                        ? Reflect.get(toolDefinitions, 'annotated_tool')
+                        : undefined;
+                if (typeof entry === 'object' && entry !== null) {
+                    Reflect.set(entry, 'annotations', { readOnlyHint: true, vendorHint: 'cached' });
+                    annotated = true;
+                }
+                for (const child of Object.values(value)) annotate(child);
+            };
+            annotate(checkpoint);
+
+            expect(annotated).toBe(true);
+            expect(() => parseTurnDriverState(checkpoint)).not.toThrow();
+        });
+
         it('rehydrates a completed terminal model step before deciding and finishing', async () => {
             const thinkingHandler = vi.fn();
             const runCompleteHandler = vi.fn();

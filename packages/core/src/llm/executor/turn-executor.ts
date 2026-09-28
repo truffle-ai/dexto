@@ -166,7 +166,8 @@ const ToolAnnotationsStateSchema = z
         idempotentHint: z.boolean().optional(),
         openWorldHint: z.boolean().optional(),
     })
-    .strict();
+    // MCP servers may add their own annotation fields; keep them instead of failing the checkpoint.
+    .catchall(JsonValueSchema);
 const ToolSetEntryStateSchema = z
     .object({
         name: z.string().optional(),
