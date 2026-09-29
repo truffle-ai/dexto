@@ -1,5 +1,17 @@
 # @dexto/core
 
+## 1.13.1
+
+### Patch Changes
+
+- 7027137: Keep large tool outputs readable instead of cutting them. When a tool result is larger than min(25k tokens, 10% of the model's input window), or one step's results exceed 40% of the window, core stores the full text in a tool output store and keeps a head and tail preview in history that names the new core `tool_output_read` tool. The model reads stored or pruned results back by tool call id, by line range or pattern, within its own session. This replaces the 8,000-character cut of plain-string results and the 120,000-character cut of text parts. Pruned results now point to `tool_output_read` instead of suggesting a re-run.
+
+    Hosts can provide a durable `toolOutputs` store in their `DextoStoreMap` (`DatabaseBackedToolOutputStore` works with any `Database`; `image-local` now does). Without one, core keeps stored outputs in memory for the life of the process.
+
+- 10b2d79: Stop long runs from looping on pruned tool output. Pruning no longer clears tool results the model has not seen yet, and the protected tool-output budget now scales with the model's input window (the larger of 40k tokens or 30% of the window). A new `context:pruned-tool-call-repeated` event reports when the model repeats a call whose earlier result was pruned, so hosts can surface and alert on runs that stop making progress.
+- 51d1104: Let a tool opt in with `resumable: true` to re-enter its own durable execution record when a host retry finds it still `running` with the same identity and input. Every other tool keeps failing with "already running", so an in-flight execution is never run twice by default.
+    - @dexto/llm@1.13.1
+
 ## 1.13.0
 
 ### Minor Changes
