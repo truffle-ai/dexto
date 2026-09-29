@@ -2536,6 +2536,46 @@ describe('TurnExecutor Integration Tests', () => {
             expect(injectedMsg).toBeDefined();
         });
 
+        it('keeps a host-tagged queued message separate, with its own metadata', async () => {
+            await steerQueue.enqueue({
+                content: [{ type: 'text', text: 'User guidance: be brief' }],
+            });
+            await steerQueue.enqueue({
+                content: [{ type: 'text', text: 'Heron finished: three venues fit.' }],
+                metadata: { eventSource: { kind: 'subagent', workItemId: 'item-1' } },
+            });
+            await steerQueue.enqueue({
+                content: [{ type: 'text', text: 'User guidance: cite prices' }],
+            });
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Initial request' }]);
+            await executor.execute({ mcpManager }, true);
+
+            const userMessages = (await contextManager.getHistory()).filter(
+                (message) => message.role === 'user'
+            );
+            const texts = userMessages.map((message) =>
+                (Array.isArray(message.content) ? message.content : [])
+                    .map((part) => (part.type === 'text' ? part.text : ''))
+                    .join('')
+            );
+            expect(texts).toEqual([
+                'Initial request',
+                'User guidance: be brief',
+                'Heron finished: three venues fit.',
+                'User guidance: cite prices',
+            ]);
+            expect(userMessages[2]?.metadata).toEqual(
+                expect.objectContaining({
+                    coalesced: false,
+                    eventSource: { kind: 'subagent', workItemId: 'item-1' },
+                    messageCount: 1,
+                })
+            );
+            expect(userMessages[1]?.metadata).not.toHaveProperty('eventSource');
+            expect(userMessages[3]?.metadata).not.toHaveProperty('eventSource');
+        });
+
         it('should continue processing when queue has messages on termination', async () => {
             let callCount = 0;
             vi.mocked(streamText).mockImplementation(() => {

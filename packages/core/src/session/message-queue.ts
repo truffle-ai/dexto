@@ -228,7 +228,7 @@ export class MessageQueueService {
             this.queueSnapshot = [];
             if (messages.length === 0) return null;
 
-            const combined = this.coalesce(messages);
+            const combined = coalesceQueuedMessages(messages);
 
             this.logger.debug(
                 `Dequeued ${messages.length} message(s): ${messages.map((m) => m.id).join(', ')}`
@@ -245,94 +245,6 @@ export class MessageQueueService {
 
             return combined;
         });
-    }
-
-    /**
-     * Coalesce multiple messages into one (multimodal-aware).
-     * Strategy: Combine with per-kind formatting, preserve all media.
-     */
-    private coalesce(messages: QueuedMessage[]): CoalescedMessage {
-        // Single message - return as-is
-        if (messages.length === 1) {
-            const firstMsg = messages[0];
-            if (!firstMsg) {
-                // This should never happen since we check length === 1, but satisfies TypeScript
-                throw new Error('Unexpected empty messages array');
-            }
-            return {
-                messages,
-                combinedContent: firstMsg.content,
-                firstQueuedAt: firstMsg.queuedAt,
-                lastQueuedAt: firstMsg.queuedAt,
-            };
-        }
-
-        const combinedContent: ContentPart[] = [];
-        let hasEntries = false;
-        let inUserSection = false;
-
-        for (const msg of messages) {
-            const isUserMessage = msg.kind !== 'background';
-
-            if (isUserMessage && !inUserSection) {
-                if (hasEntries) {
-                    combinedContent.push({ type: 'text', text: '\n\n' });
-                }
-                combinedContent.push({ type: 'text', text: 'Additional user input received:' });
-                combinedContent.push({ type: 'text', text: '\n\n' });
-                inUserSection = true;
-                hasEntries = false;
-            }
-
-            let prefixText = isUserMessage ? '- ' : '';
-
-            if (hasEntries && !isUserMessage) {
-                combinedContent.push({ type: 'text', text: '\n\n' });
-                inUserSection = false;
-            } else if (hasEntries && isUserMessage) {
-                prefixText = `\n\n${prefixText}`;
-            }
-
-            const entryStartIndex = combinedContent.length;
-            for (const part of msg.content) {
-                if (part.type === 'text') {
-                    if (prefixText) {
-                        combinedContent.push({ type: 'text', text: prefixText + part.text });
-                        prefixText = '';
-                    } else {
-                        combinedContent.push(part);
-                    }
-                } else {
-                    if (prefixText) {
-                        combinedContent.push({ type: 'text', text: prefixText });
-                        prefixText = '';
-                    }
-                    combinedContent.push(part);
-                }
-            }
-
-            if (prefixText && msg.content.length === 0) {
-                combinedContent.push({ type: 'text', text: prefixText + '[empty message]' });
-            }
-
-            if (combinedContent.length > entryStartIndex) {
-                hasEntries = true;
-            }
-        }
-
-        // Get first and last messages - safe because we checked length > 1 above
-        const firstMessage = messages[0];
-        const lastMessage = messages[messages.length - 1];
-        if (!firstMessage || !lastMessage) {
-            throw new Error('Unexpected undefined message in non-empty array');
-        }
-
-        return {
-            messages,
-            combinedContent,
-            firstQueuedAt: firstMessage.queuedAt,
-            lastQueuedAt: lastMessage.queuedAt,
-        };
     }
 
     /**
@@ -401,4 +313,92 @@ export class MessageQueueService {
             return true;
         });
     }
+}
+
+/**
+ * Coalesce multiple messages into one (multimodal-aware).
+ * Strategy: Combine with per-kind formatting, preserve all media.
+ */
+export function coalesceQueuedMessages(messages: QueuedMessage[]): CoalescedMessage {
+    // Single message - return as-is
+    if (messages.length === 1) {
+        const firstMsg = messages[0];
+        if (!firstMsg) {
+            // This should never happen since we check length === 1, but satisfies TypeScript
+            throw new Error('Unexpected empty messages array');
+        }
+        return {
+            messages,
+            combinedContent: firstMsg.content,
+            firstQueuedAt: firstMsg.queuedAt,
+            lastQueuedAt: firstMsg.queuedAt,
+        };
+    }
+
+    const combinedContent: ContentPart[] = [];
+    let hasEntries = false;
+    let inUserSection = false;
+
+    for (const msg of messages) {
+        const isUserMessage = msg.kind !== 'background';
+
+        if (isUserMessage && !inUserSection) {
+            if (hasEntries) {
+                combinedContent.push({ type: 'text', text: '\n\n' });
+            }
+            combinedContent.push({ type: 'text', text: 'Additional user input received:' });
+            combinedContent.push({ type: 'text', text: '\n\n' });
+            inUserSection = true;
+            hasEntries = false;
+        }
+
+        let prefixText = isUserMessage ? '- ' : '';
+
+        if (hasEntries && !isUserMessage) {
+            combinedContent.push({ type: 'text', text: '\n\n' });
+            inUserSection = false;
+        } else if (hasEntries && isUserMessage) {
+            prefixText = `\n\n${prefixText}`;
+        }
+
+        const entryStartIndex = combinedContent.length;
+        for (const part of msg.content) {
+            if (part.type === 'text') {
+                if (prefixText) {
+                    combinedContent.push({ type: 'text', text: prefixText + part.text });
+                    prefixText = '';
+                } else {
+                    combinedContent.push(part);
+                }
+            } else {
+                if (prefixText) {
+                    combinedContent.push({ type: 'text', text: prefixText });
+                    prefixText = '';
+                }
+                combinedContent.push(part);
+            }
+        }
+
+        if (prefixText && msg.content.length === 0) {
+            combinedContent.push({ type: 'text', text: prefixText + '[empty message]' });
+        }
+
+        if (combinedContent.length > entryStartIndex) {
+            hasEntries = true;
+        }
+    }
+
+    // Get first and last messages - safe because we checked length > 1 above
+    const firstMessage = messages[0];
+    const lastMessage = messages[messages.length - 1];
+    if (!firstMessage || !lastMessage) {
+        throw new Error('Unexpected undefined message in non-empty array');
+    }
+
+    return {
+        messages,
+        combinedContent,
+        firstQueuedAt: firstMessage.queuedAt,
+        lastQueuedAt: lastMessage.queuedAt,
+    };
 }
