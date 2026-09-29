@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ContextManager } from './manager.js';
-import { PRUNED_TOOL_RESULT_PLACEHOLDER } from './utils.js';
+import { buildPrunedToolResultPlaceholder } from './utils.js';
 import { createMockLogger } from '../logger/v2/test-utils.js';
 import type { ContentPart, InternalMessage, SanitizedToolResult } from './types.js';
 import type { ValidatedLLMConfig } from '../llm/schemas.js';
@@ -9,7 +9,7 @@ import type { SystemPromptManager } from '../systemPrompt/manager.js';
 import type { ResourceManager } from '../resources/manager.js';
 import type { DynamicContributorContext } from '../systemPrompt/types.js';
 import type { MCPManager } from '../mcp/manager.js';
-import { InMemoryDextoStores } from '../storage/stores/in-memory.js';
+import { InMemoryDextoStores, InMemoryToolOutputStore } from '../storage/stores/in-memory.js';
 import type { ConversationStore } from '../storage/conversation/types.js';
 
 // Create mock dependencies
@@ -77,7 +77,8 @@ function createContextManager(options?: {
         conversationStore,
         'test-session-id',
         resourceManager,
-        mockLogger
+        mockLogger,
+        new InMemoryToolOutputStore()
     );
 }
 
@@ -916,7 +917,7 @@ describe('ContextManager', () => {
             expect(result.stats.prunedToolCount).toBe(1);
             const toolMsg = result.preparedHistory.find((m) => m.role === 'tool');
             expect(toolMsg?.content).toEqual([
-                { type: 'text', text: PRUNED_TOOL_RESULT_PLACEHOLDER },
+                { type: 'text', text: buildPrunedToolResultPlaceholder('call-1') },
             ]);
 
             // Verify original content is NOT in prepared history

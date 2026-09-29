@@ -20,6 +20,7 @@ import {
     DatabaseBackedToolExecutionStore,
     DatabaseBackedToolPreferenceStore,
     DatabaseBackedToolStateStore,
+    DatabaseBackedToolOutputStore,
     DatabaseBackedWorkspaceStore,
     SESSION_FOLLOW_UP_QUEUE_KEY_PREFIX,
     SESSION_STEER_QUEUE_KEY_PREFIX,
@@ -41,6 +42,7 @@ describe('BackendDextoStores', () => {
                 approvals: new DatabaseBackedApprovalStore(database, cache, logger),
                 toolPreferences: new DatabaseBackedToolPreferenceStore(database, cache, logger),
                 toolState: new DatabaseBackedToolStateStore(database),
+                toolOutputs: new DatabaseBackedToolOutputStore(database),
                 steerQueue: new DatabaseBackedSessionMessageQueueStore(
                     database,
                     logger,

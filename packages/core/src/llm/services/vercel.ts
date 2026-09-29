@@ -1,3 +1,4 @@
+import type { ToolOutputStore } from '../../storage/tool-outputs/types.js';
 import { LanguageModel, type ModelMessage } from 'ai';
 import { ToolManager } from '../../tools/tool-manager.js';
 import type { CreateTurnDriverOptions, LLMExecutionControl, LLMServiceConfig } from './types.js';
@@ -95,6 +96,7 @@ export class VercelLLMService {
         model: LanguageModel,
         systemPromptManager: SystemPromptManager,
         conversationStore: ConversationStore,
+        toolOutputStore: ToolOutputStore,
         sessionEventBus: SessionEventBus,
         config: ValidatedLLMConfig,
         sessionId: string,
@@ -140,6 +142,7 @@ export class VercelLLMService {
             sessionId,
             resourceManager,
             this.logger,
+            toolOutputStore,
             this.llmRegistry
         );
 

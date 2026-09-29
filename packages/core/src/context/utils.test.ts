@@ -1795,20 +1795,13 @@ describe('sanitizeToolResultToContentWithBlobs', () => {
             expect(result![0]).toEqual({ type: 'text', text: '' });
         });
 
-        it('should truncate long strings and return ContentPart array', async () => {
-            // MAX_TOOL_TEXT_CHARS is 8000, so create a string longer than that
+        it('keeps long strings whole so the executor can store the full output', async () => {
             // Use text with spaces/punctuation to avoid being detected as base64-like
             const longString = 'This is a sample text line. '.repeat(400); // ~11200 chars
 
             const result = await sanitizeToolResultToContentWithBlobs(longString, mockLogger);
 
-            expect(Array.isArray(result)).toBe(true);
-            expect(result).toHaveLength(1);
-            expect(result![0]?.type).toBe('text');
-            // Verify truncation happened
-            const textPart = result![0] as { type: 'text'; text: string };
-            expect(textPart.text).toContain('chars omitted');
-            expect(textPart.text.length).toBeLessThan(longString.length);
+            expect(result).toEqual([{ type: 'text', text: longString }]);
         });
 
         it('should convert data URI to image ContentPart', async () => {

@@ -1,5 +1,6 @@
 // src/agent/DextoAgent.ts
 import { randomUUID } from 'crypto';
+import { createToolOutputReadTool } from '../tools/tool-output-read.js';
 import { setMaxListeners } from 'events';
 import { ZodError } from 'zod';
 import { MCPManager } from '../mcp/manager.js';
@@ -497,6 +498,12 @@ export class DextoAgent {
                 this.logger.debug('Added SkillsContributor to system prompt');
             }
 
+            services.toolManager.registerCoreTools([
+                createToolOutputReadTool({
+                    conversation: services.stores.getStore('conversation'),
+                    toolOutputs: services.toolOutputStore,
+                }),
+            ]);
             services.toolManager.setTools(agentTools);
 
             // Initialize toolManager after tools and context have been wired.

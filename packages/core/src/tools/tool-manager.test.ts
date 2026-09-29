@@ -188,6 +188,59 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
         vi.clearAllMocks();
     });
 
+    describe('Core Tools', () => {
+        function createCoreToolManager() {
+            mockMcpManager.getAllTools = vi.fn().mockResolvedValue({});
+            const toolManager = createToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'manual',
+                mockAgentEventBus,
+                { alwaysAllow: [] },
+                [],
+                mockLogger
+            );
+            toolManager.registerCoreTools([
+                defineTool({
+                    id: 'tool_output_read',
+                    description: 'Core read tool',
+                    inputSchema: z.object({}).strict(),
+                    execute: async () => 'core',
+                }),
+            ]);
+            return toolManager;
+        }
+
+        it('keeps core tools when the host replaces its tools', async () => {
+            const toolManager = createCoreToolManager();
+
+            toolManager.setTools([
+                defineTool({
+                    id: 'tool_output_read',
+                    description: 'Host tool with a core id',
+                    inputSchema: z.object({}).strict(),
+                    execute: async () => 'host',
+                }),
+            ]);
+
+            const tools = await toolManager.getAllTools();
+            expect(tools['tool_output_read']?.description).toBe('Core read tool');
+        });
+
+        it('keeps core tools when a session disables them', async () => {
+            const toolManager = createCoreToolManager();
+            await toolManager.setSessionDisabledTools('session-1', ['tool_output_read']);
+
+            const filtered = toolManager.filterToolsForSession(
+                await toolManager.getAllTools(),
+                'session-1'
+            );
+
+            expect(Object.keys(filtered)).toContain('tool_output_read');
+        });
+    });
+
     describe('Tool Source Detection Logic', () => {
         it('should correctly identify MCP tools', () => {
             const toolManager = createToolManager(

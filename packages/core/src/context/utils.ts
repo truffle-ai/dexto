@@ -24,11 +24,11 @@ import type { ArtifactData } from '../storage/artifacts/types.js';
 
 // Tunable heuristics and shared constants
 const MIN_BASE64_HEURISTIC_LENGTH = 512; // Below this length, treat as regular text
-const MAX_TOOL_TEXT_CHARS = 8000; // Truncate overly long tool text
 
 /** Shown to the model in place of a tool result that was pruned to free context space. */
-export const PRUNED_TOOL_RESULT_PLACEHOLDER =
-    '[Tool result cleared to free context space; this output is no longer available. If you still need it and the call only reads data, you can call the tool again.]';
+export function buildPrunedToolResultPlaceholder(toolCallId: string): string {
+    return `[Tool result cleared to free context space. Read it again with tool_output_read({ "id": "${toolCallId}" }) instead of re-running the tool.]`;
+}
 
 type ToolBlobNamingOptions = {
     toolName?: string;
@@ -1593,20 +1593,7 @@ export async function sanitizeToolResultToContentWithBlobs(
                 ];
             }
 
-            // Long text: truncate with ellipsis to keep context sane
-            if (result.length > MAX_TOOL_TEXT_CHARS) {
-                const head = result.slice(0, 4000);
-                const tail = result.slice(-1000);
-                logger.debug(
-                    `sanitizeToolResultToContentWithBlobs: truncating long text tool output (len=${result.length})`
-                );
-                return [
-                    {
-                        type: 'text',
-                        text: `${head}\n... [${result.length - 5000} of ${result.length} chars omitted from the middle of this output. They are not available in this conversation; request a narrower slice (for example a smaller range or a more specific query) to see them.] ...\n${tail}`,
-                    },
-                ];
-            }
+            // Long text stays whole here; the executor stores oversized output and keeps a preview.
             return [{ type: 'text', text: result }];
         }
 
@@ -2209,7 +2196,7 @@ export function filterCompacted(history: readonly InternalMessage[]): InternalMe
  */
 export function formatToolOutputForDisplay(message: InternalMessage): string {
     if (isToolMessage(message) && message.compactedAt) {
-        return PRUNED_TOOL_RESULT_PLACEHOLDER;
+        return buildPrunedToolResultPlaceholder(message.toolCallId);
     }
 
     if (typeof message.content === 'string') {

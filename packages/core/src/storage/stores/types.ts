@@ -8,6 +8,7 @@ import type { RuntimeEventStore } from '../runtime-events/types.js';
 import type { SessionStore } from '../sessions/types.js';
 import type { ToolExecutionStore } from '../tool-executions/types.js';
 import type { ToolStateStore } from '../tool-state/types.js';
+import type { ToolOutputStore } from '../tool-outputs/types.js';
 import type { ToolPreferenceStore } from '../tool-preferences/types.js';
 import type { WorkspaceStore } from '../workspaces/types.js';
 
@@ -25,6 +26,8 @@ export interface DextoStoreMap {
     artifacts: ArtifactStore;
     runtimeEvents: RuntimeEventStore;
     toolExecutions: ToolExecutionStore;
+    /** Optional for existing hosts: core falls back to a per-process in-memory store. */
+    toolOutputs?: ToolOutputStore;
 }
 
 export type DextoStoreName = keyof DextoStoreMap;

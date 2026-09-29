@@ -15,7 +15,7 @@ import type { LanguageModel } from 'ai';
 import type { ValidatedLLMConfig } from '../../llm/schemas.js';
 import type { Logger } from '../../logger/v2/types.js';
 import type { InternalMessage } from '../types.js';
-import { InMemoryDextoStores } from '../../storage/stores/in-memory.js';
+import { InMemoryDextoStores, InMemoryToolOutputStore } from '../../storage/stores/in-memory.js';
 import type { DextoStores } from '../../storage/index.js';
 import type { ConversationStore } from '../../storage/conversation/types.js';
 
@@ -120,7 +120,8 @@ describe('Context Compaction Integration Tests', () => {
             conversationStore,
             sessionId,
             resourceManager,
-            logger
+            logger,
+            new InMemoryToolOutputStore()
         );
 
         // Create real compaction strategy
