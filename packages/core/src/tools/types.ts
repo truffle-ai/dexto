@@ -199,6 +199,14 @@ export interface Tool<TSchema extends ZodTypeAny = ZodTypeAny> {
      */
     aliases?: string[] | undefined;
 
+    /**
+     * Lets a host retry re-enter this tool's own durable execution record while it is still
+     * `running` with the same identity and input, instead of failing with "already running".
+     * Only for tools that reconcile their own partial progress (e.g. from a host-side journal);
+     * every other tool keeps the default, which never runs an in-flight execution twice.
+     */
+    resumable?: boolean | undefined;
+
     // NOTE: Approval policy is intentionally a simple function/bool/string.
     // Presentation-specific behavior belongs in `tool.presentation`.
 }
