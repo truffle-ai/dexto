@@ -59,7 +59,7 @@ import { DynamicContributorContext } from '../../systemPrompt/types.js';
 import type { JSONSchema7 } from 'json-schema';
 import { recordOperationSpan } from '../../telemetry/operation-span.js';
 
-import { coalesceQueuedMessages, type MessageQueueService } from '../../session/message-queue.js';
+import type { MessageQueueService } from '../../session/message-queue.js';
 import type { StreamProcessorConfig } from './stream-processor.js';
 import type { CoalescedMessage } from '../../session/types.js';
 import {
@@ -1199,26 +1199,28 @@ export class TurnExecutor {
      * This enables mid-task user guidance.
      */
     private async injectQueuedMessages(coalesced: CoalescedMessage): Promise<void> {
-        for (const group of groupQueuedMessagesForInjection(coalesced)) {
-            await this.contextManager.addMessage({
-                role: 'user',
-                content: group.combinedContent,
-                metadata: {
-                    ...group.messages[0]?.metadata,
-                    coalesced: group.messages.length > 1,
-                    messageCount: group.messages.length,
-                    originalMessageIds: group.messages.map((m) => m.id),
-                },
-            });
+        // One injected message per dequeue: hosts match it to the dequeued batch by
+        // originalMessageIds. A batch of one keeps that message's own metadata (for example a
+        // host event source); hosts that need it dequeue such a message on its own.
+        const [onlyMessage] = coalesced.messages.length === 1 ? coalesced.messages : [];
+        await this.contextManager.addMessage({
+            role: 'user',
+            content: coalesced.combinedContent,
+            metadata: {
+                ...onlyMessage?.metadata,
+                coalesced: coalesced.messages.length > 1,
+                messageCount: coalesced.messages.length,
+                originalMessageIds: coalesced.messages.map((m) => m.id),
+            },
+        });
 
-            this.logger.info('Queued turn input injected into context', {
-                count: group.messages.length,
-                firstQueued: group.firstQueuedAt,
-                lastQueued: group.lastQueuedAt,
-                originalMessageIds: group.messages.map((message) => message.id),
-                content: await describeContentPartsForAudit(group.combinedContent),
-            });
-        }
+        this.logger.info('Queued turn input injected into context', {
+            count: coalesced.messages.length,
+            firstQueued: coalesced.firstQueuedAt,
+            lastQueued: coalesced.lastQueuedAt,
+            originalMessageIds: coalesced.messages.map((message) => message.id),
+            content: await describeContentPartsForAudit(coalesced.combinedContent),
+        });
     }
 
     /**
@@ -2635,32 +2637,4 @@ export class TurnExecutor {
             sessionId: this.sessionId,
         });
     }
-}
-
-/**
- * A queued message that carries its own metadata (for example a host-tagged event source) is
- * injected as its own message so that metadata survives. Consecutive messages without metadata are
- * still coalesced into one injection, in queue order.
- */
-function groupQueuedMessagesForInjection(coalesced: CoalescedMessage): CoalescedMessage[] {
-    if (coalesced.messages.every((message) => message.metadata === undefined)) {
-        return [coalesced];
-    }
-
-    const groups: CoalescedMessage[] = [];
-    let plain: CoalescedMessage['messages'] = [];
-    const flushPlain = () => {
-        if (plain.length > 0) groups.push(coalesceQueuedMessages(plain));
-        plain = [];
-    };
-    for (const message of coalesced.messages) {
-        if (message.metadata === undefined) {
-            plain.push(message);
-            continue;
-        }
-        flushPlain();
-        groups.push(coalesceQueuedMessages([message]));
-    }
-    flushPlain();
-    return groups;
 }
