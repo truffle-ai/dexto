@@ -1,5 +1,12 @@
 # @dexto/core
 
+## 1.13.2
+
+### Patch Changes
+
+- 8018f83: Keep a queued message's own metadata (such as a host event source) on the injected steer when that message is dequeued on its own.
+    - @dexto/llm@1.13.2
+
 ## 1.13.1
 
 ### Patch Changes
