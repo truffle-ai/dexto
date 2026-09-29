@@ -4,6 +4,7 @@ import type { ConversationStore } from '../storage/conversation/types.js';
 import type { ToolOutputStore } from '../storage/tool-outputs/types.js';
 import { TOOL_OUTPUT_READ_TOOL_NAME } from '../llm/executor/tool-output-spill.js';
 import { TOOL_ACTIVITY } from './activity.js';
+import { ToolError } from './errors.js';
 import { defineTool } from './define-tool.js';
 import { createLocalToolCallHeader } from './presentation.js';
 import type { Tool } from './types.js';
@@ -83,7 +84,7 @@ export function createToolOutputReadTool(stores: {
         async execute(input, context) {
             const sessionId = context.sessionId;
             if (sessionId === undefined) {
-                throw new Error(`${TOOL_OUTPUT_READ_TOOL_NAME} needs a session`);
+                throw ToolError.executionFailed(TOOL_OUTPUT_READ_TOOL_NAME, 'it needs a session');
             }
             const text = await loadToolOutput(stores, sessionId, input.id);
             if (text === undefined) {
