@@ -1199,11 +1199,15 @@ export class TurnExecutor {
      * This enables mid-task user guidance.
      */
     private async injectQueuedMessages(coalesced: CoalescedMessage): Promise<void> {
-        // Add as single user message with all guidance
+        // One injected message per dequeue: hosts match it to the dequeued batch by
+        // originalMessageIds. A batch of one keeps that message's own metadata (for example a
+        // host event source); hosts that need it dequeue such a message on its own.
+        const [onlyMessage] = coalesced.messages.length === 1 ? coalesced.messages : [];
         await this.contextManager.addMessage({
             role: 'user',
             content: coalesced.combinedContent,
             metadata: {
+                ...onlyMessage?.metadata,
                 coalesced: coalesced.messages.length > 1,
                 messageCount: coalesced.messages.length,
                 originalMessageIds: coalesced.messages.map((m) => m.id),

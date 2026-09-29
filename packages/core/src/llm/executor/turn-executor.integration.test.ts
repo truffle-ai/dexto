@@ -2536,6 +2536,49 @@ describe('TurnExecutor Integration Tests', () => {
             expect(injectedMsg).toBeDefined();
         });
 
+        it('keeps the own metadata of a queued message dequeued alone', async () => {
+            const queued = await steerQueue.enqueue({
+                content: [{ type: 'text', text: 'Heron finished: three venues fit.' }],
+                metadata: { eventSource: { kind: 'subagent', workItemId: 'item-1' } },
+            });
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Initial request' }]);
+            await executor.execute({ mcpManager }, true);
+
+            const userMessages = (await contextManager.getHistory()).filter(
+                (message) => message.role === 'user'
+            );
+            expect(userMessages).toHaveLength(2);
+            expect(userMessages[1]?.metadata).toEqual({
+                coalesced: false,
+                eventSource: { kind: 'subagent', workItemId: 'item-1' },
+                messageCount: 1,
+                originalMessageIds: [queued.id],
+            });
+        });
+
+        it('injects a batch as one message without any single message metadata', async () => {
+            await steerQueue.enqueue({
+                content: [{ type: 'text', text: 'User guidance: be brief' }],
+            });
+            await steerQueue.enqueue({
+                content: [{ type: 'text', text: 'Heron finished: three venues fit.' }],
+                metadata: { eventSource: { kind: 'subagent', workItemId: 'item-1' } },
+            });
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Initial request' }]);
+            await executor.execute({ mcpManager }, true);
+
+            const userMessages = (await contextManager.getHistory()).filter(
+                (message) => message.role === 'user'
+            );
+            expect(userMessages).toHaveLength(2);
+            expect(userMessages[1]?.metadata).toEqual(
+                expect.objectContaining({ coalesced: true, messageCount: 2 })
+            );
+            expect(userMessages[1]?.metadata).not.toHaveProperty('eventSource');
+        });
+
         it('should continue processing when queue has messages on termination', async () => {
             let callCount = 0;
             vi.mocked(streamText).mockImplementation(() => {
