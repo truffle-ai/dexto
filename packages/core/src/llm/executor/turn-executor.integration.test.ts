@@ -279,7 +279,9 @@ describe('TurnExecutor Integration Tests', () => {
     const sessionId = 'test-session';
     const llmContext: LLMContext = { provider: 'openai', model: 'gpt-4' };
 
-    function createContextManagerFromPersistedStore(): ContextManager<ModelMessage> {
+    function createContextManagerFromPersistedStore(
+        maxInputTokens = 100000
+    ): ContextManager<ModelMessage> {
         const memoryManager = new MemoryManager(stores.getStore('memories'), logger);
         const systemPromptConfig = SystemPromptConfigSchema.parse('You are a helpful assistant.');
         const systemPromptManager = new SystemPromptManager(
@@ -293,7 +295,7 @@ describe('TurnExecutor Integration Tests', () => {
             provider: 'openai',
             model: 'gpt-4',
             apiKey: 'test-api-key',
-            maxInputTokens: 100000,
+            maxInputTokens,
             maxOutputTokens: 4096,
             temperature: 0.7,
             maxIterations: 10,
@@ -303,7 +305,7 @@ describe('TurnExecutor Integration Tests', () => {
             llmConfig,
             formatter,
             systemPromptManager,
-            100000,
+            maxInputTokens,
             conversationStore,
             sessionId,
             resourceManager,
@@ -4472,6 +4474,177 @@ describe('TurnExecutor Integration Tests', () => {
             await executor.execute({ mcpManager }, true);
 
             expect(events).toEqual(['context:pruned', 'streamText']);
+        });
+
+        it('does not loop re-reading parallel tool results that were pruned before the model saw them', async () => {
+            const chatIds = Array.from({ length: 8 }, (_, index) => `chat-${index}`);
+            // ~11k estimated tokens each: 8 results exceed the old fixed 40k protect budget.
+            const chatText = (chatId: string) => `${chatId}:`.padEnd(44_000, 'x');
+            toolManager.addTools([
+                defineTool({
+                    id: 'read_chat',
+                    description: 'Read one chat',
+                    inputSchema: z.object({ chatId: z.string() }).strict(),
+                    execute: async ({ chatId }) => ({
+                        content: [{ type: 'text', text: chatText(chatId) }],
+                    }),
+                }),
+            ]);
+            vi.mocked(streamText).mockImplementation((options) => {
+                const requestJson = JSON.stringify(options.messages);
+                const unread = chatIds.filter((chatId) => !requestJson.includes(chatText(chatId)));
+                if (unread.length === 0) {
+                    return createMockStream({
+                        text: 'Summarized every chat',
+                        finishReason: 'stop',
+                    }) as unknown as ReturnType<typeof streamText>;
+                }
+                return createMockStream({
+                    finishReason: 'tool-calls',
+                    toolCalls: unread.map((chatId) => ({
+                        toolCallId: `call-${chatId}-${Math.random().toString(36).slice(2)}`,
+                        toolName: 'read_chat',
+                        args: { chatId },
+                    })),
+                }) as unknown as ReturnType<typeof streamText>;
+            });
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Summarize my chats' }]);
+            const result = await executor.execute({ mcpManager }, true);
+
+            expect(result.text).toBe('Summarized every chat');
+            expect(streamText).toHaveBeenCalledTimes(2);
+        });
+
+        async function seedSeenToolResult(
+            targetContextManager: ContextManager<ModelMessage>,
+            toolCallId: string,
+            path: string,
+            text: string
+        ) {
+            await targetContextManager.addAssistantMessage('', []);
+            const assistantMessage = (await targetContextManager.getHistory()).at(-1);
+            if (!assistantMessage?.id) throw new Error('Expected assistant message id');
+            await targetContextManager.addToolCall(assistantMessage.id, {
+                id: toolCallId,
+                type: 'function',
+                function: { name: 'read_file', arguments: JSON.stringify({ path }) },
+            });
+            await targetContextManager.addToolResult(toolCallId, 'read_file', {
+                content: [{ type: 'text', text }],
+                meta: { toolName: 'read_file', toolCallId, success: true },
+            });
+        }
+
+        it('scales the protected tool-output budget with the model input window', async () => {
+            // ~50k estimated tokens of tool output the model has already seen.
+            const seenOutput = 'seen-output:'.padEnd(200_000, 'x');
+            const prunedHandler = vi.fn();
+            sessionEventBus.on('context:pruned', prunedHandler);
+            const largeWindowContextManager = createContextManagerFromPersistedStore(400_000);
+            await largeWindowContextManager.addUserMessage([
+                { type: 'text', text: 'Read the files' },
+            ]);
+            await seedSeenToolResult(largeWindowContextManager, 'call-a', 'a.txt', seenOutput);
+            await seedSeenToolResult(largeWindowContextManager, 'call-b', 'b.txt', 'small');
+
+            await createExecutorWithContext(largeWindowContextManager).execute(
+                { mcpManager },
+                true
+            );
+
+            expect(prunedHandler).not.toHaveBeenCalled();
+            expect(JSON.stringify(vi.mocked(streamText).mock.calls[0]?.[0].messages)).toContain(
+                seenOutput
+            );
+        });
+
+        it('does not count tool results from stopped outputs toward the pruning budget', async () => {
+            // ~30k estimated tokens the model has seen; under the 40k budget on its own.
+            const visibleOutput = 'visible-output:'.padEnd(120_000, 'x');
+            const prunedHandler = vi.fn();
+            sessionEventBus.on('context:pruned', prunedHandler);
+            await contextManager.addUserMessage([{ type: 'text', text: 'Read the files' }]);
+            // ~30k tokens behind an output that was stopped, so the model never sees it.
+            await seedSeenToolResult(
+                contextManager,
+                'call-stopped',
+                'stopped.txt',
+                'stopped-output:'.padEnd(120_000, 'y')
+            );
+            const stoppedAssistant = (await contextManager.getHistory())
+                .filter((message) => message.role === 'assistant')
+                .at(-1);
+            if (!stoppedAssistant?.id) throw new Error('Expected stopped assistant message id');
+            await contextManager.updateAssistantMessage(stoppedAssistant.id, {
+                assistantOutput: { status: 'stopped', reason: 'user_stopped' },
+            });
+            await seedSeenToolResult(contextManager, 'call-visible', 'visible.txt', visibleOutput);
+            await seedSeenToolResult(contextManager, 'call-recent', 'recent.txt', 'small');
+
+            await executor.execute({ mcpManager }, true);
+
+            expect(prunedHandler).not.toHaveBeenCalled();
+            expect(JSON.stringify(vi.mocked(streamText).mock.calls[0]?.[0].messages)).toContain(
+                visibleOutput
+            );
+        });
+
+        it('reports a repeated tool call whose earlier result was pruned', async () => {
+            toolManager.addTools([
+                defineTool({
+                    id: 'read_file',
+                    description: 'Read a file',
+                    inputSchema: z.object({ path: z.string() }).strict(),
+                    execute: async () => ({ content: [{ type: 'text', text: 'file again' }] }),
+                }),
+            ]);
+            const repeatedHandler = vi.fn();
+            sessionEventBus.on('context:pruned-tool-call-repeated', repeatedHandler);
+            // An alert-only listener that fails must not stop the run.
+            sessionEventBus.on('context:pruned-tool-call-repeated', () => {
+                throw new Error('listener failed');
+            });
+            vi.mocked(streamText)
+                .mockImplementationOnce(
+                    () =>
+                        createMockStream({
+                            finishReason: 'tool-calls',
+                            toolCalls: [
+                                {
+                                    toolCallId: 'call-repeat',
+                                    toolName: 'read_file',
+                                    args: { path: 'old-large.txt' },
+                                },
+                            ],
+                        }) as unknown as ReturnType<typeof streamText>
+                )
+                .mockImplementationOnce(
+                    () =>
+                        createMockStream({
+                            text: 'done',
+                            finishReason: 'stop',
+                        }) as unknown as ReturnType<typeof streamText>
+                );
+            await contextManager.addUserMessage([{ type: 'text', text: 'Read the file' }]);
+            await seedSeenToolResult(
+                contextManager,
+                'call-old',
+                'old-large.txt',
+                'old-tool-output'.repeat(20_000)
+            );
+            await seedSeenToolResult(contextManager, 'call-recent', 'recent.txt', 'small');
+
+            const result = await executor.execute({ mcpManager }, true);
+
+            expect(result.text).toBe('done');
+            expect(repeatedHandler).toHaveBeenCalledTimes(1);
+            expect(repeatedHandler).toHaveBeenCalledWith({
+                toolName: 'read_file',
+                toolCallId: 'call-repeat',
+                prunedToolCallId: 'call-old',
+                repeatCount: 1,
+            });
         });
 
         it('compacts estimated overflow before sending the next model request', async () => {

@@ -18,6 +18,7 @@ import type {
     FilePart,
     ResourcePart,
     UIResourcePart,
+    InternalMessage,
 } from '../../context/types.js';
 import { sanitizeToolResult } from '../../context/utils.js';
 import {
@@ -32,6 +33,7 @@ import type { ToolCallMetadata } from '../../tools/tool-call-metadata.js';
 import type { ToolExecutionIdentity } from '../../storage/tool-executions/types.js';
 import { StreamProcessor } from './stream-processor.js';
 import { truncateToolResult } from './tool-output-truncator.js';
+import { findRepeatedPrunedToolCalls } from './repeated-pruned-tool-calls.js';
 import type { ExecutorResult, ModelToolCall, StreamProcessorResult } from './types.js';
 import { buildProviderOptions, getEffectiveReasoningBudgetTokens } from './provider-options.js';
 import type {
@@ -1357,8 +1359,13 @@ export class TurnExecutor {
             }
         }
 
-        // Prune old tool outputs before compaction, so pruning can avoid unnecessary compaction.
-        await this.pruneOldToolOutputs();
+        // Report repeats against the pruning the model already saw, then prune old tool outputs
+        // before compaction, so pruning can avoid unnecessary compaction.
+        const modelHistory = await this.contextManager.getModelHistory();
+        this.reportRepeatedPrunedToolCalls(modelHistory);
+        // Prune over what the model actually sees: stopped outputs and their results are excluded.
+        const { preparedHistory: visibleHistory } = await this.contextManager.prepareModelHistory();
+        await this.pruneOldToolOutputs(visibleHistory);
 
         let systemPrompt = await recordOperationSpan(
             {
@@ -2243,10 +2250,42 @@ export class TurnExecutor {
     }
 
     /**
-     * Constants for pruning thresholds
+     * Constants for pruning thresholds. The protected budget scales with the model's input
+     * window so large-window models keep more recent tool output visible.
      */
-    private static readonly PRUNE_PROTECT = 40_000; // Keep last 40K tokens of tool outputs
+    private static readonly PRUNE_PROTECT_MIN = 40_000; // Always keep at least 40K tokens of tool outputs
+    private static readonly PRUNE_PROTECT_WINDOW_RATIO = 0.3; // Or 30% of the input window, if larger
     private static readonly PRUNE_MINIMUM = 20_000; // Only prune if we can save 20K+
+
+    private getPruneProtectTokens(): number {
+        return Math.max(
+            TurnExecutor.PRUNE_PROTECT_MIN,
+            Math.floor(
+                this.contextManager.getMaxInputTokens() * TurnExecutor.PRUNE_PROTECT_WINDOW_RATIO
+            )
+        );
+    }
+
+    /**
+     * Emits `context:pruned-tool-call-repeated` for each call in the latest assistant message that
+     * repeats a call whose result was already pruned. This is a no-progress signal for hosts;
+     * the executor never stops the run because of it.
+     */
+    private reportRepeatedPrunedToolCalls(history: Readonly<InternalMessage[]>): void {
+        for (const repeat of findRepeatedPrunedToolCalls(history)) {
+            this.logger.warn(
+                `Model repeated ${repeat.toolName} after its earlier result was pruned (${repeat.repeatCount}x)`
+            );
+            try {
+                this.eventBus.emit('context:pruned-tool-call-repeated', repeat);
+            } catch (error) {
+                // Alert-only signal: a failing listener must not stop the run.
+                this.logger.warn(
+                    `A context:pruned-tool-call-repeated listener failed: ${error instanceof Error ? error.message : String(error)}`
+                );
+            }
+        }
+    }
 
     /**
      * Prunes old tool outputs by marking them with compactedAt timestamp.
@@ -2257,14 +2296,22 @@ export class TurnExecutor {
      * 1. Go backwards through history (most recent first)
      * 2. Stop at summary message (only process post-summary messages)
      * 3. Count tool message tokens
-     * 4. If total exceeds PRUNE_PROTECT, mark older ones for pruning
-     * 5. Only prune if savings exceed PRUNE_MINIMUM
+     * 4. If total exceeds the protected budget, mark older ones for pruning
+     * 5. Never prune results the model has not seen yet
+     * 6. Only prune if savings exceed PRUNE_MINIMUM
      */
-    private async pruneOldToolOutputs(): Promise<{ prunedCount: number; savedTokens: number }> {
-        const history = await this.contextManager.getModelHistory();
+    private async pruneOldToolOutputs(
+        history: Readonly<InternalMessage[]>
+    ): Promise<{ prunedCount: number; savedTokens: number }> {
+        const protectTokens = this.getPruneProtectTokens();
         let totalToolTokens = 0;
         let prunedTokens = 0;
         const toPrune: string[] = []; // Message IDs to mark
+
+        // Tool results after the latest assistant message have not been sent to the model yet.
+        // They count toward the protected budget but are never pruned, so the model always sees
+        // every result at least once.
+        let seenByModel = false;
 
         // Go backwards through history (most recent first)
         for (let i = history.length - 1; i >= 0; i--) {
@@ -2273,6 +2320,8 @@ export class TurnExecutor {
 
             // Stop at summary message - only prune AFTER the summary
             if (msg.metadata?.isSummary === true) break;
+
+            if (msg.role === 'assistant') seenByModel = true;
 
             // Only process tool messages
             if (msg.role !== 'tool') continue;
@@ -2287,7 +2336,7 @@ export class TurnExecutor {
             totalToolTokens += tokens;
 
             // If we've exceeded protection threshold, mark for pruning
-            if (totalToolTokens > TurnExecutor.PRUNE_PROTECT && msg.id) {
+            if (seenByModel && totalToolTokens > protectTokens && msg.id) {
                 prunedTokens += tokens;
                 toPrune.push(msg.id);
             }

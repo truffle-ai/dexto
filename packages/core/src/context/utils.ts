@@ -26,6 +26,10 @@ import type { ArtifactData } from '../storage/artifacts/types.js';
 const MIN_BASE64_HEURISTIC_LENGTH = 512; // Below this length, treat as regular text
 const MAX_TOOL_TEXT_CHARS = 8000; // Truncate overly long tool text
 
+/** Shown to the model in place of a tool result that was pruned to free context space. */
+export const PRUNED_TOOL_RESULT_PLACEHOLDER =
+    '[Tool result cleared to free context space; this output is no longer available. If you still need it and the call only reads data, you can call the tool again.]';
+
 type ToolBlobNamingOptions = {
     toolName?: string;
     toolCallId?: string;
@@ -1599,7 +1603,7 @@ export async function sanitizeToolResultToContentWithBlobs(
                 return [
                     {
                         type: 'text',
-                        text: `${head}\n... [${result.length - 5000} chars omitted] ...\n${tail}`,
+                        text: `${head}\n... [${result.length - 5000} of ${result.length} chars omitted from the middle of this output. They are not available in this conversation; request a narrower slice (for example a smaller range or a more specific query) to see them.] ...\n${tail}`,
                     },
                 ];
             }
@@ -2205,7 +2209,7 @@ export function filterCompacted(history: readonly InternalMessage[]): InternalMe
  */
 export function formatToolOutputForDisplay(message: InternalMessage): string {
     if (isToolMessage(message) && message.compactedAt) {
-        return '[Old tool result content cleared]';
+        return PRUNED_TOOL_RESULT_PLACEHOLDER;
     }
 
     if (typeof message.content === 'string') {

@@ -12,6 +12,7 @@ import {
     estimateContextTokens,
     estimateMessagesTokens,
     isBinaryMediaMimeType,
+    PRUNED_TOOL_RESULT_PLACEHOLDER,
 } from './utils.js';
 import type { SanitizedToolResult } from './types.js';
 import { DynamicContributorContext } from '../systemPrompt/types.js';
@@ -468,12 +469,6 @@ export class ContextManager<TMessage = unknown> {
     // ============= HISTORY PREPARATION =============
 
     /**
-     * Placeholder text used when tool outputs are pruned.
-     * Shared constant to ensure consistency between preparation and estimation.
-     */
-    private static readonly PRUNED_TOOL_PLACEHOLDER = '[Old tool result content cleared]';
-
-    /**
      * Prepares conversation history for LLM consumption.
      * This is the single source of truth for history transformation logic.
      *
@@ -556,9 +551,7 @@ export class ContextManager<TMessage = unknown> {
                 prunedToolCount++;
                 return {
                     ...msg,
-                    content: [
-                        { type: 'text' as const, text: ContextManager.PRUNED_TOOL_PLACEHOLDER },
-                    ],
+                    content: [{ type: 'text' as const, text: PRUNED_TOOL_RESULT_PLACEHOLDER }],
                 };
             }
             return msg;
