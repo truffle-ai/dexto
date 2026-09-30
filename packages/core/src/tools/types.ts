@@ -207,6 +207,13 @@ export interface Tool<TSchema extends ZodTypeAny = ZodTypeAny> {
      */
     resumable?: boolean | undefined;
 
+    /**
+     * Ends the turn once this call succeeds: core records the result and stops instead of asking
+     * the model for another step, unless a steered user message arrived during the step. For
+     * tools that deliver the turn's answer. A function decides per call from the parsed input.
+     */
+    endsTurn?: boolean | ((input: z.output<TSchema>) => boolean) | undefined;
+
     // NOTE: Approval policy is intentionally a simple function/bool/string.
     // Presentation-specific behavior belongs in `tool.presentation`.
 }

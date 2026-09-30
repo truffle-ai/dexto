@@ -119,6 +119,7 @@ const LLMFinishReasonStateSchema = z.enum([
     'unknown',
     'cancelled',
     'max-steps',
+    'tool-ended',
 ]);
 
 const TokenUsageStateSchema = z
@@ -1158,6 +1159,12 @@ export class TurnExecutor {
                 };
             }
 
+            const endingCall = await this.findTurnEndingToolCall(result.toolCalls);
+            if (endingCall !== undefined && !this.steerQueue.hasPending()) {
+                this.logger.debug(`Terminating: ${endingCall.toolName} ended the turn`);
+                return { kind: 'stop', stepCount, finishReason: 'tool-ended' };
+            }
+
             return this.advanceStep(stepCount);
         }
 
@@ -1186,12 +1193,54 @@ export class TurnExecutor {
             }
         }
 
+        const beforeTurnEnd = this.config.executionControl?.beforeTurnEnd;
+        if (beforeTurnEnd !== undefined && !this.externalSignal?.aborted) {
+            const decision = await beforeTurnEnd({
+                sessionId: this.sessionId,
+                finishReason: result.finishReason,
+                stepCount,
+            });
+            if (decision.kind === 'continue') {
+                const stepAdvance = this.advanceStep(stepCount);
+                if (stepAdvance.kind === 'stop') return stepAdvance;
+                this.logger.debug('Continuing: host asked to continue before the turn ends');
+                await this.contextManager.addMessage({
+                    role: 'user',
+                    content: decision.content,
+                    ...(decision.metadata !== undefined && { metadata: decision.metadata }),
+                });
+                return stepAdvance;
+            }
+        }
+
         this.logger.debug(`Terminating: finishReason is "${result.finishReason}"`);
         return {
             kind: 'stop',
             stepCount,
             finishReason: result.finishReason,
         };
+    }
+
+    /**
+     * The step's first call to a tool that ends the turn, if it succeeded. Read from history so a
+     * host can checkpoint between executing tools and deciding the next step.
+     */
+    private async findTurnEndingToolCall(
+        toolCalls: readonly ModelToolCall[]
+    ): Promise<ModelToolCall | undefined> {
+        const endingCalls = toolCalls.filter((call) =>
+            this.toolManager.endsTurn(call.toolName, call.input)
+        );
+        if (endingCalls.length === 0) return undefined;
+        const history = await this.contextManager.getHistory();
+        return endingCalls.find((call) =>
+            history.some(
+                (message) =>
+                    message.role === 'tool' &&
+                    message.toolCallId === call.toolCallId &&
+                    message.success !== false
+            )
+        );
     }
 
     /**

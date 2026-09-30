@@ -26,7 +26,8 @@ export type LLMFinishReason =
     | 'unknown' // Model has not transmitted a finish reason
     // App-specific additions
     | 'cancelled' // User cancelled
-    | 'max-steps'; // Hit max steps limit
+    | 'max-steps' // Hit max steps limit
+    | 'tool-ended'; // A tool that ends the turn (Tool.endsTurn) succeeded
 
 /**
  * Agent-level event names - events that occur at the agent/global level

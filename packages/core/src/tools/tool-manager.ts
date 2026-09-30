@@ -862,6 +862,14 @@ export class ToolManager {
         return descriptors;
     }
 
+    /** Whether a successful call of this local tool with this input ends the turn. */
+    endsTurn(toolName: string, input: unknown): boolean {
+        const endsTurn = this.agentTools.get(toolName)?.endsTurn;
+        if (typeof endsTurn !== 'function') return endsTurn === true;
+        const parsed = this.agentTools.get(toolName)?.inputSchema.safeParse(input);
+        return parsed?.success === true && endsTurn(parsed.data);
+    }
+
     async getToolDescriptor(toolName: string): Promise<ToolDescriptor | undefined> {
         const localTool = this.agentTools.get(toolName);
         if (localTool !== undefined) {
