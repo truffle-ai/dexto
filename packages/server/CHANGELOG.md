@@ -1,5 +1,18 @@
 # @dexto/server
 
+## 1.13.3
+
+### Patch Changes
+
+- Updated dependencies [f1086b2]
+    - @dexto/core@1.13.3
+    - @dexto/agent-config@1.13.3
+    - @dexto/agent-management@1.13.3
+    - @dexto/image-local@1.13.3
+    - @dexto/storage@1.13.3
+    - @dexto/tools-scheduler@1.13.3
+    - @dexto/llm@1.13.3
+
 ## 1.13.2
 
 ### Patch Changes
