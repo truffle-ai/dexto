@@ -25,6 +25,7 @@ import type { LLMContext } from '@dexto/llm';
 import type { ValidatedLLMConfig } from '../schemas.js';
 import type { Logger } from '../../logger/v2/types.js';
 import type { CompactionStrategy } from '../../context/compaction/types.js';
+import type { BeforeTurnEndDecision, LLMExecutionControl } from '../services/types.js';
 import type { InternalMessage } from '../../context/types.js';
 import { InMemoryDextoStores, InMemoryToolOutputStore } from '../../storage/stores/in-memory.js';
 import type { DextoStores } from '../../storage/index.js';
@@ -2447,6 +2448,160 @@ describe('TurnExecutor Integration Tests', () => {
 
             expect(result.finishReason).toBe('max-steps');
             expect(result.stepCount).toBe(3);
+        });
+    });
+
+    describe('Tool-ended turns and beforeTurnEnd', () => {
+        const replyTool = (execute = vi.fn().mockResolvedValue({ status: 'sent' })) =>
+            defineTool({
+                id: 'reply',
+                description: 'Send the answer',
+                inputSchema: z
+                    .object({ status: z.enum(['done', 'working']), text: z.string() })
+                    .strict(),
+                endsTurn: (input) => input.status !== 'working',
+                execute,
+            });
+        const replyStep = (toolCallId: string, status: 'done' | 'working') =>
+            createMockStream({
+                finishReason: 'tool-calls',
+                toolCalls: [
+                    { toolCallId, toolName: 'reply', args: { status, text: `${status} text` } },
+                ],
+            }) as unknown as ReturnType<typeof streamText>;
+        const textStep = (text: string) =>
+            createMockStream({ text, finishReason: 'stop' }) as unknown as ReturnType<
+                typeof streamText
+            >;
+        const executorWith = (executionControl?: LLMExecutionControl) =>
+            new TurnExecutor(
+                createMockModel(),
+                toolManager,
+                contextManager,
+                sessionEventBus,
+                resourceManager,
+                sessionId,
+                { maxSteps: 10, ...(executionControl !== undefined && { executionControl }) },
+                llmContext,
+                logger,
+                steerQueue,
+                followUpQueue
+            );
+
+        it('ends the turn after a successful turn-ending tool call without another model step', async () => {
+            toolManager.addTools([replyTool()]);
+            vi.mocked(streamText).mockImplementationOnce(() => replyStep('call-reply', 'done'));
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Answer me' }]);
+            const result = await executorWith().execute({ mcpManager }, true);
+
+            expect(result.finishReason).toBe('tool-ended');
+            expect(streamText).toHaveBeenCalledTimes(1);
+            expect(await contextManager.getHistory()).toContainEqual(
+                expect.objectContaining({ role: 'tool', toolCallId: 'call-reply', success: true })
+            );
+        });
+
+        it('keeps working after a call whose input does not end the turn', async () => {
+            toolManager.addTools([replyTool()]);
+            vi.mocked(streamText)
+                .mockImplementationOnce(() => replyStep('call-progress', 'working'))
+                .mockImplementationOnce(() => replyStep('call-final', 'done'));
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Long task' }]);
+            const result = await executorWith().execute({ mcpManager }, true);
+
+            expect(result.finishReason).toBe('tool-ended');
+            expect(streamText).toHaveBeenCalledTimes(2);
+        });
+
+        it('keeps working when the turn-ending call failed', async () => {
+            toolManager.addTools([
+                replyTool(vi.fn().mockRejectedValue(new Error('not delivered'))),
+            ]);
+            vi.mocked(streamText)
+                .mockImplementationOnce(() => replyStep('call-reply', 'done'))
+                .mockImplementationOnce(() => textStep('Could not send the reply.'));
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Answer me' }]);
+            const result = await executorWith().execute({ mcpManager }, true);
+
+            expect(result.finishReason).toBe('stop');
+            expect(streamText).toHaveBeenCalledTimes(2);
+        });
+
+        it('keeps working when a user message is steered in during the ending step', async () => {
+            toolManager.addTools([
+                replyTool(
+                    vi
+                        .fn()
+                        .mockImplementationOnce(async () => {
+                            await steerQueue.enqueue({
+                                content: [{ type: 'text', text: 'One more thing' }],
+                            });
+                            return { status: 'sent' };
+                        })
+                        .mockResolvedValue({ status: 'sent' })
+                ),
+            ]);
+            vi.mocked(streamText)
+                .mockImplementationOnce(() => replyStep('call-reply', 'done'))
+                .mockImplementationOnce(() => replyStep('call-reply-2', 'done'));
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Answer me' }]);
+            const result = await executorWith().execute({ mcpManager }, true);
+
+            expect(result.finishReason).toBe('tool-ended');
+            expect(streamText).toHaveBeenCalledTimes(2);
+            expect(await contextManager.getHistory()).toContainEqual(
+                expect.objectContaining({
+                    role: 'user',
+                    content: [{ type: 'text', text: 'One more thing' }],
+                })
+            );
+        });
+
+        it('continues once with the host message when beforeTurnEnd asks to', async () => {
+            toolManager.addTools([replyTool()]);
+            vi.mocked(streamText)
+                .mockImplementationOnce(() => textStep('The answer, as plain text'))
+                .mockImplementationOnce(() => replyStep('call-reply', 'done'));
+            const beforeTurnEnd = vi.fn(
+                async (): Promise<BeforeTurnEndDecision> => ({
+                    kind: 'continue',
+                    content: [{ type: 'text', text: 'Send your answer with reply.' }],
+                    metadata: { hostReminder: 'reply' },
+                })
+            );
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Answer me' }]);
+            const result = await executorWith({ beforeTurnEnd }).execute({ mcpManager }, true);
+
+            expect(result.finishReason).toBe('tool-ended');
+            expect(beforeTurnEnd).toHaveBeenCalledTimes(1);
+            expect(beforeTurnEnd).toHaveBeenCalledWith(
+                expect.objectContaining({ finishReason: 'stop', sessionId })
+            );
+            expect(await contextManager.getHistory()).toContainEqual(
+                expect.objectContaining({
+                    role: 'user',
+                    content: [{ type: 'text', text: 'Send your answer with reply.' }],
+                    metadata: { hostReminder: 'reply' },
+                })
+            );
+        });
+
+        it('ends normally when beforeTurnEnd lets the turn end', async () => {
+            vi.mocked(streamText).mockImplementationOnce(() => textStep('Done.'));
+            const beforeTurnEnd = vi.fn(
+                async (): Promise<BeforeTurnEndDecision> => ({ kind: 'end' })
+            );
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hi' }]);
+            const result = await executorWith({ beforeTurnEnd }).execute({ mcpManager }, true);
+
+            expect(result.finishReason).toBe('stop');
+            expect(streamText).toHaveBeenCalledTimes(1);
         });
     });
 

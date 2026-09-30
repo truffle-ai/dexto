@@ -9,6 +9,8 @@ import type { ModelRegistry } from '@dexto/llm';
 import type { MessageQueueService } from '../../session/message-queue.js';
 import type { AgentRunContext } from '../../runtime/run-context.js';
 import type { TurnDriverState } from '../executor/turn-executor.js';
+import type { ContentPart } from '../../context/types.js';
+import type { LLMFinishReason } from '../../events/index.js';
 
 /**
  * Configuration object returned by the default session LLM service.
@@ -37,7 +39,23 @@ export type LLMExecutionControl = {
      * Hosted runtimes should keep follow-ups durable and promote them as separate runs.
      */
     followUpQueueMode?: 'core-continuation' | 'host-run' | undefined;
+    /**
+     * Runs when the model ends a turn on its own: no tool calls and nothing queued. Returning
+     * `continue` adds the message as user input and runs one more step. Hosts own any limit,
+     * for example reminding the model once to deliver its answer.
+     */
+    beforeTurnEnd?: ((context: BeforeTurnEndContext) => Promise<BeforeTurnEndDecision>) | undefined;
 };
+
+export type BeforeTurnEndContext = {
+    sessionId: string;
+    finishReason: LLMFinishReason;
+    stepCount: number;
+};
+
+export type BeforeTurnEndDecision =
+    | { kind: 'end' }
+    | { kind: 'continue'; content: ContentPart[]; metadata?: Record<string, unknown> };
 
 export type CreateTurnDriverOptions = {
     streaming?: boolean;
