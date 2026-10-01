@@ -627,5 +627,25 @@
     "author": "CoinGecko",
     "homepage": "https://docs.coingecko.com/docs/mcp-server",
     "matchIds": ["coingecko"]
+  },
+  {
+    "id": "you-search",
+    "name": "You.com Search",
+    "description": "Web search with cited sources using You.com's hosted MCP server (free profile, no API key required)",
+    "category": "research",
+    "icon": "🔍",
+    "config": {
+      "type": "http",
+      "url": "https://api.you.com/mcp?profile=free",
+      "headers": {},
+      "timeout": 30000
+    },
+    "tags": ["search", "web", "research", "citations"],
+    "isOfficial": true,
+    "isInstalled": false,
+    "requirements": { "platform": "all", "node": ">=18.0.0" },
+    "author": "You.com",
+    "homepage": "https://you.com/docs",
+    "matchIds": ["you-search", "you_search", "youcom", "you"]
   }
 ]
