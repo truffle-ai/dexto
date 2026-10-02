@@ -787,6 +787,18 @@ export function createCloudAgentBackend(
             return clearQueuedMessages(followUpQueueBySession, sessionId);
         }) as CloudChatBackend['clearFollowUpQueue'],
 
+        // Cloud queues live only in this process, so nothing is ever restored from storage.
+        getRestoredPendingInput: (async () => ({
+            steer: [],
+            followUp: [],
+        })) as CloudChatBackend['getRestoredPendingInput'],
+
+        takeRestoredPendingInput: (async () =>
+            null) as CloudChatBackend['takeRestoredPendingInput'],
+
+        discardRestoredPendingInput: (async () =>
+            0) as CloudChatBackend['discardRestoredPendingInput'],
+
         cancel: (async (sessionId) => {
             await client.cancelCloudAgentSessionRun(cloudAgentId, sessionId);
             return true;

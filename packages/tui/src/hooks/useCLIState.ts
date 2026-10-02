@@ -8,7 +8,7 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useStdout } from 'ink';
 import { getModelDisplayName } from '@dexto/llm';
-import { isUserMessage, type QueuedMessage } from '@dexto/core';
+import { isUserMessage, type QueuedMessage, type RestoredPendingInput } from '@dexto/core';
 import type {
     Message,
     StartupInfo,
@@ -22,6 +22,7 @@ import { useAgentEvents } from './useAgentEvents.js';
 import { useInputOrchestrator, type Key } from './useInputOrchestrator.js';
 import { InputService, MessageService } from '../services/index.js';
 import { convertHistoryToUIMessages } from '../utils/messageFormatting.js';
+import { EMPTY_RESTORED_PENDING_INPUT } from '../utils/restoredPendingInput.js';
 import type { OverlayContainerHandle } from '../containers/OverlayContainer.js';
 import { useTextBuffer, type TextBuffer } from '../components/shared/text-buffer.js';
 import type { TuiAgentBackend } from '../agent-backend.js';
@@ -55,6 +56,9 @@ export interface CLIStateReturn {
     // Follow-up messages waiting to run after the current turn
     queuedMessages: QueuedMessage[];
     setQueuedMessages: React.Dispatch<React.SetStateAction<QueuedMessage[]>>;
+    // Queued input restored from an interrupted run, on hold until /queue resume or /queue discard
+    restoredPendingInput: RestoredPendingInput;
+    setRestoredPendingInput: React.Dispatch<React.SetStateAction<RestoredPendingInput>>;
     // Todo items for workflow tracking
     todos: TodoItem[];
     setTodos: React.Dispatch<React.SetStateAction<TodoItem[]>>;
@@ -104,6 +108,10 @@ export function useCLIState({
     const [steerMessages, setSteerMessages] = useState<QueuedMessage[]>([]);
     // Queued follow-up messages - messages waiting to run after the current turn
     const [queuedMessages, setQueuedMessages] = useState<QueuedMessage[]>([]);
+    // Queued input restored from an interrupted run - shown on hold, never run implicitly
+    const [restoredPendingInput, setRestoredPendingInput] = useState<RestoredPendingInput>(
+        EMPTY_RESTORED_PENDING_INPUT
+    );
     // Todo items for workflow tracking (populated via service:event from todo tools)
     const [todos, setTodos] = useState<TodoItem[]>([]);
 
@@ -209,6 +217,7 @@ export function useCLIState({
         setApprovalQueue,
         setSteerMessages,
         setQueuedMessages,
+        setRestoredPendingInput,
         currentSessionId: session.id,
         buffer,
     });
@@ -247,6 +256,33 @@ export function useCLIState({
     useEffect(() => {
         setTodos([]);
     }, [session.id]);
+
+    // Reveal queued input restored from an interrupted run whenever a session is opened.
+    // It renders as an on-hold section above the input and stays there until the user runs
+    // /queue resume or /queue discard.
+    useEffect(() => {
+        const sessionId = session.id;
+        if (!sessionId) {
+            setRestoredPendingInput(EMPTY_RESTORED_PENDING_INPUT);
+            return;
+        }
+
+        let cancelled = false;
+        void agent
+            .getRestoredPendingInput(sessionId)
+            .then((pending) => {
+                if (cancelled) return;
+                setRestoredPendingInput(pending);
+            })
+            .catch(() => {
+                if (cancelled) return;
+                setRestoredPendingInput(EMPTY_RESTORED_PENDING_INPUT);
+            });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [agent, session.id]);
 
     // Hydrate conversation history when resuming a session
     useEffect(() => {
@@ -318,6 +354,8 @@ export function useCLIState({
         setSteerMessages,
         queuedMessages,
         setQueuedMessages,
+        restoredPendingInput,
+        setRestoredPendingInput,
         todos,
         setTodos,
         ui,

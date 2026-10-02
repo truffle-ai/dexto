@@ -88,3 +88,86 @@ describe('InMemoryDextoStores', () => {
         ).toEqual(['queued-later-timestamp', 'queued-earlier-timestamp']);
     });
 });
+
+describe('InMemoryDextoStores message queue takeAll', () => {
+    it('leaves excluded ids in place and takes the rest in order', async () => {
+        const storage = new InMemoryDextoStores();
+        const followUpQueue = storage.getStore('followUpQueue');
+        for (const id of ['keep-1', 'take-1', 'take-2']) {
+            await followUpQueue.append({
+                sessionId: 'session-1',
+                message: { id, content: [{ type: 'text', text: id }], queuedAt: 1 },
+            });
+        }
+
+        const taken = await followUpQueue.takeAll({
+            sessionId: 'session-1',
+            excludeIds: ['keep-1'],
+        });
+
+        expect(taken.map((message) => message.id)).toEqual(['take-1', 'take-2']);
+        expect(
+            (await followUpQueue.list({ sessionId: 'session-1' })).map((message) => message.id)
+        ).toEqual(['keep-1']);
+
+        expect(await followUpQueue.takeAll({ sessionId: 'session-1' })).toHaveLength(1);
+        expect(await followUpQueue.list({ sessionId: 'session-1' })).toEqual([]);
+    });
+
+    it('prepends messages at the head in order and skips ids already queued', async () => {
+        const storage = new InMemoryDextoStores();
+        const followUpQueue = storage.getStore('followUpQueue');
+        const message = (id: string) => ({
+            id,
+            content: [{ type: 'text' as const, text: id }],
+            queuedAt: 1,
+        });
+        await followUpQueue.append({ sessionId: 'session-1', message: message('live-1') });
+
+        await followUpQueue.prepend({
+            sessionId: 'session-1',
+            messages: [message('held-1'), message('live-1'), message('held-2')],
+        });
+
+        expect(
+            (await followUpQueue.list({ sessionId: 'session-1' })).map((entry) => entry.id)
+        ).toEqual(['held-1', 'held-2', 'live-1']);
+    });
+
+    it('prepends a message id repeated within one batch only once', async () => {
+        const storage = new InMemoryDextoStores();
+        const followUpQueue = storage.getStore('followUpQueue');
+        const message = {
+            id: 'held-1',
+            content: [{ type: 'text' as const, text: 'x' }],
+            queuedAt: 1,
+        };
+
+        await followUpQueue.prepend({ sessionId: 'session-1', messages: [message, message] });
+
+        expect(
+            (await followUpQueue.list({ sessionId: 'session-1' })).map((entry) => entry.id)
+        ).toEqual(['held-1']);
+    });
+
+    it('takes only the listed ids when onlyIds is set', async () => {
+        const storage = new InMemoryDextoStores();
+        const followUpQueue = storage.getStore('followUpQueue');
+        for (const id of ['held-1', 'live-1', 'held-2']) {
+            await followUpQueue.append({
+                sessionId: 'session-1',
+                message: { id, content: [{ type: 'text', text: id }], queuedAt: 1 },
+            });
+        }
+
+        const taken = await followUpQueue.takeAll({
+            sessionId: 'session-1',
+            onlyIds: ['held-1', 'held-2'],
+        });
+
+        expect(taken.map((message) => message.id)).toEqual(['held-1', 'held-2']);
+        expect(
+            (await followUpQueue.list({ sessionId: 'session-1' })).map((message) => message.id)
+        ).toEqual(['live-1']);
+    });
+});

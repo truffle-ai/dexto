@@ -10,10 +10,10 @@ export type {
 } from './session-manager.js';
 export { SessionErrorCode } from './error-codes.js';
 export { SessionError } from './errors.js';
-export { MessageQueueService } from './message-queue.js';
+export { MessageQueueService, coalesceQueuedMessages } from './message-queue.js';
 export type { UserMessageInput } from './message-queue.js';
 export { CoalescedMessageSchema, QueuedMessageSchema, QueuedMessagesSchema } from './types.js';
-export type { QueuedMessage, CoalescedMessage } from './types.js';
+export type { QueuedMessage, CoalescedMessage, RestoredPendingInput } from './types.js';
 export {
     ModelStatisticsSchema,
     SessionConfigSchema,

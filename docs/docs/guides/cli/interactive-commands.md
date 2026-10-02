@@ -24,6 +24,9 @@ Start an interactive session with `dexto` (Web UI) or `dexto --mode cli` (termin
 | `/compact` | `/summarize` | Compress older messages |
 | `/context` | `/ctx`, `/tokens` | Show token usage |
 | `/copy` | `/cp` | Copy last response |
+| `/queue` | | Show queued input on hold from an interrupted run |
+| `/queue resume` | | Run that queued input now, as the next turn |
+| `/queue discard` | | Drop that queued input without running it |
 | `/shortcuts` | `/keys` | Show keyboard shortcuts |
 | `!<cmd>` | `/shell` | Run shell command |
 
@@ -86,6 +89,10 @@ through skill tools when enabled, and users can inspect the catalog separately.
 |---------|-------------|
 | `/skills` | List available skills |
 | `/skills <skill-name>` | Read a skill document |
+
+### Queued input after an interrupted run
+
+Messages you queue while the agent is busy (Enter to steer the current turn, Alt+Enter to queue a follow-up) are saved with the session. If the process is interrupted before they run, reopening the session shows them **on hold**. They never run on their own and are not attached to your next message: use `/queue resume` to run them now or `/queue discard` to drop them.
 
 ## Keyboard Shortcuts
 

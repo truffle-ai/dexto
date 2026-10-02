@@ -20,6 +20,10 @@ export const QUEUE_EDIT_SHORTCUTS = {
     followUp: '↑ edit',
 };
 
+/** Queued input restored from an interrupted run: shown on hold, never run implicitly. */
+export const QUEUE_RESTORED_LABEL = 'on hold from an interrupted run';
+export const QUEUE_RESTORED_HINT = '/queue resume · /queue discard';
+
 interface QueuedMessagesDisplayProps {
     messages: QueuedMessage[];
     label?: string;

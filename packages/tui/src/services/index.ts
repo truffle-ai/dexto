@@ -5,6 +5,8 @@
 export {
     CommandService,
     createSendMessageMarker,
+    createSendContentMarker,
+    getSendMessagePayload,
     type CommandExecutionResult,
     type SendMessageMarker,
     type StyledOutput,

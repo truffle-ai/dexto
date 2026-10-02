@@ -32,6 +32,7 @@ import {
 // Import modular command definitions
 import { generalCommands, createHelpCommand } from './general-commands.js';
 import { searchCommand, resumeCommand, renameCommand, forkCommand } from './session/index.js';
+import { queueCommand } from './queue-commands.js';
 import { exportCommand } from './export/index.js';
 import { modelCommands } from './model/index.js';
 import { mcpCommands } from './mcp/index.js';
@@ -72,6 +73,7 @@ const baseCommands: CommandDefinition[] = [
     renameCommand, // /rename <title> - rename current session
     forkCommand, // /fork - creates a forked session from current session
     exportCommand, // /export - opens export wizard overlay
+    queueCommand, // /queue - show/resume/discard queued input restored from an interrupted run
 
     // Model management
     modelCommands, // /model - opens model selector overlay
