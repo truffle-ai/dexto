@@ -393,3 +393,51 @@ You can help with:
         });
     });
 });
+
+describe('FileContributor absolute path check (runtime-free path.isAbsolute equivalent)', () => {
+    const fileContributor = (file: string) => ({
+        contributors: [{ id: 'docs', type: 'file', priority: 5, files: [file] }],
+    });
+
+    function withPlatform<T>(platform: NodeJS.Platform, run: () => T): T {
+        const original = Object.getOwnPropertyDescriptor(process, 'platform');
+        Object.defineProperty(process, 'platform', { value: platform, configurable: true });
+        try {
+            return run();
+        } finally {
+            if (original) Object.defineProperty(process, 'platform', original);
+        }
+    }
+
+    it('matches path.posix.isAbsolute on non-Windows platforms', () => {
+        withPlatform('linux', () => {
+            expect(
+                SystemPromptConfigSchema.safeParse(fileContributor('/abs/docs.md')).success
+            ).toBe(true);
+            expect(
+                SystemPromptConfigSchema.safeParse(fileContributor('relative/docs.md')).success
+            ).toBe(false);
+            expect(
+                SystemPromptConfigSchema.safeParse(fileContributor('C:\\docs\\readme.md')).success
+            ).toBe(path.posix.isAbsolute('C:\\docs\\readme.md'));
+        });
+    });
+
+    it('matches path.win32.isAbsolute on Windows', () => {
+        withPlatform('win32', () => {
+            for (const candidate of [
+                'C:\\docs\\readme.md',
+                'c:/docs/readme.md',
+                '\\\\server\\share\\readme.md',
+                '\\docs\\readme.md',
+                '/docs/readme.md',
+                'C:docs\\readme.md',
+                'docs\\readme.md',
+            ]) {
+                expect(SystemPromptConfigSchema.safeParse(fileContributor(candidate)).success).toBe(
+                    path.win32.isAbsolute(candidate)
+                );
+            }
+        });
+    });
+});
