@@ -8,6 +8,7 @@
 import * as path from 'path';
 import { promises as fs } from 'fs';
 import { homedir } from 'os';
+import { getDextoGlobalPath } from '../utils/path.js';
 
 /**
  * Get the base models directory path.
@@ -48,6 +49,15 @@ export function getModelStatePath(): string {
  */
 export function getModelPickerStatePath(): string {
     return path.join(getModelsDirectory(), 'model-picker-state.json');
+}
+
+/**
+ * Get the path to the CLI per-model reasoning preferences file.
+ * Stores the last explicit reasoning variant/budget chosen per provider+model(+baseURL).
+ * Resolved under the dexto home `state` directory (see getDextoGlobalPath).
+ */
+export function getModelReasoningPreferencesPath(): string {
+    return path.join(getDextoGlobalPath('state'), 'cli', 'model-reasoning-preferences.json');
 }
 
 /**

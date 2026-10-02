@@ -8,7 +8,6 @@
 
 import React, { useCallback, useRef, useEffect, useImperativeHandle, forwardRef } from 'react';
 import type { ContentPart, ImagePart, TextPart, QueuedMessage } from '@dexto/core';
-import { getReasoningProfile } from '@dexto/llm';
 import { InputArea, type OverlayTrigger } from '../components/input/InputArea.js';
 import { InputService, processStream } from '../services/index.js';
 import { useSoundService } from '../contexts/index.js';
@@ -24,6 +23,7 @@ import type {
 import { createUserMessage } from '../utils/messageFormatting.js';
 import { generateMessageId } from '../utils/idGenerator.js';
 import { restoreQueuedContentForComposer } from '../utils/queuedComposerContent.js';
+import { cycleReasoningVariant } from '../utils/reasoning-switch.js';
 import type { ApprovalRequest } from '../components/ApprovalPrompt.js';
 import type { TextBuffer } from '../components/shared/text-buffer.js';
 import { captureAnalytics } from '../host/index.js';
@@ -369,55 +369,23 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
         const handleCycleReasoningVariant = useCallback(() => {
             if (ui.isProcessing) return;
 
-            const sessionId = session.id || undefined;
-            const current = agent.getCurrentLLMConfig(sessionId);
-            const support = getReasoningProfile(current.provider, current.model);
-            if (!support.capable || support.supportedVariants.length === 0) {
-                setMessages((prev) => [
-                    ...prev,
-                    {
-                        id: generateMessageId('system'),
-                        role: 'system',
-                        content: 'ℹ️ Reasoning variants are not supported for the current model.',
-                        timestamp: new Date(),
-                    },
-                ]);
-                return;
-            }
-
-            const variants = support.supportedVariants;
-            const defaultVariant = support.defaultVariant;
-            const currentVariant =
-                current.reasoning?.variant ?? defaultVariant ?? variants[0] ?? undefined;
-            const idx = currentVariant ? variants.indexOf(currentVariant) : -1;
-            const nextVariant = variants[(idx >= 0 ? idx + 1 : 0) % variants.length];
-            if (nextVariant === undefined) {
-                return;
-            }
-
-            const budgetTokens = current.reasoning?.budgetTokens;
             void (async () => {
                 try {
-                    const reasoningUpdate =
-                        defaultVariant !== undefined &&
-                        nextVariant === defaultVariant &&
-                        budgetTokens === undefined
-                            ? ({ reasoning: null } as const)
-                            : {
-                                  reasoning: {
-                                      variant: nextVariant,
-                                      ...(typeof budgetTokens === 'number' ? { budgetTokens } : {}),
-                                  },
-                              };
-
-                    await agent.switchLLM(
-                        {
-                            provider: current.provider,
-                            model: current.model,
-                            ...reasoningUpdate,
-                        },
-                        sessionId
-                    );
+                    const result = await cycleReasoningVariant(agent, {
+                        sessionId: session.id || undefined,
+                    });
+                    if (result.status === 'unsupported') {
+                        setMessages((prev) => [
+                            ...prev,
+                            {
+                                id: generateMessageId('system'),
+                                role: 'system',
+                                content:
+                                    'ℹ️ Reasoning variants are not supported for the current model.',
+                                timestamp: new Date(),
+                            },
+                        ]);
+                    }
                 } catch (error) {
                     setMessages((prev) => [
                         ...prev,

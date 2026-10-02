@@ -269,6 +269,22 @@ export {
     type ModelPickerEntry,
     type ModelPickerState,
     type SetFavoriteModelsInput,
+    getModelReasoningPreferencesPath,
+    MODEL_REASONING_PREFERENCES_VERSION,
+    toModelReasoningPreferenceKey,
+    parseModelReasoningPreferences,
+    loadModelReasoningPreferences,
+    getModelReasoningPreference,
+    rememberModelReasoningPreference,
+    forgetModelReasoningPreference,
+    resolveModelReasoningPreference,
+    type ModelReasoningIdentity,
+    type ModelReasoningOverride,
+    type ModelReasoningPreferenceEntry,
+    type ModelReasoningPreferencesState,
+    type ModelReasoningPreferencesLoadResult,
+    type ResolvedModelReasoningPreference,
+    type StaleModelReasoningSetting,
 } from './models/index.js';
 
 // Multi-Agent Runtime
