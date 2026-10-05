@@ -631,7 +631,7 @@
   {
     "id": "fxmacrodata",
     "name": "FXMacroData",
-    "description": "Official-source FX and macroeconomic data for 22 currencies: indicator releases, release calendars, central bank news, COT and commodities. Works without a key for USD releases from the last 90 days (each readable 15 minutes after publication), the USD release calendar, press releases and COT, plus the data catalogue, forecast coverage, market sessions and risk sentiment for every currency. For full access add an Authorization: Bearer header with your API key.",
+    "description": "Official-source FX and macroeconomic data for 22 currencies: indicator releases, release calendars, central bank news, COT and commodities. Works without a key for USD releases from the last 90 days (each readable 15 minutes after publication), the USD release calendar, press releases and data catalogue, plus forecast coverage and market sessions for every currency. For full access add an Authorization: Bearer header with your API key.",
     "category": "data",
     "icon": "💱",
     "config": {
