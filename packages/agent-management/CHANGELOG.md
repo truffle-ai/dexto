@@ -1,5 +1,16 @@
 # @dexto/agent-management
 
+## 1.13.4
+
+### Patch Changes
+
+- Updated dependencies [d7277f2]
+    - @dexto/core@1.13.4
+    - @dexto/agent-config@1.13.4
+    - @dexto/orchestration@1.13.4
+    - @dexto/tools-builtins@1.13.4
+    - @dexto/llm@1.13.4
+
 ## 1.13.3
 
 ### Patch Changes
