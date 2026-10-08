@@ -123,6 +123,8 @@ describe('redact', () => {
             ['GitHub fine-grained token', `github_pat_${letters(22)}_${letters(59)}`],
             ['Slack bot token', `xoxb-${'1234567890'}-${'1234567890123'}-${letters(24)}`],
             ['Slack user token', `xoxp-${'1234567890'}-${'1234567890123'}-${letters(32)}`],
+            ['Slack app-level token', `xapp-${'1'}-${'A0123456789'}-${letters(64)}`],
+            ['Slack rotating app-level token', `xoxe.xapp-${'1'}-${letters(40)}`],
             ['Google OAuth access token', `ya29.${letters(60)}-${letters(40)}`],
             ['AWS access key id', `AKIA${'IOSFODNN7EXAMPLE'}`],
             ['AWS temporary access key id', `ASIA${'IOSFODNN7EXAMPLE'}`],

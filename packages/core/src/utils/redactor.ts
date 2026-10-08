@@ -37,7 +37,8 @@ const SENSITIVE_PATTERNS: RegExp[] = [
     /\b[sr]k_(?:live|test)_[A-Za-z0-9]{16,}/g, // Stripe secret and restricted keys
     /\bgh[pousr]_[A-Za-z0-9]{36,}/g, // GitHub tokens (ghp_, gho_, ghu_, ghs_, ghr_)
     /\bgithub_pat_[A-Za-z0-9_]{22,}/g, // GitHub fine-grained tokens
-    /\bxox[abeoprs]-[A-Za-z0-9-]{10,}/g, // Slack tokens (xoxb-, xoxp-, ...)
+    // Slack tokens: bot, user and refresh (xoxb-, xoxp-, xoxe-, ...) and app-level (xapp-, xoxe.xapp-)
+    /\b(?:xox[abeoprs]-|xoxe\.xapp-|xapp-)[A-Za-z0-9-]{10,}/g,
     /\bya29\.[A-Za-z0-9_-]{20,}/g, // Google OAuth access tokens
     // AWS access key ids, except as a presigned URL's query parameter, where the id is part of a
     // link that is meant to be shared and stops working if it is changed
