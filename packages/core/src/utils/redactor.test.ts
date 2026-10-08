@@ -236,6 +236,11 @@ describe('redact', () => {
             // An object name that looks like a key id is part of the signed link and kept.
             const keyLikeObject = `https://bucket.s3.amazonaws.com/${keyId}?X-Amz-Credential=${keyId}%2F20261008%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Signature=abc123`;
             expect(redact(keyLikeObject)).toBe(keyLikeObject);
+            // A pipe-delimited field after a signed link is not part of it either.
+            expect(redact(`${pathStyle}|token=${jwt}`)).toBe(`${pathStyle}|token=[REDACTED]`);
+            // An object name shaped like another kind of token is part of the signed link.
+            const tokenLikeObject = `https://bucket.s3.amazonaws.com/ghp_${'a1B2c3D4e5'.repeat(4)}?X-Amz-Credential=${keyId}%2F20261008%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Signature=abc123`;
+            expect(redact(tokenLikeObject)).toBe(tokenLikeObject);
             expect(redact(`export X-Amz-Credential=${keyId}`)).toBe(
                 'export X-Amz-Credential=[REDACTED]'
             );
