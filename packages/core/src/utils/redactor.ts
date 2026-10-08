@@ -82,7 +82,8 @@ const SIGNED_URL_PATTERNS = [
     /supabase\.co\/storage\/.*\?token=/i, // Supabase signed URLs
     /\.r2\.cloudflarestorage\.com\/.*\?/i, // Cloudflare R2 signed URLs
     // AWS S3 presigned URLs, virtual-hosted (bucket.s3.region...) and path-style (s3.region.../bucket)
-    /[./]s3[.-].*amazonaws\.com\/.*[?&](X-Amz-|AWSAccessKeyId)/i,
+    // The S3 host must be the URL's own host, not text in another URL's path.
+    /https?:\/\/(?:[^/?#]+\.)?s3[.-][^/?#]*amazonaws\.com\/.*[?&](X-Amz-|AWSAccessKeyId)/i,
     /storage\.googleapis\.com\/.*\?/i, // Google Cloud Storage signed URLs
 ];
 

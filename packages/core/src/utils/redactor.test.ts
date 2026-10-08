@@ -197,6 +197,14 @@ describe('redact', () => {
             // The key id need not be the first query parameter.
             const sigV2Reordered = `https://bucket.s3.amazonaws.com/report.pdf?Expires=1791500000&AWSAccessKeyId=${keyId}&Signature=abc123`;
             expect(redact(sigV2Reordered)).toBe(sigV2Reordered);
+            // An S3 host name in the path does not make another site's URL a signed S3 URL.
+            expect(
+                redact(
+                    `https://example.com/path/s3.fake.amazonaws.com/object?AWSAccessKeyId=${keyId}`
+                )
+            ).toBe(
+                'https://example.com/path/s3.fake.amazonaws.com/object?AWSAccessKeyId=[REDACTED]'
+            );
             expect(redact(`export X-Amz-Credential=${keyId}`)).toBe(
                 'export X-Amz-Credential=[REDACTED]'
             );
