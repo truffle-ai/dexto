@@ -63,23 +63,18 @@ function isSkKey(candidate: string): boolean {
     return /\d/.test(body) || !/[-_]/.test(body);
 }
 
-// AWS access key ids. Inside a signed URL (see SIGNED_URL_PATTERNS) the id that is the
-// X-Amz-Credential or AWSAccessKeyId query parameter is left alone: it is part of a link that
-// is meant to be shared and stops working if it is changed.
+// AWS access key ids. A signed URL (see SIGNED_URL_PATTERNS) is left whole: its key id, its token
+// and its object name are part of a link that is meant to be shared and stops working if changed.
 const AWS_ACCESS_KEY_ID_PATTERN = /\b(?:AKIA|ASIA)[A-Z0-9]{16}\b/g;
-const AWS_ACCESS_KEY_ID_OUTSIDE_SIGNED_QUERY_PATTERN =
-    /(?<![?&]X-Amz-Credential=)(?<![?&]AWSAccessKeyId=)\b(?:AKIA|ASIA)[A-Z0-9]{16}\b/g;
 
-// One capture group, so String.split keeps each URL at an odd index. A URL ends where another
-// one starts, so two links joined by a comma are two parts.
-const URL_PATTERN = /(https?:\/\/(?:(?!https?:\/\/)[^\s"'<>])+)/i;
+// One capture group, so String.split keeps each URL at an odd index. A URL ends at whitespace, a
+// quote, < >, a comma, or where another URL starts, so a field written right after a link
+// (",token=...") is not part of it. A signed URL with a comma in it is then only partly
+// recognised and gets redacted, which errs toward redacting.
+const URL_PATTERN = /(https?:\/\/(?:(?!https?:\/\/)[^\s"'<>,])+)/i;
 
 // JWT pattern - applied selectively (not to signed URLs)
 const JWT_PATTERN = /\beyJ[A-Za-z0-9_-]*\.[A-Za-z0-9_-]*\.[A-Za-z0-9_-]*/g;
-// Inside a signed URL its token is a query value (token=eyJ...); a JWT there that does not follow
-// "=" is not the link's, such as one written right after it with only a comma between.
-const JWT_OUTSIDE_QUERY_VALUE_PATTERN =
-    /(?<!=)\beyJ[A-Za-z0-9_-]*\.[A-Za-z0-9_-]*\.[A-Za-z0-9_-]*/g;
 
 // Patterns that indicate a URL contains a signed token that should NOT be redacted
 // These are legitimate shareable URLs, not sensitive credentials
@@ -155,25 +150,17 @@ export function redactSensitiveData(input: unknown, seen = new WeakSet()): unkno
         result = result.replace(SK_KEY_CANDIDATE_PATTERN, (candidate) =>
             isSkKey(candidate) ? REDACTED : candidate
         );
-        // The exemption is decided per URL, so a signed link in a string does not protect a
-        // key id elsewhere in it.
-        // Inside a signed URL its JWT is left too: the link is meant to be shared and its token
-        // is not a credential. A token elsewhere in the string is still redacted.
+        // Each URL is judged on its own: a signed one is left whole, and everything else, including
+        // text right next to a signed URL, still has its key ids and tokens redacted.
         result = result
             .split(URL_PATTERN)
-            .map((part, index) => {
-                const signed = index % 2 === 1 && isSignedUrl(part);
-                const withoutKeyIds = part.replace(
-                    signed
-                        ? AWS_ACCESS_KEY_ID_OUTSIDE_SIGNED_QUERY_PATTERN
-                        : AWS_ACCESS_KEY_ID_PATTERN,
-                    REDACTED
-                );
-                return withoutKeyIds.replace(
-                    signed ? JWT_OUTSIDE_QUERY_VALUE_PATTERN : JWT_PATTERN,
-                    REDACTED
-                );
-            })
+            .map((part, index) =>
+                index % 2 === 1 && isSignedUrl(part)
+                    ? part
+                    : part
+                          .replace(AWS_ACCESS_KEY_ID_PATTERN, REDACTED)
+                          .replace(JWT_PATTERN, REDACTED)
+            )
             .join('');
         return result;
     }

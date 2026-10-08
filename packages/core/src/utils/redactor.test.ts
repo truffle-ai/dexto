@@ -231,6 +231,11 @@ describe('redact', () => {
             expect(redact(express)).toBe(express);
             // A token right after a signed link, with no space between, is not the link's.
             expect(redact(`${pathStyle},${jwt}`)).toBe(`${pathStyle},[REDACTED]`);
+            // A key=value field written right after a signed link is not part of the link.
+            expect(redact(`${pathStyle},token=${jwt}`)).toBe(`${pathStyle},token=[REDACTED]`);
+            // An object name that looks like a key id is part of the signed link and kept.
+            const keyLikeObject = `https://bucket.s3.amazonaws.com/${keyId}?X-Amz-Credential=${keyId}%2F20261008%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Signature=abc123`;
+            expect(redact(keyLikeObject)).toBe(keyLikeObject);
             expect(redact(`export X-Amz-Credential=${keyId}`)).toBe(
                 'export X-Amz-Credential=[REDACTED]'
             );
