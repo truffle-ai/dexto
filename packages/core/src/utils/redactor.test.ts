@@ -214,6 +214,18 @@ describe('redact', () => {
             expect(redact(china)).toBe(china);
             const upperScheme = `HTTPS://bucket.s3.amazonaws.com/report.pdf?AWSAccessKeyId=${keyId}&Signature=abc123`;
             expect(redact(upperScheme)).toBe(upperScheme);
+            // Without its signature, a path-style S3 link is not a signed link.
+            expect(redact(`https://s3.amazonaws.com/bucket/a?X-Amz-Credential=${keyId}`)).toBe(
+                'https://s3.amazonaws.com/bucket/a?X-Amz-Credential=[REDACTED]'
+            );
+            // A second link right after a signed one, with no space between, is its own link.
+            expect(redact(`${sigV4},https://example.com/?AWSAccessKeyId=${keyId}`)).toBe(
+                `${sigV4},https://example.com/?AWSAccessKeyId=[REDACTED]`
+            );
+            // A signed link in a message does not protect a token elsewhere in it.
+            const jwt =
+                'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U';
+            expect(redact(`${pathStyle} and ${jwt}`)).toBe(`${pathStyle} and [REDACTED]`);
             expect(redact(`export X-Amz-Credential=${keyId}`)).toBe(
                 'export X-Amz-Credential=[REDACTED]'
             );

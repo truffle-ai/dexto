@@ -70,8 +70,9 @@ const AWS_ACCESS_KEY_ID_PATTERN = /\b(?:AKIA|ASIA)[A-Z0-9]{16}\b/g;
 const AWS_ACCESS_KEY_ID_OUTSIDE_SIGNED_QUERY_PATTERN =
     /(?<![?&]X-Amz-Credential=)(?<![?&]AWSAccessKeyId=)\b(?:AKIA|ASIA)[A-Z0-9]{16}\b/g;
 
-// One capture group, so String.split keeps each URL at an odd index.
-const URL_PATTERN = /(https?:\/\/[^\s"'<>]+)/i;
+// One capture group, so String.split keeps each URL at an odd index. A URL ends where another
+// one starts, so two links joined by a comma are two parts.
+const URL_PATTERN = /(https?:\/\/(?:(?!https?:\/\/)[^\s"'<>])+)/i;
 
 // JWT pattern - applied selectively (not to signed URLs)
 const JWT_PATTERN = /\beyJ[A-Za-z0-9_-]*\.[A-Za-z0-9_-]*\.[A-Za-z0-9_-]*/g;
@@ -81,10 +82,12 @@ const JWT_PATTERN = /\beyJ[A-Za-z0-9_-]*\.[A-Za-z0-9_-]*\.[A-Za-z0-9_-]*/g;
 const SIGNED_URL_PATTERNS = [
     /supabase\.co\/storage\/.*\?token=/i, // Supabase signed URLs
     /\.r2\.cloudflarestorage\.com\/.*\?/i, // Cloudflare R2 signed URLs
-    // AWS S3 presigned URLs, virtual-hosted (bucket.s3.region...) and path-style (s3.region.../bucket)
+    // AWS S3 presigned URLs, virtual-hosted (bucket.s3.region...) and path-style (s3.region.../bucket).
     // The S3 host must be the URL's own host, not text in another URL's path, and made of whole
     // labels ending in amazonaws.com (amazonaws.com.cn in AWS China), so evilamazonaws.com is not.
-    /https?:\/\/(?:[^/?#.\s]+\.)*s3[.-](?:[^/?#.\s]+\.)*amazonaws\.com(?:\.cn)?\/.*[?&](X-Amz-|AWSAccessKeyId)/i,
+    // The link must carry its signature as well as its key id: SigV4 or SigV2.
+    /^https?:\/\/(?:[^/?#.\s]+\.)*s3[.-](?:[^/?#.\s]+\.)*amazonaws\.com(?:\.cn)?\/(?=[^#]*[?&]X-Amz-Credential=)(?=[^#]*[?&]X-Amz-Signature=)/i,
+    /^https?:\/\/(?:[^/?#.\s]+\.)*s3[.-](?:[^/?#.\s]+\.)*amazonaws\.com(?:\.cn)?\/(?=[^#]*[?&]AWSAccessKeyId=)(?=[^#]*[?&]Signature=)/i,
     /storage\.googleapis\.com\/.*\?/i, // Google Cloud Storage signed URLs
 ];
 
@@ -149,22 +152,21 @@ export function redactSensitiveData(input: unknown, seen = new WeakSet()): unkno
         );
         // The exemption is decided per URL, so a signed link in a string does not protect a
         // key id elsewhere in it.
+        // Inside a signed URL its JWT is left too: the link is meant to be shared and its token
+        // is not a credential. A token elsewhere in the string is still redacted.
         result = result
             .split(URL_PATTERN)
-            .map((part, index) =>
-                part.replace(
-                    index % 2 === 1 && isSignedUrl(part)
+            .map((part, index) => {
+                const signed = index % 2 === 1 && isSignedUrl(part);
+                const withoutKeyIds = part.replace(
+                    signed
                         ? AWS_ACCESS_KEY_ID_OUTSIDE_SIGNED_QUERY_PATTERN
                         : AWS_ACCESS_KEY_ID_PATTERN,
                     REDACTED
-                )
-            )
+                );
+                return signed ? withoutKeyIds : withoutKeyIds.replace(JWT_PATTERN, REDACTED);
+            })
             .join('');
-        // Only redact JWTs if they're not part of a signed URL
-        // Signed URLs are meant to be shared and their tokens are not credentials
-        if (!isSignedUrl(result)) {
-            result = result.replace(JWT_PATTERN, REDACTED);
-        }
         return result;
     }
     if (Array.isArray(input)) {
