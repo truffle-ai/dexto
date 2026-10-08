@@ -71,7 +71,7 @@ const AWS_ACCESS_KEY_ID_OUTSIDE_SIGNED_QUERY_PATTERN =
     /(?<![?&]X-Amz-Credential=)(?<![?&]AWSAccessKeyId=)\b(?:AKIA|ASIA)[A-Z0-9]{16}\b/g;
 
 // One capture group, so String.split keeps each URL at an odd index.
-const URL_PATTERN = /(https?:\/\/[^\s"'<>]+)/;
+const URL_PATTERN = /(https?:\/\/[^\s"'<>]+)/i;
 
 // JWT pattern - applied selectively (not to signed URLs)
 const JWT_PATTERN = /\beyJ[A-Za-z0-9_-]*\.[A-Za-z0-9_-]*\.[A-Za-z0-9_-]*/g;
@@ -82,8 +82,9 @@ const SIGNED_URL_PATTERNS = [
     /supabase\.co\/storage\/.*\?token=/i, // Supabase signed URLs
     /\.r2\.cloudflarestorage\.com\/.*\?/i, // Cloudflare R2 signed URLs
     // AWS S3 presigned URLs, virtual-hosted (bucket.s3.region...) and path-style (s3.region.../bucket)
-    // The S3 host must be the URL's own host, not text in another URL's path.
-    /https?:\/\/(?:[^/?#]+\.)?s3[.-][^/?#]*amazonaws\.com\/.*[?&](X-Amz-|AWSAccessKeyId)/i,
+    // The S3 host must be the URL's own host, not text in another URL's path, and made of whole
+    // labels ending in amazonaws.com (amazonaws.com.cn in AWS China), so evilamazonaws.com is not.
+    /https?:\/\/(?:[^/?#.\s]+\.)*s3[.-](?:[^/?#.\s]+\.)*amazonaws\.com(?:\.cn)?\/.*[?&](X-Amz-|AWSAccessKeyId)/i,
     /storage\.googleapis\.com\/.*\?/i, // Google Cloud Storage signed URLs
 ];
 

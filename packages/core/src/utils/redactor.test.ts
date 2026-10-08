@@ -205,6 +205,15 @@ describe('redact', () => {
             ).toBe(
                 'https://example.com/path/s3.fake.amazonaws.com/object?AWSAccessKeyId=[REDACTED]'
             );
+            // A host that only ends in "amazonaws.com" is someone else's.
+            expect(redact(`https://bucket.s3.evilamazonaws.com/a?X-Amz-Credential=${keyId}`)).toBe(
+                'https://bucket.s3.evilamazonaws.com/a?X-Amz-Credential=[REDACTED]'
+            );
+            // AWS China regions end in amazonaws.com.cn; URL schemes are case-insensitive.
+            const china = `https://bucket.s3.cn-north-1.amazonaws.com.cn/report.pdf?X-Amz-Credential=${keyId}%2F20261008%2Fcn-north-1%2Fs3%2Faws4_request&X-Amz-Signature=abc123`;
+            expect(redact(china)).toBe(china);
+            const upperScheme = `HTTPS://bucket.s3.amazonaws.com/report.pdf?AWSAccessKeyId=${keyId}&Signature=abc123`;
+            expect(redact(upperScheme)).toBe(upperScheme);
             expect(redact(`export X-Amz-Credential=${keyId}`)).toBe(
                 'export X-Amz-Credential=[REDACTED]'
             );
