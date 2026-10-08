@@ -226,6 +226,11 @@ describe('redact', () => {
             const jwt =
                 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U';
             expect(redact(`${pathStyle} and ${jwt}`)).toBe(`${pathStyle} and [REDACTED]`);
+            // S3 Express directory buckets have their own zonal host.
+            const express = `https://bucket--usw2-az1--x-s3.s3express-usw2-az1.us-west-2.amazonaws.com/report.pdf?X-Amz-Credential=${keyId}%2F20261008%2Fus-west-2%2Fs3express%2Faws4_request&X-Amz-Signature=abc123`;
+            expect(redact(express)).toBe(express);
+            // A token right after a signed link, with no space between, is not the link's.
+            expect(redact(`${pathStyle},${jwt}`)).toBe(`${pathStyle},[REDACTED]`);
             expect(redact(`export X-Amz-Credential=${keyId}`)).toBe(
                 'export X-Amz-Credential=[REDACTED]'
             );

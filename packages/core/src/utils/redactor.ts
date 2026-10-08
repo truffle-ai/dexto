@@ -76,18 +76,23 @@ const URL_PATTERN = /(https?:\/\/(?:(?!https?:\/\/)[^\s"'<>])+)/i;
 
 // JWT pattern - applied selectively (not to signed URLs)
 const JWT_PATTERN = /\beyJ[A-Za-z0-9_-]*\.[A-Za-z0-9_-]*\.[A-Za-z0-9_-]*/g;
+// Inside a signed URL its token is a query value (token=eyJ...); a JWT there that does not follow
+// "=" is not the link's, such as one written right after it with only a comma between.
+const JWT_OUTSIDE_QUERY_VALUE_PATTERN =
+    /(?<!=)\beyJ[A-Za-z0-9_-]*\.[A-Za-z0-9_-]*\.[A-Za-z0-9_-]*/g;
 
 // Patterns that indicate a URL contains a signed token that should NOT be redacted
 // These are legitimate shareable URLs, not sensitive credentials
 const SIGNED_URL_PATTERNS = [
     /supabase\.co\/storage\/.*\?token=/i, // Supabase signed URLs
     /\.r2\.cloudflarestorage\.com\/.*\?/i, // Cloudflare R2 signed URLs
-    // AWS S3 presigned URLs, virtual-hosted (bucket.s3.region...) and path-style (s3.region.../bucket).
+    // AWS S3 presigned URLs, virtual-hosted (bucket.s3.region...), path-style (s3.region.../bucket) and
+    // S3 Express zonal (bucket--zone--x-s3.s3express-zone.region...).
     // The S3 host must be the URL's own host, not text in another URL's path, and made of whole
     // labels ending in amazonaws.com (amazonaws.com.cn in AWS China), so evilamazonaws.com is not.
     // The link must carry its signature as well as its key id: SigV4 or SigV2.
-    /^https?:\/\/(?:[^/?#.\s]+\.)*s3[.-](?:[^/?#.\s]+\.)*amazonaws\.com(?:\.cn)?\/(?=[^#]*[?&]X-Amz-Credential=)(?=[^#]*[?&]X-Amz-Signature=)/i,
-    /^https?:\/\/(?:[^/?#.\s]+\.)*s3[.-](?:[^/?#.\s]+\.)*amazonaws\.com(?:\.cn)?\/(?=[^#]*[?&]AWSAccessKeyId=)(?=[^#]*[?&]Signature=)/i,
+    /^https?:\/\/(?:[^/?#.\s]+\.)*(?:s3[.-]|s3express-)(?:[^/?#.\s]+\.)*amazonaws\.com(?:\.cn)?\/(?=[^#]*[?&]X-Amz-Credential=)(?=[^#]*[?&]X-Amz-Signature=)/i,
+    /^https?:\/\/(?:[^/?#.\s]+\.)*(?:s3[.-]|s3express-)(?:[^/?#.\s]+\.)*amazonaws\.com(?:\.cn)?\/(?=[^#]*[?&]AWSAccessKeyId=)(?=[^#]*[?&]Signature=)/i,
     /storage\.googleapis\.com\/.*\?/i, // Google Cloud Storage signed URLs
 ];
 
@@ -164,7 +169,10 @@ export function redactSensitiveData(input: unknown, seen = new WeakSet()): unkno
                         : AWS_ACCESS_KEY_ID_PATTERN,
                     REDACTED
                 );
-                return signed ? withoutKeyIds : withoutKeyIds.replace(JWT_PATTERN, REDACTED);
+                return withoutKeyIds.replace(
+                    signed ? JWT_OUTSIDE_QUERY_VALUE_PATTERN : JWT_PATTERN,
+                    REDACTED
+                );
             })
             .join('');
         return result;
