@@ -12,15 +12,44 @@ function result(toolCallId: string, content: SanitizedToolResult['content']): Sa
 }
 
 describe('toolOutputBudget', () => {
-    it('keeps min(25k tokens, 10% of the window) inline per result and 40% per step', () => {
+    it('keeps min(6k tokens, 10% of the window) inline per result and 40% per step', () => {
         expect(toolOutputBudget(272_000)).toEqual({
-            inlineCapChars: 25_000 * 4,
+            inlineCapChars: 24_000,
             stepBudgetChars: 108_800 * 4,
         });
-        expect(toolOutputBudget(100_000)).toEqual({
-            inlineCapChars: 10_000 * 4,
-            stepBudgetChars: 40_000 * 4,
+        expect(toolOutputBudget(40_000)).toEqual({
+            inlineCapChars: 4_000 * 4,
+            stepBudgetChars: 16_000 * 4,
         });
+    });
+
+    it('stores a 30,000 character result on a large window and keeps 24,000 of it inline', () => {
+        const budget = toolOutputBudget(272_000);
+        const plan = planToolOutputSpills(
+            [
+                { toolCallId: 'fits', textLength: 24_000 },
+                { toolCallId: 'over', textLength: 30_000 },
+            ],
+            budget
+        );
+        expect(plan).toEqual(new Map([['over', 24_000]]));
+
+        const fullText = `${'h'.repeat(18_000)}${'m'.repeat(6_000)}${'t'.repeat(6_000)}`;
+        const preview = toolResultText(
+            withToolOutputPreview(
+                result('over', [{ type: 'text', text: fullText }]),
+                fullText,
+                24_000
+            )
+        );
+        expect(preview.startsWith('h'.repeat(18_000))).toBe(true);
+        expect(preview.endsWith('t'.repeat(6_000))).toBe(true);
+        expect(preview).not.toContain('mm');
+        expect(preview).toContain(
+            '[Output truncated: showing the first 18000 and last 6000 of 30000 characters.'
+        );
+        expect(preview).toContain('tool_output_read({ "id": "over", "offset": <line> })');
+        expect(preview).toContain('tool_output_read({ "id": "over", "pattern": "<text>" })');
     });
 });
 

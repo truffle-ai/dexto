@@ -4,8 +4,12 @@ import type { ContentPart, SanitizedToolResult } from '../../context/types.js';
 export const TOOL_OUTPUT_READ_TOOL_NAME = 'tool_output_read';
 
 const CHARS_PER_TOKEN = 4;
-/** One result keeps at most min(25k tokens, 10% of the input window) inline. */
-const MAX_INLINE_TOKENS = 25_000;
+/**
+ * One result keeps at most min(6k tokens, 10% of the input window) inline: about 24,000 characters.
+ * A result stays in the history for every later step of the chat, so a large one is paid for again
+ * on each step; the rest is stored and read on demand.
+ */
+const MAX_INLINE_TOKENS = 6_000;
 const INLINE_WINDOW_RATIO = 0.1;
 /** One step's results together keep at most 40% of the input window inline. */
 const STEP_WINDOW_RATIO = 0.4;
