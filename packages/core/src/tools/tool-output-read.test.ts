@@ -33,13 +33,42 @@ describe('tool_output_read', () => {
         const { toolOutputs, read } = await setup();
         await toolOutputs.save({ sessionId: 's1', toolCallId: 'call-1', text: numbered });
 
-        const first = await read('s1', { id: 'call-1' });
+        const first = await read('s1', { id: 'call-1', limit: 1000 });
         const next = await read('s1', { id: 'call-1', offset: 2001, limit: 2 });
 
         expect(first).toContain('1: line 1\n2: line 2');
-        expect(first).toContain('[Showing lines 1-2000 of 3000. Use offset=2001 to continue.]');
+        expect(first).toContain('[Showing lines 1-1000 of 3000. Use offset=1001 to continue.]');
         expect(next).toBe(
             '2001: line 2001\n2002: line 2002\n\n[Showing lines 2001-2002 of 3000. Use offset=2003 to continue.]'
+        );
+    });
+
+    it('returns about 24,000 characters in one call and says where the next page starts', async () => {
+        const { toolOutputs, read } = await setup();
+        await toolOutputs.save({ sessionId: 's1', toolCallId: 'call-1', text: numbered });
+
+        const first = await read('s1', { id: 'call-1' });
+        const nextOffset = Number(/Use offset=(\d+) to continue\./.exec(first)?.[1]);
+        const second = await read('s1', { id: 'call-1', offset: nextOffset });
+
+        // 3,000 short lines are about 45,000 characters with their line numbers.
+        expect(first.length).toBeGreaterThan(23_000);
+        expect(first.length).toBeLessThanOrEqual(24_100);
+        expect(first).toContain(`${nextOffset - 1}: line ${nextOffset - 1}\n\n[Showing lines 1-`);
+        expect(second.startsWith(`${nextOffset}: line ${nextOffset}\n`)).toBe(true);
+        expect(second).toContain('of 3000.]');
+    });
+
+    it('keeps a search within the same size and says how many matches it left out', async () => {
+        const { toolOutputs, read } = await setup();
+        const wide = Array.from({ length: 400 }, (_, index) => `match ${index} ${'y'.repeat(600)}`);
+        await toolOutputs.save({ sessionId: 's1', toolCallId: 'call-1', text: wide.join('\n') });
+
+        const found = await read('s1', { id: 'call-1', pattern: 'match', maxMatches: 500 });
+
+        expect(found.length).toBeLessThanOrEqual(24_200);
+        expect(found).toMatch(
+            /\[Showing \d+ of 400 matching lines; narrow the pattern to see the rest\. Read around a match with offset\.\]$/
         );
     });
 
@@ -66,14 +95,14 @@ describe('tool_output_read', () => {
         });
 
         const first = await read('s1', { id: 'call-1' });
-        const second = await read('s1', { id: 'call-1', offset: 1, charOffset: 50_000 });
+        const second = await read('s1', { id: 'call-1', offset: 1, charOffset: 23_997 });
         const last = await read('s1', { id: 'call-1', offset: 1, charOffset: 100_000 });
 
-        expect(first.length).toBeLessThan(51_000);
+        expect(first.length).toBeLessThan(24_200);
         expect(first).toContain(
-            '[Line 1 continues (120000 characters). Use offset=1 charOffset=50000 to continue.]'
+            '[Line 1 continues (120000 characters). Use offset=1 charOffset=23997 to continue.]'
         );
-        expect(second).toContain('Use offset=1 charOffset=100000 to continue.');
+        expect(second).toContain('Use offset=1 charOffset=47994 to continue.');
         expect(last).toBe(`1: ${'x'.repeat(20_000)}\n2: next\n\n[Showing lines 1-2 of 2.]`);
     });
 
