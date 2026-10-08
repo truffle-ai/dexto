@@ -241,6 +241,16 @@ describe('redact', () => {
             // An object name shaped like another kind of token is part of the signed link.
             const tokenLikeObject = `https://bucket.s3.amazonaws.com/ghp_${'a1B2c3D4e5'.repeat(4)}?X-Amz-Credential=${keyId}%2F20261008%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Signature=abc123`;
             expect(redact(tokenLikeObject)).toBe(tokenLikeObject);
+            // A colon-delimited field after a signed link is not part of it.
+            expect(redact(`${pathStyle}:token=${jwt}`)).toBe(`${pathStyle}:token=[REDACTED]`);
+            // A storage URL without its provider's signature gets no exemption.
+            const ghp = `ghp_${'a1B2c3D4e5'.repeat(4)}`;
+            expect(redact(`https://storage.googleapis.com/public/a?token=${ghp}`)).toBe(
+                'https://storage.googleapis.com/public/a?token=[REDACTED]'
+            );
+            expect(redact(`https://acct.r2.cloudflarestorage.com/b/a?note=${keyId}`)).toBe(
+                'https://acct.r2.cloudflarestorage.com/b/a?note=[REDACTED]'
+            );
             expect(redact(`export X-Amz-Credential=${keyId}`)).toBe(
                 'export X-Amz-Credential=[REDACTED]'
             );

@@ -68,11 +68,12 @@ function isSkKey(candidate: string): boolean {
 const AWS_ACCESS_KEY_ID_PATTERN = /\b(?:AKIA|ASIA)[A-Z0-9]{16}\b/g;
 
 // One capture group, so String.split keeps each URL at an odd index. A URL is read only over the
-// characters a signed link uses (letters, digits, -._~/?&=%:+) and not into another http(s)://, so a
-// field written right after a link (",token=", "|token=", ")[next](") is not part of it. A signed
-// URL with any other character in it is then only partly recognised and gets redacted, which errs
-// toward redacting.
-const URL_PATTERN = /(https?:\/\/(?:(?!https?:\/\/)[A-Za-z0-9._~/?&=%:+-])+)/i;
+// characters a signed link uses (letters, digits, -._~/?&=%+) and not into another http(s)://,
+// so a field written right after a link (",token=", "|token=", ":token=", ")[next](") is not
+// part of it. A signed URL with any other character in it, a port included, is then only partly
+// recognised and gets redacted, which errs toward redacting. A field joined with "&" cannot be
+// told from the link's own query and is kept with it.
+const URL_PATTERN = /(https?:\/\/(?:(?!https?:\/\/)[A-Za-z0-9._~/?&=%+-])+)/i;
 // Stands in for a signed URL while the other patterns run, so none of them can change it. Its
 // delimiter is a private-use character, which ordinary text does not contain.
 const SIGNED_URL_PLACEHOLDER = /\uE000(\d+)\uE000/g;
@@ -83,8 +84,12 @@ const JWT_PATTERN = /\beyJ[A-Za-z0-9_-]*\.[A-Za-z0-9_-]*\.[A-Za-z0-9_-]*/g;
 // Patterns that indicate a URL contains a signed token that should NOT be redacted
 // These are legitimate shareable URLs, not sensitive credentials
 const SIGNED_URL_PATTERNS = [
-    /supabase\.co\/storage\/.*\?token=/i, // Supabase signed URLs
-    /\.r2\.cloudflarestorage\.com\/.*\?/i, // Cloudflare R2 signed URLs
+    // Each provider's link counts as signed only on its own host and with its signature, so a
+    // public or unsigned link on the same host gets no exemption.
+    // Supabase signed URLs: the token is the signature.
+    /^https?:\/\/[^/?#\s]+\.supabase\.co\/storage\/v1\/object\/sign\/[^#]*[?&]token=/i,
+    // Cloudflare R2 presigned URLs (SigV4).
+    /^https?:\/\/[^/?#\s]+\.r2\.cloudflarestorage\.com\/(?=[^#]*[?&]X-Amz-Signature=)/i,
     // AWS S3 presigned URLs, virtual-hosted (bucket.s3.region...), path-style (s3.region.../bucket) and
     // S3 Express zonal (bucket--zone--x-s3.s3express-zone.region...).
     // The S3 host must be the URL's own host, not text in another URL's path, and made of whole
@@ -92,7 +97,8 @@ const SIGNED_URL_PATTERNS = [
     // The link must carry its signature as well as its key id: SigV4 or SigV2.
     /^https?:\/\/(?:[^/?#.\s]+\.)*(?:s3[.-]|s3express-)(?:[^/?#.\s]+\.)*amazonaws\.com(?:\.cn)?\/(?=[^#]*[?&]X-Amz-Credential=)(?=[^#]*[?&]X-Amz-Signature=)/i,
     /^https?:\/\/(?:[^/?#.\s]+\.)*(?:s3[.-]|s3express-)(?:[^/?#.\s]+\.)*amazonaws\.com(?:\.cn)?\/(?=[^#]*[?&]AWSAccessKeyId=)(?=[^#]*[?&]Signature=)/i,
-    /storage\.googleapis\.com\/.*\?/i, // Google Cloud Storage signed URLs
+    // Google Cloud Storage signed URLs: V4 (X-Goog-Signature) or V2 (Signature).
+    /^https?:\/\/(?:[^/?#\s]+\.)?storage\.googleapis\.com\/(?=[^#]*[?&](?:X-Goog-Signature|Signature)=)/i,
 ];
 
 const REDACTED = '[REDACTED]';
