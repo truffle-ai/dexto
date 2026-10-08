@@ -34,21 +34,33 @@ const FILE_DATA_FIELDS = [
 const SENSITIVE_PATTERNS: RegExp[] = [
     // PEM private key block, through its end line or the end of the text if it was cut off
     /-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?(?:-----END [A-Z ]*PRIVATE KEY-----|$)/g,
-    // sk- keys, hyphens and underscores included: OpenAI (sk-, sk-proj-) and Anthropic
-    // (sk-ant-api03-, sk-ant-oat01-, sk-ant-ort01-). A key with a hyphen or underscore must
-    // also contain a digit, so a long hyphenated word that starts with "sk-" is left alone.
-    /\bsk-(?:(?=[A-Za-z0-9_-]*\d)[A-Za-z0-9_-]{20,}|[A-Za-z0-9]{20,}(?![A-Za-z0-9_-]))/g,
     /\b[sr]k_(?:live|test)_[A-Za-z0-9]{16,}/g, // Stripe secret and restricted keys
     /\bgh[pousr]_[A-Za-z0-9]{36,}/g, // GitHub tokens (ghp_, gho_, ghu_, ghs_, ghr_)
     /\bgithub_pat_[A-Za-z0-9_]{22,}/g, // GitHub fine-grained tokens
     /\bxox[abeoprs]-[A-Za-z0-9-]{10,}/g, // Slack tokens (xoxb-, xoxp-, ...)
     /\bya29\.[A-Za-z0-9_-]{20,}/g, // Google OAuth access tokens
-    // AWS access key ids, except inside a presigned URL's query, where the id is part of a
+    // AWS access key ids, except as a presigned URL's query parameter, where the id is part of a
     // link that is meant to be shared and stops working if it is changed
-    /(?<!X-Amz-Credential=)(?<!AWSAccessKeyId=)\b(?:AKIA|ASIA)[A-Z0-9]{16}\b/g,
+    /(?<![?&]X-Amz-Credential=)(?<![?&]AWSAccessKeyId=)\b(?:AKIA|ASIA)[A-Z0-9]{16}\b/g,
     /\bBearer\s+[A-Za-z0-9\-_.=]+\b/gi, // Bearer tokens
-    /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g, // Emails
+    // Emails. The local part is capped at its legal 64 characters: unbounded, a long run of
+    // word characters with no "@" was rescanned from every word boundary (quadratic).
+    /\b[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g,
 ];
+
+// sk- keys, hyphens and underscores included: OpenAI (sk-, sk-proj-) and Anthropic
+// (sk-ant-api03-, sk-ant-oat01-, sk-ant-ort01-). The pattern takes the whole run of key
+// characters in one pass; isSkKey then decides, so no input makes the scan quadratic.
+const SK_KEY_CANDIDATE_PATTERN = /\bsk-[A-Za-z0-9_-]{20,}/g;
+
+/**
+ * A candidate with a hyphen or underscore must also contain a digit, so a long hyphenated
+ * word that starts with "sk-" is left alone.
+ */
+function isSkKey(candidate: string): boolean {
+    const body = candidate.slice('sk-'.length);
+    return /\d/.test(body) || !/[-_]/.test(body);
+}
 
 // JWT pattern - applied selectively (not to signed URLs)
 const JWT_PATTERN = /\beyJ[A-Za-z0-9_-]*\.[A-Za-z0-9_-]*\.[A-Za-z0-9_-]*/g;
@@ -118,6 +130,9 @@ export function redactSensitiveData(input: unknown, seen = new WeakSet()): unkno
         for (const pattern of SENSITIVE_PATTERNS) {
             result = result.replace(pattern, REDACTED);
         }
+        result = result.replace(SK_KEY_CANDIDATE_PATTERN, (candidate) =>
+            isSkKey(candidate) ? REDACTED : candidate
+        );
         // Only redact JWTs if they're not part of a signed URL
         // Signed URLs are meant to be shared and their tokens are not credentials
         if (!isSignedUrl(result)) {

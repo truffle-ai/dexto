@@ -171,6 +171,17 @@ describe('redact', () => {
             expect(redact(sigV4)).toBe(sigV4);
             expect(redact(sigV2)).toBe(sigV2);
             expect(redact(`aws_access_key_id = ${keyId}`)).toBe('aws_access_key_id = [REDACTED]');
+            expect(redact(`AWSAccessKeyId=${keyId}`)).toBe('AWSAccessKeyId=[REDACTED]');
+            expect(redact(`export X-Amz-Credential=${keyId}`)).toBe(
+                'export X-Amz-Credential=[REDACTED]'
+            );
+        });
+
+        test('should stay fast on many digit-free sk- segments', () => {
+            const text = 'sk-'.repeat(40000);
+            const started = Date.now();
+            expect(redact(text)).toBe(text);
+            expect(Date.now() - started).toBeLessThan(500);
         });
 
         test('should redact Bearer tokens', () => {
