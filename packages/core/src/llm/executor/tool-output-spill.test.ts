@@ -84,6 +84,27 @@ describe('planToolOutputSpills', () => {
         expect(plan).toEqual(new Map());
     });
 
+    it('cuts results already at the inline cap further when together they exceed the step budget', () => {
+        // Nineteen 30,000 character results on a 272k window: 19 x 24,000 = 456,000 characters
+        // inline against a 435,200 character step budget, so three drop to the 16,000 preview.
+        const results = Array.from({ length: 19 }, (_, index) => ({
+            toolCallId: `call-${index}`,
+            textLength: 30_000,
+        }));
+
+        const plan = planToolOutputSpills(results, toolOutputBudget(272_000));
+
+        expect(plan.size).toBe(19);
+        expect([...plan.entries()].filter(([, chars]) => chars === 16_000)).toEqual([
+            ['call-0', 16_000],
+            ['call-1', 16_000],
+            ['call-2', 16_000],
+        ]);
+        const inline = [...plan.values()].reduce((sum, chars) => sum + chars, 0);
+        expect(inline).toBe(432_000);
+        expect(inline).toBeLessThanOrEqual(toolOutputBudget(272_000).stepBudgetChars);
+    });
+
     it('prefers the largest result, earlier calls first on ties, for the step budget', () => {
         const plan = planToolOutputSpills(
             [

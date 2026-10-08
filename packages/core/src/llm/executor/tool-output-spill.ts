@@ -37,8 +37,9 @@ export function toolResultText(result: SanitizedToolResult): string {
 
 /**
  * Decides which of one step's results to store outside history, and how much of each to keep
- * inline. Every result over the inline cap is stored; if the rest still exceed the step budget,
- * the largest are stored next (earlier calls first on ties) so the decision is deterministic.
+ * inline. Every result over the inline cap is stored; if the step still exceeds its budget, the
+ * largest results, stored or not, are cut to the step preview (earlier calls first on ties) so the
+ * decision is deterministic.
  */
 export function planToolOutputSpills(
     results: ReadonlyArray<{ toolCallId: string; textLength: number }>,
@@ -54,15 +55,17 @@ export function planToolOutputSpills(
             inlineChars += result.textLength;
         }
     }
+    // A result already cut to the inline cap can be cut again to the smaller step preview.
     const stepPreviewChars = Math.min(budget.inlineCapChars, STEP_SPILL_PREVIEW_CHARS);
     const largestFirst = results
-        .filter((result) => !previewChars.has(result.toolCallId))
         .filter((result) => result.textLength > stepPreviewChars)
         .sort((left, right) => right.textLength - left.textLength);
     for (const result of largestFirst) {
         if (inlineChars <= budget.stepBudgetChars) break;
+        const inlineNow = previewChars.get(result.toolCallId) ?? result.textLength;
+        if (inlineNow <= stepPreviewChars) continue;
         previewChars.set(result.toolCallId, stepPreviewChars);
-        inlineChars -= result.textLength - stepPreviewChars;
+        inlineChars -= inlineNow - stepPreviewChars;
     }
     return previewChars;
 }
