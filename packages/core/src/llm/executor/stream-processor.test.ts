@@ -463,8 +463,9 @@ describe('StreamProcessor', () => {
                 '**First**\n\n**Second**'
             );
             // What is stored and what is streamed are the same text as the result.
-            const stored = mocks.contextManager.appendAssistantText.mock.calls
-                .map(([, text]: [string, string]) => text)
+            const stored = vi
+                .mocked(mocks.contextManager.appendAssistantText)
+                .mock.calls.map(([, text]) => text)
                 .join('');
             expect(stored).toBe('One.\n\nTwo.');
             const chunks = (kind: string) =>
