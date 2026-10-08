@@ -120,11 +120,17 @@ describe('redact', () => {
             ['Anthropic OAuth refresh token', `sk-ant-ort01-${letters(95)}`],
             ['GitHub personal token', `ghp_${letters(36)}`],
             ['GitHub OAuth token', `gho_${letters(36)}`],
+            ['GitHub App installation token', `ghs_${letters(36)}`],
+            [
+                'GitHub stateless installation token',
+                `ghs_${'123456'}_${letters(40)}.${letters(200)}.${letters(86)}`,
+            ],
             ['GitHub fine-grained token', `github_pat_${letters(22)}_${letters(59)}`],
             ['Slack bot token', `xoxb-${'1234567890'}-${'1234567890123'}-${letters(24)}`],
             ['Slack user token', `xoxp-${'1234567890'}-${'1234567890123'}-${letters(32)}`],
             ['Slack app-level token', `xapp-${'1'}-${'A0123456789'}-${letters(64)}`],
             ['Slack rotating app-level token', `xoxe.xapp-${'1'}-${letters(40)}`],
+            ['Slack workflow token', `xwfp-${'1234567890'}-${letters(40)}`],
             ['Google OAuth access token', `ya29.${letters(60)}-${letters(40)}`],
             ['AWS access key id', `AKIA${'IOSFODNN7EXAMPLE'}`],
             ['AWS temporary access key id', `ASIA${'IOSFODNN7EXAMPLE'}`],
@@ -174,6 +180,11 @@ describe('redact', () => {
             expect(redact(sigV2)).toBe(sigV2);
             expect(redact(`aws_access_key_id = ${keyId}`)).toBe('aws_access_key_id = [REDACTED]');
             expect(redact(`AWSAccessKeyId=${keyId}`)).toBe('AWSAccessKeyId=[REDACTED]');
+            // The same parameter in text that is not a signed URL is redacted.
+            expect(redact(`GET https://example.com/cb?X-Amz-Credential=${keyId}&x=1`)).toBe(
+                'GET https://example.com/cb?X-Amz-Credential=[REDACTED]&x=1'
+            );
+            expect(redact(`log: ?AWSAccessKeyId=${keyId}`)).toBe('log: ?AWSAccessKeyId=[REDACTED]');
             expect(redact(`export X-Amz-Credential=${keyId}`)).toBe(
                 'export X-Amz-Credential=[REDACTED]'
             );
