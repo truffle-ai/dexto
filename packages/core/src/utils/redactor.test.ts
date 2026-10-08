@@ -191,6 +191,9 @@ describe('redact', () => {
             expect(redact(`${sigV4} and https://example.com/cb?X-Amz-Credential=${keyId}`)).toBe(
                 `${sigV4} and https://example.com/cb?X-Amz-Credential=[REDACTED]`
             );
+            // Path-style S3 URLs are signed URLs too.
+            const pathStyle = `https://s3.amazonaws.com/bucket/report.pdf?X-Amz-Credential=${keyId}%2F20261008%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Signature=abc123`;
+            expect(redact(pathStyle)).toBe(pathStyle);
             // The key id need not be the first query parameter.
             const sigV2Reordered = `https://bucket.s3.amazonaws.com/report.pdf?Expires=1791500000&AWSAccessKeyId=${keyId}&Signature=abc123`;
             expect(redact(sigV2Reordered)).toBe(sigV2Reordered);
