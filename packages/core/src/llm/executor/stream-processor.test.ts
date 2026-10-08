@@ -418,6 +418,66 @@ describe('StreamProcessor', () => {
     });
 
     describe('Reasoning Delta Handling', () => {
+        test('separates blocks of text, and blocks of reasoning, sent in one step', async () => {
+            const mocks = createMocks();
+            const processor = new StreamProcessor(
+                mocks.contextManager,
+                mocks.eventBus,
+                mocks.abortController.signal,
+                mocks.config,
+                mocks.logger,
+                true
+            );
+
+            const events = [
+                { type: 'reasoning-start', id: 'r1' },
+                { type: 'reasoning-delta', id: 'r1', text: '**First' },
+                { type: 'reasoning-delta', id: 'r1', text: '**' },
+                { type: 'reasoning-end', id: 'r1' },
+                { type: 'reasoning-start', id: 'r2' },
+                { type: 'reasoning-delta', id: 'r2', text: '**Second**' },
+                { type: 'reasoning-end', id: 'r2' },
+                { type: 'text-start', id: 't1' },
+                { type: 'text-delta', id: 't1', text: 'One' },
+                { type: 'text-delta', id: 't1', text: '.' },
+                { type: 'text-end', id: 't1' },
+                // An empty block adds nothing.
+                { type: 'text-start', id: 't2' },
+                { type: 'text-delta', id: 't2', text: '' },
+                { type: 'text-end', id: 't2' },
+                { type: 'text-start', id: 't3' },
+                { type: 'text-delta', id: 't3', text: 'Two.' },
+                { type: 'text-end', id: 't3' },
+                {
+                    type: 'finish',
+                    finishReason: 'stop',
+                    totalUsage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+                },
+            ];
+
+            const result = await processor.process(() => createMockStream(events) as never);
+
+            expect(result.text).toBe('One.\n\nTwo.');
+            const responseEvent = mocks.emittedEvents.find((e) => e.name === 'llm:response');
+            expect((responseEvent?.payload as { reasoning: string }).reasoning).toBe(
+                '**First**\n\n**Second**'
+            );
+            // What is stored and what is streamed are the same text as the result.
+            const stored = mocks.contextManager.appendAssistantText.mock.calls
+                .map(([, text]: [string, string]) => text)
+                .join('');
+            expect(stored).toBe('One.\n\nTwo.');
+            const chunks = (kind: string) =>
+                mocks.emittedEvents
+                    .filter((e) => e.name === 'llm:chunk')
+                    .map((e) => e.payload as { chunkType: string; content: string })
+                    .filter((chunk) => chunk.chunkType === kind)
+                    .map((chunk) => chunk.content)
+                    .join('');
+            expect(chunks('text')).toBe('One.\n\nTwo.');
+            expect(chunks('reasoning')).toBe('**First**\n\n**Second**');
+        });
+
         test('accumulates reasoning-delta separately from text', async () => {
             const mocks = createMocks();
             const processor = new StreamProcessor(

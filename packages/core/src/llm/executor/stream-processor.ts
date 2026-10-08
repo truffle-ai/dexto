@@ -69,6 +69,26 @@ type ToolInputEndEvent = Extract<FullStreamPart, { type: 'tool-input-end' }> & {
     id?: string;
 };
 
+/**
+ * What to put before a delta so that a new stream block reads as a new paragraph: a blank line
+ * when the delta is the first content of a block other than the one before it. Nothing for the
+ * first block, for an empty delta, for a stream that gives no block ids, or where the text so far
+ * already ends in a blank line.
+ */
+function blockSeparator(
+    previousBlockId: string | undefined,
+    blockId: string | undefined,
+    accumulated: string,
+    delta: string
+): string {
+    if (delta === '' || accumulated === '') return '';
+    if (blockId === undefined || previousBlockId === undefined || blockId === previousBlockId) {
+        return '';
+    }
+    if (accumulated.endsWith('\n\n')) return '';
+    return accumulated.endsWith('\n') ? '\n' : '\n\n';
+}
+
 export interface StreamProcessorConfig {
     provider: LLMProvider;
     model: string;
@@ -89,6 +109,9 @@ export class StreamProcessor {
     private reasoningText: string = '';
     private reasoningMetadata: Record<string, unknown> | undefined;
     private accumulatedText: string = '';
+    /** The stream block the last text or reasoning came from; a new id starts a new paragraph. */
+    private lastTextBlockId: string | undefined;
+    private lastReasoningBlockId: string | undefined;
     private logger: Logger;
     private hasStepUsage = false;
     private readonly usageScopeId: string | undefined;
@@ -194,7 +217,7 @@ export class StreamProcessor {
                 // and emit 'abort' event which we handle below in the switch
 
                 switch (event.type) {
-                    case 'text-delta':
+                    case 'text-delta': {
                         if (textDeltaCount === 0) {
                             markTiming('first_text_delta_received');
                         }
@@ -215,25 +238,37 @@ export class StreamProcessor {
                             );
                         }
 
+                        // A second text block in one step starts a new paragraph. The same string is
+                        // stored, returned and streamed, so all three stay identical.
+                        const text =
+                            blockSeparator(
+                                this.lastTextBlockId,
+                                event.id,
+                                this.accumulatedText,
+                                event.text
+                            ) + event.text;
+                        if (event.text !== '') this.lastTextBlockId = event.id;
+
                         await this.contextManager.appendAssistantText(
                             this.assistantMessageId!,
-                            event.text
+                            text
                         );
 
                         // Accumulate text for return value
-                        this.accumulatedText += event.text;
+                        this.accumulatedText += text;
 
                         // Only emit chunks in streaming mode
                         if (this.streaming) {
                             this.eventBus.emit('llm:chunk', {
                                 chunkType: 'text',
-                                content: event.text,
+                                content: text,
                             });
                         }
                         markTiming('last_text_delta_emitted');
                         break;
+                    }
 
-                    case 'reasoning-delta':
+                    case 'reasoning-delta': {
                         if (reasoningDeltaCount === 0) {
                             markTiming('first_reasoning_delta_received');
                         }
@@ -245,8 +280,17 @@ export class StreamProcessor {
                         lastDeltaReceivedAtMs = lastReasoningDeltaReceivedAtMs;
                         setStreamAttribute('last_delta_received_ms', lastDeltaReceivedAtMs);
                         setStreamAttribute('last_delta_kind', 'reasoning');
-                        // Handle reasoning delta (extended thinking from Claude, etc.)
-                        this.reasoningText += event.text;
+                        // Handle reasoning delta (extended thinking from Claude, etc.). A second
+                        // reasoning block in one step starts a new paragraph, as text blocks do.
+                        const reasoning =
+                            blockSeparator(
+                                this.lastReasoningBlockId,
+                                event.id,
+                                this.reasoningText,
+                                event.text
+                            ) + event.text;
+                        if (event.text !== '') this.lastReasoningBlockId = event.id;
+                        this.reasoningText += reasoning;
 
                         // Capture provider metadata for round-tripping (e.g., OpenAI itemId, Gemini thought signatures)
                         // This must be passed back to the provider on subsequent requests
@@ -258,11 +302,12 @@ export class StreamProcessor {
                         if (this.streaming) {
                             this.eventBus.emit('llm:chunk', {
                                 chunkType: 'reasoning',
-                                content: event.text,
+                                content: reasoning,
                             });
                         }
                         markTiming('last_reasoning_delta_emitted');
                         break;
+                    }
 
                     case 'tool-input-start': {
                         handleToolInputStart(event);
