@@ -4679,11 +4679,12 @@ describe('TurnExecutor Integration Tests', () => {
         });
 
         it('does not loop re-reading parallel tool results that were pruned before the model saw them', async () => {
-            const chatIds = Array.from({ length: 8 }, (_, index) => `chat-${index}`);
-            // ~18.75k estimated tokens each on a 400k window: together they exceed the 120k
+            const chatIds = Array.from({ length: 24 }, (_, index) => `chat-${index}`);
+            // ~5.98k estimated tokens each on a 400k window: together (~143k) they exceed the 120k
             // protect budget by more than the 20k pruning minimum, while each stays under the
-            // inline cap and the step stays under its budget, so the model sees them whole.
-            const chatText = (chatId: string) => `${chatId}:`.padEnd(75_000, 'x');
+            // 24,000 character inline cap and the step stays under its budget, so the model sees
+            // them whole.
+            const chatText = (chatId: string) => `${chatId}:`.padEnd(23_900, 'x');
             const windowContextManager = createContextManagerFromPersistedStore(400_000);
             toolManager.addTools([
                 defineTool({

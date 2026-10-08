@@ -10,7 +10,11 @@ import { createLocalToolCallHeader } from './presentation.js';
 import type { Tool } from './types.js';
 
 const MAX_READ_LINES = 2000;
-const MAX_READ_CHARS = 50_000;
+/**
+ * One call returns about this many characters, the same as one tool result keeps inline: a
+ * read-back is stored in the conversation like any other result. The agent pages for more.
+ */
+const MAX_READ_CHARS = 24_000;
 const DEFAULT_MAX_MATCHES = 100;
 const MAX_MATCHES = 500;
 const MAX_MATCH_LINE_CHARS = 500;
@@ -125,12 +129,16 @@ function readLines(text: string, input: ToolOutputReadInput): string {
     const end = Math.min(start - 1 + (input.limit ?? MAX_READ_LINES), lines.length);
     const selected: string[] = [];
     let chars = 0;
-    for (let line = start; line <= end && chars < MAX_READ_CHARS; line += 1) {
+    for (let line = start; line <= end; line += 1) {
+        const prefix = `${line}: `;
+        // The line numbers count toward the page, so the whole result stays near the limit.
+        const room = MAX_READ_CHARS - chars - prefix.length;
+        if (room <= 0) break;
         const full = lines[line - 1] ?? '';
         const from = line === start ? Math.min(input.charOffset ?? 0, full.length) : 0;
-        const piece = full.slice(from, from + MAX_READ_CHARS - chars);
-        selected.push(`${line}: ${piece}`);
-        chars += piece.length + 1;
+        const piece = full.slice(from, from + room);
+        selected.push(`${prefix}${piece}`);
+        chars += prefix.length + piece.length + 1;
         if (from + piece.length < full.length) {
             const next = from + piece.length;
             return `${selected.join('\n')}\n\n[Line ${line} continues (${full.length} characters). Use offset=${line} charOffset=${next} to continue.]`;
@@ -150,17 +158,26 @@ function searchLines(text: string, pattern: string, maxMatches: number): string 
     const lines = text.split('\n');
     const found: string[] = [];
     let total = 0;
+    let chars = 0;
+    let outOfRoom = false;
     lines.forEach((line, index) => {
         if (!line.toLowerCase().includes(needle)) return;
         total += 1;
-        if (found.length < maxMatches) {
-            found.push(`${index + 1}: ${line.slice(0, MAX_MATCH_LINE_CHARS)}`);
+        if (outOfRoom || found.length >= maxMatches) return;
+        const match = `${index + 1}: ${line.slice(0, MAX_MATCH_LINE_CHARS)}`;
+        if (chars + match.length > MAX_READ_CHARS) {
+            outOfRoom = true;
+            return;
         }
+        found.push(match);
+        chars += match.length + 1;
     });
     if (total === 0) return `[No lines contain "${pattern}" in ${lines.length} lines.]`;
     const shown =
-        total > found.length
-            ? `Showing ${found.length} of ${total} matching lines; raise maxMatches or narrow the pattern.`
-            : `${total} matching lines of ${lines.length}.`;
+        total === found.length
+            ? `${total} matching lines of ${lines.length}.`
+            : outOfRoom
+              ? `Showing ${found.length} of ${total} matching lines; narrow the pattern to see the rest.`
+              : `Showing ${found.length} of ${total} matching lines; raise maxMatches or narrow the pattern.`;
     return `${found.join('\n')}\n\n[${shown} Read around a match with offset.]`;
 }
