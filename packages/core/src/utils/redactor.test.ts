@@ -109,6 +109,60 @@ describe('redact', () => {
             expect(redact(text)).toBe('My API key is [REDACTED]');
         });
 
+        // Built at runtime so no literal here has the shape of a real credential.
+        const letters = (length: number): string =>
+            'aB3dE6gH9jK2mN5pQ8sT1vW4yZ7'.repeat(8).slice(0, length);
+
+        test.each([
+            ['OpenAI project key', `sk-proj-${letters(40)}-${letters(40)}`],
+            ['Anthropic API key', `sk-ant-api03-${letters(40)}_${letters(40)}-AA`],
+            ['Anthropic OAuth access token', `sk-ant-oat01-${letters(95)}`],
+            ['Anthropic OAuth refresh token', `sk-ant-ort01-${letters(95)}`],
+            ['GitHub personal token', `ghp_${letters(36)}`],
+            ['GitHub OAuth token', `gho_${letters(36)}`],
+            ['GitHub fine-grained token', `github_pat_${letters(22)}_${letters(59)}`],
+            ['Slack bot token', `xoxb-${'1234567890'}-${'1234567890123'}-${letters(24)}`],
+            ['Slack user token', `xoxp-${'1234567890'}-${'1234567890123'}-${letters(32)}`],
+            ['Google OAuth access token', `ya29.${letters(60)}-${letters(40)}`],
+            ['AWS access key id', `AKIA${'IOSFODNN7EXAMPLE'}`],
+            ['AWS temporary access key id', `ASIA${'IOSFODNN7EXAMPLE'}`],
+            ['Stripe live secret key', `sk_${'live'}_${letters(24)}`],
+            ['Stripe live restricted key', `rk_${'live'}_${letters(24)}`],
+        ])('should redact a %s and keep the words around it', (_shape, token) => {
+            expect(redact(`request failed for ${token} after 3 tries`)).toBe(
+                'request failed for [REDACTED] after 3 tries'
+            );
+            expect(redact(`{"value":"${token}"}`)).toBe('{"value":"[REDACTED]"}');
+        });
+
+        test('should redact a PEM private key block, whole or cut off', () => {
+            const block = [
+                `-----BEGIN ${'RSA '}PRIVATE KEY-----`,
+                letters(64),
+                letters(64),
+                `-----END ${'RSA '}PRIVATE KEY-----`,
+            ].join('\n');
+            expect(redact(`key:\n${block}\ndone`)).toBe('key:\n[REDACTED]\ndone');
+            expect(redact(block.split('\n').slice(0, 2).join('\n'))).toBe('[REDACTED]');
+        });
+
+        test('should not redact a PEM public key or certificate', () => {
+            const publicKey = `-----BEGIN PUBLIC KEY-----\n${letters(64)}\n-----END PUBLIC KEY-----`;
+            expect(redact(publicKey)).toBe(publicKey);
+        });
+
+        test.each([
+            'The task-specific risk-based check ran on desk-3 and disk-usage stayed flat.',
+            'class="sk-loading-spinner-container-wrapper" is a style name, not a key.',
+            'ghp_ and gho_ and github_pat_ are GitHub token prefixes; xoxb- is Slack.',
+            'sha256:9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08',
+            'AKIA is the prefix of an AWS access key id; ASIAN markets opened higher.',
+            'ya29 is a prefix, and sk_live_ needs a key after it.',
+            'Run 7f3c2a9e-5b1d-4e8a-9c6f-2d4b8a1e3f5c finished in 1,204 ms.',
+        ])('should not redact ordinary text: %s', (text) => {
+            expect(redact(text)).toBe(text);
+        });
+
         test('should redact Bearer tokens', () => {
             const text = 'Authorization: Bearer my-secret-token-123';
             expect(redact(text)).toBe('Authorization: [REDACTED]');

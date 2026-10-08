@@ -32,7 +32,18 @@ const FILE_DATA_FIELDS = [
 
 // List of regex patterns to redact sensitive values
 const SENSITIVE_PATTERNS: RegExp[] = [
-    /\bsk-[A-Za-z0-9]{20,}\b/g, // OpenAI API keys (at least 20 chars after sk-)
+    // PEM private key block, through its end line or the end of the text if it was cut off
+    /-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?(?:-----END [A-Z ]*PRIVATE KEY-----|$)/g,
+    // sk- keys, hyphens and underscores included: OpenAI (sk-, sk-proj-) and Anthropic
+    // (sk-ant-api03-, sk-ant-oat01-, sk-ant-ort01-). A key with a hyphen or underscore must
+    // also contain a digit, so a long hyphenated word that starts with "sk-" is left alone.
+    /\bsk-(?:(?=[A-Za-z0-9_-]*\d)[A-Za-z0-9_-]{20,}|[A-Za-z0-9]{20,}\b)/g,
+    /\b[sr]k_(?:live|test)_[A-Za-z0-9]{16,}/g, // Stripe secret and restricted keys
+    /\bgh[pousr]_[A-Za-z0-9]{36,}/g, // GitHub tokens (ghp_, gho_, ghu_, ghs_, ghr_)
+    /\bgithub_pat_[A-Za-z0-9_]{22,}/g, // GitHub fine-grained tokens
+    /\bxox[abeoprs]-[A-Za-z0-9-]{10,}/g, // Slack tokens (xoxb-, xoxp-, ...)
+    /\bya29\.[A-Za-z0-9_-]{20,}/g, // Google OAuth access tokens
+    /\b(?:AKIA|ASIA)[A-Z0-9]{16}\b/g, // AWS access key ids
     /\bBearer\s+[A-Za-z0-9\-_.=]+\b/gi, // Bearer tokens
     /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g, // Emails
 ];
