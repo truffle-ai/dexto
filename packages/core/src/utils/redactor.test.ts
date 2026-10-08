@@ -154,6 +154,7 @@ describe('redact', () => {
         test.each([
             'The task-specific risk-based check ran on desk-3 and disk-usage stayed flat.',
             'class="sk-loading-spinner-container-wrapper" is a style name, not a key.',
+            'sk-extraordinarilylongcomponent-name is an identifier, not a key.',
             'ghp_ and gho_ and github_pat_ are GitHub token prefixes; xoxb- is Slack.',
             'sha256:9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08',
             'AKIA is the prefix of an AWS access key id; ASIAN markets opened higher.',
@@ -161,6 +162,15 @@ describe('redact', () => {
             'Run 7f3c2a9e-5b1d-4e8a-9c6f-2d4b8a1e3f5c finished in 1,204 ms.',
         ])('should not redact ordinary text: %s', (text) => {
             expect(redact(text)).toBe(text);
+        });
+
+        test('should keep the access key id inside an S3 presigned URL', () => {
+            const keyId = `AKIA${'IOSFODNN7EXAMPLE'}`;
+            const sigV4 = `https://bucket.s3.us-east-1.amazonaws.com/report.pdf?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=${keyId}%2F20261008%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Signature=abc123`;
+            const sigV2 = `https://bucket.s3.amazonaws.com/report.pdf?AWSAccessKeyId=${keyId}&Expires=1791500000&Signature=abc123`;
+            expect(redact(sigV4)).toBe(sigV4);
+            expect(redact(sigV2)).toBe(sigV2);
+            expect(redact(`aws_access_key_id = ${keyId}`)).toBe('aws_access_key_id = [REDACTED]');
         });
 
         test('should redact Bearer tokens', () => {
