@@ -34,14 +34,14 @@ const FILE_DATA_FIELDS = [
 const SENSITIVE_PATTERNS: RegExp[] = [
     // PEM private key block, through its end line or the end of the text if it was cut off
     /-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?(?:-----END [A-Z ]*PRIVATE KEY-----|$)/g,
-    /\b[sr]k_(?:live|test)_[A-Za-z0-9]{16,}/g, // Stripe secret and restricted keys
+    /\b[sr]k_(?:live|test|org)_[A-Za-z0-9_]{16,}/g, // Stripe secret, restricted and organization keys
     // GitHub tokens (ghp_, gho_, ghu_, ghr_, ghs_). App installation tokens (ghs_) may be the
     // long stateless form, which has dots, hyphens and underscores after the prefix.
     /\b(?:gh[pour]_[A-Za-z0-9]{36,}|ghs_[A-Za-z0-9._-]{36,})/g,
     /\bgithub_pat_[A-Za-z0-9_]{22,}/g, // GitHub fine-grained tokens
     // Slack tokens: bot, user and refresh (xoxb-, xoxp-, xoxe-, ...) and app-level (xapp-, xoxe.xapp-),
     // and workflow tokens (xwfp-)
-    /\b(?:xox[abeoprs]-|xoxe\.xapp-|xapp-|xwfp-)[A-Za-z0-9-]{10,}/g,
+    /\b(?:xox[a-z]-|xoxe\.xapp-|xapp-|xwfp-)[A-Za-z0-9-]{10,}/g,
     /\bya29\.[A-Za-z0-9_-]{20,}/g, // Google OAuth access tokens
     /\bBearer\s+[A-Za-z0-9\-_.=]+\b/gi, // Bearer tokens
     // Emails. The local part is capped at its legal 64 characters: unbounded, a long run of
@@ -70,6 +70,9 @@ const AWS_ACCESS_KEY_ID_PATTERN = /\b(?:AKIA|ASIA)[A-Z0-9]{16}\b/g;
 const AWS_ACCESS_KEY_ID_OUTSIDE_SIGNED_QUERY_PATTERN =
     /(?<![?&]X-Amz-Credential=)(?<![?&]AWSAccessKeyId=)\b(?:AKIA|ASIA)[A-Z0-9]{16}\b/g;
 
+// One capture group, so String.split keeps each URL at an odd index.
+const URL_PATTERN = /(https?:\/\/[^\s"'<>]+)/;
+
 // JWT pattern - applied selectively (not to signed URLs)
 const JWT_PATTERN = /\beyJ[A-Za-z0-9_-]*\.[A-Za-z0-9_-]*\.[A-Za-z0-9_-]*/g;
 
@@ -78,7 +81,7 @@ const JWT_PATTERN = /\beyJ[A-Za-z0-9_-]*\.[A-Za-z0-9_-]*\.[A-Za-z0-9_-]*/g;
 const SIGNED_URL_PATTERNS = [
     /supabase\.co\/storage\/.*\?token=/i, // Supabase signed URLs
     /\.r2\.cloudflarestorage\.com\/.*\?/i, // Cloudflare R2 signed URLs
-    /\.s3\..*amazonaws\.com\/.*\?(X-Amz-|AWSAccessKeyId)/i, // AWS S3 presigned URLs
+    /\.s3\..*amazonaws\.com\/.*[?&](X-Amz-|AWSAccessKeyId)/i, // AWS S3 presigned URLs
     /storage\.googleapis\.com\/.*\?/i, // Google Cloud Storage signed URLs
 ];
 
@@ -141,12 +144,19 @@ export function redactSensitiveData(input: unknown, seen = new WeakSet()): unkno
         result = result.replace(SK_KEY_CANDIDATE_PATTERN, (candidate) =>
             isSkKey(candidate) ? REDACTED : candidate
         );
-        result = result.replace(
-            isSignedUrl(result)
-                ? AWS_ACCESS_KEY_ID_OUTSIDE_SIGNED_QUERY_PATTERN
-                : AWS_ACCESS_KEY_ID_PATTERN,
-            REDACTED
-        );
+        // The exemption is decided per URL, so a signed link in a string does not protect a
+        // key id elsewhere in it.
+        result = result
+            .split(URL_PATTERN)
+            .map((part, index) =>
+                part.replace(
+                    index % 2 === 1 && isSignedUrl(part)
+                        ? AWS_ACCESS_KEY_ID_OUTSIDE_SIGNED_QUERY_PATTERN
+                        : AWS_ACCESS_KEY_ID_PATTERN,
+                    REDACTED
+                )
+            )
+            .join('');
         // Only redact JWTs if they're not part of a signed URL
         // Signed URLs are meant to be shared and their tokens are not credentials
         if (!isSignedUrl(result)) {

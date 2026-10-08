@@ -131,6 +131,8 @@ describe('redact', () => {
             ['Slack app-level token', `xapp-${'1'}-${'A0123456789'}-${letters(64)}`],
             ['Slack rotating app-level token', `xoxe.xapp-${'1'}-${letters(40)}`],
             ['Slack workflow token', `xwfp-${'1234567890'}-${letters(40)}`],
+            ['Slack session token', `xoxc-${'1234567890'}-${letters(40)}`],
+            ['Stripe organization key', `sk_${'org'}_${'live'}_${letters(24)}`],
             ['Google OAuth access token', `ya29.${letters(60)}-${letters(40)}`],
             ['AWS access key id', `AKIA${'IOSFODNN7EXAMPLE'}`],
             ['AWS temporary access key id', `ASIA${'IOSFODNN7EXAMPLE'}`],
@@ -185,6 +187,13 @@ describe('redact', () => {
                 'GET https://example.com/cb?X-Amz-Credential=[REDACTED]&x=1'
             );
             expect(redact(`log: ?AWSAccessKeyId=${keyId}`)).toBe('log: ?AWSAccessKeyId=[REDACTED]');
+            // A signed link does not protect a key id elsewhere in the same string.
+            expect(redact(`${sigV4} and https://example.com/cb?X-Amz-Credential=${keyId}`)).toBe(
+                `${sigV4} and https://example.com/cb?X-Amz-Credential=[REDACTED]`
+            );
+            // The key id need not be the first query parameter.
+            const sigV2Reordered = `https://bucket.s3.amazonaws.com/report.pdf?Expires=1791500000&AWSAccessKeyId=${keyId}&Signature=abc123`;
+            expect(redact(sigV2Reordered)).toBe(sigV2Reordered);
             expect(redact(`export X-Amz-Credential=${keyId}`)).toBe(
                 'export X-Amz-Credential=[REDACTED]'
             );
