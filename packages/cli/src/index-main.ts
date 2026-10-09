@@ -446,6 +446,9 @@ async function bootstrapAgentFromGlobalOpts(options: {
             console.error(err.message);
         }
         console.error(`💡 Install it with: dexto image install ${imageName}`);
+        if (isHeadlessRun) {
+            throw new Error(`Failed to load image '${imageName}'`, { cause: err });
+        }
         safeExit('bootstrap', 1, 'image-load-failed');
     }
 
