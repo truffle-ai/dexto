@@ -131,7 +131,7 @@ export default function CreateAgentModal({
             description: form.description.trim(),
             config: {
                 llm: {
-                    provider: form.provider as CreateAgentPayload['config']['llm']['provider'],
+                    provider: form.provider,
                     model: form.model.trim(),
                     apiKey: form.apiKey.trim() || undefined,
                 },
