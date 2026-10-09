@@ -110,12 +110,9 @@ my-complex-agent/
 dexto agents install nano-banana-agent --force
 ```
 
-**Skip Preference Injection:**
-```bash
-dexto agents install nano-banana-agent --no-inject-preferences
-```
+**Preferences at startup:**
 
-By default, Dexto injects your global preferences (like API keys from `~/.dexto/.env`) into installed agents. Use `--no-inject-preferences` to skip this.
+Installation copies the agent files without writing global preferences into them. The CLI applies your configured LLM preferences in memory when starting the agent; reinstalling does not disable those preferences. API keys are loaded from the environment, including `~/.dexto/.env`.
 
 ## Installing from Web UI
 

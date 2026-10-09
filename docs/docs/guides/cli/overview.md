@@ -284,7 +284,6 @@ dexto agents install ./my-agent-dir/
 **Options:**
 - `--all` - Install all available agents from registry
 - `--force` - Force reinstall even if agent is already installed
-- `--no-inject-preferences` - Skip injecting global preferences into installed agents
 
 See the [Agent Registry](/docs/guides/agent-registry) for available agents.
 
