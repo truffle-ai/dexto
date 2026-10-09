@@ -15,7 +15,7 @@ vi.mock('./dexto-api-key.js', () => ({
     ensureDextoApiKeyForAuthToken: ensureDextoApiKeyForAuthTokenMock,
 }));
 
-import { persistOAuthLoginResult } from './login-persistence.js';
+import { persistDeviceApiKeyLoginResult, persistOAuthLoginResult } from './login-persistence.js';
 
 describe('persistOAuthLoginResult', () => {
     beforeEach(() => {
@@ -37,6 +37,7 @@ describe('persistOAuthLoginResult', () => {
             dextoApiKey: 'dxt_existing_key',
             dextoKeyId: 'key-existing',
             dextoApiKeySource: 'provisioned',
+            dextoPlatformUrl: 'https://app.dexto.ai',
         });
 
         await persistOAuthLoginResult({
@@ -58,6 +59,7 @@ describe('persistOAuthLoginResult', () => {
                 dextoApiKey: 'dxt_existing_key',
                 dextoKeyId: 'key-existing',
                 dextoApiKeySource: 'provisioned',
+                dextoPlatformUrl: 'https://app.dexto.ai',
                 createdAt: expect.any(Number),
                 expiresAt: expect.any(Number),
             })
@@ -189,5 +191,45 @@ describe('persistOAuthLoginResult', () => {
         expect(storedAuth?.dextoApiKey).toBeUndefined();
         expect(storedAuth?.dextoKeyId).toBeUndefined();
         expect(storedAuth?.dextoApiKeySource).toBeUndefined();
+    });
+    it('does not send a saved custom-origin key through a different OAuth platform', async () => {
+        loadAuthMock.mockResolvedValue({
+            userId: 'user-123',
+            createdAt: 1,
+            dextoApiKey: 'custom-key',
+            dextoApiKeySource: 'provisioned',
+            dextoPlatformUrl: 'https://preview.example.com',
+        });
+        await persistOAuthLoginResult({
+            accessToken: 'new-access',
+            user: { id: 'user-123', email: 'fixture@example.com' },
+        });
+        expect(storeAuthMock.mock.calls[0]?.[0]?.dextoApiKey).toBeUndefined();
+        expect(storeAuthMock.mock.calls[0]?.[0]?.dextoPlatformUrl).toBeUndefined();
+    });
+});
+
+describe('device login origin', () => {
+    it('keeps the one-argument TUI persistence contract using the configured platform', async () => {
+        await persistDeviceApiKeyLoginResult({
+            dextoApiKey: 'fixture',
+            dextoKeyId: 'key',
+            dextoKeyDisplay: 'display',
+        });
+        expect(storeAuthMock).toHaveBeenLastCalledWith(
+            expect.objectContaining({ dextoPlatformUrl: 'https://app.dexto.ai' })
+        );
+    });
+    it('binds the saved credential to the effective custom platform origin', async () => {
+        await persistDeviceApiKeyLoginResult(
+            { dextoApiKey: 'fixture', dextoKeyId: 'key', dextoKeyDisplay: 'display' },
+            'http://localhost:8787'
+        );
+        expect(storeAuthMock).toHaveBeenLastCalledWith(
+            expect.objectContaining({
+                dextoApiKey: 'fixture',
+                dextoPlatformUrl: 'http://localhost:8787',
+            })
+        );
     });
 });

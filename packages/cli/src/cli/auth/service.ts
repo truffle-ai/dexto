@@ -20,6 +20,8 @@ export interface AuthConfig {
     /** Dexto API key for gateway access (from --api-key or provisioned after OAuth) */
     dextoApiKey?: string | undefined;
     dextoKeyId?: string | undefined;
+    /** Application origin that issued the saved API key; absent for legacy credentials. */
+    dextoPlatformUrl?: string | undefined;
     dextoApiKeySource?: 'provisioned' | 'user-supplied' | undefined;
 }
 
@@ -33,6 +35,7 @@ const AuthConfigSchema = z
         createdAt: z.number(),
         dextoApiKey: z.string().optional(),
         dextoKeyId: z.string().optional(),
+        dextoPlatformUrl: z.string().url().optional(),
         dextoApiKeySource: z.enum(['provisioned', 'user-supplied']).optional(),
     })
     .refine((data) => data.token || data.dextoApiKey, {

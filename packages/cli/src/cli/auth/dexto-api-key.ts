@@ -3,6 +3,7 @@ import path from 'node:path';
 import { ensureDextoGlobalDirectory, getDextoEnvPath, logger } from '@dexto/core';
 import { getDextoApiClient } from './api-client.js';
 import { loadAuth, storeAuth } from './service.js';
+import { DEXTO_PLATFORM_URL } from './constants.js';
 
 export type DextoApiKeyProvisionStatusLevel = 'info' | 'success' | 'warning' | 'error';
 
@@ -168,6 +169,7 @@ export async function ensureDextoApiKeyForAuthToken(
                 dextoApiKey: rotated.dextoApiKey,
                 dextoKeyId: rotated.keyId,
                 dextoApiKeySource: 'provisioned',
+                dextoPlatformUrl: new URL(DEXTO_PLATFORM_URL).origin,
             });
             await saveDextoApiKeyToEnv(rotated.dextoApiKey);
             status('success', 'New key provisioned');
@@ -182,6 +184,7 @@ export async function ensureDextoApiKeyForAuthToken(
             dextoApiKey: provisioned.dextoApiKey,
             dextoKeyId: provisioned.keyId,
             dextoApiKeySource: 'provisioned',
+            dextoPlatformUrl: new URL(DEXTO_PLATFORM_URL).origin,
         });
         await saveDextoApiKeyToEnv(provisioned.dextoApiKey);
         status('success', 'Dexto API key provisioned');

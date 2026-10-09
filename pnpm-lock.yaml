@@ -309,6 +309,9 @@ importers:
       hono:
         specifier: ^4.12.12
         version: 4.12.12
+      zod:
+        specifier: ^4.3.6
+        version: 4.3.6
     devDependencies:
       '@dexto/core':
         specifier: workspace:*

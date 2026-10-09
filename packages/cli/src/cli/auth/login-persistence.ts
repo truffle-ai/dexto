@@ -2,6 +2,7 @@ import { type DextoApiKeyProvisionStatus, ensureDextoApiKeyForAuthToken } from '
 import type { OAuthResult } from './oauth.js';
 import { loadAuth, storeAuth, type AuthConfig } from './service.js';
 import type { DeviceApiKeyLoginResult } from './types.js';
+import { DEXTO_PLATFORM_URL } from './constants.js';
 
 export interface PersistOAuthLoginOptions {
     onProvisionStatus?: ((status: DextoApiKeyProvisionStatus) => void) | undefined;
@@ -36,10 +37,15 @@ function isSameAuthenticatedUser(
 function getPreservedDextoApiKey(
     existingAuth: AuthConfig | null,
     user: OAuthResult['user']
-): Pick<AuthConfig, 'dextoApiKey' | 'dextoKeyId' | 'dextoApiKeySource'> | null {
+): Pick<
+    AuthConfig,
+    'dextoApiKey' | 'dextoKeyId' | 'dextoApiKeySource' | 'dextoPlatformUrl'
+> | null {
     if (!existingAuth?.dextoApiKey || !isSameAuthenticatedUser(existingAuth, user)) {
         return null;
     }
+    const keyOrigin = existingAuth.dextoPlatformUrl ?? 'https://app.dexto.ai';
+    if (new URL(keyOrigin).origin !== new URL(DEXTO_PLATFORM_URL).origin) return null;
 
     const isProvisionedKey =
         existingAuth.dextoApiKeySource === 'provisioned' ||
@@ -53,6 +59,9 @@ function getPreservedDextoApiKey(
         dextoApiKey: existingAuth.dextoApiKey,
         ...(existingAuth.dextoKeyId ? { dextoKeyId: existingAuth.dextoKeyId } : {}),
         dextoApiKeySource: 'provisioned',
+        ...(existingAuth.dextoPlatformUrl
+            ? { dextoPlatformUrl: existingAuth.dextoPlatformUrl }
+            : {}),
     };
 }
 
@@ -87,12 +96,14 @@ export async function persistOAuthLoginResult(
 }
 
 export async function persistDeviceApiKeyLoginResult(
-    result: DeviceApiKeyLoginResult
+    result: DeviceApiKeyLoginResult,
+    platformUrl: string = DEXTO_PLATFORM_URL
 ): Promise<PersistedLoginResult> {
     await storeAuth({
         dextoApiKey: result.dextoApiKey,
         dextoKeyId: result.dextoKeyId,
         dextoApiKeySource: 'provisioned',
+        dextoPlatformUrl: new URL(platformUrl).origin,
         createdAt: Date.now(),
     });
 
