@@ -114,11 +114,9 @@ function copyAgents(): void {
 }
 
 // Run the script
-if (import.meta.url === `file://${process.argv[1]}`) {
-    try {
-        copyAgents();
-    } catch (error) {
-        console.error('❌ Failed to copy agents:', error);
-        process.exit(1);
-    }
+try {
+    copyAgents();
+} catch (error) {
+    console.error('❌ Failed to copy agents:', error);
+    process.exit(1);
 }

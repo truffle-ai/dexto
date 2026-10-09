@@ -58,11 +58,9 @@ function copyAssets(): void {
     console.log('✅ Assets copied successfully');
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
-    try {
-        copyAssets();
-    } catch (error) {
-        console.error('❌ Failed to copy assets:', error);
-        process.exit(1);
-    }
+try {
+    copyAssets();
+} catch (error) {
+    console.error('❌ Failed to copy assets:', error);
+    process.exit(1);
 }
