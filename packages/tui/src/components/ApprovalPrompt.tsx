@@ -7,16 +7,23 @@ import React, {
     useMemo,
 } from 'react';
 import { Box, Text } from 'ink';
-import type { HostRuntimeContext, ToolDisplayData, ElicitationMetadata } from '@dexto/core';
+import type {
+    HostRuntimeContext,
+    ToolDisplayData,
+    ElicitationMetadata,
+    ApprovalAutoApprovalPolicy,
+} from '@dexto/core';
 import { ApprovalType, isToolPresentationSnapshotV1 } from '@dexto/core';
 import type { Key } from '../hooks/useInputOrchestrator.js';
 import { ElicitationForm, type ElicitationFormHandle } from './ElicitationForm.js';
 import { DiffPreview, CreateFilePreview } from './renderers/index.js';
 import { isEditWriteTool } from '../utils/toolUtils.js';
+import { formatApprovalScope } from '../utils/approvalScope.js';
 import { formatToolHeader } from '../utils/messageFormatting.js';
 
 export interface ApprovalRequest {
     approvalId: string;
+    autoApproval?: ApprovalAutoApprovalPolicy;
     type: string;
     sessionId?: string;
     hostRuntime?: HostRuntimeContext;
@@ -77,7 +84,15 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
             typeof approval.metadata.approvalKey === 'string'
                 ? approval.metadata.approvalKey
                 : undefined;
-        const hasApprovalKey = approvalKey !== undefined;
+        const canRemember =
+            approval.type === ApprovalType.TOOL_APPROVAL &&
+            approval.sessionId !== undefined &&
+            approval.autoApproval !== 'disallowed';
+        const rememberedScope = formatApprovalScope(
+            approvalKey !== undefined
+                ? { kind: 'action', value: approvalKey }
+                : { kind: 'tool', value: toolName ?? 'unknown' }
+        );
         const callDescriptionRaw =
             typeof approval.metadata.description === 'string'
                 ? approval.metadata.description
@@ -96,6 +111,7 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
 
         // Check if this is an edit/write file tool
         const isEditOrWriteTool = isEditWriteTool(toolName);
+        const canAcceptEdits = canRemember && isEditOrWriteTool && approvalKey === undefined;
 
         // Format tool header using shared utility (same format as tool messages)
         const presentationSnapshot = useMemo(() => {
@@ -132,24 +148,18 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
             options.push({ id: 'plan-approve', label: 'Approve' });
             options.push({ id: 'plan-approve-accept-edits', label: 'Approve + Accept All Edits' });
             // Third "option" is the feedback input (handled specially in render)
-        } else if (isCommandApproval) {
-            // Command approval (no session option)
-            options.push({ id: 'yes', label: 'Yes' });
-            options.push({ id: 'no', label: 'No' });
-        } else if (hasApprovalKey) {
-            options.push({ id: 'yes', label: 'Yes (once)' });
-            options.push({ id: 'yes-session', label: 'Yes, remember this approval' });
-            options.push({ id: 'no', label: 'No' });
-        } else if (isEditOrWriteTool) {
-            // Edit/write file tools - offer "accept all edits" mode instead of session
-            options.push({ id: 'yes', label: 'Yes' });
-            options.push({ id: 'yes-accept-edits', label: 'Yes, and accept all edits' });
-            options.push({ id: 'no', label: 'No' });
         } else {
-            // Standard tool approval
-            options.push({ id: 'yes', label: 'Yes' });
-            options.push({ id: 'yes-session', label: 'Yes (Session)' });
-            options.push({ id: 'no', label: 'No' });
+            options.push({ id: 'yes', label: 'Allow once' });
+            if (canRemember) {
+                options.push({
+                    id: 'yes-session',
+                    label: `Allow ${rememberedScope} for this session`,
+                });
+            }
+            if (canAcceptEdits) {
+                options.push({ id: 'yes-accept-edits', label: 'Allow all edits for this session' });
+            }
+            options.push({ id: 'no', label: 'Reject' });
         }
 
         // Keep ref in sync with state
@@ -233,7 +243,7 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
                             onDeny();
                         }
                         return true;
-                    } else if (key.shift && key.tab && isEditOrWriteTool) {
+                    } else if (key.shift && key.tab && canAcceptEdits) {
                         // Shift+Tab on edit/write tool: approve and enable "accept all edits" mode
                         onApprove({ enableAcceptEditsMode: true });
                         return true;
@@ -246,7 +256,7 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
             }),
             [
                 isElicitation,
-                isEditOrWriteTool,
+                canAcceptEdits,
                 isPlanReview,
                 options,
                 onApprove,

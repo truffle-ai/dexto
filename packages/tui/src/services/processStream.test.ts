@@ -130,6 +130,71 @@ function createSetters({
 }
 
 describe('processStream (reasoning)', () => {
+    it('continues automatically for ordinary requests when session auto-approval is enabled', async () => {
+        const { setters } = createSetters();
+        const approval = createState<ApprovalRequest | null>(null);
+        const emit = vi.fn();
+        await processStream(
+            eventStream([
+                {
+                    name: 'approval:request',
+                    approvalId: 'ordinary',
+                    type: 'tool_approval',
+                    sessionId: 'test-session',
+                    timestamp: new Date(),
+                    metadata: {
+                        toolName: 'bash_exec',
+                        toolCallId: 'call',
+                        args: { command: 'pnpm test' },
+                    },
+                },
+            ]),
+            { ...setters, setApproval: approval.set },
+            {
+                useStreaming: true,
+                autoApproveEditsRef: { current: false },
+                bypassPermissionsRef: { current: true },
+                eventBus: { emit },
+            }
+        );
+        expect(emit).toHaveBeenCalledWith(
+            'approval:response',
+            expect.objectContaining({
+                approvalId: 'ordinary',
+                status: 'approved',
+            })
+        );
+        expect(approval.get()).toBeNull();
+    });
+
+    it('keeps a mandatory manual request visible in auto-approve mode', async () => {
+        const { setters } = createSetters();
+        const approval = createState<ApprovalRequest | null>(null);
+        const emit = vi.fn();
+        await processStream(
+            eventStream([
+                {
+                    name: 'approval:request',
+                    approvalId: 'mandatory',
+                    type: 'tool_approval',
+                    sessionId: 'test-session',
+                    timestamp: new Date(),
+                    autoApproval: 'disallowed',
+                    metadata: { toolName: 'write_file', toolCallId: 'call', args: {} },
+                },
+            ]),
+            { ...setters, setApproval: approval.set },
+            {
+                useStreaming: true,
+                autoApproveEditsRef: { current: true },
+                bypassPermissionsRef: { current: true },
+                eventBus: { emit },
+            }
+        );
+        expect(emit).not.toHaveBeenCalledWith('approval:response', expect.anything());
+        expect(approval.get()?.approvalId).toBe('mandatory');
+    });
+
     beforeEach(() => {
         captureAnalyticsMock.mockClear();
     });

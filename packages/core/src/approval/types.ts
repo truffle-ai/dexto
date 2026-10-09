@@ -28,6 +28,8 @@ import type {
     ApprovalResponseSchema,
 } from './schemas.js';
 
+export type SessionApproval = { kind: 'tool' | 'action'; value: string };
+
 export type ApprovalAutoApprovalPolicy = z.output<typeof ApprovalAutoApprovalPolicySchema>;
 
 /**

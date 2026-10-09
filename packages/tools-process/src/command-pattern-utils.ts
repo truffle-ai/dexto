@@ -47,8 +47,10 @@ export function isDangerousCommand(command: string): boolean {
  * - "rm -rf /" → null (dangerous command)
  */
 export function generateCommandPatternKey(command: string): string | null {
+    // Complex shell syntax needs an exact grant, not a command-prefix grant.
+    if (/[;&|<>$`(){}\n\r\\"']/.test(command)) return null;
     const tokens = command.trim().split(/\s+/);
-    if (!tokens[0]) return null;
+    if (!tokens[0] || !/^[a-zA-Z][a-zA-Z0-9_-]*$/.test(tokens[0])) return null;
 
     const head = tokens[0].toLowerCase();
 
@@ -84,6 +86,7 @@ export function generateCommandApprovalKey(command: string): string {
  * Example: "git push origin main" → ["git push *", "git *"]
  */
 export function generateCommandPatternSuggestions(command: string): string[] {
+    if (generateCommandPatternKey(command) === null) return [];
     const tokens = command.trim().toLowerCase().split(/\s+/);
     if (!tokens[0]) return [];
 

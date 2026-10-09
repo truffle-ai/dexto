@@ -1,6 +1,6 @@
 ---
 sidebar_position: 2
-title: "Interactive Commands"
+title: 'Interactive Commands'
 ---
 
 # Interactive Commands
@@ -15,87 +15,88 @@ Start an interactive session with `dexto` (Web UI) or `dexto --mode cli` (termin
 
 ## General
 
-| Command | Aliases | Description |
-|---------|---------|-------------|
-| `/help` | `/h`, `/?` | Show all commands |
-| `/exit` | `/quit`, `/q` | Exit the CLI |
-| `/new` | | Start new conversation |
-| `/clear` | `/reset` | Clear context (keeps session) |
-| `/compact` | `/summarize` | Compress older messages |
-| `/context` | `/ctx`, `/tokens` | Show token usage |
-| `/copy` | `/cp` | Copy last response |
-| `/shortcuts` | `/keys` | Show keyboard shortcuts |
-| `!<cmd>` | `/shell` | Run shell command |
+| Command      | Aliases           | Description                   |
+| ------------ | ----------------- | ----------------------------- |
+| `/help`      | `/h`, `/?`        | Show all commands             |
+| `/exit`      | `/quit`, `/q`     | Exit the CLI                  |
+| `/new`       |                   | Start new conversation        |
+| `/clear`     | `/reset`          | Clear context (keeps session) |
+| `/compact`   | `/summarize`      | Compress older messages       |
+| `/context`   | `/ctx`, `/tokens` | Show token usage              |
+| `/copy`      | `/cp`             | Copy last response            |
+| `/shortcuts` | `/keys`           | Show keyboard shortcuts       |
+| `!<cmd>`     | `/shell`          | Run shell command             |
 
 ## Sessions
 
-| Command | Description |
-|---------|-------------|
-| `/resume` | Browse and resume sessions |
-| `/rename` | Rename current session |
-| `/search <query>` | Search across sessions |
-| `/session list` | List all sessions |
-| `/session history` | Show current session history |
-| `/session delete <id>` | Delete a session |
+| Command                | Description                  |
+| ---------------------- | ---------------------------- |
+| `/resume`              | Browse and resume sessions   |
+| `/rename`              | Rename current session       |
+| `/search <query>`      | Search across sessions       |
+| `/session list`        | List all sessions            |
+| `/session history`     | Show current session history |
+| `/session delete <id>` | Delete a session             |
 
 ## Configuration
 
-| Command | Description |
-|---------|-------------|
-| `/model` | Change LLM model |
-| `/model list` | List available models |
-| `/model current` | Show current model |
-| `/config` | Show configuration |
-| `/config reload` | Reload config from file |
-| `/sysprompt` | Show system prompt |
-| `/log [level]` | Set log level (debug/info/warn/error) |
-| `/stats` | Show statistics |
+| Command          | Description                           |
+| ---------------- | ------------------------------------- |
+| `/model`         | Change LLM model                      |
+| `/model list`    | List available models                 |
+| `/model current` | Show current model                    |
+| `/config`        | Show configuration                    |
+| `/config reload` | Reload config from file               |
+| `/sysprompt`     | Show system prompt                    |
+| `/log [level]`   | Set log level (debug/info/warn/error) |
+| `/stats`         | Show statistics                       |
 
 ## MCP & Tools
 
-| Command | Description |
-|---------|-------------|
-| `/mcp` | List MCP servers |
-| `/mcp list` | List connected servers |
-| `/mcp add stdio <name> <cmd>` | Add stdio MCP server |
-| `/mcp add http <name> <url>` | Add HTTP MCP server |
-| `/mcp add sse <name> <url>` | Add SSE MCP server |
-| `/mcp remove <name>` | Remove MCP server |
-| `/tools` | Browse available tools |
-| `/tools list` | List all tools |
-| `/tools search <query>` | Search for tools |
+| Command                       | Description                                                                       |
+| ----------------------------- | --------------------------------------------------------------------------------- |
+| `/mcp`                        | List MCP servers                                                                  |
+| `/mcp list`                   | List connected servers                                                            |
+| `/mcp add stdio <name> <cmd>` | Add stdio MCP server                                                              |
+| `/mcp add http <name> <url>`  | Add HTTP MCP server                                                               |
+| `/mcp add sse <name> <url>`   | Add SSE MCP server                                                                |
+| `/mcp remove <name>`          | Remove MCP server                                                                 |
+| `/tools`                      | Browse available tools                                                            |
+| `/permissions`                | Choose approval mode and revoke remembered session grants (supported local chats) |
+| `/tools list`                 | List all tools                                                                    |
+| `/tools search <query>`       | Search for tools                                                                  |
 
 ## Prompts
 
 Prompts are prompt-only templates. They are user-invoked slash commands from config, command files,
 custom prompt storage, or MCP servers.
 
-| Command | Description |
-|---------|-------------|
-| `/prompts` | List all prompts |
-| `/use <prompt> [args]` | Execute a prompt |
-| `/<prompt-name>` | Execute prompt directly |
-| `/docs` | Open documentation |
+| Command                | Description             |
+| ---------------------- | ----------------------- |
+| `/prompts`             | List all prompts        |
+| `/use <prompt> [args]` | Execute a prompt        |
+| `/<prompt-name>`       | Execute prompt directly |
+| `/docs`                | Open documentation      |
 
 ## Skills
 
 Skills are first-class capabilities backed by the Core `Skills` contract, not prompts. The model can use them
 through skill tools when enabled, and users can inspect the catalog separately.
 
-| Command | Description |
-|---------|-------------|
-| `/skills` | List available skills |
+| Command                | Description           |
+| ---------------------- | --------------------- |
+| `/skills`              | List available skills |
 | `/skills <skill-name>` | Read a skill document |
 
 ## Keyboard Shortcuts
 
-| Shortcut | Action |
-|----------|--------|
-| `Ctrl+C` | Clear input / cancel |
-| `Escape` | Close overlay |
-| `↑` / `↓` | Navigate history |
-| `Tab` | Autocomplete |
-| `Shift+Enter` | Multi-line input |
+| Shortcut      | Action               |
+| ------------- | -------------------- |
+| `Ctrl+C`      | Clear input / cancel |
+| `Escape`      | Close overlay        |
+| `↑` / `↓`     | Navigate history     |
+| `Tab`         | Autocomplete         |
+| `Shift+Enter` | Multi-line input     |
 
 ## Examples
 

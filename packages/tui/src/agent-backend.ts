@@ -105,6 +105,8 @@ export interface TuiAgentBackend
         | 'getMcpClients'
         | 'getMcpFailedConnections'
     > {
+    getSessionApprovals?: DextoAgent['getSessionApprovals'];
+    revokeSessionApproval?: DextoAgent['revokeSessionApproval'];
     createSession: (sessionId?: string) => Promise<{
         id: string;
         logger: Pick<RootLogger, 'getLevel' | 'getLogFilePath'>;
@@ -212,6 +214,12 @@ export function isCommandSupported(
     definition?: Pick<CommandDefinition, 'name' | 'aliases'>
 ): boolean {
     const capabilities = getTuiCapabilities(agent);
+    if (
+        normalizeCommandName(command) === 'permissions' &&
+        (!agent.getSessionApprovals || !agent.revokeSessionApproval)
+    )
+        return false;
+
     const supportedCommands = capabilities.supportedCommands;
 
     const candidates = new Set<string>([normalizeCommandName(command)]);

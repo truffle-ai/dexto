@@ -689,6 +689,22 @@ export class ToolManager {
         });
     }
 
+    async getSessionRememberedTools(sessionId: string): Promise<string[]> {
+        await this.restoreSessionState(sessionId);
+        const remembered = await this.allowedToolsProvider.getAllowedTools?.(sessionId);
+        return [
+            ...new Set([
+                ...(remembered ?? []),
+                ...(this.getSessionUserAutoApproveTools(sessionId) ?? []),
+            ]),
+        ];
+    }
+
+    async revokeSessionToolApproval(sessionId: string, toolName: string): Promise<void> {
+        await this.sessionToolPolicy.revokeSessionUserAutoApproveTool(sessionId, toolName);
+        await this.allowedToolsProvider.disallowTool(toolName, sessionId);
+    }
+
     // ==================== Approval Helpers ====================
 
     /**

@@ -209,9 +209,7 @@ export function Footer({
             )}
             {bypassPermissions && !planModeActive && !autoApproveEdits && !isShellMode && (
                 <Box>
-                    <Text color="redBright" bold>
-                        bypass permissions
-                    </Text>
+                    <Text color="gray">auto-approve (session)</Text>
                     <Text color="gray"> (shift + tab to cycle)</Text>
                 </Box>
             )}

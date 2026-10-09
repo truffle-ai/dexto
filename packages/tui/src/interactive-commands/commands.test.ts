@@ -25,6 +25,13 @@ function createAgent(capabilities?: TuiAgentCapabilities): TuiAgentBackend {
 }
 
 describe('executeCommand', () => {
+    it('does not advertise local permission controls for an unsupported backend', async () => {
+        const agent = createAgent();
+        expect(await executeCommand('permissions', [], agent)).toBe(
+            '⚠️  Command /permissions is not available for this chat target.'
+        );
+    });
+
     it('returns unknown-command guidance when prompts are unsupported and the command is not real', async () => {
         const agent = createAgent({ prompts: false });
 
