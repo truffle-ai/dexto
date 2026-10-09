@@ -243,6 +243,18 @@ export function useCLIState({
         },
     });
 
+    const previousSessionId = useRef(session.id);
+    useEffect(() => {
+        if (previousSessionId.current !== null && previousSessionId.current !== session.id) {
+            setUi((previous) => ({
+                ...previous,
+                autoApproveEdits: false,
+                bypassPermissions: false,
+            }));
+        }
+        previousSessionId.current = session.id;
+    }, [session.id]);
+
     // Clear todos when session changes (todos are per-session)
     useEffect(() => {
         setTodos([]);

@@ -325,6 +325,14 @@ export class ApprovalManager {
         return this.getScope(this.getScopeKey(sessionId)).approvedKeys;
     }
 
+    async removeApprovedKey(key: string, sessionId: string): Promise<void> {
+        await this.restoreSessionState(sessionId);
+        await this.runWithScopeLock(this.getScopeKey(sessionId), async () => {
+            const approvedKeys = this.getOrCreateScope(this.getScopeKey(sessionId)).approvedKeys;
+            if (approvedKeys.delete(key)) await this.persistScope(sessionId);
+        });
+    }
+
     async clearApprovedKeys(sessionId?: string): Promise<void> {
         await this.restoreSessionState(sessionId);
         const scopeKey = this.getScopeKey(sessionId);

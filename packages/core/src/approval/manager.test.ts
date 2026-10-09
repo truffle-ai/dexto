@@ -1280,6 +1280,25 @@ describe('ApprovalManager', () => {
     });
 
     describe('Generic Approval Keys', () => {
+        it('revokes one remembered action without revoking another session or action', async () => {
+            const store = createInMemorySessionApprovalStore(mockLogger);
+            const config = {
+                permissions: { mode: 'manual' as const, timeout: 120000 },
+                elicitation: { enabled: false },
+            };
+            const manager = createApprovalManager(config, mockLogger, store);
+            await manager.addApprovedKey('bash:git status *', 'session', 'a');
+            await manager.addApprovedKey('bash:git diff *', 'session', 'a');
+            await manager.addApprovedKey('bash:git status *', 'session', 'b');
+            await manager.removeApprovedKey('bash:git status *', 'a');
+            const restored = createApprovalManager(config, mockLogger, store);
+            await restored.restoreSessionState('a');
+            await restored.restoreSessionState('b');
+            expect(restored.isApprovalKeySessionApproved('bash:git status *', 'a')).toBe(false);
+            expect(restored.isApprovalKeySessionApproved('bash:git diff *', 'a')).toBe(true);
+            expect(restored.isApprovalKeySessionApproved('bash:git status *', 'b')).toBe(true);
+        });
+
         let manager: ApprovalManager;
 
         beforeEach(() => {

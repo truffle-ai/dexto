@@ -366,6 +366,7 @@ export type OverlayType =
     | 'search'
     | 'approval'
     | 'tool-browser'
+    | 'permissions'
     | 'prompt-list'
     | 'prompt-add-choice'
     | 'prompt-add-wizard'

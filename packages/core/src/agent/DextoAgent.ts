@@ -91,7 +91,7 @@ import {
     generateSessionTitle,
     type GenerateSessionTitleTokenUsage,
 } from '../session/title-generator.js';
-import type { ApprovalHandler } from '../approval/types.js';
+import type { ApprovalHandler, SessionApproval } from '../approval/types.js';
 import type { DextoAgentOptions } from './agent-options.js';
 import type { WorkspaceManager } from '../workspace/manager.js';
 import type { SetWorkspaceInput, WorkspaceContext } from '../workspace/types.js';
@@ -3244,6 +3244,50 @@ export class DextoAgent {
             throw AgentError.apiValidationError('toolNames must be an array of non-empty strings');
         }
         await this.toolManager.setSessionUserAutoApproveTools(sessionId, toolNames);
+    }
+
+    /** List remembered user grants for one logical session. */
+    public async getSessionApprovals(sessionId: string): Promise<SessionApproval[]> {
+        this.ensureStarted();
+        if (!sessionId || typeof sessionId !== 'string') {
+            throw AgentError.apiValidationError(
+                'sessionId is required and must be a non-empty string'
+            );
+        }
+        await this.services.approvalManager.restoreSessionState(sessionId);
+        const tools = await this.toolManager.getSessionRememberedTools(sessionId);
+        const actions = [...this.services.approvalManager.getApprovedKeys(sessionId)]
+            .filter(([, lifetime]) => lifetime === 'session')
+            .map<SessionApproval>(([value]) => ({ kind: 'action', value }));
+        return [...tools.map<SessionApproval>((value) => ({ kind: 'tool', value })), ...actions];
+    }
+
+    /** Revoke a remembered grant without changing global policy or another session. */
+    public async revokeSessionApproval(
+        sessionId: string,
+        approval: SessionApproval
+    ): Promise<void> {
+        this.ensureStarted();
+        if (!sessionId || typeof sessionId !== 'string') {
+            throw AgentError.apiValidationError(
+                'sessionId is required and must be a non-empty string'
+            );
+        }
+        if (
+            !approval ||
+            !['tool', 'action'].includes(approval.kind) ||
+            typeof approval.value !== 'string' ||
+            approval.value.trim().length === 0
+        ) {
+            throw AgentError.apiValidationError(
+                'approval must contain a tool or action kind and non-empty value'
+            );
+        }
+        if (approval.kind === 'tool') {
+            await this.toolManager.revokeSessionToolApproval(sessionId, approval.value);
+            return;
+        }
+        await this.services.approvalManager.removeApprovedKey(approval.value, sessionId);
     }
 
     /**

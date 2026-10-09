@@ -98,6 +98,30 @@ describe('command-pattern-utils', () => {
     });
 
     describe('generateCommandApprovalKey', () => {
+        it('does not reuse a simple command grant for compound shell execution', () => {
+            expect(generateCommandApprovalKey('git status; rm -rf scratch')).not.toBe(
+                generateCommandApprovalKey('git status')
+            );
+            expect(generateCommandApprovalKey('git status; rm -rf scratch')).toMatch(
+                /^bash:exact:/
+            );
+        });
+
+        it.each([
+            'git status ; rm -rf scratch',
+            'git status && touch file',
+            'git status | sh',
+            'git status\nrm file',
+            'git status > file',
+            'git status $(touch file)',
+            'git status `touch file`',
+            'FOO=x git status',
+            'git status \"quoted\"',
+        ])('uses an exact scope for shell syntax: %s', (command) => {
+            expect(generateCommandApprovalKey(command)).toMatch(/^bash:exact:/);
+            expect(generateCommandPatternSuggestions(command)).toEqual([]);
+        });
+
         it('should preserve pattern-based keys for non-dangerous commands', () => {
             expect(generateCommandApprovalKey('git push origin main')).toBe('bash:git push *');
         });

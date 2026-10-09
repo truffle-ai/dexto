@@ -42,6 +42,10 @@ import StreamSelector, {
 import SoundsSelector, {
     type SoundsSelectorHandle,
 } from '../components/overlays/SoundsSelector.js';
+import {
+    PermissionsSelector,
+    type PermissionsSelectorHandle,
+} from '../components/overlays/PermissionsSelector.js';
 import ToolBrowser, { type ToolBrowserHandle } from '../components/overlays/ToolBrowser.js';
 import {
     CommandOutputOverlay,
@@ -254,6 +258,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
         const logLevelSelectorRef = useRef<LogLevelSelectorHandle>(null);
         const streamSelectorRef = useRef<StreamSelectorHandle>(null);
         const soundsSelectorRef = useRef<SoundsSelectorHandle>(null);
+        const permissionsRef = useRef<PermissionsSelectorHandle>(null);
         const toolBrowserRef = useRef<ToolBrowserHandle>(null);
         const commandOutputRef = useRef<CommandOutputOverlayHandle>(null);
         const mcpServerListRef = useRef<McpServerListHandle>(null);
@@ -339,6 +344,8 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             return streamSelectorRef.current?.handleInput(inputStr, key) ?? false;
                         case 'sounds-selector':
                             return soundsSelectorRef.current?.handleInput(inputStr, key) ?? false;
+                        case 'permissions':
+                            return permissionsRef.current?.handleInput(inputStr, key) ?? false;
                         case 'tool-browser':
                             return toolBrowserRef.current?.handleInput(inputStr, key) ?? false;
                         case 'command-output':
@@ -2899,6 +2906,19 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         <SoundsSelector
                             ref={soundsSelectorRef}
                             isVisible={true}
+                            onClose={handleClose}
+                        />
+                    </Box>
+                )}
+
+                {ui.activeOverlay === 'permissions' && (
+                    <Box marginTop={1}>
+                        <PermissionsSelector
+                            ref={permissionsRef}
+                            agent={agent}
+                            sessionId={session.id}
+                            ui={ui}
+                            setUi={setUi}
                             onClose={handleClose}
                         />
                     </Box>

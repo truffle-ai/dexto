@@ -1,6 +1,6 @@
 ---
 sidebar_position: 6
-sidebar_label: "Permissions"
+sidebar_label: 'Permissions'
 ---
 
 # Permissions Configuration
@@ -16,6 +16,7 @@ For complete field documentation, event specifications, and UI integration detai
 The permissions system controls whether tools require user approval before execution.
 
 **Configuration controls:**
+
 - **Approval mode** - How tools are approved (`manual` or `auto-approve`)
 - **Timeout duration** - How long manual mode waits for a user response
 - **Storage type** - Where remembered approvals are stored
@@ -27,10 +28,10 @@ The permissions system controls whether tools require user approval before execu
 
 ## Approval Modes
 
-| Mode | Behavior | Use Case |
-|------|----------|----------|
-| **manual** | Interactive prompts via CLI/WebUI | Production with oversight |
-| **auto-approve** | Automatically approve all tools | Development/testing |
+| Mode             | Behavior                          | Use Case                  |
+| ---------------- | --------------------------------- | ------------------------- |
+| **manual**       | Interactive prompts via CLI/WebUI | Production with oversight |
+| **auto-approve** | Automatically approve all tools   | Development/testing       |
 
 ### manual (Default)
 
@@ -38,12 +39,13 @@ Interactive approval via CLI prompts or WebUI dialogs:
 
 ```yaml
 permissions:
-  mode: manual
-  timeout: 30000               # 30 seconds
-  allowedToolsStorage: storage # Persist remembered approvals
+    mode: manual
+    timeout: 30000 # 30 seconds
+    allowedToolsStorage: storage # Persist remembered approvals
 ```
 
 **When to use:**
+
 - Production environments needing oversight
 - Multi-user environments with different permissions
 - Development with tool approval tracking
@@ -54,15 +56,32 @@ Automatically approve all tools without prompting:
 
 ```yaml
 permissions:
-  mode: auto-approve
+    mode: auto-approve
 ```
 
 **When to use:**
+
 - Development where speed is important
 - Trusted automation scripts
 - Testing scenarios
 
 CLI shortcut: `dexto --auto-approve`
+
+## Session permissions in the TUI
+
+Use `/permissions` in a local terminal chat to choose an approval mode and inspect or revoke remembered permissions:
+
+- **Agent defaults** follows your agent configuration and remembered grants.
+- **Accept edits for this session** approves file edits automatically.
+- **Auto-approve for this session** approves tool and command requests automatically, while preserving disabled tools and requests that require manual approval.
+
+These TUI modes reset when switching conversations. They do not change your agent YAML or global preferences.
+
+When a tool asks for approval, choose **Allow once**, **Allow the displayed scope for this session**, or **Reject**. The remembered scope may be a whole tool, a command pattern such as `git status *`, or an exact action. Remembered grants belong to the conversation and remain when you resume it; select a grant in `/permissions` to revoke it. Revocation removes that remembered grant; separately configured permissions still apply.
+
+Compound shell commands and commands with shell expansions use exact command scopes rather than sharing a simple command pattern. Auto-approve mode remains available for trusted tasks without repeated prompts. Tool permissions do not provide OS-level sandbox isolation.
+
+`/permissions` is available only for chat backends that support inspecting and revoking session grants. This change preserves existing default approval configuration and headless `dexto run` behavior.
 
 ## Tool Policies
 
@@ -70,20 +89,22 @@ Fine-grained control over specific low-risk tools:
 
 ```yaml
 permissions:
-  mode: manual
-  toolPolicies:
-    alwaysAllow:
-      - ask_user
-      - read_file
-      - mcp--filesystem--read_file
+    mode: manual
+    toolPolicies:
+        alwaysAllow:
+            - ask_user
+            - read_file
+            - mcp--filesystem--read_file
 ```
 
 **Tool name format:**
+
 - Local tools: `<tool_id>`
 - MCP tools: `mcp--<server_name>--<tool_name>`
-  - You can also use `mcp--<tool_name>` as a shorthand to match any MCP server that exposes that tool.
+    - You can also use `mcp--<tool_name>` as a shorthand to match any MCP server that exposes that tool.
 
 **Resolution order:**
+
 1. Session-specific remembered approvals
 2. Static `alwaysAllow` policies
 3. Dynamic allowed-tools provider
@@ -92,11 +113,12 @@ permissions:
 ## Storage Options
 
 ### storage (Default)
+
 Approvals persisted across sessions:
 
 ```yaml
 permissions:
-  allowedToolsStorage: storage
+    allowedToolsStorage: storage
 ```
 
 **Pros:** Convenient - approve once, use forever
@@ -104,11 +126,12 @@ permissions:
 **Cons:** Less secure - approvals persist until cleared
 
 ### memory
+
 Approvals cleared when session ends:
 
 ```yaml
 permissions:
-  allowedToolsStorage: memory
+    allowedToolsStorage: memory
 ```
 
 **Pros:** More secure - no persistent approvals
@@ -131,31 +154,31 @@ The system checks session-specific approvals before global approvals.
 
 ```yaml
 permissions:
-  mode: auto-approve
-  allowedToolsStorage: memory
+    mode: auto-approve
+    allowedToolsStorage: memory
 ```
 
 ### Production Environment
 
 ```yaml
 permissions:
-  mode: manual
-  timeout: 60000
-  allowedToolsStorage: storage
-  toolPolicies:
-    alwaysAllow:
-      - ask_user
-      - read_file
+    mode: manual
+    timeout: 60000
+    allowedToolsStorage: storage
+    toolPolicies:
+        alwaysAllow:
+            - ask_user
+            - read_file
 ```
 
 ### Sensitive Environment
 
 ```yaml
 permissions:
-  mode: manual
-  allowedToolsStorage: memory
-  toolPolicies:
-    alwaysAllow: []
+    mode: manual
+    allowedToolsStorage: memory
+    toolPolicies:
+        alwaysAllow: []
 ```
 
 ## Manual Mode Requirements
@@ -194,21 +217,20 @@ For CLI tools, desktop apps, or custom integrations, implement your own handler:
 import { ApprovalStatus, DenialReason } from '@dexto/core';
 
 agent.setApprovalHandler(async (request) => {
-  // request contains: approvalId, type, metadata (toolName, args, etc.)
+    // request contains: approvalId, type, metadata (toolName, args, etc.)
 
-  const userChoice = await promptUser(
-    `Allow ${request.metadata.toolName}?`
-  );
+    const userChoice = await promptUser(`Allow ${request.metadata.toolName}?`);
 
-  return {
-    approvalId: request.approvalId,
-    status: userChoice ? ApprovalStatus.APPROVED : ApprovalStatus.DENIED,
-    reason: userChoice ? undefined : DenialReason.USER_DENIED,
-  };
+    return {
+        approvalId: request.approvalId,
+        status: userChoice ? ApprovalStatus.APPROVED : ApprovalStatus.DENIED,
+        reason: userChoice ? undefined : DenialReason.USER_DENIED,
+    };
 });
 ```
 
 **Common use cases for custom handlers:**
+
 - CLI tools (readline, inquirer, prompts)
 - Desktop apps (native dialogs, Electron)
 - Policy-based approval (check against rules)
@@ -225,13 +247,13 @@ agent.setApprovalHandler(async (request) => {
 
 ## Common Use Cases
 
-| Scenario | Configuration |
-|----------|--------------|
-| **Development** | auto-approve + memory storage |
-| **Production** | manual + storage + allow policies |
-| **CI/CD** | auto-approve only when the environment is trusted |
-| **Read-only** | manual + alwaysAllow read operations |
-| **Sensitive** | manual + memory storage |
+| Scenario        | Configuration                                     |
+| --------------- | ------------------------------------------------- |
+| **Development** | auto-approve + memory storage                     |
+| **Production**  | manual + storage + allow policies                 |
+| **CI/CD**       | auto-approve only when the environment is trusted |
+| **Read-only**   | manual + alwaysAllow read operations              |
+| **Sensitive**   | manual + memory storage                           |
 
 ## See Also
 

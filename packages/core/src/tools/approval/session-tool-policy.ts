@@ -134,6 +134,18 @@ export class SessionToolPolicy {
         this.logger.debug(`User auto-approve tools: ${normalized.join(', ')}`);
     }
 
+    async revokeSessionUserAutoApproveTool(sessionId: string, toolName: string): Promise<void> {
+        await this.restoreSessionState(sessionId);
+        await this.runWithSessionPreferenceLock(sessionId, async () => {
+            const remaining = (this.sessionUserAutoApproveTools.get(sessionId) ?? []).filter(
+                (name) => name !== toolName
+            );
+            if (remaining.length === 0) this.sessionUserAutoApproveTools.delete(sessionId);
+            else this.sessionUserAutoApproveTools.set(sessionId, remaining);
+            await this.persistSessionToolPreferences(sessionId);
+        });
+    }
+
     async clearSessionUserAutoApproveTools(sessionId: string): Promise<void> {
         await this.restoreSessionState(sessionId);
 

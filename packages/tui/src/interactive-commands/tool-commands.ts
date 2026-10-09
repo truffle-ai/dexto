@@ -16,6 +16,13 @@ import type { TuiAgentBackend } from '../agent-backend.js';
  */
 export const toolCommands: CommandDefinition[] = [
     {
+        name: 'permissions',
+        description: 'Choose approval mode and revoke remembered session permissions',
+        usage: '/permissions',
+        category: 'Tool Management',
+        handler: async () => true,
+    },
+    {
         name: 'tools',
         description: 'Browse available tools interactively',
         usage: '/tools',

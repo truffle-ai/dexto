@@ -5,6 +5,7 @@
 // Types
 export type {
     ApprovalAutoApprovalPolicy,
+    SessionApproval,
     ApprovalHandler,
     ApprovalRequest,
     ApprovalResponse,

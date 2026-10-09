@@ -1162,6 +1162,7 @@ export async function processStream(
 
                     if (
                         bypassPermissions &&
+                        event.autoApproval !== 'disallowed' &&
                         (event.type === ApprovalTypeEnum.TOOL_APPROVAL ||
                             event.type === ApprovalTypeEnum.COMMAND_APPROVAL)
                     ) {
@@ -1186,7 +1187,11 @@ export async function processStream(
                         break;
                     }
 
-                    if (autoApproveEdits && event.type === ApprovalTypeEnum.TOOL_APPROVAL) {
+                    if (
+                        autoApproveEdits &&
+                        event.autoApproval !== 'disallowed' &&
+                        event.type === ApprovalTypeEnum.TOOL_APPROVAL
+                    ) {
                         // Type is narrowed - metadata is now ToolApprovalMetadata
                         const { toolName, approvalKey } = event.metadata;
 
@@ -1227,6 +1232,8 @@ export async function processStream(
                             metadata: event.metadata,
                         };
 
+                        if (event.autoApproval !== undefined)
+                            newApproval.autoApproval = event.autoApproval;
                         if (event.sessionId !== undefined) {
                             newApproval.sessionId = event.sessionId;
                         }

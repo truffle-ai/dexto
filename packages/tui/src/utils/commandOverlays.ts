@@ -25,6 +25,7 @@ const ALWAYS_OVERLAY: Record<string, OverlayType> = {
     stream: 'stream-selector',
     sounds: 'sounds-selector',
     tools: 'tool-browser',
+    permissions: 'permissions',
     mcp: 'mcp-server-list',
     rename: 'session-rename',
     context: 'context-stats',
