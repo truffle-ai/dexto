@@ -63,9 +63,12 @@ function isSkKey(candidate: string): boolean {
     return /\d/.test(body) || !/[-_]/.test(body);
 }
 
-// AWS access key ids. A signed URL (see SIGNED_URL_PATTERNS) is left whole: its key id, its token
-// and its object name are part of a link that is meant to be shared and stops working if changed.
+// AWS access key ids. In a signed URL (see SIGNED_URL_PATTERNS) its own credential key id is kept:
+// it is part of a link that is meant to be shared and stops working if changed.
 const AWS_ACCESS_KEY_ID_PATTERN = /\b(?:AKIA|ASIA)[A-Z0-9]{16}\b/g;
+// Inside a signed URL, its own credential key id is the one kept.
+const AWS_ACCESS_KEY_ID_OUTSIDE_CREDENTIAL_PATTERN =
+    /(?<![?&]X-Amz-Credential=)(?<![?&]AWSAccessKeyId=)\b(?:AKIA|ASIA)[A-Z0-9]{16}\b/g;
 
 // One capture group, so String.split keeps each URL at an odd index. A URL is read only over the
 // characters a signed link uses (letters, digits, -._~/?&=%+) and not into another http(s)://,
@@ -74,12 +77,15 @@ const AWS_ACCESS_KEY_ID_PATTERN = /\b(?:AKIA|ASIA)[A-Z0-9]{16}\b/g;
 // recognised and gets redacted, which errs toward redacting. A field joined with "&" cannot be
 // told from the link's own query and is kept with it.
 const URL_PATTERN = /(https?:\/\/(?:(?!https?:\/\/)[A-Za-z0-9._~/?&=%+-])+)/i;
-// Stands in for a signed URL while the other patterns run, so none of them can change it. Its
+// Stands in for a signed URL while the patterns run on the text around it. Its
 // delimiter is a private-use character, which ordinary text does not contain.
 const SIGNED_URL_PLACEHOLDER = /\uE000(\d+)\uE000/g;
 
 // JWT pattern - applied selectively (not to signed URLs)
 const JWT_PATTERN = /\beyJ[A-Za-z0-9_-]*\.[A-Za-z0-9_-]*\.[A-Za-z0-9_-]*/g;
+// Inside a signed URL, the token that is its token= query value (Supabase's signature) is kept.
+const JWT_OUTSIDE_TOKEN_VALUE_PATTERN =
+    /(?<![?&]token=)\beyJ[A-Za-z0-9_-]*\.[A-Za-z0-9_-]*\.[A-Za-z0-9_-]*/g;
 
 // Patterns that indicate a URL contains a signed token that should NOT be redacted
 // These are legitimate shareable URLs, not sensitive credentials
@@ -97,8 +103,8 @@ const SIGNED_URL_PATTERNS = [
     // The S3 host must be the URL's own host, not text in another URL's path, and made of whole
     // labels ending in amazonaws.com (amazonaws.com.cn in AWS China), so evilamazonaws.com is not.
     // The link must carry its signature as well as its key id: SigV4 or SigV2.
-    /^https?:\/\/(?:[^/?#.\s]+\.)*(?:s3[.-]|s3express-)(?:[^/?#.\s]+\.)*amazonaws\.com(?:\.cn)?\/(?=[^?#]*\?(?:[^#]*&)?X-Amz-Credential=[^&#])(?=[^?#]*\?(?:[^#]*&)?X-Amz-Signature=[0-9a-f]{64}(?![0-9a-z]))/i,
-    /^https?:\/\/(?:[^/?#.\s]+\.)*(?:s3[.-]|s3express-)(?:[^/?#.\s]+\.)*amazonaws\.com(?:\.cn)?\/(?=[^?#]*\?(?:[^#]*&)?AWSAccessKeyId=[^&#])(?=[^?#]*\?(?:[^#]*&)?Signature=[A-Za-z0-9%+/=]{20,})/i,
+    /^https?:\/\/(?:[^/?#.\s]+\.)*(?:s3[.-]|s3express-)(?:[^/?#.\s]+\.)*amazonaws\.com(?:\.cn)?\/(?=[^?#]*\?(?:[^#]*&)?X-Amz-Credential=(?:AKIA|ASIA)[A-Z0-9]{16}(?:%2F|\/)\d{8}(?:%2F|\/)[a-z0-9-]+(?:%2F|\/)[a-z0-9-]+(?:%2F|\/)aws4_request)(?=[^?#]*\?(?:[^#]*&)?X-Amz-Signature=[0-9a-f]{64}(?![0-9a-z]))/i,
+    /^https?:\/\/(?:[^/?#.\s]+\.)*(?:s3[.-]|s3express-)(?:[^/?#.\s]+\.)*amazonaws\.com(?:\.cn)?\/(?=[^?#]*\?(?:[^#]*&)?AWSAccessKeyId=(?:AKIA|ASIA)[A-Z0-9]{16}(?![A-Z0-9]))(?=[^?#]*\?(?:[^#]*&)?Signature=[A-Za-z0-9%+/=]{20,})/i,
     // Google Cloud Storage signed URLs: V4 (X-Goog-Signature) or V2 (Signature).
     /^https?:\/\/(?:[^/?#\s]+\.)?storage\.googleapis\.com\/(?=[^?#]*\?(?:[^#]*&)?(?:X-Goog-Signature=[0-9a-f]{64,}|Signature=[A-Za-z0-9%+/=]{20,}))/i,
 ];
@@ -153,14 +159,26 @@ function isSignedUrl(value: string): boolean {
     return SIGNED_URL_PATTERNS.some((pattern) => pattern.test(value));
 }
 
+function redactText(text: string, awsAccessKeyIdPattern: RegExp, jwtPattern: RegExp): string {
+    let result = text;
+    for (const pattern of SENSITIVE_PATTERNS) {
+        result = result.replace(pattern, REDACTED);
+    }
+    result = result.replace(SK_KEY_CANDIDATE_PATTERN, (candidate) =>
+        isSkKey(candidate) ? REDACTED : candidate
+    );
+    return result.replace(awsAccessKeyIdPattern, REDACTED).replace(jwtPattern, REDACTED);
+}
+
 export function redactSensitiveData(input: unknown, seen = new WeakSet()): unknown {
     if (typeof input === 'string') {
-        // Each signed URL is set aside first and left whole: its key id, token and object name are
-        // part of a link that is meant to be shared and stops working if changed. Everything
-        // else, including text right next to a signed URL, goes through every pattern. Text that
-        // already holds the placeholder's delimiter gets no exemption at all.
+        // Each signed URL is set aside first, so the patterns run on the rest with its context
+        // intact, and is put back redacted in the same way except for what makes it a working
+        // link: its own credential key id and its token= value. Any other key id or token in it,
+        // object name included, is redacted. Text that already holds the placeholder's delimiter
+        // gets no exemption at all.
         const signedUrls: string[] = [];
-        let result = input.includes('\uE000')
+        const withPlaceholders = input.includes('\uE000')
             ? input
             : input
                   .split(URL_PATTERN)
@@ -170,19 +188,19 @@ export function redactSensitiveData(input: unknown, seen = new WeakSet()): unkno
                       return `\uE000${signedUrls.length - 1}\uE000`;
                   })
                   .join('');
-        for (const pattern of SENSITIVE_PATTERNS) {
-            result = result.replace(pattern, REDACTED);
-        }
-        result = result.replace(SK_KEY_CANDIDATE_PATTERN, (candidate) =>
-            isSkKey(candidate) ? REDACTED : candidate
-        );
-        result = result.replace(AWS_ACCESS_KEY_ID_PATTERN, REDACTED).replace(JWT_PATTERN, REDACTED);
+        const result = redactText(withPlaceholders, AWS_ACCESS_KEY_ID_PATTERN, JWT_PATTERN);
         return signedUrls.length === 0
             ? result
-            : result.replace(
-                  SIGNED_URL_PLACEHOLDER,
-                  (_placeholder, index: string) => signedUrls[Number(index)] ?? REDACTED
-              );
+            : result.replace(SIGNED_URL_PLACEHOLDER, (_placeholder, index: string) => {
+                  const url = signedUrls[Number(index)];
+                  return url === undefined
+                      ? REDACTED
+                      : redactText(
+                            url,
+                            AWS_ACCESS_KEY_ID_OUTSIDE_CREDENTIAL_PATTERN,
+                            JWT_OUTSIDE_TOKEN_VALUE_PATTERN
+                        );
+              });
     }
     if (Array.isArray(input)) {
         if (seen.has(input)) return REDACTED_CIRCULAR;

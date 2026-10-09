@@ -237,14 +237,14 @@ describe('redact', () => {
             expect(redact(`${pathStyle},${jwt}`)).toBe(`${pathStyle},[REDACTED]`);
             // A key=value field written right after a signed link is not part of the link.
             expect(redact(`${pathStyle},token=${jwt}`)).toBe(`${pathStyle},token=[REDACTED]`);
-            // An object name that looks like a key id is part of the signed link and kept.
+            // Only the link's own credential key id is kept: an object name shaped like a key id or
+            // a token is redacted, breaking that link in the log, which errs toward redacting.
             const keyLikeObject = `https://bucket.s3.amazonaws.com/${keyId}?X-Amz-Credential=${keyId}%2F20261008%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Signature=${sigV4Hex}`;
-            expect(redact(keyLikeObject)).toBe(keyLikeObject);
+            expect(redact(keyLikeObject)).toBe(keyLikeObject.replace(`/${keyId}?`, '/[REDACTED]?'));
             // A pipe-delimited field after a signed link is not part of it either.
             expect(redact(`${pathStyle}|token=${jwt}`)).toBe(`${pathStyle}|token=[REDACTED]`);
-            // An object name shaped like another kind of token is part of the signed link.
             const tokenLikeObject = `https://bucket.s3.amazonaws.com/ghp_${'a1B2c3D4e5'.repeat(4)}?X-Amz-Credential=${keyId}%2F20261008%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Signature=${sigV4Hex}`;
-            expect(redact(tokenLikeObject)).toBe(tokenLikeObject);
+            expect(redact(tokenLikeObject)).toContain('.com/[REDACTED]?X-Amz-Credential=AKIA');
             // A colon-delimited field after a signed link is not part of it.
             expect(redact(`${pathStyle}:token=${jwt}`)).toBe(`${pathStyle}:token=[REDACTED]`);
             // A storage URL without its provider's signature gets no exemption.
@@ -270,6 +270,14 @@ describe('redact', () => {
             expect(
                 redact(`https://acct.r2.cloudflarestorage.com/b/a?X-Amz-Signature=x&note=${ghp}`)
             ).toBe('https://acct.r2.cloudflarestorage.com/b/a?X-Amz-Signature=x&note=[REDACTED]');
+            // A placeholder credential is no credential, and a signed link's own query never
+            // protects another token in it.
+            expect(
+                redact(
+                    `https://s3.amazonaws.com/b/a?X-Amz-Credential=x&X-Amz-Signature=${sigV4Hex}&note=${ghp}`
+                )
+            ).toContain('&note=[REDACTED]');
+            expect(redact(`${sigV4}&note=${ghp}`)).toBe(`${sigV4}&note=[REDACTED]`);
             expect(redact(`export X-Amz-Credential=${keyId}`)).toBe(
                 'export X-Amz-Credential=[REDACTED]'
             );
