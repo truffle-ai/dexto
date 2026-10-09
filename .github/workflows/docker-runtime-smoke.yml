@@ -1,0 +1,36 @@
+name: Docker Runtime Smoke
+
+on:
+    pull_request:
+        branches: [main]
+        paths:
+            - Dockerfile
+            - .dockerignore
+            - .github/workflows/docker-runtime-smoke.yml
+            - scripts/**
+            - turbo.json
+            - tsconfig*.json
+            - package.json
+            - pnpm-lock.yaml
+            - pnpm-workspace.yaml
+            - packages/**
+            - agents/**
+    workflow_dispatch: {}
+
+concurrency:
+    group: docker-runtime-smoke-${{ github.event.pull_request.number || github.ref }}
+    cancel-in-progress: true
+
+jobs:
+    smoke:
+        runs-on: ubuntu-latest
+        timeout-minutes: 20
+        steps:
+            - uses: actions/checkout@v4
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: '20'
+            - name: Build production Docker image
+              run: docker build -t dexto-runtime-smoke .
+            - name: Test production runtime and persistence
+              run: node scripts/test-docker-runtime.mjs dexto-runtime-smoke

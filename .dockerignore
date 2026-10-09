@@ -32,3 +32,9 @@
 **/dist
 LICENSE
 README.md
+
+# Keep local runtime state and generated artifacts out of the build context.
+**/.dexto
+**/.artifacts
+**/.turbo
+**/coverage
