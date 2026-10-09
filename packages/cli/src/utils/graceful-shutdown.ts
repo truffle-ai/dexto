@@ -20,7 +20,7 @@ export interface GracefulShutdownOptions {
 export function registerGracefulShutdown(
     getCurrentAgent: () => ShutdownTarget,
     options: GracefulShutdownOptions = {}
-): void {
+): () => void {
     const { inkMode = false, forceExitTimeout = 3000 } = options;
     const signals: NodeJS.Signals[] = ['SIGTERM', 'SIGUSR2'];
 
@@ -51,15 +51,21 @@ export function registerGracefulShutdown(
         }
     };
 
-    signals.forEach((signal) => {
-        process.on(signal, () => performShutdown(signal));
+    const signalListeners = signals.map((signal) => {
+        const listener = () => {
+            void performShutdown(signal);
+        };
+        process.on(signal, listener);
+        return { signal, listener };
     });
+    let sigintListener: (() => void) | undefined;
+    let resetTimer: ReturnType<typeof setTimeout> | undefined;
 
     // In ink mode, handle SIGINT specially - allow first one to pass through to Ink
     if (inkMode) {
         let firstSigintTime: number | null = null;
 
-        process.on('SIGINT', () => {
+        sigintListener = () => {
             const now = Date.now();
 
             // If already shutting down, ignore
@@ -70,7 +76,7 @@ export function registerGracefulShutdown(
                 firstSigintTime = now;
 
                 // Set timeout to clear the "first sigint" state
-                setTimeout(() => {
+                resetTimer = setTimeout(() => {
                     if (
                         firstSigintTime !== null &&
                         Date.now() - firstSigintTime >= forceExitTimeout
@@ -90,11 +96,12 @@ export function registerGracefulShutdown(
                 // Timeout expired, treat as new first SIGINT
                 firstSigintTime = now;
             }
-        });
+        };
+        process.on('SIGINT', sigintListener);
     }
 
     // Handle uncaught exceptions
-    process.on('uncaughtException', async (error) => {
+    const exceptionListener = async (error: Error) => {
         logger.error(
             `Uncaught exception: ${error instanceof Error ? error.message : String(error)}`,
             { error },
@@ -115,9 +122,10 @@ export function registerGracefulShutdown(
             }
         }
         process.exit(1);
-    });
+    };
+    process.on('uncaughtException', exceptionListener);
 
-    process.on('unhandledRejection', async (reason) => {
+    const rejectionListener = async (reason: unknown) => {
         logger.error(`Unhandled rejection: ${reason}`, { reason }, 'red');
         if (!isShuttingDown) {
             isShuttingDown = true;
@@ -134,5 +142,14 @@ export function registerGracefulShutdown(
             }
         }
         process.exit(1);
-    });
+    };
+    process.on('unhandledRejection', rejectionListener);
+
+    return () => {
+        for (const { signal, listener } of signalListeners) process.off(signal, listener);
+        if (sigintListener) process.off('SIGINT', sigintListener);
+        if (resetTimer) clearTimeout(resetTimer);
+        process.off('uncaughtException', exceptionListener);
+        process.off('unhandledRejection', rejectionListener);
+    };
 }
