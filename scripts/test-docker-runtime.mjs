@@ -84,8 +84,9 @@ const model = createServer(async (request, response) => {
             response.end(JSON.stringify(result));
         }
     } catch (error) {
+        console.error('Mock model request failed', error);
         response.writeHead(500);
-        response.end(String(error));
+        response.end('Mock model request failed');
     }
 });
 
