@@ -33,6 +33,11 @@ jobs:
             - uses: actions/setup-node@v4
               with:
                   node-version: '20'
+            - name: Pull official Node image from ECR Public mirror
+              run: |
+                  node_version=$(sed -n 's/^ARG NODE_VERSION=//p' Dockerfile)
+                  docker pull "public.ecr.aws/docker/library/node:${node_version}-alpine"
+                  docker tag "public.ecr.aws/docker/library/node:${node_version}-alpine" "node:${node_version}-alpine"
             - name: Build production Docker image
               run: docker build -t dexto-runtime-smoke .
             - name: Test production runtime and persistence
