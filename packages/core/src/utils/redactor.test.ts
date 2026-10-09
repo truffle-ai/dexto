@@ -258,6 +258,10 @@ describe('redact', () => {
             expect(
                 redact(`https://s3.amazonaws.com/b/a?X-Amz-Credential=${keyId}&X-Amz-Signature=`)
             ).toBe('https://s3.amazonaws.com/b/a?X-Amz-Credential=[REDACTED]&X-Amz-Signature=');
+            // A parameter written in the path, before the "?", is not in the query.
+            expect(
+                redact(`https://acct.r2.cloudflarestorage.com/b/a&X-Amz-Signature=x?note=${ghp}`)
+            ).toBe('https://acct.r2.cloudflarestorage.com/b/a&X-Amz-Signature=x?note=[REDACTED]');
             expect(redact(`export X-Amz-Credential=${keyId}`)).toBe(
                 'export X-Amz-Credential=[REDACTED]'
             );
