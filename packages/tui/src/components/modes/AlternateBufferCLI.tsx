@@ -113,6 +113,7 @@ export function AlternateBufferCLI({
         buffer,
         overlayContainerRef,
         visibleMessages,
+        isHydratingHistory,
     } = useCLIState({
         agent,
         initialSessionId,
@@ -375,6 +376,7 @@ export function AlternateBufferCLI({
                     ui={ui}
                     session={session}
                     initialPrompt={initialPrompt}
+                    isHydratingHistory={isHydratingHistory}
                     approval={approval}
                     steerMessages={steerMessages}
                     queuedMessages={queuedMessages}

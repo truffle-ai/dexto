@@ -81,6 +81,7 @@ export interface CLIStateReturn {
 
     // Computed data
     visibleMessages: Message[];
+    isHydratingHistory: boolean;
 
     // Agent reference
     agent: TuiAgentBackend;
@@ -260,20 +261,29 @@ export function useCLIState({
         setTodos([]);
     }, [session.id]);
 
-    // Hydrate conversation history when resuming a session
+    // Hydrate the initial session without cancelling when a startup prompt adds messages.
+    const hydratedSessionId = useRef<string | null>(null);
+    const [isHydratingHistory, setIsHydratingHistory] = useState(initialSessionId !== null);
     useEffect(() => {
-        if (!initialSessionId || !session.hasActiveSession || messages.length > 0) {
+        if (
+            !initialSessionId ||
+            session.id !== initialSessionId ||
+            !session.hasActiveSession ||
+            hydratedSessionId.current === initialSessionId
+        ) {
             return;
         }
 
         let cancelled = false;
+        setIsHydratingHistory(true);
 
         (async () => {
             try {
                 const history = await agent.getSessionHistory(initialSessionId);
-                if (!history?.length || cancelled) return;
+                if (cancelled) return;
+                if (!history.length) return;
                 const historyMessages = convertHistoryToUIMessages(history, initialSessionId);
-                setMessages(historyMessages);
+                setMessages((previous) => [...historyMessages, ...previous]);
 
                 // Extract user messages for input history (arrow up navigation)
                 const userInputHistory = history
@@ -291,9 +301,11 @@ export function useCLIState({
 
                 setInput((prev) => ({
                     ...prev,
-                    history: userInputHistory,
-                    historyIndex: -1,
-                    editingQueuedFollowUp: false,
+                    history: [...userInputHistory, ...prev.history],
+                    historyIndex:
+                        prev.historyIndex < 0
+                            ? prev.historyIndex
+                            : prev.historyIndex + userInputHistory.length,
                 }));
             } catch (error) {
                 if (cancelled) return;
@@ -306,18 +318,24 @@ export function useCLIState({
                         timestamp: new Date(),
                     },
                 ]);
+            } finally {
+                if (!cancelled) {
+                    hydratedSessionId.current = initialSessionId;
+                    setIsHydratingHistory(false);
+                }
             }
         })();
 
         return () => {
             cancelled = true;
         };
-    }, [agent, initialSessionId, messages.length, session.hasActiveSession]);
+    }, [agent, initialSessionId, session.id, session.hasActiveSession]);
 
     // Get visible messages - no limit needed
     // Static mode: items are permanent in terminal scrollback, Ink only renders NEW keys
     // AlternateBuffer mode: VirtualizedList handles its own virtualization
-    const visibleMessages = messages;
+    // Static output cannot insert older items above messages already printed to scrollback.
+    const visibleMessages = isHydratingHistory && session.id === initialSessionId ? [] : messages;
 
     return {
         messages,
@@ -347,6 +365,7 @@ export function useCLIState({
         messageService,
         overlayContainerRef,
         visibleMessages,
+        isHydratingHistory: isHydratingHistory && session.id === initialSessionId,
         agent,
         startupInfo,
     };

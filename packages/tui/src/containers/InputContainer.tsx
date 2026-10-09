@@ -44,6 +44,17 @@ export interface InputContainerHandle {
     submit: (text: string) => Promise<void>;
 }
 
+type SubmittedInput = Pick<InputState, 'images' | 'pastedBlocks' | 'editingQueuedFollowUp'>;
+
+interface DeferredSubmission {
+    value: string;
+    input: SubmittedInput;
+    sessionId: string | null;
+    queueAsFollowUp: boolean;
+    resolve: () => void;
+    reject: (error: unknown) => void;
+}
+
 interface InputContainerProps {
     /** Text buffer (owned by useCLIState) */
     buffer: TextBuffer;
@@ -52,6 +63,7 @@ interface InputContainerProps {
     session: SessionState;
     /** If provided, auto-submits once when the UI is ready */
     initialPrompt?: string | undefined;
+    isHydratingHistory: boolean;
     approval: ApprovalRequest | null;
     /** Active-turn input waiting for the next executor boundary */
     steerMessages: QueuedMessage[];
@@ -98,6 +110,7 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
             ui,
             session,
             initialPrompt,
+            isHydratingHistory,
             approval,
             steerMessages,
             queuedMessages,
@@ -126,6 +139,14 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
         const [isQueuedEditPending, setIsQueuedEditPending] = React.useState(false);
 
         const didAutoSubmitInitialPromptRef = useRef(false);
+        const initialPromptSessionIdRef = useRef(session.id);
+        const [isSubmittingInitialPrompt, setIsSubmittingInitialPrompt] = React.useState(
+            Boolean(initialPrompt)
+        );
+        const [deferredSubmissions, setDeferredSubmissions] = React.useState<DeferredSubmission[]>(
+            []
+        );
+        const isSubmittingDeferredRef = useRef(false);
 
         // Sound notification service from context
         const soundService = useSoundService();
@@ -523,9 +544,49 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
         // bypassOverlayCheck: skip the overlay check when called programmatically (e.g., from OverlayContainer)
         // queueAsFollowUp: while processing, queue this as the next turn instead of steering this turn.
         const handleSubmit = useCallback(
-            async (value: string, bypassOverlayCheck = false, queueAsFollowUp = false) => {
+            async (
+                value: string,
+                bypassOverlayCheck = false,
+                queueAsFollowUp = false,
+                submittedInput?: SubmittedInput
+            ) => {
+                if (!submittedInput && (isHydratingHistory || deferredSubmissions.length > 0)) {
+                    if (!value.trim()) return;
+                    if (
+                        !bypassOverlayCheck &&
+                        ui.activeOverlay !== 'none' &&
+                        ui.activeOverlay !== 'approval'
+                    )
+                        return;
+                    const completion = new Promise<void>((resolve, reject) => {
+                        setDeferredSubmissions((previous) => [
+                            ...previous,
+                            {
+                                value,
+                                input,
+                                sessionId: session.id,
+                                queueAsFollowUp,
+                                resolve,
+                                reject,
+                            },
+                        ]);
+                    });
+                    // Consume this submitted composer now; replay must leave a newer draft alone.
+                    buffer.setText('');
+                    setInput((previous) => ({
+                        ...previous,
+                        value: '',
+                        images: [],
+                        pastedBlocks: [],
+                        historyIndex: -1,
+                        draftBeforeHistory: '',
+                        editingQueuedFollowUp: false,
+                    }));
+                    return completion;
+                }
+                const composer = submittedInput ?? input;
                 // Expand all collapsed paste blocks before processing
-                const expandedValue = expandPasteBlocks(value, input.pastedBlocks);
+                const expandedValue = expandPasteBlocks(value, composer.pastedBlocks);
                 const trimmed = expandedValue.trim();
                 if (!trimmed) return;
 
@@ -533,7 +594,7 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                 if (ui.isProcessing && session.id) {
                     const content: ContentPart[] = [{ type: 'text', text: trimmed } as TextPart];
                     // Add images if any
-                    for (const img of input.images) {
+                    for (const img of composer.images) {
                         content.push({
                             type: 'image',
                             image: img.data,
@@ -541,7 +602,7 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                         } as ImagePart);
                     }
 
-                    const submitAsFollowUp = queueAsFollowUp || input.editingQueuedFollowUp;
+                    const submitAsFollowUp = queueAsFollowUp || composer.editingQueuedFollowUp;
 
                     try {
                         if (submitAsFollowUp) {
@@ -551,7 +612,7 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                         }
 
                         // Clear input, update history, and clear images
-                        buffer.setText('');
+                        if (!submittedInput) buffer.setText('');
                         setInput((prev) => {
                             const newHistory =
                                 prev.history.length > 0 &&
@@ -560,13 +621,17 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                                     : [...prev.history, trimmed].slice(-100);
                             return {
                                 ...prev,
-                                value: '',
+                                ...(submittedInput
+                                    ? {}
+                                    : {
+                                          value: '',
+                                          images: [],
+                                          pastedBlocks: [],
+                                          editingQueuedFollowUp: false,
+                                          draftBeforeHistory: '',
+                                      }),
                                 history: newHistory,
                                 historyIndex: -1,
-                                draftBeforeHistory: '',
-                                editingQueuedFollowUp: false,
-                                images: [],
-                                pastedBlocks: [],
                             };
                         });
                     } catch (error) {
@@ -594,28 +659,32 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                 }
 
                 // Capture images before clearing - we need them for the API call
-                const pendingImages = [...input.images];
+                const pendingImages = [...composer.images];
 
                 // Create user message and add it to messages
                 const userMessage = createUserMessage(trimmed);
                 setMessages((prev) => [...prev, userMessage]);
 
                 // Clear input directly on buffer and update history
-                buffer.setText('');
+                if (!submittedInput) buffer.setText('');
                 setInput((prev) => {
                     const newHistory =
                         prev.history.length > 0 && prev.history[prev.history.length - 1] === trimmed
                             ? prev.history
                             : [...prev.history, trimmed].slice(-100);
                     return {
-                        value: '',
+                        ...prev,
+                        ...(submittedInput
+                            ? {}
+                            : {
+                                  value: '',
+                                  images: [],
+                                  pastedBlocks: [],
+                                  editingQueuedFollowUp: false,
+                                  draftBeforeHistory: '',
+                              }),
                         history: newHistory,
                         historyIndex: -1,
-                        draftBeforeHistory: '',
-                        editingQueuedFollowUp: false,
-                        images: [], // Clear images on submit
-                        pastedBlocks: [], // Clear paste blocks on submit
-                        pasteCounter: prev.pasteCounter, // Keep counter for next session
                     };
                 });
 
@@ -921,8 +990,9 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
             },
             [
                 buffer,
-                input.images,
-                input.pastedBlocks,
+                isHydratingHistory,
+                deferredSubmissions.length,
+                input,
                 expandPasteBlocks,
                 setInput,
                 setUi,
@@ -945,28 +1015,81 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
         );
 
         useEffect(() => {
-            if (!initialPrompt || didAutoSubmitInitialPromptRef.current) {
+            if (!initialPrompt || didAutoSubmitInitialPromptRef.current) return;
+            if (
+                initialPromptSessionIdRef.current !== null &&
+                session.id !== initialPromptSessionIdRef.current
+            ) {
+                didAutoSubmitInitialPromptRef.current = true;
+                setIsSubmittingInitialPrompt(false);
                 return;
             }
+            if (isHydratingHistory) return;
 
             didAutoSubmitInitialPromptRef.current = true;
 
-            handleSubmit(initialPrompt, true).catch((error) => {
-                agent.logger.error('InputContainer initial prompt submission failed', {
-                    error,
-                    initialPrompt,
-                });
-                setMessages((prev) => [
-                    ...prev,
-                    {
-                        id: generateMessageId('error'),
-                        role: 'system',
-                        content: `Failed to submit initial prompt: ${error instanceof Error ? error.message : String(error)}`,
-                        timestamp: new Date(),
-                    },
-                ]);
+            handleSubmit(initialPrompt, true, false, {
+                images: [],
+                pastedBlocks: [],
+                editingQueuedFollowUp: false,
+            })
+                .catch((error) => {
+                    agent.logger.error('InputContainer initial prompt submission failed', {
+                        error,
+                        initialPrompt,
+                    });
+                    setMessages((prev) => [
+                        ...prev,
+                        {
+                            id: generateMessageId('error'),
+                            role: 'system',
+                            content: `Failed to submit initial prompt: ${error instanceof Error ? error.message : String(error)}`,
+                            timestamp: new Date(),
+                        },
+                    ]);
+                })
+                .finally(() => setIsSubmittingInitialPrompt(false));
+        }, [
+            agent.logger,
+            handleSubmit,
+            initialPrompt,
+            setMessages,
+            isHydratingHistory,
+            session.id,
+        ]);
+
+        useEffect(() => {
+            const submission = deferredSubmissions[0];
+            if (
+                isHydratingHistory ||
+                isSubmittingInitialPrompt ||
+                !submission ||
+                isSubmittingDeferredRef.current
+            )
+                return;
+            isSubmittingDeferredRef.current = true;
+            const result =
+                submission.sessionId === session.id
+                    ? handleSubmit(
+                          submission.value,
+                          true,
+                          submission.queueAsFollowUp,
+                          submission.input
+                      )
+                    : Promise.resolve();
+            result.then(submission.resolve, submission.reject).finally(() => {
+                isSubmittingDeferredRef.current = false;
+                setDeferredSubmissions((previous) =>
+                    previous.filter((item) => item !== submission)
+                );
             });
-        }, [agent.logger, handleSubmit, initialPrompt, setMessages]);
+        }, [
+            deferredSubmissions,
+            handleSubmit,
+            isHydratingHistory,
+            isSubmittingInitialPrompt,
+            session.id,
+        ]);
 
         // Determine if main input should be active.
         // Important: The main input subscribes to keypress events directly (not via orchestrator),
