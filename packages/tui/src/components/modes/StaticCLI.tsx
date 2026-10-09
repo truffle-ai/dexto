@@ -92,6 +92,7 @@ export function StaticCLI({
         buffer,
         overlayContainerRef,
         visibleMessages,
+        isHydratingHistory,
     } = useCLIState({
         agent,
         initialSessionId,
@@ -283,6 +284,7 @@ export function StaticCLI({
                     ui={ui}
                     session={session}
                     initialPrompt={initialPrompt}
+                    isHydratingHistory={isHydratingHistory}
                     approval={approval}
                     steerMessages={steerMessages}
                     queuedMessages={queuedMessages}
