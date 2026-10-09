@@ -4,6 +4,8 @@ import { createServer, type Server } from 'node:http';
 import { createConnection } from 'node:net';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DextoAgent } from '@dexto/core';
+import type { createDextoApp } from '@dexto/server';
+type AppOptions = Parameters<typeof createDextoApp>[0];
 
 const owned = vi.hoisted(() => ({
     closeMcp: vi.fn(),
@@ -13,20 +15,35 @@ const owned = vi.hoisted(() => ({
     abortApproval: vi.fn(),
     initializeMcp: vi.fn(),
     createAgent: vi.fn(),
+    resolveAgent: vi.fn(),
+    listAgents: vi.fn(),
+    bridgeSubscriber: {},
+    subscriberAgents: new Map<object, DextoAgent>(),
+    approvalBridges: new Map<DextoAgent, AbortController>(),
 }));
 vi.mock('@dexto/server', async () => {
     const { createServer } = await import('node:http');
+    const { Hono } = await import('hono');
     return {
-        createDextoApp: vi.fn(() => ({})),
+        createDextoApp: vi.fn((options: AppOptions) =>
+            new Hono().get('/test/agent', async (context) => {
+                const activeAgent = await options.getAgent(context);
+                return context.json({
+                    id: activeAgent.config.agentId,
+                    configPath: options.getAgentConfigPath?.(context),
+                    cardName: options.getAgentCard().name,
+                });
+            })
+        ),
         createNodeServer: vi.fn(() => {
             const server = createServer((_req, res) => res.end('ready'));
             server.on('close', owned.cleanupWebhook);
-            return { server };
+            return { server, webhookSubscriber: owned.bridgeSubscriber };
         }),
         createMcpTransport: vi.fn(async () => ({ close: owned.closeMcp })),
         createMcpHttpHandlers: vi.fn(() => null),
         initializeMcpServer: owned.initializeMcp,
-        createManualApprovalHandler: vi.fn(),
+        createManualApprovalHandler: vi.fn(() => ({ approve: vi.fn() })),
         WebhookEventSubscriber: class {
             cleanup = owned.cleanupWebhook;
         },
@@ -37,7 +54,12 @@ vi.mock('@dexto/server', async () => {
             cleanup = owned.cleanupSession;
         },
         ApprovalCoordinator: class {},
-        wireApprovalCoordinatorToAgent: vi.fn(() => ({ abort: owned.abortApproval })),
+        wireApprovalCoordinatorToAgent: vi.fn((agent: DextoAgent) => {
+            const controller = new AbortController();
+            controller.signal.addEventListener('abort', owned.abortApproval);
+            owned.approvalBridges.set(agent, controller);
+            return controller;
+        }),
     };
 });
 vi.mock('@dexto/agent-management', async (importOriginal) => {
@@ -47,7 +69,8 @@ vi.mock('@dexto/agent-management', async (importOriginal) => {
         globalPreferencesExist: () => false,
         loadAgentConfig: vi.fn(async () => ({})),
         createDextoAgentFromConfig: owned.createAgent,
-        AgentFactory: { listAgents: vi.fn(async () => ({ installed: [], available: [] })) },
+        getAgentRegistry: () => ({ resolveAgent: owned.resolveAgent }),
+        AgentFactory: { listAgents: owned.listAgents },
     };
 });
 vi.mock('../utils/session-logger-factory.js', () => ({ createFileSessionLoggerFactory: vi.fn() }));
@@ -55,8 +78,18 @@ vi.mock('../utils/session-logger-factory.js', () => ({ createFileSessionLoggerFa
 import { initializeHonoApi, startHonoApiServer } from './server-hono.js';
 
 function fakeAgent() {
-    const start = vi.fn(async (): Promise<void> => undefined);
-    const stop = vi.fn(async (): Promise<void> => undefined);
+    let started = false;
+    let stopped = false;
+    const subscribers = new Set<object>();
+    const start = vi.fn(async (): Promise<void> => {
+        started = true;
+        stopped = false;
+        for (const subscriber of subscribers) owned.subscriberAgents.set(subscriber, agent);
+    });
+    const stop = vi.fn(async (): Promise<void> => {
+        stopped = true;
+        started = false;
+    });
     // This boundary fixture replaces agent/provider execution, while sockets remain real.
     const agent = {
         config: {
@@ -67,9 +100,15 @@ function fakeAgent() {
         },
         start,
         stop,
-        registerSubscriber: vi.fn(),
-        isStarted: () => true,
-        isStopped: () => false,
+        registerSubscriber: vi.fn((subscriber: object) => {
+            subscribers.add(subscriber);
+            if (started) owned.subscriberAgents.set(subscriber, agent);
+        }),
+        setApprovalHandler: vi.fn(),
+        getWorkspace: vi.fn(async () => ({ path: '/workspace' })),
+        setWorkspace: vi.fn(async (): Promise<void> => undefined),
+        isStarted: () => started,
+        isStopped: () => stopped,
     } as unknown as DextoAgent;
     return { agent, start, stop };
 }
@@ -87,6 +126,10 @@ let previous = signals.map((signal) => processEvents.listeners(signal));
 
 beforeEach(() => {
     vi.clearAllMocks();
+    owned.subscriberAgents.clear();
+    owned.approvalBridges.clear();
+    owned.resolveAgent.mockResolvedValue('/fixtures/replacement.yml');
+    owned.listAgents.mockResolvedValue({ installed: [], available: [] });
     owned.closeMcp.mockResolvedValue(undefined);
     owned.initializeMcp.mockResolvedValue(undefined);
     previous = signals.map((signal) => processEvents.listeners(signal));
@@ -203,6 +246,22 @@ describe('CLI HTTP host lifecycle', () => {
         resources.push(host);
         await host.switchAgentByPath('replacement.yml');
         expect(initial.stop).toHaveBeenCalledTimes(1);
+        expect(host.getActiveAgentId()).toBe('replacement');
+        expect(() => host.ensureAgentAvailable()).not.toThrow();
+        const response = await host.app.request('/test/agent');
+        expect(await response.json()).toEqual({
+            id: 'replacement',
+            configPath: 'replacement.yml',
+            cardName: 'replacement',
+        });
+        expect([...owned.subscriberAgents.values()]).toEqual([
+            replacement.agent,
+            replacement.agent,
+            replacement.agent,
+            replacement.agent,
+        ]);
+        expect(owned.approvalBridges.get(initial.agent)?.signal.aborted).toBe(true);
+        expect(owned.approvalBridges.get(replacement.agent)?.signal.aborted).toBe(false);
         await host.stop();
         expect(initial.stop).toHaveBeenCalledTimes(1);
         expect(replacement.stop).toHaveBeenCalledTimes(1);
@@ -260,6 +319,121 @@ describe('CLI HTTP host lifecycle', () => {
             socket.destroy();
         }
     });
+    it.each(['id', 'path'] as const)(
+        'keeps the previous agent usable when replacement startup fails through %s',
+        async (source) => {
+            const initial = fakeAgent();
+            initial.agent.config.agentId = 'initial';
+            initial.agent.config.permissions.mode = 'manual';
+            const replacement = fakeAgent();
+            replacement.agent.config.permissions.mode = 'manual';
+            const failure = new Error('replacement startup failed');
+            replacement.start.mockRejectedValueOnce(failure);
+            owned.createAgent.mockResolvedValueOnce(replacement.agent);
+            const host = await initializeHonoApi(initial.agent, {}, 0, 'initial', 'initial.yml');
+            resources.push(host);
+            const oldHandler = vi.mocked(initial.agent.setApprovalHandler).mock.calls[0]?.[0];
+            const switching =
+                source === 'id'
+                    ? host.switchAgentById('replacement')
+                    : host.switchAgentByPath('replacement.yml');
+            await expect(switching).rejects.toBe(failure);
+            expect(host.getActiveAgentId()).toBe('initial');
+            expect(() => host.ensureAgentAvailable()).not.toThrow();
+            const response = await host.app.request('/test/agent');
+            expect(response.status).toBe(200);
+            expect(await response.json()).toEqual({
+                id: 'initial',
+                configPath: 'initial.yml',
+                cardName: 'initial',
+            });
+            expect([...owned.subscriberAgents.values()]).toEqual([
+                initial.agent,
+                initial.agent,
+                initial.agent,
+                initial.agent,
+            ]);
+            expect(owned.approvalBridges.get(initial.agent)?.signal.aborted).toBe(false);
+            expect(owned.approvalBridges.get(replacement.agent)?.signal.aborted).toBe(true);
+            expect(initial.agent.setApprovalHandler).toHaveBeenCalledExactlyOnceWith(oldHandler);
+            expect(initial.stop).not.toHaveBeenCalled();
+            expect(replacement.stop).toHaveBeenCalledTimes(1);
+        }
+    );
+
+    it('restores previous routing and subscriptions after workspace setup fails, even if replacement cleanup fails', async () => {
+        const initial = fakeAgent();
+        initial.agent.config.agentId = 'initial';
+        initial.agent.config.permissions.mode = 'manual';
+        const replacement = fakeAgent();
+        replacement.agent.config.permissions.mode = 'manual';
+        const failure = new Error('replacement workspace setup failed');
+        vi.mocked(replacement.agent.getWorkspace).mockResolvedValueOnce({
+            id: 'replacement-workspace',
+            path: '/other',
+            createdAt: 0,
+            lastActiveAt: 0,
+        });
+        vi.mocked(replacement.agent.setWorkspace).mockRejectedValueOnce(failure);
+        replacement.stop.mockRejectedValueOnce(new Error('replacement cleanup failed'));
+        owned.createAgent.mockResolvedValueOnce(replacement.agent);
+        const host = await initializeHonoApi(
+            initial.agent,
+            {},
+            0,
+            'initial',
+            'initial.yml',
+            '/workspace'
+        );
+        resources.push(host);
+        await expect(host.switchAgentByPath('replacement.yml')).rejects.toBe(failure);
+        expect(replacement.start).toHaveBeenCalledTimes(1);
+        expect(host.getActiveAgentId()).toBe('initial');
+        expect(() => host.ensureAgentAvailable()).not.toThrow();
+        const response = await host.app.request('/test/agent');
+        expect(response.status).toBe(200);
+        expect(await response.json()).toEqual({
+            id: 'initial',
+            configPath: 'initial.yml',
+            cardName: 'initial',
+        });
+        expect([...owned.subscriberAgents.values()]).toEqual([
+            initial.agent,
+            initial.agent,
+            initial.agent,
+            initial.agent,
+        ]);
+        expect(owned.approvalBridges.get(initial.agent)?.signal.aborted).toBe(false);
+        expect(owned.approvalBridges.get(replacement.agent)?.signal.aborted).toBe(true);
+        expect(initial.stop).not.toHaveBeenCalled();
+        expect(replacement.stop).toHaveBeenCalledTimes(1);
+        await host.stop();
+        expect(initial.stop).toHaveBeenCalledTimes(1);
+        expect(replacement.stop).toHaveBeenCalledTimes(2);
+    });
+
+    it('keeps the previous agent when replacement display info cannot be resolved', async () => {
+        const initial = fakeAgent();
+        initial.agent.config.agentId = 'initial';
+        const replacement = fakeAgent();
+        const failure = new Error('registry unavailable');
+        owned.listAgents.mockRejectedValueOnce(failure);
+        owned.createAgent.mockResolvedValueOnce(replacement.agent);
+        const host = await initializeHonoApi(initial.agent, {}, 0, 'initial', 'initial.yml');
+        resources.push(host);
+        await expect(host.switchAgentByPath('replacement.yml')).rejects.toBe(failure);
+        expect(host.getActiveAgentId()).toBe('initial');
+        expect(() => host.ensureAgentAvailable()).not.toThrow();
+        const response = await host.app.request('/test/agent');
+        expect(await response.json()).toEqual({
+            id: 'initial',
+            configPath: 'initial.yml',
+            cardName: 'initial',
+        });
+        expect(initial.stop).not.toHaveBeenCalled();
+        expect(replacement.stop).toHaveBeenCalledTimes(1);
+    });
+
     it('retains ownership of the original agent when replacement startup fails', async () => {
         const initial = fakeAgent();
         const replacement = fakeAgent();
