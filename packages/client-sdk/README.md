@@ -29,8 +29,8 @@ const cloud = createDextoCloudClient({
 });
 
 const sources = await cloud.sources({ limit: 20 });
-const matches = await cloud.search({ query: 'drive files', limit: 10 });
-const description = await cloud.describe('drive.list');
+const matches = await cloud.search({ query: 'web search', limit: 10 });
+const description = await cloud.describe('dexto.platform.web_search');
 ```
 
 Use an organization credential with `capabilities:read`. Results include schemas and execution/availability metadata; discovery does not grant permission to invoke a capability. Cloud validates current membership and credential permissions on each request.
@@ -40,8 +40,8 @@ The CLI uses the same discovery client:
 ```bash
 dexto login
 dexto cloud sources --json
-dexto cloud search "drive files" --limit 10 --json
-dexto cloud describe drive.list --json
+dexto cloud search "web search" --limit 10 --json
+dexto cloud describe dexto.platform.web_search --json
 ```
 
 Search returns `hasMore`, `nextOffset`, and `total`. Pass `--offset` for the next page. JSON failures contain an `error` object and exit with code 1. Human-readable output is the default.

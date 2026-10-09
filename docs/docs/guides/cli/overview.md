@@ -670,8 +670,8 @@ Use the CLI to find Cloud capabilities before choosing an operation:
 ```bash
 dexto login
 dexto cloud sources --json
-dexto cloud search "drive files" --limit 10 --json
-dexto cloud describe drive.list --json
+dexto cloud search "web search" --limit 10 --json
+dexto cloud describe dexto.platform.web_search --json
 ```
 
 These commands use the existing device login/API-key flow and provide read-only discovery. An organization key needs `capabilities:read`; Cloud checks current membership and permissions on every request. Description results include input schemas, execution details, and availability. Listing a capability does not authorize its execution.
