@@ -37,6 +37,7 @@ Use Ctrl+C or send SIGTERM to stop the local server. Shutdown closes the HTTP li
     # .env
     OPENAI_API_KEY=your_openai_api_key
     ANTHROPIC_API_KEY=your_anthropic_api_key
+    DEXTO_SERVER_API_KEY=your_local_server_api_key
     # Add other API keys as needed
     ```
 
@@ -45,28 +46,29 @@ Use Ctrl+C or send SIGTERM to stop the local server. Shutdown closes the HTTP li
     docker run --env-file .env -p 3001:3001 dexto
     ```
 
+Production API requests require `Authorization: Bearer <DEXTO_SERVER_API_KEY>`; `/health` remains public.
+
 Your Dexto server will be available at `http://localhost:3001` with:
 
 - ✅ SQLite database connected
-- ✅ MCP servers (filesystem & puppeteer) connected
+- ✅ Local filesystem and process tools available
 - ✅ REST API + SSE streaming endpoints available
 
 ### Port Configuration
 
-By default, Dexto server mode runs on port 3001 and web mode on port 3000. Customize the port using the `PORT` environment variable or `--port` flag:
+The container uses `PORT=3001` by default. Set `PORT` and the matching published port to customize it:
 
 ```bash
 # Using environment variable
 docker run --env-file .env -e PORT=8080 -p 8080:8080 dexto
-
-# Using CLI flag (requires modifying Dockerfile CMD)
-docker run --env-file .env -p 8080:8080 dexto --port 8080
 ```
 
 ```bash
 # Web mode with custom port (serves both UI and API)
-docker run --env-file .env -p 3000:3000 dexto --port 3000
+docker run --env-file .env -e PORT=3000 -p 3000:3000 dexto --mode web
 ```
+
+The container runs as a non-root user with a writable `/workspace` working directory. Agent data lives under `/app/.dexto`, so the volume examples below persist SQLite sessions and local blob data. The default configuration is the bundled coding agent; set `CONFIG_FILE` to a mounted YAML file to use another agent. Additional arguments are forwarded to the CLI, and `docker stop` sends SIGTERM directly to its Node process.
 
 ### Background Mode
 
