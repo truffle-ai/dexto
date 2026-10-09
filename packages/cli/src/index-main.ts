@@ -6,6 +6,7 @@ import * as p from '@clack/prompts';
 import chalk from 'chalk';
 import { withAnalytics, safeExit, ExitSignal } from './analytics/wrapper.js';
 import type { UpdateInfo } from './cli/utils/version-check.js';
+import { handleHeadlessApproval } from './cli/approval/headless-approval-handler.js';
 
 function readVersionFromPackageJson(packageJsonPath: string): string | undefined {
     if (!existsSync(packageJsonPath)) {
@@ -498,6 +499,9 @@ async function bootstrapAgentFromGlobalOpts(options: {
             },
         })
     );
+    if (isHeadlessRun) {
+        agent.setApprovalHandler(handleHeadlessApproval);
+    }
     await agent.start();
     await (await import('./utils/workspace.js')).applyWorkspaceToAgent(agent, workspaceRoot);
 
