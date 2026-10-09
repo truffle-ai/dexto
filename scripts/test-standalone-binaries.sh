@@ -276,4 +276,6 @@ echo "Version check passed (${version_output})"
 DEXTO_API_KEY=dummy run_with_timeout 240 "${binary_path}" --no-interactive --help >/dev/null
 echo "CLI execution smoke test passed"
 
+node "$(to_node_path "${ROOT_DIR}/scripts/test-packaged-agent-runtime.mjs")" "$(to_node_path "${binary_path}")"
+
 echo "Standalone artifact smoke test passed: ${artifact_name}"

@@ -51,7 +51,7 @@ No setup required — just install and start using them.
 dexto agents install music-agent
 ```
 
-This will install the music-agent with your preferred LLM you chose during setup, and you can immediately start running it!
+This installs the bundled music-agent configuration and supporting files. The LLM preferences you chose during setup apply when you start the agent.
 
 ```bash
 dexto agents list
@@ -86,27 +86,21 @@ dexto agents list
 
 Verify the music-agent was successfully uninstalled.
 
-### 5. Reinstall the agent with in-built LLM settings
+### 5. Reinstall the bundled agent
 
 ```bash
-dexto agents install music-agent --no-inject-preferences
+dexto agents install music-agent
 ```
 
-The first time when you installed `music-agent`, Dexto automatically injected your preferred LLM you configured during setup to be the LLM for this agent.
+Installation copies the bundled agent configuration and supporting files. It does not write your global LLM preferences into the agent configuration.
 
-To avoid this and use the default LLM shipped for the music-agent, use the `--no-inject-preferences` argument while installing the agent.
-
-This is preferable for certain agents that work better with or require pre-set LLMs, such as the nano-banana agent, which requires gemini.
-
-Now let's rerun the `agents list` command to see the installed agents.
+The CLI applies your setup preferences in memory when you start the agent. Uninstalling and reinstalling restores the bundled files, but does not disable those preferences.
 
 ```bash
 dexto agents list
 ```
 
-You will now see that the music-agent has a different LLM configuration (the default one, as opposed to your preferred one)
-
-In case you install an agent incorrectly, or want to use the default LLM config, you can always uninstall and reinstall agents.
+Verify that the music-agent is installed again.
 
 ### 6. Use the `dexto which` command to find the path to your agent file
 
@@ -156,7 +150,7 @@ Similarly, if you want to change the default to any other agent, just update `de
 dexto -a database-agent
 ```
 
-If you don't run the install command first, Dexto will automatically install the agent with your preferred LLM and open the Web UI for you to start chatting!
+If you don't run the install command first, Dexto will automatically install the bundled agent and open the Web UI. Your setup preferences apply when the agent starts.
 
 You can now interact with the database agent in the Web UI, or close it and re-run the `list-agents` command to verify that the `database-agent` was installed.
 
@@ -192,7 +186,7 @@ Scroll to the **Available** section and find an agent you want to try, like **Mu
 
 ![Available agents](/img/screenshots/install-agent/webui-available-agents.png)
 
-Click on the agent with the download icon. It will be installed automatically with your preferred LLM.
+Click on the agent with the download icon. Its configuration and supporting files will be installed automatically. Your configured LLM preferences apply when you start the agent.
 
 ### 3. Switch to the Installed Agent
 
@@ -237,7 +231,7 @@ You've learned how to:
 - ✅ List available agents in dexto with the `dexto agents list` command
 - ✅ Install agents with the `dexto agents install` command
 - ✅ Uninstall agents with the `dexto agents uninstall` command
-- ✅ Use the `--no-inject-preferences` argument with `dexto agents install` command to use default LLM preferences
+- ✅ Understand how your LLM preferences apply when starting an agent
 - ✅ Find the file path to installed agents with the `dexto which` command
 - ✅ Set any agent as your preferred default agent in `dexto`
 - ✅ Automatically install and run an agent with `dexto -a <agent_name>`

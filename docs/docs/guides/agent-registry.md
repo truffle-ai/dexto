@@ -543,12 +543,11 @@ dexto agents install nano-banana-agent
 # Install multiple agents
 dexto agents install podcast-agent music-agent coding-agent
 
-# Install with default LLM (skip preference injection)
-dexto agents install nano-banana-agent --no-inject-preferences
-
 # Install all agents
 dexto agents install --all
 ```
+
+Installation copies bundled agent files without modifying them with global LLM preferences. The CLI applies your configured LLM preferences when starting an agent, so reinstalling does not change that selection.
 
 ### Using Installed Agents
 
