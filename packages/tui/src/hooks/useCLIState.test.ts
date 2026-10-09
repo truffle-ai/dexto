@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { useCLIState, type CLIStateReturn } from './useCLIState.js';
 import { KeypressProvider } from '../contexts/KeypressContext.js';
 import type { TuiAgentBackend } from '../agent-backend.js';
-import type { InternalMessage } from '@dexto/core';
+import { AgentEventBus, type InternalMessage, type QueuedMessage } from '@dexto/core';
 import { createUserMessage } from '../utils/messageFormatting.js';
 import type { Message } from '../state/types.js';
 import { InputContainer, type InputContainerHandle } from '../containers/InputContainer.js';
@@ -494,4 +494,115 @@ describe('TUI resumed history', () => {
             screen.close();
         }
     });
+});
+
+describe('TUI session queue isolation', () => {
+    it('keeps a current-session queue snapshot while the composer changes', async () => {
+        const events = new AgentEventBus();
+        let release: (messages: QueuedMessage[]) => void = () => {};
+        const pending = new Promise<QueuedMessage[]>((resolve) => {
+            release = resolve;
+        });
+        const messages: QueuedMessage[] = [
+            { id: 'queued', content: [{ type: 'text', text: 'queued task' }], queuedAt: 1 },
+        ];
+        const backend = {
+            ...agent,
+            on: events.on.bind(events),
+            getSteerMessages: vi.fn(async () => pending),
+        };
+        const screen = mountState('a', backend);
+        try {
+            await vi.waitFor(() => expect(screen.getState().session.id).toBe('a'));
+            events.emit('message:queued', {
+                sessionId: 'a',
+                queue: 'steer',
+                id: 'queued',
+                position: 1,
+            });
+            screen.getState().buffer.setText('a newer draft');
+            await vi.waitFor(() => expect(screen.getState().input.value).toBe('a newer draft'));
+            release(messages);
+            await vi.waitFor(() => expect(screen.getState().steerMessages).toEqual(messages));
+            expect(screen.getState().input.value).toBe('a newer draft');
+        } finally {
+            release([]);
+            screen.close();
+        }
+    });
+
+    it.each(['steer', 'follow-up'] as const)(
+        'ignores %s queue events from another session',
+        async (queue) => {
+            const events = new AgentEventBus();
+            const getMessages = vi.fn(async () => []);
+            const backend = {
+                ...agent,
+                on: events.on.bind(events),
+                getSteerMessages: getMessages,
+                getFollowUpMessages: getMessages,
+            };
+            const screen = mountState('a', backend);
+            try {
+                await vi.waitFor(() => expect(screen.getState().session.id).toBe('a'));
+                events.emit('message:queued', { sessionId: 'b', queue, id: 'other', position: 1 });
+                events.emit('message:removed', { sessionId: 'b', queue, id: 'other' });
+                expect(getMessages).not.toHaveBeenCalled();
+            } finally {
+                screen.close();
+            }
+        }
+    );
+
+    it.each(['steer', 'follow-up'] as const)(
+        'discards a pending %s snapshot after switching sessions',
+        async (queue) => {
+            const events = new AgentEventBus();
+            let release: (messages: QueuedMessage[]) => void = () => {};
+            const pending = new Promise<QueuedMessage[]>((resolve) => {
+                release = resolve;
+            });
+            const current: QueuedMessage[] = [
+                { id: 'current', content: [{ type: 'text', text: 'current task' }], queuedAt: 1 },
+            ];
+            const getMessages = vi.fn(async (sessionId: string) =>
+                sessionId === 'a' ? pending : current
+            );
+            const backend = {
+                ...agent,
+                on: events.on.bind(events),
+                getSteerMessages: getMessages,
+                getFollowUpMessages: getMessages,
+            };
+            const screen = mountState('a', backend);
+            const visibleQueue = () =>
+                queue === 'steer'
+                    ? screen.getState().steerMessages
+                    : screen.getState().queuedMessages;
+            try {
+                await vi.waitFor(() => expect(screen.getState().session.id).toBe('a'));
+                events.emit('message:queued', { sessionId: 'a', queue, id: 'old', position: 1 });
+                expect(getMessages).toHaveBeenCalledWith('a');
+                screen.getState().setSession((previous) => ({ ...previous, id: 'b' }));
+                await vi.waitFor(() => expect(screen.getState().session.id).toBe('b'));
+                events.emit('message:queued', {
+                    sessionId: 'b',
+                    queue,
+                    id: 'current',
+                    position: 1,
+                });
+                await vi.waitFor(() => expect(visibleQueue()).toEqual(current));
+                release([
+                    { id: 'old', content: [{ type: 'text', text: 'old task' }], queuedAt: 0 },
+                ]);
+                await pending;
+                screen.getState().setUi((previous) => ({ ...previous, isThinking: true }));
+                await vi.waitFor(() => expect(screen.getState().ui.isThinking).toBe(true));
+                expect(visibleQueue()).toEqual(current);
+            } finally {
+                release([]);
+                screen.close();
+            }
+        }
+    );
 });
