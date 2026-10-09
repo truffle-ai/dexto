@@ -300,63 +300,77 @@ export async function initializeHonoApi(
             ownedAgents.add(newAgent);
             logger.info('Preparing new agent for switch...');
 
-            // Register webhook subscriber for LLM streaming events
-            if (bridge.webhookSubscriber) {
-                newAgent.registerSubscriber(bridge.webhookSubscriber);
-            }
-
-            // Switch activeAgent reference first
             const previousAgent = activeAgent;
-            activeAgent = newAgent;
-            activeAgentId = agentId;
-            activeAgentConfigPath = agentConfigPath;
-
-            // Set approval handler if manual mode OR elicitation enabled (before start() for validation)
-            const needsHandler =
-                newAgent.config.permissions.mode === 'manual' ||
-                newAgent.config.elicitation.enabled;
-
-            if (needsHandler) {
-                logger.debug('Setting up manual approval handler for new agent...');
-                const handler = createManualApprovalHandler(approvalCoordinator);
-                newAgent.setApprovalHandler(handler);
-            }
-
-            // Wire SSE subscribers BEFORE starting
-            logger.info('Wiring services to new agent...');
-            await wireServicesToAgent(newAgent);
-
-            logger.info(`Starting new agent: ${agentId}`);
-            await newAgent.start();
-            if (workspaceRoot) {
-                await applyWorkspaceToAgent(newAgent, workspaceRoot);
-            }
-
-            // Update agent card for A2A and MCP routes
-            agentCardData = createAgentCard(
-                {
-                    defaultName: agentId,
-                    defaultVersion: overrides.version ?? DEFAULT_AGENT_VERSION,
-                    defaultBaseUrl: baseApiUrl,
-                },
-                overrides
-            );
-
-            logger.info(`Successfully switched to agent: ${agentId}`);
-
-            // Now safely stop the previous agent
             try {
-                if (previousAgent && previousAgent !== newAgent) {
-                    logger.info('Stopping previous agent...');
-                    await previousAgent.stop();
-                    ownedAgents.delete(previousAgent);
+                // Register webhook subscriber for LLM streaming events
+                if (bridge.webhookSubscriber) {
+                    newAgent.registerSubscriber(bridge.webhookSubscriber);
                 }
-            } catch (err) {
-                logger.warn(`Stopping previous agent failed: ${err}`);
-                // Don't throw here as the switch was successful
-            }
 
-            return await resolveAgentInfo(agentId);
+                // Set approval handler if manual mode OR elicitation enabled (before start() for validation)
+                const needsHandler =
+                    newAgent.config.permissions.mode === 'manual' ||
+                    newAgent.config.elicitation.enabled;
+
+                if (needsHandler) {
+                    logger.debug('Setting up manual approval handler for new agent...');
+                    const handler = createManualApprovalHandler(approvalCoordinator);
+                    newAgent.setApprovalHandler(handler);
+                }
+
+                // Wire SSE subscribers BEFORE starting
+                logger.info('Wiring services to new agent...');
+                await wireServicesToAgent(newAgent);
+
+                logger.info(`Starting new agent: ${agentId}`);
+                await newAgent.start();
+                if (workspaceRoot) {
+                    await applyWorkspaceToAgent(newAgent, workspaceRoot);
+                }
+
+                const agentInfo = await resolveAgentInfo(agentId);
+                const nextAgentCard = createAgentCard(
+                    {
+                        defaultName: agentId,
+                        defaultVersion: overrides.version ?? DEFAULT_AGENT_VERSION,
+                        defaultBaseUrl: baseApiUrl,
+                    },
+                    overrides
+                );
+
+                // Publish only after the replacement is ready; failed preparation leaves routes intact.
+                activeAgent = newAgent;
+                activeAgentId = agentId;
+                activeAgentConfigPath = agentConfigPath;
+                agentCardData = nextAgentCard;
+                logger.info(`Successfully switched to agent: ${agentId}`);
+
+                // Now safely stop the previous agent
+                try {
+                    if (previousAgent && previousAgent !== newAgent) {
+                        logger.info('Stopping previous agent...');
+                        await previousAgent.stop();
+                        ownedAgents.delete(previousAgent);
+                    }
+                } catch (err) {
+                    logger.warn(`Stopping previous agent failed: ${err}`);
+                    // Don't throw here as the switch was successful
+                }
+
+                return agentInfo;
+            } catch (error) {
+                // Subscribers are shared and may already have moved to the replacement's event bus.
+                try {
+                    if (bridge.webhookSubscriber)
+                        previousAgent.registerSubscriber(bridge.webhookSubscriber);
+                    await wireServicesToAgent(previousAgent);
+                } catch (recoveryError) {
+                    logger.error('Failed to restore services to previous agent', {
+                        error: recoveryError,
+                    });
+                }
+                throw error;
+            }
         }
 
         async function switchAgentById(
