@@ -54,7 +54,12 @@ async function openPermissions() {
             },
             onClose,
         }),
-        { stdout: stdout as unknown as NodeJS.WriteStream, patchConsole: false, exitOnCtrlC: false }
+        {
+            stdout: stdout as unknown as NodeJS.WriteStream,
+            debug: true,
+            patchConsole: false,
+            exitOnCtrlC: false,
+        }
     );
     await vi.waitFor(() => expect(output).toContain('Revoke git status *'));
     return {

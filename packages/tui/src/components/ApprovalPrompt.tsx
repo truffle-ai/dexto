@@ -111,6 +111,7 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
 
         // Check if this is an edit/write file tool
         const isEditOrWriteTool = isEditWriteTool(toolName);
+        const canAcceptEdits = canRemember && isEditOrWriteTool && approvalKey === undefined;
 
         // Format tool header using shared utility (same format as tool messages)
         const presentationSnapshot = useMemo(() => {
@@ -155,11 +156,7 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
                     label: `Allow ${rememberedScope} for this session`,
                 });
             }
-            if (
-                isEditOrWriteTool &&
-                approvalKey === undefined &&
-                approval.autoApproval !== 'disallowed'
-            ) {
+            if (canAcceptEdits) {
                 options.push({ id: 'yes-accept-edits', label: 'Allow all edits for this session' });
             }
             options.push({ id: 'no', label: 'Reject' });
@@ -246,7 +243,7 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
                             onDeny();
                         }
                         return true;
-                    } else if (key.shift && key.tab && isEditOrWriteTool) {
+                    } else if (key.shift && key.tab && canAcceptEdits) {
                         // Shift+Tab on edit/write tool: approve and enable "accept all edits" mode
                         onApprove({ enableAcceptEditsMode: true });
                         return true;
@@ -259,7 +256,7 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
             }),
             [
                 isElicitation,
-                isEditOrWriteTool,
+                canAcceptEdits,
                 isPlanReview,
                 options,
                 onApprove,

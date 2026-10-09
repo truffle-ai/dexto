@@ -116,7 +116,7 @@ describe('command-pattern-utils', () => {
             'git status $(touch file)',
             'git status `touch file`',
             'FOO=x git status',
-            'git status \"quoted\"',
+            'git status "quoted"',
         ])('uses an exact scope for shell syntax: %s', (command) => {
             expect(generateCommandApprovalKey(command)).toMatch(/^bash:exact:/);
             expect(generateCommandPatternSuggestions(command)).toEqual([]);
