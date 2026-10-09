@@ -1,6 +1,10 @@
 import { describe, test, expect } from 'vitest';
 import { redactSensitiveData as redact } from './redactor.js';
 
+// Realistic signature shapes: a SigV4 signature is 64 hex characters, a SigV2 one base64.
+const sigV4Hex = 'a1'.repeat(32);
+const sigV2Base64 = 'dGhpc2lzYXNpZ25hdHVyZQ%3D%3D';
+
 describe('redact', () => {
     // Basic field redaction
     test('should redact a single sensitive field', () => {
@@ -176,8 +180,8 @@ describe('redact', () => {
 
         test('should keep the access key id inside an S3 presigned URL', () => {
             const keyId = `AKIA${'IOSFODNN7EXAMPLE'}`;
-            const sigV4 = `https://bucket.s3.us-east-1.amazonaws.com/report.pdf?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=${keyId}%2F20261008%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Signature=abc123`;
-            const sigV2 = `https://bucket.s3.amazonaws.com/report.pdf?AWSAccessKeyId=${keyId}&Expires=1791500000&Signature=abc123`;
+            const sigV4 = `https://bucket.s3.us-east-1.amazonaws.com/report.pdf?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=${keyId}%2F20261008%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Signature=${sigV4Hex}`;
+            const sigV2 = `https://bucket.s3.amazonaws.com/report.pdf?AWSAccessKeyId=${keyId}&Expires=1791500000&Signature=${sigV2Base64}`;
             expect(redact(sigV4)).toBe(sigV4);
             expect(redact(sigV2)).toBe(sigV2);
             expect(redact(`aws_access_key_id = ${keyId}`)).toBe('aws_access_key_id = [REDACTED]');
@@ -192,10 +196,10 @@ describe('redact', () => {
                 `${sigV4} and https://example.com/cb?X-Amz-Credential=[REDACTED]`
             );
             // Path-style S3 URLs are signed URLs too.
-            const pathStyle = `https://s3.amazonaws.com/bucket/report.pdf?X-Amz-Credential=${keyId}%2F20261008%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Signature=abc123`;
+            const pathStyle = `https://s3.amazonaws.com/bucket/report.pdf?X-Amz-Credential=${keyId}%2F20261008%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Signature=${sigV4Hex}`;
             expect(redact(pathStyle)).toBe(pathStyle);
             // The key id need not be the first query parameter.
-            const sigV2Reordered = `https://bucket.s3.amazonaws.com/report.pdf?Expires=1791500000&AWSAccessKeyId=${keyId}&Signature=abc123`;
+            const sigV2Reordered = `https://bucket.s3.amazonaws.com/report.pdf?Expires=1791500000&AWSAccessKeyId=${keyId}&Signature=${sigV2Base64}`;
             expect(redact(sigV2Reordered)).toBe(sigV2Reordered);
             // An S3 host name in the path does not make another site's URL a signed S3 URL.
             expect(
@@ -210,9 +214,9 @@ describe('redact', () => {
                 'https://bucket.s3.evilamazonaws.com/a?X-Amz-Credential=[REDACTED]'
             );
             // AWS China regions end in amazonaws.com.cn; URL schemes are case-insensitive.
-            const china = `https://bucket.s3.cn-north-1.amazonaws.com.cn/report.pdf?X-Amz-Credential=${keyId}%2F20261008%2Fcn-north-1%2Fs3%2Faws4_request&X-Amz-Signature=abc123`;
+            const china = `https://bucket.s3.cn-north-1.amazonaws.com.cn/report.pdf?X-Amz-Credential=${keyId}%2F20261008%2Fcn-north-1%2Fs3%2Faws4_request&X-Amz-Signature=${sigV4Hex}`;
             expect(redact(china)).toBe(china);
-            const upperScheme = `HTTPS://bucket.s3.amazonaws.com/report.pdf?AWSAccessKeyId=${keyId}&Signature=abc123`;
+            const upperScheme = `HTTPS://bucket.s3.amazonaws.com/report.pdf?AWSAccessKeyId=${keyId}&Signature=${sigV2Base64}`;
             expect(redact(upperScheme)).toBe(upperScheme);
             // Without its signature, a path-style S3 link is not a signed link.
             expect(redact(`https://s3.amazonaws.com/bucket/a?X-Amz-Credential=${keyId}`)).toBe(
@@ -227,19 +231,19 @@ describe('redact', () => {
                 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U';
             expect(redact(`${pathStyle} and ${jwt}`)).toBe(`${pathStyle} and [REDACTED]`);
             // S3 Express directory buckets have their own zonal host.
-            const express = `https://bucket--usw2-az1--x-s3.s3express-usw2-az1.us-west-2.amazonaws.com/report.pdf?X-Amz-Credential=${keyId}%2F20261008%2Fus-west-2%2Fs3express%2Faws4_request&X-Amz-Signature=abc123`;
+            const express = `https://bucket--usw2-az1--x-s3.s3express-usw2-az1.us-west-2.amazonaws.com/report.pdf?X-Amz-Credential=${keyId}%2F20261008%2Fus-west-2%2Fs3express%2Faws4_request&X-Amz-Signature=${sigV4Hex}`;
             expect(redact(express)).toBe(express);
             // A token right after a signed link, with no space between, is not the link's.
             expect(redact(`${pathStyle},${jwt}`)).toBe(`${pathStyle},[REDACTED]`);
             // A key=value field written right after a signed link is not part of the link.
             expect(redact(`${pathStyle},token=${jwt}`)).toBe(`${pathStyle},token=[REDACTED]`);
             // An object name that looks like a key id is part of the signed link and kept.
-            const keyLikeObject = `https://bucket.s3.amazonaws.com/${keyId}?X-Amz-Credential=${keyId}%2F20261008%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Signature=abc123`;
+            const keyLikeObject = `https://bucket.s3.amazonaws.com/${keyId}?X-Amz-Credential=${keyId}%2F20261008%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Signature=${sigV4Hex}`;
             expect(redact(keyLikeObject)).toBe(keyLikeObject);
             // A pipe-delimited field after a signed link is not part of it either.
             expect(redact(`${pathStyle}|token=${jwt}`)).toBe(`${pathStyle}|token=[REDACTED]`);
             // An object name shaped like another kind of token is part of the signed link.
-            const tokenLikeObject = `https://bucket.s3.amazonaws.com/ghp_${'a1B2c3D4e5'.repeat(4)}?X-Amz-Credential=${keyId}%2F20261008%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Signature=abc123`;
+            const tokenLikeObject = `https://bucket.s3.amazonaws.com/ghp_${'a1B2c3D4e5'.repeat(4)}?X-Amz-Credential=${keyId}%2F20261008%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Signature=${sigV4Hex}`;
             expect(redact(tokenLikeObject)).toBe(tokenLikeObject);
             // A colon-delimited field after a signed link is not part of it.
             expect(redact(`${pathStyle}:token=${jwt}`)).toBe(`${pathStyle}:token=[REDACTED]`);
@@ -262,6 +266,10 @@ describe('redact', () => {
             expect(
                 redact(`https://acct.r2.cloudflarestorage.com/b/a&X-Amz-Signature=x?note=${ghp}`)
             ).toBe('https://acct.r2.cloudflarestorage.com/b/a&X-Amz-Signature=x?note=[REDACTED]');
+            // A placeholder signature is no signature: SigV4 signatures are 64 hex characters.
+            expect(
+                redact(`https://acct.r2.cloudflarestorage.com/b/a?X-Amz-Signature=x&note=${ghp}`)
+            ).toBe('https://acct.r2.cloudflarestorage.com/b/a?X-Amz-Signature=x&note=[REDACTED]');
             expect(redact(`export X-Amz-Credential=${keyId}`)).toBe(
                 'export X-Amz-Credential=[REDACTED]'
             );
@@ -312,7 +320,7 @@ describe('redact', () => {
 
         test('should NOT redact Google Cloud Storage signed URLs', () => {
             const url =
-                'https://storage.googleapis.com/bucket/file.dat?Expires=123&GoogleAccessId=xxx&Signature=xxx';
+                'https://storage.googleapis.com/bucket/file.dat?Expires=123&GoogleAccessId=xxx&Signature=dGhpc2lzYXNpZ25hdHVyZXZhbHVl%3D';
             expect(redact(url)).toBe(url);
         });
 

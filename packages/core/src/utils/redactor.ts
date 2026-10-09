@@ -85,21 +85,22 @@ const JWT_PATTERN = /\beyJ[A-Za-z0-9_-]*\.[A-Za-z0-9_-]*\.[A-Za-z0-9_-]*/g;
 // These are legitimate shareable URLs, not sensitive credentials
 const SIGNED_URL_PATTERNS = [
     // Each provider's link counts as signed only on its own host and with a non-empty signature
-    // in its query (after the "?"), so a public or unsigned link on the same host gets no
-    // exemption.
+    // in its query (after the "?") that has the provider's own shape: a 64-hex SigV4 signature, a
+    // base64 SigV2 or GCS V2 one, a long hex GCS V4 one, or a JWT for Supabase. A public link, an
+    // unsigned one or one with a placeholder value gets no exemption.
     // Supabase signed URLs: the token is the signature.
-    /^https?:\/\/[^/?#\s]+\.supabase\.co\/storage\/v1\/object\/sign\/[^?#]*\?(?:[^#]*&)?token=[^&#]/i,
+    /^https?:\/\/[^/?#\s]+\.supabase\.co\/storage\/v1\/object\/sign\/[^?#]*\?(?:[^#]*&)?token=eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/i,
     // Cloudflare R2 presigned URLs (SigV4).
-    /^https?:\/\/[^/?#\s]+\.r2\.cloudflarestorage\.com\/(?=[^?#]*\?(?:[^#]*&)?X-Amz-Signature=[^&#])/i,
+    /^https?:\/\/[^/?#\s]+\.r2\.cloudflarestorage\.com\/(?=[^?#]*\?(?:[^#]*&)?X-Amz-Signature=[0-9a-f]{64}(?![0-9a-z]))/i,
     // AWS S3 presigned URLs, virtual-hosted (bucket.s3.region...), path-style (s3.region.../bucket) and
     // S3 Express zonal (bucket--zone--x-s3.s3express-zone.region...).
     // The S3 host must be the URL's own host, not text in another URL's path, and made of whole
     // labels ending in amazonaws.com (amazonaws.com.cn in AWS China), so evilamazonaws.com is not.
     // The link must carry its signature as well as its key id: SigV4 or SigV2.
-    /^https?:\/\/(?:[^/?#.\s]+\.)*(?:s3[.-]|s3express-)(?:[^/?#.\s]+\.)*amazonaws\.com(?:\.cn)?\/(?=[^?#]*\?(?:[^#]*&)?X-Amz-Credential=[^&#])(?=[^?#]*\?(?:[^#]*&)?X-Amz-Signature=[^&#])/i,
-    /^https?:\/\/(?:[^/?#.\s]+\.)*(?:s3[.-]|s3express-)(?:[^/?#.\s]+\.)*amazonaws\.com(?:\.cn)?\/(?=[^?#]*\?(?:[^#]*&)?AWSAccessKeyId=[^&#])(?=[^?#]*\?(?:[^#]*&)?Signature=[^&#])/i,
+    /^https?:\/\/(?:[^/?#.\s]+\.)*(?:s3[.-]|s3express-)(?:[^/?#.\s]+\.)*amazonaws\.com(?:\.cn)?\/(?=[^?#]*\?(?:[^#]*&)?X-Amz-Credential=[^&#])(?=[^?#]*\?(?:[^#]*&)?X-Amz-Signature=[0-9a-f]{64}(?![0-9a-z]))/i,
+    /^https?:\/\/(?:[^/?#.\s]+\.)*(?:s3[.-]|s3express-)(?:[^/?#.\s]+\.)*amazonaws\.com(?:\.cn)?\/(?=[^?#]*\?(?:[^#]*&)?AWSAccessKeyId=[^&#])(?=[^?#]*\?(?:[^#]*&)?Signature=[A-Za-z0-9%+/=]{20,})/i,
     // Google Cloud Storage signed URLs: V4 (X-Goog-Signature) or V2 (Signature).
-    /^https?:\/\/(?:[^/?#\s]+\.)?storage\.googleapis\.com\/(?=[^?#]*\?(?:[^#]*&)?(?:X-Goog-Signature|Signature)=[^&#])/i,
+    /^https?:\/\/(?:[^/?#\s]+\.)?storage\.googleapis\.com\/(?=[^?#]*\?(?:[^#]*&)?(?:X-Goog-Signature=[0-9a-f]{64,}|Signature=[A-Za-z0-9%+/=]{20,}))/i,
 ];
 
 const REDACTED = '[REDACTED]';
