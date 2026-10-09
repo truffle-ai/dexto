@@ -128,6 +128,7 @@ function resolveBaseUrl(port: number): string {
 }
 
 export type HonoInitializationResult = {
+    stop: () => Promise<void>;
     app: ReturnType<typeof createDextoApp>;
     server: ReturnType<typeof createNodeServer>['server'];
     webhookSubscriber?: NonNullable<ReturnType<typeof createNodeServer>['webhookSubscriber']>;
@@ -151,12 +152,10 @@ export async function initializeHonoApi(
     webRoot?: string,
     webUIConfig?: WebUIRuntimeConfig
 ): Promise<HonoInitializationResult> {
-    // Declare before registering shutdown hook to avoid TDZ on signals
     let activeAgent: DextoAgent = agent;
+    const ownedAgents = new Set([agent]);
     let activeAgentId: string | undefined = agentId || 'coding-agent';
     let activeAgentConfigPath: string | undefined = configFilePath;
-    let isSwitchingAgent = false;
-    registerGracefulShutdown(() => activeAgent);
 
     const resolvedPort = resolvePort(listenPort);
     const baseApiUrl = resolveBaseUrl(resolvedPort);
@@ -178,363 +177,431 @@ export async function initializeHonoApi(
     const sessionSseSubscriber = new SessionSseEventSubscriber();
     const approvalCoordinator = new ApprovalCoordinator();
     let approvalEventBridge: AbortController | null = null;
+    let bridgeRef: ReturnType<typeof createNodeServer> | null = null;
+    let mcpTransport: Transport | undefined;
+    let disposeShutdown: (() => void) | undefined;
+    let stopPromise: Promise<void> | undefined;
+    let pendingAgentSwitch: Promise<{ id: string; name: string }> | undefined;
 
-    /**
-     * Wire services (SSE subscribers) to an agent.
-     * Called for agent switching to re-subscribe to the new agent's event bus.
-     * Note: Approval handler and coordinator are set before agent.start() for each agent.
-     */
-    async function wireServicesToAgent(agent: DextoAgent): Promise<void> {
-        logger.debug('Wiring services to agent...');
-
-        approvalEventBridge?.abort();
-        approvalEventBridge = wireApprovalCoordinatorToAgent(agent, approvalCoordinator);
-
-        // Register subscribers (DextoAgent handles (re-)subscription on start/restart)
-        agent.registerSubscriber(webhookSubscriber);
-        agent.registerSubscriber(sseSubscriber);
-        agent.registerSubscriber(sessionSseSubscriber);
+    function runAgentSwitch(operation: () => Promise<{ id: string; name: string }>) {
+        if (stopPromise) return Promise.reject(AgentError.stopped());
+        if (pendingAgentSwitch) return Promise.reject(AgentError.switchInProgress());
+        pendingAgentSwitch = operation();
+        return pendingAgentSwitch.finally(() => {
+            pendingAgentSwitch = undefined;
+        });
     }
 
-    /**
-     * Helper to resolve agent ID to { id, name } by looking up in registry
-     */
-    async function resolveAgentInfo(agentId: string): Promise<{ id: string; name: string }> {
-        const agents = await listAgents();
-        const agent =
-            agents.installed.find((a) => a.id === agentId) ??
-            agents.available.find((a) => a.id === agentId);
-        return {
-            id: agentId,
-            name: agent?.name ?? deriveDisplayName(agentId),
+    function stop(): Promise<void> {
+        if (!stopPromise) {
+            stopPromise = (async () => {
+                await pendingAgentSwitch?.catch(() => undefined);
+                const results = await Promise.allSettled([
+                    Promise.resolve().then(() => disposeShutdown?.()),
+                    Promise.resolve().then(() => approvalEventBridge?.abort()),
+                    Promise.resolve().then(() => sseSubscriber.cleanup()),
+                    Promise.resolve().then(() => sessionSseSubscriber.cleanup()),
+                    Promise.resolve().then(() => {
+                        if (!bridgeRef) {
+                            webhookSubscriber.cleanup();
+                            return;
+                        }
+                        const server = bridgeRef.server;
+                        return new Promise<void>((resolve, reject) => {
+                            server.close((error) => {
+                                if (
+                                    error &&
+                                    (!('code' in error) || error.code !== 'ERR_SERVER_NOT_RUNNING')
+                                )
+                                    reject(error);
+                                else resolve();
+                            });
+                            server.closeAllConnections();
+                        });
+                    }),
+                    Promise.resolve().then(() => mcpTransport?.close()),
+                    ...Array.from(ownedAgents, (ownedAgent) =>
+                        Promise.resolve().then(() => ownedAgent.stop())
+                    ),
+                ]);
+                const failures = results
+                    .filter((result) => result.status === 'rejected')
+                    .map((result) => result.reason);
+                if (failures.length)
+                    throw new AggregateError(failures, 'Failed to stop CLI HTTP host');
+            })();
+        }
+        return stopPromise;
+    }
+
+    try {
+        /**
+         * Wire services (SSE subscribers) to an agent.
+         * Called for agent switching to re-subscribe to the new agent's event bus.
+         * Note: Approval handler and coordinator are set before agent.start() for each agent.
+         */
+        async function wireServicesToAgent(agent: DextoAgent): Promise<void> {
+            logger.debug('Wiring services to agent...');
+
+            approvalEventBridge?.abort();
+            approvalEventBridge = wireApprovalCoordinatorToAgent(agent, approvalCoordinator);
+
+            // Register subscribers (DextoAgent handles (re-)subscription on start/restart)
+            agent.registerSubscriber(webhookSubscriber);
+            agent.registerSubscriber(sseSubscriber);
+            agent.registerSubscriber(sessionSseSubscriber);
+        }
+
+        /**
+         * Helper to resolve agent ID to { id, name } by looking up in registry
+         */
+        async function resolveAgentInfo(agentId: string): Promise<{ id: string; name: string }> {
+            const agents = await listAgents();
+            const agent =
+                agents.installed.find((a) => a.id === agentId) ??
+                agents.available.find((a) => a.id === agentId);
+            return {
+                id: agentId,
+                name: agent?.name ?? deriveDisplayName(agentId),
+            };
+        }
+
+        function ensureAgentAvailable(): void {
+            if (stopPromise) throw AgentError.stopped();
+
+            // Gate requests during agent switching
+            if (pendingAgentSwitch) {
+                throw AgentError.switchInProgress();
+            }
+
+            // Fast path: most common case is agent is started and running
+            if (activeAgent.isStarted() && !activeAgent.isStopped()) {
+                return;
+            }
+
+            // Provide specific error messages for better debugging
+            if (activeAgent.isStopped()) {
+                throw AgentError.stopped();
+            }
+            if (!activeAgent.isStarted()) {
+                throw AgentError.notStarted();
+            }
+        }
+
+        /**
+         * Common agent switching logic shared by switchAgentById and switchAgentByPath.
+         */
+        async function performAgentSwitch(
+            newAgent: DextoAgent,
+            agentId: string,
+            agentConfigPath: string | undefined,
+            bridge: ReturnType<typeof createNodeServer>
+        ) {
+            ownedAgents.add(newAgent);
+            logger.info('Preparing new agent for switch...');
+
+            // Register webhook subscriber for LLM streaming events
+            if (bridge.webhookSubscriber) {
+                newAgent.registerSubscriber(bridge.webhookSubscriber);
+            }
+
+            // Switch activeAgent reference first
+            const previousAgent = activeAgent;
+            activeAgent = newAgent;
+            activeAgentId = agentId;
+            activeAgentConfigPath = agentConfigPath;
+
+            // Set approval handler if manual mode OR elicitation enabled (before start() for validation)
+            const needsHandler =
+                newAgent.config.permissions.mode === 'manual' ||
+                newAgent.config.elicitation.enabled;
+
+            if (needsHandler) {
+                logger.debug('Setting up manual approval handler for new agent...');
+                const handler = createManualApprovalHandler(approvalCoordinator);
+                newAgent.setApprovalHandler(handler);
+            }
+
+            // Wire SSE subscribers BEFORE starting
+            logger.info('Wiring services to new agent...');
+            await wireServicesToAgent(newAgent);
+
+            logger.info(`Starting new agent: ${agentId}`);
+            await newAgent.start();
+            if (workspaceRoot) {
+                await applyWorkspaceToAgent(newAgent, workspaceRoot);
+            }
+
+            // Update agent card for A2A and MCP routes
+            agentCardData = createAgentCard(
+                {
+                    defaultName: agentId,
+                    defaultVersion: overrides.version ?? DEFAULT_AGENT_VERSION,
+                    defaultBaseUrl: baseApiUrl,
+                },
+                overrides
+            );
+
+            logger.info(`Successfully switched to agent: ${agentId}`);
+
+            // Now safely stop the previous agent
+            try {
+                if (previousAgent && previousAgent !== newAgent) {
+                    logger.info('Stopping previous agent...');
+                    await previousAgent.stop();
+                    ownedAgents.delete(previousAgent);
+                }
+            } catch (err) {
+                logger.warn(`Stopping previous agent failed: ${err}`);
+                // Don't throw here as the switch was successful
+            }
+
+            return await resolveAgentInfo(agentId);
+        }
+
+        async function switchAgentById(
+            agentId: string,
+            bridge: ReturnType<typeof createNodeServer>
+        ) {
+            let newAgent: DextoAgent | undefined;
+            let newAgentConfigPath: string | undefined;
+            try {
+                // 1. SHUTDOWN OLD TELEMETRY FIRST (before creating new agent)
+                logger.info('Shutting down telemetry for agent switch...');
+                const { Telemetry } = await import('@dexto/core');
+                await Telemetry.shutdownGlobal();
+
+                // 2. Create new agent from registry (will initialize fresh telemetry in createAgentServices)
+                const registry = getAgentRegistry();
+                newAgentConfigPath = await registry.resolveAgent(agentId, true);
+                newAgent = await createAgentFromId(agentId, workspaceRoot);
+
+                // 3. Use common switch logic (register subscribers, start agent, stop previous)
+                return await performAgentSwitch(newAgent, agentId, newAgentConfigPath, bridge);
+            } catch (error) {
+                logger.error(
+                    `Failed to switch to agent '${agentId}': ${
+                        error instanceof Error ? error.message : String(error)
+                    }`,
+                    { error }
+                );
+
+                // Clean up the failed new agent if it was created
+                if (newAgent) {
+                    try {
+                        await newAgent.stop();
+                        ownedAgents.delete(newAgent);
+                    } catch (cleanupErr) {
+                        logger.warn(`Failed to cleanup new agent: ${cleanupErr}`);
+                    }
+                }
+
+                throw error;
+            }
+        }
+
+        async function switchAgentByPath(
+            filePath: string,
+            bridge: ReturnType<typeof createNodeServer>
+        ) {
+            let newAgent: DextoAgent | undefined;
+            try {
+                // 1. SHUTDOWN OLD TELEMETRY FIRST (before creating new agent)
+                logger.info('Shutting down telemetry for agent switch...');
+                const { Telemetry } = await import('@dexto/core');
+                await Telemetry.shutdownGlobal();
+
+                // 2. Load agent configuration from file path
+                let config = await loadAgentConfig(filePath);
+
+                // 2.5. Apply user's LLM preferences to ALL agents
+                // Three-Layer Resolution: local.llm ?? preferences.llm ?? bundled.llm
+                if (globalPreferencesExist()) {
+                    try {
+                        const preferences = await loadGlobalPreferences();
+                        if (preferences?.llm?.provider && preferences?.llm?.model) {
+                            config = applyUserPreferences(config, preferences);
+                            logger.debug(
+                                `Applied user preferences to agent from ${filePath} (provider=${preferences.llm.provider}, model=${preferences.llm.model})`
+                            );
+                        }
+                    } catch {
+                        logger.debug('Could not load preferences, using bundled config');
+                    }
+                }
+
+                // 3. Create new agent instance (will initialize fresh telemetry in createAgentServices)
+                newAgent = await createDextoAgentFromConfig({
+                    config,
+                    configPath: filePath,
+                    enrichOptions: {
+                        logLevel: 'info',
+                        ...(workspaceRoot ? { workspaceRoot } : {}),
+                    },
+                    overrides: { sessionLoggerFactory },
+                });
+
+                // 4. Use enriched agentId (derived from config or filename during enrichment)
+                const agentId = newAgent.config.agentId;
+
+                // 5. Use common switch logic (register subscribers, start agent, stop previous)
+                return await performAgentSwitch(newAgent, agentId, filePath, bridge);
+            } catch (error) {
+                logger.error(
+                    `Failed to switch to agent from path '${filePath}': ${
+                        error instanceof Error ? error.message : String(error)
+                    }`,
+                    { error }
+                );
+
+                // Clean up the failed new agent if it was created
+                if (newAgent) {
+                    try {
+                        await newAgent.stop();
+                        ownedAgents.delete(newAgent);
+                    } catch (cleanupErr) {
+                        logger.warn(`Failed to cleanup new agent: ${cleanupErr}`);
+                    }
+                }
+
+                throw error;
+            }
+        }
+
+        // Getter functions for routes (always use current agent)
+        // getAgent automatically ensures agent is available before returning it
+        // Accepts Context parameter for compatibility with GetAgentFn type
+        const getAgent = (_ctx: Context): DextoAgent => {
+            // CRITICAL: Check agent availability before every access to prevent race conditions
+            // during agent switching, stopping, or startup failures
+            ensureAgentAvailable();
+            return activeAgent;
         };
-    }
+        const getAgentCard = () => agentCardData;
+        const getAgentConfigPath = (_ctx: Context): string | undefined => activeAgentConfigPath;
 
-    function ensureAgentAvailable(): void {
-        // Gate requests during agent switching
-        if (isSwitchingAgent) {
-            throw AgentError.switchInProgress();
+        // Create app with agentsContext using closure
+        const app = createDextoApp({
+            apiPrefix: '/api',
+            getAgent,
+            getAgentConfigPath,
+            getAgentCard,
+            approvalCoordinator,
+            webhookSubscriber,
+            sseSubscriber,
+            sessionSseSubscriber,
+            ...(webRoot ? { webRoot } : {}),
+            ...(webUIConfig ? { webUIConfig } : {}),
+            agentsContext: {
+                switchAgentById: (id: string) => {
+                    if (!bridgeRef) throw new Error('Bridge not initialized');
+                    const bridge = bridgeRef;
+                    return runAgentSwitch(() => switchAgentById(id, bridge));
+                },
+                switchAgentByPath: (filePath: string) => {
+                    if (!bridgeRef) throw new Error('Bridge not initialized');
+                    const bridge = bridgeRef;
+                    return runAgentSwitch(() => switchAgentByPath(filePath, bridge));
+                },
+                resolveAgentInfo,
+                ensureAgentAvailable,
+                getActiveAgentId: () => activeAgentId,
+            },
+        });
+
+        const transportType = (process.env.DEXTO_MCP_TRANSPORT_TYPE as McpTransportType) || 'http';
+        try {
+            mcpTransport = await createServerMcpTransport(transportType);
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            logger.error(`Failed to create MCP transport: ${errorMessage}`);
+            mcpTransport = undefined;
         }
 
-        // Fast path: most common case is agent is started and running
-        if (activeAgent.isStarted() && !activeAgent.isStopped()) {
-            return;
-        }
-
-        // Provide specific error messages for better debugging
-        if (activeAgent.isStopped()) {
-            throw AgentError.stopped();
-        }
-        if (!activeAgent.isStarted()) {
-            throw AgentError.notStarted();
-        }
-    }
-
-    /**
-     * Common agent switching logic shared by switchAgentById and switchAgentByPath.
-     */
-    async function performAgentSwitch(
-        newAgent: DextoAgent,
-        agentId: string,
-        agentConfigPath: string | undefined,
-        bridge: ReturnType<typeof createNodeServer>
-    ) {
-        logger.info('Preparing new agent for switch...');
+        // Create bridge with app
+        bridgeRef = createNodeServer(app, {
+            getAgent: () => activeAgent,
+            mcpHandlers: mcpTransport ? createMcpHttpHandlers(mcpTransport) : null,
+        });
 
         // Register webhook subscriber for LLM streaming events
-        if (bridge.webhookSubscriber) {
-            newAgent.registerSubscriber(bridge.webhookSubscriber);
+        logger.info('Registering webhook subscriber with agent...');
+        if (bridgeRef.webhookSubscriber) {
+            activeAgent.registerSubscriber(bridgeRef.webhookSubscriber);
         }
 
-        // Switch activeAgent reference first
-        const previousAgent = activeAgent;
-        activeAgent = newAgent;
-        activeAgentId = agentId;
-        activeAgentConfigPath = agentConfigPath;
-
-        // Set approval handler if manual mode OR elicitation enabled (before start() for validation)
-        const needsHandler =
-            newAgent.config.permissions.mode === 'manual' || newAgent.config.elicitation.enabled;
-
-        if (needsHandler) {
-            logger.debug('Setting up manual approval handler for new agent...');
-            const handler = createManualApprovalHandler(approvalCoordinator);
-            newAgent.setApprovalHandler(handler);
-        }
-
-        // Wire SSE subscribers BEFORE starting
-        logger.info('Wiring services to new agent...');
-        await wireServicesToAgent(newAgent);
-
-        logger.info(`Starting new agent: ${agentId}`);
-        await newAgent.start();
-        if (workspaceRoot) {
-            await applyWorkspaceToAgent(newAgent, workspaceRoot);
-        }
-
-        // Update agent card for A2A and MCP routes
+        // Update agent card
         agentCardData = createAgentCard(
             {
-                defaultName: agentId,
+                defaultName: overrides.name ?? activeAgentId,
                 defaultVersion: overrides.version ?? DEFAULT_AGENT_VERSION,
                 defaultBaseUrl: baseApiUrl,
             },
             overrides
         );
 
-        logger.info(`Successfully switched to agent: ${agentId}`);
+        // Set approval handler for initial agent if manual mode OR elicitation enabled (before start() for validation)
+        const needsHandler =
+            activeAgent.config.permissions.mode === 'manual' ||
+            activeAgent.config.elicitation.enabled;
 
-        // Now safely stop the previous agent
-        try {
-            if (previousAgent && previousAgent !== newAgent) {
-                logger.info('Stopping previous agent...');
-                await previousAgent.stop();
+        if (needsHandler) {
+            logger.debug('Setting up manual approval handler for initial agent...');
+            const handler = createManualApprovalHandler(approvalCoordinator);
+            activeAgent.setApprovalHandler(handler);
+        }
+
+        // Wire SSE subscribers to initial agent
+        logger.info('Wiring SSE subscribers to initial agent...');
+        await wireServicesToAgent(activeAgent);
+
+        // Start the initial agent now that approval handler is set and subscribers are wired
+        logger.info('Starting initial agent...');
+        await activeAgent.start();
+        if (workspaceRoot) {
+            await applyWorkspaceToAgent(activeAgent, workspaceRoot);
+        }
+
+        // Initialize MCP server after agent has started
+        if (mcpTransport) {
+            try {
+                await initializeServerMcpServer(activeAgent, getAgentCard(), mcpTransport);
+            } catch (error) {
+                const errorMessage = error instanceof Error ? error.message : String(error);
+                logger.error(`Failed to initialize MCP server: ${errorMessage}`);
+                await mcpTransport.close();
+                mcpTransport = undefined;
             }
-        } catch (err) {
-            logger.warn(`Stopping previous agent failed: ${err}`);
-            // Don't throw here as the switch was successful
         }
 
-        return await resolveAgentInfo(agentId);
-    }
+        disposeShutdown = registerGracefulShutdown(() => ({ stop }));
+        const bridge = bridgeRef;
 
-    async function switchAgentById(agentId: string, bridge: ReturnType<typeof createNodeServer>) {
-        if (isSwitchingAgent) {
-            throw AgentError.switchInProgress();
-        }
-        isSwitchingAgent = true;
-
-        let newAgent: DextoAgent | undefined;
-        let newAgentConfigPath: string | undefined;
-        try {
-            // 1. SHUTDOWN OLD TELEMETRY FIRST (before creating new agent)
-            logger.info('Shutting down telemetry for agent switch...');
-            const { Telemetry } = await import('@dexto/core');
-            await Telemetry.shutdownGlobal();
-
-            // 2. Create new agent from registry (will initialize fresh telemetry in createAgentServices)
-            const registry = getAgentRegistry();
-            newAgentConfigPath = await registry.resolveAgent(agentId, true);
-            newAgent = await createAgentFromId(agentId, workspaceRoot);
-
-            // 3. Use common switch logic (register subscribers, start agent, stop previous)
-            return await performAgentSwitch(newAgent, agentId, newAgentConfigPath, bridge);
-        } catch (error) {
-            logger.error(
-                `Failed to switch to agent '${agentId}': ${
-                    error instanceof Error ? error.message : String(error)
-                }`,
-                { error }
-            );
-
-            // Clean up the failed new agent if it was created
-            if (newAgent) {
-                try {
-                    await newAgent.stop();
-                } catch (cleanupErr) {
-                    logger.warn(`Failed to cleanup new agent: ${cleanupErr}`);
-                }
-            }
-
-            throw error;
-        } finally {
-            isSwitchingAgent = false;
-        }
-    }
-
-    async function switchAgentByPath(
-        filePath: string,
-        bridge: ReturnType<typeof createNodeServer>
-    ) {
-        if (isSwitchingAgent) {
-            throw AgentError.switchInProgress();
-        }
-        isSwitchingAgent = true;
-
-        let newAgent: DextoAgent | undefined;
-        try {
-            // 1. SHUTDOWN OLD TELEMETRY FIRST (before creating new agent)
-            logger.info('Shutting down telemetry for agent switch...');
-            const { Telemetry } = await import('@dexto/core');
-            await Telemetry.shutdownGlobal();
-
-            // 2. Load agent configuration from file path
-            let config = await loadAgentConfig(filePath);
-
-            // 2.5. Apply user's LLM preferences to ALL agents
-            // Three-Layer Resolution: local.llm ?? preferences.llm ?? bundled.llm
-            if (globalPreferencesExist()) {
-                try {
-                    const preferences = await loadGlobalPreferences();
-                    if (preferences?.llm?.provider && preferences?.llm?.model) {
-                        config = applyUserPreferences(config, preferences);
-                        logger.debug(
-                            `Applied user preferences to agent from ${filePath} (provider=${preferences.llm.provider}, model=${preferences.llm.model})`
-                        );
-                    }
-                } catch {
-                    logger.debug('Could not load preferences, using bundled config');
-                }
-            }
-
-            // 3. Create new agent instance (will initialize fresh telemetry in createAgentServices)
-            newAgent = await createDextoAgentFromConfig({
-                config,
-                configPath: filePath,
-                enrichOptions: {
-                    logLevel: 'info',
-                    ...(workspaceRoot ? { workspaceRoot } : {}),
-                },
-                overrides: { sessionLoggerFactory },
-            });
-
-            // 4. Use enriched agentId (derived from config or filename during enrichment)
-            const agentId = newAgent.config.agentId;
-
-            // 5. Use common switch logic (register subscribers, start agent, stop previous)
-            return await performAgentSwitch(newAgent, agentId, filePath, bridge);
-        } catch (error) {
-            logger.error(
-                `Failed to switch to agent from path '${filePath}': ${
-                    error instanceof Error ? error.message : String(error)
-                }`,
-                { error }
-            );
-
-            // Clean up the failed new agent if it was created
-            if (newAgent) {
-                try {
-                    await newAgent.stop();
-                } catch (cleanupErr) {
-                    logger.warn(`Failed to cleanup new agent: ${cleanupErr}`);
-                }
-            }
-
-            throw error;
-        } finally {
-            isSwitchingAgent = false;
-        }
-    }
-
-    // Getter functions for routes (always use current agent)
-    // getAgent automatically ensures agent is available before returning it
-    // Accepts Context parameter for compatibility with GetAgentFn type
-    const getAgent = (_ctx: Context): DextoAgent => {
-        // CRITICAL: Check agent availability before every access to prevent race conditions
-        // during agent switching, stopping, or startup failures
-        ensureAgentAvailable();
-        return activeAgent;
-    };
-    const getAgentCard = () => agentCardData;
-    const getAgentConfigPath = (_ctx: Context): string | undefined => activeAgentConfigPath;
-
-    // Declare bridge variable that will be set later
-    let bridgeRef: ReturnType<typeof createNodeServer> | null = null;
-
-    // Create app with agentsContext using closure
-    const app = createDextoApp({
-        apiPrefix: '/api',
-        getAgent,
-        getAgentConfigPath,
-        getAgentCard,
-        approvalCoordinator,
-        webhookSubscriber,
-        sseSubscriber,
-        sessionSseSubscriber,
-        ...(webRoot ? { webRoot } : {}),
-        ...(webUIConfig ? { webUIConfig } : {}),
-        agentsContext: {
-            switchAgentById: (id: string) => {
-                if (!bridgeRef) throw new Error('Bridge not initialized');
-                return switchAgentById(id, bridgeRef);
-            },
-            switchAgentByPath: (filePath: string) => {
-                if (!bridgeRef) throw new Error('Bridge not initialized');
-                return switchAgentByPath(filePath, bridgeRef);
-            },
+        return {
+            stop,
+            app,
+            server: bridgeRef.server,
+            ...(bridgeRef.webhookSubscriber
+                ? { webhookSubscriber: bridgeRef.webhookSubscriber }
+                : {}),
+            agentCard: agentCardData,
+            ...(mcpTransport ? { mcpTransport } : {}),
+            // Expose switching functions for agent routes
+            switchAgentById: (id: string) => runAgentSwitch(() => switchAgentById(id, bridge)),
+            switchAgentByPath: (filePath: string) =>
+                runAgentSwitch(() => switchAgentByPath(filePath, bridge)),
             resolveAgentInfo,
             ensureAgentAvailable,
             getActiveAgentId: () => activeAgentId,
-        },
-    });
-
-    let mcpTransport: Transport | undefined;
-    const transportType = (process.env.DEXTO_MCP_TRANSPORT_TYPE as McpTransportType) || 'http';
-    try {
-        mcpTransport = await createServerMcpTransport(transportType);
+        };
     } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        logger.error(`Failed to create MCP transport: ${errorMessage}`);
-        mcpTransport = undefined;
-    }
-
-    // Create bridge with app
-    bridgeRef = createNodeServer(app, {
-        getAgent: () => activeAgent,
-        mcpHandlers: mcpTransport ? createMcpHttpHandlers(mcpTransport) : null,
-    });
-
-    // Register webhook subscriber for LLM streaming events
-    logger.info('Registering webhook subscriber with agent...');
-    if (bridgeRef.webhookSubscriber) {
-        activeAgent.registerSubscriber(bridgeRef.webhookSubscriber);
-    }
-
-    // Update agent card
-    agentCardData = createAgentCard(
-        {
-            defaultName: overrides.name ?? activeAgentId,
-            defaultVersion: overrides.version ?? DEFAULT_AGENT_VERSION,
-            defaultBaseUrl: baseApiUrl,
-        },
-        overrides
-    );
-
-    // Set approval handler for initial agent if manual mode OR elicitation enabled (before start() for validation)
-    const needsHandler =
-        activeAgent.config.permissions.mode === 'manual' || activeAgent.config.elicitation.enabled;
-
-    if (needsHandler) {
-        logger.debug('Setting up manual approval handler for initial agent...');
-        const handler = createManualApprovalHandler(approvalCoordinator);
-        activeAgent.setApprovalHandler(handler);
-    }
-
-    // Wire SSE subscribers to initial agent
-    logger.info('Wiring SSE subscribers to initial agent...');
-    await wireServicesToAgent(activeAgent);
-
-    // Start the initial agent now that approval handler is set and subscribers are wired
-    logger.info('Starting initial agent...');
-    await activeAgent.start();
-    if (workspaceRoot) {
-        await applyWorkspaceToAgent(activeAgent, workspaceRoot);
-    }
-
-    // Initialize MCP server after agent has started
-    if (mcpTransport) {
         try {
-            await initializeServerMcpServer(activeAgent, getAgentCard(), mcpTransport);
-        } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : String(error);
-            logger.error(`Failed to initialize MCP server: ${errorMessage}`);
-            mcpTransport = undefined;
+            await stop();
+        } catch (cleanupError) {
+            logger.error('Failed to roll back CLI HTTP host', { error: cleanupError });
         }
+        throw error;
     }
-
-    return {
-        app,
-        server: bridgeRef.server,
-        ...(bridgeRef.webhookSubscriber ? { webhookSubscriber: bridgeRef.webhookSubscriber } : {}),
-        agentCard: agentCardData,
-        ...(mcpTransport ? { mcpTransport } : {}),
-        // Expose switching functions for agent routes
-        switchAgentById: (id: string) => switchAgentById(id, bridgeRef!),
-        switchAgentByPath: (filePath: string) => switchAgentByPath(filePath, bridgeRef!),
-        resolveAgentInfo,
-        ensureAgentAvailable,
-        getActiveAgentId: () => activeAgentId,
-    };
 }
 
 export async function startHonoApiServer(
@@ -548,9 +615,10 @@ export async function startHonoApiServer(
     webUIConfig?: WebUIRuntimeConfig
 ): Promise<{
     server: ReturnType<typeof createNodeServer>['server'];
+    stop: () => Promise<void>;
     webhookSubscriber?: NonNullable<ReturnType<typeof createNodeServer>['webhookSubscriber']>;
 }> {
-    const { server, webhookSubscriber } = await initializeHonoApi(
+    const { server, webhookSubscriber, stop } = await initializeHonoApi(
         agent,
         agentCardOverride,
         port,
@@ -561,26 +629,42 @@ export async function startHonoApiServer(
         webUIConfig
     );
 
-    server.listen(port, '0.0.0.0', () => {
-        const networkInterfaces = os.networkInterfaces();
-        let localIp = 'localhost';
-        Object.values(networkInterfaces).forEach((ifaceList) => {
-            ifaceList?.forEach((iface) => {
-                if (iface.family === 'IPv4' && !iface.internal) {
-                    localIp = iface.address;
-                }
+    try {
+        await new Promise<void>((resolve, reject) => {
+            const onError = (error: Error) => reject(error);
+            server.once('error', onError);
+            server.listen(port, '0.0.0.0', () => {
+                server.off('error', onError);
+                resolve();
             });
         });
-
-        logger.info(
-            `Hono server started successfully. Accessible at: http://localhost:${port} and http://${localIp}:${port} on your local network.`,
-            null,
-            'green'
-        );
+    } catch (error) {
+        try {
+            await stop();
+        } catch (cleanupError) {
+            logger.error('Failed to roll back CLI HTTP listener', { error: cleanupError });
+        }
+        throw error;
+    }
+    const networkInterfaces = os.networkInterfaces();
+    let localIp = 'localhost';
+    Object.values(networkInterfaces).forEach((ifaceList) => {
+        ifaceList?.forEach((iface) => {
+            if (iface.family === 'IPv4' && !iface.internal) {
+                localIp = iface.address;
+            }
+        });
     });
+
+    logger.info(
+        `Hono server started successfully. Accessible at: http://localhost:${port} and http://${localIp}:${port} on your local network.`,
+        null,
+        'green'
+    );
 
     return {
         server,
+        stop,
         ...(webhookSubscriber ? { webhookSubscriber } : {}),
     };
 }

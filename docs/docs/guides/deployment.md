@@ -4,31 +4,49 @@ sidebar_position: 9
 
 # Deployment Guide
 
-Deploy Dexto agents using Docker for local or production environments.
+Run Dexto agents locally, in an existing sandbox, or in Docker.
+
+## Local or Sandbox Server
+
+Run an agent behind the REST and streaming API on your machine or inside an existing sandbox with Dexto installed:
+
+```bash
+dexto --mode server --agent ./agent.yml --port 3001
+
+# In another terminal, after the server reports it is running:
+curl http://localhost:3001/health
+```
+
+Supply the model credentials required by your agent configuration. The CLI reports the server as running after agent initialization and successful socket binding. If the port is already occupied, startup exits with an error instead of reporting success.
+
+Use Ctrl+C or send SIGTERM to stop the local server. Shutdown closes the HTTP listener and active connections, closes its MCP transport, and stops the current agent. Streaming clients disconnect during shutdown.
 
 ## Docker Deployment
 
 ### Quick Start
 
 1. **Build the Docker image**
-   ```bash
-   docker build -t dexto .
-   ```
+
+    ```bash
+    docker build -t dexto .
+    ```
 
 2. **Create environment file**
-   ```bash
-   # .env
-   OPENAI_API_KEY=your_openai_api_key
-   ANTHROPIC_API_KEY=your_anthropic_api_key
-   # Add other API keys as needed
-   ```
+
+    ```bash
+    # .env
+    OPENAI_API_KEY=your_openai_api_key
+    ANTHROPIC_API_KEY=your_anthropic_api_key
+    # Add other API keys as needed
+    ```
 
 3. **Run the container**
-   ```bash
-   docker run --env-file .env -p 3001:3001 dexto
-   ```
+    ```bash
+    docker run --env-file .env -p 3001:3001 dexto
+    ```
 
 Your Dexto server will be available at `http://localhost:3001` with:
+
 - ✅ SQLite database connected
 - ✅ MCP servers (filesystem & puppeteer) connected
 - ✅ REST API + SSE streaming endpoints available
@@ -73,21 +91,22 @@ For easier management:
 # docker-compose.yml
 version: '3.8'
 services:
-  dexto:
-    build: .
-    ports:
-      - "3001:3001"
-    env_file:
-      - .env
-    volumes:
-      - dexto_data:/app/.dexto
-    restart: unless-stopped
+    dexto:
+        build: .
+        ports:
+            - '3001:3001'
+        env_file:
+            - .env
+        volumes:
+            - dexto_data:/app/.dexto
+        restart: unless-stopped
 
 volumes:
-  dexto_data:
+    dexto_data:
 ```
 
 Run with:
+
 ```bash
 docker compose up --build
 ```
@@ -135,6 +154,7 @@ docker run -d \
 Once deployed, your Dexto server provides:
 
 ### REST API
+
 - `POST /api/message` - Send async message
 - `POST /api/message-sync` - Send sync message
 - `POST /api/reset` - Reset conversation
@@ -145,11 +165,11 @@ Once deployed, your Dexto server provides:
 **See the complete [REST API Documentation](/api/rest/)** for all available endpoints.
 
 ### Server-Sent Events (SSE)
+
 - Real-time events and streaming responses
 - Connect to `http://localhost:3001/api/message-stream`
 
 **See the [SDK Events Reference](/api/sdk/events)** for event types and usage.
-
 
 ## Next Steps
 
