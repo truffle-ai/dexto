@@ -7,6 +7,8 @@ import {
     type StreamingEvent,
 } from '@dexto/core';
 
+import { writeHeadlessEvent, type HeadlessOutputFormat } from './output.js';
+
 const HEADLESS_TOOL_OUTPUT_MAX_LINES = 20;
 const HEADLESS_SECTION_SEPARATOR = '========================================';
 
@@ -233,7 +235,8 @@ export function printHeadlessRunSummary(params: {
 export async function executeHeadlessRun(
     agent: DextoAgent,
     sessionId: string,
-    prompt: string
+    prompt: string,
+    format: HeadlessOutputFormat = 'text'
 ): Promise<HeadlessRunResult> {
     const toolCallState = new Map<string, HeadlessToolCallState>();
     let anonymousToolCallCounter = 0;
@@ -243,6 +246,7 @@ export async function executeHeadlessRun(
 
     try {
         for await (const event of await agent.stream(prompt, sessionId)) {
+            if (format === 'jsonl') await writeHeadlessEvent(event);
             switch (event.name) {
                 case 'llm:tool-call': {
                     const callKey = event.callId ?? `anonymous-${++anonymousToolCallCounter}`;

@@ -74,6 +74,10 @@ dexto --mode mcp
 
 ## Subcommands
 
+### `run` - Run a Headless Task
+
+Use `dexto run "your task"` for a non-interactive task. Add `--format json` for one result or `--format jsonl` for streaming events. See [Headless Tasks](./headless-tasks.md) for the output contract.
+
 ### `create-app` - Scaffold New TypeScript App
 
 Create a new Dexto TypeScript application from scratch.

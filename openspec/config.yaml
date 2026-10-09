@@ -1,0 +1,19 @@
+schema: spec-driven
+
+context: |
+    This is a pnpm TypeScript monorepo for composing and running Dexto agents locally, in
+    sandboxes, and behind persistent servers. Read AGENTS.md before proposing implementation.
+    Keep agent behavior portable across hosts, keep host policy outside portable agent
+    definitions, and preserve published @dexto package contracts through explicit migrations.
+
+rules:
+    proposal:
+        - State scope and non-goals explicitly.
+        - Identify compatibility effects on published packages and dexto-cloudflare.
+    specs:
+        - Specify observable behavior and testable contracts rather than implementation details.
+    design:
+        - Keep Core host-neutral and keep Node-specific behavior in host adapters.
+        - Prefer one composable runtime boundary over transport-specific construction paths.
+    tasks:
+        - Organize implementation as test-first, independently releasable vertical slices.
