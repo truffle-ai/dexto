@@ -77,6 +77,9 @@ export function useAgentEvents({
     currentSessionId,
     buffer,
 }: UseAgentEventsProps): void {
+    // Subscribe to the stable buffer operation, rather than every composer snapshot.
+    const { setText } = buffer;
+
     // Track if an external trigger is active (scheduler, A2A, etc.)
     const externalTriggerRef = useRef<{
         active: boolean;
@@ -98,6 +101,8 @@ export function useAgentEvents({
                     : agent.getFollowUpMessages(sessionId);
             void getMessages
                 .then((messages) => {
+                    // A session switch can finish before this asynchronous snapshot arrives.
+                    if (signal.aborted) return;
                     if (queue === 'steer') {
                         setSteerMessages(messages);
                     } else {
@@ -292,7 +297,7 @@ export function useAgentEvents({
 
                     // Reset input state including history (up/down arrow) and Ctrl+R search state
                     // Clear TextBuffer first (source of truth), then sync React state
-                    buffer.setText('');
+                    setText('');
                     setInput((prev) => ({
                         ...prev,
                         value: '',
@@ -404,7 +409,7 @@ export function useAgentEvents({
         agent.on(
             'message:queued',
             (payload) => {
-                if (!payload.sessionId) return;
+                if (!payload.sessionId || payload.sessionId !== currentSessionId) return;
                 syncQueue(payload.sessionId, payload.queue);
             },
             { signal }
@@ -422,6 +427,7 @@ export function useAgentEvents({
                     }
                     return;
                 }
+                if (payload.sessionId !== currentSessionId) return;
                 syncQueue(payload.sessionId, payload.queue);
             },
             { signal }
@@ -618,6 +624,6 @@ export function useAgentEvents({
         setSteerMessages,
         setQueuedMessages,
         currentSessionId,
-        buffer,
+        setText,
     ]);
 }
