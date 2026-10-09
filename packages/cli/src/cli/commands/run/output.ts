@@ -3,27 +3,25 @@ import type { HeadlessRunResult } from './headless.js';
 
 export type HeadlessOutputFormat = 'text' | 'json' | 'jsonl';
 
-export function writeHeadlessResult(
+export async function writeHeadlessResult(
     format: HeadlessOutputFormat,
     result: HeadlessRunResult,
     sessionId: string | undefined
-): void {
+): Promise<void> {
     if (format === 'text') return;
-    process.stdout.write(
-        `${JSON.stringify({
-            version: 1,
-            ...(format === 'json'
-                ? { status: result.fatalError ? 'failed' : 'completed' }
-                : { type: result.fatalError ? 'error' : 'complete' }),
-            ...(sessionId !== undefined ? { sessionId } : {}),
-            ...(result.finalMessage !== undefined ? { content: result.finalMessage } : {}),
-            ...(result.totalTokens !== undefined ? { totalTokens: result.totalTokens } : {}),
-            ...(result.fatalError ? { error: result.fatalError.message } : {}),
-        })}\n`
-    );
+    await writeJsonLineToStdout({
+        version: 1,
+        ...(format === 'json'
+            ? { status: result.fatalError ? 'failed' : 'completed' }
+            : { type: result.fatalError ? 'error' : 'complete' }),
+        ...(sessionId !== undefined ? { sessionId } : {}),
+        ...(result.finalMessage !== undefined ? { content: result.finalMessage } : {}),
+        ...(result.totalTokens !== undefined ? { totalTokens: result.totalTokens } : {}),
+        ...(result.fatalError ? { error: result.fatalError.message } : {}),
+    });
 }
 
-export function writeHeadlessEvent(event: StreamingEvent): void {
+export async function writeHeadlessEvent(event: StreamingEvent): Promise<void> {
     let payload: Record<string, unknown>;
     switch (event.name) {
         case 'llm:chunk':
@@ -62,5 +60,14 @@ export function writeHeadlessEvent(event: StreamingEvent): void {
         default:
             return;
     }
-    process.stdout.write(`${JSON.stringify({ version: 1, ...payload })}\n`);
+    await writeJsonLineToStdout({ version: 1, ...payload });
+}
+
+function writeJsonLineToStdout(payload: Record<string, unknown>): Promise<void> {
+    return new Promise((resolve, reject) => {
+        process.stdout.write(`${JSON.stringify(payload)}\n`, (error) => {
+            if (error) reject(error);
+            else resolve();
+        });
+    });
 }

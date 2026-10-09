@@ -133,7 +133,7 @@ Examples:
                         }
                     }
 
-                    writeHeadlessResult(runOptions.format, result, sessionId);
+                    await writeHeadlessResult(runOptions.format, result, sessionId);
                     safeExit('run', exitCode, exitReason);
                 }
             )

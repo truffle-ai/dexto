@@ -43,10 +43,13 @@ describe('dexto run output', () => {
         safeExit.mockReset();
         stdout = [];
         stderr = [];
-        vi.spyOn(process.stdout, 'write').mockImplementation((chunk) => {
-            stdout.push(String(chunk));
-            return true;
-        });
+        vi.spyOn(process.stdout, 'write').mockImplementation(
+            (chunk, callback: string | ((error?: Error | null) => void) | undefined) => {
+                stdout.push(String(chunk));
+                if (typeof callback === 'function') callback();
+                return true;
+            }
+        );
         vi.spyOn(process.stderr, 'write').mockImplementation((chunk) => {
             stderr.push(String(chunk));
             return true;
@@ -54,7 +57,7 @@ describe('dexto run output', () => {
     });
     afterEach(() => vi.restoreAllMocks());
 
-    async function run(args: string[], agent: DextoAgent | Error = streamingAgent([response])) {
+    async function run(args: string[], agent: DextoAgent | Error) {
         const program = new Command().exitOverride();
         const bootstrap = vi.fn(async () => {
             if (agent instanceof Error) throw agent;
@@ -70,7 +73,7 @@ describe('dexto run output', () => {
     }
 
     it('keeps plain assistant output as the default and diagnostics on stderr', async () => {
-        await run(['task']);
+        await run(['task'], streamingAgent([response]));
         expect(stdout.join('')).toBe('done\n');
         expect(stderr.join('')).toContain('[RUN]');
     });
@@ -179,7 +182,7 @@ describe('dexto run output', () => {
     });
 
     it('rejects an empty prompt with a structured result before bootstrap', async () => {
-        const { bootstrap } = await run([' ', '--format', 'json']);
+        const { bootstrap } = await run([' ', '--format', 'json'], streamingAgent([response]));
         expect(JSON.parse(stdout.join(''))).toEqual({
             version: 1,
             status: 'failed',
@@ -246,6 +249,53 @@ describe('dexto run output', () => {
             { version: 1, type: 'response', content: 'done' },
             { version: 1, type: 'complete', sessionId: 'session-1', content: 'done' },
         ]);
+    });
+
+    it('waits for the terminal write callback before exiting', async () => {
+        let finishWrite: (() => void) | undefined;
+        vi.mocked(process.stdout.write).mockImplementation(
+            (chunk, callback: string | ((error?: Error | null) => void) | undefined) => {
+                stdout.push(String(chunk));
+                if (typeof callback === 'function') finishWrite = callback;
+                return false;
+            }
+        );
+        const completion = run(['task', '--format', 'json'], streamingAgent([response]));
+        await vi.waitFor(() => expect(stdout).toHaveLength(1));
+        expect(safeExit).not.toHaveBeenCalled();
+        expect(finishWrite).toBeDefined();
+        finishWrite?.();
+        await completion;
+        expect(safeExit).toHaveBeenCalledWith('run', 0, 'ok');
+    });
+
+    it('waits for each JSONL write before consuming the next event', async () => {
+        const callbacks: Array<() => void> = [];
+        vi.mocked(process.stdout.write).mockImplementation(
+            (chunk, callback: string | ((error?: Error | null) => void) | undefined) => {
+                stdout.push(String(chunk));
+                if (typeof callback === 'function') callbacks.push(callback);
+                return false;
+            }
+        );
+        const completion = run(
+            ['task', '--format', 'jsonl'],
+            streamingAgent([
+                { name: 'llm:chunk', content: 'do', sessionId: 'session-1' } as StreamingEvent,
+                response,
+            ])
+        );
+        await vi.waitFor(() => expect(stdout.length).toBeGreaterThan(0));
+        expect(stdout).toHaveLength(1);
+        expect(safeExit).not.toHaveBeenCalled();
+        callbacks.shift()?.();
+        await vi.waitFor(() => expect(stdout).toHaveLength(2));
+        callbacks.shift()?.();
+        await vi.waitFor(() => expect(stdout).toHaveLength(3));
+        expect(safeExit).not.toHaveBeenCalled();
+        callbacks.shift()?.();
+        await completion;
+        expect(safeExit).toHaveBeenCalledWith('run', 0, 'ok');
     });
 
     it('writes a single JSON result rather than plain assistant text', async () => {

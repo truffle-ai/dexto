@@ -246,7 +246,7 @@ export async function executeHeadlessRun(
 
     try {
         for await (const event of await agent.stream(prompt, sessionId)) {
-            if (format === 'jsonl') writeHeadlessEvent(event);
+            if (format === 'jsonl') await writeHeadlessEvent(event);
             switch (event.name) {
                 case 'llm:tool-call': {
                     const callKey = event.callId ?? `anonymous-${++anonymousToolCallCounter}`;
