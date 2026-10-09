@@ -498,6 +498,8 @@ node_path="$(command -v node)"
 binary_path="${stage_dir}/${binary_name}"
 
 cp "${node_path}" "${binary_path}"
+# SEA injection writes to this copy even when the installed Node binary is read-only.
+chmod u+w "${binary_path}"
 
 if [[ "${PLATFORM_NAME}" == "darwin" ]]; then
   codesign --remove-signature "${binary_path}" >/dev/null 2>&1 || true

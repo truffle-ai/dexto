@@ -9,6 +9,7 @@ on:
       - .github/workflows/standalone-binary-smoke.yml
       - scripts/build-standalone-binaries.sh
       - scripts/test-standalone-binaries.sh
+      - scripts/test-packaged-agent-runtime.mjs
       - scripts/copy-webui-dist.ts
       - package.json
       - pnpm-lock.yaml
