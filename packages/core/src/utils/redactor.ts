@@ -84,21 +84,21 @@ const JWT_PATTERN = /\beyJ[A-Za-z0-9_-]*\.[A-Za-z0-9_-]*\.[A-Za-z0-9_-]*/g;
 // Patterns that indicate a URL contains a signed token that should NOT be redacted
 // These are legitimate shareable URLs, not sensitive credentials
 const SIGNED_URL_PATTERNS = [
-    // Each provider's link counts as signed only on its own host and with its signature, so a
-    // public or unsigned link on the same host gets no exemption.
+    // Each provider's link counts as signed only on its own host and with a non-empty signature,
+    // so a public or unsigned link on the same host gets no exemption.
     // Supabase signed URLs: the token is the signature.
-    /^https?:\/\/[^/?#\s]+\.supabase\.co\/storage\/v1\/object\/sign\/[^#]*[?&]token=/i,
+    /^https?:\/\/[^/?#\s]+\.supabase\.co\/storage\/v1\/object\/sign\/[^#]*[?&]token=[^&#]/i,
     // Cloudflare R2 presigned URLs (SigV4).
-    /^https?:\/\/[^/?#\s]+\.r2\.cloudflarestorage\.com\/(?=[^#]*[?&]X-Amz-Signature=)/i,
+    /^https?:\/\/[^/?#\s]+\.r2\.cloudflarestorage\.com\/(?=[^#]*[?&]X-Amz-Signature=[^&#])/i,
     // AWS S3 presigned URLs, virtual-hosted (bucket.s3.region...), path-style (s3.region.../bucket) and
     // S3 Express zonal (bucket--zone--x-s3.s3express-zone.region...).
     // The S3 host must be the URL's own host, not text in another URL's path, and made of whole
     // labels ending in amazonaws.com (amazonaws.com.cn in AWS China), so evilamazonaws.com is not.
     // The link must carry its signature as well as its key id: SigV4 or SigV2.
-    /^https?:\/\/(?:[^/?#.\s]+\.)*(?:s3[.-]|s3express-)(?:[^/?#.\s]+\.)*amazonaws\.com(?:\.cn)?\/(?=[^#]*[?&]X-Amz-Credential=)(?=[^#]*[?&]X-Amz-Signature=)/i,
-    /^https?:\/\/(?:[^/?#.\s]+\.)*(?:s3[.-]|s3express-)(?:[^/?#.\s]+\.)*amazonaws\.com(?:\.cn)?\/(?=[^#]*[?&]AWSAccessKeyId=)(?=[^#]*[?&]Signature=)/i,
+    /^https?:\/\/(?:[^/?#.\s]+\.)*(?:s3[.-]|s3express-)(?:[^/?#.\s]+\.)*amazonaws\.com(?:\.cn)?\/(?=[^#]*[?&]X-Amz-Credential=[^&#])(?=[^#]*[?&]X-Amz-Signature=[^&#])/i,
+    /^https?:\/\/(?:[^/?#.\s]+\.)*(?:s3[.-]|s3express-)(?:[^/?#.\s]+\.)*amazonaws\.com(?:\.cn)?\/(?=[^#]*[?&]AWSAccessKeyId=[^&#])(?=[^#]*[?&]Signature=[^&#])/i,
     // Google Cloud Storage signed URLs: V4 (X-Goog-Signature) or V2 (Signature).
-    /^https?:\/\/(?:[^/?#\s]+\.)?storage\.googleapis\.com\/(?=[^#]*[?&](?:X-Goog-Signature|Signature)=)/i,
+    /^https?:\/\/(?:[^/?#\s]+\.)?storage\.googleapis\.com\/(?=[^#]*[?&](?:X-Goog-Signature|Signature)=[^&#])/i,
 ];
 
 const REDACTED = '[REDACTED]';

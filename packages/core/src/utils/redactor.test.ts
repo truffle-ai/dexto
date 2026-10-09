@@ -251,6 +251,13 @@ describe('redact', () => {
             expect(redact(`https://acct.r2.cloudflarestorage.com/b/a?note=${keyId}`)).toBe(
                 'https://acct.r2.cloudflarestorage.com/b/a?note=[REDACTED]'
             );
+            // An empty signature is no signature.
+            expect(
+                redact(`https://acct.r2.cloudflarestorage.com/b/a?X-Amz-Signature=&note=${ghp}`)
+            ).toBe('https://acct.r2.cloudflarestorage.com/b/a?X-Amz-Signature=&note=[REDACTED]');
+            expect(
+                redact(`https://s3.amazonaws.com/b/a?X-Amz-Credential=${keyId}&X-Amz-Signature=`)
+            ).toBe('https://s3.amazonaws.com/b/a?X-Amz-Credential=[REDACTED]&X-Amz-Signature=');
             expect(redact(`export X-Amz-Credential=${keyId}`)).toBe(
                 'export X-Amz-Credential=[REDACTED]'
             );
