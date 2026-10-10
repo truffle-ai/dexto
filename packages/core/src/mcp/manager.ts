@@ -15,6 +15,7 @@ import type {
 } from './types.js';
 import type { MCPToolDescriptor, ToolSet } from '../tools/types.js';
 import { MCPError } from './errors.js';
+import { MCPErrorCode } from './error-codes.js';
 import { eventBus, type AgentEventBus } from '../events/index.js';
 import type { PromptDefinition } from '../prompts/types.js';
 import type { ApprovalManager } from '../approval/manager.js';
@@ -388,10 +389,10 @@ export class MCPManager {
             this.logger.debug(
                 `✅ Successfully cached ${Object.keys(tools).length} tools for client: ${clientName}`
             );
-        } catch (error) {
-            this.logger.error(
-                `❌ Error retrieving tools for client ${clientName}: ${error instanceof Error ? error.message : String(error)}`
-            );
+        } catch {
+            this.logger.error(`❌ Error retrieving tools for client ${clientName}`, {
+                code: MCPErrorCode.PROTOCOL_ERROR,
+            });
             return; // Early return on error, no caching
         }
 
@@ -416,8 +417,10 @@ export class MCPManager {
             }
 
             this.logger.debug(`Cached ${prompts.length} prompts for client: ${clientName}`);
-        } catch (error) {
-            this.logger.debug(`Skipping prompts for client ${clientName}: ${error}`);
+        } catch {
+            this.logger.debug(`Skipping prompts for client ${clientName}`, {
+                code: MCPErrorCode.PROTOCOL_ERROR,
+            });
         }
 
         // Cache resources, if supported
@@ -434,8 +437,10 @@ export class MCPManager {
                 });
             });
             this.logger.debug(`Cached resources for client: ${clientName}`);
-        } catch (error) {
-            this.logger.debug(`Skipping resources for client ${clientName}: ${error}`);
+        } catch {
+            this.logger.debug(`Skipping resources for client ${clientName}`, {
+                code: MCPErrorCode.PROTOCOL_ERROR,
+            });
         }
     }
 
@@ -481,7 +486,6 @@ export class MCPManager {
             }
         });
 
-        this.logger.silly(`MCP tools: ${JSON.stringify(allTools, null, 2)}`);
         return allTools;
     }
 
@@ -806,7 +810,8 @@ export class MCPManager {
                         };
                     }
                     this.logger.debug(
-                        `Handled connection error for '${name}' during initialization: ${error instanceof Error ? error.message : String(error)}`
+                        `Handled connection error for '${name}' during initialization`,
+                        { code: MCPErrorCode.CONNECTION_FAILED }
                     );
                 });
             connectionPromises.push(connectPromise);
@@ -872,7 +877,9 @@ export class MCPManager {
                 message: errorMsg,
                 ...(errorCode ? { code: errorCode } : {}),
             };
-            this.logger.error(`Failed to connect to new server '${name}': ${errorMsg}`);
+            this.logger.error(`Failed to connect to new server '${name}'`, {
+                code: MCPErrorCode.CONNECTION_FAILED,
+            });
             await this.discardFailedClient(name, client);
             throw MCPError.connectionFailed(name, errorMsg);
         }
@@ -956,10 +963,10 @@ export class MCPManager {
             try {
                 await client.disconnect();
                 this.logger.info(`Successfully disconnected client: ${name}`);
-            } catch (error) {
-                this.logger.error(
-                    `Error disconnecting client '${name}': ${error instanceof Error ? error.message : String(error)}`
-                );
+            } catch {
+                this.logger.error(`Error disconnecting client '${name}'`, {
+                    code: MCPErrorCode.DISCONNECTION_FAILED,
+                });
                 // Continue with removal even if disconnection fails
             }
             // Clear cache BEFORE removing from clients map
@@ -1001,9 +1008,10 @@ export class MCPManager {
             try {
                 await client.disconnect();
                 this.logger.info(`Disconnected server '${name}' for restart`);
-            } catch (error) {
+            } catch {
                 this.logger.warn(
-                    `Error disconnecting server '${name}' during restart (continuing): ${error instanceof Error ? error.message : String(error)}`
+                    `Error disconnecting server '${name}' during restart (continuing)`,
+                    { code: MCPErrorCode.DISCONNECTION_FAILED }
                 );
             }
         } else {
@@ -1046,7 +1054,9 @@ export class MCPManager {
                 message: errorMsg,
                 ...(errorCode ? { code: errorCode } : {}),
             };
-            this.logger.error(`Failed to restart server '${name}': ${errorMsg}`);
+            this.logger.error(`Failed to restart server '${name}'`, {
+                code: MCPErrorCode.CONNECTION_FAILED,
+            });
             await this.discardFailedClient(name, newClient);
             // Note: Config remains in cache for potential retry
             throw MCPError.connectionFailed(name, errorMsg);
@@ -1063,8 +1073,10 @@ export class MCPManager {
                 client
                     .disconnect()
                     .then(() => this.logger.info(`Disconnected client: ${name}`))
-                    .catch((error) =>
-                        this.logger.error(`Failed to disconnect client '${name}': ${error}`)
+                    .catch(() =>
+                        this.logger.error(`Failed to disconnect client '${name}'`, {
+                            code: MCPErrorCode.DISCONNECTION_FAILED,
+                        })
                     )
             );
         }
@@ -1089,9 +1101,7 @@ export class MCPManager {
         try {
             // Listen for resource updates
             client.on('resourceUpdated', async (params: { uri: string }) => {
-                this.logger.debug(
-                    `Received resource update notification from ${clientName}: ${params.uri}`
-                );
+                this.logger.debug(`Received resource update notification from ${clientName}`);
                 await this.handleResourceUpdated(clientName, params);
             });
 
@@ -1108,8 +1118,10 @@ export class MCPManager {
             });
 
             this.logger.debug(`Set up notification listeners for client: ${clientName}`);
-        } catch (error) {
-            this.logger.warn(`Failed to set up notification listeners for ${clientName}: ${error}`);
+        } catch {
+            this.logger.warn(`Failed to set up notification listeners for ${clientName}`, {
+                code: MCPErrorCode.PROTOCOL_ERROR,
+            });
         }
     }
 
@@ -1138,10 +1150,12 @@ export class MCPManager {
                             client,
                             summary: updatedResource,
                         });
-                        this.logger.debug(`Updated resource cache for: ${params.uri}`);
+                        this.logger.debug(`Updated resource cache for server: ${serverName}`);
                     }
-                } catch (error) {
-                    this.logger.warn(`Failed to refresh resource ${params.uri}: ${error}`);
+                } catch {
+                    this.logger.warn(`Failed to refresh resource for server ${serverName}`, {
+                        code: MCPErrorCode.PROTOCOL_ERROR,
+                    });
                 }
             }
 
@@ -1150,8 +1164,10 @@ export class MCPManager {
                 serverName,
                 resourceUri: params.uri,
             });
-        } catch (error) {
-            this.logger.error(`Error handling resource update: ${error}`);
+        } catch {
+            this.logger.error('Error handling resource update', {
+                code: MCPErrorCode.PROTOCOL_ERROR,
+            });
         }
     }
 
@@ -1200,11 +1216,15 @@ export class MCPManager {
                     serverName,
                     prompts: promptNames,
                 });
-            } catch (error) {
-                this.logger.warn(`Failed to refresh prompts for ${serverName}: ${error}`);
+            } catch {
+                this.logger.warn(`Failed to refresh prompts for ${serverName}`, {
+                    code: MCPErrorCode.PROTOCOL_ERROR,
+                });
             }
-        } catch (error) {
-            this.logger.error(`Error handling prompts list change: ${error}`);
+        } catch {
+            this.logger.error('Error handling prompts list change', {
+                code: MCPErrorCode.PROTOCOL_ERROR,
+            });
         }
     }
 
@@ -1331,11 +1351,15 @@ export class MCPManager {
                     serverName,
                     tools: toolNames,
                 });
-            } catch (error) {
-                this.logger.warn(`Failed to refresh tools for ${serverName}: ${error}`);
+            } catch {
+                this.logger.warn(`Failed to refresh tools for ${serverName}`, {
+                    code: MCPErrorCode.PROTOCOL_ERROR,
+                });
             }
-        } catch (error) {
-            this.logger.error(`Error handling tools list change: ${error}`);
+        } catch {
+            this.logger.error('Error handling tools list change', {
+                code: MCPErrorCode.PROTOCOL_ERROR,
+            });
         }
     }
 }

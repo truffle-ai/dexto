@@ -68,3 +68,9 @@ The caller owns authorization for direct tool calls and the credentials sent to 
 For a single server without aggregation, `DextoMcpClient` is also exported from `@dexto/core/mcp`. Construct it with a logger, then use `connect(validatedConfig, name)`, `getTools()`, `callTool(name, args)`, prompt/resource methods, and `disconnect()` in `finally`.
 
 `getConnectedClient()` returns the connected MCP SDK client or throws if not connected. `getConnectionStatus()` reports local connection state; it is not a server-health check. Direct client calls have the same caller-owned authorization boundary.
+
+## Operational diagnostics
+
+Core MCP logs describe operations using selected server/tool/prompt names and fixed Core error classifications. They omit raw stdio configuration, remote URLs, resource URIs, capability payloads, elicitation content and provider error text. Keep credentials out of chosen names. Server stderr and application or SDK logging outside these Core call sites remain separately owned.
+
+`DextoMcpClient.getServerInfo()` returns raw command, arguments and environment alongside local process information. `getServerConfig()` and failed-connection inspection also return raw caller-owned data, and thrown errors retain their existing details. Do not serialize these APIs as public status output or ordinary logs. Use `getConnectionStatus()` for local connection state; it is not a remote-health probe.
