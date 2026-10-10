@@ -2,7 +2,7 @@ import type { MCPErrorCode } from './error-codes.js';
 import type { McpServerType, ValidatedMcpServerConfig } from './schemas.js';
 import type { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import type { OAuthClientProvider } from '@modelcontextprotocol/sdk/client/auth.js';
-import type { ToolProvider } from '../tools/types.js';
+import type { MCPToolDescriptor, ToolProvider } from '../tools/types.js';
 import type {
     GetPromptResult,
     ReadResourceResult,
@@ -62,3 +62,10 @@ export type ConfiguredMcpServerStatus = Readonly<{
         | Readonly<{ status: 'configured' | 'disabled' | 'connecting' | 'connected' }>
         | Readonly<{ status: 'failed'; errorCode: MCPErrorCode }>
     );
+
+/** Caller-owned protocol call; does not install agent execution policy. */
+export interface MCPDirectToolCall {
+    identity: MCPToolDescriptor['identity'];
+    arguments: Record<string, unknown>;
+    signal?: AbortSignal;
+}

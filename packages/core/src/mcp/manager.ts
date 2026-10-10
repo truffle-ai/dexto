@@ -2,13 +2,16 @@ import { DextoMcpClient } from './mcp-client.js';
 import type { ValidatedServersConfig, ValidatedMcpServerConfig } from './schemas.js';
 import type { Logger } from '../logger/v2/types.js';
 import { DextoLogComponent } from '../logger/v2/types.js';
+import { CallToolResultSchema } from '@modelcontextprotocol/sdk/types.js';
 import type {
+    CallToolResult,
     GetPromptResult,
     ReadResourceResult,
     Prompt,
 } from '@modelcontextprotocol/sdk/types.js';
 import type {
     McpClient,
+    MCPDirectToolCall,
     ConfiguredMcpServerStatus,
     MCPResolvedResource,
     MCPResourceSummary,
@@ -612,6 +615,27 @@ export class MCPManager {
     getToolClient(toolName: string): McpClient | undefined {
         // Try to get directly from cache (handles both simple and qualified names)
         return this.toolCache.get(toolName)?.client;
+    }
+
+    /** Call a literal upstream identity and retain its complete MCP protocol result. */
+    async callToolDirect(request: MCPDirectToolCall): Promise<CallToolResult> {
+        const { connectionId, toolName } = request.identity;
+        if (this.connectingOperations.has(connectionId)) {
+            throw MCPError.clientNotConnected('connection operation in progress');
+        }
+        const client = this.clients.get(connectionId);
+        if (!client) throw MCPError.serverNotFound(connectionId);
+        const timeout = this.configCache.get(connectionId)?.timeout;
+        const connected = await client.getConnectedClient();
+        const result = await connected.callTool(
+            { name: toolName, arguments: request.arguments },
+            CallToolResultSchema,
+            {
+                ...(timeout !== undefined ? { timeout } : {}),
+                ...(request.signal !== undefined ? { signal: request.signal } : {}),
+            }
+        );
+        return CallToolResultSchema.parse(result);
     }
 
     /**

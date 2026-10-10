@@ -100,7 +100,9 @@ Direct MCP management does not install the agent's tool permission policy or dis
 
 `setAuthProviderFactory(factory)` supplies an OAuth provider for servers that need one. Static credentials can be supplied through configured headers or a stdio server's environment. Keep credentials out of discovery output and application logs.
 
-The current tool-call API has a configured request timeout but no public abort-signal option. Disconnect is best-effort, and connection status is not a remote-health probe. The configured status snapshot does not add cancellation, automatic retry, or CLI behavior.
+`callToolDirect` accepts a discovered MCP descriptor identity, object arguments and an optional caller-owned AbortSignal. It preserves full MCP results, including `isError`, structured content and metadata. Literal connection/tool names are independent of aliases. The caller owns authorization; this method does not install agent execution policy.
+
+Direct calls use the saved restart configuration timeout for their connection name, independently of desired configuration. Externally registered clients without saved configuration retain the SDK default. A manual replacement under a name with saved legacy configuration retains that name-owned timeout. Cancellation leaves the client connected and does not guarantee upstream side-effect rollback. Absent or initializing/restarting connections reject. Existing `executeTool` error conversion and agent context remain unchanged. Disconnect is best-effort, and connection status is not a remote-health probe.
 
 See the [MCPManager API reference](/api/sdk/mcp-manager) for method signatures.
 

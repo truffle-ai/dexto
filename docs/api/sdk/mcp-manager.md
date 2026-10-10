@@ -59,24 +59,43 @@ These additive methods opt into desired configuration ownership without changing
 
 ## Tools, prompts, and resources
 
-| Method                                             | Behavior                                                                                                     |
-| -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `getAllTools()`                                    | Returns cached callable tool names and definitions. Conflicting names use `sanitized-server--tool`.          |
-| `validateToolInput(name, input)`                   | Validates arguments against the cached tool schema; returns validated arguments or throws.                   |
-| `executeTool(name, args, sessionId?, runContext?)` | Routes a direct tool call. Does not apply the agent's permission policy or automatically validate arguments. |
-| `listAllPrompts()`                                 | Returns cached prompt names.                                                                                 |
-| `getAllPromptMetadata()`                           | Returns cached prompt metadata, including the originating server.                                            |
-| `getPrompt(name, args?)`                           | Retrieves a rendered prompt. Duplicate prompt names currently use the last cached provider.                  |
-| `listAllResources()`                               | Returns qualified resource keys and summaries.                                                               |
-| `readResource(key)`                                | Reads a resource using the key returned by discovery.                                                        |
+| Method                                             | Behavior                                                                                                                   |
+| -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `getAllTools()`                                    | Returns cached callable tool names and definitions. Conflicting names use `sanitized-server--tool`.                        |
+| `validateToolInput(name, input)`                   | Validates arguments against the cached tool schema; returns validated arguments or throws.                                 |
+| `callToolDirect(request)`                          | Calls a literal MCP descriptor identity and returns the complete typed protocol result, with optional caller cancellation. |
+| `executeTool(name, args, sessionId?, runContext?)` | Routes a direct tool call. Does not apply the agent's permission policy or automatically validate arguments.               |
+| `listAllPrompts()`                                 | Returns cached prompt names.                                                                                               |
+| `getAllPromptMetadata()`                           | Returns cached prompt metadata, including the originating server.                                                          |
+| `getPrompt(name, args?)`                           | Retrieves a rendered prompt. Duplicate prompt names currently use the last cached provider.                                |
+| `listAllResources()`                               | Returns qualified resource keys and summaries.                                                                             |
+| `readResource(key)`                                | Reads a resource using the key returned by discovery.                                                                      |
 
-Discovery uses connection caches, which can be refreshed explicitly or updated by server notifications. Tool-call failures propagate to the caller, including MCP results marked `isError`.
+Discovery uses connection caches, which can be refreshed explicitly or updated by server notifications. `executeTool` retains legacy agent-oriented error conversion: MCP results marked `isError` become thrown errors. `callToolDirect` returns these results, including `content`, `structuredContent`, `_meta`, and protocol extension fields. SDK protocol and output-schema errors still reject.
+
+### Literal protocol calls
+
+```typescript
+const tool = manager.getToolDescriptors().find((tool) => tool.name === 'lookup');
+if (!tool) throw new Error('lookup tool unavailable');
+const controller = new AbortController();
+const result = await manager.callToolDirect({
+    identity: tool.identity,
+    arguments: { query: 'example' },
+    signal: controller.signal,
+});
+if (result.isError) {
+    // Handle the upstream tool error result.
+}
+```
+
+`MCPDirectToolCall` is exported from `@dexto/core/mcp`. Its `identity` is the existing MCP descriptor identity (`type: 'mcp'`, `connectionId`, `toolName`); both names are literal, so alias changes and delimiter-containing names do not reroute the call. Arguments must be an object. Missing connections and observed initialization/restart operations reject before invocation. Each pending call stays bound to the captured client; replacement does not reroute it.
 
 ## Authentication and approvals
 
 `setAuthProviderFactory(factory)` installs a caller-provided OAuth provider factory. `setApprovalManager(manager)` supplies handling for server elicitation requests.
 
-The caller owns authorization for direct tool calls and the credentials sent to each server. Neither discovery nor schema validation authorizes an operation. There is no implicit CLI confirmation provider. Current tool calls support the configured request timeout, but no public abort-signal option.
+The caller owns authorization for direct tool calls and the credentials sent to each server. Neither discovery nor schema validation authorizes an operation. There is no implicit CLI confirmation provider. `callToolDirect` accepts an optional caller-owned `signal`. It uses the saved restart configuration timeout for the connection name, independently of desired configuration. Externally registered clients with no saved configuration use the SDK request default. Registering a replacement under a name with saved legacy configuration retains that name-owned timeout. Cancellation does not disconnect the client or promise upstream side-effect rollback. Legacy `executeTool` and `DextoMcpClient.callTool` retain their existing timeout and context semantics.
 
 ## DextoMcpClient
 
