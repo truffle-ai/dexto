@@ -674,3 +674,85 @@ it.skipIf(process.platform === 'win32')(
     },
     30000
 );
+
+it.skipIf(process.platform !== 'win32')(
+    'preserves the existing Windows file ACL on actual add and remove',
+    async () => {
+        const systemRoot = process.env.SystemRoot;
+        if (!systemRoot) throw new Error('Windows fixture requires SystemRoot');
+        const selectedDirectory = join(directory, 'windows-acl-edit');
+        await mkdir(selectedDirectory);
+        const selected = join(selectedDirectory, 'mcp.yml');
+        await writeFile(selected, 'mcpServers: {}\n');
+        const powershell = join(
+            systemRoot,
+            'System32',
+            'WindowsPowerShell',
+            'v1.0',
+            'powershell.exe'
+        );
+        const aclCommand = (script: string) =>
+            execute(powershell, ['-NoProfile', '-NonInteractive', '-Command', script], {
+                cwd: directory,
+                env: {
+                    SystemRoot: systemRoot,
+                    PATH: process.env.PATH,
+                    HOME: directory,
+                    USERPROFILE: directory,
+                    MCP_ACL_CONFIG_PATH: selected,
+                },
+                timeout: 20000,
+            });
+        const hashAcl = `
+        function Get-AclHash($path) {
+            $bytes = [System.Text.Encoding]::UTF8.GetBytes((Get-Acl -LiteralPath $path).Sddl)
+            $sha = [System.Security.Cryptography.SHA256]::Create()
+            try { return [System.BitConverter]::ToString($sha.ComputeHash($bytes)) }
+            finally { $sha.Dispose() }
+        }
+    `;
+        const before = (
+            await aclCommand(`${hashAcl}
+        $ErrorActionPreference = 'Stop'
+        $path = $env:MCP_ACL_CONFIG_PATH
+        $directory = [System.IO.Path]::GetDirectoryName($path)
+        $parent = Get-Acl -LiteralPath $directory
+        $parent.AddAccessRule([System.Security.AccessControl.FileSystemAccessRule]::new(
+            [System.Security.Principal.SecurityIdentifier]::new('S-1-5-32-545'),
+            'ReadAndExecute', 'ContainerInherit,ObjectInherit', 'None', 'Allow'))
+        Set-Acl -LiteralPath $directory -AclObject $parent
+        $acl = Get-Acl -LiteralPath $path
+        $acl.SetAccessRuleProtection($true, $false)
+        $acl.SetAccessRule([System.Security.AccessControl.FileSystemAccessRule]::new(
+            [System.Security.Principal.WindowsIdentity]::GetCurrent().User, 'FullControl', 'Allow'))
+        Set-Acl -LiteralPath $path -AclObject $acl
+        $control = Join-Path $directory 'inherited-control.yml'
+        [System.IO.File]::WriteAllText($control, 'synthetic')
+        try {
+            if ((Get-AclHash $path) -eq (Get-AclHash $control)) {
+                throw 'Fixture did not establish distinct file and inherited ACLs'
+            }
+            [Console]::Write((Get-AclHash $path))
+        } finally { Remove-Item -LiteralPath $control }
+    `)
+        ).stdout.trim();
+        const readAcl = async () =>
+            (
+                await aclCommand(
+                    `${hashAcl}
+        $ErrorActionPreference = 'Stop'
+        [Console]::Write((Get-AclHash $env:MCP_ACL_CONFIG_PATH))
+    `
+                )
+            ).stdout.trim();
+        await run(
+            ['add', 'local', '--server-config', '{"type":"stdio","command":"node"}'],
+            selected
+        );
+        expect(await readAcl()).toBe(before);
+        await run(['remove', 'local'], selected);
+        expect(await readAcl()).toBe(before);
+        expect(JSON.parse((await run(['list'], selected)).stdout)).toEqual({ servers: [] });
+    },
+    60000
+);

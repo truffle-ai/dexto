@@ -18,6 +18,7 @@ import { runStandaloneMcp } from './standalone.js';
 const directories: string[] = [];
 afterEach(async () => {
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
     await Promise.all(
         directories.splice(0).map((path) => rm(path, { recursive: true, force: true }))
     );
@@ -277,4 +278,24 @@ it('creates a missing MCP config and its parent directory without leaving a temp
     });
     if (process.platform !== 'win32') expect((await stat(config)).mode & 0o777).toBe(0o600);
     expect(await readdir(existing + '.directory')).toEqual(['mcp.yml']);
+});
+
+it('keeps the existing inode on the Windows edit path', async () => {
+    const config = await configFile('mcpServers: {}\n');
+    const inode = (await stat(config)).ino;
+    vi.stubGlobal('process', { ...process, platform: 'win32' });
+    expect(
+        (
+            await runStandaloneMcp(
+                {
+                    command: 'add',
+                    server: 'local',
+                    serverConfig: '{"type":"stdio","command":"node"}',
+                },
+                { config }
+            )
+        ).exitCode
+    ).toBe(0);
+    expect((await stat(config)).ino).toBe(inode);
+    expect(await readFile(config, 'utf8')).toContain('local:');
 });

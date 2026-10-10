@@ -1,4 +1,4 @@
-import { readFile, mkdir, open, rename, rm, lstat } from 'node:fs/promises';
+import { readFile, mkdir, open, rename, rm, lstat, writeFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { resolve, dirname } from 'node:path';
 import { parseDocument } from 'yaml';
@@ -226,8 +226,13 @@ async function rejectMcpConfigurationSymlink(path: string): Promise<void> {
     }
 }
 
-/** Replace one MCP-only YAML file without truncating its current contents. */
+/** Replace POSIX files privately; retain Windows in-place permissions. */
 async function writeMcpConfiguration(path: string, content: string): Promise<void> {
+    if (process.platform === 'win32') {
+        await rejectMcpConfigurationSymlink(path);
+        await writeFile(path, content, { mode: 0o600 });
+        return;
+    }
     const temporaryPath = `${path}.${randomUUID()}.tmp`;
     const file = await open(temporaryPath, 'wx', 0o600);
     try {

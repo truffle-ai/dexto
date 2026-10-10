@@ -20,7 +20,7 @@ afterEach(async () => {
     );
 });
 
-it.each(['write', 'rename'])(
+it.skipIf(process.platform === 'win32').each(['write', 'rename'])(
     'preserves the original YAML and removes the private temporary file on %s failure',
     async (failure) => {
         const directory = await mkdtemp(join(tmpdir(), 'dexto-mcp-write-'));

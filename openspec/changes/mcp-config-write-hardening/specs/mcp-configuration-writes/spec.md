@@ -1,12 +1,12 @@
 ## Purpose
 
-Standalone MCP configuration edits replace local YAML privately while retaining its literal credential templates and unrelated document content.
+Standalone MCP configuration edits use private atomic replacement on POSIX and retain existing file ACLs through in-place writes on Windows. Both retain literal credential templates and unrelated document content.
 
 ## ADDED Requirements
 
 ### Requirement: Private atomic configuration replacement
 
-Successful standalone add/remove edits SHALL write the replacement through a unique exclusively created temporary file in the selected file's directory before renaming it over the selected path. On POSIX the resulting file SHALL have mode `0600`, including when the previous file was `0644`. Replacement SHALL preserve unrelated YAML fields/comments and literal credential templates.
+On POSIX, successful standalone add/remove edits SHALL write the replacement through a unique exclusively created temporary file in the selected file's directory before renaming it over the selected path. On POSIX the resulting file SHALL have mode `0600`, including when the previous file was `0644`. Replacement SHALL preserve unrelated YAML fields/comments and literal credential templates.
 
 #### Scenario: Add to an existing permissive configuration
 
@@ -17,6 +17,15 @@ Successful standalone add/remove edits SHALL write the replacement through a uni
 
 - **WHEN** a configured server is removed from an existing `0644` configuration on POSIX
 - **THEN** only that entry is removed and the resulting file has mode `0600`
+
+### Requirement: Windows file ACL preservation
+
+On Windows, standalone add/remove SHALL retain the existing in-place writer and existing file ACLs. New files SHALL use the existing default filesystem ACL behavior. This requirement does not provide atomic replacement or preservation of original content on failed in-place writes.
+
+#### Scenario: Edit a restrictive existing Windows configuration
+
+- **WHEN** actual CLI add/remove edits an existing Windows file with a restrictive file ACL under a broader parent ACL
+- **THEN** both successful edits retain the original file security descriptor
 
 ### Requirement: Observed leaf symlink refusal
 
@@ -29,7 +38,7 @@ Standalone add/remove SHALL reject a leaf symlink observed at the edit boundary,
 
 ### Requirement: Failed replacement preserves the original configuration
 
-A failed temporary write or rename SHALL leave the original configuration unchanged and SHALL return a safe `config_write_failed` outcome without raw filesystem error text. The writer SHALL attempt to close and remove its owned temporary file; cleanup failures SHALL NOT replace the original failure.
+On POSIX, a failed temporary write or rename SHALL leave the original configuration unchanged and SHALL return a safe `config_write_failed` outcome without raw filesystem error text. The writer SHALL attempt to close and remove its owned temporary file; cleanup failures SHALL NOT replace the original failure.
 
 #### Scenario: Partial temporary write or rename fails
 
