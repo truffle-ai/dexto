@@ -58,10 +58,9 @@ export async function initializeMcpServer(
     const toolName = 'chat_with_agent';
     const toolDescription = 'Allows you to chat with the an AI agent. Send a message to interact.';
 
-    mcpServer.tool(
+    mcpServer.registerTool(
         toolName,
-        toolDescription,
-        { message: z.string() },
+        { description: toolDescription, inputSchema: { message: z.string() } },
         async ({ message }: { message: string }) => {
             // Keep session creation, execution and cleanup on the same agent if the host switches.
             const agent = context.getAgent();
@@ -124,7 +123,12 @@ async function registerAgentCardResource(
                 ],
             };
         };
-        mcpServer.resource(agentCardResourceProgrammaticName, agentCardResourceUri, readCallback);
+        mcpServer.registerResource(
+            agentCardResourceProgrammaticName,
+            agentCardResourceUri,
+            {},
+            readCallback
+        );
         agentLogger.info(
             `Registered MCP Resource: '${agentCardResourceProgrammaticName}' at URI '${agentCardResourceUri}'`
         );
