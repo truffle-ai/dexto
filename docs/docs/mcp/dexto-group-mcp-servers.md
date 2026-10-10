@@ -18,7 +18,7 @@ This is useful when you want to:
 
 In MCP Tools Mode, Dexto:
 1. Connects to multiple MCP servers as configured
-2. Aggregates all available tools from these servers
+2. Aggregates capabilities discovered at startup from these servers
 3. Exposes them directly as its own local MCP server
 4. Acts as a pass-through for tool execution
 
@@ -92,4 +92,22 @@ Or use the default Dexto configuration
 
 ### Step 3: Restart Cursor
 
-After adding the configuration, restart Cursor to load the new MCP server. 
+After adding the configuration, restart Cursor to load the new MCP server.
+
+## Connection ownership and protocol behavior
+
+The grouped server forwards tool schemas and metadata, structured tool results (including
+`isError` results), resource metadata and prompt arguments directly through MCP. It does not
+run an AI agent or grant additional authority: your MCP client and each upstream server own
+their authorization requirements.
+
+Capabilities are a fixed snapshot of the initial discovery page from each connected upstream.
+Restart the grouped server after upstream capability changes. Resource templates and discovery
+pagination are not aggregated. Tools with conflicting names use the Core manager's qualified
+names, such as `filesystem--read_file`; duplicate prompt names and ambiguous tool or resource
+identities fail startup rather than silently selecting a server.
+
+Strict startup requires every enabled configured server to connect. Otherwise, connections marked
+lenient may fail while successful connections remain available. Shutdown or transport closure
+releases the grouped server's upstream connections; failed initialization also releases acquired
+connections. Disabled connections remain disabled even with strict startup.
