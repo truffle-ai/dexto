@@ -309,6 +309,17 @@ async function runMcpOperation(
     });
     const manager = new MCPManager(logger);
     const server = command.server;
+    const cancellation = new AbortController();
+    let interruption: 'SIGINT' | 'SIGTERM' | undefined;
+    const interrupt = (signal: 'SIGINT' | 'SIGTERM') => {
+        if (interruption !== undefined) return;
+        interruption = signal;
+        cancellation.abort();
+    };
+    const onSigint = () => interrupt('SIGINT');
+    const onSigterm = () => interrupt('SIGTERM');
+    process.on('SIGINT', onSigint);
+    process.on('SIGTERM', onSigterm);
     let connected = false;
     let result: StandaloneMcpResult = {
         exitCode: 3,
@@ -324,7 +335,15 @@ async function runMcpOperation(
     try {
         await manager.connectServer(server, config);
         connected = true;
-        result = await performMcpOperation(manager, command, args, config.timeout);
+        if (!cancellation.signal.aborted) {
+            result = await performMcpOperation(
+                manager,
+                command,
+                args,
+                config.timeout,
+                cancellation.signal
+            );
+        }
     } catch (error) {
         if (connected) {
             const notFound =
@@ -346,20 +365,35 @@ async function runMcpOperation(
             };
         }
     } finally {
-        const cleanup = await Promise.allSettled([manager.disconnectAll()]);
-        cleanup.push(...(await Promise.allSettled([logger.destroy()])));
-        if (cleanup.some((item) => item.status === 'rejected') && result.exitCode === 0) {
-            result = {
-                exitCode: 4,
-                output: {
-                    server,
-                    error: {
-                        code: 'mcp_cleanup_failed',
-                        message: 'MCP connection cleanup failed.',
+        try {
+            const cleanup = await Promise.allSettled([manager.disconnectAll()]);
+            cleanup.push(...(await Promise.allSettled([logger.destroy()])));
+            if (cleanup.some((item) => item.status === 'rejected') && result.exitCode === 0) {
+                result = {
+                    exitCode: 4,
+                    output: {
+                        server,
+                        error: {
+                            code: 'mcp_cleanup_failed',
+                            message: 'MCP connection cleanup failed.',
+                        },
                     },
-                },
-            };
+                };
+            }
+        } finally {
+            process.off('SIGINT', onSigint);
+            process.off('SIGTERM', onSigterm);
         }
+    }
+    if (interruption !== undefined) {
+        return {
+            exitCode: interruption === 'SIGINT' ? 130 : 143,
+            output: {
+                server,
+                signal: interruption,
+                error: { code: 'mcp_interrupted', message: 'MCP operation interrupted.' },
+            },
+        };
     }
     return result;
 }
@@ -368,7 +402,8 @@ async function performMcpOperation(
     manager: MCPManager,
     command: McpOperation,
     args: Record<string, unknown>,
-    timeout: number
+    timeout: number,
+    signal: AbortSignal
 ): Promise<StandaloneMcpResult> {
     const server = command.server;
     switch (command.command) {
@@ -397,7 +432,7 @@ async function performMcpOperation(
             const protocol = await getConnectedServerProtocol(manager, server);
             const result = await protocol.getPrompt(
                 { name: command.prompt, arguments: command.arguments },
-                { timeout }
+                { timeout, signal }
             );
             return {
                 exitCode: 0,
@@ -406,7 +441,7 @@ async function performMcpOperation(
         }
         case 'read-resource': {
             const protocol = await getConnectedServerProtocol(manager, server);
-            const result = await protocol.readResource({ uri: command.uri }, { timeout });
+            const result = await protocol.readResource({ uri: command.uri }, { timeout, signal });
             return {
                 exitCode: 0,
                 output: { server, uri: command.uri, result, connection: 'closed' },
@@ -422,13 +457,11 @@ async function performMcpOperation(
                 );
             if (!descriptor) throw MCPError.toolNotFound(command.tool);
             const input = manager.validateToolInput(descriptor.name, args);
-            // Keep upstream names literal; manager aliases can contain the same delimiter.
-            const protocol = await getConnectedServerProtocol(manager, server);
-            const result = await protocol.callTool(
-                { name: command.tool, arguments: input },
-                undefined,
-                { timeout }
-            );
+            const result = await manager.callToolDirect({
+                identity: descriptor.identity,
+                arguments: input,
+                signal,
+            });
             return {
                 exitCode: result.isError === true ? 4 : 0,
                 output: { server, tool: command.tool, result, connection: 'closed' },
