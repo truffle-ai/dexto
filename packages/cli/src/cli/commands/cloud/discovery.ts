@@ -34,7 +34,13 @@ export async function runCloudDiscovery(
             );
         let origin = requestedOrigin;
         if (savedToken === token) {
-            const credentialOrigin = auth?.dextoPlatformUrl ?? 'https://app.dexto.ai';
+            const credentialOrigin = auth?.dextoPlatformUrl;
+            if (!credentialOrigin) {
+                throw new CloudClientError(
+                    'configuration_error',
+                    'Saved credential has no platform origin. Run dexto login --platform-url <application-origin> again before discovering Cloud capabilities.'
+                );
+            }
             if (hasOriginOverride && new URL(origin).origin !== new URL(credentialOrigin).origin) {
                 throw new CloudClientError(
                     'configuration_error',

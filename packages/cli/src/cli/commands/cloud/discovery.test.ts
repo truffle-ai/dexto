@@ -52,22 +52,24 @@ describe('Cloud CLI discovery', () => {
             error: { code: 'configuration_error' },
         });
     });
-    it('uses a legacy saved key only with the default origin', async () => {
-        auth.loadAuth.mockResolvedValue({ dextoApiKey: 'fixture-key' });
-        const fetch = vi.fn(async (_url: RequestInfo | URL) => Response.json({ sources: [] }));
-        vi.stubGlobal('fetch', fetch);
-        expect(await runCloudDiscovery({ command: 'sources' }, { json: true })).toBe(0);
-        expect(String(fetch.mock.calls[0]?.[0])).toBe(
-            'https://app.dexto.ai/api/capabilities/sources'
-        );
-        expect(
-            await runCloudDiscovery(
-                { command: 'sources' },
-                { json: true, platformUrl: 'http://localhost:8787' }
-            )
-        ).toBe(1);
-        expect(fetch).toHaveBeenCalledTimes(1);
-    });
+    it.each([{}, { platformUrl: 'http://localhost:8787' }])(
+        'requires a fresh login for an unbound saved credential: %j',
+        async (options) => {
+            auth.loadAuth.mockResolvedValue({ dextoApiKey: 'fixture-key' });
+            const fetch = vi.fn(async () => Response.json({ sources: [] }));
+            vi.stubGlobal('fetch', fetch);
+            expect(
+                await runCloudDiscovery({ command: 'sources' }, { ...options, json: true })
+            ).toBe(1);
+            expect(fetch).not.toHaveBeenCalled();
+            expect(JSON.parse(String(vi.mocked(console.log).mock.calls[0]?.[0]))).toMatchObject({
+                error: {
+                    code: 'configuration_error',
+                    message: expect.stringContaining('dexto login'),
+                },
+            });
+        }
+    );
     it('allows an explicit different environment credential for a custom platform', async () => {
         vi.stubEnv('DEXTO_API_KEY', 'explicit-key');
         const fetch = vi.fn(async (_url: RequestInfo | URL, _init?: RequestInit) =>

@@ -46,7 +46,7 @@ dexto cloud describe dexto.platform.web_search --json
 
 Search returns `hasMore`, `nextOffset`, and `total`. Pass `--offset` for the next page. JSON failures contain an `error` object and exit with code 1. Human-readable output is the default.
 
-For another installation, use `dexto login --platform-url <application-origin>`. The saved key remains bound to that origin, including when the same key appears in the environment. A different `DEXTO_API_KEY` can select another origin with `--platform-url` or `DEXTO_PLATFORM_URL`. Legacy saved keys without origin metadata use `https://app.dexto.ai`.
+For another installation, use `dexto login --platform-url <application-origin>`. The saved key remains bound to that origin, including when the same key appears in the environment. A different `DEXTO_API_KEY` can select another origin with `--platform-url` or `DEXTO_PLATFORM_URL`. Legacy saved keys without origin metadata require a fresh `dexto login --platform-url <application-origin>` before discovery.
 
 ## Quick Start
 

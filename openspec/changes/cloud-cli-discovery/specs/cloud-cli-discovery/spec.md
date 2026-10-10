@@ -23,6 +23,11 @@ The SDK SHALL require an explicit credential and origin, disable redirects, vali
 - **WHEN** no existing API key is available
 - **THEN** the CLI fails before networking and directs the user to login or supply DEXTO_API_KEY
 
+#### Scenario: Legacy saved credential without an issuing origin
+
+- **WHEN** discovery selects a saved credential without platform origin metadata
+- **THEN** the CLI fails before networking and directs the user to log in again to the intended application origin
+
 ### Requirement: Automation output
 
 The CLI SHALL offer JSON output for each discovery command and useful human-readable output by default. Invalid query, path, or pagination input SHALL fail before networking.
