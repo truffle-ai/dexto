@@ -13,7 +13,12 @@ const owned = vi.hoisted(() => ({
     cleanupSse: vi.fn(),
     cleanupWebhook: vi.fn(),
     abortApproval: vi.fn(),
-    initializeMcp: vi.fn(),
+    initializeMcp:
+        vi.fn<
+            (
+                ...args: Parameters<typeof import('@dexto/server').initializeMcpServer>
+            ) => Promise<void>
+        >(),
     createAgent: vi.fn(),
     resolveAgent: vi.fn(),
     listAgents: vi.fn(),
@@ -289,6 +294,11 @@ describe('CLI HTTP host lifecycle', () => {
         resources.push(host);
         const switching = host.switchAgentByPath('replacement.yml');
         await enteredStart;
+        const mcpContext = owned.initializeMcp.mock.calls[0]?.[3];
+        expect(mcpContext).toBeDefined();
+        if (!mcpContext) throw new Error('Expected current MCP context');
+        expect(() => mcpContext.getAgent()).toThrow();
+        expect(() => mcpContext.getAgentCard()).toThrow();
         const stopping = host.stop();
         await new Promise<void>((resolve) => setImmediate(resolve));
         const stoppedDuringStartup = replacement.stop.mock.calls.length;
@@ -339,6 +349,9 @@ describe('CLI HTTP host lifecycle', () => {
                     : host.switchAgentByPath('replacement.yml');
             await expect(switching).rejects.toBe(failure);
             expect(host.getActiveAgentId()).toBe('initial');
+            const mcpContext = owned.initializeMcp.mock.calls[0]?.[3];
+            expect(mcpContext?.getAgent()).toBe(initial.agent);
+            expect(mcpContext?.getAgentCard().name).toBe('initial');
             expect(() => host.ensureAgentAvailable()).not.toThrow();
             const response = await host.app.request('/test/agent');
             expect(response.status).toBe(200);
@@ -462,5 +475,22 @@ describe('CLI HTTP host lifecycle', () => {
         await host.stop();
         expect(initial.stop).toHaveBeenCalledTimes(2);
         expect(replacement.stop).toHaveBeenCalledTimes(1);
+    });
+    it('uses current MCP getters after a switch and rejects them after shutdown', async () => {
+        const initial = fakeAgent();
+        const replacement = fakeAgent();
+        owned.createAgent.mockResolvedValueOnce(replacement.agent);
+        const host = await initializeHonoApi(initial.agent);
+        resources.push(host);
+        const context = owned.initializeMcp.mock.calls[0]?.[3];
+        expect(context).toBeDefined();
+        if (!context) throw new Error('Expected current MCP context');
+        expect(context.getAgent()).toBe(initial.agent);
+        await host.switchAgentByPath('replacement.yml');
+        expect(context.getAgent()).toBe(replacement.agent);
+        expect(context.getAgentCard().name).toBe('replacement');
+        await host.stop();
+        expect(() => context.getAgent()).toThrow();
+        expect(() => context.getAgentCard()).toThrow();
     });
 });

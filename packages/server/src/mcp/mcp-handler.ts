@@ -34,10 +34,17 @@ export async function createMcpTransport(
     }
 }
 
+export interface McpAgentContext {
+    getAgent(): DextoAgent;
+    getAgentCard(): AgentCard;
+}
+
+/** Static callers retain their agent/card; switching hosts can supply live getters. */
 export async function initializeMcpServer(
     agent: DextoAgent,
     agentCardData: AgentCard,
-    mcpTransport: Transport
+    mcpTransport: Transport,
+    context: McpAgentContext = { getAgent: () => agent, getAgentCard: () => agentCardData }
 ): Promise<McpServer> {
     const mcpServer = new McpServer(
         { name: agentCardData.name, version: agentCardData.version },
@@ -56,6 +63,8 @@ export async function initializeMcpServer(
         toolDescription,
         { message: z.string() },
         async ({ message }: { message: string }) => {
+            // Keep session creation, execution and cleanup on the same agent if the host switches.
+            const agent = context.getAgent();
             agent.logger.info(
                 `MCP tool '${toolName}' received message: ${message.substring(0, 100)}${message.length > 100 ? '...' : ''}`
             );
@@ -79,7 +88,7 @@ export async function initializeMcpServer(
     );
     agent.logger.info(`Registered MCP tool: '${toolName}'`);
 
-    await initializeAgentCardResource(mcpServer, agentCardData, agent.logger);
+    await registerAgentCardResource(mcpServer, () => context.getAgentCard(), agent.logger);
 
     agent.logger.info(`Initializing MCP protocol server connection...`);
     await mcpServer.connect(mcpTransport);
@@ -87,9 +96,17 @@ export async function initializeMcpServer(
     return mcpServer;
 }
 
-export async function initializeAgentCardResource(
+export function initializeAgentCardResource(
     mcpServer: McpServer,
     agentCardData: AgentCard,
+    agentLogger: Logger
+): Promise<void> {
+    return registerAgentCardResource(mcpServer, () => agentCardData, agentLogger);
+}
+
+async function registerAgentCardResource(
+    mcpServer: McpServer,
+    getAgentCard: () => AgentCard,
     agentLogger: Logger
 ): Promise<void> {
     const agentCardResourceProgrammaticName = 'agentCard';
@@ -102,7 +119,7 @@ export async function initializeAgentCardResource(
                     {
                         uri: uri.href,
                         type: 'application/json',
-                        text: JSON.stringify(agentCardData, null, 2),
+                        text: JSON.stringify(getAgentCard(), null, 2),
                     },
                 ],
             };

@@ -115,6 +115,12 @@ http://localhost:3001/mcp
 http://YOUR_SERVER_IP:3001/mcp
 ```
 
+### Agent switching
+
+When a running HTTP host switches agents, subsequent MCP chat calls and reads of `dexto://agent/card` use the newly active agent. If replacement setup fails, they continue to use the retained agent. Requests during a switch or after shutdown report the host's availability error.
+
+An already-running chat call keeps its original session owner; switching does not migrate that call. The MCP connection's negotiated server name and version remain fixed until it reconnects.
+
 ### Remote client limitations
 Some MCP clients (including Cursor and Claude Desktop today) do not yet support streaming HTTP connections. For those clients, prefer the local stdio transport covered above.
 
