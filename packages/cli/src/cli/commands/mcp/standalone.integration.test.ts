@@ -52,8 +52,9 @@ beforeAll(async () => {
         server.tool('echo', { message: z.string() }, async ({ message }) => ({ content: [{ type: 'text', text: JSON.stringify({ message, pid: process.pid }) }] }));
         server.tool('failure', {}, async () => ({ isError: true, content: [{ type: 'text', text: 'fixture tool failure' }] }));
         }
-        server.resource('fixture', 'fixture://resource', async (uri) => ({ contents: [{ uri: uri.href, text: 'fixture data' }] }));
+        server.resource('fixture', 'fixture://resource', async (uri) => ({ contents: [{ uri: uri.href, text: JSON.stringify({ data: 'fixture data', pid: process.pid }), mimeType: 'application/json' }, { uri: uri.href + '#binary', blob: 'AAEC', mimeType: 'application/octet-stream' }] }));
         if (process.env.MCP_RESOURCES_ONLY !== '1') server.prompt('fixture', {}, async () => ({ messages: [{ role: 'user', content: { type: 'text', text: 'fixture prompt' } }] }));
+        if (process.env.MCP_RESOURCES_ONLY !== '1') server.prompt('fixture--literal', { name: z.string() }, async ({ name }) => ({ description: 'Rendered fixture', messages: [{ role: 'user', content: { type: 'text', text: JSON.stringify({ name, pid: process.pid }) } }] }));
         await server.connect(new StdioServerTransport());
     `
     );
@@ -258,13 +259,128 @@ it('lists resource metadata from the selected server', async () => {
     ]);
     expect(output.connection).toBe('closed');
 }, 30000);
+it('reads a selected resource and closes the owned child process', async () => {
+    const output = JSON.parse((await run(['read-resource', 'local', 'fixture://resource'])).stdout);
+    const content = JSON.parse(output.result.contents[0].text);
+    expect(content.data).toBe('fixture data');
+    expect(output.result.contents[0].mimeType).toBe('application/json');
+    expect(output.result.contents[1]).toEqual({
+        uri: 'fixture://resource#binary',
+        blob: 'AAEC',
+        mimeType: 'application/octet-stream',
+    });
+    expect(output).toMatchObject({
+        server: 'local',
+        uri: 'fixture://resource',
+        connection: 'closed',
+    });
+    expect(() => process.kill(content.pid, 0)).toThrow();
+}, 30000);
+
 it('lists prompt metadata from the selected server', async () => {
     const output = JSON.parse((await run(['prompts', 'local'])).stdout);
-    expect(output.prompts).toEqual([
-        expect.objectContaining({ serverName: 'local', promptName: 'fixture' }),
-    ]);
+    expect(output.prompts).toEqual(
+        expect.arrayContaining([
+            expect.objectContaining({ serverName: 'local', promptName: 'fixture' }),
+            expect.objectContaining({ serverName: 'local', promptName: 'fixture--literal' }),
+        ])
+    );
     expect(output.connection).toBe('closed');
 }, 30000);
+it('renders an exact selected prompt with string arguments and closes the owned child', async () => {
+    const output = JSON.parse(
+        (
+            await run([
+                'get-prompt',
+                'local',
+                'fixture--literal',
+                '--arguments',
+                '{"name":"rendered"}',
+            ])
+        ).stdout
+    );
+    const content = JSON.parse(output.result.messages[0].content.text);
+    expect(content.name).toBe('rendered');
+    expect(output).toMatchObject({
+        server: 'local',
+        prompt: 'fixture--literal',
+        connection: 'closed',
+    });
+    expect(output.result.description).toBe('Rendered fixture');
+    expect(output.result.messages[0].role).toBe('user');
+    expect(() => process.kill(content.pid, 0)).toThrow();
+}, 30000);
+
+it('rejects non-string prompt arguments before connecting', async () => {
+    const pidFile = join(directory, 'last-pid');
+    await writeFile(pidFile, 'not-started');
+    for (const value of ['{"name":42}', '[]', 'not-json']) {
+        await expect(
+            run(['get-prompt', 'local', 'fixture--literal', '--arguments', value])
+        ).rejects.toMatchObject({
+            code: 2,
+            stdout: expect.stringContaining('invalid_arguments'),
+        });
+        expect(await readFile(pidFile, 'utf8')).toBe('not-started');
+    }
+}, 30000);
+
+it('uses parent-selected configuration for resource reads and prompt rendering', async () => {
+    const resource = JSON.parse(
+        (await run(['--config', config, 'read-resource', 'local', 'fixture://resource'], null))
+            .stdout
+    );
+    expect(JSON.parse(resource.result.contents[0].text).data).toBe('fixture data');
+    const prompt = JSON.parse(
+        (
+            await run(
+                [
+                    '--config',
+                    config,
+                    'get-prompt',
+                    'local',
+                    'fixture--literal',
+                    '--arguments',
+                    '{"name":"parent"}',
+                ],
+                null
+            )
+        ).stdout
+    );
+    expect(JSON.parse(prompt.result.messages[0].content.text).name).toBe('parent');
+}, 30000);
+
+it('returns safe protocol failures and closes resource/prompt command ownership', async () => {
+    for (const args of [
+        ['read-resource', 'local', 'fixture://missing?token=sentinel'],
+        ['get-prompt', 'local', 'missing-sentinel'],
+    ]) {
+        await run(args).then(
+            () => {
+                throw new Error('Expected protocol failure');
+            },
+            (error: unknown) => {
+                if (
+                    typeof error !== 'object' ||
+                    error === null ||
+                    !('stdout' in error) ||
+                    typeof error.stdout !== 'string'
+                )
+                    throw error;
+                expect(error).toMatchObject({ code: 4 });
+                expect(JSON.parse(error.stdout)).toMatchObject({
+                    server: 'local',
+                    error: { code: 'mcp_operation_failed' },
+                });
+                expect(error.stdout).not.toContain('sentinel');
+                if ('stderr' in error) expect(error.stderr).not.toContain('sentinel');
+            }
+        );
+        const pid = Number(await readFile(join(directory, 'last-pid'), 'utf8'));
+        expect(() => process.kill(pid, 0)).toThrow();
+    }
+}, 30000);
+
 it('adds and removes portable server configuration through real command registration', async () => {
     const serverConfig =
         '{"type":"http","url":"${MCP_ENDPOINT}","headers":{"Authorization":"Bearer ${MCP_TOKEN}"}}';
