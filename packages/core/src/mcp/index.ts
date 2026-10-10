@@ -6,6 +6,7 @@ export type {
     MCPResourceSummary,
     MCPResolvedResource,
     McpClient,
+    MCPDirectToolCall,
     ConfiguredMcpServerStatus,
 } from './types.js';
 export {
