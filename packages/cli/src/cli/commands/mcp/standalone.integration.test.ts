@@ -747,7 +747,9 @@ it.skipIf(process.platform !== 'win32')(
         };
         const hashAcl = `
         function Get-AclHash($path) {
-            $bytes = [System.Text.Encoding]::UTF8.GetBytes((Get-Acl -LiteralPath $path).Sddl)
+            $security = [System.IO.File]::GetAccessControl($path)
+            $sddl = $security.GetSecurityDescriptorSddlForm([System.Security.AccessControl.AccessControlSections]::All)
+            $bytes = [System.Text.Encoding]::UTF8.GetBytes($sddl)
             $sha = [System.Security.Cryptography.SHA256]::Create()
             try { return [System.BitConverter]::ToString($sha.ComputeHash($bytes)) }
             finally { $sha.Dispose() }
@@ -759,24 +761,24 @@ it.skipIf(process.platform !== 'win32')(
         $path = $env:MCP_ACL_CONFIG_PATH
         $directory = [System.IO.Path]::GetDirectoryName($path)
         [Console]::Error.WriteLine('ACL_STAGE:parent_get')
-        $parent = Get-Acl -LiteralPath $directory
+        $parent = [System.IO.Directory]::GetAccessControl($directory)
         [Console]::Error.WriteLine('ACL_STAGE:parent_got')
         $parent.AddAccessRule([System.Security.AccessControl.FileSystemAccessRule]::new(
             [System.Security.Principal.SecurityIdentifier]::new('S-1-5-32-545'),
             'ReadAndExecute', 'ContainerInherit,ObjectInherit', 'None', 'Allow'))
         [Console]::Error.WriteLine('ACL_STAGE:parent_set')
-        Set-Acl -LiteralPath $directory -AclObject $parent
+        [System.IO.Directory]::SetAccessControl($directory, $parent)
         [Console]::Error.WriteLine('ACL_STAGE:parent_set_done')
         [Console]::Error.WriteLine('ACL_STAGE:file_get')
-        $acl = Get-Acl -LiteralPath $path
+        $acl = [System.IO.File]::GetAccessControl($path)
         [Console]::Error.WriteLine('ACL_STAGE:file_got')
         $acl.SetAccessRuleProtection($true, $false)
         $acl.SetAccessRule([System.Security.AccessControl.FileSystemAccessRule]::new(
             [System.Security.Principal.WindowsIdentity]::GetCurrent().User, 'FullControl', 'Allow'))
         [Console]::Error.WriteLine('ACL_STAGE:file_set')
-        Set-Acl -LiteralPath $path -AclObject $acl
+        [System.IO.File]::SetAccessControl($path, $acl)
         [Console]::Error.WriteLine('ACL_STAGE:file_set_done')
-        $control = Join-Path $directory 'inherited-control.yml'
+        $control = [System.IO.Path]::Combine($directory, 'inherited-control.yml')
         [System.IO.File]::WriteAllText($control, 'synthetic')
         try {
             [Console]::Error.WriteLine('ACL_STAGE:hash')
@@ -785,7 +787,7 @@ it.skipIf(process.platform !== 'win32')(
             }
             [Console]::Write((Get-AclHash $path))
             [Console]::Error.WriteLine('ACL_STAGE:hash_done')
-        } finally { Remove-Item -LiteralPath $control }
+        } finally { [System.IO.File]::Delete($control) }
     `)
         ).stdout.trim();
         const readAcl = async () =>
