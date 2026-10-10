@@ -1,7 +1,48 @@
-import type { StreamingEvent } from '@dexto/core';
+import { ApprovalType, type ApprovalRequest, type StreamingEvent } from '@dexto/core';
+import { HEADLESS_APPROVAL_MESSAGE } from '../../approval/headless-approval-handler.js';
 import type { HeadlessRunResult } from './headless.js';
 
 export type HeadlessOutputFormat = 'text' | 'json' | 'jsonl';
+
+export type HeadlessApprovalRequired = {
+    approvalId: string;
+    sessionId?: string;
+    message: string;
+} & (
+    | { approvalType: typeof ApprovalType.TOOL_APPROVAL; toolName: string; toolCallId: string }
+    | { approvalType: typeof ApprovalType.COMMAND_APPROVAL; toolName: string }
+    | {
+          approvalType: Exclude<
+              ApprovalRequest['type'],
+              typeof ApprovalType.TOOL_APPROVAL | typeof ApprovalType.COMMAND_APPROVAL
+          >;
+      }
+);
+
+export function toHeadlessApprovalRequired(request: ApprovalRequest): HeadlessApprovalRequired {
+    const correlation = {
+        approvalId: request.approvalId,
+        ...(request.sessionId !== undefined ? { sessionId: request.sessionId } : {}),
+        message: HEADLESS_APPROVAL_MESSAGE,
+    };
+    switch (request.type) {
+        case ApprovalType.TOOL_APPROVAL:
+            return {
+                ...correlation,
+                approvalType: request.type,
+                toolName: request.metadata.toolName,
+                toolCallId: request.metadata.toolCallId,
+            };
+        case ApprovalType.COMMAND_APPROVAL:
+            return {
+                ...correlation,
+                approvalType: request.type,
+                toolName: request.metadata.toolName,
+            };
+        default:
+            return { ...correlation, approvalType: request.type };
+    }
+}
 
 export async function writeHeadlessResult(
     format: HeadlessOutputFormat,
@@ -18,12 +59,16 @@ export async function writeHeadlessResult(
         ...(result.finalMessage !== undefined ? { content: result.finalMessage } : {}),
         ...(result.totalTokens !== undefined ? { totalTokens: result.totalTokens } : {}),
         ...(result.fatalError ? { error: result.fatalError.message } : {}),
+        ...(result.approvalRequired?.length ? { approvalRequired: result.approvalRequired } : {}),
     });
 }
 
 export async function writeHeadlessEvent(event: StreamingEvent): Promise<void> {
     let payload: Record<string, unknown>;
     switch (event.name) {
+        case 'approval:request':
+            payload = { type: 'approval_required', ...toHeadlessApprovalRequired(event) };
+            break;
         case 'llm:chunk':
             payload = { type: 'message_delta', content: event.content };
             break;

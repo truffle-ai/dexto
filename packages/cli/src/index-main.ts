@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { Command } from 'commander';
+import { Command, Option } from 'commander';
 import * as p from '@clack/prompts';
 import chalk from 'chalk';
 import { withAnalytics, safeExit, ExitSignal } from './analytics/wrapper.js';
@@ -161,10 +161,16 @@ program
     .option('--no-interactive', 'Disable interactive prompts and API key setup')
     .option('--skip-setup', 'Skip global setup validation (useful for MCP mode, automation)')
     .option('-m, --model <model>', 'Specify the LLM model to use')
-    .option('--auto-approve', 'Always approve tool executions without approval prompts')
+    .addOption(
+        new Option(
+            '--permissions-mode <mode>',
+            "Override the local agent's configured approval mode"
+        ).choices(['manual', 'auto-approve'])
+    )
+    .option('--auto-approve', 'Select auto-approve permissions (mandatory approvals still apply)')
     .option(
         '--bypass-permissions',
-        'Start the interactive CLI in bypass permissions mode (auto-approve approval prompts)'
+        'Select auto-approve permissions (alias for --permissions-mode auto-approve)'
     )
     .option('--no-elicitation', 'Disable elicitation (agent cannot prompt user for input)')
     .option('-c, --continue', 'Continue most recent session (CLI mode)')
@@ -473,13 +479,6 @@ async function bootstrapAgentFromGlobalOpts(options: {
         };
     }
 
-    // Override approval config for non-interactive commands.
-    // Headless operations default to auto-approve and disable elicitation to
-    // avoid waiting for interactive approval handlers.
-    enrichedConfig.permissions = {
-        ...(enrichedConfig.permissions ?? {}),
-        mode: 'auto-approve',
-    };
     enrichedConfig.elicitation = {
         enabled: false,
         ...(enrichedConfig.elicitation?.timeout !== undefined && {
@@ -500,9 +499,7 @@ async function bootstrapAgentFromGlobalOpts(options: {
             },
         })
     );
-    if (isHeadlessRun) {
-        agent.setApprovalHandler(handleHeadlessApproval);
-    }
+    agent.setApprovalHandler((request) => handleHeadlessApproval(request, agent, undefined));
     await agent.start();
     await (await import('./utils/workspace.js')).applyWorkspaceToAgent(agent, workspaceRoot);
 

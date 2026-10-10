@@ -50,6 +50,7 @@ Each stdout line is a version-1 JSON object. Selected streaming events use these
 | `response`      | `content`                                                    |
 | `warning`       | `errors`                                                     |
 | `run_error`     | `recoverable`, `error`                                       |
+| `approval_required` | `approvalId`, `approvalType`, `message`, optional `sessionId`; tool requests include `toolName` and `toolCallId`, command requests include `toolName` |
 
 Exactly one terminal `complete` or `error` object follows normal task execution. It includes final `content` when available, optional `sessionId` and `totalTokens`, and an `error` message on failure. Use that terminal object as the task outcome: recoverable stream errors and failed tool calls can be followed by a successful completion.
 
@@ -61,4 +62,16 @@ Exactly one terminal `complete` or `error` object follows normal task execution.
 
 Unsupported output formats fail during argument parsing before an agent starts. Process termination, broken output pipes, and argument-parser errors do not promise a terminal object.
 
-Output formats do not change the current headless approval behavior: headless tasks automatically approve tools and disable interactive elicitation. Run tasks only with the permissions and workspace appropriate for the task.
+## Permissions
+
+Local TUI and headless tasks use the same configured Core permission policy. With no override, `permissions.mode` in the agent configuration applies; Core defaults to `auto-approve` when omitted. Select a mode for either interface with the global option:
+
+```bash
+dexto --permissions-mode manual
+dexto --permissions-mode manual run "inspect this repository" --format json
+dexto --permissions-mode auto-approve run "format this repository"
+```
+
+`--auto-approve` and `--bypass-permissions` are aliases for selecting `auto-approve`. Combining either alias with explicit `manual` is an error. These options do not bypass mandatory approvals or alter Core allow rules. The TUI footer shows configured approvals separately from temporary session shortcuts.
+
+Headless tasks disable interactive elicitation and cannot collect approvals. When Core requires approval, the operation is denied immediately and the agent can recover and continue to task completion. Text reports `[APPROVAL_REQUIRED]` on stderr. JSON includes an `approvalRequired` array, and JSONL emits `approval_required` records plus the array in its terminal result. These records identify unavailable approval; a completed response does not mean the blocked action executed. Review the task in the TUI when approval is needed. No new task limit is imposed.
