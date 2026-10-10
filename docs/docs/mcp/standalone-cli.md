@@ -26,7 +26,15 @@ dexto mcp add remote --url https://example.com/mcp --header 'Authorization=Beare
 
 Repeat `--header` for additional headers. `--transport sse` selects an SSE endpoint; HTTP and stdio are inferred from `--url` and `--command`. Alternatively, use `--server-config '<JSON object>'` for the full existing MCP server configuration contract. This form cannot be combined with the typed transport options.
 
-Templates remain literal in the YAML file and resolve from the environment when connecting. Duplicate additions fail unless `--replace` is provided. Add and remove preserve unrelated YAML fields and comments. Run configuration edits sequentially; concurrent edits are not serialized. Newly created files use owner-only permissions, while existing file permissions are preserved. Operators are responsible for the selected executable, endpoint, credentials and permissions; direct tool calls execute the explicitly requested operation.
+Templates remain literal in the YAML file and resolve from the environment when connecting. Duplicate additions fail unless `--replace` is provided. Add and remove preserve unrelated YAML fields and comments. See [local configuration edits](#local-configuration-edits) for replacement, permissions and concurrency limits. Operators are responsible for the selected executable, endpoint, credentials and permissions; direct tool calls execute the explicitly requested operation.
+
+## Local configuration edits
+
+Add/remove write a unique private temporary file beside the selected configuration and rename it into place after writing. On POSIX every successful edit produces mode `0600`, including when an existing file was `0644`. Replacement changes the file inode; it does not retain shared-file modes or hard-link relationships. Windows access remains governed by filesystem ACLs.
+
+Observed existing or dangling leaf symlinks are rejected for edits with `config_write_failed` and exit status 2. Select the actual regular configuration file instead. Read-only commands retain their existing path handling. A failed temporary write or rename leaves the original file unchanged; temporary cleanup is best-effort and failures omit raw filesystem details.
+
+Keep the selected parent directory under your control and serialize edits. These commands do not protect against parent-directory symlink traversal or concurrent mutations, do not coordinate overlapping whole-YAML edits, and do not promise crash durability. Credential templates and unrelated YAML comments/fields remain literal and preserved.
 
 ## Discover and call
 

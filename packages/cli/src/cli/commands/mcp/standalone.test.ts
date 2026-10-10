@@ -1,4 +1,14 @@
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import {
+    mkdtemp,
+    readFile,
+    rm,
+    writeFile,
+    chmod,
+    stat,
+    symlink,
+    lstat,
+    readdir,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, expect, it, vi } from 'vitest';
@@ -156,4 +166,115 @@ it('rejects blank server names without writing a configuration entry', async () 
         )
     ).toMatchObject({ exitCode: 2, output: { error: { code: 'invalid_server_name' } } });
     expect(await readFile(config, 'utf8')).toBe('mcpServers: {}\n');
+});
+
+it.skipIf(process.platform === 'win32')(
+    'makes an existing config private when adding a server',
+    async () => {
+        const config = await configFile('mcpServers: {}\n');
+        await chmod(config, 0o644);
+        expect(
+            (
+                await runStandaloneMcp(
+                    {
+                        command: 'add',
+                        server: 'local',
+                        serverConfig: '{"type":"stdio","command":"node"}',
+                    },
+                    { config }
+                )
+            ).exitCode
+        ).toBe(0);
+        expect((await stat(config)).mode & 0o777).toBe(0o600);
+    }
+);
+
+it.skipIf(process.platform === 'win32').each(['add', 'remove'])(
+    'rejects %s edits through a leaf symlink',
+    async (command) => {
+        const target = await configFile(
+            'mcpServers:\n  local:\n    type: stdio\n    command: node\n'
+        );
+        const config = target + '.link';
+        await symlink(target, config);
+        const before = await readFile(target, 'utf8');
+        const result = await runStandaloneMcp(
+            command === 'add'
+                ? {
+                      command: 'add',
+                      server: 'second',
+                      serverConfig: '{"type":"stdio","command":"node"}',
+                  }
+                : { command: 'remove', server: 'local' },
+            { config }
+        );
+        expect(result).toMatchObject({
+            exitCode: 2,
+            output: { error: { code: 'config_write_failed' } },
+        });
+        expect(await readFile(target, 'utf8')).toBe(before);
+        expect((await lstat(config)).isSymbolicLink()).toBe(true);
+    }
+);
+
+it.skipIf(process.platform === 'win32')(
+    'makes an existing config private when removing a server',
+    async () => {
+        const config = await configFile(
+            'mcpServers:\n  local:\n    type: stdio\n    command: node\n'
+        );
+        await chmod(config, 0o644);
+        expect(
+            (await runStandaloneMcp({ command: 'remove', server: 'local' }, { config })).exitCode
+        ).toBe(0);
+        expect((await stat(config)).mode & 0o777).toBe(0o600);
+    }
+);
+
+it.skipIf(process.platform === 'win32').each(['add', 'remove'])(
+    'rejects %s edits to a dangling leaf symlink',
+    async (command) => {
+        const target = await configFile('mcpServers: {}\n');
+        await rm(target);
+        const config = target + '.link';
+        await symlink(target, config);
+        const result = await runStandaloneMcp(
+            command === 'add'
+                ? {
+                      command: 'add',
+                      server: 'local',
+                      serverConfig: '{"type":"stdio","command":"node"}',
+                  }
+                : { command: 'remove', server: 'local' },
+            { config }
+        );
+        expect(result).toMatchObject({
+            exitCode: 2,
+            output: { error: { code: 'config_write_failed' } },
+        });
+        expect((await lstat(config)).isSymbolicLink()).toBe(true);
+        await expect(stat(target)).rejects.toMatchObject({ code: 'ENOENT' });
+    }
+);
+
+it('creates a missing MCP config and its parent directory without leaving a temporary file', async () => {
+    const existing = await configFile('mcpServers: {}\n');
+    const config = existing + '.directory/mcp.yml';
+    expect(
+        (
+            await runStandaloneMcp(
+                {
+                    command: 'add',
+                    server: 'local',
+                    serverConfig: '{"type":"stdio","command":"node"}',
+                },
+                { config }
+            )
+        ).exitCode
+    ).toBe(0);
+    expect((await runStandaloneMcp({ command: 'list' }, { config })).output).toEqual({
+        servers: [{ name: 'local', type: 'stdio', enabled: true, status: 'configured' }],
+    });
+    if (process.platform !== 'win32') expect((await stat(config)).mode & 0o777).toBe(0o600);
+    expect(await readdir(existing + '.directory')).toEqual(['mcp.yml']);
 });

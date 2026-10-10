@@ -1,6 +1,16 @@
 import { execFile } from 'node:child_process';
 import { performance } from 'node:perf_hooks';
-import { mkdtemp, mkdir, rm, writeFile, readFile } from 'node:fs/promises';
+import {
+    mkdtemp,
+    mkdir,
+    rm,
+    writeFile,
+    readFile,
+    chmod,
+    stat,
+    symlink,
+    lstat,
+} from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -623,3 +633,44 @@ it('connects and lists metadata from a valid resources-only server', async () =>
     const pid = Number(await readFile(join(directory, 'last-pid'), 'utf8'));
     expect(() => process.kill(pid, 0)).toThrow();
 }, 30000);
+
+it.skipIf(process.platform === 'win32')(
+    'writes private MCP configuration through the actual add and remove commands',
+    async () => {
+        const selected = join(directory, 'private-edit.yml');
+        await writeFile(selected, '# operator notes\nmcpServers: {}\n', { mode: 0o644 });
+        await run(
+            ['add', 'local', '--server-config', '{"type":"stdio","command":"node"}'],
+            selected
+        );
+        expect((await stat(selected)).mode & 0o777).toBe(0o600);
+        expect(await readFile(selected, 'utf8')).toContain('# operator notes');
+        await chmod(selected, 0o644);
+        await run(['remove', 'local'], selected);
+        expect((await stat(selected)).mode & 0o777).toBe(0o600);
+        expect(JSON.parse((await run(['list'], selected)).stdout)).toEqual({ servers: [] });
+    },
+    30000
+);
+
+it.skipIf(process.platform === 'win32')(
+    'refuses a leaf-symlink edit through actual command registration',
+    async () => {
+        const target = join(directory, 'symlink-target.yml');
+        const selected = join(directory, 'symlink-edit.yml');
+        const before = 'mcpServers: {}\n';
+        await writeFile(target, before);
+        await symlink(target, selected);
+        const result = await run(
+            ['add', 'local', '--server-config', '{"type":"stdio","command":"node"}'],
+            selected
+        ).catch((error: unknown) => error);
+        expect(result).toMatchObject({
+            code: 2,
+            stdout: expect.stringContaining('config_write_failed'),
+        });
+        expect(await readFile(target, 'utf8')).toBe(before);
+        expect((await lstat(selected)).isSymbolicLink()).toBe(true);
+    },
+    30000
+);

@@ -1,4 +1,5 @@
-import { readFile, writeFile, mkdir } from 'node:fs/promises';
+import { readFile, mkdir, open, rename, rm, lstat } from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
 import { resolve, dirname } from 'node:path';
 import { parseDocument } from 'yaml';
 import { z } from 'zod';
@@ -12,6 +13,9 @@ import {
     MCPError,
 } from '@dexto/core/mcp';
 import { DextoLogger, DextoLogComponent } from '@dexto/core/logger';
+
+const configWriteFailureMessage =
+    'Cannot write MCP configuration. Use a regular file in a writable directory.';
 
 // Configuration edits keep templates literal; Core expands them at connection time.
 const literalString = z.string();
@@ -61,6 +65,8 @@ export async function runStandaloneMcp(
     }
     const configPath = resolve(options.config ?? '.dexto/mcp.yml');
     try {
+        if (command.command === 'add' || command.command === 'remove')
+            await rejectMcpConfigurationSymlink(configPath);
         const { document, servers } = await loadStandaloneMcpConfiguration(
             configPath,
             command.command === 'add'
@@ -75,7 +81,7 @@ export async function runStandaloneMcp(
                     },
                 };
             document.deleteIn(['mcpServers', command.server]);
-            await writeFile(configPath, document.toString());
+            await writeMcpConfiguration(configPath, document.toString());
             return { exitCode: 0, output: { server: command.server, status: 'removed' } };
         }
         if (command.command === 'add') {
@@ -106,7 +112,7 @@ export async function runStandaloneMcp(
                 };
             document.setIn(['mcpServers', command.server], raw);
             await mkdir(dirname(configPath), { recursive: true });
-            await writeFile(configPath, document.toString(), { mode: 0o600 });
+            await writeMcpConfiguration(configPath, document.toString());
             return { exitCode: 0, output: { server: command.server, status: 'configured' } };
         }
         if (command.command !== 'list') {
@@ -191,7 +197,7 @@ export async function runStandaloneMcp(
                 output: {
                     error: {
                         code: 'config_write_failed',
-                        message: 'Cannot write MCP configuration. Check the directory permissions.',
+                        message: configWriteFailureMessage,
                     },
                 },
             };
@@ -204,9 +210,42 @@ export async function runStandaloneMcp(
     }
 }
 
+async function rejectMcpConfigurationSymlink(path: string): Promise<void> {
+    try {
+        if ((await lstat(path)).isSymbolicLink())
+            throw new McpConfigurationError('config_write_failed', configWriteFailureMessage);
+    } catch (error) {
+        if (
+            typeof error === 'object' &&
+            error !== null &&
+            'code' in error &&
+            error.code === 'ENOENT'
+        )
+            return;
+        throw error;
+    }
+}
+
+/** Replace one MCP-only YAML file without truncating its current contents. */
+async function writeMcpConfiguration(path: string, content: string): Promise<void> {
+    const temporaryPath = `${path}.${randomUUID()}.tmp`;
+    const file = await open(temporaryPath, 'wx', 0o600);
+    try {
+        await file.chmod(0o600);
+        await file.writeFile(content, 'utf8');
+        await file.close();
+        await rejectMcpConfigurationSymlink(path);
+        await rename(temporaryPath, path);
+    } catch (error) {
+        await file.close().catch(() => undefined);
+        await rm(temporaryPath, { force: true }).catch(() => undefined);
+        throw error;
+    }
+}
+
 class McpConfigurationError extends Error {
     constructor(
-        readonly code: 'config_read_failed' | 'invalid_config',
+        readonly code: 'config_read_failed' | 'invalid_config' | 'config_write_failed',
         message: string
     ) {
         super(message);
