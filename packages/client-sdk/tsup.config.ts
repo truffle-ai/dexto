@@ -1,7 +1,7 @@
 import { defineConfig } from 'tsup';
 
 export default defineConfig({
-    entry: ['src/index.ts'],
+    entry: ['src/index.ts', 'src/cloud.ts'],
     format: ['cjs', 'esm'],
     outDir: 'dist',
     dts: false, // Disable DTS generation in tsup to avoid worker memory issues

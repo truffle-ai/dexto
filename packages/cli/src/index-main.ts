@@ -91,6 +91,7 @@ import { registerSessionCommand } from './cli/commands/session/register.js';
 import { registerSearchCommand } from './cli/commands/search/register.js';
 import { registerAuthCommand } from './cli/commands/auth/register.js';
 import { registerBillingCommand } from './cli/commands/billing/register.js';
+import { registerCloudCommand } from './cli/commands/cloud/register.js';
 import { registerMcpCommand } from './cli/commands/mcp/register.js';
 import { registerImageCommand } from './cli/commands/image/register.js';
 import { registerPluginCommand } from './cli/commands/plugin/register.js';
@@ -531,6 +532,7 @@ registerSessionCommand(runtimeCommandContext);
 registerSearchCommand(runtimeCommandContext);
 registerAuthCommand(runtimeCommandContext);
 registerBillingCommand(runtimeCommandContext);
+registerCloudCommand(program);
 registerMcpCommand({ program });
 
 // 13) Main dexto CLI - Interactive (CLI) or run in other modes (--mode web/server/mcp)

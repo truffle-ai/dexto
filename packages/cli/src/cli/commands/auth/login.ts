@@ -2,7 +2,9 @@
 
 import chalk from 'chalk';
 import * as p from '@clack/prompts';
+import { DEXTO_PLATFORM_URL } from '../../auth/constants.js';
 import {
+    DextoApiClient,
     getDextoApiClient,
     isAuthenticated,
     loadAuth,
@@ -61,7 +63,9 @@ export async function handleLoginCommand(options: LoginCommandOptions = {}): Pro
         }
 
         if (options.apiKey) {
-            const client = getDextoApiClient();
+            const client = options.platformUrl
+                ? new DextoApiClient(options.platformUrl)
+                : getDextoApiClient();
             const isValid = await client.validateDextoApiKey(options.apiKey);
             if (!isValid) {
                 throw new Error('Invalid API key provided - validation failed');
@@ -69,6 +73,7 @@ export async function handleLoginCommand(options: LoginCommandOptions = {}): Pro
             await storeAuth({
                 dextoApiKey: options.apiKey,
                 dextoApiKeySource: 'user-supplied',
+                dextoPlatformUrl: new URL(options.platformUrl ?? DEXTO_PLATFORM_URL).origin,
                 createdAt: Date.now(),
             });
             console.log(chalk.green('✅ Dexto API key saved'));
@@ -109,8 +114,9 @@ export async function handleAutoLogin(): Promise<void> {
 
 export async function handleDeviceLogin(options: { platformUrl?: string } = {}): Promise<void> {
     try {
+        const platformUrl = options.platformUrl ?? DEXTO_PLATFORM_URL;
         const result = await performDeviceCodeLogin({
-            ...(options.platformUrl ? { apiUrl: options.platformUrl } : {}),
+            apiUrl: platformUrl,
             onPrompt: (prompt) => {
                 console.log(chalk.cyan('\nUse any browser to complete login:'));
                 if (prompt.verificationUrlComplete) {
@@ -126,7 +132,7 @@ export async function handleDeviceLogin(options: { platformUrl?: string } = {}):
             },
         });
 
-        const persisted = await persistDeviceApiKeyLoginResult(result);
+        const persisted = await persistDeviceApiKeyLoginResult(result, platformUrl);
         console.log(chalk.dim(`\nSaved Dexto API key ${persisted.keyId ?? ''}`.trim()));
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);

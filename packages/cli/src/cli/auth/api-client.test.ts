@@ -418,7 +418,7 @@ describe('DextoApiClient', () => {
             'http://localhost:8787/api/auth/device/start',
             expect.objectContaining({
                 method: 'POST',
-                body: JSON.stringify({ client: 'dexto-cli' }),
+                body: JSON.stringify({ clientId: 'dexto-cli' }),
             })
         );
         expect(fetchMock).toHaveBeenNthCalledWith(
