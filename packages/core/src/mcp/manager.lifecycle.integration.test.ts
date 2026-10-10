@@ -51,6 +51,60 @@ describe('MCP failed connection lifecycle', () => {
             }),
         };
     }
+    it('closes both real children after overlapping same-name connection replacement', async () => {
+        const first = serverConfig('displaced', 'wait-for-file');
+        const second = serverConfig('replacement', 'wait-for-file');
+        const firstRelease = join(directory, 'displaced.release');
+        const secondRelease = join(directory, 'replacement.release');
+        const attempts = [
+            manager.connectServer(
+                'shared',
+                McpServerConfigSchema.parse({
+                    ...first.config,
+                    args: [serverPath, first.pidFile, 'wait-for-file', '', firstRelease],
+                })
+            ),
+            manager.connectServer(
+                'shared',
+                McpServerConfigSchema.parse({
+                    ...second.config,
+                    args: [serverPath, second.pidFile, 'wait-for-file', '', secondRelease],
+                })
+            ),
+        ];
+        try {
+            await vi.waitFor(async () => {
+                await readFile(first.pidFile);
+                await readFile(second.pidFile);
+            });
+            await writeFile(firstRelease, 'ready');
+            await attempts[0];
+            await writeFile(secondRelease, 'ready');
+            await attempts[1];
+            const firstPid = Number(await readFile(first.pidFile, 'utf8'));
+            const secondPid = Number(await readFile(second.pidFile, 'utf8'));
+            expect(firstPid).not.toBe(secondPid);
+            expect(isProcessRunning(firstPid)).toBe(true);
+            expect(isProcessRunning(secondPid)).toBe(true);
+            expect(await manager.executeTool('ping', {})).toMatchObject({
+                content: [{ type: 'text', text: 'pong' }],
+            });
+            await manager.disconnectAll();
+            await vi.waitFor(
+                () => {
+                    expect(isProcessRunning(firstPid)).toBe(false);
+                    expect(isProcessRunning(secondPid)).toBe(false);
+                },
+                { timeout: 2000 }
+            );
+        } finally {
+            await Promise.all([
+                writeFile(firstRelease, 'ready'),
+                writeFile(secondRelease, 'ready'),
+            ]);
+            await Promise.allSettled(attempts);
+        }
+    }, 15000);
     it('drains pending startup before closing its client and remains reusable', async () => {
         const server = serverConfig('pending-startup');
         const modeFile = join(directory, 'pending-mode');
