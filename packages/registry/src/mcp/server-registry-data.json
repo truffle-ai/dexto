@@ -268,7 +268,7 @@
     "config": {
       "type": "http",
       "url": "https://search.parallel.ai/mcp",
-      "headers": {},
+      "headers": { "User-Agent": "Dexto" },
       "timeout": 30000
     },
     "tags": ["search", "web", "research", "citations"],
