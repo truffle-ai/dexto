@@ -28,7 +28,7 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 
 const execute = promisify(execFile);
 const require = createRequire(import.meta.url);
-const tsx = require.resolve('tsx');
+const tsx = pathToFileURL(require.resolve('tsx')).href;
 const entrypoint = fileURLToPath(new URL('../../../index.ts', import.meta.url));
 let directory: string;
 let config: string;

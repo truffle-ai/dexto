@@ -10,7 +10,7 @@
 
 - [x] 2.1 Cover busy lock preservation, rejected edits, write and release failures.
 - [x] 2.2 Preserve read-only and remove-missing behavior; document explicit recovery.
-- [ ] 2.3 Integrate upstream writer-hardening source before final validation.
+- [x] 2.3 Integrate upstream writer-hardening source before final validation.
 
 ## 3. Validation and publication
 
