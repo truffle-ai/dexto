@@ -1,7 +1,7 @@
 import { CloudClientError, createDextoCloudClient } from '@dexto/client-sdk/cloud';
 import { ZodError } from 'zod';
 import { DEXTO_PLATFORM_URL } from '../../auth/constants.js';
-import { getDextoApiKey, loadAuth } from '../../auth/service.js';
+import { loadAuth } from '../../auth/service.js';
 
 export type CloudDiscoveryCommand =
     | { command: 'sources' }
@@ -19,20 +19,23 @@ export async function runCloudDiscovery(
     options: CloudDiscoveryOptions
 ): Promise<number> {
     try {
-        const token = await getDextoApiKey();
+        const environmentToken = process.env.DEXTO_API_KEY?.trim();
+        const environmentOrigin = process.env.DEXTO_PLATFORM_URL || undefined;
+        const requestedOrigin = options.platformUrl ?? environmentOrigin ?? DEXTO_PLATFORM_URL;
+        const hasOriginOverride =
+            options.platformUrl !== undefined || environmentOrigin !== undefined;
+        const auth = await loadAuth();
+        const savedToken = auth?.dextoApiKey?.trim();
+        const token = environmentToken || savedToken;
         if (!token)
             throw new CloudClientError(
                 'configuration_error',
                 'Run dexto login or supply DEXTO_API_KEY to discover Cloud capabilities.'
             );
-        const auth = await loadAuth();
-        let origin = options.platformUrl ?? DEXTO_PLATFORM_URL;
-        if (auth?.dextoApiKey === token) {
-            const credentialOrigin = auth.dextoPlatformUrl ?? 'https://app.dexto.ai';
-            if (
-                (options.platformUrl || process.env.DEXTO_PLATFORM_URL) &&
-                new URL(origin).origin !== new URL(credentialOrigin).origin
-            ) {
+        let origin = requestedOrigin;
+        if (savedToken === token) {
+            const credentialOrigin = auth?.dextoPlatformUrl ?? 'https://app.dexto.ai';
+            if (hasOriginOverride && new URL(origin).origin !== new URL(credentialOrigin).origin) {
                 throw new CloudClientError(
                     'configuration_error',
                     'Saved credential belongs to a different platform origin. Login to the requested platform or supply a different DEXTO_API_KEY issued by it.'
