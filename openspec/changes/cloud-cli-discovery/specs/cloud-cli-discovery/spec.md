@@ -32,7 +32,8 @@ The SDK SHALL require an explicit credential and origin, disable redirects, vali
 
 - **WHEN** Cloud discovery resolves credentials and application origin
 - **THEN** it uses the saved credential and issuing origin or explicit incoming shell overrides, without treating dotenv-loaded values as explicit overrides
-- **AND** an explicit shell credential without a shell origin or CLI origin option uses the canonical application origin
+- **AND** an explicit shell credential without a shell origin or CLI origin option uses the canonical application origin when it is not a normalized match for the saved credential
+- **AND** a normalized shell credential that matches the saved credential retains the saved issuing origin
 
 ### Requirement: Automation output
 
