@@ -711,7 +711,7 @@ export class DextoApiClient {
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ client }),
+            body: JSON.stringify({ clientId: client }),
             signal: this.createRequestSignal(options.signal),
         });
 
