@@ -1,5 +1,55 @@
 # dexto
 
+## 1.14.0
+
+### Minor Changes
+
+- d5ebf16: Honor configured permissions across TUI and headless runs, add a shared permissions-mode option and consistent auto-approval aliases, expose correlated approval-required output without interrupting model recovery, and display configured approvals in the TUI.
+- 18beacd: Add authenticated Cloud capability sources, search, and describe commands with JSON output and an isolated discovery SDK export. Preserve the platform origin of saved credentials.
+- a41a258: Add opt-in JSON and JSONL output to `dexto run`, with versioned terminal results and incremental events. Keep text output as the default.
+
+### Patch Changes
+
+- 8a6b0da: Keep the previous agent usable when a replacement fails to start or configure its workspace. Restore its event and approval wiring, retain its active identity and configuration, and preserve the original switch error.
+- 4a2bd5e: Return a clear immediate denial when a headless task requests mandatory interactive approval, instead of reporting a missing approval handler. Preserve automatic execution for ordinary tools and allow task recovery after a denied operation.
+- e5a2d84: Wait for the local CLI HTTP server to bind before announcing readiness, report port conflicts through normal startup errors, and clean up initialized resources after failures. Add idempotent shutdown that closes HTTP/MCP resources, stops the current agent, and removes owned process listeners.
+- a02936b: Repair Docker's production dependency packaging, writable workspace and persisted data location. Forward CLI arguments and termination signals to the agent server, and use the configured PORT for container health checks.
+- e1fd31b: Honor strict grouped MCP startup, clean up owned connections on failure and shutdown, and preserve upstream schemas, metadata, prompt arguments and tool results through stable startup bindings.
+- c11953a: Prevent competing MCP configuration edits from silently overwriting each other; report a safe busy outcome and retain explicit edit ownership through cleanup.
+- 1c6b669: Use private atomic writes for standalone MCP add/remove configuration on POSIX. Successful POSIX edits use mode `0600`, including existing files, and observed leaf symlinks are rejected. Select the actual configuration file when editing; POSIX replacement changes its inode. Windows edits retain existing in-place writes and file ACLs, including their existing partial-write failure limitation. YAML comments and literal credential templates remain preserved.
+- cfe5676: Keep MCP chat requests and agent-card discovery aligned with the CLI host's current agent after switches while preserving static server integrations.
+- 0a219d4: Clean up owned one-shot MCP connections on SIGINT and SIGTERM and return clear interrupted outcomes while preserving the first signal.
+- aed4dd5: Add standalone MCP resource reads and prompt rendering with typed arguments and owned connection cleanup.
+- a7c393b: Update the MCP SDK v1 dependency to 1.32.1. HTTP/SSE connections now use upstream origin-restricted redirects: configure the final endpoint URL when a service redirects across origins. Preserve direct SDK tool/resource composition and document stdio buffering and OAuth issuer persistence compatibility.
+- 4355688: Fix agent installation failing on an obsolete preference-injection option and allow standalone builds from read-only Node installations. Verify standalone agents in a fresh home with real local filesystem, process and SQLite tools.
+- fa07860: Add standalone MCP setup, discovery and explicit tool calls without agent/model setup, with literal configuration templates, JSON outcomes and owned connection cleanup. Allow the existing aggregation gateway to consume an MCP-only configuration file.
+- Updated dependencies [d5ebf16]
+- Updated dependencies [18beacd]
+- Updated dependencies [eec55be]
+- Updated dependencies [cfe5676]
+- Updated dependencies [f23f4ee]
+- Updated dependencies [4cb931b]
+- Updated dependencies [331e59d]
+- Updated dependencies [5fd0113]
+- Updated dependencies [a7c393b]
+- Updated dependencies [45271e7]
+- Updated dependencies [f5ee16a]
+- Updated dependencies [feaa7aa]
+- Updated dependencies [69bfcc3]
+- Updated dependencies [cf92822]
+    - @dexto/tui@1.14.0
+    - @dexto/client-sdk@1.14.0
+    - @dexto/core@1.14.0
+    - @dexto/server@1.14.0
+    - @dexto/agent-config@1.14.0
+    - @dexto/agent-management@1.14.0
+    - @dexto/analytics@1.14.0
+    - @dexto/image-local@1.14.0
+    - @dexto/image-logger-agent@1.14.0
+    - @dexto/storage@1.14.0
+    - @dexto/llm@1.14.0
+    - @dexto/registry@1.14.0
+
 ## 1.13.5
 
 ### Patch Changes

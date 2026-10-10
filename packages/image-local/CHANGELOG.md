@@ -1,5 +1,29 @@
 # @dexto/image-local
 
+## 1.14.0
+
+### Patch Changes
+
+- Updated dependencies [eec55be]
+- Updated dependencies [f23f4ee]
+- Updated dependencies [4cb931b]
+- Updated dependencies [331e59d]
+- Updated dependencies [5fd0113]
+- Updated dependencies [a7c393b]
+- Updated dependencies [f5ee16a]
+- Updated dependencies [feaa7aa]
+    - @dexto/core@1.14.0
+    - @dexto/tools-process@1.14.0
+    - @dexto/agent-config@1.14.0
+    - @dexto/agent-management@1.14.0
+    - @dexto/storage@1.14.0
+    - @dexto/tools-builtins@1.14.0
+    - @dexto/tools-filesystem@1.14.0
+    - @dexto/tools-lifecycle@1.14.0
+    - @dexto/tools-plan@1.14.0
+    - @dexto/tools-scheduler@1.14.0
+    - @dexto/tools-todo@1.14.0
+
 ## 1.13.5
 
 ### Patch Changes
