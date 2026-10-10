@@ -1,0 +1,429 @@
+import { execFile } from 'node:child_process';
+import { performance } from 'node:perf_hooks';
+import { mkdtemp, rm, writeFile, readFile } from 'node:fs/promises';
+import { createRequire } from 'node:module';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { promisify } from 'node:util';
+import { afterAll, beforeAll, expect, it } from 'vitest';
+import { stringify } from 'yaml';
+import { createServer, type Server } from 'node:http';
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+import { z } from 'zod';
+import { createMcpTransport } from '@dexto/server';
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+
+const execute = promisify(execFile);
+const require = createRequire(import.meta.url);
+const tsx = require.resolve('tsx');
+const entrypoint = fileURLToPath(new URL('../../../index.ts', import.meta.url));
+let directory: string;
+let config: string;
+let fixturePath: string;
+let httpServer: Server;
+let origin: string;
+const gatewayPids: number[] = [];
+beforeAll(async () => {
+    directory = await mkdtemp(join(tmpdir(), 'dexto-mcp-command-'));
+    config = join(directory, 'mcp.yml');
+    const fixture = join(directory, 'fixture.mjs');
+    fixturePath = fixture;
+    const sdkServer = pathToFileURL(
+        require.resolve('@modelcontextprotocol/sdk/server/mcp.js')
+    ).href;
+    const sdkTransport = pathToFileURL(
+        require.resolve('@modelcontextprotocol/sdk/server/stdio.js')
+    ).href;
+    const zod = pathToFileURL(require.resolve('zod')).href;
+    await writeFile(
+        fixture,
+        `
+        import { writeFileSync } from 'node:fs';
+        if (process.env.MCP_PID_FILE) writeFileSync(process.env.MCP_PID_FILE, String(process.pid));
+        import { McpServer } from ${JSON.stringify(sdkServer)};
+        import { StdioServerTransport } from ${JSON.stringify(sdkTransport)};
+        import { z } from ${JSON.stringify(zod)};
+        const server = new McpServer({ name: 'fixture', version: '1.0.0' });
+        if (process.env.MCP_RESOURCES_ONLY !== '1') {
+        server.tool('echo--literal', { message: z.string() }, async ({ message }) => ({ content: [{ type: 'text', text: JSON.stringify({ message, pid: process.pid }) }] }));
+        server.tool('echo', { message: z.string() }, async ({ message }) => ({ content: [{ type: 'text', text: JSON.stringify({ message, pid: process.pid }) }] }));
+        server.tool('failure', {}, async () => ({ isError: true, content: [{ type: 'text', text: 'fixture tool failure' }] }));
+        }
+        server.resource('fixture', 'fixture://resource', async (uri) => ({ contents: [{ uri: uri.href, text: 'fixture data' }] }));
+        if (process.env.MCP_RESOURCES_ONLY !== '1') server.prompt('fixture', {}, async () => ({ messages: [{ role: 'user', content: { type: 'text', text: 'fixture prompt' } }] }));
+        await server.connect(new StdioServerTransport());
+    `
+    );
+    httpServer = createServer(async (request, response) => {
+        if (request.headers.authorization !== 'Bearer fixture-header') {
+            response.writeHead(401).end();
+            return;
+        }
+        const server = new McpServer({ name: 'remote-fixture', version: '1.0.0' });
+        server.tool('remote_echo', { message: z.string() }, async ({ message }) => ({
+            content: [{ type: 'text', text: message }],
+        }));
+        const transport = await createMcpTransport('http');
+        response.once('close', () => {
+            void server.close();
+        });
+        await server.connect(transport);
+        if (!(transport instanceof StreamableHTTPServerTransport))
+            throw new Error('Expected HTTP transport');
+        let text = '';
+        for await (const chunk of request) text += chunk;
+        await transport.handleRequest(request, response, text ? JSON.parse(text) : undefined);
+    });
+    await new Promise<void>((resolve) => httpServer.listen(0, '127.0.0.1', resolve));
+    const address = httpServer.address();
+    if (!address || typeof address === 'string') throw new Error('Expected TCP fixture');
+    origin = `http://127.0.0.1:${address.port}/mcp`;
+    await writeFile(
+        config,
+        stringify({
+            mcpServers: {
+                local: { type: 'stdio', command: process.execPath, args: [fixture] },
+                disabled: { type: 'stdio', command: 'never-start-this', enabled: false },
+            },
+        })
+    );
+});
+afterAll(async () => {
+    for (const pid of gatewayPids) {
+        try {
+            process.kill(pid, 'SIGKILL');
+        } catch {
+            /* owned fixture already exited */
+        }
+    }
+    await new Promise<void>((resolve, reject) =>
+        httpServer.close((error) => (error ? reject(error) : resolve()))
+    );
+    await rm(directory, { recursive: true, force: true });
+});
+function run(args: string[]) {
+    return execute(
+        process.execPath,
+        ['--import', tsx, entrypoint, 'mcp', ...args, '--config', config, '--json'],
+        {
+            cwd: directory,
+            env: {
+                PATH: process.env.PATH,
+                SystemRoot: process.env.SystemRoot,
+                HOME: directory,
+                USERPROFILE: directory,
+                DEXTO_DEV_MODE: 'false',
+                DEXTO_ANALYTICS_DISABLED: '1',
+                DEXTO_LLM_REGISTRY_DISABLE_FETCH: '1',
+                MCP_PID_FILE: join(directory, 'last-pid'),
+            },
+            timeout: 20000,
+        }
+    );
+}
+it('runs standalone listing without model, login or agent configuration', async () => {
+    const result = await run(['list']);
+    expect(JSON.parse(result.stdout)).toEqual({
+        servers: [
+            { name: 'local', type: 'stdio', enabled: true, status: 'configured' },
+            { name: 'disabled', type: 'stdio', enabled: false, status: 'disabled' },
+        ],
+    });
+}, 30000);
+
+it('probes a selected real stdio server and reports closed ownership', async () => {
+    const result = await run(['connect', 'local']);
+    expect(JSON.parse(result.stdout)).toEqual({
+        server: 'local',
+        status: 'connected',
+        connection: 'closed',
+    });
+}, 30000);
+
+it('calls the exact upstream tool name and closes the owned child process', async () => {
+    const result = await run([
+        'call',
+        'local',
+        'echo--literal',
+        '--arguments',
+        '{"message":"hello"}',
+    ]);
+    const output = JSON.parse(result.stdout);
+    const answer = JSON.parse(output.result.content[0].text);
+    expect(answer.message).toBe('hello');
+    expect(() => process.kill(answer.pid, 0)).toThrow();
+}, 30000);
+it('discovers upstream tool schemas without bootstrapping an agent', async () => {
+    const output = JSON.parse((await run(['tools', 'local'])).stdout);
+    expect(output.tools).toEqual(
+        expect.arrayContaining([
+            expect.objectContaining({
+                identity: { type: 'mcp', connectionId: 'local', toolName: 'echo--literal' },
+                inputSchema: expect.objectContaining({ type: 'object' }),
+            }),
+        ])
+    );
+    expect(output.connection).toBe('closed');
+}, 30000);
+it('lists resource metadata from the selected server', async () => {
+    const output = JSON.parse((await run(['resources', 'local'])).stdout);
+    expect(output.resources).toEqual([
+        expect.objectContaining({
+            serverName: 'local',
+            summary: expect.objectContaining({ uri: 'fixture://resource' }),
+        }),
+    ]);
+    expect(output.connection).toBe('closed');
+}, 30000);
+it('lists prompt metadata from the selected server', async () => {
+    const output = JSON.parse((await run(['prompts', 'local'])).stdout);
+    expect(output.prompts).toEqual([
+        expect.objectContaining({ serverName: 'local', promptName: 'fixture' }),
+    ]);
+    expect(output.connection).toBe('closed');
+}, 30000);
+it('adds and removes portable server configuration through real command registration', async () => {
+    const serverConfig =
+        '{"type":"http","url":"${MCP_ENDPOINT}","headers":{"Authorization":"Bearer ${MCP_TOKEN}"}}';
+    const added = JSON.parse(
+        (await run(['add', 'remote', '--server-config', serverConfig])).stdout
+    );
+    expect(added).toEqual({ server: 'remote', status: 'configured' });
+    const duplicate = await run(['add', 'remote', '--server-config', serverConfig]).catch(
+        (error: unknown) => error
+    );
+    expect(duplicate).toMatchObject({ code: 2 });
+    expect(JSON.parse((await run(['remove', 'remote'])).stdout)).toEqual({
+        server: 'remote',
+        status: 'removed',
+    });
+}, 30000);
+
+it('sets up a stdio server with typed flags and discovers/calls its upstream tool', async () => {
+    await run([
+        'add',
+        'typed',
+        '--command',
+        process.execPath,
+        '--arg',
+        fixturePath,
+        '--env',
+        'MCP_MARKER=typed',
+    ]);
+    expect(JSON.parse((await run(['tools', 'typed'])).stdout).tools).toEqual(
+        expect.arrayContaining([
+            expect.objectContaining({
+                identity: { type: 'mcp', connectionId: 'typed', toolName: 'echo--literal' },
+            }),
+        ])
+    );
+    const result = JSON.parse(
+        (await run(['call', 'typed', 'echo--literal', '--arguments', '{"message":"typed setup"}']))
+            .stdout
+    );
+    expect(JSON.parse(result.result.content[0].text).message).toBe('typed setup');
+}, 30000);
+
+it('sets up a remote server with URL/header flags and discovers/calls it over real loopback HTTP', async () => {
+    await run([
+        'add',
+        'remote-http',
+        '--url',
+        origin,
+        '--header',
+        'Authorization=Bearer fixture-header',
+    ]);
+    const tools = JSON.parse((await run(['tools', 'remote-http'])).stdout);
+    expect(tools.tools).toEqual(
+        expect.arrayContaining([
+            expect.objectContaining({
+                identity: { type: 'mcp', connectionId: 'remote-http', toolName: 'remote_echo' },
+            }),
+        ])
+    );
+    const output = JSON.parse(
+        (
+            await run([
+                'call',
+                'remote-http',
+                'remote_echo',
+                '--arguments',
+                '{"message":"remote setup"}',
+            ])
+        ).stdout
+    );
+    expect(output.result.content).toEqual([{ type: 'text', text: 'remote setup' }]);
+}, 30000);
+async function failed(args: string[], code: number) {
+    try {
+        await run(args);
+        throw new Error('Expected failure');
+    } catch (error) {
+        const failure = z
+            .object({ code: z.number(), stdout: z.string(), stderr: z.string() })
+            .parse(error);
+        expect(failure.code).toBe(code);
+        return failure;
+    }
+}
+it('preserves the MCP tool error result with nonzero status and closes the child', async () => {
+    const failure = await failed(['call', 'local', 'failure'], 4);
+    const output = JSON.parse(failure.stdout);
+    expect(output.result).toMatchObject({
+        isError: true,
+        content: [{ type: 'text', text: 'fixture tool failure' }],
+    });
+    const pid = Number(await readFile(join(directory, 'last-pid'), 'utf8'));
+    expect(() => process.kill(pid, 0)).toThrow();
+}, 30000);
+
+it('keeps connection diagnostics free of configured credential values', async () => {
+    const secret = 'sentinel-private-connection-value';
+    await run([
+        'add',
+        'denied',
+        '--url',
+        origin + '?token=' + secret,
+        '--header',
+        'Authorization=Bearer ' + secret,
+    ]);
+    const result = await failed(['connect', 'denied'], 3);
+    expect(JSON.parse(result.stdout)).toMatchObject({ error: { code: 'mcp_connection_failed' } });
+    expect(result.stdout + result.stderr).not.toContain(secret);
+}, 30000);
+
+it('closes a real stdio child after initialization rejects', async () => {
+    const rejected = join(directory, 'rejected.mjs');
+    await writeFile(
+        rejected,
+        `
+        import { createInterface } from 'node:readline';
+        import { writeFileSync } from 'node:fs';
+        writeFileSync(process.env.MCP_PID_FILE, String(process.pid));
+        createInterface({ input: process.stdin }).on('line', (line) => {
+            const request = JSON.parse(line);
+            if (request.id !== undefined) process.stdout.write(JSON.stringify({ jsonrpc: '2.0', id: request.id, error: { code: -32603, message: 'sentinel-handshake-secret' } }) + '\\n');
+        });
+        setInterval(() => {}, 1000);
+    `
+    );
+    await run(['add', 'rejected', '--command', process.execPath, '--arg', rejected]);
+    const result = await failed(['connect', 'rejected'], 3);
+    expect(JSON.parse(result.stdout)).toMatchObject({ error: { code: 'mcp_connection_failed' } });
+    expect(result.stdout + result.stderr).not.toContain('sentinel-handshake-secret');
+    const pid = Number(await readFile(join(directory, 'last-pid'), 'utf8'));
+    expect(() => process.kill(pid, 0)).toThrow();
+}, 30000);
+
+it.each(['EOF', 'SIGTERM'])(
+    'hosts an MCP-only gateway without credentials and closes upstream ownership on %s',
+    async (shutdown) => {
+        const gatewayConfig = join(directory, 'gateway.yml');
+        await writeFile(
+            gatewayConfig,
+            stringify({
+                mcpServers: {
+                    local: { type: 'stdio', command: process.execPath, args: [fixturePath] },
+                },
+            })
+        );
+        const client = new Client({ name: 'gateway-test', version: '1.0.0' });
+        const transport = new StdioClientTransport({
+            command: process.execPath,
+            args: [
+                '--import',
+                tsx,
+                entrypoint,
+                'mcp',
+                '--group-servers',
+                '--config',
+                gatewayConfig,
+            ],
+            cwd: directory,
+            env: {
+                PATH: process.env.PATH ?? '',
+                HOME: directory,
+                USERPROFILE: directory,
+                DEXTO_DEV_MODE: 'false',
+                DEXTO_ANALYTICS_DISABLED: '1',
+                DEXTO_LLM_REGISTRY_DISABLE_FETCH: '1',
+                MCP_PID_FILE: join(directory, 'last-pid'),
+            },
+            stderr: 'pipe',
+        });
+        let upstreamPid: number | undefined;
+        let closeDuration = 0;
+        try {
+            await client.connect(transport, { timeout: 5000 });
+            const tools = await client.listTools();
+            expect(tools.tools).toEqual(
+                expect.arrayContaining([expect.objectContaining({ name: 'echo' })])
+            );
+            const result = await client.callTool({
+                name: 'echo',
+                arguments: { message: 'gateway' },
+            });
+            const answer = z
+                .object({
+                    content: z.array(z.object({ type: z.literal('text'), text: z.string() })),
+                })
+                .parse(result);
+            const value = z
+                .object({ message: z.string(), pid: z.number() })
+                .parse(JSON.parse(answer.content[0]?.text ?? '{}'));
+            expect(value.message).toBe('gateway');
+            upstreamPid = value.pid;
+            if (shutdown === 'SIGTERM') {
+                if (transport.pid === null) throw new Error('Gateway process missing');
+                process.kill(transport.pid, 'SIGTERM');
+            }
+        } finally {
+            const closing = performance.now();
+            await client.close();
+            closeDuration = performance.now() - closing;
+            const recorded = Number(
+                await readFile(join(directory, 'last-pid'), 'utf8').catch(() => '')
+            );
+            if (recorded > 0) gatewayPids.push(recorded);
+        }
+        // The SDK escalates EOF to SIGTERM after two seconds. Closure must complete
+        // before that fallback to prove the requested interface owns shutdown.
+        expect(closeDuration).toBeLessThan(1500);
+        expect(upstreamPid).toBeTypeOf('number');
+        if (upstreamPid === undefined) throw new Error('Fixture did not return its PID');
+        expect(() => process.kill(upstreamPid, 0)).toThrow();
+    },
+    30000
+);
+
+it('connects and lists metadata from a valid resources-only server', async () => {
+    await run([
+        'add',
+        'resources-only',
+        '--command',
+        process.execPath,
+        '--arg',
+        fixturePath,
+        '--env',
+        'MCP_RESOURCES_ONLY=1',
+    ]);
+    expect(JSON.parse((await run(['connect', 'resources-only'])).stdout)).toMatchObject({
+        status: 'connected',
+        connection: 'closed',
+    });
+    const output = JSON.parse((await run(['resources', 'resources-only'])).stdout);
+    expect(output).toMatchObject({
+        resources: [
+            expect.objectContaining({
+                serverName: 'resources-only',
+                summary: expect.objectContaining({ uri: 'fixture://resource' }),
+            }),
+        ],
+        connection: 'closed',
+    });
+    const pid = Number(await readFile(join(directory, 'last-pid'), 'utf8'));
+    expect(() => process.kill(pid, 0)).toThrow();
+}, 30000);
