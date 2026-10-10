@@ -7,7 +7,7 @@ MCPManager SHALL attempt to disconnect a candidate when connection or restart fa
 #### Scenario: Connected candidate rejected during registration
 
 - **WHEN** a candidate connects but registration rejects its sanitized server name
-- **THEN** its transport is disconnected and other registered servers remain usable
+- **THEN** transport disconnection is attempted and other registered servers remain usable
 
 #### Scenario: Initialization handshake failure
 
