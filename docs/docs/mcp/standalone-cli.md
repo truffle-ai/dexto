@@ -48,6 +48,22 @@ dexto mcp remove local --json
 
 After command parsing succeeds, `--json` makes stdout contain one JSON outcome. Exit status 0 means success, 2 means invalid command data/configuration or configuration I/O, 3 means connection failure, and 4 means operation, MCP tool-result or cleanup failure. Parser errors such as an unknown option or missing operand use the standard CLI error on stderr and exit status 1, before an action runs. Configuration and connection diagnostics omit raw credential-bearing details. Returned MCP content is the requested server data. These commands do not provide interactive OAuth or elicitation.
 
+## Interrupt a one-shot command
+
+When the process receives SIGINT or SIGTERM during a connecting command, it cancels active tool, resource or prompt requests and closes its owned connection before returning. With `--json`, stdout contains one safe outcome:
+
+```json
+{
+    "server": "local",
+    "signal": "SIGTERM",
+    "error": { "code": "mcp_interrupted", "message": "MCP operation interrupted." }
+}
+```
+
+SIGINT exits 130; SIGTERM exits 143. The first received signal wins, including when repeated signals arrive during cleanup. Normal completion and operation errors keep their existing outcomes.
+
+If interrupted during startup, the command waits for the existing handshake/discovery to settle and skips the requested operation afterward. Those startup requests currently use the SDK's default request deadline (60 seconds per pending request), independently of the configured operation timeout, so interruption during startup may take longer to return. Cancellation is advisory and does not roll back server side effects, including operations completed before a signal arrives during cleanup. SIGKILL, OS termination, unresponsive cleanup, and platform termination that does not deliver a catchable signal do not guarantee graceful cleanup.
+
 ## Expose the configuration as a gateway
 
 ```bash

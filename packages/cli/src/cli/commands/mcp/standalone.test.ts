@@ -157,3 +157,97 @@ it('rejects blank server names without writing a configuration entry', async () 
     ).toMatchObject({ exitCode: 2, output: { error: { code: 'invalid_server_name' } } });
     expect(await readFile(config, 'utf8')).toBe('mcpServers: {}\n');
 });
+
+it.each(['success', 'connection', 'operation', 'cleanup', 'interruption'] as const)(
+    'disposes scoped signal listeners after %s and cleans up once',
+    async (outcome) => {
+        const config = await configFile(
+            'mcpServers:\n  local:\n    type: stdio\n    command: fixture\n'
+        );
+        const beforeInt = process.listeners('SIGINT');
+        const beforeTerm = process.listeners('SIGTERM');
+        const lifecycle: string[] = [];
+        const connect = vi.spyOn(MCPManager.prototype, 'connectServer');
+        if (outcome === 'connection')
+            connect.mockRejectedValue(new Error('sentinel-startup-secret'));
+        else connect.mockResolvedValue();
+        vi.spyOn(MCPManager.prototype, 'getToolDescriptors').mockImplementation(() => {
+            throw new Error('sentinel-operation-secret');
+        });
+        const disconnect = vi
+            .spyOn(MCPManager.prototype, 'disconnectAll')
+            .mockImplementation(async () => {
+                lifecycle.push('disconnect');
+                if (outcome === 'cleanup') throw new Error('sentinel-cleanup-secret');
+                if (outcome === 'interruption') {
+                    const sigint = process
+                        .listeners('SIGINT')
+                        .find((listener) => !beforeInt.includes(listener));
+                    const sigterm = process
+                        .listeners('SIGTERM')
+                        .find((listener) => !beforeTerm.includes(listener));
+                    expect(sigint).toBeDefined();
+                    expect(sigterm).toBeDefined();
+                    sigint?.('SIGINT');
+                    sigterm?.('SIGTERM');
+                    sigint?.('SIGINT');
+                }
+            });
+        const destroy = vi.spyOn(DextoLogger.prototype, 'destroy').mockImplementation(async () => {
+            lifecycle.push('logger');
+        });
+        const result = await runStandaloneMcp(
+            { command: outcome === 'operation' ? 'tools' : 'connect', server: 'local' },
+            { config }
+        );
+        expect(result.exitCode).toBe(
+            outcome === 'success'
+                ? 0
+                : outcome === 'connection'
+                  ? 3
+                  : outcome === 'interruption'
+                    ? 130
+                    : 4
+        );
+        if (outcome === 'interruption')
+            expect(result.output).toEqual({
+                server: 'local',
+                signal: 'SIGINT',
+                error: { code: 'mcp_interrupted', message: 'MCP operation interrupted.' },
+            });
+        expect(JSON.stringify(result)).not.toContain('sentinel-');
+        expect(disconnect).toHaveBeenCalledOnce();
+        expect(destroy).toHaveBeenCalledOnce();
+        expect(lifecycle).toEqual(['disconnect', 'logger']);
+        expect(process.listeners('SIGINT')).toEqual(beforeInt);
+        expect(process.listeners('SIGTERM')).toEqual(beforeTerm);
+    }
+);
+
+it('preserves an interruption when startup rejects and removes its signal listeners', async () => {
+    const config = await configFile(
+        'mcpServers:\n  local:\n    type: stdio\n    command: fixture\n'
+    );
+    const beforeInt = process.listeners('SIGINT');
+    const beforeTerm = process.listeners('SIGTERM');
+    vi.spyOn(MCPManager.prototype, 'connectServer').mockImplementation(async () => {
+        const listener = process.listeners('SIGTERM').find((item) => !beforeTerm.includes(item));
+        expect(listener).toBeDefined();
+        listener?.('SIGTERM');
+        throw new Error('sentinel-startup-secret');
+    });
+    const disconnect = vi.spyOn(MCPManager.prototype, 'disconnectAll').mockResolvedValue();
+    const destroy = vi.spyOn(DextoLogger.prototype, 'destroy').mockResolvedValue();
+    expect(await runStandaloneMcp({ command: 'connect', server: 'local' }, { config })).toEqual({
+        exitCode: 143,
+        output: {
+            server: 'local',
+            signal: 'SIGTERM',
+            error: { code: 'mcp_interrupted', message: 'MCP operation interrupted.' },
+        },
+    });
+    expect(disconnect).toHaveBeenCalledOnce();
+    expect(destroy).toHaveBeenCalledOnce();
+    expect(process.listeners('SIGINT')).toEqual(beforeInt);
+    expect(process.listeners('SIGTERM')).toEqual(beforeTerm);
+});
