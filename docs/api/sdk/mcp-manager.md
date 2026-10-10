@@ -89,3 +89,7 @@ For a single server without aggregation, `DextoMcpClient` is also exported from 
 Core MCP logs describe operations using selected server/tool/prompt names and fixed Core error classifications. They omit raw stdio configuration, remote URLs, resource URIs, capability payloads, elicitation content and provider error text. Keep credentials out of chosen names. Server stderr and application or SDK logging outside these Core call sites remain separately owned.
 
 `DextoMcpClient.getServerInfo()` returns raw command, arguments and environment alongside local process information. `getServerConfig()` and failed-connection inspection also return raw caller-owned data, and thrown errors retain their existing details. Do not serialize these APIs as public status output or ordinary logs. Use `getConnectionStatus()` for local connection state; it is not a remote-health probe.
+
+## MCP SDK v1 compatibility
+
+Dexto uses MCP SDK 1.32.1 while preserving these public APIs. HTTP/SSE services that redirect to a different origin must be configured with their final endpoint URL. See the [migration notes](/docs/mcp/mcp-manager#mcp-sdk-v1-compatibility) for redirect defaults, stdio buffering and OAuth issuer persistence.
