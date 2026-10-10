@@ -30,8 +30,9 @@ it.skipIf(process.platform === 'win32').each(['write', 'rename'])(
         await writeFile(config, before);
         const error = Object.assign(new Error('sentinel-filesystem-secret'), { code: 'EIO' });
         if (failure === 'write') {
-            vi.mocked(open).mockImplementationOnce(async (path, flags, mode) => {
+            vi.mocked(open).mockImplementation(async (path, flags, mode) => {
                 const file = await filesystem.open(path, flags, mode);
+                if (String(path) === `${config}.lock`) return file;
                 const write = file.writeFile.bind(file);
                 vi.spyOn(file, 'writeFile').mockImplementationOnce(async () => {
                     await write('partial');
@@ -58,6 +59,19 @@ it.skipIf(process.platform === 'win32').each(['write', 'rename'])(
         });
         expect(JSON.stringify(result)).not.toContain('sentinel-filesystem-secret');
         expect(await readFile(config, 'utf8')).toBe(before);
+        expect(await readdir(directory)).toEqual(['mcp.yml']);
+        vi.mocked(open).mockImplementation(filesystem.open);
+        vi.mocked(rename).mockImplementation(filesystem.rename);
+        expect(
+            await runStandaloneMcp(
+                {
+                    command: 'add',
+                    server: 'retry',
+                    serverConfig: '{"type":"stdio","command":"node"}',
+                },
+                { config }
+            )
+        ).toMatchObject({ exitCode: 0 });
         expect(await readdir(directory)).toEqual(['mcp.yml']);
     }
 );

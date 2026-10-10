@@ -1,4 +1,14 @@
-import { readFile, mkdir, open, rename, rm, lstat, writeFile } from 'node:fs/promises';
+import {
+    readFile,
+    mkdir,
+    open,
+    rename,
+    rm,
+    lstat,
+    writeFile,
+    unlink,
+    type FileHandle,
+} from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { resolve, dirname } from 'node:path';
 import { parseDocument } from 'yaml';
@@ -66,55 +76,9 @@ export async function runStandaloneMcp(
     const configPath = resolve(options.config ?? '.dexto/mcp.yml');
     try {
         if (command.command === 'add' || command.command === 'remove')
-            await rejectMcpConfigurationSymlink(configPath);
-        const { document, servers } = await loadStandaloneMcpConfiguration(
-            configPath,
-            command.command === 'add'
-        );
+            return await editMcpConfiguration(command, configPath);
+        const { servers } = await loadStandaloneMcpConfiguration(configPath, false);
         const config = { mcpServers: servers };
-        if (command.command === 'remove') {
-            if (!Object.hasOwn(config.mcpServers, command.server))
-                return {
-                    exitCode: 2,
-                    output: {
-                        error: { code: 'server_not_found', message: 'Server is not configured.' },
-                    },
-                };
-            document.deleteIn(['mcpServers', command.server]);
-            await writeMcpConfiguration(configPath, document.toString());
-            return { exitCode: 0, output: { server: command.server, status: 'removed' } };
-        }
-        if (command.command === 'add') {
-            let raw: unknown;
-            try {
-                raw = JSON.parse(command.serverConfig);
-                storedServerSchema.parse(raw);
-            } catch {
-                return {
-                    exitCode: 2,
-                    output: {
-                        error: {
-                            code: 'invalid_server_config',
-                            message: 'Server configuration must be a valid MCP server JSON object.',
-                        },
-                    },
-                };
-            }
-            if (Object.hasOwn(config.mcpServers, command.server) && !command.replace)
-                return {
-                    exitCode: 2,
-                    output: {
-                        error: {
-                            code: 'duplicate_server',
-                            message: 'Server already configured. Use --replace to overwrite it.',
-                        },
-                    },
-                };
-            document.setIn(['mcpServers', command.server], raw);
-            await mkdir(dirname(configPath), { recursive: true });
-            await writeMcpConfiguration(configPath, document.toString());
-            return { exitCode: 0, output: { server: command.server, status: 'configured' } };
-        }
         if (command.command !== 'list') {
             const server = config.mcpServers[command.server];
             if (!server || !Object.hasOwn(config.mcpServers, command.server))
@@ -248,9 +212,110 @@ async function writeMcpConfiguration(path: string, content: string): Promise<voi
     }
 }
 
+async function editMcpConfiguration(
+    command: Extract<StandaloneMcpCommand, { command: 'add' | 'remove' }>,
+    configPath: string
+): Promise<StandaloneMcpResult> {
+    const lockPath = `${configPath}.lock`;
+    if (command.command === 'add') await mkdir(dirname(configPath), { recursive: true });
+    const editLock = await open(lockPath, 'wx', 0o600).catch((error: unknown) => {
+        if (typeof error === 'object' && error !== null && 'code' in error) {
+            if (error.code === 'EEXIST')
+                throw new McpConfigurationError(
+                    'config_busy',
+                    'MCP configuration is being edited. Retry after the current edit completes.'
+                );
+            if (command.command === 'remove' && error.code === 'ENOENT')
+                throw new McpConfigurationError(
+                    'config_read_failed',
+                    'Cannot read MCP configuration. Check --config and file permissions.'
+                );
+        }
+        throw error;
+    });
+    let committed = false;
+    try {
+        await rejectMcpConfigurationSymlink(configPath);
+        const { document, servers } = await loadStandaloneMcpConfiguration(
+            configPath,
+            command.command === 'add'
+        );
+        if (command.command === 'remove') {
+            if (!Object.hasOwn(servers, command.server))
+                return {
+                    exitCode: 2,
+                    output: {
+                        error: { code: 'server_not_found', message: 'Server is not configured.' },
+                    },
+                };
+            document.deleteIn(['mcpServers', command.server]);
+            await writeMcpConfiguration(configPath, document.toString());
+            committed = true;
+            return { exitCode: 0, output: { server: command.server, status: 'removed' } };
+        }
+        let raw: unknown;
+        try {
+            raw = JSON.parse(command.serverConfig);
+            storedServerSchema.parse(raw);
+        } catch {
+            return {
+                exitCode: 2,
+                output: {
+                    error: {
+                        code: 'invalid_server_config',
+                        message: 'Server configuration must be a valid MCP server JSON object.',
+                    },
+                },
+            };
+        }
+        if (Object.hasOwn(servers, command.server) && !command.replace)
+            return {
+                exitCode: 2,
+                output: {
+                    error: {
+                        code: 'duplicate_server',
+                        message: 'Server already configured. Use --replace to overwrite it.',
+                    },
+                },
+            };
+        document.setIn(['mcpServers', command.server], raw);
+        await writeMcpConfiguration(configPath, document.toString());
+        committed = true;
+        return { exitCode: 0, output: { server: command.server, status: 'configured' } };
+    } finally {
+        await releaseMcpConfigurationEditLock(editLock, lockPath, committed);
+    }
+}
+
+async function releaseMcpConfigurationEditLock(
+    editLock: FileHandle,
+    lockPath: string,
+    committed: boolean
+): Promise<void> {
+    try {
+        try {
+            await editLock.close();
+        } finally {
+            await unlink(lockPath);
+        }
+    } catch {
+        // Failed edits retain their original error; committed edits must surface cleanup failure.
+        if (committed)
+            throw new McpConfigurationError(
+                'config_lock_cleanup_failed',
+                'MCP configuration edit cleanup failed. The edit may already have committed; inspect the configuration before retrying or removing its lock.'
+            );
+    }
+}
+
 class McpConfigurationError extends Error {
     constructor(
-        readonly code: 'config_read_failed' | 'invalid_config' | 'config_write_failed',
+        readonly code:
+            | 'config_read_failed'
+            | 'invalid_config'
+            | 'config_write_failed'
+            | 'config_busy'
+            | 'config_lock_cleanup_failed',
         message: string
     ) {
         super(message);

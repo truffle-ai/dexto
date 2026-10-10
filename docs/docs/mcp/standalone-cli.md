@@ -58,6 +58,14 @@ dexto mcp remove local --json
 
 After command parsing succeeds, `--json` makes stdout contain one JSON outcome. Exit status 0 means success, 2 means invalid command data/configuration or configuration I/O, 3 means connection failure, and 4 means operation, MCP tool-result or cleanup failure. Parser errors such as an unknown option or missing operand use the standard CLI error on stderr and exit status 1, before an action runs. Configuration and connection diagnostics omit raw credential-bearing details. Returned MCP content is the requested server data. These commands do not provide interactive OAuth or elicitation.
 
+## Concurrent configuration edits
+
+`add` and `remove` acquire the selected configuration's sibling `.lock` file before reading YAML and release it after editing. A competing CLI edit returns exit 2 with `config_busy` and leaves configuration and the existing lock unchanged. Retry after the other edit finishes; read-only commands remain available.
+
+If lock cleanup fails after an edit commits, the command returns exit 2 with `config_lock_cleanup_failed`. The edit may already have committed: inspect the configuration before retrying or removing its lock. If the edit itself already failed, its original error is preserved even if lock cleanup also fails.
+
+Abrupt termination can leave a sidecar such as `.dexto/mcp.yml.lock`. No PID or age-based automatic recovery occurs. Only remove that sidecar manually after confirming no CLI edit is active, then inspect the configuration before retrying. The lock coordinates cooperating CLI writers using the selected configuration pathname and its sibling lock; it does not track inode aliases. External editors do not participate, and existing platform-specific read/write semantics remain unchanged.
+
 ## Interrupt a one-shot command
 
 When the process receives SIGINT or SIGTERM during a connecting command, it cancels active tool, resource or prompt requests and closes its owned connection before returning. With `--json`, stdout contains one safe outcome:
