@@ -109,3 +109,15 @@ See the [MCPManager API reference](/api/sdk/mcp-manager) for method signatures.
 Core MCP logs describe operations using selected server/tool/prompt names and fixed Core error classifications. They omit raw stdio configuration, remote URLs, resource URIs, capability payloads, elicitation content and provider error text. Keep credentials out of chosen names. Server stderr and application or SDK logging outside these Core call sites remain separately owned.
 
 `DextoMcpClient.getServerInfo()` returns raw command, arguments and environment alongside local process information. `getServerConfig()` and failed-connection inspection also return raw caller-owned data, and thrown errors retain their existing details. Do not serialize these APIs as public status output or ordinary logs. Use `getConnectionStatus()` for local connection state; it is not a remote-health probe.
+
+## MCP SDK v1 compatibility
+
+Dexto uses MCP SDK 1.32.1 within the monolithic v1 package. This keeps the existing client and manager APIs.
+
+HTTP and SSE transports now restrict redirects to the original origin by default. Method-preserving same-origin redirects remain supported, as does the SDK's same-host HTTP-to-HTTPS upgrade exception with default ports. For services that redirect to another host or port, set `url` to the final MCP endpoint. The same redirect default applies to the transport's OAuth HTTP requests; OAuth services must publish direct metadata and token endpoint URLs. Dexto does not opt into unrestricted redirect following.
+
+The SDK now limits pending stdio protocol input buffering to 10 MiB. Oversized pending input is rejected; this is a transport input bound, not an agent task limit. Dexto currently exposes no override for this bound.
+
+OAuth token and client records can include optional `issuer` metadata. Dexto's CLI JSON store retains complete records. Custom OAuth stores must preserve these fields; upstream still accepts legacy issuerless refresh records with a warning.
+
+See the official [1.32.0 redirect notes](https://github.com/modelcontextprotocol/typescript-sdk/releases/tag/1.32.0), [1.31.0 OAuth notes](https://github.com/modelcontextprotocol/typescript-sdk/releases/tag/1.31.0) and [1.30.0 stdio notes](https://github.com/modelcontextprotocol/typescript-sdk/releases/tag/1.30.0).
