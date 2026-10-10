@@ -7,7 +7,12 @@ import {
     type StreamingEvent,
 } from '@dexto/core';
 
-import { writeHeadlessEvent, type HeadlessOutputFormat } from './output.js';
+import {
+    writeHeadlessEvent,
+    toHeadlessApprovalRequired,
+    type HeadlessApprovalRequired,
+    type HeadlessOutputFormat,
+} from './output.js';
 
 const HEADLESS_TOOL_OUTPUT_MAX_LINES = 20;
 const HEADLESS_SECTION_SEPARATOR = '========================================';
@@ -22,6 +27,7 @@ export type HeadlessRunResult = {
     finalMessage?: string;
     totalTokens?: number;
     fatalError?: Error;
+    approvalRequired?: HeadlessApprovalRequired[];
 };
 
 function writeHeadlessLine(line: string = ''): void {
@@ -239,6 +245,7 @@ export async function executeHeadlessRun(
     format: HeadlessOutputFormat = 'text'
 ): Promise<HeadlessRunResult> {
     const toolCallState = new Map<string, HeadlessToolCallState>();
+    const approvalRequired: HeadlessApprovalRequired[] = [];
     let anonymousToolCallCounter = 0;
     let finalMessage: string | undefined;
     let totalTokens: number | undefined;
@@ -248,6 +255,15 @@ export async function executeHeadlessRun(
         for await (const event of await agent.stream(prompt, sessionId)) {
             if (format === 'jsonl') await writeHeadlessEvent(event);
             switch (event.name) {
+                case 'approval:request': {
+                    const required = toHeadlessApprovalRequired(event);
+                    approvalRequired.push(required);
+                    writeHeadlessTaggedLine(
+                        'APPROVAL_REQUIRED',
+                        `${'toolName' in required ? required.toolName : required.approvalType}: ${required.message} (approval ${required.approvalId})`
+                    );
+                    break;
+                }
                 case 'llm:tool-call': {
                     const callKey = event.callId ?? `anonymous-${++anonymousToolCallCounter}`;
                     const call = {
@@ -356,6 +372,7 @@ export async function executeHeadlessRun(
     if (fatalError !== undefined) {
         result.fatalError = fatalError;
     }
+    if (approvalRequired.length) result.approvalRequired = approvalRequired;
     return result;
 }
 

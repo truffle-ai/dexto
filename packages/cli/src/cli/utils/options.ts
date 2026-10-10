@@ -36,6 +36,7 @@ export function validateCliOptions(opts: any): void {
                     { message: 'Port must be a number between 1 and 65535' }
                 )
                 .optional(),
+            permissionsMode: z.enum(['manual', 'auto-approve']).optional(),
             autoApprove: z
                 .boolean()
                 .optional()
@@ -45,9 +46,7 @@ export function validateCliOptions(opts: any): void {
                 .boolean()
                 .optional()
                 .default(false)
-                .describe(
-                    'Start the interactive CLI in bypass permissions mode (auto-approve approval prompts)'
-                ),
+                .describe('Select auto-approve permissions'),
             elicitation: z
                 .boolean()
                 .optional()
@@ -112,6 +111,7 @@ export function validateCliOptions(opts: any): void {
         provider: opts.provider,
         model: opts.model,
         interactive: opts.interactive,
+        permissionsMode: opts.permissionsMode,
         autoApprove: opts.autoApprove,
         bypassPermissions: opts.bypassPermissions,
         elicitation: opts.elicitation,

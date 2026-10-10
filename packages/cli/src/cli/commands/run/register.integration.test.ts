@@ -1,15 +1,16 @@
 import { execFile } from 'node:child_process';
 import { createServer, type Server } from 'node:http';
-import { access, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { access, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 const execute = promisify(execFile);
 const entrypoint = fileURLToPath(new URL('../../../index.ts', import.meta.url));
+const tsx = createRequire(import.meta.url).resolve('tsx');
 
 // Use a real local model transport and CLI process; no provider credentials or remote calls.
 describe('headless CLI process output', () => {
@@ -18,6 +19,13 @@ describe('headless CLI process output', () => {
     let configPath: string;
     let protectedConfigPath: string;
     let protectedEffectPath: string;
+    let unscopedConfigPath: string;
+    let ordinaryConfigPath: string;
+    let ordinaryEffectPath: string;
+    let automaticConfigPath: string;
+    let allowedConfigPath: string;
+    let noApprovalConfigPath: string;
+    let home: string;
     const denialFeedback: string[] = [];
 
     beforeAll(async () => {
@@ -32,9 +40,22 @@ describe('headless CLI process output', () => {
             const toolFeedback = input.messages.find(
                 (message: { role: string }) => message.role === 'tool'
             );
-            if (protectedTask && toolFeedback) denialFeedback.push(JSON.stringify(toolFeedback));
-            const needsProtectedCall = protectedTask && !toolFeedback;
-            const content = protectedTask ? 'approval denied; recovery complete' : 'audit complete';
+            const ordinaryTask = input.tools?.some(
+                (tool: { function: { name: string } }) =>
+                    tool.function.name === 'ordinary_operation'
+            );
+            const toolName = protectedTask
+                ? 'protected_operation'
+                : ordinaryTask
+                  ? 'ordinary_operation'
+                  : undefined;
+            if (toolName && toolFeedback) denialFeedback.push(JSON.stringify(toolFeedback));
+            const needsProtectedCall = toolName !== undefined && !toolFeedback;
+            const content = protectedTask
+                ? 'approval denied; recovery complete'
+                : ordinaryTask
+                  ? 'ordinary task complete'
+                  : 'audit complete';
             response.writeHead(200, { 'Content-Type': 'text/event-stream' });
             for (const choice of [
                 {
@@ -44,9 +65,9 @@ describe('headless CLI process output', () => {
                               tool_calls: [
                                   {
                                       index: 0,
-                                      id: 'protected-call',
+                                      id: protectedTask ? 'protected-call' : 'ordinary-call',
                                       type: 'function',
-                                      function: { name: 'protected_operation', arguments: '{}' },
+                                      function: { name: toolName, arguments: '{}' },
                                   },
                               ],
                           }
@@ -71,6 +92,8 @@ describe('headless CLI process output', () => {
         const address = server.address();
         if (!address || typeof address === 'string') throw new Error('Expected a TCP address');
         directory = await mkdtemp(join(tmpdir(), 'dexto-output-'));
+        home = join(directory, 'home');
+        await mkdir(home);
         configPath = join(directory, 'agent.yml');
         await writeFile(
             configPath,
@@ -90,6 +113,12 @@ storage:
         );
         protectedConfigPath = join(directory, 'protected-agent.yml');
         protectedEffectPath = join(directory, 'protected-effect');
+        unscopedConfigPath = join(directory, 'unscoped-agent.yml');
+        ordinaryConfigPath = join(directory, 'ordinary-agent.yml');
+        ordinaryEffectPath = join(directory, 'ordinary-effect');
+        automaticConfigPath = join(directory, 'automatic-agent.yml');
+        allowedConfigPath = join(directory, 'allowed-agent.yml');
+        noApprovalConfigPath = join(directory, 'no-approval-agent.yml');
         const imagePath = join(directory, 'protected-image.mjs');
         const imageLocalUrl = new URL('../../../../../image-local/dist/index.js', import.meta.url)
             .href;
@@ -104,14 +133,30 @@ export default {
     ...imageLocal,
     tools: {
         ...imageLocal.tools,
+        'ordinary-tools': {
+            configSchema: z.object({ type: z.literal('ordinary-tools'), requiresApproval: z.boolean().default(true) }).strict(),
+            create: (config) => [{
+                id: 'ordinary_operation',
+                description: 'Changes local state after normal tool approval',
+                inputSchema: z.object({}).strict(),
+                needsApproval: config.requiresApproval,
+                execute: async () => {
+                    await writeFile(${JSON.stringify(ordinaryEffectPath)}, 'ordinary effect');
+                    return 'ordinary effect';
+                },
+            }],
+        },
         'protected-tools': {
-            configSchema: z.object({ type: z.literal('protected-tools') }).strict(),
-            create: () => [{
+            configSchema: z.object({ type: z.literal('protected-tools'), omitSessionScope: z.boolean().default(false) }).strict(),
+            create: (config) => [{
                 id: 'protected_operation',
                 description: 'Requires interactive approval before changing protected state',
                 inputSchema: z.object({}).strict(),
                 execute: async (_input, context) => {
+                    if (!context.sessionId) throw new Error('Expected an injected session ID');
                     await context.services.approval.checkToolApproval({
+                        // Model a custom caller that omits the optional approval service scope.
+                        ...(config.omitSessionScope ? {} : { sessionId: context.sessionId }),
                         toolName: 'protected_operation',
                         toolCallId: context.toolCallId,
                         args: {},
@@ -145,9 +190,46 @@ tools:
   - type: protected-tools
 `
         );
+        await writeFile(
+            unscopedConfigPath,
+            `${await readFile(protectedConfigPath, 'utf8')}    omitSessionScope: true\n`
+        );
+        const ordinaryConfig = `image: ${JSON.stringify(imagePath)}
+${await readFile(configPath, 'utf8')}
+tools:
+  - type: ordinary-tools
+`;
+        await writeFile(
+            ordinaryConfigPath,
+            `permissions:
+  mode: manual
+${ordinaryConfig}`
+        );
+        await writeFile(automaticConfigPath, ordinaryConfig);
+        await writeFile(
+            allowedConfigPath,
+            `permissions:
+  mode: manual
+  toolPolicies:
+    alwaysAllow: [ordinary_operation]
+${ordinaryConfig}`
+        );
+        await writeFile(
+            noApprovalConfigPath,
+            `permissions:
+  mode: manual
+${ordinaryConfig}    requiresApproval: false
+`
+        );
+    });
+
+    beforeEach(async () => {
+        denialFeedback.length = 0;
+        await rm(ordinaryEffectPath, { force: true });
     });
 
     afterAll(async () => {
+        if (server) server.closeAllConnections();
         if (server)
             await new Promise<void>((done, reject) =>
                 server.close((error) => (error ? reject(error) : done()))
@@ -158,20 +240,154 @@ tools:
     function run(args: string[]) {
         return execute(
             process.execPath,
-            ['--import', 'tsx', entrypoint, '--agent', configPath, '--no-auto-install', ...args],
+            ['--import', tsx, entrypoint, '--agent', configPath, '--no-auto-install', ...args],
             {
-                cwd: resolve('.'),
+                cwd: directory,
                 env: {
-                    ...process.env,
+                    PATH: process.env.PATH,
+                    SystemRoot: process.env.SystemRoot,
+                    HOME: home,
+                    USERPROFILE: home,
                     DEXTO_ANALYTICS_DISABLED: '1',
                     DEXTO_FEATURE_AUTH: 'false',
-                    DEXTO_DEV_MODE: 'true',
+                    DEXTO_DEV_MODE: 'false',
                     DEXTO_LLM_REGISTRY_DISABLE_FETCH: '1',
                 },
                 timeout: 20000,
             }
         );
     }
+
+    it.each(['json', 'jsonl', 'text'] as const)(
+        'honors manual agent permissions with %s approval-required output and recovery',
+        async (format) => {
+            const { stdout, stderr } = await run([
+                '--agent',
+                ordinaryConfigPath,
+                'run',
+                'attempt ordinary operation',
+                '--format',
+                format,
+            ]);
+            await expect(access(ordinaryEffectPath)).rejects.toMatchObject({ code: 'ENOENT' });
+            expect(denialFeedback).toHaveLength(1);
+            expect(denialFeedback[0]).toContain('requires interactive approval');
+            expect(stderr).toContain('[APPROVAL_REQUIRED]');
+            if (format === 'text') {
+                expect(stdout.trim()).toBe('ordinary task complete');
+                return;
+            }
+            const lines = stdout
+                .trim()
+                .split('\n')
+                .map((line) => JSON.parse(line));
+            const result = lines.at(-1);
+            expect(result).toMatchObject({
+                ...(format === 'json' ? { status: 'completed' } : { type: 'complete' }),
+                content: 'ordinary task complete',
+                approvalRequired: [
+                    expect.objectContaining({
+                        approvalId: expect.any(String),
+                        approvalType: 'tool_approval',
+                        sessionId: result.sessionId,
+                        toolName: 'ordinary_operation',
+                        toolCallId: 'ordinary-call',
+                        message: expect.stringContaining('Dexto TUI'),
+                    }),
+                ],
+            });
+            if (format === 'json') expect(lines).toHaveLength(1);
+            else
+                expect(lines.filter((line) => line.type === 'approval_required')).toEqual([
+                    expect.objectContaining(result.approvalRequired[0]),
+                ]);
+        },
+        30000
+    );
+
+    it('selects manual permissions through the shared global option', async () => {
+        await run([
+            '--agent',
+            automaticConfigPath,
+            '--permissions-mode',
+            'manual',
+            'run',
+            'attempt ordinary operation',
+            '--format',
+            'json',
+        ]);
+        await expect(access(ordinaryEffectPath)).rejects.toMatchObject({ code: 'ENOENT' });
+        expect(denialFeedback[0]).toContain('requires interactive approval');
+    }, 30000);
+
+    it.each([['--permissions-mode', 'auto-approve'], ['--auto-approve'], ['--bypass-permissions']])(
+        'permits ordinary tools with the shared global %j selection',
+        async (...flags) => {
+            const { stdout } = await run([
+                '--agent',
+                ordinaryConfigPath,
+                ...flags,
+                'run',
+                'attempt ordinary operation',
+                '--format',
+                'json',
+            ]);
+            expect(await readFile(ordinaryEffectPath, 'utf8')).toBe('ordinary effect');
+            expect(JSON.parse(stdout)).toMatchObject({
+                status: 'completed',
+                content: 'ordinary task complete',
+            });
+            expect(JSON.parse(stdout).approvalRequired ?? []).toEqual([]);
+        },
+        30000
+    );
+
+    it('keeps the permissive Core default when no permission mode is configured', async () => {
+        await run([
+            '--agent',
+            automaticConfigPath,
+            'run',
+            'attempt ordinary operation',
+            '--format',
+            'json',
+        ]);
+        expect(await readFile(ordinaryEffectPath, 'utf8')).toBe('ordinary effect');
+    }, 30000);
+
+    it.each(['static allow list', 'authored no-approval'] as const)(
+        'runs an allowed ordinary tool in manual mode through %s',
+        async (policy) => {
+            const agent = policy === 'static allow list' ? allowedConfigPath : noApprovalConfigPath;
+            const { stdout } = await run([
+                '--agent',
+                agent,
+                'run',
+                'attempt ordinary operation',
+                '--format',
+                'json',
+            ]);
+            expect(await readFile(ordinaryEffectPath, 'utf8')).toBe('ordinary effect');
+            expect(JSON.parse(stdout).approvalRequired ?? []).toEqual([]);
+        },
+        30000
+    );
+
+    it('rejects conflicting shared permission selections before tool execution', async () => {
+        await expect(
+            run([
+                '--agent',
+                ordinaryConfigPath,
+                '--permissions-mode',
+                'manual',
+                '--auto-approve',
+                'run',
+                'attempt ordinary operation',
+                '--format',
+                'json',
+            ])
+        ).rejects.toMatchObject({ code: 1 });
+        await expect(access(ordinaryEffectPath)).rejects.toMatchObject({ code: 'ENOENT' });
+    }, 30000);
 
     it('writes only one JSON object through real bootstrap and model execution', async () => {
         const { stdout } = await run(['run', 'say hello', '--format', 'json']);
@@ -203,6 +419,48 @@ tools:
         ).rejects.toMatchObject({ code: 1, stdout: expect.stringContaining('"status":"failed"') });
     }, 30000);
     it.each(['json', 'jsonl'] as const)(
+        'reports unscoped custom approval in %s output for the active run without a side effect',
+        async (format) => {
+            const { stdout } = await run([
+                '--agent',
+                unscopedConfigPath,
+                'run',
+                'attempt protected operation',
+                '--format',
+                format,
+            ]);
+            const lines = stdout
+                .trim()
+                .split('\n')
+                .map((line) => JSON.parse(line));
+            const result = lines.at(-1);
+            expect(result).toMatchObject({
+                ...(format === 'json' ? { status: 'completed' } : { type: 'complete' }),
+                content: 'approval denied; recovery complete',
+                approvalRequired: [
+                    expect.objectContaining({
+                        approvalId: expect.any(String),
+                        approvalType: 'tool_approval',
+                        sessionId: result.sessionId,
+                        toolName: 'protected_operation',
+                        toolCallId: 'protected-call',
+                        message: expect.stringContaining('Dexto TUI'),
+                    }),
+                ],
+            });
+            if (format === 'json') expect(lines).toHaveLength(1);
+            else
+                expect(lines.filter((line) => line.type === 'approval_required')).toEqual([
+                    expect.objectContaining(result.approvalRequired[0]),
+                ]);
+            expect(denialFeedback).toHaveLength(1);
+            expect(denialFeedback[0]).toContain('requires interactive approval');
+            await expect(access(protectedEffectPath)).rejects.toMatchObject({ code: 'ENOENT' });
+        },
+        30000
+    );
+
+    it.each(['json', 'jsonl'] as const)(
         'completes %s output after mandatory tool denial and model recovery without a protected effect',
         async (format) => {
             denialFeedback.length = 0;
@@ -232,6 +490,21 @@ tools:
                     content: 'approval denied; recovery complete',
                 });
             }
+            const result = lines.at(-1);
+            expect(result.approvalRequired).toEqual([
+                expect.objectContaining({
+                    approvalId: expect.any(String),
+                    approvalType: 'tool_approval',
+                    sessionId: result.sessionId,
+                    toolName: 'protected_operation',
+                    toolCallId: 'protected-call',
+                    message: expect.stringContaining('Dexto TUI'),
+                }),
+            ]);
+            if (format === 'jsonl')
+                expect(lines.filter((line) => line.type === 'approval_required')).toEqual([
+                    expect.objectContaining(result.approvalRequired[0]),
+                ]);
             expect(denialFeedback).toHaveLength(1);
             expect(denialFeedback[0]).toContain('requires interactive approval');
             expect(denialFeedback[0]).toContain('Dexto TUI');

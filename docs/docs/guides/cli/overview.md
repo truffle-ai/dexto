@@ -68,7 +68,8 @@ dexto --mode mcp
 | `--no-verbose` | Disable verbose output | `dexto --no-verbose` |
 | `--no-interactive` | Disable prompts/setup | `dexto --no-interactive` |
 | `--no-auto-install` | Disable auto agent install | `dexto --no-auto-install` |
-| `--auto-approve` | Auto-approve all tool executions | `dexto --auto-approve` |
+| `--permissions-mode` | Select `manual` or `auto-approve` in TUI or headless mode | `dexto --permissions-mode manual` |
+| `--auto-approve` / `--bypass-permissions` | Select `auto-approve`; mandatory approvals still apply | `dexto --auto-approve` |
 
 **Note:** The `-a, --agent` flag accepts both agent IDs from the registry and paths to agent config files. See the [Agent Registry](/docs/guides/agent-registry) for available agents.
 

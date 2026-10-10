@@ -27,7 +27,12 @@ import {
     requiresBaseURL,
     type LLMProvider,
 } from '@dexto/llm';
-import { EnvExpandedString, resolveApiKeyForProvider, type LLMConfig } from '@dexto/core';
+import {
+    EnvExpandedString,
+    resolveApiKeyForProvider,
+    type LLMConfig,
+    type PermissionsMode,
+} from '@dexto/core';
 import type { GlobalPreferences } from '@dexto/agent-management';
 
 /**
@@ -37,6 +42,8 @@ import type { GlobalPreferences } from '@dexto/agent-management';
 export interface CLIConfigOverrides
     extends Partial<Pick<LLMConfig, 'provider' | 'model' | 'apiKey'>> {
     autoApprove?: boolean;
+    bypassPermissions?: boolean;
+    permissionsMode?: PermissionsMode;
     /** When false (via --no-elicitation), disables elicitation */
     elicitation?: boolean;
 }
@@ -66,6 +73,15 @@ export function applyCLIOverrides(
         return baseConfig;
     }
 
+    if (
+        cliOverrides.permissionsMode === 'manual' &&
+        (cliOverrides.autoApprove || cliOverrides.bypassPermissions)
+    ) {
+        throw new Error(
+            '--permissions-mode manual conflicts with --auto-approve and --bypass-permissions.'
+        );
+    }
+
     // Create a deep copy of the base config for modification
     const mergedConfig = JSON.parse(JSON.stringify(baseConfig)) as AgentConfig;
 
@@ -80,11 +96,15 @@ export function applyCLIOverrides(
         mergedConfig.llm.apiKey = cliOverrides.apiKey;
     }
 
-    if (cliOverrides.autoApprove) {
+    if (
+        cliOverrides.permissionsMode ||
+        cliOverrides.autoApprove ||
+        cliOverrides.bypassPermissions
+    ) {
         // Ensure permissions section exists before overriding
         mergedConfig.permissions = {
             ...(mergedConfig.permissions ?? {}),
-            mode: 'auto-approve',
+            mode: cliOverrides.permissionsMode ?? 'auto-approve',
         };
     }
 

@@ -135,6 +135,38 @@ describe('CLI Overrides', () => {
         expect(result.llm.apiKey).toBe('file-api-key'); // Original (undefined ignored)
     });
 
+    test('selects manual permissions explicitly without changing configured rules', () => {
+        const overrides: CLIConfigOverrides = { permissionsMode: 'manual' };
+        const automatic = {
+            ...clone(baseConfig),
+            permissions: { ...baseConfig.permissions, mode: 'auto-approve' as const },
+        };
+        const result = applyCLIOverrides(automatic, overrides);
+        expect(result.permissions?.mode).toBe('manual');
+        expect(result.permissions?.timeout).toBe(120000);
+        expect(automatic.permissions?.mode).toBe('auto-approve');
+    });
+
+    test('rejects contradictory manual mode and auto-approval aliases', () => {
+        expect(() =>
+            applyCLIOverrides(clone(baseConfig), { permissionsMode: 'manual', autoApprove: true })
+        ).toThrow('conflicts');
+        expect(() =>
+            applyCLIOverrides(clone(baseConfig), {
+                permissionsMode: 'manual',
+                bypassPermissions: true,
+            })
+        ).toThrow('conflicts');
+    });
+
+    test('preserves configured permissions when no mode override is selected', () => {
+        const result = applyCLIOverrides(clone(baseConfig), {
+            autoApprove: false,
+            bypassPermissions: false,
+        });
+        expect(result.permissions).toEqual(baseConfig.permissions);
+    });
+
     test('sets permissions mode to auto-approve when override enabled', () => {
         const cliOverrides: CLIConfigOverrides = {
             autoApprove: true,

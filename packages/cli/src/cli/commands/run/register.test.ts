@@ -17,6 +17,7 @@ vi.mock('@dexto/core', () => ({
 
 function streamingAgent(events: StreamingEvent[]): DextoAgent {
     return {
+        setApprovalHandler: vi.fn(),
         createSession: vi.fn(async () => ({ id: 'session-1' })),
         stream: vi.fn(async () =>
             (async function* () {

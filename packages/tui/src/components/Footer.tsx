@@ -185,6 +185,12 @@ export function Footer({
                 </Box>
             )}
 
+            <Box>
+                <Text color="gray">
+                    approvals: {agent.getEffectiveConfig(sessionId ?? undefined).permissions.mode}
+                </Text>
+            </Box>
+
             {/* Line 3: Mode indicators (left) */}
             {/* Shift+Tab cycles: Normal → Plan Mode → Accept All Edits → Bypass Permissions → Normal */}
             {isShellMode && (

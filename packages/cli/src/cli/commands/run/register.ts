@@ -1,4 +1,5 @@
 import { Option } from 'commander';
+import { handleHeadlessApproval } from '../../approval/headless-approval-handler.js';
 import { writeHeadlessResult, type HeadlessOutputFormat } from './output.js';
 import type { HeadlessRunResult } from './headless.js';
 import { resolveAgentPath } from '@dexto/agent-management';
@@ -65,6 +66,10 @@ Examples:
                             agent = await bootstrapAgentFromGlobalOpts(bootstrapOptions);
                             const session = await agent.createSession();
                             sessionId = session.id;
+                            const approvalAgent = agent;
+                            approvalAgent.setApprovalHandler((request) =>
+                                handleHeadlessApproval(request, approvalAgent, session.id)
+                            );
 
                             const globalOpts = program.opts();
                             const resolvedAgentPath = await resolveAgentPath(
