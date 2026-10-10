@@ -1,4 +1,7 @@
 import type { Command } from 'commander';
+import type { StandaloneMcpResult } from './standalone.js';
+import { resolve } from 'node:path';
+import { registerGracefulShutdown } from '../../../utils/graceful-shutdown.js';
 import { withAnalytics, safeExit, ExitSignal } from '../../../analytics/wrapper.js';
 
 export interface McpCommandRegisterContext {
@@ -6,14 +9,12 @@ export interface McpCommandRegisterContext {
 }
 
 export function registerMcpCommand({ program }: McpCommandRegisterContext): void {
-    // For now, this mode simply aggregates and re-expose tools from configured MCP servers (no agent)
-    // dexto --mode mcp will be moved to this sub-command in the future
-    program
+    const mcp = program
         .command('mcp')
         .description(
-            'Start Dexto as an MCP server. Use --group-servers to aggregate and re-expose tools from configured MCP servers. \
-        In the future, this command will expose the agent as an MCP server by default.'
+            'Configure and call MCP servers, or expose them through a stdio aggregation gateway'
         )
+        .option('--config <path>', 'MCP-only YAML configuration (otherwise use --agent)')
         .option('-s, --strict', 'Require all MCP server connections to succeed')
         .option(
             '--group-servers',
@@ -25,6 +26,7 @@ export function registerMcpCommand({ program }: McpCommandRegisterContext): void
             withAnalytics(
                 'mcp',
                 async (options: {
+                    config?: string;
                     strict?: boolean;
                     groupServers?: boolean;
                     name: string;
@@ -41,36 +43,35 @@ export function registerMcpCommand({ program }: McpCommandRegisterContext): void
                             return;
                         }
 
-                        const [
-                            { logger, ServersConfigSchema },
-                            { resolveAgentPath, loadAgentConfig },
-                        ] = await Promise.all([
-                            import('@dexto/core'),
-                            import('@dexto/agent-management'),
-                        ]);
-
-                        // Load and resolve config
-                        // Get the global agent option from the main program
-                        const globalOpts = program.opts();
-                        const configPath = await resolveAgentPath(
-                            globalOpts.agent,
-                            globalOpts.autoInstall !== false
-                        );
-
-                        logger.info(`Loading Dexto config from: ${configPath}`);
-                        const config = await loadAgentConfig(configPath);
-
-                        logger.info('Validating MCP servers...');
-                        // Validate that MCP servers are configured
-                        if (!config.mcpServers || Object.keys(config.mcpServers).length === 0) {
-                            console.error(
-                                '❌ No MCP servers configured. Please configure mcpServers in your config file.'
+                        const { logger, ServersConfigSchema } = await import('@dexto/core');
+                        let servers;
+                        if (options.config) {
+                            const { loadStandaloneMcpConfiguration } = await import(
+                                './standalone.js'
+                            );
+                            servers = (
+                                await loadStandaloneMcpConfiguration(resolve(options.config), false)
+                            ).servers;
+                        } else {
+                            const { resolveAgentPath, loadAgentConfig } = await import(
+                                '@dexto/agent-management'
+                            );
+                            const globalOpts = program.opts();
+                            const configPath = await resolveAgentPath(
+                                globalOpts.agent,
+                                globalOpts.autoInstall !== false
+                            );
+                            servers = (await loadAgentConfig(configPath)).mcpServers;
+                        }
+                        if (!servers || Object.keys(servers).length === 0) {
+                            process.stderr.write(
+                                'No MCP servers configured. Add a server or choose --config.\n'
                             );
                             safeExit('mcp', 1, 'no-mcp-servers');
                             return;
                         }
 
-                        const validatedServers = ServersConfigSchema.parse(config.mcpServers);
+                        const validatedServers = ServersConfigSchema.parse(servers);
                         logger.info(
                             `Validated MCP servers. Configured servers: ${Object.keys(validatedServers).join(', ')}`
                         );
@@ -95,7 +96,7 @@ export function registerMcpCommand({ program }: McpCommandRegisterContext): void
                         const mcpTransport = await createMcpTransport('stdio');
                         const strictMode = options.strict ?? false;
                         // Initialize tool aggregation server
-                        await initializeMcpToolAggregationServer(
+                        const owner = await initializeMcpToolAggregationServer(
                             validatedServers,
                             mcpTransport,
                             options.name,
@@ -103,12 +104,37 @@ export function registerMcpCommand({ program }: McpCommandRegisterContext): void
                             strictMode
                         );
 
+                        const dispose = registerGracefulShutdown(() => ({
+                            stop: async () => {
+                                try {
+                                    await owner.close();
+                                } catch {
+                                    throw new Error('MCP shutdown failed');
+                                }
+                            },
+                        }));
+                        const closeOnEnd = () => {
+                            void owner.close().catch(() => {
+                                process.stderr.write('MCP shutdown failed.\n');
+                                process.exitCode = 1;
+                            });
+                        };
+                        process.stdin.once('end', closeOnEnd);
+                        const previousClose = owner.server.onclose;
+                        owner.server.onclose = () => {
+                            try {
+                                previousClose?.();
+                            } finally {
+                                dispose();
+                                process.stdin.off('end', closeOnEnd);
+                            }
+                        };
                         logger.info('MCP tool aggregation server started successfully');
                     } catch (err) {
                         if (err instanceof ExitSignal) throw err;
                         // Write to stderr to avoid interfering with MCP protocol
                         process.stderr.write(
-                            `MCP tool aggregation server startup failed: ${err}\n`
+                            'MCP tool aggregation server startup failed. Check configuration, credentials and server availability.\n'
                         );
                         safeExit('mcp', 1, 'mcp-agg-failed');
                     }
@@ -116,4 +142,160 @@ export function registerMcpCommand({ program }: McpCommandRegisterContext): void
                 { timeoutMs: 0 }
             )
         );
+    mcp.hook('preAction', (_, actionCommand) => {
+        if (actionCommand === mcp || actionCommand.getOptionValueSource('config') !== 'default')
+            return;
+        const parentConfig = mcp.opts<{ config?: string }>().config;
+        if (parentConfig !== undefined)
+            actionCommand.setOptionValueWithSource('config', parentConfig, 'implied');
+    });
+    const list = mcp.command('list').description('List configured MCP servers without connecting');
+    list.option('--config <path>', 'MCP-only YAML configuration', '.dexto/mcp.yml').option(
+        '--json',
+        'Emit machine-readable JSON'
+    );
+    list.action(async (options: { config: string; json?: boolean }) => {
+        const { runStandaloneMcp } = await import('./standalone.js');
+        const result = await runStandaloneMcp({ command: 'list' }, options);
+        printStandaloneResult(result, options.json);
+    });
+
+    const connect = mcp
+        .command('connect <server>')
+        .description('Probe a server connection, then close it');
+    connect
+        .option('--config <path>', 'MCP-only YAML configuration', '.dexto/mcp.yml')
+        .option('--json', 'Emit machine-readable JSON');
+    connect.action(async (server: string, options: { config: string; json?: boolean }) => {
+        const { runStandaloneMcp } = await import('./standalone.js');
+        const result = await runStandaloneMcp({ command: 'connect', server }, options);
+        printStandaloneResult(result, options.json);
+    });
+
+    const call = mcp
+        .command('call <server> <tool>')
+        .description('Call an explicitly selected upstream MCP tool, then close the connection');
+    call.option('--config <path>', 'MCP-only YAML configuration', '.dexto/mcp.yml')
+        .option('--json', 'Emit machine-readable JSON')
+        .option('--arguments <json>', 'Tool arguments as a JSON object', '{}');
+    call.action(
+        async (
+            server: string,
+            tool: string,
+            options: { config: string; json?: boolean; arguments: string }
+        ) => {
+            const { runStandaloneMcp } = await import('./standalone.js');
+            const result = await runStandaloneMcp(
+                { command: 'call', server, tool, argumentsJson: options.arguments },
+                options
+            );
+            printStandaloneResult(result, options.json);
+        }
+    );
+
+    const tools = mcp.command('tools <server>').description('List upstream MCP tools and schemas');
+    tools
+        .option('--config <path>', 'MCP-only YAML configuration', '.dexto/mcp.yml')
+        .option('--json', 'Emit machine-readable JSON');
+    tools.action(async (server: string, options: { config: string; json?: boolean }) => {
+        const { runStandaloneMcp } = await import('./standalone.js');
+        const result = await runStandaloneMcp({ command: 'tools', server }, options);
+        printStandaloneResult(result, options.json);
+    });
+
+    const resources = mcp
+        .command('resources <server>')
+        .description('List upstream MCP resource metadata');
+    resources
+        .option('--config <path>', 'MCP-only YAML configuration', '.dexto/mcp.yml')
+        .option('--json', 'Emit machine-readable JSON');
+    resources.action(async (server: string, options: { config: string; json?: boolean }) => {
+        const { runStandaloneMcp } = await import('./standalone.js');
+        const result = await runStandaloneMcp({ command: 'resources', server }, options);
+        printStandaloneResult(result, options.json);
+    });
+
+    const prompts = mcp
+        .command('prompts <server>')
+        .description('List upstream MCP prompt metadata');
+    prompts
+        .option('--config <path>', 'MCP-only YAML configuration', '.dexto/mcp.yml')
+        .option('--json', 'Emit machine-readable JSON');
+    prompts.action(async (server: string, options: { config: string; json?: boolean }) => {
+        const { runStandaloneMcp } = await import('./standalone.js');
+        const result = await runStandaloneMcp({ command: 'prompts', server }, options);
+        printStandaloneResult(result, options.json);
+    });
+
+    const add = mcp.command('add <server>').description('Add MCP server configuration');
+    add.option('--config <path>', 'MCP-only YAML configuration', '.dexto/mcp.yml')
+        .option('--json', 'Emit machine-readable JSON')
+        .option('--server-config <json>', 'Server configuration as a JSON object')
+        .option('--transport <type>', 'stdio, http or sse (inferred from command or URL)')
+        .option('--command <executable>', 'Local stdio server executable')
+        .option(
+            '--arg <value>',
+            'Server argument (repeat; use --arg=--flag for option arguments)',
+            appendOption
+        )
+        .option('--env <NAME=VALUE>', 'Server environment assignment (repeat)', appendOption)
+        .option('--url <url>', 'Remote MCP endpoint')
+        .option('--header <NAME=VALUE>', 'Remote request header (repeat)', appendOption)
+        .option('--replace', 'Replace an existing server');
+    add.action(
+        async (
+            server: string,
+            options: import('./standalone.js').McpAddOptions & {
+                config: string;
+                json?: boolean;
+                replace?: boolean;
+            }
+        ) => {
+            const { runStandaloneMcp, serverConfigurationFromOptions } = await import(
+                './standalone.js'
+            );
+            let result;
+            try {
+                result = await runStandaloneMcp(
+                    {
+                        command: 'add',
+                        server,
+                        serverConfig: serverConfigurationFromOptions(options),
+                        ...(options.replace ? { replace: true } : {}),
+                    },
+                    options
+                );
+            } catch {
+                result = {
+                    exitCode: 2,
+                    output: {
+                        error: {
+                            code: 'invalid_setup_options',
+                            message:
+                                'Use --command with --arg/--env, --url with --header, or --server-config by itself.',
+                        },
+                    },
+                };
+            }
+            printStandaloneResult(result, options.json);
+        }
+    );
+    const remove = mcp.command('remove <server>').description('Remove configured MCP server');
+    remove
+        .option('--config <path>', 'MCP-only YAML configuration', '.dexto/mcp.yml')
+        .option('--json', 'Emit machine-readable JSON');
+    remove.action(async (server: string, options: { config: string; json?: boolean }) => {
+        const { runStandaloneMcp } = await import('./standalone.js');
+        const result = await runStandaloneMcp({ command: 'remove', server }, options);
+        printStandaloneResult(result, options.json);
+    });
+}
+
+function appendOption(value: string, previous: string[] = []): string[] {
+    return [...previous, value];
+}
+
+function printStandaloneResult(result: StandaloneMcpResult, compact: boolean | undefined): void {
+    process.stdout.write(JSON.stringify(result.output, null, compact ? undefined : 2) + '\n');
+    process.exitCode = result.exitCode;
 }

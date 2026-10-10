@@ -24,6 +24,8 @@ In MCP Tools Mode, Dexto:
 
 ## Configuration
 
+For an MCP-only YAML file, run `dexto mcp --group-servers --config ./dexto-tools.yml`. This avoids agent/model setup. You can create the same configuration using the [standalone MCP CLI](./standalone-cli.md). The existing agent configuration fallback remains available when `--config` is omitted.
+
 ### Step 1: Create a Dexto Configuration File
 
 Create a `dexto-tools.yml` configuration file with the MCP servers you want to aggregate:
