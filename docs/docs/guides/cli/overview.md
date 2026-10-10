@@ -678,7 +678,7 @@ These commands use the existing device login/API-key flow and provide read-only 
 
 Omit `--json` for human-readable output. Search JSON includes `hasMore`, `nextOffset`, and `total`; pass `--offset <nextOffset>` to request another page. Sources and search support `--limit` (1–100, default 20). Each command fetches one page. JSON failures contain an `error` object and exit with code 1.
 
-For automation, set `DEXTO_API_KEY` to your organization key. Use `--platform-url <application-origin>` or `DEXTO_PLATFORM_URL` for another Dexto installation. Device login accepts the same `--platform-url` option and binds the saved credential to that origin. The binding remains when the same saved key is present in the environment; a different environment key can target another installation. Legacy saved credentials without origin metadata require a fresh `dexto login --platform-url <application-origin>` before discovery.
+For automation, set `DEXTO_API_KEY` to your organization key. Use `--platform-url <application-origin>` or `DEXTO_PLATFORM_URL` for another Dexto installation. Device login accepts the same `--platform-url` option and binds the saved credential to that origin. The binding remains when the same saved key is present in the environment; a different shell environment key can target another installation. Cloud discovery uses explicit shell environment overrides, not values loaded from `.env` files. Legacy saved credentials without origin metadata require a fresh `dexto login --platform-url <application-origin>` before discovery.
 
 ## Next Steps
 

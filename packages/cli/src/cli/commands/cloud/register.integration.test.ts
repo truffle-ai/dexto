@@ -1,10 +1,10 @@
 import { execFile } from 'node:child_process';
 import { createServer, type Server } from 'node:http';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { createRequire } from 'node:module';
 import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
@@ -82,12 +82,12 @@ describe('Cloud CLI process discovery', () => {
         if (directory) await rm(directory, { recursive: true, force: true });
     });
 
-    function run(args: string[]) {
+    function run(args: string[], environment: NodeJS.ProcessEnv = {}, cwd = directory) {
         return execute(
             process.execPath,
             ['--import', tsx, entrypoint, 'cloud', ...args, '--json'],
             {
-                cwd: directory,
+                cwd,
                 env: {
                     PATH: process.env.PATH,
                     SystemRoot: process.env.SystemRoot,
@@ -99,6 +99,7 @@ describe('Cloud CLI process discovery', () => {
                     DEXTO_ANALYTICS_DISABLED: '1',
                     DEXTO_FEATURE_AUTH: 'false',
                     DEXTO_LLM_REGISTRY_DISABLE_FETCH: '1',
+                    ...environment,
                 },
                 timeout: 20000,
             }
@@ -133,6 +134,81 @@ describe('Cloud CLI process discovery', () => {
             },
         ]);
     }, 60000);
+
+    it('keeps managed dotenv credentials out of Cloud origin overrides', async () => {
+        const fixture = join(directory, 'managed-credential');
+        const home = join(fixture, 'home');
+        const cwd = join(fixture, 'workspace');
+        await mkdir(join(home, '.dexto'), { recursive: true });
+        await mkdir(cwd, { recursive: true });
+        await writeFile(join(home, '.dexto', '.env'), 'DEXTO_API_KEY=old-managed-fixture-key\n');
+        await writeFile(
+            join(home, '.dexto', 'auth.json'),
+            JSON.stringify({
+                dextoApiKey: 'current-saved-fixture-key',
+                dextoPlatformUrl: 'https://issuer.example',
+                createdAt: Date.now(),
+            })
+        );
+        await writeFile(join(cwd, '.env'), `DEXTO_PLATFORM_URL=${origin}\n`);
+        const before = requests.length;
+        await expect(
+            run(
+                ['sources', '--platform-url', origin],
+                {
+                    HOME: home,
+                    USERPROFILE: home,
+                    DEXTO_API_KEY: undefined,
+                    DEXTO_PLATFORM_URL: undefined,
+                },
+                cwd
+            )
+        ).rejects.toMatchObject({
+            code: 1,
+            stdout: expect.stringContaining('configuration_error'),
+        });
+        expect(requests).toHaveLength(before);
+    }, 30000);
+
+    it('uses the canonical origin for a shell key without a shell origin', async () => {
+        const fixture = join(directory, 'shell-credential');
+        const home = join(fixture, 'home');
+        const cwd = join(fixture, 'workspace');
+        await mkdir(home, { recursive: true });
+        await mkdir(cwd, { recursive: true });
+        await writeFile(join(cwd, '.env'), `DEXTO_PLATFORM_URL=${origin}\n`);
+        const recordedRequest = join(fixture, 'request.json');
+        const preload = join(fixture, 'fetch-fixture.mjs');
+        // Keep the canonical-origin assertion hermetic instead of contacting the public service.
+        await writeFile(
+            preload,
+            `
+import { writeFileSync } from 'node:fs';
+globalThis.fetch = async (url, init) => {
+    writeFileSync(${JSON.stringify(recordedRequest)}, JSON.stringify({
+        url: String(url), authorization: new Headers(init.headers).get('authorization'),
+    }));
+    return Response.json({ sources: [] });
+};
+`
+        );
+        const result = await run(
+            ['sources'],
+            {
+                HOME: home,
+                USERPROFILE: home,
+                DEXTO_API_KEY: 'explicit-shell-fixture-key',
+                DEXTO_PLATFORM_URL: undefined,
+                NODE_OPTIONS: `--import=${pathToFileURL(preload).href}`,
+            },
+            cwd
+        );
+        expect(JSON.parse(result.stdout)).toEqual({ sources: [] });
+        expect(JSON.parse(await readFile(recordedRequest, 'utf8'))).toEqual({
+            url: 'https://app.dexto.ai/api/capabilities/sources',
+            authorization: 'Bearer explicit-shell-fixture-key',
+        });
+    }, 30000);
 
     it('returns exit 1 and parseable JSON for permission failure', async () => {
         try {

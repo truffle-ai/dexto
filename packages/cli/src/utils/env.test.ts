@@ -31,7 +31,11 @@ vi.mock('@dexto/agent-management', async () => {
     };
 });
 
-import { loadEnvironmentVariables, applyLayeredEnvironmentLoading } from './env.js';
+import {
+    loadEnvironmentVariables,
+    applyLayeredEnvironmentLoading,
+    getIncomingEnvironmentVariable,
+} from './env.js';
 import { updateEnvFile } from '@dexto/agent-management';
 
 function createTempDir() {
@@ -332,6 +336,10 @@ describe('Core Environment Loading', () => {
                 expect(process.env.OPENAI_API_KEY).toBe('shell-key'); // Shell wins
                 expect(process.env.EXISTING_VAR).toBe('existing-value'); // Shell preserved
                 expect(process.env.NEW_VAR).toBe('new-value'); // File vars added
+                expect(getIncomingEnvironmentVariable('NEW_VAR')).toBeUndefined();
+                expect(getIncomingEnvironmentVariable('OPENAI_API_KEY')).toBe('shell-key');
+                process.env.OPENAI_API_KEY = 'later-value';
+                expect(getIncomingEnvironmentVariable('OPENAI_API_KEY')).toBe('shell-key');
             } finally {
                 process.chdir(originalCwd);
                 cleanupTempDir(tempDir);

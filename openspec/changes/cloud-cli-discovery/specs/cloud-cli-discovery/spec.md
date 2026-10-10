@@ -28,6 +28,12 @@ The SDK SHALL require an explicit credential and origin, disable redirects, vali
 - **WHEN** discovery selects a saved credential without platform origin metadata
 - **THEN** the CLI fails before networking and directs the user to log in again to the intended application origin
 
+#### Scenario: Shell credential overrides
+
+- **WHEN** Cloud discovery resolves credentials and application origin
+- **THEN** it uses the saved credential and issuing origin or explicit incoming shell overrides, without treating dotenv-loaded values as explicit overrides
+- **AND** an explicit shell credential without a shell origin or CLI origin option uses the canonical application origin
+
 ### Requirement: Automation output
 
 The CLI SHALL offer JSON output for each discovery command and useful human-readable output by default. Invalid query, path, or pagination input SHALL fail before networking.

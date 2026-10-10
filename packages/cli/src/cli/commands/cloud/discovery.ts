@@ -1,6 +1,7 @@
 import { CloudClientError, createDextoCloudClient } from '@dexto/client-sdk/cloud';
 import { ZodError } from 'zod';
-import { DEXTO_PLATFORM_URL } from '../../auth/constants.js';
+import { DEFAULT_DEXTO_PLATFORM_URL } from '../../auth/constants.js';
+import { getIncomingEnvironmentVariable } from '../../../utils/env.js';
 import { loadAuth } from '../../auth/service.js';
 
 export type CloudDiscoveryCommand =
@@ -19,9 +20,10 @@ export async function runCloudDiscovery(
     options: CloudDiscoveryOptions
 ): Promise<number> {
     try {
-        const environmentToken = process.env.DEXTO_API_KEY?.trim();
-        const environmentOrigin = process.env.DEXTO_PLATFORM_URL || undefined;
-        const requestedOrigin = options.platformUrl ?? environmentOrigin ?? DEXTO_PLATFORM_URL;
+        const environmentToken = getIncomingEnvironmentVariable('DEXTO_API_KEY')?.trim();
+        const environmentOrigin = getIncomingEnvironmentVariable('DEXTO_PLATFORM_URL') || undefined;
+        const requestedOrigin =
+            options.platformUrl ?? environmentOrigin ?? DEFAULT_DEXTO_PLATFORM_URL;
         const hasOriginOverride =
             options.platformUrl !== undefined || environmentOrigin !== undefined;
         const auth = await loadAuth();

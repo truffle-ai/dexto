@@ -7,6 +7,13 @@ import {
     getDextoEnvPath,
 } from '@dexto/agent-management';
 
+let incomingEnvironment: NodeJS.ProcessEnv | undefined;
+
+/** Read an environment value from before CLI dotenv loading. */
+export function getIncomingEnvironmentVariable(name: string): string | undefined {
+    return (incomingEnvironment ?? process.env)[name];
+}
+
 /**
  * Multi-layer environment variable loading with context awareness.
  * Loads environment variables in priority order:
@@ -79,6 +86,7 @@ export async function loadEnvironmentVariables(
 export async function applyLayeredEnvironmentLoading(
     startPath: string = process.cwd()
 ): Promise<void> {
+    incomingEnvironment = { ...process.env };
     await ensureDextoGlobalDirectory();
 
     const layeredEnv = await loadEnvironmentVariables(startPath);
