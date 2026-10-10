@@ -89,6 +89,7 @@ type ToolCacheEntry = {
 
 export class MCPManager {
     private clients: Map<string, McpClient> = new Map();
+    private retiredClients = new Map<McpClient, string>();
     private desiredConfigurations = new Map<string, ValidatedMcpServerConfig>();
     private connectingOperations = new Map<string, number>();
     private pendingConnectionOperations = new Set<Promise<void>>();
@@ -200,6 +201,9 @@ export class MCPManager {
             throw MCPError.duplicateName(name, existingServerWithSameSanitizedName);
         }
 
+        const previousClient = this.clients.get(name);
+        if (previousClient && previousClient !== client)
+            this.retiredClients.set(previousClient, name);
         this.clients.set(name, client);
         this.sanitizedNameToServerMap.set(sanitizedName, name);
         this.setupClientNotifications(name, client);
@@ -1198,7 +1202,9 @@ export class MCPManager {
         // Callers must stop starting new connection operations before teardown.
         await Promise.allSettled([...this.pendingConnectionOperations]);
         const disconnectPromises: Promise<void>[] = [];
-        for (const [name, client] of Array.from(this.clients.entries())) {
+        const ownedClients = new Map(this.retiredClients);
+        for (const [name, client] of this.clients) ownedClients.set(client, name);
+        for (const [client, name] of ownedClients) {
             disconnectPromises.push(
                 client
                     .disconnect()
@@ -1213,6 +1219,7 @@ export class MCPManager {
         await Promise.all(disconnectPromises);
 
         this.clients.clear();
+        this.retiredClients.clear();
         this.connectionErrors = {};
         this.configCache.clear();
         this.toolCache.clear();

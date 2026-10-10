@@ -59,6 +59,8 @@ For a local stdio server, parse a config with `type: 'stdio'`, `command`, `args`
 
 ## Lifecycle and failures
 
+Same-name `registerClient()` replacement remains supported. A displaced different client stays usable for already captured calls and remains manager-owned until `disconnectAll()`, which disconnects current and displaced identities once each per cleanup pass. Individual `removeClient(name)` and restart operations still target the currently registered client; this does not change cache ordering or consistency during overlapping connections.
+
 Always call `disconnectAll()` in a `finally` block. Use `removeClient(name)` to disconnect and forget one connection, or `restartServer(name)` to reconnect using its saved configuration.
 
 Before teardown, stop initiating new connections and restarts. `disconnectAll()` drains operations already pending, including their handshake and discovery, then disconnects registered clients and clears caches. Original connection/restart results are preserved, desired registrations remain, and the manager can be reused. Draining waits for existing protocol requests and caller-owned authentication; it does not cancel startup or add a deadline. Connections/restarts started after teardown begins and independent refresh/notification work are outside this guarantee.
