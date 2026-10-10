@@ -26,7 +26,7 @@ dexto mcp add remote --url https://example.com/mcp --header 'Authorization=Beare
 
 Repeat `--header` for additional headers. `--transport sse` selects an SSE endpoint; HTTP and stdio are inferred from `--url` and `--command`. Alternatively, use `--server-config '<JSON object>'` for the full existing MCP server configuration contract. This form cannot be combined with the typed transport options.
 
-Templates remain literal in the YAML file and resolve from the environment when connecting. Duplicate additions fail unless `--replace` is provided. Add and remove preserve unrelated YAML fields and comments. Operators are responsible for the selected executable, endpoint, credentials and permissions; direct tool calls execute the explicitly requested operation.
+Templates remain literal in the YAML file and resolve from the environment when connecting. Duplicate additions fail unless `--replace` is provided. Add and remove preserve unrelated YAML fields and comments. Run configuration edits sequentially; concurrent edits are not serialized. Newly created files use owner-only permissions, while existing file permissions are preserved. Operators are responsible for the selected executable, endpoint, credentials and permissions; direct tool calls execute the explicitly requested operation.
 
 ## Discover and call
 
@@ -36,15 +36,17 @@ dexto mcp connect local --json
 dexto mcp tools local --json
 dexto mcp call local upstream_tool_name --arguments '{"message":"hello"}' --json
 dexto mcp resources local --json
+dexto mcp read-resource local fixture://resource --json
 dexto mcp prompts local --json
+dexto mcp get-prompt local upstream_prompt_name --arguments '{"name":"Ada"}' --json
 dexto mcp remove local --json
 ```
 
 `list` reports configured names, transports, enabled state and configured/disabled status without connecting or displaying URLs, commands, environment values or headers. `connect` is a probe. Discovery and calls each open their own connection and close it before returning; successful output includes `connection: "closed"`.
 
-`tools` includes advertised input schemas. `call` accepts the exact upstream tool name, validates its arguments using Core, and preserves the MCP tool result, including `isError` and its content. An MCP error result has a nonzero exit status. `resources` and `prompts` list metadata; reading resources and rendering prompts are outside this command slice.
+`tools` includes advertised input schemas. `call` accepts the exact upstream tool name, validates its arguments using Core, and preserves the MCP tool result, including `isError` and its content. An MCP error result has a nonzero exit status. `resources` and `prompts` list metadata. `read-resource` accepts the exact upstream resource URI and returns its complete result, including text or binary content. `get-prompt` accepts the exact upstream prompt name and returns its complete rendered result. Prompt arguments must be a JSON object of string values; invalid arguments return exit status 2 before connecting. Both commands use the same configuration selection, connection cleanup and error outcomes as direct tool calls.
 
-After command parsing succeeds, `--json` makes stdout contain one JSON outcome. Exit status 0 means success, 2 means invalid command data/configuration or configuration I/O, 3 means connection failure, and 4 means operation, MCP tool-result or cleanup failure. Parser errors such as an unknown option or missing operand use the standard CLI error on stderr and exit status 1, before an action runs. Configuration and connection diagnostics omit raw credential-bearing details. Returned tool content is the requested server data. These commands do not provide interactive OAuth or elicitation.
+After command parsing succeeds, `--json` makes stdout contain one JSON outcome. Exit status 0 means success, 2 means invalid command data/configuration or configuration I/O, 3 means connection failure, and 4 means operation, MCP tool-result or cleanup failure. Parser errors such as an unknown option or missing operand use the standard CLI error on stderr and exit status 1, before an action runs. Configuration and connection diagnostics omit raw credential-bearing details. Returned MCP content is the requested server data. These commands do not provide interactive OAuth or elicitation.
 
 ## Expose the configuration as a gateway
 
