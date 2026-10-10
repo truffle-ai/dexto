@@ -1,6 +1,16 @@
 import { execFile } from 'node:child_process';
 import { performance } from 'node:perf_hooks';
-import { mkdtemp, mkdir, rm, writeFile, readFile } from 'node:fs/promises';
+import {
+    mkdtemp,
+    mkdir,
+    rm,
+    writeFile,
+    readFile,
+    chmod,
+    stat,
+    symlink,
+    lstat,
+} from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -18,7 +28,7 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 
 const execute = promisify(execFile);
 const require = createRequire(import.meta.url);
-const tsx = require.resolve('tsx');
+const tsx = pathToFileURL(require.resolve('tsx')).href;
 const entrypoint = fileURLToPath(new URL('../../../index.ts', import.meta.url));
 let directory: string;
 let config: string;
@@ -623,3 +633,182 @@ it('connects and lists metadata from a valid resources-only server', async () =>
     const pid = Number(await readFile(join(directory, 'last-pid'), 'utf8'));
     expect(() => process.kill(pid, 0)).toThrow();
 }, 30000);
+
+it.skipIf(process.platform === 'win32')(
+    'writes private MCP configuration through the actual add and remove commands',
+    async () => {
+        const selected = join(directory, 'private-edit.yml');
+        await writeFile(selected, '# operator notes\nmcpServers: {}\n', { mode: 0o644 });
+        await run(
+            ['add', 'local', '--server-config', '{"type":"stdio","command":"node"}'],
+            selected
+        );
+        expect((await stat(selected)).mode & 0o777).toBe(0o600);
+        expect(await readFile(selected, 'utf8')).toContain('# operator notes');
+        await chmod(selected, 0o644);
+        await run(['remove', 'local'], selected);
+        expect((await stat(selected)).mode & 0o777).toBe(0o600);
+        expect(JSON.parse((await run(['list'], selected)).stdout)).toEqual({ servers: [] });
+    },
+    30000
+);
+
+it.skipIf(process.platform === 'win32')(
+    'refuses a leaf-symlink edit through actual command registration',
+    async () => {
+        const target = join(directory, 'symlink-target.yml');
+        const selected = join(directory, 'symlink-edit.yml');
+        const before = 'mcpServers: {}\n';
+        await writeFile(target, before);
+        await symlink(target, selected);
+        const result = await run(
+            ['add', 'local', '--server-config', '{"type":"stdio","command":"node"}'],
+            selected
+        ).catch((error: unknown) => error);
+        expect(result).toMatchObject({
+            code: 2,
+            stdout: expect.stringContaining('config_write_failed'),
+        });
+        expect(await readFile(target, 'utf8')).toBe(before);
+        expect((await lstat(selected)).isSymbolicLink()).toBe(true);
+    },
+    30000
+);
+
+it.skipIf(process.platform !== 'win32')(
+    'preserves the existing Windows file ACL on actual add and remove',
+    async () => {
+        const systemRoot = process.env.SystemRoot;
+        if (!systemRoot) throw new Error('Windows fixture requires SystemRoot');
+        const selectedDirectory = join(directory, 'windows-acl-edit');
+        await mkdir(selectedDirectory);
+        const selected = join(selectedDirectory, 'mcp.yml');
+        await writeFile(selected, 'mcpServers: {}\n');
+        const powershell = join(
+            systemRoot,
+            'System32',
+            'WindowsPowerShell',
+            'v1.0',
+            'powershell.exe'
+        );
+        const appData = join(directory, 'appdata');
+        const localAppData = join(directory, 'local-appdata');
+        await mkdir(appData);
+        await mkdir(localAppData);
+        const aclCommand = (script: string) => {
+            const pending = execute(
+                powershell,
+                [
+                    '-NoProfile',
+                    '-NonInteractive',
+                    '-EncodedCommand',
+                    Buffer.from(
+                        `[Console]::Error.WriteLine('ACL_STAGE:started')\n${script}`,
+                        'utf16le'
+                    ).toString('base64'),
+                ],
+                {
+                    cwd: directory,
+                    env: {
+                        SystemRoot: systemRoot,
+                        WINDIR: systemRoot,
+                        SystemDrive: process.env.SystemDrive,
+                        ProgramFiles: process.env.ProgramFiles,
+                        PSModulePath: join(
+                            systemRoot,
+                            'System32',
+                            'WindowsPowerShell',
+                            'v1.0',
+                            'Modules'
+                        ),
+                        APPDATA: appData,
+                        LOCALAPPDATA: localAppData,
+                        PATH: process.env.PATH,
+                        HOME: directory,
+                        USERPROFILE: directory,
+                        TEMP: directory,
+                        TMP: directory,
+                        MCP_ACL_CONFIG_PATH: selected,
+                    },
+                    timeout: 20000,
+                }
+            );
+            pending.child.stdin?.end();
+            return pending.catch((error: unknown) => {
+                const stderr =
+                    error instanceof Error && 'stderr' in error && typeof error.stderr === 'string'
+                        ? error.stderr
+                        : '';
+                const stages = stderr.match(/ACL_STAGE:[a-z_]+/g) ?? [];
+                throw new Error(
+                    `Windows ACL fixture failed: ${stages.join(', ') || 'before_first_stage'}`
+                );
+            });
+        };
+        const hashAcl = `
+        function Get-AclHash($path) {
+            $security = [System.IO.File]::GetAccessControl($path)
+            $sddl = $security.GetSecurityDescriptorSddlForm([System.Security.AccessControl.AccessControlSections]::All)
+            $bytes = [System.Text.Encoding]::UTF8.GetBytes($sddl)
+            $sha = [System.Security.Cryptography.SHA256]::Create()
+            try { return [System.BitConverter]::ToString($sha.ComputeHash($bytes)) }
+            finally { $sha.Dispose() }
+        }
+    `;
+        const before = (
+            await aclCommand(`${hashAcl}
+        $ErrorActionPreference = 'Stop'
+        $path = $env:MCP_ACL_CONFIG_PATH
+        $directory = [System.IO.Path]::GetDirectoryName($path)
+        [Console]::Error.WriteLine('ACL_STAGE:parent_get')
+        $parent = [System.IO.Directory]::GetAccessControl($directory)
+        [Console]::Error.WriteLine('ACL_STAGE:parent_got')
+        $parent.AddAccessRule([System.Security.AccessControl.FileSystemAccessRule]::new(
+            [System.Security.Principal.SecurityIdentifier]::new('S-1-5-32-545'),
+            'ReadAndExecute', 'ContainerInherit,ObjectInherit', 'None', 'Allow'))
+        [Console]::Error.WriteLine('ACL_STAGE:parent_set')
+        [System.IO.Directory]::SetAccessControl($directory, $parent)
+        [Console]::Error.WriteLine('ACL_STAGE:parent_set_done')
+        [Console]::Error.WriteLine('ACL_STAGE:file_get')
+        $acl = [System.IO.File]::GetAccessControl($path)
+        [Console]::Error.WriteLine('ACL_STAGE:file_got')
+        $acl.SetAccessRuleProtection($true, $false)
+        $acl.SetAccessRule([System.Security.AccessControl.FileSystemAccessRule]::new(
+            [System.Security.Principal.WindowsIdentity]::GetCurrent().User, 'FullControl', 'Allow'))
+        [Console]::Error.WriteLine('ACL_STAGE:file_set')
+        [System.IO.File]::SetAccessControl($path, $acl)
+        [Console]::Error.WriteLine('ACL_STAGE:file_set_done')
+        $control = [System.IO.Path]::Combine($directory, 'inherited-control.yml')
+        [System.IO.File]::WriteAllText($control, 'synthetic')
+        try {
+            [Console]::Error.WriteLine('ACL_STAGE:hash')
+            if ((Get-AclHash $path) -eq (Get-AclHash $control)) {
+                throw 'Fixture did not establish distinct file and inherited ACLs'
+            }
+            [Console]::Write((Get-AclHash $path))
+            [Console]::Error.WriteLine('ACL_STAGE:hash_done')
+        } finally { [System.IO.File]::Delete($control) }
+    `)
+        ).stdout.trim();
+        const readAcl = async () =>
+            (
+                await aclCommand(
+                    `${hashAcl}
+        $ErrorActionPreference = 'Stop'
+        [Console]::Error.WriteLine('ACL_STAGE:read_hash')
+        [Console]::Write((Get-AclHash $env:MCP_ACL_CONFIG_PATH))
+        [Console]::Error.WriteLine('ACL_STAGE:read_hash_done')
+    `
+                )
+            ).stdout.trim();
+        await run(
+            ['add', 'local', '--server-config', '{"type":"stdio","command":"node"}'],
+            selected
+        );
+        expect(await readAcl()).toBe(before);
+        await run(['remove', 'local'], selected);
+        expect(await readAcl()).toBe(before);
+        expect(JSON.parse((await run(['list'], selected)).stdout)).toEqual({ servers: [] });
+    },
+    60000
+);
