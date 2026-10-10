@@ -691,6 +691,10 @@ it.skipIf(process.platform !== 'win32')(
             'v1.0',
             'powershell.exe'
         );
+        const appData = join(directory, 'appdata');
+        const localAppData = join(directory, 'local-appdata');
+        await mkdir(appData);
+        await mkdir(localAppData);
         const aclCommand = (script: string) => {
             const pending = execute(
                 powershell,
@@ -698,12 +702,27 @@ it.skipIf(process.platform !== 'win32')(
                     '-NoProfile',
                     '-NonInteractive',
                     '-EncodedCommand',
-                    Buffer.from(script, 'utf16le').toString('base64'),
+                    Buffer.from(
+                        `[Console]::Error.WriteLine('ACL_STAGE:started')\n${script}`,
+                        'utf16le'
+                    ).toString('base64'),
                 ],
                 {
                     cwd: directory,
                     env: {
                         SystemRoot: systemRoot,
+                        WINDIR: systemRoot,
+                        SystemDrive: process.env.SystemDrive,
+                        ProgramFiles: process.env.ProgramFiles,
+                        PSModulePath: join(
+                            systemRoot,
+                            'System32',
+                            'WindowsPowerShell',
+                            'v1.0',
+                            'Modules'
+                        ),
+                        APPDATA: appData,
+                        LOCALAPPDATA: localAppData,
                         PATH: process.env.PATH,
                         HOME: directory,
                         USERPROFILE: directory,
@@ -715,7 +734,16 @@ it.skipIf(process.platform !== 'win32')(
                 }
             );
             pending.child.stdin?.end();
-            return pending;
+            return pending.catch((error: unknown) => {
+                const stderr =
+                    error instanceof Error && 'stderr' in error && typeof error.stderr === 'string'
+                        ? error.stderr
+                        : '';
+                const stages = stderr.match(/ACL_STAGE:[a-z_]+/g) ?? [];
+                throw new Error(
+                    `Windows ACL fixture failed: ${stages.join(', ') || 'before_first_stage'}`
+                );
+            });
         };
         const hashAcl = `
         function Get-AclHash($path) {
@@ -730,23 +758,33 @@ it.skipIf(process.platform !== 'win32')(
         $ErrorActionPreference = 'Stop'
         $path = $env:MCP_ACL_CONFIG_PATH
         $directory = [System.IO.Path]::GetDirectoryName($path)
+        [Console]::Error.WriteLine('ACL_STAGE:parent_get')
         $parent = Get-Acl -LiteralPath $directory
+        [Console]::Error.WriteLine('ACL_STAGE:parent_got')
         $parent.AddAccessRule([System.Security.AccessControl.FileSystemAccessRule]::new(
             [System.Security.Principal.SecurityIdentifier]::new('S-1-5-32-545'),
             'ReadAndExecute', 'ContainerInherit,ObjectInherit', 'None', 'Allow'))
+        [Console]::Error.WriteLine('ACL_STAGE:parent_set')
         Set-Acl -LiteralPath $directory -AclObject $parent
+        [Console]::Error.WriteLine('ACL_STAGE:parent_set_done')
+        [Console]::Error.WriteLine('ACL_STAGE:file_get')
         $acl = Get-Acl -LiteralPath $path
+        [Console]::Error.WriteLine('ACL_STAGE:file_got')
         $acl.SetAccessRuleProtection($true, $false)
         $acl.SetAccessRule([System.Security.AccessControl.FileSystemAccessRule]::new(
             [System.Security.Principal.WindowsIdentity]::GetCurrent().User, 'FullControl', 'Allow'))
+        [Console]::Error.WriteLine('ACL_STAGE:file_set')
         Set-Acl -LiteralPath $path -AclObject $acl
+        [Console]::Error.WriteLine('ACL_STAGE:file_set_done')
         $control = Join-Path $directory 'inherited-control.yml'
         [System.IO.File]::WriteAllText($control, 'synthetic')
         try {
+            [Console]::Error.WriteLine('ACL_STAGE:hash')
             if ((Get-AclHash $path) -eq (Get-AclHash $control)) {
                 throw 'Fixture did not establish distinct file and inherited ACLs'
             }
             [Console]::Write((Get-AclHash $path))
+            [Console]::Error.WriteLine('ACL_STAGE:hash_done')
         } finally { Remove-Item -LiteralPath $control }
     `)
         ).stdout.trim();
@@ -755,7 +793,9 @@ it.skipIf(process.platform !== 'win32')(
                 await aclCommand(
                     `${hashAcl}
         $ErrorActionPreference = 'Stop'
+        [Console]::Error.WriteLine('ACL_STAGE:read_hash')
         [Console]::Write((Get-AclHash $env:MCP_ACL_CONFIG_PATH))
+        [Console]::Error.WriteLine('ACL_STAGE:read_hash_done')
     `
                 )
             ).stdout.trim();
