@@ -24,8 +24,10 @@ constructor(logger: Logger, eventBusOverride?: AgentEventBus)
 | `initializeFromConfig(configs)` | Connects enabled servers concurrently. Per-server `connectionMode: 'strict'` failures reject; `lenient` failures are recorded.                         |
 | `restartServer(name)`           | Disconnects and reconnects using the saved configuration. Failed restart candidates are cleaned up; configuration remains available for retry.         |
 | `removeClient(name)`            | Disconnects one client and removes legacy restart configuration, caches, and recorded error; explicit desired registration remains.                    |
-| `disconnectAll()`               | Disconnects registered clients and clears legacy connection state; explicit desired registrations remain. Cleanup failures are logged.                 |
+| `disconnectAll()`               | Drains already-started connection/restart operations, then disconnects registered clients and clears legacy state. Desired registrations remain.       |
 | `refresh()`                     | Refreshes cached discovery from connected clients.                                                                                                     |
+
+Stop starting new connection/restart operations before calling `disconnectAll()`. It waits for their existing handshake, discovery and authentication work to settle, preserving each operation's success or failure outcome, before cleaning up. This is orderly draining, without cancellation or an additional deadline; operations begun afterward and independent refresh/notification work are outside this guarantee. The manager can reconnect after cleanup.
 
 Parse raw configuration before connecting:
 

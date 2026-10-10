@@ -3,13 +3,18 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { setTimeout } from 'node:timers/promises';
 import { createInterface } from 'node:readline';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 
 const [pidFile, modeArgument, modeFile, releaseFile] = process.argv.slice(2);
 const mode = modeArgument === 'from-file' ? readFileSync(modeFile, 'utf8') : modeArgument;
 writeFileSync(pidFile, String(process.pid));
 
-if (mode === 'reject-handshake') {
+if (mode === 'wait-for-reject') {
+    while (!existsSync(releaseFile)) await setTimeout(10);
+}
+
+if (mode === 'reject-handshake' || mode === 'wait-for-reject') {
     const input = createInterface({ input: process.stdin });
     input.on('line', (line) => {
         const request = JSON.parse(line);
@@ -43,5 +48,16 @@ if (mode === 'reject-handshake') {
         }
         return { content: [{ type: 'text', text: 'pong' }] };
     });
+    if (mode === 'wait-for-discovery') {
+        server.registerPrompt('fixture-prompt', {}, async () => ({ messages: [] }));
+        server.registerResource('fixture-resource', 'fixture://resource', {}, async () => ({
+            contents: [{ uri: 'fixture://resource', text: 'fixture' }],
+        }));
+        server.server.setRequestHandler(ListToolsRequestSchema, async () => {
+            writeFileSync(modeFile, 'discovery-started');
+            while (!existsSync(releaseFile)) await setTimeout(10);
+            return { tools: [{ name: 'ping', inputSchema: { type: 'object' } }] };
+        });
+    }
     await server.connect(new StdioServerTransport());
 }
