@@ -484,8 +484,7 @@ export async function initializeHonoApi(
 
         // Getter functions for routes (always use current agent)
         // getAgent automatically ensures agent is available before returning it
-        // Accepts Context parameter for compatibility with GetAgentFn type
-        const getAgent = (_ctx: Context): DextoAgent => {
+        const getAgent = (): DextoAgent => {
             // CRITICAL: Check agent availability before every access to prevent race conditions
             // during agent switching, stopping, or startup failures
             ensureAgentAvailable();
@@ -579,7 +578,13 @@ export async function initializeHonoApi(
         // Initialize MCP server after agent has started
         if (mcpTransport) {
             try {
-                await initializeServerMcpServer(activeAgent, getAgentCard(), mcpTransport);
+                await initializeServerMcpServer(activeAgent, getAgentCard(), mcpTransport, {
+                    getAgent,
+                    getAgentCard: () => {
+                        ensureAgentAvailable();
+                        return getAgentCard();
+                    },
+                });
             } catch (error) {
                 const errorMessage = error instanceof Error ? error.message : String(error);
                 logger.error(`Failed to initialize MCP server: ${errorMessage}`);
