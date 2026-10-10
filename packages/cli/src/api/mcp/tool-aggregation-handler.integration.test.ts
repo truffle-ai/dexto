@@ -47,7 +47,8 @@ const identity = process.env.IDENTITY;
 let refreshed = false;
 writeFileSync(process.env.MARKER + '.pid', String(process.pid));
 process.on('exit', () => writeFileSync(process.env.MARKER, 'closed'));
-const server = new Server({ name: identity, version: '1.0.0' }, { capabilities: { tools: {}, resources: {}, prompts: {} } });
+const server = new Server({ name: identity, version: '1.0.0' }, { capabilities: { ...(process.env.NO_TOOLS ? {} : { tools: {} }), resources: {}, prompts: {} } });
+if (!process.env.NO_TOOLS) {
 server.setRequestHandler(ListToolsRequestSchema, async () => { if (process.env.TOOLS_DELAY) await new Promise(resolve => setTimeout(resolve, Number(process.env.TOOLS_DELAY))); return { tools: [{ name: refreshed && process.env.REFRESH_TOOL_NAME ? process.env.REFRESH_TOOL_NAME : process.env.TOOL_NAME || 'lookup', title: 'Original title', description: 'Lookup', inputSchema: ${JSON.stringify(inputSchema)}, outputSchema: { type: 'object', properties: { owner: { type: 'string' } }, required: ['owner'] }, annotations: { readOnlyHint: true }, _meta: { original: true } }] }; });
 server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
     if (request.params.arguments?.value === 'valid-refresh') { refreshed = true; await server.notification({ method: 'notifications/tools/list_changed' }); }
@@ -57,6 +58,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
     }
     return { isError: true, content: [{ type: 'text', text: identity }], structuredContent: { owner: identity }, _meta: { original: true } };
 });
+}
 server.setRequestHandler(ListResourcesRequestSchema, async () => { return { resources: Array.from({ length: process.env.DUPLICATE_RESOURCE ? 2 : 1 }, () => ({ uri: 'fixture://data', name: 'Data', description: 'Raw resource', mimeType: 'text/plain', _meta: { original: true } })) }; });
 server.setRequestHandler(ReadResourceRequestSchema, async () => ({ contents: [{ uri: 'fixture://data', text: identity }] }));
 server.setRequestHandler(ListPromptsRequestSchema, async () => ({ prompts: [{ name: process.env.PROMPT_NAME || 'greet', description: 'Original prompt', arguments: [{ name: 'person', required: true }], _meta: { original: true } }] }));
@@ -213,6 +215,31 @@ describe('MCP aggregation protocol', () => {
         ]);
         expect(await client.readResource({ uri: 'mcp:first:fixture://data' })).toEqual({
             contents: [{ uri: 'fixture://data', text: 'capabilities-first' }],
+        });
+    });
+    it('discovers resources and prompts from an upstream without a tools capability', async () => {
+        const { client } = await connect(
+            ServersConfigSchema.parse({ first: config('resource-only', { NO_TOOLS: '1' }) })
+        );
+        expect((await client.listTools()).tools).toEqual([]);
+        expect((await client.listResources()).resources).toEqual([
+            {
+                uri: 'mcp:first:fixture://data',
+                name: 'Data',
+                description: 'Raw resource',
+                mimeType: 'text/plain',
+                _meta: { original: true },
+            },
+        ]);
+        expect(await client.readResource({ uri: 'mcp:first:fixture://data' })).toEqual({
+            contents: [{ uri: 'fixture://data', text: 'resource-only' }],
+        });
+        expect((await client.listPrompts()).prompts[0]?.arguments).toEqual([
+            { name: 'person', required: true },
+        ]);
+        expect(await client.getPrompt({ name: 'greet', arguments: { person: 'Ada' } })).toEqual({
+            description: 'Original result',
+            messages: [{ role: 'user', content: { type: 'text', text: 'Ada' } }],
         });
     });
     it('rejects duplicate prompt identities and rolls back every connected upstream', async () => {
