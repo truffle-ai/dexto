@@ -691,18 +691,32 @@ it.skipIf(process.platform !== 'win32')(
             'v1.0',
             'powershell.exe'
         );
-        const aclCommand = (script: string) =>
-            execute(powershell, ['-NoProfile', '-NonInteractive', '-Command', script], {
-                cwd: directory,
-                env: {
-                    SystemRoot: systemRoot,
-                    PATH: process.env.PATH,
-                    HOME: directory,
-                    USERPROFILE: directory,
-                    MCP_ACL_CONFIG_PATH: selected,
-                },
-                timeout: 20000,
-            });
+        const aclCommand = (script: string) => {
+            const pending = execute(
+                powershell,
+                [
+                    '-NoProfile',
+                    '-NonInteractive',
+                    '-EncodedCommand',
+                    Buffer.from(script, 'utf16le').toString('base64'),
+                ],
+                {
+                    cwd: directory,
+                    env: {
+                        SystemRoot: systemRoot,
+                        PATH: process.env.PATH,
+                        HOME: directory,
+                        USERPROFILE: directory,
+                        TEMP: directory,
+                        TMP: directory,
+                        MCP_ACL_CONFIG_PATH: selected,
+                    },
+                    timeout: 20000,
+                }
+            );
+            pending.child.stdin?.end();
+            return pending;
+        };
         const hashAcl = `
         function Get-AclHash($path) {
             $bytes = [System.Text.Encoding]::UTF8.GetBytes((Get-Acl -LiteralPath $path).Sddl)
