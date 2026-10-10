@@ -215,6 +215,23 @@ export function registerMcpCommand({ program }: McpCommandRegisterContext): void
         printStandaloneResult(result, options.json);
     });
 
+    const readResource = mcp
+        .command('read-resource <server> <uri>')
+        .description('Read an exact upstream MCP resource, then close the connection');
+    readResource
+        .option('--config <path>', 'MCP-only YAML configuration', '.dexto/mcp.yml')
+        .option('--json', 'Emit machine-readable JSON');
+    readResource.action(
+        async (server: string, uri: string, options: { config: string; json?: boolean }) => {
+            const { runStandaloneMcp } = await import('./standalone.js');
+            const result = await runStandaloneMcp(
+                { command: 'read-resource', server, uri },
+                options
+            );
+            printStandaloneResult(result, options.json);
+        }
+    );
+
     const prompts = mcp
         .command('prompts <server>')
         .description('List upstream MCP prompt metadata');
@@ -226,6 +243,28 @@ export function registerMcpCommand({ program }: McpCommandRegisterContext): void
         const result = await runStandaloneMcp({ command: 'prompts', server }, options);
         printStandaloneResult(result, options.json);
     });
+
+    const getPrompt = mcp
+        .command('get-prompt <server> <prompt>')
+        .description('Render an exact upstream MCP prompt, then close the connection');
+    getPrompt
+        .option('--config <path>', 'MCP-only YAML configuration', '.dexto/mcp.yml')
+        .option('--json', 'Emit machine-readable JSON')
+        .option('--arguments <json>', 'Prompt arguments as a JSON object of strings', '{}');
+    getPrompt.action(
+        async (
+            server: string,
+            prompt: string,
+            options: { config: string; json?: boolean; arguments: string }
+        ) => {
+            const { runStandaloneMcp } = await import('./standalone.js');
+            const result = await runStandaloneMcp(
+                { command: 'get-prompt', server, prompt, argumentsJson: options.arguments },
+                options
+            );
+            printStandaloneResult(result, options.json);
+        }
+    );
 
     const add = mcp.command('add <server>').description('Add MCP server configuration');
     add.option('--config <path>', 'MCP-only YAML configuration', '.dexto/mcp.yml')

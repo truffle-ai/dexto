@@ -30,10 +30,13 @@ const documentSchema = z
     .passthrough();
 type McpOperation =
     | { command: 'connect' | 'tools' | 'resources' | 'prompts'; server: string }
-    | { command: 'call'; server: string; tool: string; argumentsJson: string };
+    | { command: 'call'; server: string; tool: string; argumentsJson: string }
+    | { command: 'read-resource'; server: string; uri: string }
+    | { command: 'get-prompt'; server: string; prompt: string; arguments: Record<string, string> };
 export type StandaloneMcpCommand =
     | { command: 'list' }
-    | McpOperation
+    | Exclude<McpOperation, { command: 'get-prompt' }>
+    | { command: 'get-prompt'; server: string; prompt: string; argumentsJson: string }
     | { command: 'remove'; server: string }
     | { command: 'add'; server: string; serverConfig: string; replace?: boolean };
 export interface StandaloneMcpOptions {
@@ -120,6 +123,34 @@ export async function runStandaloneMcp(
                     exitCode: 2,
                     output: { error: { code: 'server_disabled', message: 'Server is disabled.' } },
                 };
+            if (command.command === 'get-prompt') {
+                let args: Record<string, string>;
+                try {
+                    args = z
+                        .record(z.string(), z.string())
+                        .parse(JSON.parse(command.argumentsJson));
+                } catch {
+                    return {
+                        exitCode: 2,
+                        output: {
+                            error: {
+                                code: 'invalid_arguments',
+                                message: 'Prompt arguments must be a valid JSON object of strings.',
+                            },
+                        },
+                    };
+                }
+                return await runMcpOperation(
+                    {
+                        command: 'get-prompt',
+                        server: command.server,
+                        prompt: command.prompt,
+                        arguments: args,
+                    },
+                    McpServerConfigSchema.parse(server),
+                    {}
+                );
+            }
             let args: Record<string, unknown> = {};
             if (command.command === 'call') {
                 try {
@@ -318,6 +349,25 @@ async function performMcpOperation(
                 exitCode: 0,
                 output: { server, prompts: manager.getAllPromptMetadata(), connection: 'closed' },
             };
+        case 'get-prompt': {
+            const protocol = await getConnectedServerProtocol(manager, server);
+            const result = await protocol.getPrompt(
+                { name: command.prompt, arguments: command.arguments },
+                { timeout }
+            );
+            return {
+                exitCode: 0,
+                output: { server, prompt: command.prompt, result, connection: 'closed' },
+            };
+        }
+        case 'read-resource': {
+            const protocol = await getConnectedServerProtocol(manager, server);
+            const result = await protocol.readResource({ uri: command.uri }, { timeout });
+            return {
+                exitCode: 0,
+                output: { server, uri: command.uri, result, connection: 'closed' },
+            };
+        }
         case 'call': {
             const descriptor = manager
                 .getToolDescriptors()
@@ -328,10 +378,8 @@ async function performMcpOperation(
                 );
             if (!descriptor) throw MCPError.toolNotFound(command.tool);
             const input = manager.validateToolInput(descriptor.name, args);
-            const client = manager.getClients().get(server);
-            if (!client) throw new Error('Connected MCP client missing');
             // Keep upstream names literal; manager aliases can contain the same delimiter.
-            const protocol = await client.getConnectedClient();
+            const protocol = await getConnectedServerProtocol(manager, server);
             const result = await protocol.callTool(
                 { name: command.tool, arguments: input },
                 undefined,
@@ -343,6 +391,12 @@ async function performMcpOperation(
             };
         }
     }
+}
+
+async function getConnectedServerProtocol(manager: MCPManager, server: string) {
+    const client = manager.getClients().get(server);
+    if (!client) throw new Error('Connected MCP client missing');
+    return await client.getConnectedClient();
 }
 
 export interface McpAddOptions {
