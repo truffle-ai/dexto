@@ -1,5 +1,11 @@
 # @dexto/client-sdk
 
+## 1.14.0
+
+### Minor Changes
+
+- 18beacd: Add authenticated Cloud capability sources, search, and describe commands with JSON output and an isolated discovery SDK export. Preserve the platform origin of saved credentials.
+
 ## 1.13.5
 
 ## 1.13.4

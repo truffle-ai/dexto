@@ -1,5 +1,22 @@
 # @dexto/core
 
+## 1.14.0
+
+### Minor Changes
+
+- feaa7aa: Add scope-aware session approval choices and a local `/permissions` selector to inspect and revoke remembered tool and action grants. Keep agent permission defaults and headless behavior unchanged. Honor mandatory manual approval policy in TUI auto modes and use exact approval scopes for complex shell commands.
+
+### Patch Changes
+
+- eec55be: Add opt-in MCP desired configuration ownership and safe status snapshots while preserving existing connection and restart APIs.
+- f23f4ee: Add literal-identity MCP protocol tool calls with typed full results and caller-owned cancellation, preserving legacy agent execution behavior.
+- 4cb931b: Retain displaced same-name MCP client identities so manager-wide cleanup closes original and replacement connections without eagerly interrupting captured calls.
+- 331e59d: Clean up rejected MCP connection and restart candidates without replacing the original connection error or disturbing other registered servers. Retain failed restart configurations for retry and document standalone MCP usage and caller-owned authorization.
+- 5fd0113: Keep Core MCP operational diagnostics while omitting raw transport configuration, operation payloads and provider errors from logs. Preserve existing caller results, errors and configuration inspection APIs.
+- a7c393b: Update the MCP SDK v1 dependency to 1.32.1. HTTP/SSE connections now use upstream origin-restricted redirects: configure the final endpoint URL when a service redirects across origins. Preserve direct SDK tool/resource composition and document stdio buffering and OAuth issuer persistence compatibility.
+- f5ee16a: Drain already-started MCP connection and restart operations through discovery before disconnecting clients and clearing caches. Stop starting new operations before teardown; existing outcomes and desired registrations are preserved without adding cancellation or timeouts.
+    - @dexto/llm@1.14.0
+
 ## 1.13.5
 
 ### Patch Changes

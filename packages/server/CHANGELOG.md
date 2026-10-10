@@ -1,5 +1,28 @@
 # @dexto/server
 
+## 1.14.0
+
+### Patch Changes
+
+- cfe5676: Keep MCP chat requests and agent-card discovery aligned with the CLI host's current agent after switches while preserving static server integrations.
+- a7c393b: Update the MCP SDK v1 dependency to 1.32.1. HTTP/SSE connections now use upstream origin-restricted redirects: configure the final endpoint URL when a service redirects across origins. Preserve direct SDK tool/resource composition and document stdio buffering and OAuth issuer persistence compatibility.
+- 45271e7: Use the supported MCP tool and resource registration APIs while preserving existing discovery, validation and agent session behavior.
+- Updated dependencies [eec55be]
+- Updated dependencies [f23f4ee]
+- Updated dependencies [4cb931b]
+- Updated dependencies [331e59d]
+- Updated dependencies [5fd0113]
+- Updated dependencies [a7c393b]
+- Updated dependencies [f5ee16a]
+- Updated dependencies [feaa7aa]
+    - @dexto/core@1.14.0
+    - @dexto/agent-config@1.14.0
+    - @dexto/agent-management@1.14.0
+    - @dexto/image-local@1.14.0
+    - @dexto/storage@1.14.0
+    - @dexto/tools-scheduler@1.14.0
+    - @dexto/llm@1.14.0
+
 ## 1.13.5
 
 ### Patch Changes
