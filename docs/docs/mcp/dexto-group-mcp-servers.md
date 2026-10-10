@@ -93,6 +93,7 @@ Or use the default Dexto configuration
 ### Step 3: Restart Cursor
 
 After adding the configuration, restart Cursor to load the new MCP server.
+
 ## Connection ownership and protocol behavior
 
 The grouped server forwards tool schemas and metadata, structured tool results (including
