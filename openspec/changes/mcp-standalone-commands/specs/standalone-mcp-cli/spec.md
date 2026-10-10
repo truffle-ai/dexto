@@ -6,7 +6,12 @@ Provide deterministic MCP server setup and direct operations for users and autom
 
 ### Requirement: Independent configuration
 
-The CLI SHALL read MCP servers from the selected MCP-only YAML file. Add and remove SHALL preserve unrelated YAML fields and comments, and add SHALL preserve literal environment templates. Duplicate additions SHALL fail unless replacement is explicit.
+The CLI SHALL read MCP servers from the selected MCP-only YAML file. An explicit subcommand `--config` SHALL override parent `--config`; absent both, standalone commands SHALL use `.dexto/mcp.yml`. Add and remove SHALL preserve unrelated YAML fields and comments, and add SHALL preserve literal environment templates. Duplicate additions SHALL fail unless replacement is explicit.
+
+#### Scenario: Parent configuration selection
+
+- **WHEN** `--config` appears before a standalone subcommand
+- **THEN** the selected file is used unless that subcommand explicitly supplies its own file
 
 #### Scenario: Portable setup
 
@@ -38,7 +43,12 @@ Connection probes, discovery and tool calls SHALL close all connections owned by
 
 ### Requirement: Noninteractive outcomes
 
-Commands SHALL support JSON stdout and distinct nonzero outcomes for configuration, connection and operation failures without model setup or interactive prompts. Existing `mcp --group-servers` SHALL remain available.
+After command parsing succeeds, commands SHALL support JSON stdout and distinct nonzero outcomes for configuration, connection and operation failures without model setup or interactive prompts. Existing `mcp --group-servers` SHALL remain available.
+
+#### Scenario: Parser error
+
+- **WHEN** a command has an unknown option or missing operand
+- **THEN** the standard CLI parser reports the error on stderr with exit status 1 before the action runs
 
 #### Scenario: Server tool error
 

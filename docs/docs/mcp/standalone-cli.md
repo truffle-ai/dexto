@@ -5,7 +5,7 @@ sidebar_position: 9
 
 # Standalone MCP CLI
 
-Use `dexto mcp` to configure, discover and call MCP servers without an agent, model credentials or Dexto login. Commands use `.dexto/mcp.yml` in the current directory by default. Supply `--config <path>` on each command to select another MCP-only YAML file.
+Use `dexto mcp` to configure, discover and call MCP servers without an agent, model credentials or Dexto login. Commands use `.dexto/mcp.yml` in the current directory by default. Supply `--config <path>` before or after the subcommand to select another MCP-only YAML file. An explicit subcommand option overrides the parent option.
 
 ## Add an existing server
 
@@ -44,7 +44,7 @@ dexto mcp remove local --json
 
 `tools` includes advertised input schemas. `call` accepts the exact upstream tool name, validates its arguments using Core, and preserves the MCP tool result, including `isError` and its content. An MCP error result has a nonzero exit status. `resources` and `prompts` list metadata; reading resources and rendering prompts are outside this command slice.
 
-With `--json`, stdout contains one JSON outcome. Exit status 0 means success, 2 means invalid usage/configuration or configuration I/O, 3 means connection failure, and 4 means operation, MCP tool-result or cleanup failure. Configuration and connection diagnostics omit raw credential-bearing details. Returned tool content is the requested server data. These commands do not provide interactive OAuth or elicitation.
+After command parsing succeeds, `--json` makes stdout contain one JSON outcome. Exit status 0 means success, 2 means invalid command data/configuration or configuration I/O, 3 means connection failure, and 4 means operation, MCP tool-result or cleanup failure. Parser errors such as an unknown option or missing operand use the standard CLI error on stderr and exit status 1, before an action runs. Configuration and connection diagnostics omit raw credential-bearing details. Returned tool content is the requested server data. These commands do not provide interactive OAuth or elicitation.
 
 ## Expose the configuration as a gateway
 

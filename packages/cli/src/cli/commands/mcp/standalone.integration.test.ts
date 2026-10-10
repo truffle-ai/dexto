@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process';
 import { performance } from 'node:perf_hooks';
-import { mkdtemp, rm, writeFile, readFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, rm, writeFile, readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -104,10 +104,18 @@ afterAll(async () => {
     );
     await rm(directory, { recursive: true, force: true });
 });
-function run(args: string[]) {
+function run(args: string[], configPath: string | null = config) {
     return execute(
         process.execPath,
-        ['--import', tsx, entrypoint, 'mcp', ...args, '--config', config, '--json'],
+        [
+            '--import',
+            tsx,
+            entrypoint,
+            'mcp',
+            ...args,
+            ...(configPath === null ? [] : ['--config', configPath]),
+            '--json',
+        ],
         {
             cwd: directory,
             env: {
@@ -132,6 +140,78 @@ it('runs standalone listing without model, login or agent configuration', async 
             { name: 'disabled', type: 'stdio', enabled: false, status: 'disabled' },
         ],
     });
+}, 30000);
+
+it('honors parent configuration, explicit leaf override and the project default', async () => {
+    const empty = join(directory, 'empty.yml');
+    await writeFile(empty, 'mcpServers: {}\n');
+    await mkdir(join(directory, '.dexto'), { recursive: true });
+    await writeFile(join(directory, '.dexto', 'mcp.yml'), await readFile(config));
+    expect(JSON.parse((await run(['--config', empty, 'list'], null)).stdout)).toEqual({
+        servers: [],
+    });
+    expect(JSON.parse((await run(['list', '--config', empty], null)).stdout)).toEqual({
+        servers: [],
+    });
+    expect(
+        JSON.parse((await run(['--config', config, 'list', '--config', empty], null)).stdout)
+    ).toEqual({ servers: [] });
+    expect(JSON.parse((await run(['list'], null)).stdout).servers).toHaveLength(2);
+}, 30000);
+
+it('uses the parent-selected file for mutations and direct tool execution', async () => {
+    const selected = join(directory, 'parent-selected.yml');
+    await writeFile(selected, 'mcpServers: {}\n');
+    await run(
+        [
+            '--config',
+            selected,
+            'add',
+            'selected',
+            '--command',
+            process.execPath,
+            '--arg',
+            fixturePath,
+        ],
+        null
+    );
+    const result = JSON.parse(
+        (
+            await run(
+                [
+                    '--config',
+                    selected,
+                    'call',
+                    'selected',
+                    'echo',
+                    '--arguments',
+                    '{"message":"selected-file"}',
+                ],
+                null
+            )
+        ).stdout
+    );
+    const answer = JSON.parse(result.result.content[0].text);
+    expect(answer.message).toBe('selected-file');
+    expect(() => process.kill(answer.pid, 0)).toThrow();
+    expect(await readFile(config, 'utf8')).not.toContain('selected:');
+    await run(['--config', selected, 'remove', 'selected'], null);
+    expect(JSON.parse((await run(['--config', selected, 'list'], null)).stdout)).toEqual({
+        servers: [],
+    });
+}, 30000);
+
+it('reports command parser errors on stderr with exit 1 before an action runs', async () => {
+    for (const args of [
+        ['list', '--unknown-option'],
+        ['call', 'local'],
+    ]) {
+        await expect(run(args, null)).rejects.toMatchObject({
+            code: 1,
+            stdout: '',
+            stderr: expect.stringContaining('error:'),
+        });
+    }
 }, 30000);
 
 it('probes a selected real stdio server and reports closed ownership', async () => {

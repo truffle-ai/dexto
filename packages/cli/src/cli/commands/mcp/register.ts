@@ -142,6 +142,13 @@ export function registerMcpCommand({ program }: McpCommandRegisterContext): void
                 { timeoutMs: 0 }
             )
         );
+    mcp.hook('preAction', (_, actionCommand) => {
+        if (actionCommand === mcp || actionCommand.getOptionValueSource('config') !== 'default')
+            return;
+        const parentConfig = mcp.opts<{ config?: string }>().config;
+        if (parentConfig !== undefined)
+            actionCommand.setOptionValueWithSource('config', parentConfig, 'implied');
+    });
     const list = mcp.command('list').description('List configured MCP servers without connecting');
     list.option('--config <path>', 'MCP-only YAML configuration', '.dexto/mcp.yml').option(
         '--json',
