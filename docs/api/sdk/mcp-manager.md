@@ -23,8 +23,8 @@ constructor(logger: Logger, eventBusOverride?: AgentEventBus)
 | `connectServer(name, config)`   | Connects one server using a validated MCP configuration. An already registered name is left unchanged. Failed candidates are disconnected best-effort. |
 | `initializeFromConfig(configs)` | Connects enabled servers concurrently. Per-server `connectionMode: 'strict'` failures reject; `lenient` failures are recorded.                         |
 | `restartServer(name)`           | Disconnects and reconnects using the saved configuration. Failed restart candidates are cleaned up; configuration remains available for retry.         |
-| `removeClient(name)`            | Disconnects one client and removes its configuration, caches, and recorded connection error.                                                           |
-| `disconnectAll()`               | Disconnects registered clients and clears manager state. Cleanup failures are logged.                                                                  |
+| `removeClient(name)`            | Disconnects one client and removes legacy restart configuration, caches, and recorded error; explicit desired registration remains.                    |
+| `disconnectAll()`               | Disconnects registered clients and clears legacy connection state; explicit desired registrations remain. Cleanup failures are logged.                 |
 | `refresh()`                     | Refreshes cached discovery from connected clients.                                                                                                     |
 
 Parse raw configuration before connecting:
@@ -41,6 +41,21 @@ await manager.connectServer('local', config);
 Supported configurations are `stdio` (`command`, `args`, optional `env`), `http`, and `sse` (`url`, optional `headers`). Remote HTTP is preferred for new servers. A server name must not collide with another name after punctuation is replaced by underscores.
 
 `getClients()` exposes registered clients. `getServerConfig(name)` returns the saved configuration. `getFailedConnections()`, `getFailedConnectionError(name)`, and `getFailedConnectionErrorCode(name)` describe recorded connection failures. These are not continuous health checks.
+
+## Explicit desired configuration
+
+These additive methods opt into desired configuration ownership without changing existing connection defaults:
+
+| Method                                                                | Behavior                                                                                                            |
+| --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `configureServer(name, config): void`                                 | Copies validated desired configuration without connecting; rejects active names and the reserved name `__proto__`.  |
+| `connectConfiguredServer(name): Promise<void>`                        | Connects a registered enabled configuration through the existing engine; rejects unknown, disabled or active names. |
+| `forgetServerConfiguration(name): void`                               | Removes desired registration after disconnection; rejects active names.                                             |
+| `getConfiguredServerStatuses(): readonly ConfiguredMcpServerStatus[]` | Returns fresh safe snapshots only for explicitly configured names.                                                  |
+
+`ConfiguredMcpServerStatus` is exported from `@dexto/core/mcp`. Each row includes `name`, `configuredTransport`, and `status`; only `failed` rows include an allowlisted `errorCode`. Status precedence is `connecting`, `connected`, `disabled`, `failed`, then `configured`. Overlapping attempts remain `connecting` until all settle. Registered `connected` state is not a liveness guarantee.
+
+`configuredTransport` describes desired configuration, even when legacy APIs connect another configuration for that name. Desired configuration and legacy restart configuration are independently owned. Disconnecting is reusable and does not forget desired registrations; forgetting is explicit. The snapshot excludes raw configurations, errors and process/client metadata. Legacy getters and agent status APIs are unchanged.
 
 ## Tools, prompts, and resources
 

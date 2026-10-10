@@ -1,4 +1,5 @@
-import type { ValidatedMcpServerConfig } from './schemas.js';
+import type { MCPErrorCode } from './error-codes.js';
+import type { McpServerType, ValidatedMcpServerConfig } from './schemas.js';
 import type { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import type { OAuthClientProvider } from '@modelcontextprotocol/sdk/client/auth.js';
 import type { ToolProvider } from '../tools/types.js';
@@ -51,3 +52,13 @@ export type McpClient = ToolProvider &
         // MCP Client Management
         getConnectedClient(): Promise<Client>;
     };
+
+/** Safe desired-configuration metadata; connected means registered, not remote liveness. */
+export type ConfiguredMcpServerStatus = Readonly<{
+    name: string;
+    configuredTransport: McpServerType;
+}> &
+    (
+        | Readonly<{ status: 'configured' | 'disabled' | 'connecting' | 'connected' }>
+        | Readonly<{ status: 'failed'; errorCode: MCPErrorCode }>
+    );

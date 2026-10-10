@@ -9,6 +9,7 @@ import type {
 } from '@modelcontextprotocol/sdk/types.js';
 import type {
     McpClient,
+    ConfiguredMcpServerStatus,
     MCPResolvedResource,
     MCPResourceSummary,
     McpAuthProviderFactory,
@@ -85,6 +86,8 @@ type ToolCacheEntry = {
 
 export class MCPManager {
     private clients: Map<string, McpClient> = new Map();
+    private desiredConfigurations = new Map<string, ValidatedMcpServerConfig>();
+    private connectingOperations = new Map<string, number>();
     private connectionErrors: { [key: string]: { message: string; code?: string } } = {};
     private configCache: Map<string, ValidatedMcpServerConfig> = new Map(); // Store original configs for restart
     private toolCache: Map<string, ToolCacheEntry> = new Map();
@@ -761,6 +764,73 @@ export class MCPManager {
         return await entry.client.readResource(entry.summary.uri);
     }
 
+    /** Register desired configuration without connecting or changing legacy restart configuration. */
+    configureServer(name: string, config: ValidatedMcpServerConfig): void {
+        if (name === '__proto__')
+            throw MCPError.connectionFailed(
+                name,
+                'Server name is reserved by legacy error storage'
+            );
+        this.assertConfigurationMutable(name);
+        this.desiredConfigurations.set(name, structuredClone(config));
+    }
+
+    /** Forget an explicit desired registration; disconnecting alone retains it. */
+    forgetServerConfiguration(name: string): void {
+        this.assertConfigurationMutable(name);
+        this.desiredConfigurations.delete(name);
+    }
+
+    /** Connect an explicitly registered, enabled configuration using the existing engine. */
+    async connectConfiguredServer(name: string): Promise<void> {
+        const config = this.desiredConfigurations.get(name);
+        if (config === undefined)
+            throw MCPError.serverNotFound(name, 'Desired configuration not found');
+        if (!config.enabled) throw MCPError.connectionFailed(name, 'Configured server is disabled');
+        this.assertConfigurationMutable(name);
+        await this.connectServer(name, structuredClone(config));
+    }
+
+    /** List only explicitly registered desired configurations, never raw configs or diagnostics. */
+    getConfiguredServerStatuses(): readonly ConfiguredMcpServerStatus[] {
+        return Array.from(
+            this.desiredConfigurations,
+            ([name, config]): ConfiguredMcpServerStatus => {
+                const metadata = { name, configuredTransport: config.type };
+                if (this.connectingOperations.has(name))
+                    return { ...metadata, status: 'connecting' };
+                if (this.clients.has(name)) return { ...metadata, status: 'connected' };
+                if (!config.enabled) return { ...metadata, status: 'disabled' };
+                const error = Object.hasOwn(this.connectionErrors, name)
+                    ? this.connectionErrors[name]
+                    : undefined;
+                if (error !== undefined) {
+                    const errorCode =
+                        Object.values(MCPErrorCode).find((code) => code === error.code) ??
+                        MCPErrorCode.CONNECTION_FAILED;
+                    return { ...metadata, status: 'failed', errorCode };
+                }
+                return { ...metadata, status: 'configured' };
+            }
+        );
+    }
+
+    private assertConfigurationMutable(name: string): void {
+        if (this.clients.has(name) || this.connectingOperations.has(name)) {
+            throw MCPError.connectionFailed(
+                name,
+                'Server has an active connection operation or registered client'
+            );
+        }
+    }
+
+    private finishConnectionAttempt(name: string): void {
+        const count = this.connectingOperations.get(name);
+        if (count === undefined) throw MCPError.protocolError('Missing MCP connection operation');
+        if (count === 1) this.connectingOperations.delete(name);
+        else this.connectingOperations.set(name, count - 1);
+    }
+
     /**
      * Initialize clients from server configurations
      * @param serverConfigs Server configurations with individual connection modes
@@ -851,6 +921,7 @@ export class MCPManager {
 
         const client = new DextoMcpClient(this.logger);
         client.setAuthProviderFactory(this.authProviderFactory);
+        this.connectingOperations.set(name, (this.connectingOperations.get(name) ?? 0) + 1);
         try {
             this.logger.info(`Attempting to connect to new server '${name}'...`);
             await client.connect(config, name);
@@ -882,6 +953,8 @@ export class MCPManager {
             });
             await this.discardFailedClient(name, client);
             throw MCPError.connectionFailed(name, errorMsg);
+        } finally {
+            this.finishConnectionAttempt(name);
         }
     }
 
@@ -998,68 +1071,73 @@ export class MCPManager {
             );
         }
 
-        // Allow restart even if client is not currently registered (enables retries after failed restart)
-        const client = this.clients.get(name);
+        this.connectingOperations.set(name, (this.connectingOperations.get(name) ?? 0) + 1);
+        try {
+            // Allow restart even if client is not currently registered (enables retries after failed restart)
+            const client = this.clients.get(name);
 
-        this.logger.info(`Restarting MCP server '${name}'...`);
+            this.logger.info(`Restarting MCP server '${name}'...`);
 
-        // Disconnect existing client if one exists
-        if (client) {
-            try {
-                await client.disconnect();
-                this.logger.info(`Disconnected server '${name}' for restart`);
-            } catch {
-                this.logger.warn(
-                    `Error disconnecting server '${name}' during restart (continuing)`,
-                    { code: MCPErrorCode.DISCONNECTION_FAILED }
+            // Disconnect existing client if one exists
+            if (client) {
+                try {
+                    await client.disconnect();
+                    this.logger.info(`Disconnected server '${name}' for restart`);
+                } catch {
+                    this.logger.warn(
+                        `Error disconnecting server '${name}' during restart (continuing)`,
+                        { code: MCPErrorCode.DISCONNECTION_FAILED }
+                    );
+                }
+            } else {
+                this.logger.info(
+                    `No active client found for '${name}' during restart; attempting fresh connection`
                 );
             }
-        } else {
-            this.logger.info(
-                `No active client found for '${name}' during restart; attempting fresh connection`
-            );
-        }
 
-        // Clear caches but keep config
-        this.clearClientCache(name);
-        this.clients.delete(name);
-        delete this.connectionErrors[name];
+            // Clear caches but keep config
+            this.clearClientCache(name);
+            this.clients.delete(name);
+            delete this.connectionErrors[name];
 
-        // Reconnect with original config
-        const newClient = new DextoMcpClient(this.logger);
-        newClient.setAuthProviderFactory(this.authProviderFactory);
-        try {
-            await newClient.connect(config, name);
+            // Reconnect with original config
+            const newClient = new DextoMcpClient(this.logger);
+            newClient.setAuthProviderFactory(this.authProviderFactory);
+            try {
+                await newClient.connect(config, name);
 
-            // Set approval manager if available
-            if (this.approvalManager) {
-                newClient.setApprovalManager(this.approvalManager);
+                // Set approval manager if available
+                if (this.approvalManager) {
+                    newClient.setApprovalManager(this.approvalManager);
+                }
+
+                this.registerClient(name, newClient);
+                await this.updateClientCache(name, newClient);
+
+                // Config is still in cache from original connection
+                this.logger.info(`Successfully restarted server '${name}'`);
+
+                // Emit event for restart
+                this.eventBus.emit('mcp:server-restarted', { serverName: name });
+            } catch (error) {
+                const errorMsg = error instanceof Error ? error.message : String(error);
+                const errorCode =
+                    error && typeof error === 'object' && 'code' in error
+                        ? String((error as { code?: unknown }).code)
+                        : undefined;
+                this.connectionErrors[name] = {
+                    message: errorMsg,
+                    ...(errorCode ? { code: errorCode } : {}),
+                };
+                this.logger.error(`Failed to restart server '${name}'`, {
+                    code: MCPErrorCode.CONNECTION_FAILED,
+                });
+                await this.discardFailedClient(name, newClient);
+                // Note: Config remains in cache for potential retry
+                throw MCPError.connectionFailed(name, errorMsg);
             }
-
-            this.registerClient(name, newClient);
-            await this.updateClientCache(name, newClient);
-
-            // Config is still in cache from original connection
-            this.logger.info(`Successfully restarted server '${name}'`);
-
-            // Emit event for restart
-            this.eventBus.emit('mcp:server-restarted', { serverName: name });
-        } catch (error) {
-            const errorMsg = error instanceof Error ? error.message : String(error);
-            const errorCode =
-                error && typeof error === 'object' && 'code' in error
-                    ? String((error as { code?: unknown }).code)
-                    : undefined;
-            this.connectionErrors[name] = {
-                message: errorMsg,
-                ...(errorCode ? { code: errorCode } : {}),
-            };
-            this.logger.error(`Failed to restart server '${name}'`, {
-                code: MCPErrorCode.CONNECTION_FAILED,
-            });
-            await this.discardFailedClient(name, newClient);
-            // Note: Config remains in cache for potential retry
-            throw MCPError.connectionFailed(name, errorMsg);
+        } finally {
+            this.finishConnectionAttempt(name);
         }
     }
 

@@ -69,13 +69,38 @@ A failed connection or restart attempts to disconnect its rejected candidate. A 
 
 Server names must remain unique after sanitization: characters outside letters, numbers, underscores, and hyphens become underscores. For example, `my@server` and `my_server` collide.
 
+## Desired configuration and safe status
+
+Hosts that need to display configured entries can opt into desired configuration ownership:
+
+```typescript
+manager.configureServer('local', config);
+console.log(manager.getConfiguredServerStatuses());
+// [{ name: 'local', configuredTransport: 'http', status: 'configured' }]
+
+try {
+    await manager.connectConfiguredServer('local');
+} finally {
+    await manager.disconnectAll();
+    manager.forgetServerConfiguration('local');
+}
+```
+
+`configureServer(name, config)` copies validated configuration without connecting. The name `__proto__` is reserved because legacy failure storage cannot record it safely; this restriction applies only to the new registration API. Names such as `constructor` and `toString` remain supported. Disabled entries appear as `disabled`; attempting to connect them rejects without starting a process. `connectConfiguredServer(name)` requires a registered, enabled configuration and rejects names with an active attempt or registered client. Configure and forget also reject active names; disconnect before replacing or forgetting configuration.
+
+`getConfiguredServerStatuses()` includes only names registered with `configureServer`. It returns fresh readonly metadata: `name`, `configuredTransport`, `status`, and an allowlisted `errorCode` only for `failed`. Statuses are `configured`, `disabled`, `connecting`, `connected`, or `failed`. While any connection or restart attempt for the name is in flight, `connecting` takes precedence. `connected` means a client is registered; it does not promise remote liveness. Failure describes the last recorded attempt for that name, not verification of its desired configuration.
+
+`configuredTransport` always describes desired configuration. A legacy `connectServer(name, otherConfig)` call can connect another transport for the same name without applying desired configuration. The snapshot reports registration state while keeping desired transport metadata distinct.
+
+Desired registration survives `removeClient()` and reusable `disconnectAll()` until explicitly forgotten. `getServerConfig()` continues to describe legacy successful/restart configuration; raw error getters and existing agent status APIs keep their original behavior. Desired configuration and legacy restart configuration are independently owned. No configuration, command, URL, environment, headers, process metadata, client object or raw error message is included in the new snapshot.
+
 ## Authorization and current limits
 
 Direct MCP management does not install the agent's tool permission policy or display a CLI approval prompt. Your application must authorize calls and supply the server's required credentials. Discovery and argument validation do not grant permission to execute a tool. An optional approval manager handles server elicitation; it is not a substitute for authorization around direct tool calls.
 
 `setAuthProviderFactory(factory)` supplies an OAuth provider for servers that need one. Static credentials can be supplied through configured headers or a stdio server's environment. Keep credentials out of discovery output and application logs.
 
-The current tool-call API has a configured request timeout but no public abort-signal option. Disconnect is best-effort, and connection status is not a remote-health probe. This guide does not introduce new cancellation, status, retry, or CLI behavior.
+The current tool-call API has a configured request timeout but no public abort-signal option. Disconnect is best-effort, and connection status is not a remote-health probe. The configured status snapshot does not add cancellation, automatic retry, or CLI behavior.
 
 See the [MCPManager API reference](/api/sdk/mcp-manager) for method signatures.
 

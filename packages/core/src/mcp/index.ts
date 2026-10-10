@@ -6,6 +6,7 @@ export type {
     MCPResourceSummary,
     MCPResolvedResource,
     McpClient,
+    ConfiguredMcpServerStatus,
 } from './types.js';
 export {
     MCP_SERVER_TYPES,
