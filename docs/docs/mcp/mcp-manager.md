@@ -61,6 +61,8 @@ For a local stdio server, parse a config with `type: 'stdio'`, `command`, `args`
 
 Always call `disconnectAll()` in a `finally` block. Use `removeClient(name)` to disconnect and forget one connection, or `restartServer(name)` to reconnect using its saved configuration.
 
+Before teardown, stop initiating new connections and restarts. `disconnectAll()` drains operations already pending, including their handshake and discovery, then disconnects registered clients and clears caches. Original connection/restart results are preserved, desired registrations remain, and the manager can be reused. Draining waits for existing protocol requests and caller-owned authentication; it does not cancel startup or add a deadline. Connections/restarts started after teardown begins and independent refresh/notification work are outside this guarantee.
+
 A failed connection or restart attempts to disconnect its rejected candidate. A cleanup error does not replace the connection error. A failed restart retains its saved configuration so you can retry it; it does not restore the old connection. Other connected servers remain usable.
 
 `getFailedConnections()` reports recorded connection errors. `getFailedConnectionError(name)` and `getFailedConnectionErrorCode(name)` expose their details. These describe failed connection attempts; they are not a continuous remote-health check.

@@ -91,6 +91,7 @@ export class MCPManager {
     private clients: Map<string, McpClient> = new Map();
     private desiredConfigurations = new Map<string, ValidatedMcpServerConfig>();
     private connectingOperations = new Map<string, number>();
+    private pendingConnectionOperations = new Set<Promise<void>>();
     private connectionErrors: { [key: string]: { message: string; code?: string } } = {};
     private configCache: Map<string, ValidatedMcpServerConfig> = new Map(); // Store original configs for restart
     private toolCache: Map<string, ToolCacheEntry> = new Map();
@@ -937,7 +938,23 @@ export class MCPManager {
      * @returns Promise resolving when the connection attempt is complete.
      * @throws Error if the connection fails.
      */
-    async connectServer(name: string, config: ValidatedMcpServerConfig): Promise<void> {
+    connectServer(name: string, config: ValidatedMcpServerConfig): Promise<void> {
+        return this.trackConnectionOperation(this.connectServerAndCache(name, config));
+    }
+
+    private async trackConnectionOperation(operation: Promise<void>): Promise<void> {
+        this.pendingConnectionOperations.add(operation);
+        try {
+            await operation;
+        } finally {
+            this.pendingConnectionOperations.delete(operation);
+        }
+    }
+
+    private async connectServerAndCache(
+        name: string,
+        config: ValidatedMcpServerConfig
+    ): Promise<void> {
         if (this.clients.has(name)) {
             this.logger.warn(`Client '${name}' is already connected or registered.`);
             return;
@@ -1085,7 +1102,11 @@ export class MCPManager {
      * @param name The name of the server to restart.
      * @throws Error if server doesn't exist or config is not cached.
      */
-    async restartServer(name: string): Promise<void> {
+    restartServer(name: string): Promise<void> {
+        return this.trackConnectionOperation(this.restartServerAndCache(name));
+    }
+
+    private async restartServerAndCache(name: string): Promise<void> {
         // Get stored config first (this is the critical check)
         const config = this.configCache.get(name);
         if (!config) {
@@ -1166,9 +1187,16 @@ export class MCPManager {
     }
 
     /**
-     * Disconnect all clients and clear caches
+     * Drain already-started connection/restart operations, including discovery, then
+     * disconnect registered clients and clear caches. Desired registrations remain reusable.
+     * Callers must stop starting new connection/restart operations before teardown.
+     * Draining waits for existing protocol/authentication completion; it does not cancel
+     * startup or introduce an additional deadline.
      */
     async disconnectAll(): Promise<void> {
+        // Startup owns its candidate through discovery, before it can be safely disconnected.
+        // Callers must stop starting new connection operations before teardown.
+        await Promise.allSettled([...this.pendingConnectionOperations]);
         const disconnectPromises: Promise<void>[] = [];
         for (const [name, client] of Array.from(this.clients.entries())) {
             disconnectPromises.push(

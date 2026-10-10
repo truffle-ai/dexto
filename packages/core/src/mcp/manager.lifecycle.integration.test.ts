@@ -51,6 +51,181 @@ describe('MCP failed connection lifecycle', () => {
             }),
         };
     }
+    it('drains pending startup before closing its client and remains reusable', async () => {
+        const server = serverConfig('pending-startup');
+        const modeFile = join(directory, 'pending-mode');
+        const releaseFile = join(directory, 'pending-release');
+        await writeFile(modeFile, 'wait-for-file');
+        const config = McpServerConfigSchema.parse({
+            ...server.config,
+            args: [serverPath, server.pidFile, 'from-file', modeFile, releaseFile],
+        });
+        manager.configureServer('pending', config);
+        const startup = manager.connectServer('pending', config);
+        // Attach a rejection handler before any teardown assertion can fail.
+        const startupResult = startup.then(
+            () => 'connected',
+            (error: unknown) => error
+        );
+        let cleanup: Promise<void> | undefined;
+        try {
+            await vi.waitFor(async () =>
+                expect(await readFile(server.pidFile, 'utf8')).toBeTruthy()
+            );
+            expect(manager.getClients().size).toBe(0);
+            let cleanupFinished = false;
+            cleanup = manager.disconnectAll().then(() => {
+                cleanupFinished = true;
+            });
+            await new Promise<void>((resolve) => setTimeout(resolve, 25));
+            expect(cleanupFinished).toBe(false);
+            await writeFile(releaseFile, 'ready');
+            expect(await startupResult).toBe('connected');
+            await cleanup;
+            const pid = Number(await readFile(server.pidFile, 'utf8'));
+            await vi.waitFor(() => expect(isProcessRunning(pid)).toBe(false), { timeout: 2000 });
+            expect(manager.getClients().size).toBe(0);
+            expect(await manager.getAllTools()).toEqual({});
+            expect(manager.getServerConfig('pending')).toBeUndefined();
+            expect(manager.getConfiguredServerStatuses()).toMatchObject([
+                { name: 'pending', status: 'configured' },
+            ]);
+            await writeFile(modeFile, 'normal');
+            await manager.connectServer('pending', config);
+            expect(await manager.executeTool('ping', {})).toMatchObject({
+                content: [{ type: 'text', text: 'pong' }],
+            });
+        } finally {
+            await writeFile(releaseFile, 'ready');
+            await Promise.allSettled([startupResult, ...(cleanup ? [cleanup] : [])]);
+        }
+    }, 15000);
+    it('drains a pending restart and closes its replacement without changing the restart result', async () => {
+        const server = serverConfig('pending-restart');
+        const modeFile = join(directory, 'restart-mode');
+        const releaseFile = join(directory, 'restart-release');
+        await writeFile(modeFile, 'normal');
+        const config = McpServerConfigSchema.parse({
+            ...server.config,
+            args: [serverPath, server.pidFile, 'from-file', modeFile, releaseFile],
+        });
+        await manager.connectServer('restart', config);
+        const originalPid = Number(await readFile(server.pidFile, 'utf8'));
+        await writeFile(modeFile, 'wait-for-file');
+        const restart = manager.restartServer('restart');
+        const restartResult = restart.then(
+            () => 'restarted',
+            (error: unknown) => error
+        );
+        let cleanup: Promise<void> | undefined;
+        try {
+            await vi.waitFor(async () => {
+                expect(Number(await readFile(server.pidFile, 'utf8'))).not.toBe(originalPid);
+            });
+            let cleanupFinished = false;
+            cleanup = manager.disconnectAll().then(() => {
+                cleanupFinished = true;
+            });
+            await new Promise<void>((resolve) => setTimeout(resolve, 25));
+            expect(cleanupFinished).toBe(false);
+            await writeFile(releaseFile, 'ready');
+            expect(await restartResult).toBe('restarted');
+            await cleanup;
+            const replacementPid = Number(await readFile(server.pidFile, 'utf8'));
+            await vi.waitFor(
+                () => {
+                    expect(isProcessRunning(originalPid)).toBe(false);
+                    expect(isProcessRunning(replacementPid)).toBe(false);
+                },
+                { timeout: 2000 }
+            );
+            expect(manager.getClients().size).toBe(0);
+            expect(await manager.getAllTools()).toEqual({});
+            expect(manager.getServerConfig('restart')).toBeUndefined();
+        } finally {
+            await writeFile(releaseFile, 'ready');
+            await Promise.allSettled([restartResult, ...(cleanup ? [cleanup] : [])]);
+        }
+    }, 15000);
+    it('drains discovery after registration before clearing all connection caches', async () => {
+        const server = serverConfig('pending-discovery');
+        const discoveryFile = join(directory, 'discovery-started');
+        const releaseFile = join(directory, 'discovery-release');
+        const config = McpServerConfigSchema.parse({
+            ...server.config,
+            args: [serverPath, server.pidFile, 'wait-for-discovery', discoveryFile, releaseFile],
+        });
+        const startup = manager.connectServer('discovery', config);
+        const startupResult = startup.then(
+            () => 'connected',
+            (error: unknown) => error
+        );
+        let cleanup: Promise<void> | undefined;
+        try {
+            await vi.waitFor(async () =>
+                expect(await readFile(discoveryFile, 'utf8')).toBe('discovery-started')
+            );
+            expect(manager.getClients().has('discovery')).toBe(true);
+            let cleanupFinished = false;
+            cleanup = manager.disconnectAll().then(() => {
+                cleanupFinished = true;
+            });
+            await new Promise<void>((resolve) => setTimeout(resolve, 25));
+            expect(cleanupFinished).toBe(false);
+            await writeFile(releaseFile, 'ready');
+            expect(await startupResult).toBe('connected');
+            await cleanup;
+            const pid = Number(await readFile(server.pidFile, 'utf8'));
+            await vi.waitFor(() => expect(isProcessRunning(pid)).toBe(false), { timeout: 2000 });
+            expect(manager.getClients().size).toBe(0);
+            expect(await manager.getAllTools()).toEqual({});
+            expect(await manager.listAllPrompts()).toEqual([]);
+            expect(await manager.listAllResources()).toEqual([]);
+            expect(manager.getServerConfig('discovery')).toBeUndefined();
+        } finally {
+            await writeFile(releaseFile, 'ready');
+            await Promise.allSettled([startupResult, ...(cleanup ? [cleanup] : [])]);
+        }
+    }, 15000);
+    it('settles cleanup after a pending startup failure without replacing the original error', async () => {
+        const server = serverConfig('pending-failure');
+        const releaseFile = join(directory, 'failure-release');
+        const config = McpServerConfigSchema.parse({
+            ...server.config,
+            args: [serverPath, server.pidFile, 'wait-for-reject', '', releaseFile],
+        });
+        manager.configureServer('failure', config);
+        const startupResult = manager
+            .connectServer('failure', config)
+            .catch((error: unknown) => error);
+        let cleanup: Promise<void> | undefined;
+        try {
+            await vi.waitFor(async () =>
+                expect(await readFile(server.pidFile, 'utf8')).toBeTruthy()
+            );
+            let cleanupFinished = false;
+            cleanup = manager.disconnectAll().then(() => {
+                cleanupFinished = true;
+            });
+            await new Promise<void>((resolve) => setTimeout(resolve, 25));
+            expect(cleanupFinished).toBe(false);
+            await writeFile(releaseFile, 'ready');
+            expect(await startupResult).toMatchObject({
+                message: expect.stringContaining('fixture handshake rejected'),
+            });
+            await cleanup;
+            const pid = Number(await readFile(server.pidFile, 'utf8'));
+            await vi.waitFor(() => expect(isProcessRunning(pid)).toBe(false), { timeout: 2000 });
+            expect(manager.getClients().size).toBe(0);
+            expect(manager.getFailedConnections()).toEqual({});
+            expect(manager.getConfiguredServerStatuses()).toMatchObject([
+                { name: 'failure', status: 'configured' },
+            ]);
+        } finally {
+            await writeFile(releaseFile, 'ready');
+            await Promise.allSettled([startupResult, ...(cleanup ? [cleanup] : [])]);
+        }
+    }, 15000);
     it('closes a rejected name-collision candidate and leaves the connected server usable', async () => {
         const existing = serverConfig('existing');
         const candidate = serverConfig('candidate');
