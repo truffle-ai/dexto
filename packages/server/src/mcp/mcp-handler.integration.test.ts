@@ -50,6 +50,51 @@ afterEach(async () => {
 });
 
 describe('MCP current agent', () => {
+    it('advertises the existing chat schema and static resource metadata', async () => {
+        const initial = agentFixture('answer');
+        const client = await connectMcp((transport) =>
+            initializeMcpServer(initial.agent, card('initial'), transport)
+        );
+        expect(await client.listTools()).toEqual({
+            tools: [
+                {
+                    name: 'chat_with_agent',
+                    description:
+                        'Allows you to chat with the an AI agent. Send a message to interact.',
+                    inputSchema: {
+                        $schema: 'http://json-schema.org/draft-07/schema#',
+                        type: 'object',
+                        properties: { message: { type: 'string' } },
+                        required: ['message'],
+                    },
+                    execution: { taskSupport: 'forbidden' },
+                },
+            ],
+        });
+        expect(await client.listResources()).toEqual({
+            resources: [{ uri: 'dexto://agent/card', name: 'agentCard' }],
+        });
+    });
+    it('rejects invalid chat input before selecting an agent or creating a session', async () => {
+        const initial = agentFixture('answer');
+        const getAgent = vi.fn(() => initial.agent);
+        const client = await connectMcp((transport) =>
+            initializeMcpServer(initial.agent, card('initial'), transport, {
+                getAgent,
+                getAgentCard: () => card('initial'),
+            })
+        );
+        const result = await client.callTool({
+            name: 'chat_with_agent',
+            arguments: { message: 42 },
+        });
+        expect(result.isError).toBe(true);
+        expect(getAgent).not.toHaveBeenCalled();
+        expect(initial.createSession).not.toHaveBeenCalled();
+        expect(initial.run).not.toHaveBeenCalled();
+        expect(initial.deleteSession).not.toHaveBeenCalled();
+    });
+
     it('routes new chat requests to the current agent after a switch', async () => {
         const initial = agentFixture('initial answer');
         const replacement = agentFixture('replacement answer');
