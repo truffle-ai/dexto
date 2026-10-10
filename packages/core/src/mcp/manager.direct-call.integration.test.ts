@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, assert, beforeEach, describe, expect, it, vi } from 'vitest';
 import { mkdtemp, readFile, rm, writeFile, unlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -46,7 +46,7 @@ describe('MCP direct protocol calls', () => {
     it('calls a discovered literal identity and retains the full protocol result', async () => {
         await manager.connectServer('first', config('first'));
         const descriptor = manager.getToolDescriptors()[0];
-        if (!descriptor) throw new Error('fixture tool missing');
+        assert(descriptor, 'fixture tool missing');
         const result = await manager.callToolDirect({
             identity: descriptor.identity,
             arguments: { count: 2 },
@@ -74,7 +74,7 @@ describe('MCP direct protocol calls', () => {
     it('routes literal identities independently of colliding and disappearing aliases', async () => {
         await manager.connectServer('first', config('first'));
         const original = manager.getToolDescriptors()[0];
-        if (!original) throw new Error('fixture tool missing');
+        assert(original, 'fixture tool missing');
         await manager.connectServer('second', config('second'));
         expect(manager.getToolDescriptors().map((tool) => tool.name)).not.toContain(
             'literal--tool'
@@ -166,7 +166,7 @@ describe('MCP direct protocol calls', () => {
         ).rejects.toMatchObject({ code: -32001 });
         expect(manager.getConfiguredServerStatuses()[0]?.configuredTransport).toBe('http');
         const original = manager.getClients().get('first');
-        if (!original) throw new Error('fixture client missing');
+        assert(original, 'fixture client missing');
         const replacement = new DextoMcpClient(createMockLogger());
         await replacement.connect(config('replacement'), 'first');
         try {
@@ -249,7 +249,7 @@ describe('MCP direct protocol calls', () => {
         });
         try {
             manager.registerClient('shared', second);
-            if (!release) throw new Error('missing fixture release');
+            assert(release, 'missing fixture release');
             release();
             expect((await call).content).toEqual([{ type: 'text', text: 'first' }]);
             expect(
