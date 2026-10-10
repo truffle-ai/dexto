@@ -873,8 +873,21 @@ export class MCPManager {
                 ...(errorCode ? { code: errorCode } : {}),
             };
             this.logger.error(`Failed to connect to new server '${name}': ${errorMsg}`);
-            this.clients.delete(name);
+            await this.discardFailedClient(name, client);
             throw MCPError.connectionFailed(name, errorMsg);
+        }
+    }
+
+    private async discardFailedClient(name: string, client: McpClient): Promise<void> {
+        if (this.clients.get(name) === client) {
+            this.clearClientCache(name);
+            this.clients.delete(name);
+        }
+        try {
+            await client.disconnect();
+        } catch {
+            // Cleanup must not replace the connection failure reported to the caller.
+            this.logger.warn(`Failed to disconnect rejected MCP client '${name}'`);
         }
     }
 
@@ -1005,9 +1018,9 @@ export class MCPManager {
         delete this.connectionErrors[name];
 
         // Reconnect with original config
+        const newClient = new DextoMcpClient(this.logger);
+        newClient.setAuthProviderFactory(this.authProviderFactory);
         try {
-            const newClient = new DextoMcpClient(this.logger);
-            newClient.setAuthProviderFactory(this.authProviderFactory);
             await newClient.connect(config, name);
 
             // Set approval manager if available
@@ -1034,6 +1047,7 @@ export class MCPManager {
                 ...(errorCode ? { code: errorCode } : {}),
             };
             this.logger.error(`Failed to restart server '${name}': ${errorMsg}`);
+            await this.discardFailedClient(name, newClient);
             // Note: Config remains in cache for potential retry
             throw MCPError.connectionFailed(name, errorMsg);
         }

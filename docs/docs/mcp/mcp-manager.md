@@ -2,222 +2,79 @@
 sidebar_position: 6
 ---
 
-# MCP Manager
+# Standalone MCP Manager
 
-The MCPManager is Dexto's powerful standalone utility for managing Model Context Protocol (MCP) servers. Use it in your own applications to connect, manage, and interact with multiple MCP servers without needing the full Dexto agent framework.
+Use `MCPManager` from `@dexto/core/mcp` to connect to MCP servers and call their tools, prompts, and resources directly. You do not need a Dexto agent, an LLM, or a Dexto Cloud account.
 
-## Overview
-
-The MCPManager provides:
-- **Multi-server management**: Connect to multiple MCP servers simultaneously
-- **Unified tool interface**: Access tools from all connected servers
-- **Resource management**: Handle MCP resources and prompts
-- **Connection pooling**: Automatic connection management and error handling
-- **Type safety**: Full TypeScript support with comprehensive types
-
-## Installation
+## Install and connect
 
 ```bash
-npm install dexto
+pnpm add @dexto/core
 ```
 
-## Quick Start
+This example connects to an HTTP MCP server you already run. Replace the URL and tool name with your server's values.
 
 ```typescript
-import { MCPManager } from '@dexto/core';
+import { AgentEventBus } from '@dexto/core/events';
+import { createLogger } from '@dexto/core/logger';
+import { MCPManager, McpServerConfigSchema } from '@dexto/core/mcp';
 
-// Create manager instance
-const manager = new MCPManager();
-
-// Connect to an MCP server
-await manager.connectServer('filesystem', {
-  type: 'stdio',
-  command: 'npx',
-  args: ['-y', '@modelcontextprotocol/server-filesystem', '.']
+const logger = createLogger({
+    agentId: 'standalone-mcp',
+    config: {
+        level: 'warn',
+        transports: [{ type: 'console', colorize: false }],
+    },
+});
+const manager = new MCPManager(logger, new AgentEventBus());
+const config = McpServerConfigSchema.parse({
+    type: 'http',
+    url: 'http://localhost:3001/mcp',
 });
 
-// Get available tools
-const tools = await manager.getAllTools();
-console.log('Available tools:', Object.keys(tools));
+try {
+    await manager.connectServer('local', config);
+    console.log(Object.keys(await manager.getAllTools()));
 
-// Execute a tool
-const result = await manager.executeTool('readFile', { path: './README.md' });
-console.log(result);
-```
-
-## Core Concepts
-
-### MCP Servers
-
-MCP servers are external processes that provide tools, resources, and prompts. Common types include:
-
-- **File system servers**: Read/write files and directories
-- **Web search servers**: Search the internet for information
-- **Database servers**: Query and manage databases
-- **API servers**: Interact with external APIs
-- **Custom servers**: Your own domain-specific tools
-
-### Connection Types
-
-MCPManager supports three connection types:
-
-- **`stdio`**: Most common, spawns a child process (e.g., Node.js packages)
-- **`http`**: Connect to HTTP-based MCP servers
-- **`sse`**: Server-sent events for real-time communication
-
-### Tool Execution
-
-Tools are functions provided by MCP servers. The manager:
-1. Discovers all available tools from connected servers
-2. Routes tool calls to the appropriate server
-3. Handles confirmation prompts for sensitive operations
-4. Returns structured results
-
-## Common Usage Patterns
-
-### File Operations
-
-Perfect for automating file system tasks:
-
-```typescript
-const manager = new MCPManager();
-
-await manager.connectServer('fs', {
-  type: 'stdio',
-  command: 'npx',
-  args: ['-y', '@modelcontextprotocol/server-filesystem', '.']
-});
-
-// Read files
-const packageJson = await manager.executeTool('readFile', { 
-  path: './package.json' 
-});
-
-// List directory contents
-const files = await manager.executeTool('listFiles', { 
-  path: './src' 
-});
-
-// Write files
-await manager.executeTool('writeFile', {
-  path: './output.md',
-  content: '# Generated Report\n\nSome content here...'
-});
-```
-
-### Web Research
-
-Integrate web search capabilities:
-
-```typescript
-await manager.connectServer('search', {
-  type: 'stdio',
-  command: 'npx',
-  args: ['-y', 'tavily-mcp@0.1.2'],
-  env: { TAVILY_API_KEY: process.env.TAVILY_API_KEY }
-});
-
-const results = await manager.executeTool('search', {
-  query: 'Model Context Protocol specifications',
-  max_results: 10
-});
-```
-
-### Multi-Server Workflows
-
-Combine multiple servers for complex tasks:
-
-```typescript
-// Initialize multiple servers at once
-await manager.initializeFromConfig({
-  filesystem: {
-    type: 'stdio',
-    command: 'npx',
-    args: ['-y', '@modelcontextprotocol/server-filesystem', '.']
-  },
-  search: {
-    type: 'stdio',
-    command: 'npx',
-    args: ['-y', 'tavily-mcp@0.1.2'],
-    env: { TAVILY_API_KEY: process.env.TAVILY_API_KEY }
-  },
-  git: {
-    type: 'stdio',
-    command: 'npx',
-    args: ['-y', '@cyanheads/git-mcp-server'],
-    env: {
-        MCP_LOG_LEVEL: "info",
-        GIT_SIGN_COMMITS: "false"
-  }
-});
-
-// Complex workflow using multiple tools
-async function generateProjectReport() {
-  const files = await manager.executeTool('listFiles', { path: './src' });
-  const commits = await manager.executeTool('git_log', { limit: 10 });
-  const research = await manager.executeTool('search', {
-    query: 'project documentation best practices'
-  });
-  
-  const report = `# Project Report
-Files: ${files.length}
-Recent commits: ${commits.length}
-Research findings: ${research.length}`;
-  
-  await manager.executeTool('writeFile', {
-    path: './PROJECT_REPORT.md',
-    content: report
-  });
+    // Validate arguments separately before making a direct tool call.
+    const args = manager.validateToolInput('lookup', { query: 'example' });
+    const result = await manager.executeTool('lookup', args);
+    console.log(result);
+} finally {
+    await manager.disconnectAll();
 }
 ```
 
-## Integration Examples
+An explicit event bus keeps manager events separate from other Dexto runtimes in the same process. Omitting it uses the shared default event bus.
 
-### Express.js API
+For a local stdio server, parse a config with `type: 'stdio'`, `command`, `args`, and an optional `env` object. The manager starts that command as a child process. Give it only the environment variables it needs. HTTP and SSE configurations use `url` and optional `headers`; prefer HTTP for new remote servers.
 
-Create an API that exposes MCP tools:
+## Discovery and calls
 
-```typescript
-import express from 'express';
-import { MCPManager } from '@dexto/core';
+- `getAllTools()` returns cached tools and their callable names. Duplicate tool names are qualified as `sanitized-server--tool`; use the names returned by discovery. Removing a conflicting server can restore a simple name.
+- `validateToolInput(name, args)` validates against the cached tool schema. `executeTool(name, args)` routes the call; it does not perform this validation for you.
+- `listAllPrompts()` and `getAllPromptMetadata()` discover cached prompts; `getPrompt(name, args)` asks their server to render one. Duplicate prompt names currently use the last cached provider.
+- `listAllResources()` returns resources with qualified `key` values. Pass that key to `readResource(key)`.
+- `refresh()` explicitly refreshes discovery. Server notifications also update caches.
 
-const app = express();
-app.use(express.json());
+## Lifecycle and failures
 
-const manager = new MCPManager();
-await manager.initializeFromConfig({
-  filesystem: {
-    type: 'stdio',
-    command: 'npx',
-    args: ['-y', '@modelcontextprotocol/server-filesystem', '.']
-  }
-});
+Always call `disconnectAll()` in a `finally` block. Use `removeClient(name)` to disconnect and forget one connection, or `restartServer(name)` to reconnect using its saved configuration.
 
-app.get('/api/tools', async (req, res) => {
-  const tools = await manager.getAllTools();
-  res.json({ tools: Object.keys(tools) });
-});
+A failed connection or restart attempts to disconnect its rejected candidate. A cleanup error does not replace the connection error. A failed restart retains its saved configuration so you can retry it; it does not restore the old connection. Other connected servers remain usable.
 
-app.post('/api/execute/:toolName', async (req, res) => {
-  try {
-    const { toolName } = req.params;
-    const { args } = req.body;
-    
-    const result = await manager.executeTool(toolName, args);
-    res.json({ success: true, result });
-  } catch (error) {
-    res.status(500).json({ 
-      success: false, 
-      error: error.message 
-    });
-  }
-});
+`getFailedConnections()` reports recorded connection errors. `getFailedConnectionError(name)` and `getFailedConnectionErrorCode(name)` expose their details. These describe failed connection attempts; they are not a continuous remote-health check.
 
-app.listen(3000);
-```
+`initializeFromConfig(configs)` connects enabled servers concurrently. Each server's `connectionMode` controls failure handling: `strict` failures reject initialization, while `lenient` failures are recorded without rejecting it. The default is `lenient`. Successful peers remain connected even if initialization rejects, so cleanup still belongs in `finally`.
 
-For detailed API reference, see the [MCPManager API documentation](/api/sdk/mcp-manager). 🛠️
+Server names must remain unique after sanitization: characters outside letters, numbers, underscores, and hyphens become underscores. For example, `my@server` and `my_server` collide.
 
-**Tool execution failures**
-- Validate tool arguments match expected schema
-- Check server logs for detailed error information 
+## Authorization and current limits
+
+Direct MCP management does not install the agent's tool permission policy or display a CLI approval prompt. Your application must authorize calls and supply the server's required credentials. Discovery and argument validation do not grant permission to execute a tool. An optional approval manager handles server elicitation; it is not a substitute for authorization around direct tool calls.
+
+`setAuthProviderFactory(factory)` supplies an OAuth provider for servers that need one. Static credentials can be supplied through configured headers or a stdio server's environment. Keep credentials out of discovery output and application logs.
+
+The current tool-call API has a configured request timeout but no public abort-signal option. Disconnect is best-effort, and connection status is not a remote-health probe. This guide does not introduce new cancellation, status, retry, or CLI behavior.
+
+See the [MCPManager API reference](/api/sdk/mcp-manager) for method signatures.
