@@ -78,3 +78,9 @@ Direct MCP management does not install the agent's tool permission policy or dis
 The current tool-call API has a configured request timeout but no public abort-signal option. Disconnect is best-effort, and connection status is not a remote-health probe. This guide does not introduce new cancellation, status, retry, or CLI behavior.
 
 See the [MCPManager API reference](/api/sdk/mcp-manager) for method signatures.
+
+## Operational diagnostics
+
+Core MCP logs describe operations using selected server/tool/prompt names and fixed Core error classifications. They omit raw stdio configuration, remote URLs, resource URIs, capability payloads, elicitation content and provider error text. Keep credentials out of chosen names. Server stderr and application or SDK logging outside these Core call sites remain separately owned.
+
+`DextoMcpClient.getServerInfo()` returns raw command, arguments and environment alongside local process information. `getServerConfig()` and failed-connection inspection also return raw caller-owned data, and thrown errors retain their existing details. Do not serialize these APIs as public status output or ordinary logs. Use `getConnectionStatus()` for local connection state; it is not a remote-health probe.

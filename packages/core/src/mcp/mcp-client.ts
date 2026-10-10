@@ -20,6 +20,7 @@ import type {
 import type { ToolExecutionContextBase, ToolSet } from '../tools/types.js';
 import type { McpClient, MCPResourceSummary, McpAuthProviderFactory } from './types.js';
 import { MCPError } from './errors.js';
+import { MCPErrorCode } from './error-codes.js';
 import type {
     GetPromptResult,
     ReadResourceResult,
@@ -151,19 +152,7 @@ export class DextoMcpClient extends EventEmitter implements McpClient {
         this.serverEnv = env || null;
         this.serverAlias = serverAlias || null;
 
-        this.logger.info('=======================================');
-        this.logger.info(`MCP SERVER: ${command} ${this.resolvedArgs.join(' ')}`);
-        if (env) {
-            this.logger.info('Environment:');
-            Object.entries(env).forEach(([key, _]) => {
-                this.logger.info(`  ${key}= [value hidden]`);
-            });
-        }
-        this.logger.info('=======================================\n');
-
-        const serverName = this.serverAlias
-            ? `"${this.serverAlias}" (${command} ${this.resolvedArgs.join(' ')})`
-            : `${command} ${this.resolvedArgs.join(' ')}`;
+        const serverName = this.serverAlias ?? 'stdio';
         this.logger.info(`Connecting to MCP server: ${serverName}`);
 
         // Create a properly expanded environment by combining process.env with the provided env
@@ -204,9 +193,9 @@ export class DextoMcpClient extends EventEmitter implements McpClient {
 
             return this.client;
         } catch (error: any) {
-            this.logger.error(
-                `Failed to connect to MCP server ${serverName}: ${JSON.stringify(error.message, null, 2)}`
-            );
+            this.logger.error(`Failed to connect to MCP server ${serverName}`, {
+                code: MCPErrorCode.CONNECTION_FAILED,
+            });
             throw error;
         }
     }
@@ -216,7 +205,7 @@ export class DextoMcpClient extends EventEmitter implements McpClient {
         headers: Record<string, string> = {},
         serverName: string
     ): Promise<Client> {
-        this.logger.debug(`Connecting to SSE MCP server at url: ${url}`);
+        this.logger.debug(`Connecting to SSE MCP server: ${serverName}`);
 
         const authConfig = {
             type: 'sse',
@@ -291,9 +280,9 @@ export class DextoMcpClient extends EventEmitter implements McpClient {
                 this.setupElicitationHandler();
                 return this.client;
             }
-            this.logger.error(
-                `Failed to connect to SSE MCP server ${url}: ${JSON.stringify(error.message, null, 2)}`
-            );
+            this.logger.error(`Failed to connect to SSE MCP server ${serverName}`, {
+                code: MCPErrorCode.CONNECTION_FAILED,
+            });
             throw error;
         }
     }
@@ -306,7 +295,7 @@ export class DextoMcpClient extends EventEmitter implements McpClient {
         headers: Record<string, string> = {},
         serverAlias?: string
     ): Promise<Client> {
-        this.logger.info(`Connecting to HTTP MCP server at ${url}`);
+        this.logger.info(`Connecting to HTTP MCP server: ${serverAlias ?? 'http'}`);
         // Ensure required Accept headers are set for Streamable HTTP transport
         const defaultHeaders = {
             Accept: 'application/json, text/event-stream',
@@ -342,7 +331,7 @@ export class DextoMcpClient extends EventEmitter implements McpClient {
             this.logger.info('Establishing HTTP connection...');
             await this.client.connect(this.transport);
             this.isConnected = true;
-            this.logger.info(`✅ HTTP SERVER ${serverAlias ?? url} CONNECTED`);
+            this.logger.info(`✅ HTTP SERVER ${serverAlias ?? 'http'} CONNECTED`);
             this.setupNotificationHandlers();
             // Set up elicitation handler now that client is connected
             this.setupElicitationHandler();
@@ -367,14 +356,14 @@ export class DextoMcpClient extends EventEmitter implements McpClient {
                 this.transport = buildHttpTransport();
                 await this.client.connect(this.transport);
                 this.isConnected = true;
-                this.logger.info(`✅ HTTP SERVER ${serverAlias ?? url} CONNECTED`);
+                this.logger.info(`✅ HTTP SERVER ${serverAlias ?? 'http'} CONNECTED`);
                 this.setupNotificationHandlers();
                 this.setupElicitationHandler();
                 return this.client;
             }
-            this.logger.error(
-                `Failed to connect to HTTP MCP server ${url}: ${JSON.stringify(error.message, null, 2)}`
-            );
+            this.logger.error(`Failed to connect to HTTP MCP server ${serverAlias ?? 'http'}`, {
+                code: MCPErrorCode.CONNECTION_FAILED,
+            });
             throw error;
         }
     }
@@ -389,10 +378,10 @@ export class DextoMcpClient extends EventEmitter implements McpClient {
                 this.isConnected = false;
                 this.serverSpawned = false;
                 this.logger.info('Disconnected from MCP server');
-            } catch (error: any) {
-                this.logger.error(
-                    `Error disconnecting from MCP server: ${JSON.stringify(error.message, null, 2)}`
-                );
+            } catch {
+                this.logger.error('Error disconnecting from MCP server', {
+                    code: MCPErrorCode.DISCONNECTION_FAILED,
+                });
             }
         }
     }
@@ -468,7 +457,7 @@ export class DextoMcpClient extends EventEmitter implements McpClient {
         try {
             // Call listTools with parameters only
             const listToolResult = await this.client!.listTools({});
-            this.logger.silly(`listTools result: ${JSON.stringify(listToolResult, null, 2)}`);
+            this.logger.debug('Listed MCP tools');
 
             // Populate tools
             if (listToolResult && listToolResult.tools) {
@@ -496,10 +485,10 @@ export class DextoMcpClient extends EventEmitter implements McpClient {
                     'listTools did not return the expected structure: missing tools'
                 );
             }
-        } catch (error) {
-            this.logger.warn(
-                `Failed to get tools from MCP server, proceeding with zero tools: ${JSON.stringify(error, null, 2)}`
-            );
+        } catch {
+            this.logger.warn('Failed to get tools from MCP server, proceeding with zero tools', {
+                code: MCPErrorCode.PROTOCOL_ERROR,
+            });
             return tools;
         }
         return tools;
@@ -513,11 +502,12 @@ export class DextoMcpClient extends EventEmitter implements McpClient {
         this.ensureConnected();
         try {
             const response = await this.client!.listPrompts();
-            this.logger.debug(`listPrompts response: ${JSON.stringify(response, null, 2)}`);
+            this.logger.debug('Listed MCP prompts');
             return response.prompts;
-        } catch (error) {
+        } catch {
             this.logger.debug(
-                `Failed to list prompts from MCP server (optional feature), skipping: ${JSON.stringify(error, null, 2)}`
+                'Failed to list prompts from MCP server (optional feature), skipping',
+                { code: MCPErrorCode.PROTOCOL_ERROR }
             );
             return [];
         }
@@ -533,20 +523,18 @@ export class DextoMcpClient extends EventEmitter implements McpClient {
     async getPrompt(name: string, args?: any): Promise<GetPromptResult> {
         this.ensureConnected();
         try {
-            this.logger.debug(
-                `Getting prompt '${name}' with args: ${JSON.stringify(args, null, 2)}`
-            );
+            this.logger.debug(`Getting MCP prompt '${name}'`);
             // Pass params first, then options
             const response = await this.client!.getPrompt(
                 { name, arguments: args },
                 { timeout: this.timeout }
             );
-            this.logger.debug(`getPrompt '${name}' response: ${JSON.stringify(response, null, 2)}`);
+            this.logger.debug(`Retrieved MCP prompt '${name}'`);
             return response; // Return the full response object
         } catch (error: any) {
-            this.logger.debug(
-                `Failed to get prompt '${name}' from MCP server: ${JSON.stringify(error, null, 2)}`
-            );
+            this.logger.debug(`Failed to get prompt '${name}' from MCP server`, {
+                code: MCPErrorCode.PROTOCOL_ERROR,
+            });
             throw MCPError.protocolError(
                 `Error getting prompt '${name}': ${error instanceof Error ? error.message : String(error)}`
             );
@@ -562,7 +550,7 @@ export class DextoMcpClient extends EventEmitter implements McpClient {
         this.ensureConnected();
         try {
             const response = await this.client!.listResources();
-            this.logger.debug(`listResources response: ${JSON.stringify(response, null, 2)}`);
+            this.logger.debug('Listed MCP resources');
             return response.resources.map(
                 (r: Resource): MCPResourceSummary => ({
                     uri: r.uri,
@@ -571,9 +559,10 @@ export class DextoMcpClient extends EventEmitter implements McpClient {
                     ...(r.mimeType !== undefined && { mimeType: r.mimeType }),
                 })
             );
-        } catch (error) {
+        } catch {
             this.logger.debug(
-                `Failed to list resources from MCP server (optional feature), skipping: ${JSON.stringify(error, null, 2)}`
+                'Failed to list resources from MCP server (optional feature), skipping',
+                { code: MCPErrorCode.PROTOCOL_ERROR }
             );
             return [];
         }
@@ -587,17 +576,15 @@ export class DextoMcpClient extends EventEmitter implements McpClient {
     async readResource(uri: string): Promise<ReadResourceResult> {
         this.ensureConnected();
         try {
-            this.logger.debug(`Reading resource '${uri}'`);
+            this.logger.debug('Reading MCP resource');
             // Pass params first, then options
             const response = await this.client!.readResource({ uri }, { timeout: this.timeout });
-            this.logger.debug(
-                `readResource '${uri}' response: ${JSON.stringify(response, null, 2)}`
-            );
+            this.logger.debug('Read MCP resource');
             return response; // Return the full response object
         } catch (error: any) {
-            this.logger.debug(
-                `Failed to read resource '${uri}' from MCP server: ${JSON.stringify(error, null, 2)}`
-            );
+            this.logger.debug('Failed to read resource from MCP server', {
+                code: MCPErrorCode.PROTOCOL_ERROR,
+            });
             throw MCPError.protocolError(
                 `Error reading resource '${uri}': ${error instanceof Error ? error.message : String(error)}`
             );
@@ -619,7 +606,7 @@ export class DextoMcpClient extends EventEmitter implements McpClient {
     }
 
     /**
-     * Get server status information
+     * Get raw server configuration and local process information
      */
     getServerInfo(): {
         spawned: boolean;
@@ -676,24 +663,30 @@ export class DextoMcpClient extends EventEmitter implements McpClient {
                     });
                 }
             );
-        } catch (error) {
-            this.logger.warn(`Could not set resources/updated notification handler: ${error}`);
+        } catch {
+            this.logger.warn('Could not set resources/updated notification handler', {
+                code: MCPErrorCode.PROTOCOL_ERROR,
+            });
         }
         try {
             // Prompts list changed
             this.client.setNotificationHandler(PromptListChangedNotificationSchema, () => {
                 this.handlePromptsListChanged();
             });
-        } catch (error) {
-            this.logger.warn(`Could not set prompts/list_changed notification handler: ${error}`);
+        } catch {
+            this.logger.warn('Could not set prompts/list_changed notification handler', {
+                code: MCPErrorCode.PROTOCOL_ERROR,
+            });
         }
         try {
             // Tools list changed
             this.client.setNotificationHandler(ToolListChangedNotificationSchema, () => {
                 this.handleToolsListChanged();
             });
-        } catch (error) {
-            this.logger.warn(`Could not set tools/list_changed notification handler: ${error}`);
+        } catch {
+            this.logger.warn('Could not set tools/list_changed notification handler', {
+                code: MCPErrorCode.PROTOCOL_ERROR,
+            });
         }
 
         this.logger.debug('MCP notification handlers registered (resources, prompts, tools)');
@@ -703,7 +696,7 @@ export class DextoMcpClient extends EventEmitter implements McpClient {
      * Handle resource updated notification
      */
     private handleResourceUpdated(params: { uri: string }): void {
-        this.logger.debug(`Resource updated: ${params.uri}`);
+        this.logger.debug('MCP resource updated');
         this.emit('resourceUpdated', params);
     }
 
@@ -764,9 +757,7 @@ export class DextoMcpClient extends EventEmitter implements McpClient {
         // Set up request handler for elicitation/create
         this.client.setRequestHandler(ElicitationCreateRequestSchema, async (request) => {
             const params = request.params;
-            this.logger.info(
-                `Elicitation request from MCP server '${this.serverAlias}': ${params.message}`
-            );
+            this.logger.info(`Elicitation request from MCP server '${this.serverAlias}'`);
 
             try {
                 // Request elicitation through ApprovalManager
@@ -833,8 +824,10 @@ export class DextoMcpClient extends EventEmitter implements McpClient {
                         action: 'cancel',
                     };
                 }
-            } catch (error) {
-                this.logger.error(`Elicitation error for '${this.serverAlias}': ${error}`);
+            } catch {
+                this.logger.error(`Elicitation error for '${this.serverAlias}'`, {
+                    code: MCPErrorCode.PROTOCOL_ERROR,
+                });
                 // On error, return decline
                 return {
                     action: 'decline',

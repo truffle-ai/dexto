@@ -29,8 +29,19 @@ if (mode === 'reject-handshake') {
         while (!existsSync(releaseFile)) await setTimeout(10);
     }
     const server = new McpServer({ name: 'lifecycle-fixture', version: '1.0.0' });
-    server.registerTool('ping', { inputSchema: {} }, async () => ({
-        content: [{ type: 'text', text: 'pong' }],
-    }));
+    if (mode === 'notify-resource') {
+        server.registerResource('fixture', modeFile, {}, async () => ({
+            contents: [{ uri: modeFile, text: 'fixture' }],
+        }));
+    }
+    server.registerTool('ping', { inputSchema: {} }, async () => {
+        if (mode === 'notify-resource') {
+            await server.server.notification({
+                method: 'notifications/resources/updated',
+                params: { uri: modeFile },
+            });
+        }
+        return { content: [{ type: 'text', text: 'pong' }] };
+    });
     await server.connect(new StdioServerTransport());
 }
