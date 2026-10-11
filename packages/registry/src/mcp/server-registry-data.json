@@ -591,6 +591,25 @@
     "matchIds": ["shadcn"]
   },
   {
+    "id": "cohesivity",
+    "name": "Cohesivity",
+    "description": "Free agent native backend services: hosting, postgres, email, storage, containers, LLMs, voice and third-party APIs",
+    "category": "development",
+    "icon": "🧱",
+    "config": {
+      "type": "http",
+      "url": "https://cohesivity.ai/mcp",
+      "headers": {},
+      "timeout": 30000
+    },
+    "tags": ["backend", "postgres", "hosting", "email", "storage"],
+    "isOfficial": true,
+    "isInstalled": false,
+    "author": "Cohesivity",
+    "homepage": "https://cohesivity.ai",
+    "matchIds": ["cohesivity"]
+  },
+  {
     "id": "kite-trade",
     "name": "Kite",
     "description": "Zerodha Kite API MCP server",
