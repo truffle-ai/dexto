@@ -17,17 +17,18 @@ import {
     GetPromptRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
 
-/**
- * Initializes MCP server for tool aggregation mode.
- * Instead of exposing an AI agent, this directly exposes all tools from connected MCP servers.
- */
-export async function initializeMcpToolAggregationServer(
+export interface McpToolAggregationHost {
+    connect(transport: Transport): Promise<McpServer>;
+    close(): Promise<void>;
+}
+
+/** One upstream discovery snapshot shared by independently connected downstream peers. */
+export async function initializeMcpToolAggregationHost(
     serverConfigs: ValidatedServersConfig,
-    mcpTransport: Transport,
     serverName: string,
     serverVersion: string,
     strict: boolean
-): Promise<McpServer> {
+): Promise<McpToolAggregationHost> {
     // Manager diagnostics can contain upstream payloads; keep them off protocol streams.
     const mcpLogger = createLogger({
         config: {
@@ -39,22 +40,16 @@ export async function initializeMcpToolAggregationServer(
     });
     const mcpManager = new MCPManager(mcpLogger);
 
-    const mcpServer = new McpServer(
-        { name: serverName, version: serverVersion },
-        {
-            capabilities: {
-                tools: {},
-                resources: {},
-                prompts: {},
-            },
-        }
-    );
-
-    const closeServer = mcpServer.close.bind(mcpServer);
+    const peers = new Map<McpServer, () => Promise<void>>();
+    const attaching = new Set<Promise<McpServer>>();
     let closePromise: Promise<void> | undefined;
-    mcpServer.close = () => {
+    const close = () => {
         closePromise ??= Promise.resolve().then(async () => {
-            const results = await Promise.allSettled([closeServer(), mcpManager.disconnectAll()]);
+            await Promise.allSettled(Array.from(attaching));
+            const results = await Promise.allSettled(
+                Array.from(peers.values(), (closePeer) => closePeer())
+            );
+            results.push(...(await Promise.allSettled([mcpManager.disconnectAll()])));
             results.push(...(await Promise.allSettled([mcpLogger.destroy()])));
             const failures = results.filter((result) => result.status === 'rejected');
             if (failures.length > 0) {
@@ -65,14 +60,6 @@ export async function initializeMcpToolAggregationServer(
             }
         });
         return closePromise;
-    };
-    const onclose = mcpServer.server.onclose;
-    mcpServer.server.onclose = () => {
-        try {
-            onclose?.();
-        } finally {
-            void mcpServer.close().catch(() => undefined);
-        }
     };
 
     const connectionConfigs: ValidatedServersConfig = { ...serverConfigs };
@@ -156,19 +143,6 @@ export async function initializeMcpToolAggregationServer(
                 timeout: upstream.timeout,
             });
         }
-        mcpServer.server.setRequestHandler(ListToolsRequestSchema, async () => ({
-            tools: Array.from(tools.values(), (tool) => tool.definition),
-        }));
-        mcpServer.server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
-            const tool = tools.get(request.params.name);
-            if (tool === undefined)
-                throw new McpError(ErrorCode.InvalidParams, 'Unknown aggregation tool');
-            return tool.client.callTool({ ...request.params, name: tool.name }, undefined, {
-                signal: extra.signal,
-                timeout: tool.timeout,
-            });
-        });
-
         const resources = new Map<
             string,
             { definition: Resource; client: Client; uri: string; timeout: number }
@@ -191,18 +165,6 @@ export async function initializeMcpToolAggregationServer(
                 timeout: upstream.timeout,
             });
         }
-        mcpServer.server.setRequestHandler(ListResourcesRequestSchema, async () => ({
-            resources: Array.from(resources.values(), (resource) => resource.definition),
-        }));
-        mcpServer.server.setRequestHandler(ReadResourceRequestSchema, async (request, extra) => {
-            const resource = resources.get(request.params.uri);
-            if (resource === undefined)
-                throw new McpError(ErrorCode.InvalidParams, 'Unknown aggregation resource');
-            return resource.client.readResource(
-                { ...request.params, uri: resource.uri },
-                { signal: extra.signal, timeout: resource.timeout }
-            );
-        });
         const prompts = new Map<string, { definition: Prompt; client: Client; timeout: number }>();
         for (const upstream of discovered.values()) {
             for (const prompt of upstream.prompts) {
@@ -215,24 +177,141 @@ export async function initializeMcpToolAggregationServer(
                 });
             }
         }
-        mcpServer.server.setRequestHandler(ListPromptsRequestSchema, async () => ({
-            prompts: Array.from(prompts.values(), (prompt) => prompt.definition),
-        }));
-        mcpServer.server.setRequestHandler(GetPromptRequestSchema, async (request, extra) => {
-            const prompt = prompts.get(request.params.name);
-            if (prompt === undefined)
-                throw new McpError(ErrorCode.InvalidParams, 'Unknown aggregation prompt');
-            return prompt.client.getPrompt(request.params, {
-                signal: extra.signal,
-                timeout: prompt.timeout,
-            });
-        });
+        return {
+            close,
+            async connect(transport: Transport): Promise<McpServer> {
+                if (closePromise !== undefined) throw new Error('MCP aggregation host is closing');
+                const attachment = (async () => {
+                    const mcpServer = new McpServer(
+                        { name: serverName, version: serverVersion },
+                        { capabilities: { tools: {}, resources: {}, prompts: {} } }
+                    );
+                    const originalClose = mcpServer.close.bind(mcpServer);
+                    let peerClosePromise: Promise<void> | undefined;
+                    const closePeer = () => (peerClosePromise ??= originalClose());
+                    mcpServer.close = closePeer;
+                    peers.set(mcpServer, closePeer);
+                    const previousClose = mcpServer.server.onclose;
+                    mcpServer.server.onclose = () => {
+                        peers.delete(mcpServer);
+                        previousClose?.();
+                    };
+                    mcpServer.server.setRequestHandler(ListToolsRequestSchema, async () => ({
+                        tools: Array.from(tools.values(), (tool) => tool.definition),
+                    }));
+                    mcpServer.server.setRequestHandler(
+                        CallToolRequestSchema,
+                        async (request, extra) => {
+                            const tool = tools.get(request.params.name);
+                            if (tool === undefined)
+                                throw new McpError(
+                                    ErrorCode.InvalidParams,
+                                    'Unknown aggregation tool'
+                                );
+                            return tool.client.callTool(
+                                { ...request.params, name: tool.name },
+                                undefined,
+                                {
+                                    signal: extra.signal,
+                                    timeout: tool.timeout,
+                                }
+                            );
+                        }
+                    );
 
-        await mcpServer.connect(mcpTransport);
+                    mcpServer.server.setRequestHandler(ListResourcesRequestSchema, async () => ({
+                        resources: Array.from(
+                            resources.values(),
+                            (resource) => resource.definition
+                        ),
+                    }));
+                    mcpServer.server.setRequestHandler(
+                        ReadResourceRequestSchema,
+                        async (request, extra) => {
+                            const resource = resources.get(request.params.uri);
+                            if (resource === undefined)
+                                throw new McpError(
+                                    ErrorCode.InvalidParams,
+                                    'Unknown aggregation resource'
+                                );
+                            return resource.client.readResource(
+                                { ...request.params, uri: resource.uri },
+                                { signal: extra.signal, timeout: resource.timeout }
+                            );
+                        }
+                    );
+                    mcpServer.server.setRequestHandler(ListPromptsRequestSchema, async () => ({
+                        prompts: Array.from(prompts.values(), (prompt) => prompt.definition),
+                    }));
+                    mcpServer.server.setRequestHandler(
+                        GetPromptRequestSchema,
+                        async (request, extra) => {
+                            const prompt = prompts.get(request.params.name);
+                            if (prompt === undefined)
+                                throw new McpError(
+                                    ErrorCode.InvalidParams,
+                                    'Unknown aggregation prompt'
+                                );
+                            return prompt.client.getPrompt(request.params, {
+                                signal: extra.signal,
+                                timeout: prompt.timeout,
+                            });
+                        }
+                    );
 
-        return mcpServer;
+                    try {
+                        await mcpServer.connect(transport);
+                        if (closePromise !== undefined)
+                            throw new Error('MCP aggregation host is closing');
+                        return mcpServer;
+                    } catch (error) {
+                        await closePeer().catch(() => undefined);
+                        peers.delete(mcpServer);
+                        throw error;
+                    }
+                })();
+                attaching.add(attachment);
+                try {
+                    return await attachment;
+                } finally {
+                    attaching.delete(attachment);
+                }
+            },
+        };
     } catch (error) {
-        await mcpServer.close().catch(() => undefined);
+        await close().catch(() => undefined);
+        throw error;
+    }
+}
+
+/** Stdio-compatible owner: closing its downstream peer also closes its upstream snapshot. */
+export async function initializeMcpToolAggregationServer(
+    serverConfigs: ValidatedServersConfig,
+    mcpTransport: Transport,
+    serverName: string,
+    serverVersion: string,
+    strict: boolean
+): Promise<McpServer> {
+    const host = await initializeMcpToolAggregationHost(
+        serverConfigs,
+        serverName,
+        serverVersion,
+        strict
+    );
+    try {
+        const server = await host.connect(mcpTransport);
+        server.close = host.close;
+        const previousClose = server.server.onclose;
+        server.server.onclose = () => {
+            try {
+                previousClose?.();
+            } finally {
+                void host.close().catch(() => undefined);
+            }
+        };
+        return server;
+    } catch (error) {
+        await host.close().catch(() => undefined);
         throw error;
     }
 }

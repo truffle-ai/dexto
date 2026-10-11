@@ -1,15 +1,22 @@
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { assert, afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { createServer, request as httpRequest } from 'node:http';
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
+import { startMcpHttpAggregationGateway } from './http-gateway.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { ServersConfigSchema, type ValidatedServersConfig } from '@dexto/core/mcp';
 import { eventBus } from '@dexto/core/events';
-import { initializeMcpToolAggregationServer } from './tool-aggregation-handler.js';
+import {
+    initializeMcpToolAggregationServer,
+    initializeMcpToolAggregationHost,
+} from './tool-aggregation-handler.js';
 
 const inputSchema = {
     type: 'object',
@@ -27,6 +34,7 @@ const inputSchema = {
 let directory: string;
 let fixture: string;
 const servers: McpServer[] = [];
+const gateways: { close(): Promise<void> }[] = [];
 const clients: Client[] = [];
 const identities = new Set<string>();
 
@@ -71,6 +79,7 @@ await server.connect(new StdioServerTransport());
 afterEach(async () => {
     await Promise.allSettled(clients.splice(0).map((client) => client.close()));
     await Promise.allSettled(servers.splice(0).map((server) => server.close()));
+    await Promise.allSettled(gateways.splice(0).map((gateway) => gateway.close()));
     // Clean up only fixture-owned children when running regressions against the old host.
     for (const identity of identities) {
         try {
@@ -122,6 +131,219 @@ async function connect(configs: ValidatedServersConfig, strict = false) {
 }
 
 describe('MCP aggregation protocol', () => {
+    it('shares upstream ownership across independent peers without closing siblings', async () => {
+        const host = await initializeMcpToolAggregationHost(
+            ServersConfigSchema.parse({ first: config('shared-first') }),
+            'aggregation',
+            '1.0.0',
+            false
+        );
+        try {
+            for (let index = 0; index < 2; index++) {
+                const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+                servers.push(await host.connect(serverTransport));
+                const client = new Client({ name: `peer-${index}`, version: '1.0.0' });
+                clients.push(client);
+                await client.connect(clientTransport);
+            }
+            const [first, second] = clients;
+            expect(first).toBeDefined();
+            expect(second).toBeDefined();
+            assert(first && second);
+            await first.close();
+            expect((await second.listTools()).tools).toHaveLength(1);
+            expect(
+                await second.callTool({ name: 'lookup', arguments: { value: 2 } })
+            ).toMatchObject({ structuredContent: { owner: 'shared-first' } });
+            await Promise.all([host.close(), host.close()]);
+            await expect(readFile(join(directory, 'shared-first'), 'utf8')).resolves.toBe('closed');
+            await expect(host.connect(InMemoryTransport.createLinkedPair()[1])).rejects.toThrow();
+        } finally {
+            await host.close();
+        }
+    });
+    it('serves independent HTTP clients and preserves upstream results after a peer closes', async () => {
+        const gateway = await startMcpHttpAggregationGateway(
+            ServersConfigSchema.parse({ first: config('http-first') }),
+            {
+                name: 'aggregation',
+                version: '1.0.0',
+                strict: false,
+                host: '127.0.0.1',
+                port: 0,
+                authorize: (header) =>
+                    header === 'Bearer fixture-key'
+                        ? { allowed: true }
+                        : {
+                              allowed: false,
+                              status: 401,
+                              body: { error: 'Unauthorized', message: 'Missing or invalid token' },
+                          },
+            }
+        );
+        gateways.push(gateway);
+        const url = new URL(`http://127.0.0.1:${gateway.port}/mcp`);
+        for (const method of ['POST', 'GET', 'DELETE']) {
+            expect((await fetch(url, { method })).status).toBe(401);
+        }
+        expect(
+            (await fetch(url, { method: 'GET', headers: { authorization: 'Bearer fixture-key' } }))
+                .status
+        ).toBe(405);
+        for (const headers of [
+            { authorization: 'Bearer fixture-key', host: 'attacker.example' },
+            { authorization: 'Bearer fixture-key', origin: 'http://attacker.example' },
+        ]) {
+            const status = await new Promise<number | undefined>((resolve, reject) => {
+                const request = httpRequest(url, { method: 'POST', headers }, (response) => {
+                    response.resume();
+                    response.once('end', () => resolve(response.statusCode));
+                });
+                request.once('error', reject);
+                request.end();
+            });
+            expect(status).toBe(403);
+        }
+        for (let index = 0; index < 2; index++) {
+            const client = new Client({ name: `http-peer-${index}`, version: '1.0.0' });
+            clients.push(client);
+            // SDK sessionId getters include undefined, unlike Transport's optional property
+            // under exactOptionalPropertyTypes; keep the real HTTP transport at this boundary.
+            await client.connect(
+                new StreamableHTTPClientTransport(url, {
+                    requestInit: { headers: { authorization: 'Bearer fixture-key' } },
+                }) as Transport
+            );
+        }
+        const [first, second] = clients;
+        expect(first).toBeDefined();
+        expect(second).toBeDefined();
+        assert(first && second);
+        expect((await first.listTools()).tools[0]?.inputSchema).toEqual(inputSchema);
+        await first.close();
+        expect(await second.callTool({ name: 'lookup', arguments: { value: 2 } })).toEqual({
+            isError: true,
+            content: [{ type: 'text', text: 'http-first' }],
+            structuredContent: { owner: 'http-first' },
+            _meta: { original: true },
+        });
+        expect((await second.listResources()).resources).toHaveLength(1);
+        expect(
+            (await second.getPrompt({ name: 'greet', arguments: { person: 'Ada' } })).messages[0]
+                ?.content
+        ).toEqual({ type: 'text', text: 'Ada' });
+        await Promise.all([gateway.close(), gateway.close()]);
+        await expect(readFile(join(directory, 'http-first'), 'utf8')).resolves.toBe('closed');
+        await expect(fetch(url)).rejects.toThrow();
+    });
+    it('cancels a disconnected HTTP request without stopping the shared upstream', async () => {
+        const gateway = await startMcpHttpAggregationGateway(
+            ServersConfigSchema.parse({ first: { ...config('http-cancel'), timeout: 10000 } }),
+            {
+                name: 'aggregation',
+                version: '1.0.0',
+                strict: false,
+                host: '127.0.0.1',
+                port: 0,
+                authorize: () => ({ allowed: true }),
+            }
+        );
+        gateways.push(gateway);
+        const url = new URL(`http://127.0.0.1:${gateway.port}/mcp`);
+        const controller = new AbortController();
+        const pending = fetch(url, {
+            method: 'POST',
+            signal: controller.signal,
+            headers: {
+                'content-type': 'application/json',
+                accept: 'application/json, text/event-stream',
+                'mcp-protocol-version': '2025-03-26',
+            },
+            body: JSON.stringify({
+                jsonrpc: '2.0',
+                id: 1,
+                method: 'tools/call',
+                params: { name: 'lookup', arguments: { value: 'valid-wait' } },
+            }),
+        }).catch((error) => error);
+        await expect
+            .poll(() => readFile(join(directory, 'http-cancel.started'), 'utf8').catch(() => ''))
+            .toBe('started');
+        controller.abort();
+        await pending;
+        await expect
+            .poll(() => readFile(join(directory, 'http-cancel.cancelled'), 'utf8').catch(() => ''))
+            .toBe('cancelled');
+        const client = new Client({ name: 'remaining-peer', version: '1.0.0' });
+        clients.push(client);
+        await client.connect(new StreamableHTTPClientTransport(url) as Transport);
+        expect((await client.listTools()).tools).toHaveLength(1);
+    });
+    it('rolls back upstream ownership when its HTTP listener cannot bind', async () => {
+        const occupied = createServer();
+        await new Promise<void>((resolve) => occupied.listen(0, '127.0.0.1', resolve));
+        try {
+            const address = occupied.address();
+            expect(address).not.toBeNull();
+            assert(address && typeof address !== 'string');
+            await expect(
+                startMcpHttpAggregationGateway(
+                    ServersConfigSchema.parse({ first: config('http-bind-failure') }),
+                    {
+                        name: 'aggregation',
+                        version: '1.0.0',
+                        strict: false,
+                        host: '127.0.0.1',
+                        port: address.port,
+                        authorize: () => ({ allowed: true }),
+                    }
+                )
+            ).rejects.toMatchObject({ code: 'EADDRINUSE' });
+            await expect(readFile(join(directory, 'http-bind-failure'), 'utf8')).resolves.toBe(
+                'closed'
+            );
+        } finally {
+            await new Promise<void>((resolve, reject) =>
+                occupied.close((error) => (error ? reject(error) : resolve()))
+            );
+        }
+    });
+    it('settles admitted transport startup before host shutdown and never returns a closed peer', async () => {
+        const host = await initializeMcpToolAggregationHost(
+            ServersConfigSchema.parse({ first: config('pending-peer') }),
+            'aggregation',
+            '1.0.0',
+            false
+        );
+        const [, transport] = InMemoryTransport.createLinkedPair();
+        let releaseStart = () => {};
+        const gate = new Promise<void>((resolve) => {
+            releaseStart = resolve;
+        });
+        let started = () => {};
+        const entered = new Promise<void>((resolve) => {
+            started = resolve;
+        });
+        const originalStart = transport.start.bind(transport);
+        transport.start = async () => {
+            started();
+            await gate;
+            await originalStart();
+        };
+        const connecting = host.connect(transport);
+        try {
+            await entered;
+            const closing = host.close();
+            releaseStart();
+            await expect(connecting).rejects.toThrow('closing');
+            await closing;
+            await expect(readFile(join(directory, 'pending-peer'), 'utf8')).resolves.toBe('closed');
+        } finally {
+            releaseStart();
+            await connecting.catch(() => undefined);
+            await host.close();
+        }
+    });
     it('strict startup rejects failed enabled servers and closes acquired connections without mutating config', async () => {
         const configs = ServersConfigSchema.parse({
             first: config('strict-first'),

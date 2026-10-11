@@ -1,6 +1,7 @@
-import type { Command } from 'commander';
+import { Option, type Command } from 'commander';
 import type { StandaloneMcpResult } from './standalone.js';
 import { resolve } from 'node:path';
+import { isIP } from 'node:net';
 import { registerGracefulShutdown } from '../../../utils/graceful-shutdown.js';
 import { withAnalytics, safeExit, ExitSignal } from '../../../analytics/wrapper.js';
 
@@ -12,13 +13,24 @@ export function registerMcpCommand({ program }: McpCommandRegisterContext): void
     const mcp = program
         .command('mcp')
         .description(
-            'Configure and call MCP servers, or expose them through a stdio aggregation gateway'
+            'Configure and call MCP servers, or expose them through an aggregation gateway'
         )
         .option('--config <path>', 'MCP-only YAML configuration (otherwise use --agent)')
         .option('-s, --strict', 'Require all MCP server connections to succeed')
         .option(
             '--group-servers',
             'Aggregate and re-expose tools from configured MCP servers (required for now)'
+        )
+        .addOption(
+            new Option('--transport <transport>', 'Gateway transport')
+                .choices(['stdio', 'http'])
+                .default('stdio')
+        )
+        .option('--host <host>', 'HTTP gateway bind address', '127.0.0.1')
+        .option('--port <port>', 'HTTP gateway port', '3001')
+        .option(
+            '--no-auth',
+            'Allow HTTP access without a gateway key (external ingress must own authentication)'
         )
         .option('--name <n>', 'Name for the MCP server', 'dexto-tools')
         .option('--version <version>', 'Version for the MCP server', '1.0.0')
@@ -31,6 +43,10 @@ export function registerMcpCommand({ program }: McpCommandRegisterContext): void
                     groupServers?: boolean;
                     name: string;
                     version: string;
+                    transport: string;
+                    host: string;
+                    port: string;
+                    auth: boolean;
                 }) => {
                     try {
                         // Validate that --group-servers flag is provided (mandatory for now)
@@ -41,6 +57,31 @@ export function registerMcpCommand({ program }: McpCommandRegisterContext): void
                             console.error('Usage: dexto mcp --group-servers');
                             safeExit('mcp', 1, 'missing-group-servers');
                             return;
+                        }
+
+                        const apiKey = process.env.DEXTO_SERVER_API_KEY;
+                        const loopback = options.host === '127.0.0.1' || options.host === '::1';
+                        const port = Number(options.port);
+                        if (options.transport === 'http') {
+                            if (
+                                !/^\d+$/.test(options.port) ||
+                                !Number.isInteger(port) ||
+                                port < 1 ||
+                                port > 65535
+                            ) {
+                                process.stderr.write(
+                                    'MCP HTTP port must be an integer from 1 to 65535.\n'
+                                );
+                                safeExit('mcp', 1, 'mcp-http-invalid-port');
+                                return;
+                            }
+                            if (options.auth && !loopback && !apiKey) {
+                                process.stderr.write(
+                                    'Network-facing MCP HTTP requires DEXTO_SERVER_API_KEY or explicit --no-auth for an authenticated ingress.\n'
+                                );
+                                safeExit('mcp', 1, 'mcp-http-auth-required');
+                                return;
+                            }
                         }
 
                         const { logger, ServersConfigSchema } = await import('@dexto/core');
@@ -76,12 +117,6 @@ export function registerMcpCommand({ program }: McpCommandRegisterContext): void
                             `Validated MCP servers. Configured servers: ${Object.keys(validatedServers).join(', ')}`
                         );
 
-                        const [{ createMcpTransport }, { initializeMcpToolAggregationServer }] =
-                            await Promise.all([
-                                import('@dexto/server'),
-                                import('../../../api/mcp/tool-aggregation-handler.js'),
-                            ]);
-
                         // Logs are already redirected to file by default to prevent interference with stdio transport
                         const currentLogPath = logger.getLogFilePath();
                         logger.info(
@@ -91,6 +126,55 @@ export function registerMcpCommand({ program }: McpCommandRegisterContext): void
                         logger.info(
                             `Starting MCP tool aggregation server: ${options.name} v${options.version}`
                         );
+
+                        if (options.transport === 'http') {
+                            const [
+                                { startMcpHttpAggregationGateway },
+                                { createRequiredBearerAuthorization },
+                            ] = await Promise.all([
+                                import('../../../api/mcp/http-gateway.js'),
+                                import('@dexto/server/hono/auth'),
+                            ]);
+                            const startup = startMcpHttpAggregationGateway(validatedServers, {
+                                name: options.name,
+                                version: options.version,
+                                strict: options.strict ?? false,
+                                host: options.host,
+                                port,
+                                authorize:
+                                    options.auth && apiKey
+                                        ? createRequiredBearerAuthorization(apiKey)
+                                        : () => ({ allowed: true }),
+                            });
+                            const dispose = registerGracefulShutdown(() => ({
+                                stop: async () => {
+                                    try {
+                                        await (await startup).close();
+                                    } catch {
+                                        throw new Error('MCP shutdown failed');
+                                    } finally {
+                                        dispose();
+                                    }
+                                },
+                            }));
+                            try {
+                                const owner = await startup;
+                                const host =
+                                    isIP(options.host) === 6 ? `[${options.host}]` : options.host;
+                                process.stderr.write(
+                                    `MCP HTTP gateway listening on http://${host}:${owner.port}/mcp\n`
+                                );
+                            } catch (error) {
+                                dispose();
+                                throw error;
+                            }
+                            return;
+                        }
+                        const [{ createMcpTransport }, { initializeMcpToolAggregationServer }] =
+                            await Promise.all([
+                                import('@dexto/server'),
+                                import('../../../api/mcp/tool-aggregation-handler.js'),
+                            ]);
 
                         // Create stdio transport for MCP tool aggregation
                         const mcpTransport = await createMcpTransport('stdio');
