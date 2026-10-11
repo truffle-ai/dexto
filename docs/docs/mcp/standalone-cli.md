@@ -88,4 +88,31 @@ If interrupted during startup, the command waits for the existing handshake/disc
 dexto mcp --group-servers --config .dexto/mcp.yml
 ```
 
-This runs the existing stdio aggregation server using the same MCP-only file, without agent configuration resolution. Once initialized, the gateway owns its upstream connections and closes them on downstream transport closure, stdin EOF, SIGINT or SIGTERM. Connection initialization does not install signal handlers. Without `--config`, the existing `--agent` configuration resolution remains available. See [grouping MCP servers](./dexto-group-mcp-servers.md) for client configuration.
+This runs the stdio aggregation server using the same MCP-only file, without agent configuration resolution. Once initialized, the gateway owns its upstream connections and closes them on downstream transport closure, stdin EOF, SIGINT or SIGTERM. Connection initialization does not install signal handlers. Without `--config`, the existing `--agent` configuration resolution remains available. See [grouping MCP servers](./dexto-group-mcp-servers.md) for client configuration.
+
+## Host a gateway over HTTP
+
+Start the same aggregation library with an HTTP listener for local clients:
+
+```bash
+dexto mcp --group-servers --config .dexto/mcp.yml --transport http --port 3001
+```
+
+The default address is `http://127.0.0.1:3001/mcp`. Literal loopback addresses (`127.0.0.1` and `::1`) are open by default. If `DEXTO_SERVER_API_KEY` is supplied, every request requires `Authorization: Bearer <your-private-key>`. The gateway does not print the key. For authenticated access, provide a strong key through your environment or secret manager and use environment-based header templates in the client:
+
+```bash
+export DEXTO_SERVER_API_KEY='<your-private-key>'
+# Start the gateway with this environment to enable bearer authentication.
+dexto mcp add sandbox --url http://127.0.0.1:3001/mcp \
+  --header 'Authorization=Bearer ${DEXTO_SERVER_API_KEY}' --config ./client-mcp.yml
+dexto mcp tools sandbox --config ./client-mcp.yml --json
+dexto mcp call sandbox tool_name --arguments '{}' --config ./client-mcp.yml --json
+```
+
+`--host 0.0.0.0` exposes the listener on other interfaces and requires a nonempty `DEXTO_SERVER_API_KEY` before connecting upstreams. Other hostnames, including `localhost`, use this same requirement. Use `--no-auth` only when you intentionally delegate authentication to your ingress or otherwise trust everyone who can reach the listener. This explicit option also overrides an environment key. For an outside client, use your sandbox's HTTPS ingress or a trusted private tunnel and its reachable URL. The built-in listener uses HTTP; it does not provision TLS, a public address or an account connection.
+
+HTTP mode uses stateless Streamable HTTP at `/mcp`. It supports independent callers without persistent MCP sessions or a GET notification stream. Cancellation notifications sent as separate requests cannot target earlier requests. GET and DELETE requests return 405 after any configured authentication check. Loopback hosting checks the exact listener Host and Origin; clients should use the advertised loopback URL rather than an alternate hostname. Requests from other browser origins are rejected. Tools, resources and prompts retain the same startup snapshot and MCP results as stdio mode. Restart to rediscover changes. Interactive OAuth and elicitation are not supplied by the gateway.
+
+The host owns one shared set of upstream connections. Completing or disconnecting one HTTP request releases that request's transport and propagates cancellation for its work, while other clients keep using the upstream servers. Stop the foreground host with SIGINT or SIGTERM to release its listener and owned subprocesses. Failed startup also releases acquired resources. Cancellation is advisory and does not undo completed effects.
+
+An open listener or a valid gateway bearer key grants access to the configured catalog. Choose the upstream servers and trusted callers accordingly. Direct MCP forwarding does not run an agent approval policy or create an OS sandbox. Model credentials and Cloud login are unnecessary.

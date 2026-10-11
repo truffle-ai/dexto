@@ -1,4 +1,4 @@
-import { execFile } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
 import { performance } from 'node:perf_hooks';
 import {
     mkdtemp,
@@ -23,6 +23,8 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { z } from 'zod';
 import { createMcpTransport } from '@dexto/server';
+import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 
@@ -811,4 +813,226 @@ it.skipIf(process.platform !== 'win32')(
         expect(JSON.parse((await run(['list'], selected)).stdout)).toEqual({ servers: [] });
     },
     60000
+);
+
+it.skipIf(process.platform === 'win32').each([
+    {
+        mode: 'keyed loopback',
+        key: 'fixture-gateway-key',
+        host: '127.0.0.1',
+        noAuth: false,
+        protected: true,
+    },
+    { mode: 'open loopback', key: '', host: '127.0.0.1', noAuth: false, protected: false },
+    {
+        mode: 'external auth opt-out',
+        key: 'fixture-gateway-key',
+        host: '0.0.0.0',
+        noAuth: true,
+        protected: false,
+    },
+])(
+    'hosts $mode HTTP aggregation and releases listener/upstream on SIGTERM',
+    async (policy) => {
+        const gatewayConfig = join(directory, `http-${policy.mode}.yml`);
+        await writeFile(
+            gatewayConfig,
+            stringify({
+                mcpServers: {
+                    local: { type: 'stdio', command: process.execPath, args: [fixturePath] },
+                },
+            })
+        );
+        const selectedPort = createServer();
+        await new Promise<void>((resolve) => selectedPort.listen(0, '127.0.0.1', resolve));
+        const address = selectedPort.address();
+        if (!address || typeof address === 'string') throw new Error('Expected TCP address');
+        const port = address.port;
+        await new Promise<void>((resolve) => selectedPort.close(() => resolve()));
+        const child = spawn(
+            process.execPath,
+            [
+                '--import',
+                tsx,
+                entrypoint,
+                'mcp',
+                '--group-servers',
+                '--config',
+                gatewayConfig,
+                '--transport',
+                'http',
+                '--host',
+                policy.host,
+                ...(policy.noAuth ? ['--no-auth'] : []),
+                '--port',
+                String(port),
+            ],
+            {
+                cwd: directory,
+                stdio: ['ignore', 'pipe', 'pipe'],
+                env: {
+                    PATH: process.env.PATH,
+                    SystemRoot: process.env.SystemRoot,
+                    HOME: directory,
+                    USERPROFILE: directory,
+                    DEXTO_DEV_MODE: 'false',
+                    DEXTO_ANALYTICS_DISABLED: '1',
+                    DEXTO_LLM_REGISTRY_DISABLE_FETCH: '1',
+                    DEXTO_SERVER_API_KEY: policy.key,
+                    MCP_PID_FILE: join(directory, 'http-gateway-pid'),
+                },
+            }
+        );
+        let output = '';
+        child.stdout.on('data', (data) => (output += data.toString()));
+        child.stderr.on('data', (data) => (output += data.toString()));
+        const exited = new Promise<{ code: number | null; signal: NodeJS.Signals | null }>(
+            (resolve, reject) => {
+                child.once('error', reject);
+                child.once('exit', (code, signal) => resolve({ code, signal }));
+            }
+        );
+        const clients: Client[] = [];
+        let upstreamPid: number | undefined;
+        try {
+            await expect
+                .poll(() => output.includes('MCP HTTP gateway listening'), { timeout: 10000 })
+                .toBe(true);
+            const url = new URL(`http://127.0.0.1:${port}/mcp`);
+            expect((await fetch(url)).status).toBe(policy.protected ? 401 : 405);
+            for (let index = 0; index < 2; index++) {
+                const client = new Client({ name: `cli-http-${index}`, version: '1.0.0' });
+                clients.push(client);
+                // SDK sessionId getters include undefined, unlike Transport's optional property
+                // under exactOptionalPropertyTypes; keep the real HTTP transport at this boundary.
+                await client.connect(
+                    new StreamableHTTPClientTransport(url, {
+                        requestInit: { headers: { authorization: 'Bearer fixture-gateway-key' } },
+                    }) as Transport
+                );
+            }
+            const [first, second] = clients;
+            if (!first || !second) throw new Error('Expected both test clients');
+            await first.close();
+            const result = await second.callTool({
+                name: 'echo',
+                arguments: { message: 'HTTP gateway' },
+            });
+            const answer = z
+                .object({
+                    content: z.array(z.object({ type: z.literal('text'), text: z.string() })),
+                })
+                .parse(result);
+            const value = z
+                .object({ message: z.string(), pid: z.number() })
+                .parse(JSON.parse(answer.content[0]?.text ?? '{}'));
+            upstreamPid = value.pid;
+            expect(value.message).toBe('HTTP gateway');
+            expect(output).not.toContain('fixture-gateway-key');
+            child.kill('SIGTERM');
+            await expect.poll(() => child.exitCode, { timeout: 8000 }).toBe(0);
+            expect(await exited).toEqual({ code: 0, signal: null });
+            expect(() => process.kill(value.pid, 0)).toThrow();
+            const rebound = createServer();
+            await new Promise<void>((resolve, reject) => {
+                rebound.once('error', reject);
+                rebound.listen(port, '127.0.0.1', resolve);
+            });
+            await new Promise<void>((resolve) => rebound.close(() => resolve()));
+        } finally {
+            await Promise.allSettled(clients.map((client) => client.close()));
+            if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL');
+            await exited;
+            if (upstreamPid === undefined)
+                upstreamPid = Number(
+                    await readFile(join(directory, 'http-gateway-pid'), 'utf8').catch(() => '')
+                );
+            if (upstreamPid > 0) {
+                try {
+                    process.kill(upstreamPid, 'SIGKILL');
+                } catch {
+                    /* fixture already stopped */
+                }
+            }
+        }
+    },
+    30000
+);
+
+it('rejects unauthenticated network binding before loading configuration or starting upstreams', async () => {
+    const selected = join(directory, 'network-not-loaded.yml');
+    await expect(
+        execute(
+            process.execPath,
+            [
+                '--import',
+                tsx,
+                entrypoint,
+                'mcp',
+                '--group-servers',
+                '--config',
+                selected,
+                '--transport',
+                'http',
+                '--host',
+                '0.0.0.0',
+            ],
+            {
+                cwd: directory,
+                timeout: 20000,
+                env: {
+                    PATH: process.env.PATH,
+                    SystemRoot: process.env.SystemRoot,
+                    HOME: directory,
+                    USERPROFILE: directory,
+                    DEXTO_DEV_MODE: 'false',
+                    DEXTO_ANALYTICS_DISABLED: '1',
+                    DEXTO_LLM_REGISTRY_DISABLE_FETCH: '1',
+                },
+            }
+        )
+    ).rejects.toMatchObject({
+        code: 1,
+        stderr: expect.stringContaining('Network-facing MCP HTTP requires'),
+    });
+});
+
+it.each(['invalid', '0', '65536'])(
+    'reports invalid HTTP port %s before configuration loading',
+    async (port) => {
+        await expect(
+            execute(
+                process.execPath,
+                [
+                    '--import',
+                    tsx,
+                    entrypoint,
+                    'mcp',
+                    '--group-servers',
+                    '--config',
+                    join(directory, 'not-loaded.yml'),
+                    '--transport',
+                    'http',
+                    '--port',
+                    port,
+                ],
+                {
+                    cwd: directory,
+                    timeout: 20000,
+                    env: {
+                        PATH: process.env.PATH,
+                        SystemRoot: process.env.SystemRoot,
+                        HOME: directory,
+                        USERPROFILE: directory,
+                        DEXTO_DEV_MODE: 'false',
+                        DEXTO_ANALYTICS_DISABLED: '1',
+                        DEXTO_LLM_REGISTRY_DISABLE_FETCH: '1',
+                    },
+                }
+            )
+        ).rejects.toMatchObject({
+            code: 1,
+            stderr: expect.stringContaining('MCP HTTP port must be an integer from 1 to 65535.'),
+        });
+    }
 );
