@@ -21,69 +21,72 @@ import { logger } from '@dexto/core';
 
 const PUBLIC_ROUTES = ['/health', '/.well-known/agent-card.json', '/openapi.json'];
 
-export function createAuthMiddleware(): MiddlewareHandler {
-    const apiKey = process.env.DEXTO_SERVER_API_KEY;
-    const isProduction = process.env.NODE_ENV === 'production';
-    const requireAuth = process.env.DEXTO_SERVER_REQUIRE_AUTH === 'true'; // Explicit opt-in
+export type HttpAuthorizationResult =
+    | { allowed: true }
+    | { allowed: false; status: 401 | 500; body: { error: string; message: string } };
 
-    // Log security configuration on startup
-    if (isProduction && !apiKey) {
-        logger.warn(
-            `⚠️  SECURITY WARNING: Running in production mode (NODE_ENV=production) without DEXTO_SERVER_API_KEY. Dexto Server API is UNPROTECTED. Set DEXTO_SERVER_API_KEY environment variable to secure your API.`
-        );
-    }
+export type HttpAuthorization = (header: string | undefined) => HttpAuthorizationResult;
 
-    return async (ctx, next) => {
-        const path = ctx.req.path;
-
-        // Always allow public routes
-        if (PUBLIC_ROUTES.some((route) => path === route || path.startsWith(route))) {
-            return next();
-        }
-
-        // Default behavior: Development mode (no auth required)
-        // This ensures existing dev scripts don't break
-        if (!isProduction && !requireAuth) {
-            return next();
-        }
-
-        // Production mode or explicit DEXTO_SERVER_REQUIRE_AUTH=true
-        // Requires API key to be set - fail closed for security
+/** Required bearer validation, independent of the development-mode server default. */
+export function createRequiredBearerAuthorization(
+    apiKey: string | undefined,
+    configurationMessage = 'Server API key not configured.'
+): HttpAuthorization {
+    return (header) => {
         if (!apiKey) {
-            return ctx.json(
-                {
-                    error: 'Configuration Error',
-                    message: requireAuth
-                        ? 'DEXTO_SERVER_REQUIRE_AUTH=true but DEXTO_SERVER_API_KEY not set. Set DEXTO_SERVER_API_KEY environment variable.'
-                        : 'NODE_ENV=production requires DEXTO_SERVER_API_KEY. Set DEXTO_SERVER_API_KEY environment variable to secure your API.',
-                },
-                500
-            );
+            return {
+                allowed: false,
+                status: 500,
+                body: { error: 'Configuration Error', message: configurationMessage },
+            };
         }
-
-        // API key is set - validate it
-        const authHeader = ctx.req.header('Authorization');
-        const providedKey = authHeader?.replace(/^Bearer\s+/i, '');
-
+        const providedKey = header?.match(/^Bearer\s+(.+)$/i)?.[1];
         if (!providedKey || providedKey !== apiKey) {
-            logger.warn('Unauthorized API access attempt', {
-                path,
-                hasKey: !!providedKey,
-                origin: ctx.req.header('origin'),
-                userAgent: ctx.req.header('user-agent'),
-            });
-
-            return ctx.json(
-                {
+            return {
+                allowed: false,
+                status: 401,
+                body: {
                     error: 'Unauthorized',
                     message:
                         'Invalid or missing API key. Provide Authorization: Bearer <api-key> header.',
                 },
-                401
-            );
+            };
         }
+        return { allowed: true };
+    };
+}
 
-        // Valid API key - proceed
+export function createHttpAuthorization(): HttpAuthorization {
+    const apiKey = process.env.DEXTO_SERVER_API_KEY;
+    const isProduction = process.env.NODE_ENV === 'production';
+    const requireAuth = process.env.DEXTO_SERVER_REQUIRE_AUTH === 'true';
+    if (!isProduction && !requireAuth) return () => ({ allowed: true });
+    if (isProduction && !apiKey) {
+        logger.warn(
+            'Production HTTP authentication requires DEXTO_SERVER_API_KEY; protected requests will fail closed.'
+        );
+    }
+    return createRequiredBearerAuthorization(
+        apiKey,
+        requireAuth
+            ? 'DEXTO_SERVER_REQUIRE_AUTH=true but DEXTO_SERVER_API_KEY not set. Set DEXTO_SERVER_API_KEY environment variable.'
+            : 'NODE_ENV=production requires DEXTO_SERVER_API_KEY. Set DEXTO_SERVER_API_KEY environment variable to secure your API.'
+    );
+}
+
+export function createAuthMiddleware(
+    authorize: HttpAuthorization = createHttpAuthorization()
+): MiddlewareHandler {
+    return async (ctx, next) => {
+        const path = ctx.req.path;
+        if (PUBLIC_ROUTES.some((route) => path === route || path.startsWith(route))) {
+            return next();
+        }
+        const result = authorize(ctx.req.header('Authorization'));
+        if (!result.allowed) {
+            if (result.status === 401) logger.warn('Unauthorized API access attempt', { path });
+            return ctx.json(result.body, result.status);
+        }
         await next();
     };
 }

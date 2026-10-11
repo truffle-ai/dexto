@@ -22,7 +22,12 @@
       "import": "./dist/hono/node/index.js",
       "require": "./dist/hono/node/index.cjs"
     },
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./hono/auth": {
+      "types": "./dist/hono/middleware/auth.d.ts",
+      "import": "./dist/hono/middleware/auth.js",
+      "require": "./dist/hono/middleware/auth.cjs"
+    }
   },
   "dependencies": {
     "@dexto/agent-config": "workspace:*",

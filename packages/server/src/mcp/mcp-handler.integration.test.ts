@@ -50,6 +50,26 @@ afterEach(async () => {
 });
 
 describe('MCP current agent', () => {
+    it('returns chat results without logging request, response or cleanup-error payloads', async () => {
+        const initial = agentFixture('response-secret-sentinel');
+        initial.deleteSession.mockRejectedValueOnce(new Error('cleanup-secret-sentinel'));
+        const client = await connectMcp((transport) =>
+            initializeMcpServer(initial.agent, card('initial'), transport)
+        );
+        const result = await client.callTool({
+            name: 'chat_with_agent',
+            arguments: { message: 'request-secret-sentinel' },
+        });
+        expect(result.content).toEqual([{ type: 'text', text: 'response-secret-sentinel' }]);
+        const logs = JSON.stringify([
+            initial.logger.info.mock.calls,
+            initial.logger.warn.mock.calls,
+        ]);
+        expect(logs).not.toContain('request-secret-sentinel');
+        expect(logs).not.toContain('response-secret-sentinel');
+        expect(logs).not.toContain('cleanup-secret-sentinel');
+    });
+
     it('advertises the existing chat schema and static resource metadata', async () => {
         const initial = agentFixture('answer');
         const client = await connectMcp((transport) =>

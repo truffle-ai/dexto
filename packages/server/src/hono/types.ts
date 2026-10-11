@@ -1,3 +1,4 @@
+import type { HttpAuthorization } from './middleware/auth.js';
 import type { Context } from 'hono';
 import type { Hono } from 'hono';
 import type { RouteConfig, RouteConfigToTypedResponse } from '@hono/zod-openapi';
@@ -8,6 +9,7 @@ import type { WebhookEventSubscriber } from '../events/webhook-subscriber.js';
 
 export type DextoApp = OpenAPIHono & {
     webhookSubscriber?: WebhookEventSubscriber;
+    httpAuthorization?: HttpAuthorization;
 };
 
 export type GetAgentFn = (ctx: Context) => DextoAgent | Promise<DextoAgent>;

@@ -64,24 +64,18 @@ export async function initializeMcpServer(
         async ({ message }: { message: string }) => {
             // Keep session creation, execution and cleanup on the same agent if the host switches.
             const agent = context.getAgent();
-            agent.logger.info(
-                `MCP tool '${toolName}' received message: ${message.substring(0, 100)}${message.length > 100 ? '...' : ''}`
-            );
+            agent.logger.info(`MCP tool '${toolName}' call started`);
             // Create ephemeral session for this MCP tool call (stateless MCP interactions)
             const session = await agent.createSession(`mcp-${randomUUID()}`);
             try {
                 const text = await agent.run(message, undefined, undefined, session.id);
-                agent.logger.info(
-                    `MCP tool '${toolName}' sending response: ${text?.substring(0, 100)}${(text?.length ?? 0) > 100 ? '...' : ''}`
-                );
+                agent.logger.info(`MCP tool '${toolName}' call completed`);
                 return { content: [{ type: 'text', text: text ?? '' }] };
             } finally {
                 // Always clean up ephemeral session to prevent accumulation
                 await agent
                     .deleteSession(session.id)
-                    .catch((err) =>
-                        agent.logger.warn(`Failed to cleanup MCP session ${session.id}: ${err}`)
-                    );
+                    .catch(() => agent.logger.warn(`Failed to cleanup MCP session ${session.id}`));
             }
         }
     );
@@ -145,23 +139,20 @@ export function createMcpHttpHandlers(mcpTransport: Transport) {
         return null;
     }
 
-    const handlePost = async (req: IncomingMessage, res: ServerResponse, body: unknown) => {
-        logger.info(`MCP POST /mcp received request body: ${JSON.stringify(body)}`);
+    const handleRequest = async (req: IncomingMessage, res: ServerResponse, body?: unknown) => {
+        logger.info(`MCP ${req.method} request received`);
         try {
             await mcpTransport.handleRequest(req, res, body);
-        } catch (err) {
-            logger.error(`MCP POST error: ${JSON.stringify(err, null, 2)}`);
+        } catch {
+            logger.error('MCP HTTP request failed');
+            if (!res.headersSent) {
+                res.writeHead(500, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: 'Internal Server Error' }));
+            } else if (!res.writableEnded) {
+                res.destroy();
+            }
         }
     };
 
-    const handleGet = async (req: IncomingMessage, res: ServerResponse) => {
-        logger.info('MCP GET /mcp received request, attempting to establish SSE connection.');
-        try {
-            await mcpTransport.handleRequest(req, res);
-        } catch (err) {
-            logger.error(`MCP GET error: ${JSON.stringify(err, null, 2)}`);
-        }
-    };
-
-    return { handlePost, handleGet };
+    return { handlePost: handleRequest, handleGet: handleRequest, handleDelete: handleRequest };
 }

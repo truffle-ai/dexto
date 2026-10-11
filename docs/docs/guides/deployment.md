@@ -46,7 +46,7 @@ Use Ctrl+C or send SIGTERM to stop the local server. Shutdown closes the HTTP li
     docker run --env-file .env -p 3001:3001 dexto
     ```
 
-Production API requests require `Authorization: Bearer <DEXTO_SERVER_API_KEY>`; `/health` remains public.
+Production API and HTTP MCP requests require `Authorization: Bearer <DEXTO_SERVER_API_KEY>`; `/health` remains public. `DEXTO_SERVER_REQUIRE_AUTH=true` also enables this policy in development. Send the Bearer scheme explicitly; a bare key in the Authorization header is not accepted. Embedding hosts that explicitly disable built-in authentication remain responsible for their own boundary.
 
 Your Dexto server will be available at `http://localhost:3001` with:
 

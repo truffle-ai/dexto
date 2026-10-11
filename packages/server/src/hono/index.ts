@@ -47,7 +47,11 @@ import { SessionSseEventSubscriber } from '../events/session-sse-subscriber.js';
 import { handleHonoError } from './middleware/error.js';
 import { prettyJsonMiddleware, redactionMiddleware } from './middleware/redaction.js';
 import { createCorsMiddleware } from './middleware/cors.js';
-import { createAuthMiddleware } from './middleware/auth.js';
+import {
+    createAuthMiddleware,
+    createHttpAuthorization,
+    type HttpAuthorization,
+} from './middleware/auth.js';
 import { ApprovalCoordinator } from '../approval/approval-coordinator.js';
 import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -216,6 +220,9 @@ export function createDextoApp(options: CreateDextoAppOptions): DextoApp {
         );
     }
 
+    const httpAuthorization: HttpAuthorization = disableAuth
+        ? () => ({ allowed: true })
+        : createHttpAuthorization();
     const app = new OpenAPIHono({ strict: false });
 
     // Global CORS middleware for cross-origin requests (must be first)
@@ -224,7 +231,7 @@ export function createDextoApp(options: CreateDextoAppOptions): DextoApp {
     // Global authentication middleware (after CORS, before routes)
     // Can be disabled when using an external auth layer
     if (!disableAuth) {
-        app.use('*', createAuthMiddleware());
+        app.use('*', createAuthMiddleware(httpAuthorization));
     }
 
     // Global error handling for all routes
@@ -427,7 +434,7 @@ export function createDextoApp(options: CreateDextoAppOptions): DextoApp {
     // This ensures proper initialization order and validation
     // We attach webhookSubscriber as a property but don't include it in the return type
     // to preserve Hono's route type inference
-    Object.assign(fullApp, { webhookSubscriber });
+    Object.assign(fullApp, { webhookSubscriber, httpAuthorization });
 
     return fullApp;
 }
