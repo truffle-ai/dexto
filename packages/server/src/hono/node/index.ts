@@ -1,6 +1,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { Readable } from 'node:stream';
 import type { ReadableStream as NodeReadableStream } from 'stream/web';
+import { createHttpAuthorization } from '../middleware/auth.js';
 import type { DextoApp } from '../types.js';
 import type { DextoAgent } from '@dexto/core';
 import { logger } from '@dexto/core';
@@ -20,6 +21,7 @@ export type NodeBridgeOptions = {
             body: unknown
         ) => Promise<void> | void;
         handleGet: (req: IncomingMessage, res: ServerResponse) => Promise<void> | void;
+        handleDelete?: (req: IncomingMessage, res: ServerResponse) => Promise<void> | void;
     } | null;
 };
 
@@ -31,6 +33,7 @@ export type NodeBridgeResult = {
 export function createNodeServer(app: DextoApp, options: NodeBridgeOptions): NodeBridgeResult {
     const { getAgent: _getAgent } = options;
     const webhookSubscriber = app.webhookSubscriber;
+    const authorize = app.httpAuthorization ?? createHttpAuthorization();
 
     const server = createServer(async (req, res) => {
         const disconnectController = new AbortController();
@@ -42,7 +45,17 @@ export function createNodeServer(app: DextoApp, options: NodeBridgeOptions): Nod
         res.on('close', abortOnDisconnect);
 
         try {
-            if (options.mcpHandlers && req.url?.startsWith('/mcp')) {
+            if (
+                options.mcpHandlers &&
+                req.method !== 'OPTIONS' &&
+                new URL(req.url ?? '/', 'http://localhost').pathname === '/mcp'
+            ) {
+                const authorization = authorize(req.headers.authorization);
+                if (!authorization.allowed) {
+                    res.writeHead(authorization.status, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify(authorization.body));
+                    return;
+                }
                 if (req.method === 'GET') {
                     await options.mcpHandlers.handleGet(req, res);
                     return;
@@ -50,40 +63,43 @@ export function createNodeServer(app: DextoApp, options: NodeBridgeOptions): Nod
                 if (req.method === 'POST') {
                     req.setEncoding('utf8');
                     let body = '';
-                    const MAX_BODY_SIZE = 10 * 1024 * 1024; // 10MB limit
-                    req.on('data', (chunk) => {
+                    const MAX_BODY_SIZE = 10 * 1024 * 1024;
+                    for await (const chunk of req) {
                         body += chunk;
                         if (body.length > MAX_BODY_SIZE) {
-                            req.destroy();
                             res.statusCode = 413;
                             res.end('Payload too large');
+                            return;
                         }
-                    });
-                    req.on('end', async () => {
-                        try {
-                            const parsed = body.length > 0 ? JSON.parse(body) : undefined;
-                            await options.mcpHandlers!.handlePost(req, res, parsed);
-                        } catch (err) {
-                            logger.error(`Failed to process MCP POST body: ${String(err)}`);
-                            res.statusCode = 400;
-                            res.end('Invalid JSON body');
-                        }
-                    });
-                    req.on('error', (err: Error) => {
-                        logger.error(`Error reading MCP POST body: ${String(err)}`);
-                        res.statusCode = 500;
-                        res.end('Failed to read request body');
-                    });
+                    }
+                    let parsed: unknown;
+                    try {
+                        parsed = body.length > 0 ? JSON.parse(body) : undefined;
+                    } catch {
+                        logger.error('Invalid MCP POST JSON');
+                        res.statusCode = 400;
+                        res.end('Invalid JSON body');
+                        return;
+                    }
+                    await options.mcpHandlers.handlePost(req, res, parsed);
                     return;
                 }
+                if (req.method === 'DELETE' && options.mcpHandlers.handleDelete) {
+                    await options.mcpHandlers.handleDelete(req, res);
+                    return;
+                }
+                res.writeHead(405, {
+                    Allow: options.mcpHandlers.handleDelete ? 'GET, POST, DELETE' : 'GET, POST',
+                });
+                res.end('Method not allowed');
+                return;
             }
 
             const request = await toRequest(req, disconnectController.signal);
             const response = await app.fetch(request);
             await sendNodeResponse(res, response, disconnectController.signal);
-        } catch (error) {
-            const message = error instanceof Error ? error.message : String(error);
-            logger.error(`Unhandled error in Node bridge: ${message}`, { error });
+        } catch {
+            logger.error('Unhandled request error in Node bridge');
             res.statusCode = 500;
             res.end('Internal Server Error');
         } finally {
