@@ -66,6 +66,7 @@ import {
     type ValidatedAgentConfig,
 } from '@dexto/agent-config';
 import {
+    registerConfiguredSkillPrompts,
     getDextoPackageRoot,
     resolveAgentPath,
     loadAgentConfig,
@@ -488,6 +489,7 @@ async function bootstrapAgentFromGlobalOpts(options: {
 
     const validatedConfig = AgentConfigSchema.parse(enrichedConfig);
     const services = await resolveServicesFromConfig(validatedConfig, image, { workspaceRoot });
+    registerConfiguredSkillPrompts(services.skills, validatedConfig.prompts);
     const agent = new DextoAgent(
         toDextoAgentOptions({
             config: validatedConfig,
@@ -1125,6 +1127,7 @@ program
                     const services = await resolveServicesFromConfig(validatedConfig, image, {
                         workspaceRoot,
                     });
+                    registerConfiguredSkillPrompts(services.skills, validatedConfig.prompts);
                     agent = new DextoAgent(
                         toDextoAgentOptions({
                             config: validatedConfig,

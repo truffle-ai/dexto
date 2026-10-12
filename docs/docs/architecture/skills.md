@@ -61,3 +61,9 @@ contract or a promise made by hosted images.
 
 Skills remain separate from prompt-only slash commands. Enable the `skill_load` builtin when an
 agent should load skills, and use `/skills` or `GET /api/skills` to inspect the host catalog.
+
+## Configured local instruction files
+
+Local CLI agent construction also registers configured file prompts with `LocalSkills`. This restores bundled instructions such as the coding agent's `code-review` skill while keeping their prompt/menu entry. The canonical skill name uses the file prompt's frontmatter `id` (or filename) and configured namespace; `name` and `title` do not rename it. Standalone and plugin skills retain precedence. Conflicting configured identities fail explicitly.
+
+These files grant instructions only: `supportingFiles` is empty, `filesLocation` is `hosted`, and `baseDirectory` is null. Supporting-file reads cannot access siblings. Files resolving outside their selected parent through a symlink are excluded, as are files whose frontmatter sets `disable-model-invocation: true`. Edits take effect on the next operation. This does not add that property to the strict prompt configuration schema or alter custom image Skills implementations.

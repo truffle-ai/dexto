@@ -1,7 +1,8 @@
 import { promises as fs, type Dirent } from 'node:fs';
 import path from 'node:path';
-import { isSafeRelativeSkillPath } from '@dexto/core';
+import { isSafeRelativeSkillPath, isValidPromptName } from '@dexto/core';
 import type { LoadedSkill, SkillSummary, Skills } from '@dexto/core';
+import type { PromptsConfig } from '@dexto/core/config';
 import { discoverClaudeCodePlugins } from './discover-plugins.js';
 import { discoverStandaloneSkills } from './discover-skills.js';
 import { loadClaudeCodePlugin } from './load-plugin.js';
@@ -21,7 +22,13 @@ export interface CreateLocalSkillsOptions {
     bundledPlugins?: string[] | undefined;
 }
 
+type ConfiguredFilePrompt = Pick<
+    Extract<NonNullable<PromptsConfig>[number], { type: 'file' }>,
+    'file' | 'namespace'
+>;
+
 type SkillFile = {
+    kind: 'bundle' | 'prompt';
     root: LocalSkillRoot;
     instructions: string;
     description: string;
@@ -39,6 +46,7 @@ type LocalSkillRootDiscovery = (
  */
 export class LocalSkills implements Skills {
     private activeWorkspaceRoot: string | undefined;
+    private configuredFilePrompts: readonly ConfiguredFilePrompt[] = [];
 
     constructor(
         private readonly discoverRoots: LocalSkillRootDiscovery,
@@ -53,11 +61,23 @@ export class LocalSkills implements Skills {
         this.activeWorkspaceRoot = workspaceRoot;
     }
 
+    /** Opt-in host registration; configured prompt files grant instructions, not a directory. */
+    setConfiguredFilePrompts(prompts: readonly ConfiguredFilePrompt[]): void {
+        this.configuredFilePrompts = prompts.map((prompt) => ({
+            file: path.resolve(prompt.file),
+            ...(prompt.namespace !== undefined ? { namespace: prompt.namespace } : {}),
+        }));
+    }
+
     async list(): Promise<readonly SkillSummary[]> {
         const summaries: SkillSummary[] = [];
         for (const root of await this.discoverRoots(this.getWorkspaceRoot())) {
             const skill = await this.readSkillFile(root);
             if (!skill) continue;
+            summaries.push({ name: skill.root.name, description: skill.description });
+        }
+        const existingNames = new Set(summaries.map((summary) => summary.name));
+        for (const skill of await this.readConfiguredSkillFiles(existingNames)) {
             summaries.push({ name: skill.root.name, description: skill.description });
         }
         return summaries;
@@ -70,15 +90,19 @@ export class LocalSkills implements Skills {
         return {
             name: skill.root.name,
             instructions: skill.instructions,
-            supportingFiles: await listSupportingFiles(path.dirname(skill.root.skillFile)),
-            filesLocation: 'workspace',
-            baseDirectory: path.dirname(skill.root.skillFile),
+            supportingFiles:
+                skill.kind === 'prompt'
+                    ? []
+                    : await listSupportingFiles(path.dirname(skill.root.skillFile)),
+            filesLocation: skill.kind === 'prompt' ? 'hosted' : 'workspace',
+            baseDirectory: skill.kind === 'prompt' ? null : path.dirname(skill.root.skillFile),
         };
     }
 
     async readFile(name: string, requestedPath: string): Promise<string> {
         const skill = await this.findSkill(name);
-        const skillDirectory = skill ? path.dirname(skill.root.skillFile) : undefined;
+        const skillDirectory =
+            skill?.kind === 'bundle' ? path.dirname(skill.root.skillFile) : undefined;
         const skillFile = skill?.root.skillFile;
         if (!skillDirectory || skillFile === undefined || !isSafeRelativeSkillPath(requestedPath)) {
             throw new Error(`Skill file not found: ${name}/${requestedPath}`);
@@ -116,12 +140,23 @@ export class LocalSkills implements Skills {
     }
 
     private async findSkill(name: string): Promise<SkillFile | null> {
-        for (const root of await this.discoverRoots(this.getWorkspaceRoot())) {
+        const roots = await this.discoverRoots(this.getWorkspaceRoot());
+        for (const root of roots) {
             if (root.name !== name) continue;
             const skill = await this.readSkillFile(root);
             if (skill) return skill;
         }
-        return null;
+        // A configured fallback must apply the same usable-root precedence as list().
+        const existingNames = new Set<string>();
+        for (const root of roots) {
+            if (root.name === name) continue;
+            if (await this.readSkillFile(root)) existingNames.add(root.name);
+        }
+        return (
+            (await this.readConfiguredSkillFiles(existingNames)).find(
+                (skill) => skill.root.name === name
+            ) ?? null
+        );
     }
 
     private async readSkillFile(root: LocalSkillRoot): Promise<SkillFile | null> {
@@ -144,10 +179,59 @@ export class LocalSkills implements Skills {
 
         const description = root.description ?? frontmatter.description;
         return {
+            kind: 'bundle',
             root,
             instructions,
             description: description?.trim() || deriveDescription(instructions, root.name),
         };
+    }
+
+    private async readConfiguredSkillFiles(
+        existingNames: ReadonlySet<string>
+    ): Promise<SkillFile[]> {
+        const skills: SkillFile[] = [];
+        const configuredNames = new Map<string, string>();
+        for (const prompt of this.configuredFilePrompts) {
+            let instructions: string;
+            if (path.basename(prompt.file) === 'SKILL.md') continue;
+            try {
+                const [parent, file] = await Promise.all([
+                    fs.realpath(path.dirname(prompt.file)),
+                    fs.realpath(prompt.file),
+                ]);
+                const relative = path.relative(parent, file);
+                if (
+                    relative === '..' ||
+                    relative.startsWith(`..${path.sep}`) ||
+                    path.isAbsolute(relative)
+                )
+                    continue;
+                instructions = await fs.readFile(file, 'utf8');
+            } catch {
+                continue;
+            }
+            const metadata = getSkillFrontmatter(instructions.trimStart());
+            if (metadata.disableModelInvocation === true) continue;
+            // File prompts use id/filename, not standalone Skill name/title metadata.
+            const id = metadata.id ?? path.basename(prompt.file, '.md');
+            if (!isValidPromptName(id)) continue;
+            const name = prompt.namespace ? `${prompt.namespace}:${id}` : id;
+            if (existingNames.has(name)) continue;
+            const previousFile = configuredNames.get(name);
+            if (previousFile !== undefined) {
+                if (previousFile !== prompt.file)
+                    throw new Error(`Ambiguous configured skill identity: ${name}`);
+                continue;
+            }
+            configuredNames.set(name, prompt.file);
+            skills.push({
+                kind: 'prompt',
+                root: { name, skillFile: prompt.file },
+                instructions,
+                description: metadata.description?.trim() || deriveDescription(instructions, name),
+            });
+        }
+        return skills;
     }
 
     private getWorkspaceRoot(): string | undefined {
@@ -160,6 +244,15 @@ export function createLocalSkills(options: CreateLocalSkillsOptions = {}): Local
         (workspaceRoot) => discoverLocalSkillRoots({ ...options, workspaceRoot }),
         options.workspaceRoot
     );
+}
+
+/** Register configured files only with the local engine; custom image Skills retain their policy. */
+export function registerConfiguredSkillPrompts(
+    skills: Skills | undefined,
+    prompts: PromptsConfig
+): void {
+    if (!(skills instanceof LocalSkills)) return;
+    skills.setConfiguredFilePrompts((prompts ?? []).filter((prompt) => prompt.type === 'file'));
 }
 
 function discoverLocalSkillRoots(options: CreateLocalSkillsOptions): LocalSkillRoot[] {

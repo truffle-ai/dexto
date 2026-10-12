@@ -22,6 +22,7 @@ const content = 'packaged runtime smoke passed';
 let toolStep = 0;
 let finalToolMessages = [];
 const operations = [
+    { name: 'skill_load', arguments: { name: 'code-review' } },
     { name: 'write_file', arguments: { file_path: join(workspace, 'smoke.txt'), content } },
     { name: 'read_file', arguments: { file_path: join(workspace, 'smoke.txt') } },
     { name: 'bash_exec', arguments: { command: 'echo packaged runtime smoke passed' } },
@@ -125,7 +126,11 @@ storage:
     type: in-memory
   database:
     type: sqlite
+prompts:
+  - type: file
+    file: "\${{dexto.agent_dir}}/skills/code-review.md"
 tools:
+  - type: builtin-tools
   - type: filesystem-tools
     allowedPaths: [${JSON.stringify(workspace)}]
   - type: process-tools
@@ -155,13 +160,18 @@ tools:
             assert.equal(events.at(-1).type, 'complete');
         }
         assert.equal(events.at(-1).content, content);
-        assert.equal(toolStep, 4);
-        assert.equal(finalToolMessages.length, 3);
+        assert.equal(toolStep, 5);
+        assert.equal(finalToolMessages.length, 4);
         const results = finalToolMessages.map((message) => JSON.parse(message.content));
-        assert.equal(results[0].bytes_written, Buffer.byteLength(content));
-        assert.ok(results[1].content.includes(content));
-        assert.equal(results[2].exit_code, 0);
-        assert.equal(results[2].stdout.trim(), content);
+        assert.equal(results[0].name, 'code-review');
+        assert.ok(results[0].instructions.includes('# Code Review Skill'));
+        assert.deepEqual(results[0].supportingFiles, []);
+        assert.equal(results[0].baseDirectory, null);
+        assert.equal(results[0].filesLocation, 'hosted');
+        assert.equal(results[1].bytes_written, Buffer.byteLength(content));
+        assert.ok(results[2].content.includes(content));
+        assert.equal(results[3].exit_code, 0);
+        assert.equal(results[3].stdout.trim(), content);
         assert.equal(await readFile(join(workspace, 'smoke.txt'), 'utf8'), content);
         console.log(`Fresh-home packaged ${format} run, filesystem and process tools passed`);
     }
