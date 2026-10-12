@@ -2,6 +2,11 @@ import { describe, expect, it, vi } from 'vitest';
 import type { AgentConfig } from '@dexto/agent-config';
 import type { ModelRegistry } from '@dexto/llm';
 
+const registerConfiguredSkillPromptsMock = vi.hoisted(() => vi.fn());
+vi.mock('./plugins/local-skills.js', () => ({
+    registerConfiguredSkillPrompts: registerConfiguredSkillPromptsMock,
+}));
+
 const loadImageMock = vi.fn(async (_specifier: string) => ({ defaults: {} }));
 const resolveServicesFromConfigMock = vi.fn(async () => ({}));
 const enrichAgentConfigMock = vi.fn((config: unknown) => config);
@@ -170,5 +175,21 @@ describe('createDextoAgentFromConfig', () => {
         });
 
         expect(createAgentConfigSchemaMock).toHaveBeenCalledWith(llmRegistry);
+    });
+    it('registers validated file prompts with the selected image service before agent construction', async () => {
+        const { createDextoAgentFromConfig } = await import('./agent-creation.js');
+        const skills = {
+            list: async () => [],
+            load: async () => null,
+            readFile: async () => 'custom',
+        };
+        resolveServicesFromConfigMock.mockResolvedValueOnce({ skills });
+        const config: AgentConfig = {
+            systemPrompt: 'Fixture agent',
+            llm: { provider: 'openai', model: 'gpt-4o-mini', apiKey: 'fixture' },
+            prompts: [{ type: 'file', file: '/fixture/code-review.md' }],
+        };
+        await createDextoAgentFromConfig({ config });
+        expect(registerConfiguredSkillPromptsMock).toHaveBeenLastCalledWith(skills, config.prompts);
     });
 });

@@ -15,6 +15,7 @@ import {
     type InitializeServicesOptions,
 } from '@dexto/core';
 import { enrichAgentConfig, type EnrichAgentConfigOptions } from './config/index.js';
+import { registerConfiguredSkillPrompts } from './plugins/local-skills.js';
 import { BUILTIN_TOOL_NAMES } from '@dexto/tools-builtins';
 
 type CreateDextoAgentFromConfigOptions = {
@@ -121,6 +122,7 @@ export async function createDextoAgentFromConfig(
         ...(enrichOptions?.workspaceRoot ? { workspaceRoot: enrichOptions.workspaceRoot } : {}),
     };
     const services = await resolveServicesFromConfig(validatedConfig, image, resolvedHostContext);
+    registerConfiguredSkillPrompts(services.skills, validatedConfig.prompts);
     const mergedOverrides: InitializeServicesOptions | undefined = overrides
         ? { ...overrides }
         : undefined;

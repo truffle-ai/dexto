@@ -316,6 +316,7 @@ export {
     installPluginFromMarketplace,
     getUninstalledDefaults,
     createLocalSkills,
+    registerConfiguredSkillPrompts,
     LocalSkills,
     isDefaultMarketplace,
     MarketplaceErrorCode,

@@ -54,7 +54,7 @@ export {
     getStandaloneSkillPaths,
 } from './discover-skills.js';
 export type { DiscoveredSkill, StandaloneSkillPaths } from './discover-skills.js';
-export { createLocalSkills, LocalSkills } from './local-skills.js';
+export { createLocalSkills, registerConfiguredSkillPrompts, LocalSkills } from './local-skills.js';
 export type { CreateLocalSkillsOptions, LocalSkillRoot } from './local-skills.js';
 
 // Loading

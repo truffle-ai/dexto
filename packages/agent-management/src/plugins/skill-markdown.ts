@@ -1,6 +1,8 @@
 import { parse as parseYaml } from 'yaml';
 
 export interface SkillFrontmatter {
+    id?: string;
+    disableModelInvocation?: boolean;
     name?: string;
     description?: string;
 }
@@ -25,9 +27,15 @@ export function getSkillFrontmatter(markdown: string): SkillFrontmatter {
 
     if (!isRecord(parsed)) return {};
 
+    const id = stringField(parsed.id);
+    const disableModelInvocation =
+        parsed['disable-model-invocation'] === true ||
+        parsed['disable-model-invocation'] === 'true';
     const name = stringField(parsed.name);
     const description = stringField(parsed.description);
     return {
+        ...(id !== undefined ? { id } : {}),
+        ...(disableModelInvocation ? { disableModelInvocation: true } : {}),
         ...(name !== undefined ? { name } : {}),
         ...(description !== undefined ? { description } : {}),
     };
