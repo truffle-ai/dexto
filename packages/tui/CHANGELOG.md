@@ -1,5 +1,29 @@
 # @dexto/tui
 
+## 1.14.0
+
+### Minor Changes
+
+- feaa7aa: Add scope-aware session approval choices and a local `/permissions` selector to inspect and revoke remembered tool and action grants. Keep agent permission defaults and headless behavior unchanged. Honor mandatory manual approval policy in TUI auto modes and use exact approval scopes for complex shell commands.
+
+### Patch Changes
+
+- d5ebf16: Honor configured permissions across TUI and headless runs, add a shared permissions-mode option and consistent auto-approval aliases, expose correlated approval-required output without interrupting model recovery, and display configured approvals in the TUI.
+- 69bfcc3: Restore resumed conversation and input history before submitting startup or fast manual prompts, preserving each submission and newer drafts. Keep transcript output in chronological order, including static terminal scrollback, and ignore stale history after switching sessions.
+- cf92822: Keep steer and follow-up queue previews scoped to the active TUI session, including pending snapshots that finish after a session switch.
+- Updated dependencies [eec55be]
+- Updated dependencies [f23f4ee]
+- Updated dependencies [4cb931b]
+- Updated dependencies [331e59d]
+- Updated dependencies [5fd0113]
+- Updated dependencies [a7c393b]
+- Updated dependencies [f5ee16a]
+- Updated dependencies [feaa7aa]
+    - @dexto/core@1.14.0
+    - @dexto/agent-management@1.14.0
+    - @dexto/llm@1.14.0
+    - @dexto/registry@1.14.0
+
 ## 1.13.5
 
 ### Patch Changes
