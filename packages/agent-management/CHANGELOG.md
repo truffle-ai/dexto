@@ -1,5 +1,17 @@
 # @dexto/agent-management
 
+## 1.14.1
+
+### Patch Changes
+
+- b60cc45: Restore loading of configured bundled local-agent instruction files through skill_load. Preserve standalone skill precedence and private file metadata while keeping configured files instruction-only.
+- Updated dependencies [de81ae5]
+    - @dexto/core@1.14.1
+    - @dexto/agent-config@1.14.1
+    - @dexto/orchestration@1.14.1
+    - @dexto/tools-builtins@1.14.1
+    - @dexto/llm@1.14.1
+
 ## 1.14.0
 
 ### Patch Changes
