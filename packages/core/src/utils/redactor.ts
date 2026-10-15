@@ -81,11 +81,13 @@ const URL_PATTERN = /(https?:\/\/(?:(?!https?:\/\/)[A-Za-z0-9._~/?&=%+-])+)/i;
 // delimiter is a private-use character, which ordinary text does not contain.
 const SIGNED_URL_PLACEHOLDER = /\uE000(\d+)\uE000/g;
 
-// JWT pattern - applied selectively (not to signed URLs)
-const JWT_PATTERN = /\beyJ[A-Za-z0-9_-]*\.[A-Za-z0-9_-]*\.[A-Za-z0-9_-]*/g;
+// JWTs: eyJ at a word boundary, then three dot-separated segments of token characters. Read as
+// one pattern, a long run of "eyJ…-" with no dot is rescanned from every eyJ in it (quadratic),
+// so each run of token characters with the two dots a token needs is taken once and
+// redactJwtsInRun finds the tokens inside it.
+const JWT_RUN_PATTERN = /(?<![A-Za-z0-9_-])[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]*){2,}/g;
 // Inside a signed URL, the token that is its token= query value (Supabase's signature) is kept.
-const JWT_OUTSIDE_TOKEN_VALUE_PATTERN =
-    /(?<![?&]token=)\beyJ[A-Za-z0-9_-]*\.[A-Za-z0-9_-]*\.[A-Za-z0-9_-]*/g;
+const TOKEN_VALUE_PREFIX = /[?&]token=$/;
 
 // Patterns that indicate a URL contains a signed token that should NOT be redacted
 // These are legitimate shareable URLs, not sensitive credentials
@@ -159,7 +161,41 @@ function isSignedUrl(value: string): boolean {
     return SIGNED_URL_PATTERNS.some((pattern) => pattern.test(value));
 }
 
-function redactText(text: string, awsAccessKeyIdPattern: RegExp, jwtPattern: RegExp): string {
+/**
+ * Replaces each JWT in a dotted run of token characters. A token starts at "eyJ" at the start of
+ * a segment or just after a "-" in it (a word boundary), and spans the rest of that segment and
+ * the next two whole segments. Each segment is read once.
+ */
+function redactJwtsInRun(run: string, keepRunStart: boolean): string {
+    const segments = run.split('.');
+    const kept: string[] = [];
+    let index = 0;
+    while (index < segments.length) {
+        const segment = segments[index] ?? '';
+        const start =
+            index + 2 < segments.length ? jwtStart(segment, keepRunStart && index === 0) : -1;
+        if (start < 0) {
+            kept.push(segment);
+            index += 1;
+            continue;
+        }
+        kept.push(`${segment.slice(0, start)}${REDACTED}`);
+        index += 3;
+    }
+    return kept.join('.');
+}
+
+/** Where the first JWT header starts in a segment, or -1. */
+function jwtStart(segment: string, skipSegmentStart: boolean): number {
+    let start = segment.indexOf('eyJ');
+    while (start >= 0) {
+        if (start === 0 ? !skipSegmentStart : segment[start - 1] === '-') return start;
+        start = segment.indexOf('eyJ', start + 1);
+    }
+    return -1;
+}
+
+function redactText(text: string, awsAccessKeyIdPattern: RegExp, keepTokenValue: boolean): string {
     let result = text;
     for (const pattern of SENSITIVE_PATTERNS) {
         result = result.replace(pattern, REDACTED);
@@ -167,7 +203,14 @@ function redactText(text: string, awsAccessKeyIdPattern: RegExp, jwtPattern: Reg
     result = result.replace(SK_KEY_CANDIDATE_PATTERN, (candidate) =>
         isSkKey(candidate) ? REDACTED : candidate
     );
-    return result.replace(awsAccessKeyIdPattern, REDACTED).replace(jwtPattern, REDACTED);
+    result = result.replace(awsAccessKeyIdPattern, REDACTED);
+    if (!result.includes('eyJ')) return result;
+    return result.replace(JWT_RUN_PATTERN, (run: string, offset: number, whole: string) =>
+        redactJwtsInRun(
+            run,
+            keepTokenValue && TOKEN_VALUE_PREFIX.test(whole.slice(Math.max(0, offset - 7), offset))
+        )
+    );
 }
 
 export function redactSensitiveData(input: unknown, seen = new WeakSet()): unknown {
@@ -188,18 +231,14 @@ export function redactSensitiveData(input: unknown, seen = new WeakSet()): unkno
                       return `\uE000${signedUrls.length - 1}\uE000`;
                   })
                   .join('');
-        const result = redactText(withPlaceholders, AWS_ACCESS_KEY_ID_PATTERN, JWT_PATTERN);
+        const result = redactText(withPlaceholders, AWS_ACCESS_KEY_ID_PATTERN, false);
         return signedUrls.length === 0
             ? result
             : result.replace(SIGNED_URL_PLACEHOLDER, (_placeholder, index: string) => {
                   const url = signedUrls[Number(index)];
                   return url === undefined
                       ? REDACTED
-                      : redactText(
-                            url,
-                            AWS_ACCESS_KEY_ID_OUTSIDE_CREDENTIAL_PATTERN,
-                            JWT_OUTSIDE_TOKEN_VALUE_PATTERN
-                        );
+                      : redactText(url, AWS_ACCESS_KEY_ID_OUTSIDE_CREDENTIAL_PATTERN, true);
               });
     }
     if (Array.isArray(input)) {
