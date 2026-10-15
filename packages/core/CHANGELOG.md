@@ -1,5 +1,12 @@
 # @dexto/core
 
+## 1.14.1
+
+### Patch Changes
+
+- de81ae5: Redact JSON Web Tokens in one pass over the text, so a long run of `eyJ…-` with no dot no longer takes seconds to redact
+    - @dexto/llm@1.14.1
+
 ## 1.14.0
 
 ### Minor Changes
