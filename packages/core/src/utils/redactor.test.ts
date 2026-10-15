@@ -310,6 +310,41 @@ describe('redact', () => {
                 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U';
             expect(redact(jwt)).toBe('[REDACTED]');
         });
+
+        test('should redact JWTs in dotted text exactly as the eyJ pattern matches them', () => {
+            expect(redact('a.eyJh.b.c.d')).toBe('a.[REDACTED].d');
+            expect(redact('x-eyJh.b.c')).toBe('x-[REDACTED]');
+            expect(redact('xeyJh.b.c')).toBe('xeyJh.b.c');
+            expect(redact('eyJa.b')).toBe('eyJa.b');
+            expect(redact('eyJ..')).toBe('[REDACTED]');
+            expect(redact('eyJa.b.c.eyJd.e.f')).toBe('[REDACTED].[REDACTED]');
+            expect(redact('eyJa-eyJb.c.d')).toBe('[REDACTED]');
+            expect(redact('q.eyJa.b.c')).toBe('q.[REDACTED]');
+        });
+
+        test('should match the eyJ pattern on mixed dotted text', () => {
+            // The pattern the redactor used before it read each run once.
+            const quadratic = /\beyJ[A-Za-z0-9_-]*\.[A-Za-z0-9_-]*\.[A-Za-z0-9_-]*/g;
+            const pieces = ['eyJ', 'a', '-', '.', '_', 'x', ' ', 'Z9'];
+            let seed = 7;
+            for (let run = 0; run < 2000; run += 1) {
+                let text = '';
+                for (let index = 0; index < 12; index += 1) {
+                    seed = (seed * 1103515245 + 12345) % 2147483648;
+                    text += pieces[seed % pieces.length];
+                }
+                expect(redact(text)).toBe(text.replace(quadratic, '[REDACTED]'));
+            }
+        });
+
+        test('should stay fast on a long run of eyJ segments with no dot', () => {
+            const run = 'eyJaaaaaaaa-'.repeat(10000);
+            const started = Date.now();
+            expect(redact(run)).toBe(run);
+            expect(redact(`${run}.b`)).toBe(`${run}.b`);
+            expect(redact(`${run}.b.c`)).toBe('[REDACTED]');
+            expect(Date.now() - started).toBeLessThan(500);
+        });
     });
 
     // Signed URLs (should NOT be redacted)
