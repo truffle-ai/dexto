@@ -1,5 +1,13 @@
 # @dexto/tools-todo
 
+## 1.14.2
+
+### Patch Changes
+
+- Updated dependencies [2424298]
+    - @dexto/core@1.14.2
+    - @dexto/agent-config@1.14.2
+
 ## 1.14.1
 
 ### Patch Changes
