@@ -532,6 +532,15 @@ function handleLLMError(event: EventByName<'llm:error'>): void {
         sessionId,
     });
 
+    // A failed run never finalizes a draft that streamed only reasoning (such as a second empty
+    // reply); drop it so it doesn't attach to the next answer.
+    if (recoverable !== true) {
+        const { streamingMessage } = chatStore.getSessionState(sessionId);
+        if (streamingMessage && !streamingMessage.content) {
+            chatStore.setStreamingMessage(sessionId, null);
+        }
+    }
+
     // Stop processing
     chatStore.setProcessing(sessionId, false);
 

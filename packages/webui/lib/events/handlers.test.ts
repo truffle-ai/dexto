@@ -420,6 +420,29 @@ describe('Event Handler Registry', () => {
             const chatState = useChatStore.getState().getSessionState(TEST_SESSION_ID);
             expect(chatState.streamingMessage?.reasoning).toBe('Thinking');
         });
+        it('drops reasoning from an empty retry that also ends the run', () => {
+            handleLLMRetrying(retryingEvent('empty_response'));
+            handleLLMChunk({
+                name: 'llm:chunk',
+                sessionId: TEST_SESSION_ID,
+                chunkType: 'reasoning',
+                content: 'Second attempt thinking',
+            });
+
+            handleLLMError({
+                name: 'llm:error',
+                sessionId: TEST_SESSION_ID,
+                error: new Error('The model ended its reply without answering. Try again.'),
+                context: 'TurnExecutor.runModelStep',
+                recoverable: false,
+            });
+
+            const chatState = useChatStore.getState().getSessionState(TEST_SESSION_ID);
+            expect(chatState.streamingMessage).toBeNull();
+            expect(chatState.error?.message).toBe(
+                'The model ended its reply without answering. Try again.'
+            );
+        });
     });
 
     describe('handleLLMError', () => {
