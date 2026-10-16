@@ -4425,14 +4425,8 @@ describe('TurnExecutor Integration Tests', () => {
             ]);
         });
 
-        it('treats an empty reply as cancelled when the step was aborted', async () => {
-            const abortController = new AbortController();
-            vi.mocked(streamText).mockImplementation(() => {
-                abortController.abort();
-                return emptyReply('Thinking');
-            });
-
-            const executorWithSignal = new TurnExecutor(
+        const createAbortableExecutor = (abortSignal: AbortSignal) =>
+            new TurnExecutor(
                 createMockModel(),
                 toolManager,
                 contextManager,
@@ -4445,18 +4439,81 @@ describe('TurnExecutor Integration Tests', () => {
                 steerQueue,
                 followUpQueue,
                 undefined,
-                abortController.signal
+                abortSignal
             );
 
-            const retryingHandler = vi.fn();
-            sessionEventBus.on('llm:retrying', retryingHandler);
+        it.each([
+            { name: 'before the empty finish', abortAfterFinish: false },
+            { name: 'after the empty finish', abortAfterFinish: true },
+        ])(
+            'finalizes an empty reply as cancelled when the step is aborted $name',
+            async ({ abortAfterFinish }) => {
+                const abortController = new AbortController();
+                vi.mocked(streamText).mockImplementation(
+                    () =>
+                        ({
+                            fullStream: (async function* () {
+                                yield { type: 'reasoning-delta', text: 'Thinking' };
+                                if (!abortAfterFinish) abortController.abort();
+                                yield {
+                                    type: 'finish',
+                                    finishReason: 'other',
+                                    totalUsage: zeroUsage,
+                                };
+                                if (abortAfterFinish) abortController.abort();
+                            })(),
+                        }) as unknown as ReturnType<typeof streamText>
+                );
+
+                const retryingHandler = vi.fn();
+                const responseHandler = vi.fn();
+                sessionEventBus.on('llm:retrying', retryingHandler);
+                sessionEventBus.on('llm:response', responseHandler);
+
+                await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
+                const result = await createAbortableExecutor(abortController.signal).execute(
+                    { mcpManager },
+                    true
+                );
+
+                expect(result.finishReason).toBe('cancelled');
+                expect(streamText).toHaveBeenCalledTimes(1);
+                expect(retryingHandler).not.toHaveBeenCalled();
+                expect(responseHandler).toHaveBeenCalledTimes(1);
+                expect(responseHandler).toHaveBeenCalledWith(
+                    expect.objectContaining({ finishReason: 'cancelled', reasoning: 'Thinking' })
+                );
+            }
+        );
+
+        it('keeps the reasoning of a non-empty reply that streamed an empty text delta', async () => {
+            vi.mocked(streamText).mockImplementation(
+                () =>
+                    ({
+                        fullStream: (async function* () {
+                            yield { type: 'reasoning-delta', text: 'Thinking' };
+                            yield { type: 'text-delta', text: '' };
+                            yield {
+                                type: 'finish',
+                                finishReason: 'length',
+                                totalUsage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+                            };
+                        })(),
+                    }) as unknown as ReturnType<typeof streamText>
+            );
 
             await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
-            const result = await executorWithSignal.execute({ mcpManager }, true);
+            await executor.execute({ mcpManager }, true);
 
-            expect(result.finishReason).toBe('cancelled');
             expect(streamText).toHaveBeenCalledTimes(1);
-            expect(retryingHandler).not.toHaveBeenCalled();
+            await expect(contextManager.getHistory()).resolves.toEqual([
+                expect.objectContaining({ role: 'user' }),
+                expect.objectContaining({
+                    role: 'assistant',
+                    reasoning: 'Thinking',
+                    tokenUsage: expect.objectContaining({ totalTokens: 15 }),
+                }),
+            ]);
         });
 
         it.each([

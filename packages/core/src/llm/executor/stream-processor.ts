@@ -117,6 +117,10 @@ export class StreamProcessor {
     private hasStepUsage = false;
     private readonly usageScopeId: string | undefined;
     private modelToolCalls: ModelToolCall[] = [];
+    /** An empty text delta arrived before any message; its draft is created only if kept. */
+    private hasDeferredAssistantMessage = false;
+    /** The finish was an empty reply, held back for TurnExecutor to retry or fail. */
+    private emptyResponseHeld = false;
     /**
      * Track pending tool calls (added to context but no result yet).
      * On cancel/abort, we add synthetic "cancelled" results to maintain tool_use/tool_result pairing.
@@ -228,8 +232,12 @@ export class StreamProcessor {
                         lastDeltaReceivedAtMs = lastTextDeltaReceivedAtMs;
                         setStreamAttribute('last_delta_received_ms', lastDeltaReceivedAtMs);
                         setStreamAttribute('last_delta_kind', 'text');
-                        // An empty delta carries nothing; don't create a draft message for it.
-                        if (event.text === '' && !this.assistantMessageId) break;
+                        // An empty delta carries nothing. Defer its draft so an empty reply
+                        // leaves history unchanged and can be retried.
+                        if (event.text === '' && !this.assistantMessageId) {
+                            this.hasDeferredAssistantMessage = true;
+                            break;
+                        }
                         if (!this.assistantMessageId) {
                             // Create assistant message on first text delta if not exists
                             this.assistantMessageId = await this.contextManager.addAssistantMessage(
@@ -487,17 +495,19 @@ export class StreamProcessor {
 
                         this.actualTokens = usage;
 
-                        // An empty reply is retried or failed by TurnExecutor, so it is not a
-                        // response: hosts must not finalize the reasoning streamed so far.
-                        if (
-                            !this.abortSignal.aborted &&
-                            isEmptyModelResponse({
-                                text: this.accumulatedText,
-                                finishReason: this.finishReason,
-                                usage,
-                                toolCalls: this.modelToolCalls,
-                            })
-                        ) {
+                        const isEmptyResponse = isEmptyModelResponse({
+                            text: this.accumulatedText,
+                            finishReason: this.finishReason,
+                            usage,
+                            toolCalls: this.modelToolCalls,
+                        });
+                        // A cancelled step that ended empty is a cancellation, not a reply.
+                        if (isEmptyResponse && this.abortSignal.aborted) {
+                            this.finishReason = 'cancelled';
+                        } else if (isEmptyResponse) {
+                            // TurnExecutor retries or fails an empty reply, so it is not a
+                            // response: hosts must not finalize the reasoning streamed so far.
+                            this.emptyResponseHeld = true;
                             this.logger.warn('LLM ended its reply without answering', {
                                 finishReason: event.finishReason,
                                 ...(this.reasoningText && {
@@ -685,6 +695,10 @@ export class StreamProcessor {
         }
 
         markTiming('full_stream_iterator_completed');
+        if (this.emptyResponseHeld && this.abortSignal.aborted) {
+            // Cancelled after the empty finish: finalize as a cancellation like any other.
+            return this.finishCancelled();
+        }
         return {
             text: this.accumulatedText,
             finishReason: this.finishReason,
@@ -819,6 +833,9 @@ export class StreamProcessor {
         pricingMetadata: ReturnType<typeof getUsagePricingMetadata>,
         assistantOutput: AssistantOutputLifecycle
     ): Promise<void> {
+        if (!this.assistantMessageId && this.hasDeferredAssistantMessage) {
+            this.assistantMessageId = await this.createAssistantMessage();
+        }
         if (!this.assistantMessageId) {
             return;
         }
@@ -880,6 +897,34 @@ export class StreamProcessor {
         }
 
         this.reasoningMetadata = merged;
+    }
+
+    private async finishCancelled(): Promise<StreamProcessorResult> {
+        this.finishReason = 'cancelled';
+        await this.persistCancelledToolResults();
+        const pricingMetadata = getUsagePricingMetadata({
+            provider: this.config.provider,
+            model: this.config.model,
+            tokenUsage: this.actualTokens,
+            ...(this.config.llmRegistry !== undefined && {
+                llmRegistry: this.config.llmRegistry,
+            }),
+        });
+        await this.persistAssistantResponseMetadata(this.actualTokens, pricingMetadata, {
+            status: 'stopped',
+            reason: 'cancelled',
+        });
+        this.emitLLMResponse({
+            tokenUsage: this.actualTokens,
+            finishReason: 'cancelled',
+            ...pricingMetadata,
+        });
+        return {
+            text: this.accumulatedText,
+            finishReason: 'cancelled',
+            usage: this.actualTokens,
+            toolCalls: this.modelToolCalls,
+        };
     }
 
     private async createAssistantMessage(): Promise<string> {
