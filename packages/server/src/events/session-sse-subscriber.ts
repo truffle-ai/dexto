@@ -43,7 +43,7 @@ function serializeEventPayload(
     eventName: SessionEventName,
     payload: SessionEventPayload
 ): Record<string, unknown> {
-    if (eventName === 'llm:error' && 'error' in payload) {
+    if ((eventName === 'llm:error' || eventName === 'llm:retrying') && 'error' in payload) {
         return {
             ...payload,
             error:
