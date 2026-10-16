@@ -17,6 +17,7 @@ import {
     handleInteractionBlocked,
     handleToolCall,
     handleToolResult,
+    handleLLMRetrying,
     handleLLMError,
     handleApprovalRequest,
     handleApprovalResponse,
@@ -79,6 +80,7 @@ describe('Event Handler Registry', () => {
             expect(getHandler('interaction:blocked')).toBeDefined();
             expect(getHandler('llm:tool-call')).toBeDefined();
             expect(getHandler('llm:tool-result')).toBeDefined();
+            expect(getHandler('llm:retrying')).toBeDefined();
             expect(getHandler('llm:error')).toBeDefined();
             expect(getHandler('approval:request')).toBeDefined();
             expect(getHandler('approval:response')).toBeDefined();
@@ -366,6 +368,57 @@ describe('Event Handler Registry', () => {
             const message = useChatStore.getState().getMessage(TEST_SESSION_ID, 'tool-msg');
             expect(message?.requireApproval).toBe(true);
             expect(message?.approvalStatus).toBe('approved');
+        });
+    });
+
+    describe('handleLLMRetrying', () => {
+        const retryingEvent = (
+            reason: 'transient_error' | 'empty_response'
+        ): Extract<StreamingEvent, { name: 'llm:retrying' }> => ({
+            name: 'llm:retrying',
+            sessionId: TEST_SESSION_ID,
+            error: new Error('The model ended its reply without answering. Try again.'),
+            context: 'TurnExecutor.runModelStep',
+            attempt: 1,
+            maxRetries: 1,
+            provider: 'openai',
+            model: 'gpt-4',
+            reason,
+        });
+
+        it('drops reasoning streamed by an empty reply so the retry does not show it twice', () => {
+            handleLLMChunk({
+                name: 'llm:chunk',
+                sessionId: TEST_SESSION_ID,
+                chunkType: 'reasoning',
+                content: 'First attempt thinking',
+            });
+
+            handleLLMRetrying(retryingEvent('empty_response'));
+            handleLLMChunk({
+                name: 'llm:chunk',
+                sessionId: TEST_SESSION_ID,
+                chunkType: 'reasoning',
+                content: 'Second attempt thinking',
+            });
+
+            const chatState = useChatStore.getState().getSessionState(TEST_SESSION_ID);
+            expect(chatState.streamingMessage?.reasoning).toBe('Second attempt thinking');
+            expect(chatState.messages).toHaveLength(0);
+        });
+
+        it('keeps the streaming message for other retries', () => {
+            handleLLMChunk({
+                name: 'llm:chunk',
+                sessionId: TEST_SESSION_ID,
+                chunkType: 'reasoning',
+                content: 'Thinking',
+            });
+
+            handleLLMRetrying(retryingEvent('transient_error'));
+
+            const chatState = useChatStore.getState().getSessionState(TEST_SESSION_ID);
+            expect(chatState.streamingMessage?.reasoning).toBe('Thinking');
         });
     });
 

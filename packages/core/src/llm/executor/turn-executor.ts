@@ -66,6 +66,8 @@ import {
     extractProviderErrorDetails,
     mapProviderError as mapCoreProviderError,
 } from './provider-error.js';
+import { isEmptyModelResponse } from './empty-response.js';
+import { LLMError } from '../errors.js';
 import { toError } from '../../utils/error-conversion.js';
 import type { CompactionStrategy } from '../../context/compaction/types.js';
 import type { ModelLimits } from '../../context/compaction/overflow.js';
@@ -87,6 +89,8 @@ import { cloneStructuredValuePreservingUrls } from '../../context/content-clone.
 
 const MCP_TOOL_PREFIX = 'mcp--';
 const MODEL_REQUEST_MAX_RETRIES = 2;
+/** Retries for a reply that ended empty (see isEmptyModelResponse). */
+const EMPTY_RESPONSE_MAX_RETRIES = 1;
 const TOOL_SUPPORT_PROBE_TIMEOUT_MS = 5000;
 type ToolSupportValidationResult =
     | {
@@ -1771,11 +1775,14 @@ export class TurnExecutor {
     }
 
     private async runModelStepWithRetry(request: ModelStepRequest): Promise<StreamProcessorResult> {
-        for (let failedAttempts = 0; ; failedAttempts += 1) {
+        let failedAttempts = 0;
+        let emptyResponseRetries = 0;
+        for (;;) {
             const historyLengthBefore = (await this.contextManager.getModelHistory()).length;
 
+            let result: StreamProcessorResult;
             try {
-                return await this.runModelStep(request);
+                result = await this.runModelStep(request);
             } catch (error) {
                 const historyLengthAfter = (await this.contextManager.getModelHistory()).length;
                 const historyLengthChanged = historyLengthAfter !== historyLengthBefore;
@@ -1787,22 +1794,61 @@ export class TurnExecutor {
                     throw error;
                 }
 
+                failedAttempts += 1;
                 const mappedError = this.mapProviderError(error);
                 this.eventBus.emit('llm:retrying', {
                     error: mappedError,
                     context: 'TurnExecutor.runModelStep',
-                    attempt: failedAttempts + 1,
+                    attempt: failedAttempts,
                     maxRetries: MODEL_REQUEST_MAX_RETRIES,
                     provider: this.llmContext.provider,
                     model: this.llmContext.model,
+                    reason: 'transient_error',
                 });
 
                 this.logger.warn('Retrying model request after transient failure', {
-                    attempt: failedAttempts + 1,
+                    attempt: failedAttempts,
                     maxRetries: MODEL_REQUEST_MAX_RETRIES,
                     error: mappedError,
                 });
+                continue;
             }
+
+            if (!isEmptyModelResponse(result) || this.stepAbortController.signal.aborted) {
+                return result;
+            }
+
+            // The step streamed at most reasoning, which was neither stored nor finalized, so
+            // history must be unchanged before running it again.
+            const historyLengthAfter = (await this.contextManager.getModelHistory()).length;
+            const emptyResponseError = LLMError.emptyResponse(
+                this.llmContext.provider,
+                this.llmContext.model,
+                emptyResponseRetries + 1
+            );
+            if (
+                historyLengthAfter !== historyLengthBefore ||
+                emptyResponseRetries >= EMPTY_RESPONSE_MAX_RETRIES
+            ) {
+                throw emptyResponseError;
+            }
+
+            emptyResponseRetries += 1;
+            this.eventBus.emit('llm:retrying', {
+                error: emptyResponseError,
+                context: 'TurnExecutor.runModelStep',
+                attempt: emptyResponseRetries,
+                maxRetries: EMPTY_RESPONSE_MAX_RETRIES,
+                provider: this.llmContext.provider,
+                model: this.llmContext.model,
+                reason: 'empty_response',
+            });
+
+            this.logger.warn('Retrying model request after an empty reply', {
+                attempt: emptyResponseRetries,
+                maxRetries: EMPTY_RESPONSE_MAX_RETRIES,
+                finishReason: result.finishReason,
+            });
         }
     }
 

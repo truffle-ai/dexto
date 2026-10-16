@@ -29,6 +29,7 @@ export enum LLMErrorCode {
     // Operations
     SWITCH_FAILED = 'llm_switch_failed',
     GENERATION_FAILED = 'llm_generation_failed',
+    EMPTY_RESPONSE = 'llm_empty_response', // Model ended its reply without text, tool calls or usage
 
     // Input validation (moved from agent)
     SWITCH_INPUT_MISSING = 'llm_switch_input_missing', // At least model or provider must be specified

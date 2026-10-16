@@ -11,6 +11,7 @@ import { getUsagePricingMetadata } from '../usage-metadata.js';
 import type { TokenUsageCostBreakdown } from '@dexto/llm';
 import type { LLMProvider, LLMPricingStatus, ReasoningVariant, TokenUsage } from '@dexto/llm';
 import { extractProviderErrorDetails, mapProviderError } from './provider-error.js';
+import { isEmptyModelResponse } from './empty-response.js';
 
 type UsageLike = {
     inputTokens?: number | null | undefined;
@@ -483,6 +484,27 @@ export class StreamProcessor {
                         }
 
                         this.actualTokens = usage;
+
+                        // An empty reply is retried or failed by TurnExecutor, so it is not a
+                        // response: hosts must not finalize the reasoning streamed so far.
+                        if (
+                            isEmptyModelResponse({
+                                text: this.accumulatedText,
+                                finishReason: this.finishReason,
+                                usage,
+                                toolCalls: this.modelToolCalls,
+                            })
+                        ) {
+                            this.logger.warn('LLM ended its reply without answering', {
+                                finishReason: event.finishReason,
+                                ...(this.reasoningText && {
+                                    reasoningLength: this.reasoningText.length,
+                                }),
+                                provider: this.config.provider,
+                                model: this.config.model,
+                            });
+                            break;
+                        }
 
                         const pricingMetadata = getUsagePricingMetadata({
                             provider: this.config.provider,

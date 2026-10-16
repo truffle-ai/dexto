@@ -4235,6 +4235,145 @@ describe('TurnExecutor Integration Tests', () => {
         });
     });
 
+    describe('Empty replies', () => {
+        const zeroUsage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
+        const emptyReply = (reasoning?: string) =>
+            createMockStream({
+                ...(reasoning !== undefined && { reasoning }),
+                finishReason: 'other',
+                usage: zeroUsage,
+            }) as unknown as ReturnType<typeof streamText>;
+
+        it('retries once when the reply ends with no text, tool calls or usage', async () => {
+            vi.mocked(streamText)
+                .mockImplementationOnce(() => emptyReply('First attempt thinking'))
+                .mockImplementationOnce(
+                    () =>
+                        createMockStream({
+                            reasoning: 'Second attempt thinking',
+                            text: 'Recovered',
+                            finishReason: 'stop',
+                        }) as unknown as ReturnType<typeof streamText>
+                );
+
+            const retryingHandler = vi.fn();
+            const responseHandler = vi.fn();
+            const errorHandler = vi.fn();
+            sessionEventBus.on('llm:retrying', retryingHandler);
+            sessionEventBus.on('llm:response', responseHandler);
+            sessionEventBus.on('llm:error', errorHandler);
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
+
+            const result = await executor.execute({ mcpManager }, true);
+
+            expect(result.text).toBe('Recovered');
+            expect(streamText).toHaveBeenCalledTimes(2);
+            expect(retryingHandler).toHaveBeenCalledTimes(1);
+            expect(retryingHandler).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    reason: 'empty_response',
+                    attempt: 1,
+                    maxRetries: 1,
+                    provider: 'openai',
+                    model: 'gpt-4',
+                    error: expect.objectContaining({ code: 'llm_empty_response' }),
+                })
+            );
+            expect(errorHandler).not.toHaveBeenCalled();
+
+            // The empty attempt is never finalized, so its reasoning cannot show twice.
+            expect(responseHandler).toHaveBeenCalledTimes(1);
+            expect(responseHandler).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    content: 'Recovered',
+                    reasoning: 'Second attempt thinking',
+                })
+            );
+            const history = await contextManager.getHistory();
+            expect(history).toEqual([
+                expect.objectContaining({ role: 'user' }),
+                expect.objectContaining({
+                    role: 'assistant',
+                    content: [{ type: 'text', text: 'Recovered' }],
+                    reasoning: 'Second attempt thinking',
+                }),
+            ]);
+        });
+
+        it('fails with a plain message when the retry is also empty', async () => {
+            vi.mocked(streamText).mockImplementation(() => emptyReply('Thinking'));
+
+            const retryingHandler = vi.fn();
+            const responseHandler = vi.fn();
+            const errorHandler = vi.fn();
+            const completeHandler = vi.fn();
+            sessionEventBus.on('llm:retrying', retryingHandler);
+            sessionEventBus.on('llm:response', responseHandler);
+            sessionEventBus.on('llm:error', errorHandler);
+            sessionEventBus.on('run:complete', completeHandler);
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
+
+            await expect(executor.execute({ mcpManager }, true)).rejects.toMatchObject({
+                code: 'llm_empty_response',
+                message: 'The model ended its reply without answering. Try again.',
+            });
+
+            expect(streamText).toHaveBeenCalledTimes(2);
+            expect(retryingHandler).toHaveBeenCalledTimes(1);
+            expect(responseHandler).not.toHaveBeenCalled();
+            expect(errorHandler).toHaveBeenCalledTimes(1);
+            expect(errorHandler).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    context: 'TurnExecutor',
+                    recoverable: false,
+                    error: expect.objectContaining({
+                        message: 'The model ended its reply without answering. Try again.',
+                    }),
+                })
+            );
+            expect(completeHandler).toHaveBeenCalledWith(
+                expect.objectContaining({ finishReason: 'error' })
+            );
+            await expect(contextManager.getHistory()).resolves.toEqual([
+                expect.objectContaining({ role: 'user' }),
+            ]);
+        });
+
+        it.each([
+            {
+                name: 'text was produced',
+                stream: { text: 'Partial', finishReason: 'other', usage: zeroUsage },
+            },
+            {
+                name: 'usage was reported',
+                stream: {
+                    finishReason: 'other',
+                    usage: { inputTokens: 10, outputTokens: 0, totalTokens: 10 },
+                },
+            },
+            {
+                name: 'the finish reason is not "other"',
+                stream: { finishReason: 'stop', usage: zeroUsage },
+            },
+        ])('does not retry when $name', async ({ stream }) => {
+            vi.mocked(streamText).mockImplementation(
+                () => createMockStream(stream) as unknown as ReturnType<typeof streamText>
+            );
+
+            const retryingHandler = vi.fn();
+            sessionEventBus.on('llm:retrying', retryingHandler);
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
+
+            await executor.execute({ mcpManager }, true);
+
+            expect(streamText).toHaveBeenCalledTimes(1);
+            expect(retryingHandler).not.toHaveBeenCalled();
+        });
+    });
+
     describe('Cleanup and Resource Management', () => {
         it('should clear steer queue on normal completion', async () => {
             await steerQueue.enqueue({ content: [{ type: 'text', text: 'Pending' }] });

@@ -501,6 +501,20 @@ function handleToolResult(event: EventByName<'llm:tool-result'>): void {
 }
 
 /**
+ * llm:retrying - the model step is about to run again
+ * After an empty reply the previous attempt streamed only reasoning, which the retry replaces.
+ */
+function handleLLMRetrying(event: EventByName<'llm:retrying'>): void {
+    if (event.reason !== 'empty_response') return;
+
+    const chatStore = useChatStore.getState();
+    const { streamingMessage } = chatStore.getSessionState(event.sessionId);
+    if (streamingMessage && !streamingMessage.content) {
+        chatStore.setStreamingMessage(event.sessionId, null);
+    }
+}
+
+/**
  * llm:error - LLM encountered an error
  * Sets error state and stops processing
  */
@@ -861,6 +875,7 @@ export function registerHandlers(): void {
     registerHandler('interaction:blocked', handleInteractionBlocked);
     registerHandler('llm:tool-call', handleToolCall);
     registerHandler('llm:tool-result', handleToolResult);
+    registerHandler('llm:retrying', handleLLMRetrying);
     registerHandler('llm:error', handleLLMError);
     registerHandler('approval:request', handleApprovalRequest);
     registerHandler('approval:response', handleApprovalResponse);
@@ -926,6 +941,7 @@ export {
     handleInteractionBlocked,
     handleToolCall,
     handleToolResult,
+    handleLLMRetrying,
     handleLLMError,
     handleApprovalRequest,
     handleApprovalResponse,

@@ -594,6 +594,11 @@ interface SessionEventMapBase {
         maxRetries: number;
         provider: LLMProvider;
         model: string;
+        /**
+         * Why the step is retried. On 'empty_response' the previous attempt streamed only
+         * reasoning (no text or tool calls), which hosts should discard before the retry streams.
+         */
+        reason?: 'transient_error' | 'empty_response';
     };
 
     /** LLM service switched */
