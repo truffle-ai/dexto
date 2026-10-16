@@ -597,6 +597,7 @@ interface SessionEventMapBase {
         /**
          * Why the step is retried. On 'empty_response' the previous attempt streamed only
          * reasoning (no text or tool calls), which hosts should discard before the retry streams.
+         * `attempt` and `maxRetries` count retries for this reason only.
          */
         reason?: 'transient_error' | 'empty_response';
     };

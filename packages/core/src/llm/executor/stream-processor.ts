@@ -228,6 +228,8 @@ export class StreamProcessor {
                         lastDeltaReceivedAtMs = lastTextDeltaReceivedAtMs;
                         setStreamAttribute('last_delta_received_ms', lastDeltaReceivedAtMs);
                         setStreamAttribute('last_delta_kind', 'text');
+                        // An empty delta carries nothing; don't create a draft message for it.
+                        if (event.text === '' && !this.assistantMessageId) break;
                         if (!this.assistantMessageId) {
                             // Create assistant message on first text delta if not exists
                             this.assistantMessageId = await this.contextManager.addAssistantMessage(
@@ -488,6 +490,7 @@ export class StreamProcessor {
                         // An empty reply is retried or failed by TurnExecutor, so it is not a
                         // response: hosts must not finalize the reasoning streamed so far.
                         if (
+                            !this.abortSignal.aborted &&
                             isEmptyModelResponse({
                                 text: this.accumulatedText,
                                 finishReason: this.finishReason,

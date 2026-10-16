@@ -22,6 +22,8 @@ function hasZeroUsage(usage: TokenUsage): boolean {
         (usage.inputTokens ?? 0) === 0 &&
         (usage.outputTokens ?? 0) === 0 &&
         (usage.reasoningTokens ?? 0) === 0 &&
-        (usage.totalTokens ?? 0) === 0
+        (usage.totalTokens ?? 0) === 0 &&
+        (usage.cacheReadTokens ?? 0) === 0 &&
+        (usage.cacheWriteTokens ?? 0) === 0
     );
 }

@@ -169,7 +169,12 @@ import { APICallError, streamText, generateText } from 'ai';
 function createMockStream(options: {
     text?: string;
     finishReason?: string;
-    usage?: { inputTokens: number; outputTokens: number; totalTokens: number };
+    usage?: {
+        inputTokens: number;
+        outputTokens: number;
+        totalTokens: number;
+        cachedInputTokens?: number;
+    };
     providerMetadata?: Record<string, unknown>;
     toolCalls?: Array<{ toolCallId: string; toolName: string; args: Record<string, unknown> }>;
     reasoning?: string;
@@ -4341,6 +4346,119 @@ describe('TurnExecutor Integration Tests', () => {
             ]);
         });
 
+        it('retries an empty reply that streamed an empty text delta without leaving a draft', async () => {
+            vi.mocked(streamText)
+                .mockImplementationOnce(
+                    () =>
+                        ({
+                            fullStream: (async function* () {
+                                yield { type: 'reasoning-delta', text: 'Thinking' };
+                                yield { type: 'text-delta', text: '' };
+                                yield {
+                                    type: 'finish',
+                                    finishReason: 'other',
+                                    totalUsage: zeroUsage,
+                                };
+                            })(),
+                        }) as unknown as ReturnType<typeof streamText>
+                )
+                .mockImplementationOnce(
+                    () =>
+                        createMockStream({
+                            text: 'Recovered',
+                            finishReason: 'stop',
+                        }) as unknown as ReturnType<typeof streamText>
+                );
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
+
+            const result = await executor.execute({ mcpManager }, true);
+
+            expect(result.text).toBe('Recovered');
+            expect(streamText).toHaveBeenCalledTimes(2);
+            await expect(contextManager.getHistory()).resolves.toEqual([
+                expect.objectContaining({ role: 'user' }),
+                expect.objectContaining({
+                    role: 'assistant',
+                    content: [{ type: 'text', text: 'Recovered' }],
+                }),
+            ]);
+        });
+
+        it('counts transient and empty-reply retries separately', async () => {
+            const retryableError = new APICallError({
+                message: 'Provider unavailable',
+                statusCode: 503,
+                responseHeaders: {},
+                responseBody: 'Provider unavailable',
+                url: 'https://api.openai.com/v1/responses',
+                requestBodyValues: {},
+                isRetryable: true,
+            });
+            vi.mocked(streamText)
+                .mockImplementationOnce(() => {
+                    throw retryableError;
+                })
+                .mockImplementationOnce(() => emptyReply('Thinking'))
+                .mockImplementationOnce(
+                    () =>
+                        createMockStream({
+                            text: 'Recovered',
+                            finishReason: 'stop',
+                        }) as unknown as ReturnType<typeof streamText>
+                );
+
+            const retryingHandler = vi.fn();
+            sessionEventBus.on('llm:retrying', retryingHandler);
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
+
+            const result = await executor.execute({ mcpManager }, true);
+
+            expect(result.text).toBe('Recovered');
+            expect(streamText).toHaveBeenCalledTimes(3);
+            expect(
+                retryingHandler.mock.calls.map(([event]) => [event.reason, event.attempt])
+            ).toEqual([
+                ['transient_error', 1],
+                ['empty_response', 1],
+            ]);
+        });
+
+        it('treats an empty reply as cancelled when the step was aborted', async () => {
+            const abortController = new AbortController();
+            vi.mocked(streamText).mockImplementation(() => {
+                abortController.abort();
+                return emptyReply('Thinking');
+            });
+
+            const executorWithSignal = new TurnExecutor(
+                createMockModel(),
+                toolManager,
+                contextManager,
+                sessionEventBus,
+                resourceManager,
+                sessionId,
+                { maxSteps: 10 },
+                llmContext,
+                logger,
+                steerQueue,
+                followUpQueue,
+                undefined,
+                abortController.signal
+            );
+
+            const retryingHandler = vi.fn();
+            sessionEventBus.on('llm:retrying', retryingHandler);
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
+            const result = await executorWithSignal.execute({ mcpManager }, true);
+
+            expect(result.finishReason).toBe('cancelled');
+            expect(streamText).toHaveBeenCalledTimes(1);
+            expect(retryingHandler).not.toHaveBeenCalled();
+        });
+
         it.each([
             {
                 name: 'text was produced',
@@ -4356,6 +4474,13 @@ describe('TurnExecutor Integration Tests', () => {
             {
                 name: 'the finish reason is not "other"',
                 stream: { finishReason: 'stop', usage: zeroUsage },
+            },
+            {
+                name: 'only cache usage was reported',
+                stream: {
+                    finishReason: 'other',
+                    usage: { ...zeroUsage, cachedInputTokens: 100 },
+                },
             },
         ])('does not retry when $name', async ({ stream }) => {
             vi.mocked(streamText).mockImplementation(

@@ -1814,8 +1814,12 @@ export class TurnExecutor {
                 continue;
             }
 
-            if (!isEmptyModelResponse(result) || this.stepAbortController.signal.aborted) {
+            if (!isEmptyModelResponse(result)) {
                 return result;
+            }
+            if (this.stepAbortController.signal.aborted) {
+                // Cancelled while ending empty: account for it as a cancelled step.
+                return { ...result, finishReason: 'cancelled' };
             }
 
             // The step streamed at most reasoning, which was neither stored nor finalized, so

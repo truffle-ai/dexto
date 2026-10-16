@@ -12,6 +12,7 @@ const SESSION_EVENT_NAMES = [
     'llm:tool-call',
     'llm:tool-call-partial',
     'llm:tool-result',
+    'llm:retrying',
     'llm:error',
     'llm:unsupported-input',
     'tool:running',
