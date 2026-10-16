@@ -5,7 +5,7 @@
  */
 
 export { StorageError } from './errors.js';
-export { StorageErrorCode } from './error-codes.js';
+export { STORAGE_ERROR_CODES, StorageErrorCode } from './error-codes.js';
 
 export type { Cache } from './cache/types.js';
 export type { Database } from './database/types.js';
