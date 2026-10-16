@@ -593,7 +593,7 @@
   {
     "id": "cohesivity",
     "name": "Cohesivity",
-    "description": "Free agent native backend services: hosting, postgres, email, storage, containers, LLMs, voice and third-party APIs",
+    "description": "Free agent-native backend services: hosting, postgres, email, storage, containers, LLMs, voice and third-party APIs",
     "category": "development",
     "icon": "🧱",
     "config": {
