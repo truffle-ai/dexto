@@ -1,4 +1,5 @@
 ---
+'dexto': patch
 '@dexto/core': patch
 '@dexto/server': patch
 '@dexto/tui': patch
