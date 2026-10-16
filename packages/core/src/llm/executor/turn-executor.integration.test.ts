@@ -4486,6 +4486,38 @@ describe('TurnExecutor Integration Tests', () => {
             }
         );
 
+        it('finalizes a held empty reply as cancelled when the step is aborted during the history check', async () => {
+            const abortController = new AbortController();
+            vi.mocked(streamText).mockImplementation(() => emptyReply('Thinking'));
+            const getModelHistory = contextManager.getModelHistory.bind(contextManager);
+            vi.spyOn(contextManager, 'getModelHistory').mockImplementation(async () => {
+                if (vi.mocked(streamText).mock.calls.length > 0) abortController.abort();
+                return getModelHistory();
+            });
+
+            const retryingHandler = vi.fn();
+            const responseHandler = vi.fn();
+            const errorHandler = vi.fn();
+            sessionEventBus.on('llm:retrying', retryingHandler);
+            sessionEventBus.on('llm:response', responseHandler);
+            sessionEventBus.on('llm:error', errorHandler);
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
+            const result = await createAbortableExecutor(abortController.signal).execute(
+                { mcpManager },
+                true
+            );
+
+            expect(result.finishReason).toBe('cancelled');
+            expect(streamText).toHaveBeenCalledTimes(1);
+            expect(retryingHandler).not.toHaveBeenCalled();
+            expect(errorHandler).not.toHaveBeenCalled();
+            expect(responseHandler).toHaveBeenCalledTimes(1);
+            expect(responseHandler).toHaveBeenCalledWith(
+                expect.objectContaining({ finishReason: 'cancelled' })
+            );
+        });
+
         it('keeps the reasoning of a non-empty reply that streamed an empty text delta', async () => {
             vi.mocked(streamText).mockImplementation(
                 () =>

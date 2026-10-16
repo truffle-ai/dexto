@@ -1817,14 +1817,13 @@ export class TurnExecutor {
             if (!isEmptyModelResponse(result)) {
                 return result;
             }
-            if (this.stepAbortController.signal.aborted) {
-                // Cancelled while ending empty: account for it as a cancelled step.
-                return { ...result, finishReason: 'cancelled' };
-            }
 
             // The step streamed at most reasoning, which was neither stored nor finalized, so
             // history must be unchanged before running it again.
             const historyLengthAfter = (await this.contextManager.getModelHistory()).length;
+            if (this.stepAbortController.signal.aborted) {
+                return this.cancelHeldEmptyResponse(result);
+            }
             const emptyResponseError = LLMError.emptyResponse(
                 this.llmContext.provider,
                 this.llmContext.model,
@@ -1854,6 +1853,21 @@ export class TurnExecutor {
                 finishReason: result.finishReason,
             });
         }
+    }
+
+    /**
+     * Cancelled after the stream processor held back an empty reply: finalize it like any other
+     * cancelled step. Nothing was stored for it, so only the response event is owed.
+     */
+    private cancelHeldEmptyResponse(result: StreamProcessorResult): StreamProcessorResult {
+        this.eventBus.emit('llm:response', {
+            content: result.text,
+            provider: this.llmContext.provider,
+            model: this.llmContext.model,
+            tokenUsage: result.usage,
+            finishReason: 'cancelled',
+        });
+        return { ...result, finishReason: 'cancelled' };
     }
 
     private canRetryModelRequest(error: unknown, historyLengthChanged: boolean): boolean {
