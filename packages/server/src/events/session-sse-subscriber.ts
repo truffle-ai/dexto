@@ -12,6 +12,7 @@ const SESSION_EVENT_NAMES = [
     'llm:tool-call',
     'llm:tool-call-partial',
     'llm:tool-result',
+    'llm:retrying',
     'llm:error',
     'llm:unsupported-input',
     'tool:running',
@@ -42,7 +43,7 @@ function serializeEventPayload(
     eventName: SessionEventName,
     payload: SessionEventPayload
 ): Record<string, unknown> {
-    if (eventName === 'llm:error' && 'error' in payload) {
+    if ((eventName === 'llm:error' || eventName === 'llm:retrying') && 'error' in payload) {
         return {
             ...payload,
             error:

@@ -169,7 +169,12 @@ import { APICallError, streamText, generateText } from 'ai';
 function createMockStream(options: {
     text?: string;
     finishReason?: string;
-    usage?: { inputTokens: number; outputTokens: number; totalTokens: number };
+    usage?: {
+        inputTokens: number;
+        outputTokens: number;
+        totalTokens: number;
+        cachedInputTokens?: number;
+    };
     providerMetadata?: Record<string, unknown>;
     toolCalls?: Array<{ toolCallId: string; toolName: string; args: Record<string, unknown> }>;
     reasoning?: string;
@@ -4232,6 +4237,354 @@ describe('TurnExecutor Integration Tests', () => {
                 recovery: 'Run `dexto billing` to check your balance',
                 type: 'payment_required',
             });
+        });
+    });
+
+    describe('Empty replies', () => {
+        const zeroUsage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
+        const emptyReply = (reasoning?: string) =>
+            createMockStream({
+                ...(reasoning !== undefined && { reasoning }),
+                finishReason: 'other',
+                usage: zeroUsage,
+            }) as unknown as ReturnType<typeof streamText>;
+
+        it('retries once when the reply ends with no text, tool calls or usage', async () => {
+            vi.mocked(streamText)
+                .mockImplementationOnce(() => emptyReply('First attempt thinking'))
+                .mockImplementationOnce(
+                    () =>
+                        createMockStream({
+                            reasoning: 'Second attempt thinking',
+                            text: 'Recovered',
+                            finishReason: 'stop',
+                        }) as unknown as ReturnType<typeof streamText>
+                );
+
+            const retryingHandler = vi.fn();
+            const responseHandler = vi.fn();
+            const errorHandler = vi.fn();
+            sessionEventBus.on('llm:retrying', retryingHandler);
+            sessionEventBus.on('llm:response', responseHandler);
+            sessionEventBus.on('llm:error', errorHandler);
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
+
+            const result = await executor.execute({ mcpManager }, true);
+
+            expect(result.text).toBe('Recovered');
+            expect(streamText).toHaveBeenCalledTimes(2);
+            expect(retryingHandler).toHaveBeenCalledTimes(1);
+            expect(retryingHandler).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    reason: 'empty_response',
+                    attempt: 1,
+                    maxRetries: 1,
+                    provider: 'openai',
+                    model: 'gpt-4',
+                    error: expect.objectContaining({ code: 'llm_empty_response' }),
+                })
+            );
+            expect(errorHandler).not.toHaveBeenCalled();
+
+            // The empty attempt is never finalized, so its reasoning cannot show twice.
+            expect(responseHandler).toHaveBeenCalledTimes(1);
+            expect(responseHandler).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    content: 'Recovered',
+                    reasoning: 'Second attempt thinking',
+                })
+            );
+            const history = await contextManager.getHistory();
+            expect(history).toEqual([
+                expect.objectContaining({ role: 'user' }),
+                expect.objectContaining({
+                    role: 'assistant',
+                    content: [{ type: 'text', text: 'Recovered' }],
+                    reasoning: 'Second attempt thinking',
+                }),
+            ]);
+        });
+
+        it('fails with a plain message when the retry is also empty', async () => {
+            vi.mocked(streamText).mockImplementation(() => emptyReply('Thinking'));
+
+            const retryingHandler = vi.fn();
+            const responseHandler = vi.fn();
+            const errorHandler = vi.fn();
+            const completeHandler = vi.fn();
+            sessionEventBus.on('llm:retrying', retryingHandler);
+            sessionEventBus.on('llm:response', responseHandler);
+            sessionEventBus.on('llm:error', errorHandler);
+            sessionEventBus.on('run:complete', completeHandler);
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
+
+            await expect(executor.execute({ mcpManager }, true)).rejects.toMatchObject({
+                code: 'llm_empty_response',
+                message: 'The model ended its reply without answering. Try again.',
+            });
+
+            expect(streamText).toHaveBeenCalledTimes(2);
+            expect(retryingHandler).toHaveBeenCalledTimes(1);
+            expect(responseHandler).not.toHaveBeenCalled();
+            expect(errorHandler).toHaveBeenCalledTimes(1);
+            expect(errorHandler).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    context: 'TurnExecutor',
+                    recoverable: false,
+                    error: expect.objectContaining({
+                        message: 'The model ended its reply without answering. Try again.',
+                    }),
+                })
+            );
+            expect(completeHandler).toHaveBeenCalledWith(
+                expect.objectContaining({ finishReason: 'error' })
+            );
+            await expect(contextManager.getHistory()).resolves.toEqual([
+                expect.objectContaining({ role: 'user' }),
+            ]);
+        });
+
+        it('retries an empty reply that streamed an empty text delta without leaving a draft', async () => {
+            vi.mocked(streamText)
+                .mockImplementationOnce(
+                    () =>
+                        ({
+                            fullStream: (async function* () {
+                                yield { type: 'reasoning-delta', text: 'Thinking' };
+                                yield { type: 'text-delta', text: '' };
+                                yield {
+                                    type: 'finish',
+                                    finishReason: 'other',
+                                    totalUsage: zeroUsage,
+                                };
+                            })(),
+                        }) as unknown as ReturnType<typeof streamText>
+                )
+                .mockImplementationOnce(
+                    () =>
+                        createMockStream({
+                            text: 'Recovered',
+                            finishReason: 'stop',
+                        }) as unknown as ReturnType<typeof streamText>
+                );
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
+
+            const result = await executor.execute({ mcpManager }, true);
+
+            expect(result.text).toBe('Recovered');
+            expect(streamText).toHaveBeenCalledTimes(2);
+            await expect(contextManager.getHistory()).resolves.toEqual([
+                expect.objectContaining({ role: 'user' }),
+                expect.objectContaining({
+                    role: 'assistant',
+                    content: [{ type: 'text', text: 'Recovered' }],
+                }),
+            ]);
+        });
+
+        it('counts transient and empty-reply retries separately', async () => {
+            const retryableError = new APICallError({
+                message: 'Provider unavailable',
+                statusCode: 503,
+                responseHeaders: {},
+                responseBody: 'Provider unavailable',
+                url: 'https://api.openai.com/v1/responses',
+                requestBodyValues: {},
+                isRetryable: true,
+            });
+            vi.mocked(streamText)
+                .mockImplementationOnce(() => {
+                    throw retryableError;
+                })
+                .mockImplementationOnce(() => emptyReply('Thinking'))
+                .mockImplementationOnce(
+                    () =>
+                        createMockStream({
+                            text: 'Recovered',
+                            finishReason: 'stop',
+                        }) as unknown as ReturnType<typeof streamText>
+                );
+
+            const retryingHandler = vi.fn();
+            sessionEventBus.on('llm:retrying', retryingHandler);
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
+
+            const result = await executor.execute({ mcpManager }, true);
+
+            expect(result.text).toBe('Recovered');
+            expect(streamText).toHaveBeenCalledTimes(3);
+            expect(
+                retryingHandler.mock.calls.map(([event]) => [event.reason, event.attempt])
+            ).toEqual([
+                ['transient_error', 1],
+                ['empty_response', 1],
+            ]);
+        });
+
+        const createAbortableExecutor = (abortSignal: AbortSignal) =>
+            new TurnExecutor(
+                createMockModel(),
+                toolManager,
+                contextManager,
+                sessionEventBus,
+                resourceManager,
+                sessionId,
+                { maxSteps: 10 },
+                llmContext,
+                logger,
+                steerQueue,
+                followUpQueue,
+                undefined,
+                abortSignal
+            );
+
+        it.each([
+            { name: 'before the empty finish', abortAfterFinish: false },
+            { name: 'after the empty finish', abortAfterFinish: true },
+        ])(
+            'finalizes an empty reply as cancelled when the step is aborted $name',
+            async ({ abortAfterFinish }) => {
+                const abortController = new AbortController();
+                vi.mocked(streamText).mockImplementation(
+                    () =>
+                        ({
+                            fullStream: (async function* () {
+                                yield { type: 'reasoning-delta', text: 'Thinking' };
+                                if (!abortAfterFinish) abortController.abort();
+                                yield {
+                                    type: 'finish',
+                                    finishReason: 'other',
+                                    totalUsage: zeroUsage,
+                                };
+                                if (abortAfterFinish) abortController.abort();
+                            })(),
+                        }) as unknown as ReturnType<typeof streamText>
+                );
+
+                const retryingHandler = vi.fn();
+                const responseHandler = vi.fn();
+                sessionEventBus.on('llm:retrying', retryingHandler);
+                sessionEventBus.on('llm:response', responseHandler);
+
+                await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
+                const result = await createAbortableExecutor(abortController.signal).execute(
+                    { mcpManager },
+                    true
+                );
+
+                expect(result.finishReason).toBe('cancelled');
+                expect(streamText).toHaveBeenCalledTimes(1);
+                expect(retryingHandler).not.toHaveBeenCalled();
+                expect(responseHandler).toHaveBeenCalledTimes(1);
+                expect(responseHandler).toHaveBeenCalledWith(
+                    expect.objectContaining({ finishReason: 'cancelled', reasoning: 'Thinking' })
+                );
+            }
+        );
+
+        it('finalizes a held empty reply as cancelled when the step is aborted during the history check', async () => {
+            const abortController = new AbortController();
+            vi.mocked(streamText).mockImplementation(() => emptyReply('Thinking'));
+            const getModelHistory = contextManager.getModelHistory.bind(contextManager);
+            vi.spyOn(contextManager, 'getModelHistory').mockImplementation(async () => {
+                if (vi.mocked(streamText).mock.calls.length > 0) abortController.abort();
+                return getModelHistory();
+            });
+
+            const retryingHandler = vi.fn();
+            const responseHandler = vi.fn();
+            const errorHandler = vi.fn();
+            sessionEventBus.on('llm:retrying', retryingHandler);
+            sessionEventBus.on('llm:response', responseHandler);
+            sessionEventBus.on('llm:error', errorHandler);
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
+            const result = await createAbortableExecutor(abortController.signal).execute(
+                { mcpManager },
+                true
+            );
+
+            expect(result.finishReason).toBe('cancelled');
+            expect(streamText).toHaveBeenCalledTimes(1);
+            expect(retryingHandler).not.toHaveBeenCalled();
+            expect(errorHandler).not.toHaveBeenCalled();
+            expect(responseHandler).toHaveBeenCalledTimes(1);
+            expect(responseHandler).toHaveBeenCalledWith(
+                expect.objectContaining({ finishReason: 'cancelled' })
+            );
+        });
+
+        it('keeps the reasoning of a non-empty reply that streamed an empty text delta', async () => {
+            vi.mocked(streamText).mockImplementation(
+                () =>
+                    ({
+                        fullStream: (async function* () {
+                            yield { type: 'reasoning-delta', text: 'Thinking' };
+                            yield { type: 'text-delta', text: '' };
+                            yield {
+                                type: 'finish',
+                                finishReason: 'length',
+                                totalUsage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+                            };
+                        })(),
+                    }) as unknown as ReturnType<typeof streamText>
+            );
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
+            await executor.execute({ mcpManager }, true);
+
+            expect(streamText).toHaveBeenCalledTimes(1);
+            await expect(contextManager.getHistory()).resolves.toEqual([
+                expect.objectContaining({ role: 'user' }),
+                expect.objectContaining({
+                    role: 'assistant',
+                    reasoning: 'Thinking',
+                    tokenUsage: expect.objectContaining({ totalTokens: 15 }),
+                }),
+            ]);
+        });
+
+        it.each([
+            {
+                name: 'text was produced',
+                stream: { text: 'Partial', finishReason: 'other', usage: zeroUsage },
+            },
+            {
+                name: 'usage was reported',
+                stream: {
+                    finishReason: 'other',
+                    usage: { inputTokens: 10, outputTokens: 0, totalTokens: 10 },
+                },
+            },
+            {
+                name: 'the finish reason is not "other"',
+                stream: { finishReason: 'stop', usage: zeroUsage },
+            },
+            {
+                name: 'only cache usage was reported',
+                stream: {
+                    finishReason: 'other',
+                    usage: { ...zeroUsage, cachedInputTokens: 100 },
+                },
+            },
+        ])('does not retry when $name', async ({ stream }) => {
+            vi.mocked(streamText).mockImplementation(
+                () => createMockStream(stream) as unknown as ReturnType<typeof streamText>
+            );
+
+            const retryingHandler = vi.fn();
+            sessionEventBus.on('llm:retrying', retryingHandler);
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
+
+            await executor.execute({ mcpManager }, true);
+
+            expect(streamText).toHaveBeenCalledTimes(1);
+            expect(retryingHandler).not.toHaveBeenCalled();
         });
     });
 

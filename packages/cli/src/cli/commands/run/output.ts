@@ -72,6 +72,11 @@ export async function writeHeadlessEvent(event: StreamingEvent): Promise<void> {
         case 'llm:chunk':
             payload = { type: 'message_delta', content: event.content };
             break;
+        case 'llm:retrying':
+            if (event.reason !== 'empty_response') return;
+            // Discard deltas for the current response; completed responses remain intact.
+            payload = { type: 'message_reset', reason: event.reason };
+            break;
         case 'llm:tool-call':
             payload = {
                 type: 'tool_call',

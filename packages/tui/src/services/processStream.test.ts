@@ -380,6 +380,70 @@ describe('processStream (reasoning)', () => {
         expect(messagesWithReasoning[0]?.reasoning).toBe('R');
     });
 
+    it.each([true, false])(
+        'drops reasoning from an empty reply that is retried (streaming: %s)',
+        async (useStreaming) => {
+            const { getMessages, getPendingMessages, setters } = createSetters();
+
+            const events: StreamingEvent[] = [
+                { name: 'llm:thinking', sessionId: 'test-session' },
+                {
+                    name: 'llm:chunk',
+                    sessionId: 'test-session',
+                    chunkType: 'reasoning',
+                    content: 'FIRST',
+                },
+                {
+                    name: 'llm:retrying',
+                    sessionId: 'test-session',
+                    error: new Error('The model ended its reply without answering. Try again.'),
+                    context: 'TurnExecutor.runModelStep',
+                    attempt: 1,
+                    maxRetries: 1,
+                    provider: 'openai',
+                    model: 'gpt-4',
+                    reason: 'empty_response',
+                },
+                {
+                    name: 'llm:chunk',
+                    sessionId: 'test-session',
+                    chunkType: 'reasoning',
+                    content: 'SECOND',
+                },
+                {
+                    name: 'llm:chunk',
+                    sessionId: 'test-session',
+                    chunkType: 'text',
+                    content: 'Hello',
+                },
+                llmResponse({
+                    content: 'Hello',
+                    reasoning: 'SECOND',
+                }),
+                {
+                    name: 'run:complete',
+                    sessionId: 'test-session',
+                    finishReason: 'stop',
+                    stepCount: 1,
+                    durationMs: 1,
+                },
+            ];
+
+            await processStream(eventStream(events), setters, {
+                useStreaming,
+                autoApproveEditsRef: { current: false },
+                bypassPermissionsRef: { current: false },
+                eventBus: { emit: vi.fn() },
+            });
+
+            expect(getPendingMessages()).toEqual([]);
+            const assistantMessages = getMessages().filter((m) => m.role === 'assistant');
+            expect(assistantMessages).toHaveLength(1);
+            expect(assistantMessages[0]?.content).toBe('Hello');
+            expect(assistantMessages[0]?.reasoning).toBe('SECOND');
+        }
+    );
+
     it('includes reasoning in non-streaming mode (accumulated from chunks)', async () => {
         const { getMessages, setters } = createSetters();
 

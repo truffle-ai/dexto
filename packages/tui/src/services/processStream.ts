@@ -609,6 +609,19 @@ export async function processStream(
                     break;
                 }
 
+                case 'llm:retrying': {
+                    // After an empty reply the step runs again; drop the reasoning the empty
+                    // attempt streamed so the retry's reasoning replaces it.
+                    if (event.reason !== 'empty_response') break;
+                    state.nonStreamingAccumulatedReasoning = '';
+                    if (state.messageId && !state.content && !state.reasoningFinalized) {
+                        removeFromPending(state.messageId);
+                        state.messageId = null;
+                    }
+                    if (!state.messageId) state.reasoning = '';
+                    break;
+                }
+
                 case 'llm:response': {
                     // In non-streaming mode, end thinking state when response arrives
                     // (In streaming mode, thinking ends when first chunk arrives)

@@ -252,6 +252,79 @@ describe('dexto run output', () => {
         ]);
     });
 
+    it('resets abandoned reasoning before retry output in JSONL', async () => {
+        await run(
+            ['task', '--format', 'jsonl'],
+            streamingAgent([
+                {
+                    name: 'llm:chunk',
+                    chunkType: 'reasoning',
+                    content: 'abandoned reasoning',
+                    sessionId: 'session-1',
+                },
+                {
+                    name: 'llm:retrying',
+                    reason: 'empty_response',
+                    error: new Error('The model ended its reply without answering'),
+                    context: 'TurnExecutor.runModelStep',
+                    attempt: 1,
+                    maxRetries: 1,
+                    provider: 'openai',
+                    model: 'gpt-4o',
+                    sessionId: 'session-1',
+                },
+                {
+                    name: 'llm:chunk',
+                    chunkType: 'text',
+                    content: 'done',
+                    sessionId: 'session-1',
+                },
+                response,
+            ])
+        );
+        const lines = stdout
+            .join('')
+            .trim()
+            .split('\n')
+            .map((line) => JSON.parse(line));
+        expect(lines).toEqual([
+            { version: 1, type: 'message_delta', content: 'abandoned reasoning' },
+            { version: 1, type: 'message_reset', reason: 'empty_response' },
+            { version: 1, type: 'message_delta', content: 'done' },
+            { version: 1, type: 'response', content: 'done' },
+            { version: 1, type: 'complete', sessionId: 'session-1', content: 'done' },
+        ]);
+    });
+
+    it('does not reset JSONL output for a transient-error retry', async () => {
+        await run(
+            ['task', '--format', 'jsonl'],
+            streamingAgent([
+                {
+                    name: 'llm:retrying',
+                    reason: 'transient_error',
+                    error: new Error('Retryable transport failure'),
+                    context: 'TurnExecutor.runModelStep',
+                    attempt: 1,
+                    maxRetries: 2,
+                    provider: 'openai',
+                    model: 'gpt-4o',
+                    sessionId: 'session-1',
+                },
+                response,
+            ])
+        );
+        const lines = stdout
+            .join('')
+            .trim()
+            .split('\n')
+            .map((line) => JSON.parse(line));
+        expect(lines).toEqual([
+            { version: 1, type: 'response', content: 'done' },
+            { version: 1, type: 'complete', sessionId: 'session-1', content: 'done' },
+        ]);
+    });
+
     it('waits for the terminal write callback before exiting', async () => {
         let finishWrite: (() => void) | undefined;
         vi.mocked(process.stdout.write).mockImplementation(

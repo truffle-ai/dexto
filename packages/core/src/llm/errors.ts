@@ -127,6 +127,23 @@ export class LLMError {
         );
     }
 
+    /**
+     * The model ended its reply without answering (finish "other", no text, no tool calls,
+     * zero usage), including after one retry.
+     */
+    static emptyResponse(provider: LLMProvider, model: string, attempts: number) {
+        return new DextoRuntimeError(
+            LLMErrorCode.EMPTY_RESPONSE,
+            ErrorScope.LLM,
+            ErrorType.THIRD_PARTY,
+            'The model ended its reply without answering. Try again.',
+            { details: { provider, model, attempts } },
+            'Send the message again',
+            undefined,
+            'retryable'
+        );
+    }
+
     // Switch operation errors (runtime checks not covered by Zod)
     static switchInputMissing() {
         return new DextoRuntimeError(
