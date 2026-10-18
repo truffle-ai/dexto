@@ -627,5 +627,24 @@
     "author": "CoinGecko",
     "homepage": "https://docs.coingecko.com/docs/mcp-server",
     "matchIds": ["coingecko"]
+  },
+  {
+    "id": "fxmacrodata",
+    "name": "FXMacroData",
+    "description": "Official-source FX and macroeconomic data for 22 currencies: indicator releases, release calendars, central bank news, COT and commodities. Works without a key, up to 100 requests a day, for USD releases from the last 90 days (each readable 15 minutes after publication), the USD release calendar, press releases and data catalogue, plus forecast coverage and market sessions for every currency. Other currencies, COT, commodities, FX rates and full history need an API key sent in an Authorization: Bearer header.",
+    "category": "data",
+    "icon": "💱",
+    "config": {
+      "type": "http",
+      "url": "https://mcp.fxmacrodata.com",
+      "headers": {},
+      "timeout": 30000
+    },
+    "tags": ["finance", "forex", "macro", "economics", "data"],
+    "isOfficial": true,
+    "isInstalled": false,
+    "author": "FXMacroData",
+    "homepage": "https://fxmacrodata.com",
+    "matchIds": ["fxmacrodata", "fx-macro-data", "fx_macro_data"]
   }
 ]
