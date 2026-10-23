@@ -13,7 +13,7 @@
 import { describe, test, expect, afterAll, beforeAll } from 'vitest';
 import { NodeSDK } from '@opentelemetry/sdk-node';
 import { InMemorySpanExporter, SimpleSpanProcessor } from '@opentelemetry/sdk-trace-base';
-import { Resource } from '@opentelemetry/resources';
+import { resourceFromAttributes } from '@opentelemetry/resources';
 import { ATTR_SERVICE_NAME } from '@opentelemetry/semantic-conventions';
 import { HttpInstrumentation } from '@opentelemetry/instrumentation-http';
 import { UndiciInstrumentation } from '@opentelemetry/instrumentation-undici';
@@ -31,7 +31,7 @@ describe('HTTP Instrumentation', () => {
         // Initialize OpenTelemetry SDK directly with specific instrumentations
         // This mirrors the production setup in telemetry.ts
         sdk = new NodeSDK({
-            resource: new Resource({
+            resource: resourceFromAttributes({
                 [ATTR_SERVICE_NAME]: 'http-instrumentation-test',
             }),
             spanProcessor: new SimpleSpanProcessor(memoryExporter) as any,

@@ -1079,9 +1079,10 @@ describe('TurnExecutor Integration Tests', () => {
 
         it('records turn loop spans for model steps and tool execution', async () => {
             const exporter = new InMemorySpanExporter();
-            const provider = new BasicTracerProvider();
-            provider.addSpanProcessor(new SimpleSpanProcessor(exporter));
-            provider.register();
+            const provider = new BasicTracerProvider({
+                spanProcessors: [new SimpleSpanProcessor(exporter)],
+            });
+            trace.setGlobalTracerProvider(provider);
             Reflect.set(globalThis, '__TELEMETRY__', { isInitialized: () => true });
 
             const executeTool = vi.fn(async () => 'telemetry result');
@@ -3612,9 +3613,10 @@ describe('TurnExecutor Integration Tests', () => {
 
         it('should skip validation for dexto-nova managed gateway even with baseURL', async () => {
             const exporter = new InMemorySpanExporter();
-            const provider = new BasicTracerProvider();
-            provider.addSpanProcessor(new SimpleSpanProcessor(exporter));
-            provider.register();
+            const provider = new BasicTracerProvider({
+                spanProcessors: [new SimpleSpanProcessor(exporter)],
+            });
+            trace.setGlobalTracerProvider(provider);
             Reflect.set(globalThis, '__TELEMETRY__', { isInitialized: () => true });
 
             try {
@@ -3663,9 +3665,10 @@ describe('TurnExecutor Integration Tests', () => {
 
         it('records whether tool support validation probed or used the cache', async () => {
             const exporter = new InMemorySpanExporter();
-            const provider = new BasicTracerProvider();
-            provider.addSpanProcessor(new SimpleSpanProcessor(exporter));
-            provider.register();
+            const provider = new BasicTracerProvider({
+                spanProcessors: [new SimpleSpanProcessor(exporter)],
+            });
+            trace.setGlobalTracerProvider(provider);
             Reflect.set(globalThis, '__TELEMETRY__', { isInitialized: () => true });
 
             try {

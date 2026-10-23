@@ -1,4 +1,7 @@
 import { describe, test, expect, afterEach, vi } from 'vitest';
+import { trace } from '@opentelemetry/api';
+import { ExportResultCode } from '@opentelemetry/core';
+import type { ReadableSpan, SpanExporter } from '@opentelemetry/sdk-trace-base';
 import { Telemetry } from './telemetry.js';
 import type { OtelConfiguration } from './schemas.js';
 
@@ -158,6 +161,36 @@ describe.sequential('Telemetry Core', () => {
             expect(telemetry.name).toBe('hosted-service');
             expect(Telemetry.hasGlobalInstance()).toBe(true);
         });
+
+        test('init() exports spans with the SDK default resource and the configured service name', async () => {
+            const exported: ReadableSpan[] = [];
+            const exporter: SpanExporter = {
+                export: (spans, resultCallback) => {
+                    exported.push(...spans);
+                    resultCallback({ code: ExportResultCode.SUCCESS });
+                },
+                shutdown: async () => {},
+            };
+            // Earlier tests leave their SDK's provider registered globally, which would
+            // keep this SDK from registering its own.
+            trace.disable();
+
+            await Telemetry.init(
+                { enabled: true, serviceName: 'resource-service', export: { type: 'console' } },
+                exporter
+            );
+            trace.getTracer('resource-test').startSpan('resource-span').end();
+            await Telemetry.shutdownGlobal();
+
+            const span = exported.find((exportedSpan) => exportedSpan.name === 'resource-span');
+            expect(span?.resource.attributes).toEqual(
+                expect.objectContaining({
+                    'service.name': 'resource-service',
+                    'telemetry.sdk.language': 'nodejs',
+                    'telemetry.sdk.name': 'opentelemetry',
+                })
+            );
+        }, 15_000);
     });
 
     describe('Shutdown', () => {

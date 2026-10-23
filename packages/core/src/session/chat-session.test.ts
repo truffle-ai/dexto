@@ -766,10 +766,12 @@ describe('ChatSession', () => {
 
         test('records setup spans under the active trace parent', async () => {
             const exporter = new InMemorySpanExporter();
-            const provider = new BasicTracerProvider();
+            const provider = new BasicTracerProvider({
+                spanProcessors: [new SimpleSpanProcessor(exporter)],
+            });
             const contextManager = new AsyncHooksContextManager().enable();
-            provider.addSpanProcessor(new SimpleSpanProcessor(exporter));
-            provider.register({ contextManager });
+            trace.setGlobalTracerProvider(provider);
+            otelContext.setGlobalContextManager(contextManager);
             Reflect.set(globalThis, '__TELEMETRY__', { isInitialized: () => true });
 
             await chatSession.init();
@@ -802,7 +804,7 @@ describe('ChatSession', () => {
                 expect(setupSpans).toHaveLength(3);
                 for (const span of setupSpans) {
                     expect(span.spanContext().traceId).toBe(parentContext.traceId);
-                    expect(span).toHaveProperty('parentSpanId', parentContext.spanId);
+                    expect(span).toHaveProperty('parentSpanContext.spanId', parentContext.spanId);
                     expect(span.attributes).toEqual(
                         expect.objectContaining({
                             'session.id': sessionId,

@@ -1,6 +1,6 @@
 import { describe, test, expect, vi, beforeEach, afterEach } from 'vitest';
 import { APICallError } from 'ai';
-import { trace } from '@opentelemetry/api';
+import { context, trace } from '@opentelemetry/api';
 import { AsyncHooksContextManager } from '@opentelemetry/context-async-hooks';
 import {
     BasicTracerProvider,
@@ -265,9 +265,11 @@ describe('StreamProcessor', () => {
         test('sets stream boundary timing attributes on the active span', async () => {
             const contextManager = new AsyncHooksContextManager().enable();
             const exporter = new InMemorySpanExporter();
-            const provider = new BasicTracerProvider();
-            provider.addSpanProcessor(new SimpleSpanProcessor(exporter));
-            provider.register({ contextManager });
+            const provider = new BasicTracerProvider({
+                spanProcessors: [new SimpleSpanProcessor(exporter)],
+            });
+            trace.setGlobalTracerProvider(provider);
+            context.setGlobalContextManager(contextManager);
 
             try {
                 const mocks = createMocks();

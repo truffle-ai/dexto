@@ -22,7 +22,7 @@
     }
   },
   "dependencies": {
-    "hono": "^4.12.12",
+    "hono": "^4.13.13",
     "zod": "^4.3.6"
   },
   "devDependencies": {
@@ -30,7 +30,7 @@
     "@dexto/server": "workspace:*",
     "tsup": "^8.0.2",
     "typescript": "^5.4.2",
-    "vitest": "^1.3.1"
+    "vitest": "^4.1.12"
   },
   "scripts": {
     "build": "tsup && node ../../scripts/clean-tsbuildinfo.mjs && tsc -b tsconfig.json --emitDeclarationOnly",
