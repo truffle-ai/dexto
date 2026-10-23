@@ -142,6 +142,7 @@ export class Telemetry {
                     if (enabled) {
                         // Dynamic imports for optional OpenTelemetry dependencies
                         let NodeSDK: typeof import('@opentelemetry/sdk-node').NodeSDK;
+                        let defaultResource: typeof import('@opentelemetry/resources').defaultResource;
                         let resourceFromAttributes: typeof import('@opentelemetry/resources').resourceFromAttributes;
                         let HttpInstrumentation: typeof import('@opentelemetry/instrumentation-http').HttpInstrumentation;
                         let UndiciInstrumentation: typeof import('@opentelemetry/instrumentation-undici').UndiciInstrumentation;
@@ -152,6 +153,7 @@ export class Telemetry {
                             NodeSDK = sdkModule.NodeSDK;
 
                             const resourcesModule = await import('@opentelemetry/resources');
+                            defaultResource = resourcesModule.defaultResource;
                             resourceFromAttributes = resourcesModule.resourceFromAttributes;
 
                             // Import specific instrumentations instead of auto-instrumentations-node
@@ -187,9 +189,13 @@ export class Telemetry {
                             throw importError;
                         }
 
-                        const resource = resourceFromAttributes({
-                            [ATTR_SERVICE_NAME]: config.serviceName ?? 'dexto-service',
-                        });
+                        // NodeSDK uses a supplied resource as-is, so merge the SDK defaults
+                        // (telemetry.sdk.*) back in.
+                        const resource = defaultResource().merge(
+                            resourceFromAttributes({
+                                [ATTR_SERVICE_NAME]: config.serviceName ?? 'dexto-service',
+                            })
+                        );
 
                         // Use custom exporter if provided, otherwise build from config
                         const spanExporter =
