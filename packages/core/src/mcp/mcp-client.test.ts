@@ -14,9 +14,11 @@ describe('DextoMcpClient', () => {
     it('keeps tool payloads and failures out of logs and telemetry', async () => {
         const contextManager = new AsyncHooksContextManager().enable();
         const exporter = new InMemorySpanExporter();
-        const provider = new BasicTracerProvider();
-        provider.addSpanProcessor(new SimpleSpanProcessor(exporter));
-        provider.register({ contextManager });
+        const provider = new BasicTracerProvider({
+            spanProcessors: [new SimpleSpanProcessor(exporter)],
+        });
+        trace.setGlobalTracerProvider(provider);
+        context.setGlobalContextManager(contextManager);
         Reflect.set(globalThis, '__TELEMETRY__', { isInitialized: () => true });
         const logger = createMockLogger();
         const privateArgument = 'provider-private-argument';

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, vi, type Mock } from 'vitest';
 import { ToolManager } from './tool-manager.js';
 import { MCPManager } from '../mcp/manager.js';
 import { z } from 'zod';
@@ -74,8 +74,8 @@ describe('ToolManager Integration Tests', () => {
     let allowedToolsProvider: AllowedToolsProvider;
     let mockAgentEventBus: AgentEventBus;
     let mockSearchService: {
-        searchMessages: ReturnType<typeof vi.fn>;
-        searchSessions: ReturnType<typeof vi.fn>;
+        searchMessages: Mock<SearchServiceLike['searchMessages']>;
+        searchSessions: Mock<SearchServiceLike['searchSessions']>;
     };
     let internalSearchHistoryTool: any;
     const mockLogger = createMockLogger();
@@ -182,9 +182,11 @@ describe('ToolManager Integration Tests', () => {
         // Mock SearchService for internal tools
         mockSearchService = {
             searchMessages: vi
-                .fn()
+                .fn<SearchServiceLike['searchMessages']>()
                 .mockResolvedValue([{ id: '1', content: 'test message', role: 'user' }]),
-            searchSessions: vi.fn().mockResolvedValue([{ id: 'session1', title: 'Test Session' }]),
+            searchSessions: vi
+                .fn<SearchServiceLike['searchSessions']>()
+                .mockResolvedValue([{ id: 'session1', title: 'Test Session' }]),
         };
         internalSearchHistoryTool = createSearchHistoryTool(mockSearchService);
     });

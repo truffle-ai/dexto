@@ -63,14 +63,15 @@ export function createMockDatabase(storeType: string): Database {
         _key: string,
         updater: (items: T[]) => { items: T[]; result: R }
     ): Promise<R> => updater([]).result;
+    const setIfAbsent: Database['setIfAbsent'] = async <T>(_key: string, value: T) => ({
+        value,
+        inserted: true,
+    });
 
     return {
         get: vi.fn(async () => undefined),
         set: vi.fn(async () => {}),
-        setIfAbsent: vi.fn(async <T>(_key: string, value: T) => ({
-            value,
-            inserted: true,
-        })),
+        setIfAbsent,
         delete: vi.fn(async () => {}),
         list: vi.fn(async () => []),
         append: vi.fn(async () => {}),

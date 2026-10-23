@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { SpanStatusCode, trace } from '@opentelemetry/api';
+import { SpanStatusCode, context, trace } from '@opentelemetry/api';
 import { AsyncHooksContextManager } from '@opentelemetry/context-async-hooks';
 import {
     BasicTracerProvider,
@@ -17,9 +17,11 @@ describe('InstrumentClass', () => {
         Reflect.set(globalThis, '__TELEMETRY__', { isInitialized: () => true });
         contextManager = new AsyncHooksContextManager().enable();
         exporter = new InMemorySpanExporter();
-        provider = new BasicTracerProvider();
-        provider.addSpanProcessor(new SimpleSpanProcessor(exporter));
-        provider.register({ contextManager });
+        provider = new BasicTracerProvider({
+            spanProcessors: [new SimpleSpanProcessor(exporter)],
+        });
+        trace.setGlobalTracerProvider(provider);
+        context.setGlobalContextManager(contextManager);
     });
 
     afterEach(async () => {

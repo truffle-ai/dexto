@@ -142,7 +142,7 @@ export class Telemetry {
                     if (enabled) {
                         // Dynamic imports for optional OpenTelemetry dependencies
                         let NodeSDK: typeof import('@opentelemetry/sdk-node').NodeSDK;
-                        let Resource: typeof import('@opentelemetry/resources').Resource;
+                        let resourceFromAttributes: typeof import('@opentelemetry/resources').resourceFromAttributes;
                         let HttpInstrumentation: typeof import('@opentelemetry/instrumentation-http').HttpInstrumentation;
                         let UndiciInstrumentation: typeof import('@opentelemetry/instrumentation-undici').UndiciInstrumentation;
                         let ATTR_SERVICE_NAME: string;
@@ -152,7 +152,7 @@ export class Telemetry {
                             NodeSDK = sdkModule.NodeSDK;
 
                             const resourcesModule = await import('@opentelemetry/resources');
-                            Resource = resourcesModule.Resource;
+                            resourceFromAttributes = resourcesModule.resourceFromAttributes;
 
                             // Import specific instrumentations instead of auto-instrumentations-node
                             // This reduces install size by ~130MB while maintaining HTTP tracing for LLM API calls
@@ -187,7 +187,7 @@ export class Telemetry {
                             throw importError;
                         }
 
-                        const resource = new Resource({
+                        const resource = resourceFromAttributes({
                             [ATTR_SERVICE_NAME]: config.serviceName ?? 'dexto-service',
                         });
 

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { SpanKind, SpanStatusCode, trace } from '@opentelemetry/api';
+import { SpanKind, SpanStatusCode, context, trace } from '@opentelemetry/api';
 import { AsyncHooksContextManager } from '@opentelemetry/context-async-hooks';
 import {
     BasicTracerProvider,
@@ -16,9 +16,11 @@ describe('recordOperationSpan', () => {
     beforeEach(() => {
         contextManager = new AsyncHooksContextManager().enable();
         exporter = new InMemorySpanExporter();
-        provider = new BasicTracerProvider();
-        provider.addSpanProcessor(new SimpleSpanProcessor(exporter));
-        provider.register({ contextManager });
+        provider = new BasicTracerProvider({
+            spanProcessors: [new SimpleSpanProcessor(exporter)],
+        });
+        trace.setGlobalTracerProvider(provider);
+        context.setGlobalContextManager(contextManager);
     });
 
     afterEach(async () => {
@@ -101,7 +103,7 @@ describe('recordOperationSpan', () => {
             throw new Error('Expected parent and child spans to be recorded.');
         }
         expect(child.spanContext().traceId).toBe(parent.spanContext().traceId);
-        expect(child).toHaveProperty('parentSpanId', parent.spanContext().spanId);
+        expect(child).toHaveProperty('parentSpanContext.spanId', parent.spanContext().spanId);
     });
 
     it('can record a failed operation without copying the error into telemetry', async () => {
