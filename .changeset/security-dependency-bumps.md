@@ -1,6 +1,6 @@
 ---
-'dexto': minor
-'@dexto/core': minor
+'dexto': patch
+'@dexto/core': patch
 '@dexto/server': patch
 '@dexto/client-sdk': patch
 '@dexto/tools-builtins': patch
