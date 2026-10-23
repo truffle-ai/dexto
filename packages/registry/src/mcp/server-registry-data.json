@@ -627,5 +627,24 @@
     "author": "CoinGecko",
     "homepage": "https://docs.coingecko.com/docs/mcp-server",
     "matchIds": ["coingecko"]
+  },
+  {
+    "id": "keenable",
+    "name": "Keenable Search",
+    "description": "Search the web and fetch pages as clean markdown",
+    "category": "research",
+    "icon": "🔍",
+    "config": {
+      "type": "http",
+      "url": "https://api.keenable.ai/mcp",
+      "headers": { "X-Keenable-Title": "Dexto" },
+      "timeout": 30000
+    },
+    "tags": ["search", "web", "research", "fetch"],
+    "isOfficial": true,
+    "isInstalled": false,
+    "author": "Keenable",
+    "homepage": "https://docs.keenable.ai/mcp-server",
+    "matchIds": ["keenable", "keenable-search"]
   }
 ]
