@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { createMockLogger } from '../../logger/v2/test-utils.js';
 import { defineTool } from '../define-tool.js';
 import type { Tool, ToolExecutionContext, ToolNeedsApproval } from '../types.js';
-import { ToolApprovalPolicy } from './tool-approval-policy.js';
+import { ToolApprovalPolicy, type ExplicitToolAllow } from './tool-approval-policy.js';
 
 const TestInputSchema = z.object({
     value: z.string().optional(),
@@ -39,18 +39,18 @@ function createContext(sessionId?: string): ToolExecutionContext {
 function createPolicy(options?: {
     approvalMode?: 'manual' | 'auto-approve';
     approvedKeys?: string[];
-    explicitlyAllowedTools?: string[];
+    explicitAllows?: Record<string, ExplicitToolAllow>;
     tools?: Tool[];
 }): ToolApprovalPolicy {
     const tools = new Map((options?.tools ?? [createTool()]).map((tool) => [tool.id, tool]));
-    const explicitlyAllowedTools = new Set(options?.explicitlyAllowedTools ?? []);
+    const explicitAllows = options?.explicitAllows ?? {};
     const approvedKeys = new Set(options?.approvedKeys ?? []);
 
     return new ToolApprovalPolicy({
         getApprovalMode: () => options?.approvalMode ?? 'manual',
         getLocalTool: (toolName) => tools.get(toolName),
         isApprovalKeySessionApproved: ({ approvalKey }) => approvedKeys.has(approvalKey),
-        isToolExplicitlyAllowed: async ({ toolName }) => explicitlyAllowedTools.has(toolName),
+        findExplicitToolAllow: async ({ toolName }) => explicitAllows[toolName] ?? null,
     });
 }
 
@@ -83,18 +83,24 @@ async function resolveFor(
 }
 
 describe('ToolApprovalPolicy', () => {
-    it('lets explicit tool policy override tool-authored approval', async () => {
-        const getContext = vi.fn(() => createContext());
-        const needsApproval = vi.fn(() => 'test-key');
-        const policy = createPolicy({
-            explicitlyAllowedTools: ['test_tool'],
-            tools: [createTool(needsApproval)],
-        });
+    it.each(['session-allowed', 'always-allow', 'allowed-tools'] as const)(
+        'lets an explicit allow (%s) override tool-authored approval and names it',
+        async (explicitAllow) => {
+            const getContext = vi.fn(() => createContext());
+            const needsApproval = vi.fn(() => 'test-key');
+            const policy = createPolicy({
+                explicitAllows: { test_tool: explicitAllow },
+                tools: [createTool(needsApproval)],
+            });
 
-        await expect(resolveFor(policy, { getContext })).resolves.toEqual({ kind: 'ready' });
-        expect(getContext).not.toHaveBeenCalled();
-        expect(needsApproval).not.toHaveBeenCalled();
-    });
+            await expect(resolveFor(policy, { getContext })).resolves.toEqual({
+                because: explicitAllow,
+                kind: 'ready',
+            });
+            expect(getContext).not.toHaveBeenCalled();
+            expect(needsApproval).not.toHaveBeenCalled();
+        }
+    );
 
     it('lets global auto-approve override tool-authored approval', async () => {
         const getContext = vi.fn(() => createContext());
@@ -104,7 +110,10 @@ describe('ToolApprovalPolicy', () => {
             tools: [createTool(needsApproval)],
         });
 
-        await expect(resolveFor(policy, { getContext })).resolves.toEqual({ kind: 'ready' });
+        await expect(resolveFor(policy, { getContext })).resolves.toEqual({
+            because: 'auto-approve-mode',
+            kind: 'ready',
+        });
         expect(getContext).not.toHaveBeenCalled();
         expect(needsApproval).not.toHaveBeenCalled();
     });
@@ -114,7 +123,10 @@ describe('ToolApprovalPolicy', () => {
             tools: [createTool(false)],
         });
 
-        await expect(resolveFor(policy)).resolves.toEqual({ kind: 'ready' });
+        await expect(resolveFor(policy)).resolves.toEqual({
+            because: 'tool-allows',
+            kind: 'ready',
+        });
     });
 
     it('requires approval when a tool-authored policy returns true', async () => {
@@ -142,18 +154,21 @@ describe('ToolApprovalPolicy', () => {
             tools: [createTool(() => 'scoped-key')],
         });
 
-        await expect(resolveFor(policy)).resolves.toEqual({ kind: 'ready' });
+        await expect(resolveFor(policy)).resolves.toEqual({
+            because: 'session-approved-key',
+            kind: 'ready',
+        });
     });
 
     it('uses the input session for explicit policy and approval key checks', async () => {
         const getContext = vi.fn(() => createContext('session-1'));
-        const isToolExplicitlyAllowed = vi.fn(() => false);
+        const findExplicitToolAllow = vi.fn(() => null);
         const isApprovalKeySessionApproved = vi.fn(() => true);
         const policy = new ToolApprovalPolicy({
             getApprovalMode: () => 'manual',
             getLocalTool: () => createTool('scoped-key'),
             isApprovalKeySessionApproved,
-            isToolExplicitlyAllowed,
+            findExplicitToolAllow,
         });
 
         await expect(
@@ -164,9 +179,9 @@ describe('ToolApprovalPolicy', () => {
                 identity: { type: 'local', toolId: 'test_tool' },
                 toolName: 'test_tool',
             })
-        ).resolves.toEqual({ kind: 'ready' });
+        ).resolves.toEqual({ because: 'session-approved-key', kind: 'ready' });
         expect(getContext).not.toHaveBeenCalled();
-        expect(isToolExplicitlyAllowed).toHaveBeenCalledWith({
+        expect(findExplicitToolAllow).toHaveBeenCalledWith({
             sessionId: 'session-1',
             toolName: 'test_tool',
         });
@@ -264,6 +279,6 @@ describe('ToolApprovalPolicy', () => {
                 source: 'mcp',
                 toolName: 'friendly_alias',
             })
-        ).resolves.toEqual({ kind: 'ready' });
+        ).resolves.toEqual({ because: 'session-approved-key', kind: 'ready' });
     });
 });

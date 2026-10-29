@@ -34,7 +34,11 @@ import type {
 import { ToolApprovalMetadataSchema, ToolApprovalResponseDataSchema } from '../approval/schemas.js';
 import type { AllowedToolsProvider } from './approval/allowed-tools-provider/types.js';
 import { matchesToolPolicyPattern, SessionToolPolicy } from './approval/session-tool-policy.js';
-import { ToolApprovalPolicy, type ToolApprovalGate } from './approval/tool-approval-policy.js';
+import {
+    ToolApprovalPolicy,
+    type ToolApprovalGate,
+    type ToolApprovalReadyReason,
+} from './approval/tool-approval-policy.js';
 import { ToolPresentation } from './presentation/tool-presentation.js';
 import type { HookManager } from '../hooks/manager.js';
 import type { SessionManager } from '../session/index.js';
@@ -101,6 +105,8 @@ export type ExecutableToolCall = {
 export type PreparedToolCall =
     | {
           kind: 'ready';
+          /** Which approval check let the call run without asking. */
+          because: ToolApprovalReadyReason;
           call: ExecutableToolCall;
       }
     | {
@@ -284,19 +290,21 @@ export class ToolManager {
             getLocalTool: (toolName) => this.agentTools.get(toolName),
             isApprovalKeySessionApproved: ({ approvalKey, sessionId }) =>
                 this.approvalManager.isApprovalKeySessionApproved(approvalKey, sessionId),
-            isToolExplicitlyAllowed: async ({ toolName, sessionId }) => {
+            findExplicitToolAllow: async ({ toolName, sessionId }) => {
                 if (
                     sessionId !== undefined &&
                     this.isToolAutoApprovedForSession(sessionId, toolName)
                 ) {
-                    return true;
+                    return 'session-allowed';
                 }
 
                 if (this.isInAlwaysAllowList(toolName)) {
-                    return true;
+                    return 'always-allow';
                 }
 
-                return await this.allowedToolsProvider.isToolAllowed(toolName, sessionId);
+                return (await this.allowedToolsProvider.isToolAllowed(toolName, sessionId))
+                    ? 'allowed-tools'
+                    : null;
             },
         });
         this.toolPresentation = new ToolPresentation(
@@ -1300,7 +1308,7 @@ export class ToolManager {
             toolName: input.toolName,
         });
         if (approvalGate.kind === 'ready') {
-            return { kind: 'ready', call };
+            return { because: approvalGate.because, kind: 'ready', call };
         }
 
         return await this.prepareApprovalRequiredToolCall({

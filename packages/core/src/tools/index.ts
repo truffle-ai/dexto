@@ -52,3 +52,7 @@ export type {
     PreparedToolCall,
     PrepareToolCallInput,
 } from './tool-manager.js';
+export type {
+    ExplicitToolAllow,
+    ToolApprovalReadyReason,
+} from './approval/tool-approval-policy.js';

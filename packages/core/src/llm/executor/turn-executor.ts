@@ -290,6 +290,12 @@ type PreparedModelToolCall =
           modelVisibleResult: ToolExecutionResult;
       };
 
+/** What the approval gate decided for a call, or which check let it run without asking. */
+function approvalGateOf(prepared: PreparedModelToolCall): string {
+    if (prepared.kind === 'terminal') return 'terminal';
+    return prepared.prepared.kind === 'ready' ? prepared.prepared.because : prepared.prepared.kind;
+}
+
 type ApprovalWaitResult =
     | {
           kind: 'response';
@@ -1943,7 +1949,10 @@ export class TurnExecutor {
                             'tool.call_id': toolCall.toolCallId,
                             'tool.name': toolCall.toolName,
                         },
-                        resultAttributes: (prepared) => ({ 'tool.prepare_kind': prepared.kind }),
+                        resultAttributes: (prepared) => ({
+                            'tool.prepare_kind': prepared.kind,
+                            'tool.approval_gate': approvalGateOf(prepared),
+                        }),
                     },
                     () => this.prepareModelToolCall(toolCall),
                     this.logger
