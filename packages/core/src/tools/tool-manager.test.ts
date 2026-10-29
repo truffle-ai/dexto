@@ -367,6 +367,8 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
         it.each([
             { allowed: 'always-allow', alwaysAllow: ['typed'], providerAllows: false },
             { allowed: 'allowed-tools', alwaysAllow: [], providerAllows: true },
+            // Both allow the call: the static list is checked first, so it is the one named.
+            { allowed: 'always-allow', alwaysAllow: ['typed'], providerAllows: true },
         ] as const)(
             'names the explicit allow ($allowed) that lets a manual-mode call run',
             async ({ allowed, alwaysAllow, providerAllows }) => {
