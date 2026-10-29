@@ -351,6 +351,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             expect(prepared).toEqual(
                 expect.objectContaining({
                     kind: 'ready',
+                    because: 'auto-approve-mode',
                     call: expect.objectContaining({
                         toolName: 'typed',
                         toolCallId: 'call-1',
@@ -362,6 +363,47 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             expect(execute).not.toHaveBeenCalled();
             expect(mockApprovalManager.requestToolApproval).not.toHaveBeenCalled();
         });
+
+        it.each([
+            { allowed: 'always-allow', alwaysAllow: ['typed'], providerAllows: false },
+            { allowed: 'allowed-tools', alwaysAllow: [], providerAllows: true },
+            // Both allow the call: the static list is checked first, so it is the one named.
+            { allowed: 'always-allow', alwaysAllow: ['typed'], providerAllows: true },
+        ] as const)(
+            'names the explicit allow ($allowed) that lets a manual-mode call run',
+            async ({ allowed, alwaysAllow, providerAllows }) => {
+                const toolManager = createToolManager(
+                    mockMcpManager,
+                    mockApprovalManager,
+                    {
+                        ...mockAllowedToolsProvider,
+                        isToolAllowed: vi.fn().mockResolvedValue(providerAllows),
+                    },
+                    'manual',
+                    mockAgentEventBus,
+                    { alwaysAllow: [...alwaysAllow] },
+                    [
+                        defineTool({
+                            id: 'typed',
+                            description: 'Typed tool',
+                            inputSchema: z.object({ count: z.number() }).strict(),
+                            needsApproval: true,
+                            execute: vi.fn(),
+                        }),
+                    ],
+                    mockLogger
+                );
+
+                await expect(
+                    toolManager.prepareToolCall({
+                        toolName: 'typed',
+                        input: { count: 5 },
+                        toolCallId: 'call-1',
+                        sessionId: 'session-1',
+                    })
+                ).resolves.toEqual(expect.objectContaining({ kind: 'ready', because: allowed }));
+            }
+        );
 
         it('prepares a local tool as approval-required in manual mode without requesting approval', async () => {
             const toolManager = createToolManager(

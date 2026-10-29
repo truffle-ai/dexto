@@ -1,8 +1,19 @@
 import type { Tool, ToolApprovalDecision, ToolExecutionContext, ToolIdentity } from '../types.js';
 import { ToolError } from '../errors.js';
 
+/** Which check let a call run without asking: the first of the policy's checks that passed. */
+export type ToolApprovalReadyReason =
+    | ExplicitToolAllow
+    | 'auto-approve-mode'
+    | 'tool-allows'
+    | 'session-approved-key';
+
+/** Where an explicit allow came from: the session's list, the static list, or the host's provider. */
+export type ExplicitToolAllow = 'session-allowed' | 'always-allow' | 'allowed-tools';
+
 export type ToolApprovalGate =
     | {
+          because: ToolApprovalReadyReason;
           kind: 'ready';
       }
     | {
@@ -37,32 +48,31 @@ export type ToolApprovalPolicyDeps = {
         approvalKey: string;
         sessionId?: string | undefined;
     }): boolean;
-    isToolExplicitlyAllowed(input: {
+    findExplicitToolAllow(input: {
         sessionId?: string | undefined;
         toolName: string;
-    }): Promise<boolean> | boolean;
+    }): Promise<ExplicitToolAllow | null> | ExplicitToolAllow | null;
 };
 
 export class ToolApprovalPolicy {
     constructor(private readonly deps: ToolApprovalPolicyDeps) {}
 
     async resolve(input: ToolApprovalPolicyInput): Promise<ToolApprovalGate> {
-        if (
-            await this.deps.isToolExplicitlyAllowed({
-                ...(input.sessionId !== undefined ? { sessionId: input.sessionId } : {}),
-                toolName: input.toolName,
-            })
-        ) {
-            return { kind: 'ready' };
+        const explicitAllow = await this.deps.findExplicitToolAllow({
+            ...(input.sessionId !== undefined ? { sessionId: input.sessionId } : {}),
+            toolName: input.toolName,
+        });
+        if (explicitAllow !== null) {
+            return { because: explicitAllow, kind: 'ready' };
         }
 
         if (this.deps.getApprovalMode() === 'auto-approve') {
-            return { kind: 'ready' };
+            return { because: 'auto-approve-mode', kind: 'ready' };
         }
 
         const authored = await this.resolveAuthoredPolicy(input);
         if (authored.kind === 'allow') {
-            return { kind: 'ready' };
+            return { because: 'tool-allows', kind: 'ready' };
         }
 
         if (authored.kind === 'require') {
@@ -73,7 +83,7 @@ export class ToolApprovalPolicy {
                     ...(input.sessionId !== undefined ? { sessionId: input.sessionId } : {}),
                 })
             ) {
-                return { kind: 'ready' };
+                return { because: 'session-approved-key', kind: 'ready' };
             }
 
             return {
@@ -92,7 +102,7 @@ export class ToolApprovalPolicy {
                     ...(input.sessionId !== undefined ? { sessionId: input.sessionId } : {}),
                 })
             ) {
-                return { kind: 'ready' };
+                return { because: 'session-approved-key', kind: 'ready' };
             }
             return { approvalKey, kind: 'approval-required' };
         }
