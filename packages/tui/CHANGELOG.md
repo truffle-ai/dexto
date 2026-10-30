@@ -1,5 +1,15 @@
 # @dexto/tui
 
+## 1.14.4
+
+### Patch Changes
+
+- Updated dependencies [3667848]
+    - @dexto/core@1.14.4
+    - @dexto/agent-management@1.14.4
+    - @dexto/llm@1.14.4
+    - @dexto/registry@1.14.4
+
 ## 1.14.3
 
 ### Patch Changes
