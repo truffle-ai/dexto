@@ -86,7 +86,7 @@ export type { SessionMetadata } from './session/session-manager.js';
 export type { WorkspaceContext, SetWorkspaceInput } from './workspace/types.js';
 
 // System prompt types and constants (used by webui)
-export { PROMPT_GENERATOR_SOURCES } from './systemPrompt/registry.js';
+export { PROMPT_GENERATOR_SOURCES } from './systemPrompt/sources.js';
 export type { ContributorConfig, SystemPromptConfig } from './systemPrompt/schemas.js';
 
 // Search types (used by client-sdk package)
