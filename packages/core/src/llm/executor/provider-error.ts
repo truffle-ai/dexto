@@ -23,6 +23,8 @@ export type LLMProviderErrorDetails = {
     openRouterPreviousErrorCount?: number;
     url?: string;
     isRetryable?: boolean;
+    /** The `code` a provider sent on a stream error part that is not an Error, such as a gateway's. */
+    providerErrorCode?: string;
 };
 
 export type MapProviderErrorInput = {
@@ -215,7 +217,11 @@ export function extractProviderErrorDetails(input: MapProviderErrorInput): LLMPr
         model: input.model,
     };
 
-    if (!APICallError.isInstance?.(input.error)) return details;
+    if (!APICallError.isInstance?.(input.error)) {
+        const code = isRecord(input.error) ? readString(input.error.code) : undefined;
+        if (code !== undefined) details.providerErrorCode = code;
+        return details;
+    }
 
     const responseHeaders = (input.error.responseHeaders || {}) as Record<string, string>;
     const responseBody = stringifyBody(input.error.responseBody);
