@@ -1,5 +1,13 @@
 # @dexto/tools-process
 
+## 1.14.4
+
+### Patch Changes
+
+- Updated dependencies [3667848]
+    - @dexto/core@1.14.4
+    - @dexto/agent-config@1.14.4
+
 ## 1.14.3
 
 ### Patch Changes

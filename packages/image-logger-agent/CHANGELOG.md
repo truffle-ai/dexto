@@ -1,5 +1,15 @@
 # @dexto/image-logger-agent
 
+## 1.14.4
+
+### Patch Changes
+
+- Updated dependencies [3667848]
+    - @dexto/core@1.14.4
+    - @dexto/agent-config@1.14.4
+    - @dexto/agent-management@1.14.4
+    - @dexto/image-local@1.14.4
+
 ## 1.14.3
 
 ### Patch Changes
