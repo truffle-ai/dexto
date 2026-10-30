@@ -1377,6 +1377,57 @@ describe('StreamProcessor', () => {
             });
         });
 
+        test('throws a mapped Error, keeping message and code, for a non-Error stream error when fatal errors are not emitted', async () => {
+            const mocks = createMocks();
+            const processor = new StreamProcessor(
+                mocks.contextManager,
+                mocks.eventBus,
+                mocks.abortController.signal,
+                mocks.config,
+                mocks.logger,
+                true,
+                false
+            );
+
+            // OpenAI-compatible SSE `{ error: { code, message } }` arrives as this error part.
+            const events = [
+                {
+                    type: 'error',
+                    error: { code: 'model_limit_reached', message: 'Choose another model.' },
+                },
+            ];
+
+            const thrown = await processor
+                .process(() => createMockStream(events) as never)
+                .catch((error: unknown) => error);
+            expect(thrown).toBeInstanceOf(Error);
+            expect(thrown).toMatchObject({
+                message: 'Choose another model.',
+                context: expect.objectContaining({ providerErrorCode: 'model_limit_reached' }),
+            });
+        });
+
+        test('throws a mapped Error for a string stream error when fatal errors are not emitted', async () => {
+            const mocks = createMocks();
+            const processor = new StreamProcessor(
+                mocks.contextManager,
+                mocks.eventBus,
+                mocks.abortController.signal,
+                mocks.config,
+                mocks.logger,
+                true,
+                false
+            );
+
+            const thrown = await processor
+                .process(
+                    () => createMockStream([{ type: 'error', error: 'Gateway closed' }]) as never
+                )
+                .catch((error: unknown) => error);
+            expect(thrown).toBeInstanceOf(Error);
+            expect(thrown).toMatchObject({ message: 'Gateway closed' });
+        });
+
         test('classifies OpenAI-compatible schema string stream errors', async () => {
             const mocks = createMocks();
             const processor = new StreamProcessor(
