@@ -27,6 +27,13 @@ const ListMemoriesQuerySchema = z
             .optional()
             .transform((val) => (val === 'true' ? true : val === 'false' ? false : undefined))
             .describe('Filter by pinned status (true or false)'),
+        query: z
+            .string()
+            .optional()
+            .transform((val) => (val && val.trim() ? val : undefined))
+            .describe(
+                'Case-insensitive keyword search over content and tags; all whitespace-separated terms must match'
+            ),
         limit: z
             .string()
             .optional()
@@ -205,12 +212,14 @@ export function createMemoryRouter(getAgent: GetAgentFn) {
                 tags?: string[];
                 source?: 'user' | 'system';
                 pinned?: boolean;
+                query?: string;
                 limit?: number;
                 offset?: number;
             } = {};
             if (query.tags !== undefined) options.tags = query.tags;
             if (query.source !== undefined) options.source = query.source;
             if (query.pinned !== undefined) options.pinned = query.pinned;
+            if (query.query !== undefined) options.query = query.query;
             if (query.limit !== undefined) options.limit = query.limit;
             if (query.offset !== undefined) options.offset = query.offset;
 
