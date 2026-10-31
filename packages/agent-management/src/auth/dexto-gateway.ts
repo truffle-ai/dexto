@@ -168,7 +168,8 @@ async function readDexto(options: DextoGatewayOptions, path: string): Promise<un
     return await response.json();
 }
 
-async function currentCredential(options: DextoGatewayOptions): Promise<Credential | null> {
+/** The current profile's credential, refreshed when expiring; null when signed out. */
+export async function currentCredential(options: DextoGatewayOptions): Promise<Credential | null> {
     return await resolveCredential({
         dir: options.dir,
         apiKey: null,
