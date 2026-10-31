@@ -58,7 +58,9 @@ jobs:
           shopt -s nullglob
           pending=()
           for changeset in .changeset/*.md; do
-            [[ "$(basename "${changeset}")" == README.md ]] || pending+=("${changeset}")
+            # Changesets ignores README.md in any case (`/^README\.md$/i` in @changesets/read).
+            name="$(basename "${changeset}")"
+            [[ "${name,,}" == readme.md ]] || pending+=("${changeset}")
           done
           if [[ -f .changeset/pre.json || ${#pending[@]} -eq 0 ]]; then
             pnpm -w build
