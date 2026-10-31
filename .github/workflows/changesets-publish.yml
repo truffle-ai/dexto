@@ -33,7 +33,6 @@ jobs:
       published_packages: ${{ steps.changesets.outputs.publishedPackages }}
     runs-on: ubuntu-latest
     env:
-      NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     concurrency:
       group: changesets-release
@@ -49,14 +48,38 @@ jobs:
           always-auth: true
           scope: '@dexto'
       - run: pnpm install --frozen-lockfile
+      # `changeset:publish` is `pnpm -w build && pnpm -w changeset publish`. The build runs here,
+      # before the release step, so it never sees the npm token. It runs whenever changesets/action
+      # will publish: when no changeset is pending, and always in pre mode, where the action's own
+      # filtering is harder to mirror. With changesets pending, the action opens the version PR
+      # instead and nothing is built, as before.
+      - name: Build packages to publish
+        run: |
+          shopt -s nullglob
+          pending=()
+          for changeset in .changeset/*.md; do
+            # Changesets ignores README.md in any case (`/^README\.md$/i` in @changesets/read).
+            name="$(basename "${changeset}")"
+            [[ "${name,,}" == readme.md ]] || pending+=("${changeset}")
+          done
+          if [[ -f .changeset/pre.json || ${#pending[@]} -eq 0 ]]; then
+            pnpm -w build
+          else
+            echo "Changesets are pending; the release step opens the version PR and publishes nothing."
+          fi
+      # Only this step sees the npm token. changesets/action runs the publish command itself, and
+      # npm reads the token through the .npmrc setup-node wrote (`_authToken=${NODE_AUTH_TOKEN}`).
+      # Earlier steps see setup-node's placeholder, which public installs don't need.
       - name: Version / Publish with Changesets
         id: changesets
         uses: changesets/action@v1
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         with:
           title: 'chore: version packages'
           commit: 'chore: version packages'
           version: pnpm run changeset:version
-          publish: pnpm run changeset:publish
+          publish: pnpm -w changeset publish
 
   derive-dexto-release-tag:
     needs: release
