@@ -1,5 +1,10 @@
 import type { LlmAuthResolver } from '@dexto/core';
 import {
+    type DextoGatewayOptions,
+    defaultDextoGatewayOptions,
+    dextoGatewayRuntimeAuth,
+} from './dexto-gateway.js';
+import {
     createChatGPTRuntimeAuth,
     startChatGPTBrowserLogin,
     type ChatGPTOAuthCredential,
@@ -164,9 +169,16 @@ function resolveRuntimeAuthFromProfile(
     return runtimeAuth ? { ...runtimeAuth, auth } : null;
 }
 
-export function createModelAuthResolver(): LlmAuthResolver {
+/**
+ * Model auth for local agents: Dexto models (`dexto-nova`) on the Dexto sign-in, and every other
+ * provider on its saved model auth profile.
+ */
+export function createModelAuthResolver(
+    dexto: DextoGatewayOptions = defaultDextoGatewayOptions()
+): LlmAuthResolver {
     return {
         resolveRuntimeAuth(input) {
+            if (input.provider === 'dexto-nova') return dextoGatewayRuntimeAuth(dexto);
             const profile = getDefaultModelAuthProfile(loadModelAuthProfilesSync(), input.provider);
             return profile ? resolveRuntimeAuthFromProfile(profile) : null;
         },

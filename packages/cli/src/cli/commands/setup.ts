@@ -48,8 +48,7 @@ import {
     getModelFromResult,
 } from '../utils/local-model-setup.js';
 import { requiresSetup } from '../utils/setup-utils.js';
-import { canUseDextoProvider } from '../utils/dexto-setup.js';
-import { handleAutoLogin } from './auth/login.js';
+import { canUseDextoProvider, signInForDextoModels } from '../utils/dexto-setup.js';
 import { loadAuth, getBillingBalanceForCurrentLogin, openDextoBillingPage } from '../auth/index.js';
 import { DEXTO_CREDITS_URL } from '../auth/constants.js';
 import * as p from '@clack/prompts';
@@ -604,13 +603,13 @@ async function handleDextoProviderSetup(
 
     console.log(chalk.magenta('\n★ Dexto Nova Setup\n'));
 
-    // Check if user already has DEXTO_API_KEY
+    // Signed in with permission to spend credits, or DEXTO_API_KEY
     const hasKey = await canUseDextoProvider();
 
     if (!hasKey) {
         p.note(
             `Dexto gives you instant access to ${chalk.cyan('all AI models')} with a single account.\n\n` +
-                `We'll guide you through device-code login.`,
+                `We'll sign you in with your browser, or a code over SSH.`,
             'Login Required'
         );
 
@@ -624,11 +623,11 @@ async function handleDextoProviderSetup(
         }
 
         try {
-            await handleAutoLogin();
-            // Verify key was actually provisioned (provisionKeys silently catches errors)
+            await signInForDextoModels();
+            // Consent can leave out spending credits, and an organization can have no Cloud project.
             if (!(await canUseDextoProvider())) {
                 p.log.error(
-                    'API key provisioning failed. Please try again or use `dexto setup` with a different provider.'
+                    "Signed in, but Dexto models can't run yet: allow spending credits when asked, and make sure your organization has a Cloud project. Or use `dexto setup` with a different provider."
                 );
                 return abort('Setup cancelled', 1);
             }
