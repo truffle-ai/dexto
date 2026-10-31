@@ -14,7 +14,7 @@ import {
     resolveCredential,
     writeCurrentProfile,
     writeLogin,
-} from './accounts.js';
+} from './dexto-accounts.js';
 
 const signedInAs = {
     account: { email: 'ada@example.com', id: 'acc_1', name: 'Ada' },

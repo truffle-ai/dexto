@@ -158,6 +158,9 @@ export {
     PROVIDER_API_KEY_MAP,
 } from './utils/api-key-resolver.js';
 
+// Signing in to Dexto (profiles under ~/.dexto/accounts)
+export { dextoAccounts, dextoSignIn, dextoCloud } from './auth/index.js';
+
 // Model provider auth method definitions
 export {
     AUTH_METHOD_KINDS,
