@@ -5,43 +5,11 @@ export interface TuiShutdownHandle {
     stop?: (() => Promise<void>) | undefined;
 }
 
-export interface TuiAuthConfig {
-    token?: string | undefined;
-    refreshToken?: string | undefined;
-    userId?: string | undefined;
-    email?: string | undefined;
-    expiresAt?: number | undefined;
-    createdAt: number;
-    dextoApiKey?: string | undefined;
-    dextoKeyId?: string | undefined;
-    dextoApiKeySource?: 'provisioned' | 'user-supplied' | undefined;
-}
-
-export interface TuiDeviceApiKeyLoginResult {
-    dextoApiKey: string;
-    dextoKeyId: string;
-    dextoKeyDisplay: string;
-}
-
-export interface TuiDeviceLoginPrompt {
-    userCode: string;
-    verificationUrl: string;
-    verificationUrlComplete: string | null;
-    expiresIn: number;
-}
-
-export type TuiDextoApiKeyProvisionStatusLevel = 'info' | 'success' | 'warning' | 'error';
-
-export interface TuiDextoApiKeyProvisionStatus {
-    level: TuiDextoApiKeyProvisionStatusLevel;
-    message: string;
-}
-
-export interface TuiPersistedLoginResult {
-    email?: string | undefined;
-    userId?: string | undefined;
-    keyId?: string | undefined;
-    hasDextoApiKey: boolean;
+export interface TuiSignInOptions {
+    /** Aborts the sign-in, such as when the person presses Esc. */
+    signal: AbortSignal;
+    /** What to show while signing in: the link, or the code to check. */
+    onNote: (text: string) => void;
 }
 
 export interface TuiRuntimeServices {
@@ -56,25 +24,12 @@ export interface TuiRuntimeServices {
     getProviderInstructions?: (
         provider: LLMProvider
     ) => { title: string; content: string; url?: string | undefined } | null;
-    performDeviceCodeLogin?: (options?: {
-        signal?: AbortSignal | undefined;
-        onPrompt?: ((prompt: TuiDeviceLoginPrompt) => void) | undefined;
-    }) => Promise<TuiDeviceApiKeyLoginResult>;
-    persistDeviceApiKeyLoginResult?: (
-        result: TuiDeviceApiKeyLoginResult
-    ) => Promise<TuiPersistedLoginResult>;
-    ensureDextoApiKeyForAuthToken?: (
-        authToken: string,
-        options?: {
-            onStatus?: ((status: TuiDextoApiKeyProvisionStatus) => void) | undefined;
-        }
-    ) => Promise<{ dextoApiKey: string; keyId: string | null } | null>;
-    loadAuth?: () => Promise<TuiAuthConfig | null>;
-    storeAuth?: (config: TuiAuthConfig) => Promise<void>;
-    removeAuth?: () => Promise<void>;
-    removeDextoApiKeyFromEnv?: (options?: {
-        expectedValue?: string;
-    }) => Promise<{ removed: boolean; targetEnvPath: string }>;
+    /** Who the current profile acts as, in a few words, or null when signed out. */
+    currentSignIn?: () => Promise<string | null>;
+    /** Signs the current profile in to Dexto, resolving with what to say once signed in. */
+    signIn?: (options: TuiSignInOptions) => Promise<string>;
+    /** Ends the current profile's sign-in, resolving with what to say. */
+    signOut?: () => Promise<string>;
     isUsingDextoCredits?: () => Promise<boolean>;
     canUseDextoProvider?: () => Promise<boolean>;
     buildDextoBillingUrl?: (options: { creditsUsd: number }) => string;
@@ -128,63 +83,25 @@ export function getProviderInstructions(provider: LLMProvider): {
     return runtimeServices.getProviderInstructions?.(provider) ?? null;
 }
 
-export async function performDeviceCodeLogin(options?: {
-    signal?: AbortSignal | undefined;
-    onPrompt?: ((prompt: TuiDeviceLoginPrompt) => void) | undefined;
-}): Promise<TuiDeviceApiKeyLoginResult> {
-    if (!runtimeServices.performDeviceCodeLogin) {
-        throw missingHostMethod('performDeviceCodeLogin');
+export async function currentSignIn(): Promise<string | null> {
+    if (!runtimeServices.currentSignIn) {
+        throw missingHostMethod('currentSignIn');
     }
-    return runtimeServices.performDeviceCodeLogin(options);
+    return runtimeServices.currentSignIn();
 }
 
-export async function persistDeviceApiKeyLoginResult(
-    result: TuiDeviceApiKeyLoginResult
-): Promise<TuiPersistedLoginResult> {
-    if (!runtimeServices.persistDeviceApiKeyLoginResult) {
-        throw missingHostMethod('persistDeviceApiKeyLoginResult');
+export async function signIn(options: TuiSignInOptions): Promise<string> {
+    if (!runtimeServices.signIn) {
+        throw missingHostMethod('signIn');
     }
-    return runtimeServices.persistDeviceApiKeyLoginResult(result);
+    return runtimeServices.signIn(options);
 }
 
-export async function ensureDextoApiKeyForAuthToken(
-    authToken: string,
-    options?: { onStatus?: ((status: TuiDextoApiKeyProvisionStatus) => void) | undefined }
-): Promise<{ dextoApiKey: string; keyId: string | null } | null> {
-    if (!runtimeServices.ensureDextoApiKeyForAuthToken) {
-        throw missingHostMethod('ensureDextoApiKeyForAuthToken');
+export async function signOut(): Promise<string> {
+    if (!runtimeServices.signOut) {
+        throw missingHostMethod('signOut');
     }
-    return runtimeServices.ensureDextoApiKeyForAuthToken(authToken, options);
-}
-
-export async function loadAuth(): Promise<TuiAuthConfig | null> {
-    if (!runtimeServices.loadAuth) {
-        throw missingHostMethod('loadAuth');
-    }
-    return runtimeServices.loadAuth();
-}
-
-export async function storeAuth(config: TuiAuthConfig): Promise<void> {
-    if (!runtimeServices.storeAuth) {
-        throw missingHostMethod('storeAuth');
-    }
-    await runtimeServices.storeAuth(config);
-}
-
-export async function removeAuth(): Promise<void> {
-    if (!runtimeServices.removeAuth) {
-        throw missingHostMethod('removeAuth');
-    }
-    await runtimeServices.removeAuth();
-}
-
-export async function removeDextoApiKeyFromEnv(options?: {
-    expectedValue?: string;
-}): Promise<{ removed: boolean; targetEnvPath: string }> {
-    if (!runtimeServices.removeDextoApiKeyFromEnv) {
-        throw missingHostMethod('removeDextoApiKeyFromEnv');
-    }
-    return runtimeServices.removeDextoApiKeyFromEnv(options);
+    return runtimeServices.signOut();
 }
 
 export async function isUsingDextoCredits(): Promise<boolean> {

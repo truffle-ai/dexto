@@ -163,7 +163,6 @@ import { generateMessageId } from '../utils/idGenerator.js';
 import { canUseDextoProvider, captureAnalytics } from '../host/index.js';
 import { FocusOverlayFrame } from '../components/shared/FocusOverlayFrame.js';
 import { shouldHideCliChrome } from '../utils/overlayPresentation.js';
-import { refreshDextoNovaAuthAfterLogin } from '../utils/dexto-auth-refresh.js';
 
 function isLLMProvider(value: unknown): value is LLMProvider {
     if (typeof value !== 'string') return false;
@@ -1493,59 +1492,36 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
 
         const handleLoginDone = useCallback(
             (outcome: LoginOverlayOutcome) => {
-                void (async () => {
-                    handleClose();
+                handleClose();
 
-                    if (outcome.outcome === 'closed') {
-                        return;
-                    }
+                if (outcome.outcome === 'closed') {
+                    return;
+                }
 
-                    if (outcome.outcome === 'cancelled') {
-                        setMessages((prev) => [
-                            ...prev,
-                            {
-                                id: generateMessageId('system'),
-                                role: 'system',
-                                content: 'Login cancelled.',
-                                timestamp: new Date(),
-                            },
-                        ]);
-                        return;
-                    }
-
-                    let refreshWarning: string | null = null;
-                    if (outcome.hasDextoApiKey) {
-                        try {
-                            await refreshDextoNovaAuthAfterLogin(agent, session.id || undefined);
-                        } catch (error) {
-                            refreshWarning = `Logged in, but failed to refresh the active Dexto Nova session: ${
-                                error instanceof Error ? error.message : String(error)
-                            }`;
-                        }
-                    }
-
-                    const userLabel = outcome.email ? ` as ${outcome.email}` : '';
-                    const keyLine = outcome.hasDextoApiKey
-                        ? `🔑 DEXTO_API_KEY ready${outcome.keyId ? ` (Key ID: ${outcome.keyId})` : ''}`
-                        : '⚠️ Failed to provision DEXTO_API_KEY (you can still use your own API keys)';
-                    const content = [
-                        `✅ Logged in${userLabel}`,
-                        keyLine,
-                        ...(refreshWarning ? [`⚠️ ${refreshWarning}`] : []),
-                    ].join('\n');
-
+                if (outcome.outcome === 'cancelled') {
                     setMessages((prev) => [
                         ...prev,
                         {
                             id: generateMessageId('system'),
                             role: 'system',
-                            content,
+                            content: 'Sign-in cancelled.',
                             timestamp: new Date(),
                         },
                     ]);
-                })();
+                    return;
+                }
+
+                setMessages((prev) => [
+                    ...prev,
+                    {
+                        id: generateMessageId('system'),
+                        role: 'system',
+                        content: outcome.summary,
+                        timestamp: new Date(),
+                    },
+                ]);
             },
-            [agent, handleClose, session.id, setMessages]
+            [handleClose, setMessages]
         );
 
         const handleLogoutDone = useCallback(
@@ -1578,7 +1554,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                     {
                         id: generateMessageId('system'),
                         role: 'system',
-                        content: `✅ Successfully logged out${warning}`,
+                        content: `${outcome.summary}${warning}`,
                         timestamp: new Date(),
                     },
                 ]);

@@ -13,6 +13,7 @@ import type { BrowserSignInInput, EndedSignIn, SignInInput } from '../../auth/si
 import {
     type SignInContext,
     CommandError,
+    describeSignIn,
     listAccounts,
     login,
     logout,
@@ -83,6 +84,7 @@ describe('sign-in commands', () => {
             print: (text) => printed.push(text),
             note: (text) => notes.push(text),
             confirm: async () => false,
+            canOpenBrowser: true,
             dexto: {
                 signInWithBrowser: async (input) => {
                     browserInputs.push(input);
@@ -142,6 +144,16 @@ describe('sign-in commands', () => {
 
             expect(deviceInputs).toHaveLength(1);
             expect(browserInputs).toHaveLength(0);
+        });
+
+        it('signs in with a device code when no browser can open here, and says so', async () => {
+            context = { ...context, canOpenBrowser: false };
+
+            await login(context, noOptions);
+
+            expect(deviceInputs).toHaveLength(1);
+            expect(browserInputs).toHaveLength(0);
+            expect(notes).toEqual(['No browser here, so sign in with a code on any device.']);
         });
 
         it('only prints the link with --no-browser', async () => {
@@ -212,6 +224,28 @@ describe('sign-in commands', () => {
                 login(context, { ...noOptions, apiKey: 'dxt_bad_key_value' })
             ).rejects.toThrow('Dexto refused this API key.');
             expect(await readLogin(dir, 'default')).toBeNull();
+        });
+    });
+
+    describe('describeSignIn', () => {
+        it('is null when signed out', async () => {
+            expect(await describeSignIn(context)).toBeNull();
+        });
+
+        it('names the account and organization, and a profile other than default', async () => {
+            await writeLogin(dir, 'default', signedIn(ACME));
+            expect(await describeSignIn(context)).toBe('ada@example.com in Acme');
+
+            await writeLogin(dir, 'other', signedIn(OTHER));
+            await writeCurrentProfile(dir, 'other');
+            expect(await describeSignIn(context)).toBe(
+                'ada@example.com in Other Acme (profile other)'
+            );
+        });
+
+        it('names a key by its mask, and where it came from', async () => {
+            context = { ...context, environment: { DEXTO_API_KEY: 'dxt_1234567890abcd' } };
+            expect(await describeSignIn(context)).toBe('API key dxt_123…abcd from DEXTO_API_KEY');
         });
     });
 
