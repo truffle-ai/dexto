@@ -8,6 +8,8 @@ import {
     type DextoGatewayOptions,
     dextoGatewayRuntimeAuth,
     dextoModelAccess,
+    dextoBillingSummary,
+    dextoModels,
 } from './dexto-gateway.js';
 
 const API = 'https://api.dexto.ai';
@@ -163,5 +165,94 @@ describe('Dexto models on the sign-in', () => {
 
         expect(auth).toMatchObject({ baseURL: `${API}/v1` });
         expect(auth?.fetch).toBeTypeOf('function');
+    });
+
+    describe('reading Dexto with the sign-in', () => {
+        beforeEach(() => {
+            options = {
+                ...options,
+                fetch: async (input, init) => {
+                    sent.push({
+                        url: String(input),
+                        headers: new globalThis.Headers(init?.headers),
+                    });
+                    const url = String(input);
+                    if (url.endsWith('/v1/models'))
+                        return Response.json({
+                            object: 'list',
+                            data: [
+                                {
+                                    id: 'anthropic/claude-sonnet-4.5',
+                                    name: 'Claude Sonnet 4.5',
+                                    owned_by: 'anthropic',
+                                    context_window: 200000,
+                                },
+                                {
+                                    id: 'openai/gpt-5',
+                                    name: 'GPT-5',
+                                    owned_by: 'openai',
+                                    context_window: 400000,
+                                },
+                            ],
+                        });
+                    if (url.endsWith('/v1/billing/summary'))
+                        return Response.json({
+                            balance_usd: 12.5,
+                            last_30_days: { total_cost_usd: 3.25, total_usage_events: 7 },
+                            recent_model_usage: [
+                                {
+                                    model: 'openai/gpt-5',
+                                    cost_usd: 0.5,
+                                    input_tokens: 10,
+                                    output_tokens: 20,
+                                    timestamp: '2026-10-31T00:00:00.000Z',
+                                },
+                            ],
+                        });
+                    return new Response('{}', { status: 404 });
+                },
+            };
+        });
+
+        it('lists the models Dexto serves, with a read-only sign-in', async () => {
+            await writeLogin(dir, 'default', signedIn({ scopes: ['cloud:read'] }));
+
+            await expect(dextoModels(options)).resolves.toEqual([
+                {
+                    id: 'anthropic/claude-sonnet-4.5',
+                    name: 'Claude Sonnet 4.5',
+                    contextWindow: 200000,
+                },
+                { id: 'openai/gpt-5', name: 'GPT-5', contextWindow: 400000 },
+            ]);
+            expect(sent[0]?.headers.get('authorization')).toBe('Bearer access-1');
+        });
+
+        it("reads the organization's credit balance", async () => {
+            await writeLogin(dir, 'default', signedIn());
+
+            await expect(dextoBillingSummary(options)).resolves.toEqual({
+                balanceUsd: 12.5,
+                last30Days: { costUsd: 3.25, usageEvents: 7 },
+                recent: [
+                    { model: 'openai/gpt-5', costUsd: 0.5, timestamp: '2026-10-31T00:00:00.000Z' },
+                ],
+            });
+            expect(sent[0]?.url).toBe(`${API}/v1/billing/summary`);
+        });
+
+        it('uses DEXTO_API_KEY when set', async () => {
+            options = { ...options, environment: { DEXTO_API_KEY: 'dxt_env' } };
+
+            await dextoBillingSummary(options);
+
+            expect(sent[0]?.headers.get('authorization')).toBe('Bearer dxt_env');
+        });
+
+        it('is null when signed out', async () => {
+            await expect(dextoBillingSummary(options)).resolves.toBeNull();
+            await expect(dextoModels(options)).resolves.toBeNull();
+            expect(sent).toHaveLength(0);
+        });
     });
 });
