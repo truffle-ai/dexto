@@ -13,8 +13,6 @@ export {
     getAuthFilePath,
 } from './service.js';
 
-export { type UsageSummaryResponse, DextoApiClient, getDextoApiClient } from './api-client.js';
-
 export {
     SUPABASE_URL,
     SUPABASE_ANON_KEY,
@@ -23,9 +21,4 @@ export {
     DEXTO_PUBLIC_API_URL,
 } from './constants.js';
 
-export {
-    buildDextoBillingUrl,
-    getBillingBalanceForCurrentLogin,
-    createBillingCheckoutForCurrentLogin,
-    openDextoBillingPage,
-} from './billing.js';
+export { buildDextoBillingUrl, openDextoBillingPage } from './billing.js';

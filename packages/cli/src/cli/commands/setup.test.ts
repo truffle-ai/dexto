@@ -161,13 +161,8 @@ vi.mock('../utils/dexto-setup.js', () => ({
     signInForDextoModels: vi.fn().mockResolvedValue(undefined),
 }));
 
-vi.mock('../auth/index.js', () => ({
-    loadAuth: vi.fn().mockResolvedValue(null),
-    getBillingBalanceForCurrentLogin: vi.fn().mockResolvedValue(null),
-    openDextoBillingPage: vi.fn().mockResolvedValue(undefined),
-    getDextoApiClient: vi.fn(() => ({
-        getUsageSummary: vi.fn().mockResolvedValue({ credits_usd: 0 }),
-    })),
+vi.mock('../auth/browser-launch.js', () => ({
+    openBrowserUrl: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock('../auth/constants.js', () => ({
