@@ -77,6 +77,8 @@ import {
     enrichAgentConfig,
     isDextoAuthEnabled,
     createModelAuthResolver,
+    dextoGateway,
+    dextoMcp,
     resolveApiKeyForProvider,
     getPrimaryApiKeyEnvVar,
 } from '@dexto/agent-management';
@@ -462,6 +464,11 @@ async function bootstrapAgentFromGlobalOpts(options: {
         logLevel: isHeadlessRun ? 'error' : 'info',
         workspaceRoot,
     });
+    // Signed in: the session gets the Dexto MCP's tools beside the person's own servers.
+    enrichedConfig.mcpServers = dextoMcp.withDextoMcpServer(
+        enrichedConfig.mcpServers,
+        await dextoMcp.dextoMcpServer(dextoGateway.defaultDextoGatewayOptions())
+    );
 
     if (isHeadlessRun) {
         // Force silent transport in headless mode even when agent config defines logger settings.
@@ -490,6 +497,10 @@ async function bootstrapAgentFromGlobalOpts(options: {
             hostContext: { workspaceRoot },
             overrides: {
                 authResolver: createModelAuthResolver(),
+                mcpAuthProviderFactory: dextoMcp.withDextoMcpAuth(
+                    null,
+                    dextoGateway.defaultDextoGatewayOptions()
+                ),
             },
         })
     );
@@ -994,6 +1005,11 @@ program
                             workspaceRoot,
                         }
                     );
+                    // Signed in: the session gets the Dexto MCP's tools beside the person's own servers.
+                    enrichedConfig.mcpServers = dextoMcp.withDextoMcpServer(
+                        enrichedConfig.mcpServers,
+                        await dextoMcp.dextoMcpServer(dextoGateway.defaultDextoGatewayOptions())
+                    );
 
                     // Validate enriched config + preflight credentials.
                     // - Interactive modes (web/cli): warn and continue when credentials are missing
@@ -1102,14 +1118,18 @@ program
                     );
                     const sessionLoggerFactory = createFileSessionLoggerFactory();
 
-                    const mcpAuthProviderFactory =
+                    // The Dexto MCP authorizes with the sign-in in every mode; other servers' own
+                    // OAuth needs the interactive CLI.
+                    const mcpAuthProviderFactory = dextoMcp.withDextoMcpAuth(
                         opts.mode === 'cli'
                             ? (
                                   await import('./cli/mcp/oauth-factory.js')
                               ).createMcpAuthProviderFactory({
                                   logger,
                               })
-                            : null;
+                            : null,
+                        dextoGateway.defaultDextoGatewayOptions()
+                    );
 
                     const services = await resolveServicesFromConfig(validatedConfig, image, {
                         workspaceRoot,

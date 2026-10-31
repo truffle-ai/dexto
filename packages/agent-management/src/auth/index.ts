@@ -56,3 +56,4 @@ export * as dextoAccounts from './dexto-accounts.js';
 export * as dextoSignIn from './dexto-sign-in.js';
 export * as dextoCloud from './dexto-cloud.js';
 export * as dextoGateway from './dexto-gateway.js';
+export * as dextoMcp from './dexto-mcp.js';
