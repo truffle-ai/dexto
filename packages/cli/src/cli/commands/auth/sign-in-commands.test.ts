@@ -2,15 +2,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import {
-    type OAuthLogin,
-    readCurrentProfile,
-    readLogin,
-    writeCurrentProfile,
-    writeLogin,
-} from '../../auth/accounts.js';
-import type { BrowserSignInInput, EndedSignIn, SignInInput } from '../../auth/sign-in.js';
-import type { CloudProject } from '../../auth/dexto-cloud.js';
+import { dextoAccounts, type dextoCloud, type dextoSignIn } from '@dexto/agent-management';
 import {
     type SignInContext,
     CommandError,
@@ -22,6 +14,13 @@ import {
     useAccount,
     whoami,
 } from './sign-in-commands.js';
+
+type OAuthLogin = dextoAccounts.OAuthLogin;
+type CloudProject = dextoCloud.CloudProject;
+type BrowserSignInInput = dextoSignIn.BrowserSignInInput;
+type EndedSignIn = dextoSignIn.EndedSignIn;
+type SignInInput = dextoSignIn.SignInInput;
+const { readCurrentProfile, readLogin, writeCurrentProfile, writeLogin } = dextoAccounts;
 
 const APP = 'https://app.dexto.ai';
 const API = 'https://api.dexto.ai';

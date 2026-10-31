@@ -3,7 +3,7 @@
 
 import { createHash, randomBytes } from 'node:crypto';
 import { z } from 'zod';
-import { type OAuthLogin, SignedInAsSchema } from './accounts.js';
+import { type OAuthLogin, SignedInAsSchema } from './dexto-accounts.js';
 
 /** Dexto's pre-registered public client for this CLI: no secret, no registration. */
 export const DEXTO_CLI_CLIENT_ID = 'dexto-cli';
