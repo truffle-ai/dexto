@@ -14,6 +14,7 @@ import {
     shouldShowChatGPTRateLimitHint,
 } from '../utils/chatgpt-rate-limit.js';
 import { supportsContextStats, type TuiAgentBackend } from '../agent-backend.js';
+import { dextoCreditBalance } from '../host/index.js';
 
 interface FooterProps {
     agent: TuiAgentBackend;
@@ -149,6 +150,35 @@ export function Footer({
         };
     }, [agent, sessionId]);
 
+    // Dexto models spend the organization's credits: show what's left, refreshed after each reply.
+    const [creditBalance, setCreditBalance] = useState<number | null>(null);
+    const usesDextoCredits = provider === 'dexto-nova';
+    useEffect(() => {
+        setCreditBalance(null);
+        if (!usesDextoCredits) return;
+        let cancelled = false;
+        const refresh = () => {
+            dextoCreditBalance()
+                .then((balance) => {
+                    if (!cancelled) setCreditBalance(balance);
+                })
+                .catch(() => undefined);
+        };
+        refresh();
+        const controller = new AbortController();
+        agent.on(
+            'llm:response',
+            (payload: { sessionId?: string }) => {
+                if (!payload.sessionId || payload.sessionId === sessionId) refresh();
+            },
+            { signal: controller.signal }
+        );
+        return () => {
+            cancelled = true;
+            controller.abort();
+        };
+    }, [agent, sessionId, usesDextoCredits]);
+
     // Shell mode changes the path color to yellow as indicator
     const pathColor = isShellMode ? 'yellow' : 'blue';
 
@@ -176,6 +206,12 @@ export function Footer({
             {contextLeft && (
                 <Box>
                     <Text color="gray">{contextLeft.percentLeft}% context left</Text>
+                </Box>
+            )}
+
+            {creditBalance !== null && (
+                <Box>
+                    <Text color="gray">${creditBalance.toFixed(2)} credits</Text>
                 </Box>
             )}
 
