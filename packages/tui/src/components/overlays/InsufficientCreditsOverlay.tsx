@@ -21,6 +21,7 @@ interface ActionOption {
         | 'top-up-10'
         | 'top-up-50'
         | 'open-billing'
+        | 'own-key'
         | 'reopen'
         | 'different-amount'
         | 'done';
@@ -52,6 +53,11 @@ const TOP_UP_OPTIONS: ActionOption[] = [
         id: 'open-billing',
         label: 'Open billing page',
         description: 'View full billing dashboard',
+    },
+    {
+        id: 'own-key',
+        label: 'Use your own model key',
+        description: 'Pick a model from a provider you have a key for',
     },
 ];
 
@@ -90,6 +96,8 @@ export interface InsufficientCreditsOverlayProps {
     initialBalanceUsd: number | null;
     onResolved: () => void;
     onClose: () => void;
+    /** Leaves credits for a model on the person's own key. */
+    onChooseOwnModel: () => void;
 }
 
 export interface InsufficientCreditsOverlayHandle {
@@ -99,7 +107,10 @@ export interface InsufficientCreditsOverlayHandle {
 const InsufficientCreditsOverlay = forwardRef<
     InsufficientCreditsOverlayHandle,
     InsufficientCreditsOverlayProps
->(function InsufficientCreditsOverlay({ isVisible, initialBalanceUsd, onResolved, onClose }, ref) {
+>(function InsufficientCreditsOverlay(
+    { isVisible, initialBalanceUsd, onResolved, onClose, onChooseOwnModel },
+    ref
+) {
     const selectorRef = useRef<BaseSelectorHandle>(null);
     const isActiveRef = useRef(false);
 
@@ -236,6 +247,9 @@ const InsufficientCreditsOverlay = forwardRef<
                 case 'open-billing':
                     void openBillingDashboard();
                     return;
+                case 'own-key':
+                    onChooseOwnModel();
+                    return;
                 case 'reopen':
                     void reopenBilling();
                     return;
@@ -247,7 +261,14 @@ const InsufficientCreditsOverlay = forwardRef<
                     return;
             }
         },
-        [onResolved, openBillingDashboard, openPrefilledBilling, reopenBilling, resetToSelection]
+        [
+            onChooseOwnModel,
+            onResolved,
+            openBillingDashboard,
+            openPrefilledBilling,
+            reopenBilling,
+            resetToSelection,
+        ]
     );
 
     const formatItem = useCallback((option: ActionOption, isSelected: boolean) => {
@@ -283,14 +304,12 @@ const InsufficientCreditsOverlay = forwardRef<
         <Box flexDirection="column">
             <Box>
                 <Text color="yellow" bold>
-                    Out of Dexto Nova credits
+                    Out of Dexto credits
                 </Text>
             </Box>
 
             <Box flexDirection="column" marginTop={1}>
-                <Text color="gray">
-                    This request stopped because your Dexto Nova balance ran out.
-                </Text>
+                <Text color="gray">This request stopped because your Dexto credits ran out.</Text>
                 {formatBalance(balanceUsd) && (
                     <Text color="gray">Current balance: {formatBalance(balanceUsd)}</Text>
                 )}

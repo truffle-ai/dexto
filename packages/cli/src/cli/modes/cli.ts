@@ -285,6 +285,13 @@ export async function runCliMode(context: MainModeContext): Promise<void> {
                 canUseDextoProvider,
                 buildDextoBillingUrl,
                 openDextoBillingPage,
+                dextoCreditBalance: async () => {
+                    const { dextoGateway } = await import('@dexto/agent-management');
+                    const summary = await dextoGateway.dextoBillingSummary(
+                        dextoGateway.defaultDextoGatewayOptions()
+                    );
+                    return summary?.balanceUsd ?? null;
+                },
             });
 
             await startInkCliRefactored(agent, cliSessionId, {

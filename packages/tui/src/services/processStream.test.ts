@@ -570,7 +570,7 @@ describe('processStream (reasoning)', () => {
         expect(ui.isProcessing).toBe(false);
 
         const latestMessage = getMessages().at(-1);
-        expect(latestMessage?.content).toContain('Out of Dexto Nova credits');
+        expect(latestMessage?.content).toContain('Out of Dexto credits');
         expect(latestMessage?.content).not.toContain('Error:');
     });
 
