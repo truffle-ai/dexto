@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
     type OAuthLogin,
     carryOverCloudCliLogins,
+    carryOverDexto1ApiKey,
     forgetLogin,
     listAccounts,
     profileNameFor,
@@ -199,6 +200,55 @@ describe('accounts', () => {
                 await readFile(path.join(cloudCliDir, 'credentials.json'), 'utf8')
             );
             expect(original).toEqual(cloudLogin);
+        });
+    });
+
+    describe("carrying over dexto 1.x's saved API key", () => {
+        let authFile: string;
+
+        beforeEach(async () => {
+            authFile = path.join(path.dirname(dir), 'auth.json');
+            await mkdir(path.dirname(dir), { recursive: true });
+        });
+
+        it('saves it as the default profile, once, for the API it came from', async () => {
+            await writeFile(
+                authFile,
+                JSON.stringify({
+                    dextoApiKey: 'dxt_from_1x_key',
+                    dextoApiKeySource: 'provisioned',
+                    dextoPlatformUrl: 'https://app.dexto.ai',
+                    createdAt: 1,
+                })
+            );
+
+            expect(await carryOverDexto1ApiKey(dir, authFile, 'https://api.dexto.ai')).toBe(true);
+            expect(await readLogin(dir, 'default')).toMatchObject({
+                kind: 'api_key',
+                apiKey: 'dxt_from_1x_key',
+                apiBaseUrl: 'https://app.dexto.ai',
+            });
+            expect(await carryOverDexto1ApiKey(dir, authFile, 'https://api.dexto.ai')).toBe(false);
+        });
+
+        it('uses the public API for a key saved before origins were recorded', async () => {
+            await writeFile(authFile, JSON.stringify({ dextoApiKey: 'dxt_old', createdAt: 1 }));
+
+            await carryOverDexto1ApiKey(dir, authFile, 'https://api.dexto.ai');
+
+            expect(await readLogin(dir, 'default')).toMatchObject({
+                apiBaseUrl: 'https://api.dexto.ai',
+            });
+        });
+
+        it('leaves a machine that already signed in, or had only a Supabase token', async () => {
+            await writeFile(authFile, JSON.stringify({ token: 'supabase', createdAt: 1 }));
+            expect(await carryOverDexto1ApiKey(dir, authFile, 'https://api.dexto.ai')).toBe(false);
+
+            await writeFile(authFile, JSON.stringify({ dextoApiKey: 'dxt_x', createdAt: 1 }));
+            await writeLogin(dir, 'work', oauthLogin());
+            expect(await carryOverDexto1ApiKey(dir, authFile, 'https://api.dexto.ai')).toBe(false);
+            expect(await readLogin(dir, 'default')).toBeNull();
         });
     });
 

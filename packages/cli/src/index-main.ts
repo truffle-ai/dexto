@@ -113,24 +113,15 @@ import { ensureImageImporterConfigured } from './cli/utils/image-importer.js';
 
 const program = new Command();
 
-let dextoApiKeyBootstrapped = false;
+let earlierSignInsCarriedOver = false;
 let versionCheckPromise: Promise<UpdateInfo | null> | null = null;
 let llmRegistryAutoUpdateStarted = false;
 
-async function ensureDextoApiKeyBootstrap(): Promise<void> {
-    if (dextoApiKeyBootstrapped) {
-        return;
-    }
-    if (!isDextoAuthEnabled()) {
-        dextoApiKeyBootstrapped = true;
-        return;
-    }
-    const { getDextoApiKey } = await import('./cli/auth/index.js');
-    const dextoApiKey = await getDextoApiKey();
-    if (dextoApiKey) {
-        process.env.DEXTO_API_KEY = dextoApiKey;
-    }
-    dextoApiKeyBootstrapped = true;
+async function ensureDextoSignInsCarriedOver(): Promise<void> {
+    if (earlierSignInsCarriedOver) return;
+    const { carryOverEarlierSignIns } = await import('./cli/commands/auth/sign-in-context.js');
+    await carryOverEarlierSignIns();
+    earlierSignInsCarriedOver = true;
 }
 
 async function getVersionCheckResult(): Promise<UpdateInfo | null> {
@@ -395,7 +386,7 @@ async function bootstrapAgentFromGlobalOpts(options: {
 }) {
     const { mode, modelOverride } = options;
     const isHeadlessRun = mode === 'headless-run';
-    await ensureDextoApiKeyBootstrap();
+    await ensureDextoSignInsCarriedOver();
     await ensureImageImporterConfigured();
     const globalOpts = program.opts();
     const effectiveModel = modelOverride ?? globalOpts.model;
@@ -567,7 +558,7 @@ program
         withAnalytics(
             'main',
             async () => {
-                await ensureDextoApiKeyBootstrap();
+                await ensureDextoSignInsCarriedOver();
                 await ensureImageImporterConfigured();
                 ensureLlmRegistryAutoUpdateStarted();
 
@@ -864,21 +855,15 @@ program
 
                         if (!authCheck.shouldContinue) {
                             if (authCheck.action === 'login') {
-                                // User wants to log in - run login flow then restart
-                                const { handleLoginCommand } = await import(
-                                    './cli/commands/auth/login.js'
-                                );
-                                await handleLoginCommand();
-
-                                // Verify key was actually provisioned (provisionKeys silently catches errors)
-                                const { canUseDextoProvider } = await import(
+                                const { canUseDextoProvider, signInForDextoModels } = await import(
                                     './cli/utils/dexto-setup.js'
                                 );
+                                await signInForDextoModels();
                                 if (!(await canUseDextoProvider())) {
                                     console.error(
-                                        '\n❌ API key provisioning failed. Please try again or run `dexto setup` to use a different provider.\n'
+                                        "\n❌ Signed in, but Dexto models can't run yet: allow spending credits when asked, or run `dexto setup` to use a different provider.\n"
                                     );
-                                    safeExit('main', 1, 'dexto-key-provisioning-failed');
+                                    safeExit('main', 1, 'dexto-models-not-ready');
                                 }
                                 // After login, continue with startup (preferences unchanged, now authenticated)
                             } else if (authCheck.action === 'setup') {

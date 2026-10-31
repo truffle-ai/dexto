@@ -197,6 +197,34 @@ export async function carryOverCloudCliLogins(dir: string, cloudCliDir: string):
     return copied;
 }
 
+const Dexto1AuthSchema = z.object({
+    dextoApiKey: z.string().min(1).optional(),
+    dextoPlatformUrl: z.string().url().optional(),
+});
+
+/**
+ * Copies dexto 1.x's saved API key (`~/.dexto/auth.json`) into `dir` as the default profile, once:
+ * only when `dir` has no sign-in yet. Its Supabase token, if any, is left behind. True when copied.
+ */
+export async function carryOverDexto1ApiKey(
+    dir: string,
+    authFile: string,
+    apiBaseUrl: string
+): Promise<boolean> {
+    if ((await listAccounts(dir)).length > 0) return false;
+    const text = await readOptional(authFile);
+    if (text === null) return false;
+    const parsed = Dexto1AuthSchema.safeParse(JSON.parse(text));
+    if (!parsed.success || parsed.data.dextoApiKey === undefined) return false;
+    await writeLogin(dir, DEFAULT_PROFILE, {
+        kind: 'api_key',
+        apiKey: parsed.data.dextoApiKey,
+        apiBaseUrl: parsed.data.dextoPlatformUrl ?? apiBaseUrl,
+        savedAt: new Date().toISOString(),
+    });
+    return true;
+}
+
 async function readCloudCliSignedInAs(
     cloudCliDir: string,
     profile: string,

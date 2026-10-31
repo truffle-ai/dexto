@@ -29,9 +29,23 @@ function cloudCliDirectory(): string {
     return path.join(configHome, 'dexto-cloud');
 }
 
-export async function nodeSignInContext(io: SignInIo = TERMINAL): Promise<SignInContext> {
+/**
+ * Carries this machine's earlier sign-ins into ~/.dexto/accounts, once: the `dexto-cloud` preview
+ * CLI's, else dexto 1.x's saved API key.
+ */
+export async function carryOverEarlierSignIns(): Promise<void> {
     const dir = getDextoGlobalPath('accounts');
     await dextoAccounts.carryOverCloudCliLogins(dir, cloudCliDirectory());
+    await dextoAccounts.carryOverDexto1ApiKey(
+        dir,
+        getDextoGlobalPath('', 'auth.json'),
+        DEXTO_PUBLIC_API_URL
+    );
+}
+
+export async function nodeSignInContext(io: SignInIo = TERMINAL): Promise<SignInContext> {
+    const dir = getDextoGlobalPath('accounts');
+    await carryOverEarlierSignIns();
     const runtime = { ...nodeSignInRuntime(io.signal), note: io.note };
     return {
         dir,

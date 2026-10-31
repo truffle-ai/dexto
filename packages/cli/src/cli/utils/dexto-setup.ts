@@ -1,19 +1,22 @@
-// packages/cli/src/cli/utils/dexto-setup.ts
+// Setting this machine up for Dexto models: whether they can run, and signing in so they can.
 
-import { getDextoApiKey, isAuthenticated } from '../auth/index.js';
+export { canUseDextoProvider } from '@dexto/agent-management';
 
 /**
- * Check if user can use Dexto provider.
- * Requires BOTH:
- * 1. User has usable Dexto auth state from `dexto login`
- * 2. Has DEXTO_API_KEY (from auth config or environment)
+ * Signs in to Dexto asking to spend credits (`cloud:write`), as choosing Dexto models needs. A
+ * sign-in that only reads keeps what it had and gains that.
  */
-export async function canUseDextoProvider(): Promise<boolean> {
-    const authenticated = await isAuthenticated();
-    if (!authenticated) return false;
-
-    const apiKey = await getDextoApiKey();
-    if (!apiKey) return false;
-
-    return true;
+export async function signInForDextoModels(): Promise<void> {
+    const [{ login }, { nodeSignInContext }] = await Promise.all([
+        import('../commands/auth/sign-in-commands.js'),
+        import('../commands/auth/sign-in-context.js'),
+    ]);
+    await login(await nodeSignInContext(), {
+        profile: null,
+        org: null,
+        device: false,
+        browser: true,
+        scopes: ['cloud:write'],
+        apiKey: null,
+    });
 }
