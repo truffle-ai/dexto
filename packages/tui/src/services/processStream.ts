@@ -87,10 +87,10 @@ function extractInsufficientCreditsBalance(error: unknown): number | null {
 
 function buildInsufficientCreditsContent(balance: number | null): string {
     if (balance === null) {
-        return 'Out of Dexto Nova credits.\nUse the billing prompt to top up and retry your request.';
+        return 'Out of Dexto credits.\nUse the billing prompt to top up and retry your request.';
     }
 
-    return `Out of Dexto Nova credits. Current balance: $${balance.toFixed(2)}.\nUse the billing prompt to top up and retry your request.`;
+    return `Out of Dexto credits. Current balance: $${balance.toFixed(2)}.\nUse the billing prompt to top up and retry your request.`;
 }
 
 /**

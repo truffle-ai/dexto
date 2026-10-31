@@ -483,7 +483,7 @@ export const PROVIDER_CONFIGS: Record<CustomModelProvider, ProviderConfig> = {
     },
 
     'dexto-nova': {
-        displayName: 'Dexto Nova',
+        displayName: 'Dexto',
         description: 'Access 100+ models with Nova credits',
         steps: [
             {
@@ -535,16 +535,16 @@ export const PROVIDER_CONFIGS: Record<CustomModelProvider, ProviderConfig> = {
                 }
 
                 if (status === 'invalid') {
-                    return `Model '${modelId}' not found. Dexto Nova uses OpenRouter model IDs - check https://openrouter.ai/models`;
+                    return `Model '${modelId}' not found. Dexto uses OpenRouter model IDs - check https://openrouter.ai/models`;
                 }
 
                 return null;
             },
         },
         setupInfo: {
-            title: 'Dexto Nova Setup',
+            title: 'Dexto Models',
             description:
-                'Add OpenRouter-format models that use your Dexto Nova credits. Requires login: run `/login` first.',
+                'Add OpenRouter-format models that use your Dexto credits. Requires a sign-in: run dexto login --scope cloud:write first.',
             docsUrl: 'https://openrouter.ai/models',
         },
     },

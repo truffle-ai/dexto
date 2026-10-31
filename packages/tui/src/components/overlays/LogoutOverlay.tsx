@@ -147,7 +147,7 @@ const LogoutOverlay = forwardRef<LogoutOverlayHandle, LogoutOverlayProps>(functi
             {usingDextoCredits && step !== 'not-authenticated' && (
                 <Box flexDirection="column" marginBottom={1}>
                     <Text color="yellow">
-                        ⚠️ You are configured to use Dexto Nova credits (provider: Dexto Nova).
+                        ⚠️ You are configured to use Dexto models, which run on this sign-in.
                     </Text>
                     <Text color="gray" dimColor>
                         After logout, you will need to run `/login` to authenticate again, or `dexto

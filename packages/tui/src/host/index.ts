@@ -30,6 +30,8 @@ export interface TuiRuntimeServices {
     signIn?: (options: TuiSignInOptions) => Promise<string>;
     /** Ends the current profile's sign-in, resolving with what to say. */
     signOut?: () => Promise<string>;
+    /** The organization's Dexto credit balance in USD; null when signed out. */
+    dextoCreditBalance?: () => Promise<number | null>;
     isUsingDextoCredits?: () => Promise<boolean>;
     canUseDextoProvider?: () => Promise<boolean>;
     buildDextoBillingUrl?: (options: { creditsUsd: number }) => string;
@@ -95,6 +97,11 @@ export async function signIn(options: TuiSignInOptions): Promise<string> {
         throw missingHostMethod('signIn');
     }
     return runtimeServices.signIn(options);
+}
+
+/** The Dexto credit balance, or null when the host can't say. */
+export async function dextoCreditBalance(): Promise<number | null> {
+    return (await runtimeServices.dextoCreditBalance?.()) ?? null;
 }
 
 export async function signOut(): Promise<string> {
