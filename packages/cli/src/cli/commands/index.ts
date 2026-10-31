@@ -43,7 +43,6 @@ export {
 } from './image.js';
 
 // Auth commands
-export { handleLoginCommand } from './auth/index.js';
 
 // Billing commands
 export { handleBillingStatusCommand } from './billing/index.js';
