@@ -13,18 +13,6 @@ export {
     getAuthFilePath,
 } from './service.js';
 
-export { type OAuthResult } from './oauth.js';
-
-export { type DeviceApiKeyLoginResult } from './types.js';
-export { type DeviceLoginPrompt, performDeviceCodeLogin } from './device.js';
-
-export {
-    type PersistOAuthLoginOptions,
-    type PersistedLoginResult,
-    persistDeviceApiKeyLoginResult,
-    persistOAuthLoginResult,
-} from './login-persistence.js';
-
 export { type UsageSummaryResponse, DextoApiClient, getDextoApiClient } from './api-client.js';
 
 export {
@@ -41,12 +29,3 @@ export {
     createBillingCheckoutForCurrentLogin,
     openDextoBillingPage,
 } from './billing.js';
-
-export {
-    type DextoApiKeyProvisionStatus,
-    type DextoApiKeyProvisionStatusLevel,
-    type EnsureDextoApiKeyOptions,
-    ensureDextoApiKeyForAuthToken,
-    saveDextoApiKeyToEnv,
-    removeDextoApiKeyFromEnv,
-} from './dexto-api-key.js';

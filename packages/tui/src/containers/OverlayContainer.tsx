@@ -576,7 +576,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
 
                 // Session-only switch (default is set via explicit action)
 
-                // Pre-check: Dexto Nova provider requires OAuth login AND API key
+                // Pre-check: Dexto models need a sign-in that may spend credits, or DEXTO_API_KEY
                 // Check BEFORE closing the overlay so user can pick a different model
                 if (provider === 'dexto-nova') {
                     try {
@@ -588,7 +588,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                                     id: generateMessageId('system'),
                                     role: 'system',
                                     content:
-                                        'Cannot switch to Dexto Nova model - authentication required. Run /login to authenticate.',
+                                        'Dexto models need a sign-in that may spend credits. Run dexto login --scope cloud:write, or pick another model.',
                                     timestamp: new Date(),
                                 },
                             ]);
