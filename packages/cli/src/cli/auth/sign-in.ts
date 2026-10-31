@@ -244,6 +244,7 @@ function toLogin(
         scopes: splitScopes(tokens.scope),
         savedAt: new Date().toISOString(),
         signedInAs: signedInAsFrom(tokens),
+        cloudProject: null,
     };
 }
 
