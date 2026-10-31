@@ -162,6 +162,24 @@ dexto setup --force
 
 See [Global Preferences](./global-preferences) for detailed configuration guide.
 
+### `login` - Sign In to Dexto
+
+Signing in is optional: signed out, Dexto runs fully locally with your own model keys.
+
+```bash
+dexto login                 # sign in with your browser
+dexto login --device        # approve a code on any device (SSH, no browser)
+dexto login --org acme      # sign in for an organization, saved as profile "acme"
+dexto login --api-key $KEY  # save a Dexto API key, for CI
+dexto whoami                # who commands act as
+dexto accounts list         # saved sign-ins; * marks the one in use
+dexto accounts use acme     # switch
+dexto accounts remove acme  # log out and forget (asks first, or --yes)
+dexto logout                # end the sign-in on the server and forget it here
+```
+
+Sign-ins are saved per profile in `~/.dexto/accounts/`, readable only by you. `--profile <name>` or `DEXTO_PROFILE` picks one for a single run, and `DEXTO_API_KEY` takes precedence over any saved sign-in. A first sign-in only reads; `--scope <permission>` asks for more and keeps what was granted before. Sign-ins from the `dexto-cloud` preview CLI are carried over once.
+
 ### `deploy` - Deploy the Current Workspace to Cloud
 
 Deploy the current folder to a cloud sandbox and keep it linked to that deployment.
