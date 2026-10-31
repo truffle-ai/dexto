@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { chmod, mkdtemp, mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -61,6 +61,20 @@ describe('accounts', () => {
         const file = await stat(path.join(dir, 'default.json'));
         expect(file.mode & 0o777).toBe(0o600);
         expect((await stat(dir)).mode & 0o777).toBe(0o700);
+    });
+
+    it('tightens a folder and file that were readable by others', async () => {
+        await mkdir(dir, { recursive: true, mode: 0o755 });
+        await writeFile(path.join(dir, 'default.json'), '{}', { mode: 0o644 });
+        await chmod(dir, 0o755);
+        await chmod(path.join(dir, 'default.json'), 0o644);
+
+        await writeLogin(dir, 'default', oauthLogin());
+        await writeCurrentProfile(dir, 'default');
+
+        expect((await stat(dir)).mode & 0o777).toBe(0o700);
+        expect((await stat(path.join(dir, 'default.json'))).mode & 0o777).toBe(0o600);
+        expect((await stat(path.join(dir, 'current'))).mode & 0o777).toBe(0o600);
     });
 
     it('reads no login for a profile that has none', async () => {
