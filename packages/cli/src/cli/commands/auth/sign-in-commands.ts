@@ -1,12 +1,19 @@
 // `dexto login`, `logout`, `whoami` and `accounts`: signing in to Dexto and the saved profiles.
 
-import {
-    type OAuthLogin,
-    type SignedInAs,
-    type StoredLogin,
+import { dextoAccounts, type dextoCloud, type dextoSignIn } from '@dexto/agent-management';
+
+type OAuthLogin = dextoAccounts.OAuthLogin;
+type SignedInAs = dextoAccounts.SignedInAs;
+type StoredLogin = dextoAccounts.StoredLogin;
+type CloudProject = dextoCloud.CloudProject;
+type BrowserSignInInput = dextoSignIn.BrowserSignInInput;
+type EndedSignIn = dextoSignIn.EndedSignIn;
+type SignInInput = dextoSignIn.SignInInput;
+
+const {
     DEFAULT_PROFILE,
     forgetLogin,
-    listAccounts as readAccounts,
+    listAccounts: readAccounts,
     profileNameFor,
     readCurrentProfile,
     readLogin,
@@ -15,9 +22,7 @@ import {
     resolveProfile,
     writeCurrentProfile,
     writeLogin,
-} from '../../auth/accounts.js';
-import type { CloudProject } from '../../auth/dexto-cloud.js';
-import type { BrowserSignInInput, EndedSignIn, SignInInput } from '../../auth/sign-in.js';
+} = dextoAccounts;
 
 /** A command that failed in a way a script can tell apart by its exit code. */
 export class CommandError extends Error {
