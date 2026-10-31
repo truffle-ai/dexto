@@ -158,10 +158,7 @@ vi.mock('../../analytics/index.js', () => ({
 
 vi.mock('../utils/dexto-setup.js', () => ({
     canUseDextoProvider: vi.fn().mockResolvedValue(true),
-}));
-
-vi.mock('./auth/login.js', () => ({
-    handleAutoLogin: vi.fn().mockResolvedValue(undefined),
+    signInForDextoModels: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock('../auth/index.js', () => ({

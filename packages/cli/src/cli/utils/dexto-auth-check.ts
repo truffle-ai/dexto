@@ -26,7 +26,7 @@
 
 import chalk from 'chalk';
 import * as p from '@clack/prompts';
-import { isAuthenticated } from '../auth/index.js';
+import { canUseDextoProvider } from './dexto-setup.js';
 import { getEffectiveLLMConfig } from '../../config/effective-llm.js';
 
 export interface DextoAuthCheckResult {
@@ -50,7 +50,7 @@ export interface DextoAuthCheckResult {
  * const result = await checkDextoAuthState(true, 'coding-agent');
  * if (!result.shouldContinue) {
  *   if (result.action === 'login') {
- *     await handleLoginCommand();
+ *     await signInForDextoModels();
  *   } else if (result.action === 'setup') {
  *     await handleSetupCommand();
  *   }
@@ -69,9 +69,8 @@ export async function checkDextoAuthState(
         return { shouldContinue: true };
     }
 
-    // Using dexto-nova provider - check if authenticated
-    const authenticated = await isAuthenticated();
-    if (authenticated) {
+    // Using dexto-nova provider - check the sign-in can run Dexto models
+    if (await canUseDextoProvider()) {
         return { shouldContinue: true };
     }
 

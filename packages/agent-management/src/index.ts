@@ -116,11 +116,7 @@ export {
 export { walkUpDirectories } from './utils/fs-walk.js';
 export { updateEnvFile } from './utils/env-file.js';
 export { isDextoAuthEnabled } from './utils/feature-flags.js';
-export {
-    isDextoAuthenticated,
-    getDextoApiKeyFromAuth,
-    canUseDextoProvider,
-} from './utils/dexto-auth.js';
+export { isDextoAuthenticated, canUseDextoProvider } from './utils/dexto-auth.js';
 
 // Config management utilities
 export {

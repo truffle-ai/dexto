@@ -25,10 +25,14 @@ export interface RedirectListener {
     readonly close: () => void;
 }
 
-/** What signing in does outside this module, injected so it can be tested. */
-export interface SignInRuntime {
+/** What talking to the OAuth server needs: refreshing and ending a sign-in need only this. */
+export interface OAuthServerRuntime {
     readonly fetch: typeof globalThis.fetch;
     readonly signal: AbortSignal;
+}
+
+/** What signing in does outside this module, injected so it can be tested. */
+export interface SignInRuntime extends OAuthServerRuntime {
     readonly note: (text: string) => void;
     readonly openBrowser: (url: string) => Promise<void>;
     readonly listenForRedirect: () => Promise<RedirectListener>;
@@ -92,7 +96,7 @@ interface Discovered {
     readonly server: z.output<typeof AuthorizationServerSchema>;
 }
 
-async function readMetadata(runtime: SignInRuntime, appUrl: string) {
+async function readMetadata(runtime: OAuthServerRuntime, appUrl: string) {
     const resource = ProtectedResourceSchema.parse(
         await getJson(runtime, `${appUrl}/.well-known/oauth-protected-resource/mcp`)
     );
@@ -259,7 +263,7 @@ function signedInAsFrom(tokens: TokenResponse): OAuthLogin['signedInAs'] {
  * stops working.
  */
 export async function refreshSignIn(
-    runtime: SignInRuntime,
+    runtime: OAuthServerRuntime,
     login: OAuthLogin
 ): Promise<OAuthLogin> {
     let body: unknown;
@@ -295,8 +299,11 @@ export type EndedSignIn =
  * Ends the sign-in on its server (RFC 7009), so its tokens stop working everywhere. Never throws:
  * the login is forgotten either way, and the caller says what happened.
  */
-export async function endSignIn(runtime: SignInRuntime, login: OAuthLogin): Promise<EndedSignIn> {
-    const bounded: SignInRuntime = {
+export async function endSignIn(
+    runtime: OAuthServerRuntime,
+    login: OAuthLogin
+): Promise<EndedSignIn> {
+    const bounded: OAuthServerRuntime = {
         ...runtime,
         signal: AbortSignal.any([runtime.signal, AbortSignal.timeout(END_SIGN_IN_TIMEOUT_MS)]),
     };
@@ -326,7 +333,7 @@ export class OAuthHttpError extends Error {
     }
 }
 
-async function getJson(runtime: SignInRuntime, url: string): Promise<unknown> {
+async function getJson(runtime: OAuthServerRuntime, url: string): Promise<unknown> {
     return await readJson(
         await runtime.fetch(url, {
             headers: { accept: 'application/json' },
@@ -337,7 +344,7 @@ async function getJson(runtime: SignInRuntime, url: string): Promise<unknown> {
 }
 
 async function postForm(
-    runtime: SignInRuntime,
+    runtime: OAuthServerRuntime,
     url: string,
     fields: Record<string, string>
 ): Promise<unknown> {
