@@ -6,6 +6,7 @@ import * as p from '@clack/prompts';
 import { getDextoGlobalPath } from '@dexto/core';
 import { carryOverCloudCliLogins } from '../../auth/accounts.js';
 import { shouldAttemptBrowserLaunch } from '../../auth/browser-launch.js';
+import { listCloudProjects } from '../../auth/dexto-cloud.js';
 import { DEXTO_PLATFORM_URL, DEXTO_PUBLIC_API_URL } from '../../auth/constants.js';
 import {
     endSignIn,
@@ -57,6 +58,8 @@ export async function nodeSignInContext(io: SignInIo = TERMINAL): Promise<SignIn
             signInWithDevice: (input) => signInWithDevice(runtime, input),
             endSignIn: (login) => endSignIn(runtime, login),
             refreshSignIn: (login) => refreshSignIn(runtime, login),
+            listProjects: (login) =>
+                listCloudProjects(runtime.fetch, login.apiBaseUrl, login.accessToken),
             acceptsApiKey: async (apiBaseUrl, apiKey) => {
                 const response = await fetch(`${apiBaseUrl}/v1/models`, {
                     headers: { authorization: `Bearer ${apiKey}` },

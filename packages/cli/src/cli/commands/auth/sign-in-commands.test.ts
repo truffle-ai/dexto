@@ -10,6 +10,7 @@ import {
     writeLogin,
 } from '../../auth/accounts.js';
 import type { BrowserSignInInput, EndedSignIn, SignInInput } from '../../auth/sign-in.js';
+import type { CloudProject } from '../../auth/dexto-cloud.js';
 import {
     type SignInContext,
     CommandError,
@@ -41,6 +42,7 @@ function signedIn(
         tokenEndpoint: `${APP}/api/oauth/token`,
         scopes: ['cloud:read'],
         savedAt: '2026-10-31T00:00:00.000Z',
+        cloudProject: null,
         signedInAs: {
             account: { email: 'ada@example.com', id: 'acc_1', name: 'Ada' },
             organization,
@@ -63,6 +65,7 @@ describe('sign-in commands', () => {
     let checkedKeys: string[];
     let keyAccepted: boolean;
     let organization: { id: string; name: string; slug: string };
+    let projects: CloudProject[];
     let context: SignInContext;
 
     beforeEach(async () => {
@@ -76,6 +79,11 @@ describe('sign-in commands', () => {
         checkedKeys = [];
         keyAccepted = true;
         organization = ACME;
+        projects = [
+            { id: 'prj_old', name: 'Old', isDefault: false, archived: true },
+            { id: 'prj_main', name: 'Main', isDefault: true, archived: false },
+            { id: 'prj_side', name: 'Side', isDefault: false, archived: false },
+        ];
         context = {
             dir,
             environment: {},
@@ -101,6 +109,7 @@ describe('sign-in commands', () => {
                     return endResult;
                 },
                 refreshSignIn: async (saved) => saved,
+                listProjects: async () => projects,
                 acceptsApiKey: async (_apiBaseUrl, apiKey) => {
                     checkedKeys.push(apiKey);
                     return keyAccepted;
@@ -136,7 +145,42 @@ describe('sign-in commands', () => {
                 },
             ]);
             expect((await readLogin(dir, 'default'))?.kind).toBe('oauth');
-            expect(printed).toEqual(['Signed in as ada@example.com in Acme.']);
+            expect(printed).toEqual([
+                'Signed in as ada@example.com in Acme. Dexto models bill Cloud project Main.',
+            ]);
+        });
+
+        it("acts in the organization's default Cloud project, and says so", async () => {
+            await login(context, noOptions);
+
+            const saved = await readLogin(dir, 'default');
+            expect(saved?.kind === 'oauth' && saved.cloudProject).toEqual({
+                id: 'prj_main',
+                name: 'Main',
+            });
+            expect(printed).toEqual([
+                'Signed in as ada@example.com in Acme. Dexto models bill Cloud project Main.',
+            ]);
+        });
+
+        it('keeps the Cloud project chosen before while it is live', async () => {
+            await writeLogin(
+                dir,
+                'default',
+                signedIn(ACME, { cloudProject: { id: 'prj_side', name: 'Side' } })
+            );
+            await login(context, noOptions);
+            const kept = await readLogin(dir, 'default');
+            expect(kept?.kind === 'oauth' && kept.cloudProject?.id).toBe('prj_side');
+
+            await writeLogin(
+                dir,
+                'default',
+                signedIn(ACME, { cloudProject: { id: 'prj_old', name: 'Old' } })
+            );
+            await login(context, noOptions);
+            const moved = await readLogin(dir, 'default');
+            expect(moved?.kind === 'oauth' && moved.cloudProject?.id).toBe('prj_main');
         });
 
         it('signs in with a device code with --device', async () => {
@@ -168,7 +212,9 @@ describe('sign-in commands', () => {
             expect(browserInputs[0]?.organization).toBe('Acme');
             expect((await readLogin(dir, 'acme'))?.kind).toBe('oauth');
             expect(await readCurrentProfile(dir)).toBe('acme');
-            expect(printed).toEqual(['Signed in as ada@example.com in Acme (profile acme).']);
+            expect(printed).toEqual([
+                'Signed in as ada@example.com in Acme (profile acme). Dexto models bill Cloud project Main.',
+            ]);
         });
 
         it('keeps the current profile when --profile names where to save', async () => {

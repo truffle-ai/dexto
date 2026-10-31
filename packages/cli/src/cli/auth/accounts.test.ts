@@ -35,6 +35,7 @@ function oauthLogin(overrides: Partial<OAuthLogin> = {}): OAuthLogin {
         scopes: ['cloud:read'],
         savedAt: '2026-10-31T00:00:00.000Z',
         signedInAs,
+        cloudProject: null,
         ...overrides,
     };
 }
@@ -174,6 +175,7 @@ describe('accounts', () => {
                 scopes: ['cloud:read'],
                 savedAt: '2026-10-30T00:00:00.000Z',
                 signedInAs,
+                cloudProject: { id: 'prj_1', name: 'Main' },
             });
             expect((await readLogin(dir, 'acme'))?.kind).toBe('api_key');
             expect(await readCurrentProfile(dir)).toBe('acme');

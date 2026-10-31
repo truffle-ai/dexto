@@ -171,6 +171,7 @@ describe('signInWithBrowser', () => {
             resource: `${APP}/mcp`,
             tokenEndpoint: `${APP}/api/oauth/token`,
             scopes: ['cloud:read', 'drive:read', 'memory:read'],
+            cloudProject: null,
             signedInAs: {
                 account: tokenReply.dexto_account,
                 organization: tokenReply.dexto_organization,
@@ -328,6 +329,7 @@ const saved: OAuthLogin = {
     scopes: ['cloud:read'],
     savedAt: '2026-10-30T00:00:00.000Z',
     signedInAs: null,
+    cloudProject: { id: 'prj_1', name: 'Main' },
 };
 
 describe('refreshSignIn', () => {
@@ -350,6 +352,7 @@ describe('refreshSignIn', () => {
             refreshToken: 'refresh-1',
             clientId: 'client_registered',
             signedInAs: { organization: { slug: 'acme' } },
+            cloudProject: { id: 'prj_1', name: 'Main' },
         });
     });
 

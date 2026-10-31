@@ -16,6 +16,7 @@ import {
     writeCurrentProfile,
     writeLogin,
 } from '../../auth/accounts.js';
+import type { CloudProject } from '../../auth/dexto-cloud.js';
 import type { BrowserSignInInput, EndedSignIn, SignInInput } from '../../auth/sign-in.js';
 
 /** A command that failed in a way a script can tell apart by its exit code. */
@@ -39,6 +40,8 @@ export interface DextoSignIn {
     readonly signInWithDevice: (input: SignInInput) => Promise<OAuthLogin>;
     readonly endSignIn: (login: OAuthLogin) => Promise<EndedSignIn>;
     readonly refreshSignIn: (login: OAuthLogin) => Promise<OAuthLogin>;
+    /** The Cloud projects the signed-in organization has. */
+    readonly listProjects: (login: OAuthLogin) => Promise<readonly CloudProject[]>;
     /** Whether the public API accepts the key; false on 401. */
     readonly acceptsApiKey: (apiBaseUrl: string, apiKey: string) => Promise<boolean>;
 }
@@ -119,12 +122,22 @@ export async function login(context: SignInContext, options: LoginOptions): Prom
             `The profile ${profile} already signs in to ${savedOrganization.name}. Sign in to ${newOrganization.name} with --profile <name> to keep both.`
         );
 
-    await writeLogin(context.dir, profile, signedIn);
+    const withProject = {
+        ...signedIn,
+        cloudProject: chooseProject(
+            await context.dexto.listProjects(signedIn),
+            previous?.cloudProject ?? null
+        ),
+    };
+    await writeLogin(context.dir, profile, withProject);
     if (switches) await writeCurrentProfile(context.dir, profile);
     const current = (await resolveProfile(context.dir, null, context.environment)) === profile;
     context.print(
         [
             `Signed in${describeSignedInAs(signedIn.signedInAs)}${profile === DEFAULT_PROFILE ? '' : ` (profile ${profile})`}.`,
+            withProject.cloudProject === null
+                ? 'This organization has no Cloud project for Dexto models to bill.'
+                : `Dexto models bill Cloud project ${withProject.cloudProject.name}.`,
             ...(current
                 ? []
                 : [
@@ -132,6 +145,21 @@ export async function login(context: SignInContext, options: LoginOptions): Prom
                   ]),
         ].join(' ')
     );
+}
+
+/**
+ * The project chosen before while it is still live, so signing in again doesn't move anyone;
+ * otherwise the organization's default project.
+ */
+function chooseProject(
+    projects: readonly CloudProject[],
+    previous: OAuthLogin['cloudProject']
+): OAuthLogin['cloudProject'] {
+    const chosen =
+        projects.find((project) => project.id === previous?.id && !project.archived) ??
+        projects.find((project) => project.isDefault && !project.archived) ??
+        null;
+    return chosen === null ? null : { id: chosen.id, name: chosen.name };
 }
 
 async function saveApiKey(context: SignInContext, profile: string, apiKey: string): Promise<void> {

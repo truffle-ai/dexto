@@ -34,6 +34,8 @@ const OAuthLoginSchema = z
         savedAt: z.string(),
         /** Null when the server didn't say. */
         signedInAs: SignedInAsSchema.nullable(),
+        /** The Cloud project Dexto models bill; null when the organization has none to use. */
+        cloudProject: z.object({ id: z.string(), name: z.string() }).strict().nullable(),
     })
     .strict();
 
@@ -153,9 +155,7 @@ export async function resolveProfile(
     return chosen === null ? await readCurrentProfile(dir) : requireProfileName(chosen);
 }
 
-const CloudCliOAuthLoginSchema = OAuthLoginSchema.omit({ signedInAs: true })
-    .extend({ cloudProject: z.unknown() })
-    .strip();
+const CloudCliOAuthLoginSchema = OAuthLoginSchema.omit({ signedInAs: true }).strip();
 const CloudCliLoginSchema = z.union([CloudCliOAuthLoginSchema, ApiKeyLoginSchema]);
 const CloudCliSignedInAsSchema = SignedInAsSchema.extend({ clientId: z.string() });
 
@@ -184,9 +184,8 @@ export async function carryOverCloudCliLogins(dir: string, cloudCliDir: string):
         if (login.kind === 'api_key') {
             await writeLogin(dir, name, login);
         } else {
-            const { cloudProject: _cloudProject, ...rest } = login;
             await writeLogin(dir, name, {
-                ...rest,
+                ...login,
                 signedInAs: await readCloudCliSignedInAs(cloudCliDir, name, login.clientId),
             });
         }
