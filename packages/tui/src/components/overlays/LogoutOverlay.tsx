@@ -1,22 +1,10 @@
-import React, {
-    forwardRef,
-    useCallback,
-    useEffect,
-    useImperativeHandle,
-    useRef,
-    useState,
-} from 'react';
+import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useState } from 'react';
 import { Box, Text } from 'ink';
 import type { Key } from '../../hooks/useInputOrchestrator.js';
-import {
-    loadAuth,
-    removeAuth,
-    removeDextoApiKeyFromEnv,
-    isUsingDextoCredits,
-} from '../../host/index.js';
+import { currentSignIn, isUsingDextoCredits, signOut } from '../../host/index.js';
 
 export type LogoutOverlayOutcome =
-    | { outcome: 'success'; wasUsingDextoCredits: boolean }
+    | { outcome: 'success'; summary: string; wasUsingDextoCredits: boolean }
     | { outcome: 'cancelled' }
     | { outcome: 'closed' };
 
@@ -39,25 +27,14 @@ const LogoutOverlay = forwardRef<LogoutOverlayHandle, LogoutOverlayProps>(functi
     const [userLabel, setUserLabel] = useState<string | null>(null);
     const [usingDextoCredits, setUsingDextoCredits] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const provisionedApiKeyRef = useRef<string | null>(null);
 
     const performLogout = useCallback(async () => {
         setError(null);
         setStep('logging-out');
 
         try {
-            const auth = await loadAuth();
-            if (auth?.dextoApiKey && auth.dextoApiKeySource === 'provisioned') {
-                provisionedApiKeyRef.current = auth.dextoApiKey;
-            }
-
-            await removeAuth();
-
-            if (provisionedApiKeyRef.current) {
-                await removeDextoApiKeyFromEnv({ expectedValue: provisionedApiKeyRef.current });
-            }
-
-            onDone({ outcome: 'success', wasUsingDextoCredits: usingDextoCredits });
+            const summary = await signOut();
+            onDone({ outcome: 'success', summary, wasUsingDextoCredits: usingDextoCredits });
         } catch (err) {
             setStep('error');
             setError(err instanceof Error ? err.message : String(err));
@@ -67,7 +44,6 @@ const LogoutOverlay = forwardRef<LogoutOverlayHandle, LogoutOverlayProps>(functi
     useEffect(() => {
         if (!isVisible) return;
         let cancelled = false;
-        provisionedApiKeyRef.current = null;
 
         setStep('checking');
         setUserLabel(null);
@@ -76,18 +52,18 @@ const LogoutOverlay = forwardRef<LogoutOverlayHandle, LogoutOverlayProps>(functi
 
         void (async () => {
             try {
-                const auth = await loadAuth();
+                const signedInAs = await currentSignIn();
                 if (cancelled) return;
-                if (!auth) {
+                if (signedInAs === null) {
                     setStep('not-authenticated');
                     return;
                 }
 
-                setUserLabel(auth.email || auth.userId || 'user');
+                setUserLabel(signedInAs);
             } catch {
                 if (!cancelled) {
                     setStep('error');
-                    setError('Failed to load authentication state');
+                    setError('Failed to read the sign-in');
                 }
                 return;
             }
@@ -159,7 +135,7 @@ const LogoutOverlay = forwardRef<LogoutOverlayHandle, LogoutOverlayProps>(functi
 
             {step === 'not-authenticated' ? (
                 <Box marginBottom={1}>
-                    <Text color="yellow">ℹ️ Not currently logged in</Text>
+                    <Text color="yellow">Not signed in</Text>
                 </Box>
             ) : (
                 <Box marginBottom={1}>

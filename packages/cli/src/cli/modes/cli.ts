@@ -214,17 +214,9 @@ export async function runCliMode(context: MainModeContext): Promise<void> {
                 { registerGracefulShutdown },
                 { applyLayeredEnvironmentLoading },
                 { getProviderDisplayName, isValidApiKeyFormat, getProviderInstructions },
-                {
-                    performDeviceCodeLogin,
-                    persistDeviceApiKeyLoginResult,
-                    ensureDextoApiKeyForAuthToken,
-                    loadAuth,
-                    storeAuth,
-                    removeAuth,
-                    removeDextoApiKeyFromEnv,
-                    buildDextoBillingUrl,
-                    openDextoBillingPage,
-                },
+                { buildDextoBillingUrl, openDextoBillingPage },
+                { describeSignIn, login, logout },
+                { nodeSignInContext },
                 { isUsingDextoCredits },
                 { canUseDextoProvider },
                 { capture },
@@ -234,6 +226,8 @@ export async function runCliMode(context: MainModeContext): Promise<void> {
                 import('../../utils/env.js'),
                 import('../utils/provider-setup.js'),
                 import('../auth/index.js'),
+                import('../commands/auth/sign-in-commands.js'),
+                import('../commands/auth/sign-in-context.js'),
                 import('../../config/effective-llm.js'),
                 import('../utils/dexto-setup.js'),
                 import('../../analytics/index.js'),
@@ -248,13 +242,45 @@ export async function runCliMode(context: MainModeContext): Promise<void> {
                 getProviderDisplayName,
                 isValidApiKeyFormat,
                 getProviderInstructions,
-                performDeviceCodeLogin,
-                persistDeviceApiKeyLoginResult,
-                ensureDextoApiKeyForAuthToken,
-                loadAuth,
-                storeAuth,
-                removeAuth,
-                removeDextoApiKeyFromEnv,
+                currentSignIn: async () =>
+                    describeSignIn(
+                        await nodeSignInContext({
+                            print: () => undefined,
+                            note: () => undefined,
+                            signal: new AbortController().signal,
+                        })
+                    ),
+                signIn: async ({ signal, onNote }) => {
+                    const printed: string[] = [];
+                    await login(
+                        await nodeSignInContext({
+                            print: (text) => printed.push(text),
+                            note: onNote,
+                            signal,
+                        }),
+                        {
+                            profile: null,
+                            org: null,
+                            device: false,
+                            browser: true,
+                            scopes: [],
+                            apiKey: null,
+                        }
+                    );
+                    return printed.join('\n');
+                },
+                signOut: async () => {
+                    const said: string[] = [];
+                    await logout(
+                        await nodeSignInContext({
+                            print: (text) => said.push(text),
+                            note: (text) => said.push(text),
+                            signal: new AbortController().signal,
+                        }),
+                        { profile: null }
+                    );
+                    return said.join('\n');
+                },
                 isUsingDextoCredits,
                 canUseDextoProvider,
                 buildDextoBillingUrl,

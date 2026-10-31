@@ -57,6 +57,8 @@ export interface SignInContext {
     readonly note: (text: string) => void;
     /** Asks the person; false when there is no one to ask. */
     readonly confirm: (question: string) => Promise<boolean>;
+    /** False over SSH or without a display: a loopback redirect can't reach this machine. */
+    readonly canOpenBrowser: boolean;
     readonly dexto: DextoSignIn;
 }
 
@@ -95,7 +97,11 @@ export async function login(context: SignInContext, options: LoginOptions): Prom
         // ...and keeps the permissions granted before.
         extraScopes: [...(previous?.scopes ?? []), ...options.scopes.flatMap(splitList)],
     };
-    const signedIn = options.device
+    // A browser elsewhere can't reach this machine's loopback redirect, so use a code instead.
+    const device = options.device || (options.browser && !context.canOpenBrowser);
+    if (device && !options.device)
+        context.note('No browser here, so sign in with a code on any device.');
+    const signedIn = device
         ? await context.dexto.signInWithDevice(input)
         : await context.dexto.signInWithBrowser({ ...input, openBrowser: options.browser });
 
@@ -140,6 +146,22 @@ async function saveApiKey(context: SignInContext, profile: string, apiKey: strin
     context.print(
         `Saved API key ${maskApiKey(apiKey)}${profile === DEFAULT_PROFILE ? '' : ` (profile ${profile})`}.`
     );
+}
+
+/** Who the current profile acts as, in a few words, or null when signed out. */
+export async function describeSignIn(context: SignInContext): Promise<string | null> {
+    const environmentKey = nonEmpty(context.environment.DEXTO_API_KEY);
+    if (environmentKey !== null) return `API key ${maskApiKey(environmentKey)} from DEXTO_API_KEY`;
+    const profile = await resolveProfile(context.dir, null, context.environment);
+    const saved = await readLogin(context.dir, profile);
+    if (saved === null) return null;
+    const suffix = profile === DEFAULT_PROFILE ? '' : ` (profile ${profile})`;
+    if (saved.kind === 'api_key') return `API key ${maskApiKey(saved.apiKey)}${suffix}`;
+    const who =
+        saved.signedInAs === null
+            ? saved.appUrl
+            : `${saved.signedInAs.account.email} in ${saved.signedInAs.organization.name}`;
+    return `${who}${suffix}`;
 }
 
 export async function logout(

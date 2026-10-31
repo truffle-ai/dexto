@@ -1,62 +1,8 @@
-import os from 'node:os';
-import path from 'node:path';
 import { Option } from 'commander';
-import * as p from '@clack/prompts';
-import { getDextoGlobalPath } from '@dexto/core';
 import { withAnalytics, safeExit, ExitSignal } from '../../../analytics/wrapper.js';
 import type { RuntimeCommandRegisterContext } from '../register-context.js';
-import { carryOverCloudCliLogins } from '../../auth/accounts.js';
-import { DEXTO_PLATFORM_URL, DEXTO_PUBLIC_API_URL } from '../../auth/constants.js';
-import {
-    endSignIn,
-    refreshSignIn,
-    signInWithBrowser,
-    signInWithDevice,
-} from '../../auth/sign-in.js';
-import { nodeSignInRuntime } from '../../auth/sign-in-runtime.js';
 import { CommandError, type SignInContext } from './sign-in-commands.js';
-
-/** The folder the internal `dexto-cloud` CLI saved its sign-ins in. */
-function cloudCliDirectory(): string {
-    const configHome = process.env.XDG_CONFIG_HOME ?? path.join(os.homedir(), '.config');
-    return path.join(configHome, 'dexto-cloud');
-}
-
-async function signInContext(): Promise<SignInContext> {
-    const dir = getDextoGlobalPath('accounts');
-    await carryOverCloudCliLogins(dir, cloudCliDirectory());
-    const runtime = nodeSignInRuntime(new AbortController().signal);
-    return {
-        dir,
-        environment: process.env,
-        appUrl: DEXTO_PLATFORM_URL,
-        apiBaseUrl: DEXTO_PUBLIC_API_URL,
-        print: (text) => process.stdout.write(`${text}\n`),
-        note: runtime.note,
-        confirm: async (question) => {
-            if (!process.stdin.isTTY) return false;
-            const answer = await p.confirm({ message: question, initialValue: false });
-            return answer === true;
-        },
-        dexto: {
-            signInWithBrowser: (input) => signInWithBrowser(runtime, input),
-            signInWithDevice: (input) => signInWithDevice(runtime, input),
-            endSignIn: (login) => endSignIn(runtime, login),
-            refreshSignIn: (login) => refreshSignIn(runtime, login),
-            acceptsApiKey: async (apiBaseUrl, apiKey) => {
-                const response = await fetch(`${apiBaseUrl}/v1/models`, {
-                    headers: { authorization: `Bearer ${apiKey}` },
-                    signal: AbortSignal.timeout(10_000),
-                });
-                await response.body?.cancel();
-                if (response.status === 401) return false;
-                if (!response.ok)
-                    throw new Error(`Couldn't check the API key: HTTP ${response.status}.`);
-                return true;
-            },
-        },
-    };
-}
+import { nodeSignInContext } from './sign-in-context.js';
 
 /** Runs a sign-in command, mapping its failure to an exit code. */
 function action<Args extends unknown[]>(
@@ -65,7 +11,7 @@ function action<Args extends unknown[]>(
 ) {
     return withAnalytics(name, async (...args: Args) => {
         try {
-            await run(await signInContext(), ...args);
+            await run(await nodeSignInContext(), ...args);
             safeExit(name, 0);
         } catch (error) {
             if (error instanceof ExitSignal) throw error;
