@@ -155,7 +155,7 @@ export {
 } from './utils/api-key-resolver.js';
 
 // Signing in to Dexto (profiles under ~/.dexto/accounts)
-export { dextoAccounts, dextoSignIn, dextoCloud } from './auth/index.js';
+export { dextoAccounts, dextoSignIn, dextoCloud, dextoGateway } from './auth/index.js';
 
 // Model provider auth method definitions
 export {

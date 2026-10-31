@@ -92,6 +92,7 @@ import { registerSessionCommand } from './cli/commands/session/register.js';
 import { registerSearchCommand } from './cli/commands/search/register.js';
 import { registerAuthCommand } from './cli/commands/auth/register.js';
 import { registerBillingCommand } from './cli/commands/billing/register.js';
+import { registerModelsCommand } from './cli/commands/models/register.js';
 import { registerCloudCommand } from './cli/commands/cloud/register.js';
 import { registerMcpCommand } from './cli/commands/mcp/register.js';
 import { registerImageCommand } from './cli/commands/image/register.js';
@@ -522,6 +523,7 @@ registerSessionCommand(runtimeCommandContext);
 registerSearchCommand(runtimeCommandContext);
 registerAuthCommand(runtimeCommandContext);
 registerBillingCommand(runtimeCommandContext);
+registerModelsCommand(runtimeCommandContext);
 registerCloudCommand(program);
 registerMcpCommand({ program });
 

@@ -2,6 +2,7 @@
 // token, refreshed when it has to be, and the Cloud project it bills.
 
 import { getDextoGlobalPath, type LlmRuntimeAuthOverrides } from '@dexto/core';
+import { z } from 'zod';
 import { type Credential, type OAuthLogin, resolveCredential } from './dexto-accounts.js';
 import { refreshSignIn } from './dexto-sign-in.js';
 
@@ -89,6 +90,82 @@ export function dextoGatewayRuntimeAuth(
             });
         },
     };
+}
+
+/** A model Dexto serves, by the id to send as `model`. */
+export interface DextoModel {
+    readonly id: string;
+    readonly name: string;
+    readonly contextWindow: number;
+}
+
+const ModelListSchema = z.object({
+    data: z.array(z.object({ id: z.string(), name: z.string(), context_window: z.number() })),
+});
+
+const BillingSummarySchema = z.object({
+    balance_usd: z.number(),
+    last_30_days: z.object({ total_cost_usd: z.number(), total_usage_events: z.number() }),
+    recent_model_usage: z.array(
+        z.object({ model: z.string(), cost_usd: z.number(), timestamp: z.string() })
+    ),
+});
+
+/** The organization's credits and what was spent, as the caller may see it. */
+export interface DextoBillingSummary {
+    readonly balanceUsd: number;
+    readonly last30Days: { readonly costUsd: number; readonly usageEvents: number };
+    readonly recent: readonly {
+        readonly model: string;
+        readonly costUsd: number;
+        readonly timestamp: string;
+    }[];
+}
+
+/** The models Dexto serves: `GET /v1/models`. Null when signed out. */
+export async function dextoModels(options: DextoGatewayOptions): Promise<DextoModel[] | null> {
+    const body = await readDexto(options, '/v1/models');
+    if (body === null) return null;
+    return ModelListSchema.parse(body).data.map((model) => ({
+        id: model.id,
+        name: model.name,
+        contextWindow: model.context_window,
+    }));
+}
+
+/** The organization's credits and recent spending: `GET /v1/billing/summary`. Null when signed out. */
+export async function dextoBillingSummary(
+    options: DextoGatewayOptions
+): Promise<DextoBillingSummary | null> {
+    const body = await readDexto(options, '/v1/billing/summary');
+    if (body === null) return null;
+    const summary = BillingSummarySchema.parse(body);
+    return {
+        balanceUsd: summary.balance_usd,
+        last30Days: {
+            costUsd: summary.last_30_days.total_cost_usd,
+            usageEvents: summary.last_30_days.total_usage_events,
+        },
+        recent: summary.recent_model_usage.map((usage) => ({
+            model: usage.model,
+            costUsd: usage.cost_usd,
+            timestamp: usage.timestamp,
+        })),
+    };
+}
+
+/** Reads a public `/v1` path as the current sign-in or DEXTO_API_KEY; null when signed out. */
+async function readDexto(options: DextoGatewayOptions, path: string): Promise<unknown> {
+    const credential = await currentCredential(options);
+    if (credential === null) return null;
+    const apiBaseUrl =
+        credential.kind === 'oauth' ? credential.login.apiBaseUrl : options.apiBaseUrl;
+    const response = await options.fetch(`${apiBaseUrl}${path}`, {
+        headers: { accept: 'application/json', authorization: `Bearer ${credential.token}` },
+        signal: AbortSignal.timeout(10_000),
+    });
+    if (!response.ok) throw new Error(`Dexto answered ${path} with HTTP ${response.status}.`);
+    return await response.json();
 }
 
 async function currentCredential(options: DextoGatewayOptions): Promise<Credential | null> {
