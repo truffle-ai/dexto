@@ -7,8 +7,8 @@ import {
     refreshSignIn,
     signInWithBrowser,
     signInWithDevice,
-} from './sign-in.js';
-import type { OAuthLogin } from './accounts.js';
+} from './dexto-sign-in.js';
+import type { OAuthLogin } from './dexto-accounts.js';
 
 const APP = 'https://app.dexto.ai';
 const API = 'https://api.dexto.ai';

@@ -3,7 +3,10 @@
 import { createServer } from 'node:http';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { openBrowserUrl } from './browser-launch.js';
-import type { RedirectListener, SignInRuntime } from './sign-in.js';
+import type { dextoSignIn } from '@dexto/agent-management';
+
+type RedirectListener = dextoSignIn.RedirectListener;
+type SignInRuntime = dextoSignIn.SignInRuntime;
 
 const DONE_PAGE = `<!doctype html><meta charset="utf-8"><title>Dexto</title>
 <body style="font-family:system-ui;margin:4rem auto;max-width:28rem">

@@ -50,3 +50,8 @@ export {
     type ChatGPTRuntimeAuth,
     type PendingChatGPTLogin,
 } from './chatgpt-oauth.js';
+
+/** Signing in to Dexto as the `dexto-cli` client: saved profiles, OAuth and the Cloud reads it needs. */
+export * as dextoAccounts from './dexto-accounts.js';
+export * as dextoSignIn from './dexto-sign-in.js';
+export * as dextoCloud from './dexto-cloud.js';
