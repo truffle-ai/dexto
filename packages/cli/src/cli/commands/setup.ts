@@ -30,6 +30,7 @@ import {
     globalPreferencesExist,
     getDefaultModelAuthProfile,
     loadModelAuthProfilesSync,
+    dextoGateway,
     type CustomModel,
     type CreatePreferencesOptions,
 } from '@dexto/agent-management';
@@ -49,7 +50,7 @@ import {
 } from '../utils/local-model-setup.js';
 import { requiresSetup } from '../utils/setup-utils.js';
 import { canUseDextoProvider, signInForDextoModels } from '../utils/dexto-setup.js';
-import { loadAuth, getBillingBalanceForCurrentLogin, openDextoBillingPage } from '../auth/index.js';
+import { openBrowserUrl } from '../auth/browser-launch.js';
 import { DEXTO_CREDITS_URL } from '../auth/constants.js';
 import * as p from '@clack/prompts';
 import { capture } from '../../analytics/index.js';
@@ -638,9 +639,12 @@ async function handleDextoProviderSetup(
             return abort('Setup cancelled - login required for Dexto', 1);
         }
     } else {
-        const auth = await loadAuth();
-        const userLabel = auth?.email || auth?.userId || 'unknown';
-        p.log.success(`Logged in to Dexto as: ${userLabel}`);
+        const [{ describeSignIn }, { nodeSignInContext }] = await Promise.all([
+            import('./auth/sign-in-commands.js'),
+            import('./auth/sign-in-context.js'),
+        ]);
+        const signedInAs = await describeSignIn(await nodeSignInContext());
+        p.log.success(`Signed in to Dexto as ${signedInAs ?? 'unknown'}`);
     }
 
     const balance = await getCreditsBalance();
@@ -790,7 +794,7 @@ async function handleDextoProviderSetup(
 
 async function openCreditsPage(): Promise<void> {
     try {
-        await openDextoBillingPage({});
+        await openBrowserUrl(DEXTO_CREDITS_URL);
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         p.log.warn(`Unable to open browser: ${errorMessage}`);
@@ -800,7 +804,10 @@ async function openCreditsPage(): Promise<void> {
 
 async function getCreditsBalance(): Promise<number | null> {
     try {
-        return await getBillingBalanceForCurrentLogin();
+        const summary = await dextoGateway.dextoBillingSummary(
+            dextoGateway.defaultDextoGatewayOptions()
+        );
+        return summary?.balanceUsd ?? null;
     } catch {
         return null;
     }
