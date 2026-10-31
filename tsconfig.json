@@ -27,6 +27,7 @@
     { "path": "./packages/analytics" },
     { "path": "./packages/cli" },
     { "path": "./packages/client-sdk" },
+    { "path": "./packages/cloud-client" },
     { "path": "./packages/core" },
     { "path": "./packages/image-bundler" },
     { "path": "./packages/image-local" },

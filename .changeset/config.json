@@ -9,6 +9,7 @@
     "@dexto/llm",
     "@dexto/agent-config",
     "@dexto/client-sdk",
+    "@dexto/cloud-client",
     "@dexto/agent-management",
     "@dexto/analytics",
     "@dexto/registry",
