@@ -601,7 +601,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             {
                                 id: generateMessageId('error'),
                                 role: 'system',
-                                content: `Failed to verify Dexto Nova auth: ${error instanceof Error ? error.message : String(error)}`,
+                                content: `Failed to check the Dexto sign-in: ${error instanceof Error ? error.message : String(error)}`,
                                 timestamp: new Date(),
                             },
                         ]);
@@ -919,6 +919,14 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
             setUi((prev) => ({
                 ...prev,
                 activeOverlay: 'none',
+                insufficientCredits: null,
+            }));
+        }, [setUi]);
+
+        const handleInsufficientCreditsChooseOwnModel = useCallback(() => {
+            setUi((prev) => ({
+                ...prev,
+                activeOverlay: 'model-selector',
                 insufficientCredits: null,
             }));
         }, [setUi]);
@@ -3119,6 +3127,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             initialBalanceUsd={ui.insufficientCredits.balanceUsd}
                             onResolved={handleInsufficientCreditsResolved}
                             onClose={handleInsufficientCreditsClose}
+                            onChooseOwnModel={handleInsufficientCreditsChooseOwnModel}
                         />
                     </Box>
                 )}
