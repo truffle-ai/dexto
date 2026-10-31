@@ -37,7 +37,7 @@
     "fs-extra": "^11.3.0",
     "hono": "^4.13.13",
     "ioredis": "^5.7.0",
-    "minimatch": "^10.2.3",
+    "minimatch": "^11.0.3",
     "open": "^10.2.0",
     "pg": "^8.15.4",
     "posthog-node": "^4.2.1",
