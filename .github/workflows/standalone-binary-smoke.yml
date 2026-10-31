@@ -2,7 +2,7 @@ name: Standalone Binary Smoke
 
 on:
   pull_request:
-    branches: [ main ]
+    branches: [ main, cli-2.0 ]
     paths:
       - .github/workflows/changesets-publish.yml
       - .github/workflows/release-standalone-binaries.yml
