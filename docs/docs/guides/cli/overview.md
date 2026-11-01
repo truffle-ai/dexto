@@ -130,7 +130,7 @@ dexto init status
 - The first non-subagent agent becomes the workspace primary by default
 - `dexto init agent --subagent` creates a subagent and links it to the current primary agent when one exists
 - `dexto init skill <id>` creates `.agents/skills/<id>/SKILL.md` plus `handlers/`, `scripts/`, `mcps/`, and `references/`
-- `dexto init status` shows the current workspace structure, primary agent, skills, and what `dexto deploy` would use
+- `dexto init status` shows the current workspace structure, primary agent and skills
 
 ### `init-app` - Initialize Existing TypeScript App
 
@@ -181,105 +181,6 @@ dexto logout                # end the sign-in on the server and forget it here
 Sign-ins are saved per profile in `~/.dexto/accounts/`, readable only by you. `--profile <name>` or `DEXTO_PROFILE` picks one for a single run, and `DEXTO_API_KEY` takes precedence over any saved sign-in. A first sign-in only reads; `--scope <permission>` asks for more and keeps what was granted before. Sign-ins from the `dexto-cloud` preview CLI are carried over once.
 
 Signed in, every local session also gets the Dexto MCP as a server named `dexto`: your connectors, Drive, Sites and Apps, Loops and memory, beside your own MCP servers. Its tools ask first through the normal approval prompt. If Dexto is unreachable, the session still runs and those tools show as unavailable. A server you name `dexto` yourself takes its place.
-
-### `deploy` - Deploy the Current Workspace to Cloud
-
-Deploy the current folder to a cloud sandbox and keep it linked to that deployment.
-
-```bash
-# First deploy from any folder
-dexto deploy
-
-# List cloud deployments on your account
-dexto deploy list
-
-# Open the linked deployment in the dashboard
-dexto deploy open
-
-# Inspect the linked deployment
-dexto deploy status
-
-# Stop the linked cloud sandbox
-dexto deploy stop
-
-# Delete the linked deployment and unlink this workspace
-dexto deploy delete
-```
-
-**How first-run deploy works:**
-- Creates `.dexto/deploy.json` in the current workspace
-- Uses the primary workspace agent from `agents/registry.json` when the workspace defines one
-- Falls back to the default cloud agent when the workspace does not define a primary workspace agent
-- Uploads the workspace snapshot and links the current folder to the created cloud deployment
-
-**Authentication:**
-- Authenticate with `dexto login` or set `DEXTO_API_KEY`
-
-**Generated deploy config:**
-
-Default cloud agent:
-
-```json
-{
-  "version": 1,
-  "agent": {
-    "type": "cloud-default"
-  },
-  "exclude": [".git", "node_modules", "dist", ".next", ".turbo", ".env*"]
-}
-```
-
-Workspace agent:
-
-```json
-{
-  "version": 1,
-  "agent": {
-    "type": "workspace",
-    "path": "agents/review-agent/review-agent.yml"
-  },
-  "exclude": [".git", "node_modules", "dist", ".next", ".turbo", ".env*"]
-}
-```
-
-**Notes:**
-- `dexto deploy` deploys the whole workspace, not just git-tracked files
-- `dexto deploy status`, `open`, `stop`, and `delete` work from the linked workspace folder
-- `dexto deploy list` shows account deployments and highlights the one linked to the current folder
-- Dashboard links are printed after deploy and status so you can inspect the cloud workspace directly
-
-### `trace` / `span` - Inspect Hosted Run Traces
-
-Discover and inspect first-party trace timelines for hosted runs.
-
-```bash
-# List recent traces
-dexto trace list --period 3h
-
-# Print a readable span summary for one run
-dexto trace <run-id>
-
-# Equivalent explicit form
-dexto trace view <run-id>
-
-# List spans for one run
-dexto span list <run-id> --name llm.stream --sort duration
-
-# Print the raw API response for scripts and agents
-dexto trace list --period 3h --json
-
-# Query a preview or local control-plane origin
-DEXTO_PLATFORM_URL=https://dexto-cloud-pr-123.example.workers.dev dexto trace list
-```
-
-**Authentication:**
-- Authenticate with `dexto login` or set `DEXTO_API_KEY`
-
-**Notes:**
-- Trace commands read from Dexto Cloud's `/api/runs/traces` and `/api/runs/:runId/trace`
-  endpoints.
-- Span commands read from Dexto Cloud's `/api/runs/:runId/spans` endpoint.
-- `DEXTO_PLATFORM_URL` overrides the hosted control-plane origin for preview and local testing.
 
 ### `agents install` - Install Agents
 
@@ -642,30 +543,6 @@ dexto "run the test suite and explain any failures"
 git diff | dexto -p "generate a conventional commit message for these changes"
 ```
 
-### Cloud Workspace Deploys
-
-```bash
-# Deploy any folder with the managed cloud agent
-dexto deploy
-
-# List your cloud deployments
-dexto deploy list
-
-# Deploy a repo that already defines a workspace primary agent
-cd my-project
-dexto deploy
-
-# Open the linked deployment in the dashboard
-dexto deploy open
-
-# Check the linked deployment later
-dexto deploy status
-
-# Stop or delete the linked deployment
-dexto deploy stop
-dexto deploy delete
-```
-
 ### Multi-Agent Workflows
 
 ```bash
@@ -703,6 +580,8 @@ dexto cloud api GET /v1/agents     # call any /v1 operation directly
 ```
 
 Every cloud command takes `--json` or `--table`, `--api-key <key>`, `--profile <name>` and `--project <id>`. Output is JSON when stdout isn't a terminal, and a failure prints `{"error":{"code","message","fix"}}` on stderr, where `fix` is the command that fixes it. Exit codes: 0 done, 1 failed, 2 usage, 3 needs sign-in or permission, 4 needs `--yes` (pass it only once your person has agreed), 5 not found. A command that needs a permission your sign-in lacks offers, at a terminal, to sign in again for it.
+
+Deploy Sites and Functions with `dexto cloud sites deploy` and `dexto cloud functions deploy`, each packed with the project's own packer. Dexto 1.x's `dexto deploy` (workspace deploys) is gone in 2.0, along with `dexto --cloud-agent`; `dexto trace` and `dexto span` are also gone until a public `/v1` traces endpoint brings them back.
 
 ## Your Dexto Workspace
 

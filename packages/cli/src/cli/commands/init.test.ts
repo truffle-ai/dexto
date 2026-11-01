@@ -92,7 +92,6 @@ import {
     linkWorkspaceSubagentToPrimaryAgent,
     setWorkspacePrimaryAgent,
 } from './init.js';
-import { saveDeployConfig, createWorkspaceDeployConfig } from './deploy/config.js';
 
 describe('init command', () => {
     let tempDir: string;
@@ -1053,11 +1052,6 @@ describe('init command', () => {
         await createWorkspaceAgentScaffold('explore-agent', { subagent: true }, tempDir);
         await linkWorkspaceSubagentToPrimaryAgent('explore-agent', tempDir);
         await createWorkspaceSkillScaffold('code-review', tempDir);
-        await saveDeployConfig(
-            tempDir,
-            createWorkspaceDeployConfig('agents/review-agent/review-agent.yml')
-        );
-
         const result = await inspectWorkspaceStatus(tempDir);
 
         expect(result.workspaceRoot).toBe(tempDir);
@@ -1082,10 +1076,6 @@ describe('init command', () => {
             },
         ]);
         expect(result.skills).toEqual(['code-review']);
-        expect(result.deployConfigPath).toBe(path.join(tempDir, '.dexto', 'deploy.json'));
-        expect(result.effectiveDeploySummary).toContain(
-            'workspace agent (agents/review-agent/review-agent.yml)'
-        );
     });
 
     it('prints the current workspace status', async () => {
@@ -1096,7 +1086,9 @@ describe('init command', () => {
 
         expect(mockIntro).toHaveBeenCalledWith(expect.stringContaining('Dexto Init Status'));
         expect(mockOutro).toHaveBeenCalledWith(
-            expect.stringContaining('default cloud agent if you run `dexto deploy`')
+            expect.stringContaining(
+                'Deploy: dexto cloud sites deploy or dexto cloud functions deploy (dexto deploy is gone in 2.0)'
+            )
         );
         expect(mockOutro).toHaveBeenCalledWith(expect.stringContaining('Skills:\n- code-review'));
     });
