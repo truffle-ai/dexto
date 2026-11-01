@@ -57,7 +57,8 @@ export type FailureKind =
     | 'needs_confirmation'
     | 'needs_permission'
     | 'needs_sign_in'
-    | 'not_found';
+    | 'not_found'
+    | 'waiting_on_person';
 
 export const EXIT_CODES = {
     failed: 1,
@@ -66,6 +67,7 @@ export const EXIT_CODES = {
     needs_permission: 3,
     needs_sign_in: 3,
     not_found: 5,
+    waiting_on_person: 6,
     usage: 2,
 } as const satisfies Record<FailureKind | 'usage', number>;
 

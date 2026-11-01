@@ -5,7 +5,6 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { dextoAccounts, type dextoCloud, type dextoSignIn } from '@dexto/agent-management';
 import {
     type SignInContext,
-    CommandError,
     describeSignIn,
     listAccounts,
     login,
@@ -56,6 +55,7 @@ const OTHER = { id: 'org_other', name: 'Other Acme', slug: 'other-acme' };
 describe('sign-in commands', () => {
     let dir: string;
     let printed: string[];
+    let values: unknown[];
     let notes: string[];
     let browserInputs: BrowserSignInInput[];
     let deviceInputs: SignInInput[];
@@ -70,6 +70,7 @@ describe('sign-in commands', () => {
     beforeEach(async () => {
         dir = path.join(await mkdtemp(path.join(os.tmpdir(), 'dexto-sign-in-')), 'accounts');
         printed = [];
+        values = [];
         notes = [];
         browserInputs = [];
         deviceInputs = [];
@@ -88,7 +89,10 @@ describe('sign-in commands', () => {
             environment: {},
             appUrl: APP,
             apiBaseUrl: API,
-            print: (text) => printed.push(text),
+            result: (value, text) => {
+                values.push(value);
+                printed.push(text);
+            },
             note: (text) => notes.push(text),
             confirm: async () => false,
             canOpenBrowser: true,
@@ -325,8 +329,9 @@ describe('sign-in commands', () => {
     describe('whoami', () => {
         it('is signed out with exit 3 and how to sign in', async () => {
             await expect(whoami(context, { profile: null, apiKey: null })).rejects.toMatchObject({
-                exitCode: 3,
-                message: 'Not signed in. Run dexto login.',
+                kind: 'needs_sign_in',
+                message: 'Not signed in.',
+                fix: 'dexto login',
             });
         });
 
@@ -382,14 +387,16 @@ describe('sign-in commands', () => {
 
         it('refuses a profile with no sign-in', async () => {
             await expect(useAccount(context, 'nope')).rejects.toMatchObject({
-                exitCode: 5,
-                message: 'No saved sign-in is named nope. Run dexto login --profile nope.',
+                kind: 'not_found',
+                message: 'No saved sign-in is named nope.',
+                fix: 'dexto login --profile nope',
             });
         });
 
         it('asks before removing, and removes with --yes', async () => {
             await expect(removeAccount(context, 'other', { yes: false })).rejects.toMatchObject({
-                exitCode: 4,
+                kind: 'needs_confirmation',
+                fix: 'dexto accounts remove other --yes',
             });
             expect(await readLogin(dir, 'other')).not.toBeNull();
 
@@ -410,7 +417,22 @@ describe('sign-in commands', () => {
         });
     });
 
-    it('reports failures as CommandError with an exit code', () => {
-        expect(new CommandError(5, 'x').exitCode).toBe(5);
+    it('reports each result as a value for JSON as well as text', async () => {
+        await writeLogin(dir, 'work', signedIn(ACME));
+        await writeCurrentProfile(dir, 'work');
+
+        await whoami(context, { profile: null, apiKey: null });
+
+        expect(values).toEqual([
+            {
+                as: 'person',
+                profile: 'work',
+                account: { email: 'ada@example.com', id: 'acc_1', name: 'Ada' },
+                organization: ACME,
+                app_url: APP,
+                cloud_project: null,
+                scopes: ['cloud:read'],
+            },
+        ]);
     });
 });

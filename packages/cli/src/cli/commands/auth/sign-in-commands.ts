@@ -1,6 +1,7 @@
 // `dexto login`, `logout`, `whoami` and `accounts`: signing in to Dexto and the saved profiles.
 
 import { dextoAccounts, type dextoCloud, type dextoSignIn } from '@dexto/agent-management';
+import { CommandFailure, UsageError } from '../../cloud/command.js';
 
 type OAuthLogin = dextoAccounts.OAuthLogin;
 type SignedInAs = dextoAccounts.SignedInAs;
@@ -24,21 +25,6 @@ const {
     writeLogin,
 } = dextoAccounts;
 
-/** A command that failed in a way a script can tell apart by its exit code. */
-export class CommandError extends Error {
-    readonly exitCode: number;
-
-    constructor(exitCode: number, message: string) {
-        super(message);
-        this.name = 'CommandError';
-        this.exitCode = exitCode;
-    }
-}
-
-const NEEDS_SIGN_IN = 3;
-const NEEDS_CONFIRMATION = 4;
-const NOT_FOUND = 5;
-
 /** Dexto's side of signing in, injected so commands can be tested without a server. */
 export interface DextoSignIn {
     readonly signInWithBrowser: (input: BrowserSignInInput) => Promise<OAuthLogin>;
@@ -59,8 +45,8 @@ export interface SignInContext {
     readonly appUrl: string;
     /** The public API a new sign-in is saved for. */
     readonly apiBaseUrl: string;
-    /** A result, on stdout. */
-    readonly print: (text: string) => void;
+    /** A command's result: the value for JSON output, the text for people. */
+    readonly result: (value: unknown, text: string) => void;
     /** Anything else, on stderr. */
     readonly note: (text: string) => void;
     /** Asks the person; false when there is no one to ask. */
@@ -91,7 +77,7 @@ export async function login(context: SignInContext, options: LoginOptions): Prom
 
     if (options.apiKey !== null) {
         if (options.org !== null)
-            throw new CommandError(2, 'An API key acts as itself; --org is for signing in.');
+            throw new UsageError('An API key acts as itself; --org is for signing in.');
         await saveApiKey(context, profile, options.apiKey);
         return;
     }
@@ -122,8 +108,7 @@ export async function login(context: SignInContext, options: LoginOptions): Prom
         newOrganization !== null &&
         savedOrganization.id !== newOrganization.id
     )
-        throw new CommandError(
-            2,
+        throw new UsageError(
             `The profile ${profile} already signs in to ${savedOrganization.name}. Sign in to ${newOrganization.name} with --profile <name> to keep both.`
         );
 
@@ -137,7 +122,15 @@ export async function login(context: SignInContext, options: LoginOptions): Prom
     await writeLogin(context.dir, profile, withProject);
     if (switches) await writeCurrentProfile(context.dir, profile);
     const current = (await resolveProfile(context.dir, null, context.environment)) === profile;
-    context.print(
+    context.result(
+        {
+            profile,
+            current,
+            account: signedIn.signedInAs?.account ?? null,
+            organization: signedIn.signedInAs?.organization ?? null,
+            cloud_project: withProject.cloudProject,
+            scopes: withProject.scopes,
+        },
         [
             `Signed in${describeSignedInAs(signedIn.signedInAs)}${profile === DEFAULT_PROFILE ? '' : ` (profile ${profile})`}.`,
             withProject.cloudProject === null
@@ -169,14 +162,15 @@ function chooseProject(
 
 async function saveApiKey(context: SignInContext, profile: string, apiKey: string): Promise<void> {
     if (!(await context.dexto.acceptsApiKey(context.apiBaseUrl, apiKey)))
-        throw new CommandError(NEEDS_SIGN_IN, 'Dexto refused this API key.');
+        throw new CommandFailure('needs_sign_in', 'Dexto refused this API key.', null);
     await writeLogin(context.dir, profile, {
         kind: 'api_key',
         apiKey,
         apiBaseUrl: context.apiBaseUrl,
         savedAt: new Date().toISOString(),
     });
-    context.print(
+    context.result(
+        { profile, key: maskApiKey(apiKey) },
         `Saved API key ${maskApiKey(apiKey)}${profile === DEFAULT_PROFILE ? '' : ` (profile ${profile})`}.`
     );
 }
@@ -204,7 +198,10 @@ export async function logout(
     const profile = await resolveProfile(context.dir, options.profile, context.environment);
     const removed = await logOutProfile(context, profile);
     const named = profile === DEFAULT_PROFILE ? '' : ` for profile ${profile}`;
-    context.print(removed ? `Logged out${named}.` : `No saved sign-in${named}.`);
+    context.result(
+        { profile, logged_out: removed },
+        removed ? `Logged out${named}.` : `No saved sign-in${named}.`
+    );
 }
 
 /**
@@ -235,7 +232,7 @@ export async function whoami(
         refresh: context.dexto.refreshSignIn,
     });
     if (credential === null)
-        throw new CommandError(NEEDS_SIGN_IN, 'Not signed in. Run dexto login.');
+        throw new CommandFailure('needs_sign_in', 'Not signed in.', 'dexto login');
     if (credential.kind === 'api_key') {
         const from =
             credential.source === 'flag'
@@ -243,11 +240,23 @@ export async function whoami(
                 : credential.source === 'environment'
                   ? ' (from DEXTO_API_KEY)'
                   : `, profile ${credential.profile}`;
-        context.print(field('api key', `${maskApiKey(credential.token)}${from}`));
+        context.result(
+            { as: 'api_key', key: maskApiKey(credential.token), source: credential.source },
+            field('api key', `${maskApiKey(credential.token)}${from}`)
+        );
         return;
     }
     const { login: saved } = credential;
-    context.print(
+    context.result(
+        {
+            as: 'person',
+            profile: credential.profile,
+            account: saved.signedInAs?.account ?? null,
+            organization: saved.signedInAs?.organization ?? null,
+            app_url: saved.appUrl,
+            cloud_project: saved.cloudProject,
+            scopes: saved.scopes,
+        },
         [
             field('profile', credential.profile),
             field('account', saved.signedInAs?.account.email ?? 'unknown'),
@@ -268,25 +277,32 @@ export async function listAccounts(
     options: { readonly profile: string | null }
 ): Promise<void> {
     const inUse = await resolveProfile(context.dir, options.profile, context.environment);
-    const rows = (await readAccounts(context.dir)).map(({ name, login: saved }) => [
-        `${name === inUse ? '*' : ' '} ${name}`,
-        saved.kind === 'api_key'
-            ? `API key ${maskApiKey(saved.apiKey)}`
-            : (saved.signedInAs?.account.email ?? saved.appUrl),
-        saved.kind === 'oauth' ? (saved.signedInAs?.organization.name ?? '') : '',
+    const accounts = (await readAccounts(context.dir)).map(({ name, login: saved }) => ({
+        profile: name,
+        current: name === inUse,
+        kind: saved.kind,
+        account: saved.kind === 'oauth' ? (saved.signedInAs?.account ?? null) : null,
+        organization: saved.kind === 'oauth' ? (saved.signedInAs?.organization ?? null) : null,
+        key: saved.kind === 'api_key' ? maskApiKey(saved.apiKey) : null,
+        url: saved.kind === 'oauth' ? saved.appUrl : saved.apiBaseUrl,
+    }));
+    const rows = accounts.map((account) => [
+        `${account.current ? '*' : ' '} ${account.profile}`,
+        account.key !== null ? `API key ${account.key}` : (account.account?.email ?? account.url),
+        account.organization?.name ?? '',
     ]);
-    if (rows.length === 0) {
-        context.print('No saved sign-ins. Run dexto login.');
-        return;
-    }
-    context.print(table(rows));
+    context.result(
+        { data: accounts },
+        rows.length === 0 ? 'No saved sign-ins. Run dexto login.' : table(rows)
+    );
 }
 
 export async function useAccount(context: SignInContext, wanted: string): Promise<void> {
     const { name, login: saved } = await requireSaved(context, wanted);
     await writeCurrentProfile(context.dir, name);
     const overridden = (await resolveProfile(context.dir, null, context.environment)) !== name;
-    context.print(
+    context.result(
+        { current: name },
         `Now using ${describeProfile(name, saved)}.${overridden ? ' DEXTO_PROFILE still chooses another profile here.' : ''}`
     );
 }
@@ -302,14 +318,16 @@ export async function removeAccount(
             ? `Log ${describeProfile(name, saved)} out and forget it on this machine?`
             : `Forget ${describeProfile(name, saved)} on this machine?`;
     if (!options.yes && !(await context.confirm(question)))
-        throw new CommandError(
-            NEEDS_CONFIRMATION,
-            `${question} Run dexto accounts remove ${name} --yes to confirm.`
+        throw new CommandFailure(
+            'needs_confirmation',
+            `${question} Pass --yes once your person has agreed.`,
+            `dexto accounts remove ${name} --yes`
         );
     const wasCurrent = (await readCurrentProfile(context.dir)) === name;
     await logOutProfile(context, name);
     if (wasCurrent) await writeCurrentProfile(context.dir, DEFAULT_PROFILE);
-    context.print(
+    context.result(
+        { removed: name, current: wasCurrent ? DEFAULT_PROFILE : null },
         `Removed ${name}.${wasCurrent && name !== DEFAULT_PROFILE ? ` Now using ${DEFAULT_PROFILE}.` : ''}`
     );
 }
@@ -321,9 +339,10 @@ async function requireSaved(
     const name = requireProfileName(wanted);
     const saved = await readLogin(context.dir, name);
     if (saved === null)
-        throw new CommandError(
-            NOT_FOUND,
-            `No saved sign-in is named ${name}. Run dexto login --profile ${name}.`
+        throw new CommandFailure(
+            'not_found',
+            `No saved sign-in is named ${name}.`,
+            `dexto login --profile ${name}`
         );
     return { name, login: saved };
 }
