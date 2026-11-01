@@ -111,3 +111,25 @@ function readEnvelope(body: unknown): {
         details: field('details'),
     };
 }
+
+type Method = 'get' | 'put' | 'post' | 'patch' | 'delete';
+
+type JsonOf<Response> = Response extends { content: { 'application/json': infer Json } }
+    ? Json
+    : never;
+
+/** The JSON a /v1 operation answers with when it succeeds, such as `V1Response<'/v1/secrets', 'get'>`. */
+export type V1Response<
+    Path extends keyof paths,
+    M extends Method & keyof paths[Path],
+> = paths[Path][M] extends { responses: infer Responses }
+    ? JsonOf<Responses[200 & keyof Responses]> | JsonOf<Responses[201 & keyof Responses]>
+    : never;
+
+/** The JSON body a /v1 operation takes, such as `V1Body<'/v1/secrets', 'post'>`. */
+export type V1Body<
+    Path extends keyof paths,
+    M extends Method & keyof paths[Path],
+> = paths[Path][M] extends { requestBody?: { content: { 'application/json': infer Body } } }
+    ? Body
+    : never;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CloudApiError, createCloudClient, unwrap } from './index.js';
+import { CloudApiError, createCloudClient, unwrap, type V1Body, type V1Response } from './index.js';
 
 function fakeFetch(reply: (request: globalThis.Request) => Response) {
     const requests: globalThis.Request[] = [];
@@ -86,5 +86,15 @@ describe('createCloudClient', () => {
             requestId: 'req_1',
             retryable: false,
         });
+    });
+});
+
+describe('V1Response and V1Body', () => {
+    it("name an operation's success JSON and body", () => {
+        type Secret = V1Response<'/v1/secrets', 'get'>['data'][number];
+        type Create = V1Body<'/v1/secrets', 'post'>;
+        const secret: Pick<Secret, 'id' | 'name'> = { id: 'sec_1', name: 'GITHUB' };
+        const body: Pick<Create, 'name' | 'value'> = { name: 'GITHUB', value: 'x' };
+        expect([secret.name, body.name]).toEqual(['GITHUB', 'GITHUB']);
     });
 });
