@@ -19,8 +19,41 @@ import React, {
 import { Box, Text } from 'ink';
 import type { Key } from '../../hooks/useInputOrchestrator.js';
 import { getModelDisplayName, getReasoningProfile } from '@dexto/llm';
+import { buildProviderOptions, getEffectiveReasoningBudgetTokens } from '@dexto/core';
+import {
+    getModelReasoningPreference,
+    resolveModelReasoningPreference,
+    type ModelReasoningPreferenceEntry,
+    type StaleModelReasoningSetting,
+} from '@dexto/agent-management';
 import { getLLMProviderDisplayName } from '../../utils/llm-provider-display.js';
 import type { TuiAgentBackend } from '../../agent-backend.js';
+
+type SavedReasoningSummary = {
+    entry: ModelReasoningPreferenceEntry | null;
+    stale: StaleModelReasoningSetting[];
+};
+
+function describeSavedReasoning(saved: SavedReasoningSummary | null): string {
+    if (saved === null) return 'loading…';
+    if (saved.entry === null) return 'none';
+    if (saved.entry.reasoning === null) return 'provider defaults (explicit reset)';
+    const parts: string[] = [];
+    if (saved.entry.reasoning.variant !== undefined) {
+        parts.push(`variant ${saved.entry.reasoning.variant}`);
+    }
+    if (saved.entry.reasoning.budgetTokens !== undefined) {
+        parts.push(`budget ${saved.entry.reasoning.budgetTokens}`);
+    }
+    return parts.join(', ');
+}
+
+function describeStale(stale: StaleModelReasoningSetting[]): string | null {
+    if (stale.length === 0) return null;
+    return stale
+        .map((item) => `saved ${item.field} '${item.value}' no longer applies: ${item.reason}`)
+        .join('; ');
+}
 
 export interface ReasoningOverlayHandle {
     handleInput: (input: string, key: Key) => boolean;
@@ -65,9 +98,57 @@ export const ReasoningOverlay = React.forwardRef<ReasoningOverlayHandle, Reasoni
         const llmConfig = agent.getCurrentLLMConfig(sessionId || undefined);
         const provider = llmConfig.provider;
         const model = llmConfig.model;
+        const baseURL = llmConfig.baseURL;
         const support = getReasoningProfile(provider, model);
-        const currentVariant = llmConfig.reasoning?.variant ?? support.defaultVariant ?? 'default';
+        const explicitVariant = llmConfig.reasoning?.variant;
+        const currentVariant = explicitVariant ?? support.defaultVariant ?? 'default';
         const currentBudgetTokens = llmConfig.reasoning?.budgetTokens;
+        // The budget the executor will actually send: explicit override or the provider default
+        // the request builder applies. Unknown when the builder emits no budget for this model.
+        const effectiveBudgetTokens = useMemo(
+            () =>
+                support.supportsBudgetTokens
+                    ? getEffectiveReasoningBudgetTokens(
+                          buildProviderOptions({
+                              provider,
+                              model,
+                              reasoning: llmConfig.reasoning,
+                          })
+                      )
+                    : undefined,
+            [support.supportsBudgetTokens, provider, model, llmConfig.reasoning]
+        );
+        const [savedReasoning, setSavedReasoning] = useState<SavedReasoningSummary | null>(null);
+
+        useEffect(() => {
+            if (!isVisible) return;
+            let cancelled = false;
+            setSavedReasoning(null);
+            getModelReasoningPreference({
+                provider,
+                model,
+                ...(baseURL ? { baseURL } : {}),
+            })
+                .then(({ entry }) => {
+                    if (cancelled) return;
+                    const resolved = resolveModelReasoningPreference({ entry, profile: support });
+                    setSavedReasoning({ entry, stale: resolved.stale });
+                })
+                .catch((e: unknown) => {
+                    if (cancelled) return;
+                    agent.logger.debug(
+                        `Failed to read saved reasoning for ${provider}/${model}: ${
+                            e instanceof Error ? e.message : String(e)
+                        }`
+                    );
+                    setSavedReasoning({ entry: null, stale: [] });
+                });
+            return () => {
+                cancelled = true;
+            };
+            // `support` is derived from provider+model (new object each render, so not listed);
+            // currentVariant/currentBudgetTokens change exactly when an edit may have re-saved.
+        }, [isVisible, provider, model, baseURL, currentVariant, currentBudgetTokens, agent]);
 
         const menuItems = useMemo((): MenuItem[] => {
             const items: MenuItem[] = [
@@ -277,13 +358,16 @@ export const ReasoningOverlay = React.forwardRef<ReasoningOverlayHandle, Reasoni
                     </Text>
                     <Text color="gray">
                         Variant: <Text color="white">{currentVariant}</Text>{' '}
-                        <Text color="gray">(Tab cycles)</Text>
+                        <Text color="gray">
+                            ({explicitVariant !== undefined ? 'explicit' : 'provider default'}; Tab
+                            cycles)
+                        </Text>
                     </Text>
                     <Text color="gray">
                         Visible: <Text color="white">{showReasoning ? 'on' : 'off'}</Text>
                     </Text>
                     <Text color="gray">
-                        Budget tokens:{' '}
+                        Budget override:{' '}
                         <Text color="white">
                             {support.supportsBudgetTokens
                                 ? typeof currentBudgetTokens === 'number'
@@ -292,6 +376,27 @@ export const ReasoningOverlay = React.forwardRef<ReasoningOverlayHandle, Reasoni
                                 : 'not supported'}
                         </Text>
                     </Text>
+                    <Text color="gray">
+                        Effective budget:{' '}
+                        <Text color="white">
+                            {!support.supportsBudgetTokens
+                                ? 'not supported'
+                                : effectiveBudgetTokens === undefined
+                                  ? 'unknown'
+                                  : `${effectiveBudgetTokens} (${
+                                        typeof currentBudgetTokens === 'number'
+                                            ? 'explicit override'
+                                            : 'provider default'
+                                    })`}
+                        </Text>
+                    </Text>
+                    <Text color="gray">
+                        Saved for this model:{' '}
+                        <Text color="white">{describeSavedReasoning(savedReasoning)}</Text>
+                    </Text>
+                    {savedReasoning && describeStale(savedReasoning.stale) && (
+                        <Text color="yellow">⚠ {describeStale(savedReasoning.stale)}</Text>
+                    )}
                     <Text color="gray">
                         Supported variants:{' '}
                         <Text color="white">{support.supportedVariants.join(', ')}</Text>
