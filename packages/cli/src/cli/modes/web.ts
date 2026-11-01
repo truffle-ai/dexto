@@ -54,7 +54,7 @@ export async function runWebMode(context: MainModeContext): Promise<void> {
         webUIConfig
     );
 
-    console.log(chalk.green(`✅ Server running at ${serverUrl}`));
+    console.error(chalk.green(`✅ Server running at ${serverUrl}`));
 
     const webUpdateInfo = await getVersionCheckResult();
     if (webUpdateInfo) {
@@ -66,9 +66,9 @@ export async function runWebMode(context: MainModeContext): Promise<void> {
         try {
             const { default: open } = await import('open');
             await open(serverUrl, { wait: false });
-            console.log(chalk.green(`🌐 Opened WebUI in browser: ${serverUrl}`));
+            console.error(chalk.green(`🌐 Opened WebUI in browser: ${serverUrl}`));
         } catch (_error) {
-            console.log(chalk.yellow(`💡 WebUI is available at: ${serverUrl}`));
+            console.error(chalk.yellow(`💡 WebUI is available at: ${serverUrl}`));
         }
     }
 }

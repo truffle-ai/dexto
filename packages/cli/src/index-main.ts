@@ -93,6 +93,7 @@ import { registerRunCommand } from './cli/commands/run/register.js';
 import { registerSessionCommand } from './cli/commands/session/register.js';
 import { registerSearchCommand } from './cli/commands/search/register.js';
 import { registerCloudCommand } from './cli/commands/cloud/register.js';
+import { isRootJsonHelp, rootHelpJson } from './cli/help-json.js';
 import { registerMcpCommand } from './cli/commands/mcp/register.js';
 import { registerImageCommand } from './cli/commands/image/register.js';
 import { registerPluginCommand } from './cli/commands/plugin/register.js';
@@ -1157,4 +1158,7 @@ program
     );
 
 // 14) PARSE & EXECUTE
-program.parseAsync(process.argv);
+// `dexto --help --json`: the commands and exit codes as JSON, for agents.
+if (isRootJsonHelp(process.argv.slice(2)))
+    process.stdout.write(`${JSON.stringify(rootHelpJson(program), null, 2)}\n`);
+else program.parseAsync(process.argv);

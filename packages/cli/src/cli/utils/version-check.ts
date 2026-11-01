@@ -270,7 +270,8 @@ export function displayUpdateNotification(updateInfo: UpdateInfo): void {
         `Update available: ${chalk.gray(updateInfo.current)} ${chalk.gray('→')} ${chalk.green(updateInfo.latest)}\n` +
         `Run: ${chalk.cyan(updateInfo.updateCommand)}`;
 
-    console.log(
+    // A notice, not a result: stderr, so stdout stays what the command printed.
+    console.error(
         boxen(message, {
             padding: 1,
             margin: { top: 1, bottom: 1, left: 0, right: 0 },
