@@ -993,6 +993,56 @@ describe('TurnExecutor Integration Tests', () => {
             expect(toolMessages).toHaveLength(2);
         });
 
+        it('offers no unlisted tool to the model and refuses a model call to one', async () => {
+            const execute = vi.fn().mockResolvedValue('saved');
+            toolManager.addTools([
+                defineTool({
+                    id: 'save_note',
+                    description: 'Saves a note',
+                    inputSchema: z.object({ text: z.string() }).strict(),
+                    modelListing: 'unlisted',
+                    execute,
+                }),
+            ]);
+
+            vi.mocked(streamText)
+                .mockImplementationOnce(
+                    () =>
+                        createMockStream({
+                            finishReason: 'tool-calls',
+                            toolCalls: [
+                                {
+                                    toolCallId: 'call-unlisted',
+                                    toolName: 'save_note',
+                                    args: { text: 'hello' },
+                                },
+                            ],
+                        }) as unknown as ReturnType<typeof streamText>
+                )
+                .mockImplementationOnce(
+                    () =>
+                        createMockStream({
+                            text: 'done',
+                            finishReason: 'stop',
+                        }) as unknown as ReturnType<typeof streamText>
+                );
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Save a note' }]);
+            await executor.execute({ mcpManager }, true);
+
+            const firstCallOptions = vi.mocked(streamText).mock.calls[0]?.[0];
+            expect(Object.keys(firstCallOptions?.tools ?? {})).not.toContain('save_note');
+            expect(execute).not.toHaveBeenCalled();
+            const history = await contextManager.getHistory();
+            expect(history.filter((message) => message.role === 'tool')).toEqual([
+                expect.objectContaining({
+                    toolCallId: 'call-unlisted',
+                    name: 'save_note',
+                    success: false,
+                }),
+            ]);
+        });
+
         it('drives tool-call steps through the explicit turn driver boundary', async () => {
             const toolExecution = createDeferred<string>();
             const executeTool = vi.fn(() => toolExecution.promise);
