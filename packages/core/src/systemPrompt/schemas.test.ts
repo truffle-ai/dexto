@@ -273,10 +273,13 @@ You can help with:
                 unknownField: 'should fail',
             });
             expect(result.success).toBe(false);
-            const unionError = result.error?.issues[0];
-            expect(unionError?.code).toBe('invalid_union');
-            const nestedIssue = findNestedIssue(unionError, [], 'unrecognized_keys');
-            expect(nestedIssue?.code).toBe('unrecognized_keys');
+            const issue = result.error?.issues[0];
+            // Zod >= 4.6 reports the extra key directly; older 4.x wrapped it in an invalid_union.
+            const strictIssue =
+                issue?.code === 'invalid_union'
+                    ? findNestedIssue(issue, [], 'unrecognized_keys')
+                    : issue;
+            expect(strictIssue?.code).toBe('unrecognized_keys');
         });
     });
 
