@@ -12,6 +12,46 @@ import type { TokenUsageCostBreakdown } from '@dexto/llm';
 import type { LLMProvider, LLMPricingStatus, ReasoningVariant, TokenUsage } from '@dexto/llm';
 import { extractProviderErrorDetails, mapProviderError } from './provider-error.js';
 import { isEmptyModelResponse } from './empty-response.js';
+import { LLMError } from '../errors.js';
+
+/**
+ * How long a model stream may send no event before its attempt counts as stalled. Production
+ * (DEXTO-2093) has waited up to 715 s for a first text (kimi-k3) and 308 s for a first reasoning
+ * delta (gpt-6.1-sol), and no stream ran 15 minutes in 30 days. Three attempts still fit inside
+ * Dexto Cloud's one-hour model step.
+ */
+export const MODEL_STREAM_IDLE_TIMEOUT_MS = 15 * 60_000;
+
+/**
+ * Yields the stream's events and throws `stall()` once none arrives within
+ * MODEL_STREAM_IDLE_TIMEOUT_MS. Each read races the timer, so a socket that never answers, even
+ * after abort, cannot hold the turn.
+ */
+async function* readUntilStalled<T>(
+    events: AsyncIterable<T>,
+    stall: () => Error
+): AsyncGenerator<T> {
+    const iterator = events[Symbol.asyncIterator]();
+    try {
+        for (;;) {
+            let timer: ReturnType<typeof setTimeout> | undefined;
+            const stalled = new Promise<never>((_, reject) => {
+                timer = setTimeout(() => reject(stall()), MODEL_STREAM_IDLE_TIMEOUT_MS);
+            });
+            let next: IteratorResult<T>;
+            try {
+                next = await Promise.race([iterator.next(), stalled]);
+            } finally {
+                clearTimeout(timer);
+            }
+            if (next.done) return;
+            yield next.value;
+        }
+    } finally {
+        // Not awaited: a stalled read never settles, and the attempt's abort already closes it.
+        void iterator.return?.()?.catch(() => {});
+    }
+}
 
 type UsageLike = {
     inputTokens?: number | null | undefined;
@@ -151,8 +191,9 @@ export class StreamProcessor {
         this.usageScopeId = config.usageScopeId;
     }
 
+    /** Runs one model attempt. `streamFn` must send its request with the given abort signal. */
     async process(
-        streamFn: () => StreamTextResult<VercelToolSet, unknown>
+        streamFn: (abortSignal: AbortSignal) => StreamTextResult<VercelToolSet, unknown>
     ): Promise<StreamProcessorResult> {
         const startedAtMs = Date.now();
         const setStreamAttribute = (name: string, value: number | string): void => {
@@ -163,7 +204,18 @@ export class StreamProcessor {
             setStreamAttribute(`${name}_ms`, elapsedMs);
             return elapsedMs;
         };
-        const stream = streamFn();
+        const stallAbort = new AbortController();
+        const stream = streamFn(AbortSignal.any([this.abortSignal, stallAbort.signal]));
+        const events = readUntilStalled(stream.fullStream, () => {
+            stallAbort.abort();
+            return LLMError.streamStalled(
+                this.config.provider,
+                this.config.model,
+                MODEL_STREAM_IDLE_TIMEOUT_MS
+            );
+        });
+        let lastEventReceivedAtMs = startedAtMs;
+        let maxEventGapMs = 0;
         let lastDeltaReceivedAtMs: number | null = null;
         let lastReasoningDeltaReceivedAtMs: number | null = null;
         let lastTextDeltaReceivedAtMs: number | null = null;
@@ -217,9 +269,15 @@ export class StreamProcessor {
         };
 
         try {
-            for await (const event of stream.fullStream) {
+            for await (const event of events) {
                 // Don't call throwIfAborted() here - let Vercel SDK handle abort gracefully
                 // and emit 'abort' event which we handle below in the switch
+                const eventReceivedAtMs = Date.now();
+                if (eventReceivedAtMs - lastEventReceivedAtMs > maxEventGapMs) {
+                    maxEventGapMs = eventReceivedAtMs - lastEventReceivedAtMs;
+                    setStreamAttribute('max_event_gap_ms', maxEventGapMs);
+                }
+                lastEventReceivedAtMs = eventReceivedAtMs;
 
                 switch (event.type) {
                     case 'text-delta': {

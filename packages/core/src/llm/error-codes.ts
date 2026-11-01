@@ -30,6 +30,7 @@ export enum LLMErrorCode {
     SWITCH_FAILED = 'llm_switch_failed',
     GENERATION_FAILED = 'llm_generation_failed',
     EMPTY_RESPONSE = 'llm_empty_response', // Model ended its reply without text, tool calls or usage
+    STREAM_STALLED = 'llm_stream_stalled', // Model stream sent nothing for the idle limit
 
     // Input validation (moved from agent)
     SWITCH_INPUT_MISSING = 'llm_switch_input_missing', // At least model or provider must be specified

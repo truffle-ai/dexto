@@ -68,6 +68,8 @@ import {
 } from './provider-error.js';
 import { isEmptyModelResponse } from './empty-response.js';
 import { LLMError } from '../errors.js';
+import { LLMErrorCode } from '../error-codes.js';
+import { DextoRuntimeError } from '../../errors/DextoRuntimeError.js';
 import { toError } from '../../utils/error-conversion.js';
 import type { CompactionStrategy } from '../../context/compaction/types.js';
 import type { ModelLimits } from '../../context/compaction/overflow.js';
@@ -1752,13 +1754,13 @@ export class TurnExecutor {
                 }),
             },
             () =>
-                streamProcessor.process(() =>
+                streamProcessor.process((abortSignal) =>
                     streamText({
                         model: this.model,
                         stopWhen: stepCountIs(1),
                         maxRetries: 0,
                         tools: request.tools,
-                        abortSignal: this.stepAbortController.signal,
+                        abortSignal,
                         messages: request.messages,
                         ...(this.config.maxOutputTokens !== undefined && {
                             maxOutputTokens: this.config.maxOutputTokens,
@@ -1879,6 +1881,7 @@ export class TurnExecutor {
     private canRetryModelRequest(error: unknown, historyLengthChanged: boolean): boolean {
         if (historyLengthChanged) return false;
         if (this.stepAbortController.signal.aborted) return false;
+        if (error instanceof DextoRuntimeError) return error.code === LLMErrorCode.STREAM_STALLED;
         if (!APICallError.isInstance?.(error)) return false;
         return error.isRetryable;
     }
