@@ -2,13 +2,21 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { dextoPackageRange } from './scaffolding-utils.js';
+import { dextoPackageRange, dextoPeerRange } from './scaffolding-utils.js';
 
 const roots: string[] = [];
 
-async function writePackage(dir: string, name: string, version: string): Promise<void> {
+async function writePackage(
+    dir: string,
+    name: string,
+    version: string,
+    peerDependencies: Record<string, string> = {}
+): Promise<void> {
     await mkdir(dir, { recursive: true });
-    await writeFile(path.join(dir, 'package.json'), JSON.stringify({ name, version }));
+    await writeFile(
+        path.join(dir, 'package.json'),
+        JSON.stringify({ name, version, peerDependencies })
+    );
 }
 
 /** An installed dexto 2.0 beta whose @dexto/* packages keep their own 1.x versions. */
@@ -19,7 +27,9 @@ async function installedCli(layout: 'nested' | 'hoisted'): Promise<string> {
     await writePackage(cli, 'dexto', '2.0.0-beta.3');
     const modules =
         layout === 'nested' ? path.join(cli, 'node_modules') : path.join(root, 'node_modules');
-    await writePackage(path.join(modules, '@dexto', 'core'), '@dexto/core', '1.14.4');
+    await writePackage(path.join(modules, '@dexto', 'core'), '@dexto/core', '1.14.4', {
+        zod: '^4.3.6',
+    });
     await writePackage(
         path.join(modules, '@dexto', 'image-local'),
         '@dexto/image-local',
@@ -52,5 +62,10 @@ describe('dextoPackageRange', () => {
         roots.push(root);
         await writePackage(root, 'dexto', '2.0.0-beta.3');
         expect(() => dextoPackageRange('@dexto/core', root)).toThrow(/@dexto\/core/);
+    });
+
+    it("asks for a peer at @dexto/core's own peer range, so the project installs", async () => {
+        const cli = await installedCli('hoisted');
+        expect(dextoPeerRange('zod', cli)).toBe('^4.3.6');
     });
 });

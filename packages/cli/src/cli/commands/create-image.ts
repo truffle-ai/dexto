@@ -10,6 +10,7 @@ import {
     initPackageJson,
     createTsconfigForImage,
     dextoPackageRange,
+    dextoPeerRange,
     installDependencies,
     pinDextoPackageIfUnversioned,
     ensureDirectory,
@@ -199,7 +200,7 @@ export async function createImage(name?: string): Promise<string> {
             dexto('@dexto/core'),
             dexto('@dexto/agent-config'),
             dexto('@dexto/storage'),
-            'zod@^3.25.0',
+            `zod@${dextoPeerRange('zod')}`,
         ];
         const devDependencies = [
             'typescript@^5.0.0',
