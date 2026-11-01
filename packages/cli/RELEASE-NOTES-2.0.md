@@ -21,6 +21,10 @@ Draft for DEXTO-2031. Each 2.0 change a 1.x user notices is listed here as it la
 - `dexto workspace` uses your workspace as you; `dexto publish`, `dexto profile` and `dexto skills push` are new.
 - Every cloud command prints JSON when stdout isn't a terminal, failures as `{"error":{"code","message","fix"}}` on stderr, and exits 0 done, 1 failed, 2 usage, 3 needs sign-in or permission, 4 needs `--yes`, 5 not found.
 
+## Output
+
+- `dexto run` prints JSON when stdout isn't a terminal, and the reply at one. `--json` prints one result and `--stream-json` prints events ending with one `result`; they replace `--format json|jsonl`, and `--text` forces the reply. JSON keys are snake_case (`session_id`, `total_tokens`), the version field is gone, refused approvals are `permission_denials`, and an empty prompt exits 2.
+
 ## Renamed and removed
 
 - `dexto session list|history|delete` are now `dexto chat list|history|delete`. `dexto chat local` and `dexto chat import` bring Claude Code and Codex chats into Dexto.

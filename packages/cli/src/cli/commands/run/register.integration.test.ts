@@ -13,6 +13,8 @@ const entrypoint = fileURLToPath(new URL('../../../index.ts', import.meta.url));
 const tsx = createRequire(import.meta.url).resolve('tsx');
 
 // Use a real local model transport and CLI process; no provider credentials or remote calls.
+const FORMAT_FLAGS = { json: '--json', jsonl: '--stream-json', text: '--text' } as const;
+
 describe('headless CLI process output', () => {
     let server: Server;
     let directory: string;
@@ -266,8 +268,7 @@ ${ordinaryConfig}    requiresApproval: false
                 ordinaryConfigPath,
                 'run',
                 'attempt ordinary operation',
-                '--format',
-                format,
+                FORMAT_FLAGS[format],
             ]);
             await expect(access(ordinaryEffectPath)).rejects.toMatchObject({ code: 'ENOENT' });
             expect(denialFeedback).toHaveLength(1);
@@ -283,15 +284,16 @@ ${ordinaryConfig}    requiresApproval: false
                 .map((line) => JSON.parse(line));
             const result = lines.at(-1);
             expect(result).toMatchObject({
-                ...(format === 'json' ? { status: 'completed' } : { type: 'complete' }),
+                type: 'result',
+                status: 'completed',
                 content: 'ordinary task complete',
-                approvalRequired: [
+                permission_denials: [
                     expect.objectContaining({
-                        approvalId: expect.any(String),
-                        approvalType: 'tool_approval',
-                        sessionId: result.sessionId,
-                        toolName: 'ordinary_operation',
-                        toolCallId: 'ordinary-call',
+                        approval_id: expect.any(String),
+                        approval_type: 'tool_approval',
+                        session_id: result.session_id,
+                        tool_name: 'ordinary_operation',
+                        tool_call_id: 'ordinary-call',
                         message: expect.stringContaining('Dexto TUI'),
                     }),
                 ],
@@ -299,7 +301,7 @@ ${ordinaryConfig}    requiresApproval: false
             if (format === 'json') expect(lines).toHaveLength(1);
             else
                 expect(lines.filter((line) => line.type === 'approval_required')).toEqual([
-                    expect.objectContaining(result.approvalRequired[0]),
+                    expect.objectContaining(result.permission_denials[0]),
                 ]);
         },
         30000
@@ -313,8 +315,7 @@ ${ordinaryConfig}    requiresApproval: false
             'manual',
             'run',
             'attempt ordinary operation',
-            '--format',
-            'json',
+            '--json',
         ]);
         await expect(access(ordinaryEffectPath)).rejects.toMatchObject({ code: 'ENOENT' });
         expect(denialFeedback[0]).toContain('requires interactive approval');
@@ -329,28 +330,20 @@ ${ordinaryConfig}    requiresApproval: false
                 ...flags,
                 'run',
                 'attempt ordinary operation',
-                '--format',
-                'json',
+                '--json',
             ]);
             expect(await readFile(ordinaryEffectPath, 'utf8')).toBe('ordinary effect');
             expect(JSON.parse(stdout)).toMatchObject({
                 status: 'completed',
                 content: 'ordinary task complete',
             });
-            expect(JSON.parse(stdout).approvalRequired ?? []).toEqual([]);
+            expect(JSON.parse(stdout).permission_denials).toEqual([]);
         },
         30000
     );
 
     it('keeps the permissive Core default when no permission mode is configured', async () => {
-        await run([
-            '--agent',
-            automaticConfigPath,
-            'run',
-            'attempt ordinary operation',
-            '--format',
-            'json',
-        ]);
+        await run(['--agent', automaticConfigPath, 'run', 'attempt ordinary operation', '--json']);
         expect(await readFile(ordinaryEffectPath, 'utf8')).toBe('ordinary effect');
     }, 30000);
 
@@ -363,11 +356,10 @@ ${ordinaryConfig}    requiresApproval: false
                 agent,
                 'run',
                 'attempt ordinary operation',
-                '--format',
-                'json',
+                '--json',
             ]);
             expect(await readFile(ordinaryEffectPath, 'utf8')).toBe('ordinary effect');
-            expect(JSON.parse(stdout).approvalRequired ?? []).toEqual([]);
+            expect(JSON.parse(stdout).permission_denials).toEqual([]);
         },
         30000
     );
@@ -382,40 +374,38 @@ ${ordinaryConfig}    requiresApproval: false
                 '--auto-approve',
                 'run',
                 'attempt ordinary operation',
-                '--format',
-                'json',
+                '--json',
             ])
         ).rejects.toMatchObject({ code: 1 });
         await expect(access(ordinaryEffectPath)).rejects.toMatchObject({ code: 'ENOENT' });
     }, 30000);
 
     it('writes only one JSON object through real bootstrap and model execution', async () => {
-        const { stdout } = await run(['run', 'say hello', '--format', 'json']);
+        const { stdout } = await run(['run', 'say hello', '--json']);
         expect(stdout.trim().split('\n')).toHaveLength(1);
         expect(JSON.parse(stdout)).toMatchObject({
-            version: 1,
+            type: 'result',
             status: 'completed',
             content: 'audit complete',
         });
     }, 30000);
 
     it('writes parseable JSONL through real execution with one terminal completion', async () => {
-        const { stdout } = await run(['run', 'say hello', '--format', 'jsonl']);
+        const { stdout } = await run(['run', 'say hello', '--stream-json']);
         const lines = stdout
             .trim()
             .split('\n')
             .map((line) => JSON.parse(line));
-        expect(lines.filter((line) => line.type === 'complete')).toHaveLength(1);
+        expect(lines.filter((line) => line.type === 'result')).toHaveLength(1);
         expect(lines.at(-1)).toMatchObject({
-            version: 1,
-            type: 'complete',
+            type: 'result',
             content: 'audit complete',
         });
     }, 30000);
 
     it('writes a structured error when the deployment image cannot load', async () => {
         await expect(
-            run(['--image', '@dexto/nonexistent-audit-image', 'run', 'task', '--format', 'json'])
+            run(['--image', '@dexto/nonexistent-audit-image', 'run', 'task', '--json'])
         ).rejects.toMatchObject({ code: 1, stdout: expect.stringContaining('"status":"failed"') });
     }, 30000);
     it.each(['json', 'jsonl'] as const)(
@@ -426,8 +416,7 @@ ${ordinaryConfig}    requiresApproval: false
                 unscopedConfigPath,
                 'run',
                 'attempt protected operation',
-                '--format',
-                format,
+                FORMAT_FLAGS[format],
             ]);
             const lines = stdout
                 .trim()
@@ -435,15 +424,16 @@ ${ordinaryConfig}    requiresApproval: false
                 .map((line) => JSON.parse(line));
             const result = lines.at(-1);
             expect(result).toMatchObject({
-                ...(format === 'json' ? { status: 'completed' } : { type: 'complete' }),
+                type: 'result',
+                status: 'completed',
                 content: 'approval denied; recovery complete',
-                approvalRequired: [
+                permission_denials: [
                     expect.objectContaining({
-                        approvalId: expect.any(String),
-                        approvalType: 'tool_approval',
-                        sessionId: result.sessionId,
-                        toolName: 'protected_operation',
-                        toolCallId: 'protected-call',
+                        approval_id: expect.any(String),
+                        approval_type: 'tool_approval',
+                        session_id: result.session_id,
+                        tool_name: 'protected_operation',
+                        tool_call_id: 'protected-call',
                         message: expect.stringContaining('Dexto TUI'),
                     }),
                 ],
@@ -451,7 +441,7 @@ ${ordinaryConfig}    requiresApproval: false
             if (format === 'json') expect(lines).toHaveLength(1);
             else
                 expect(lines.filter((line) => line.type === 'approval_required')).toEqual([
-                    expect.objectContaining(result.approvalRequired[0]),
+                    expect.objectContaining(result.permission_denials[0]),
                 ]);
             expect(denialFeedback).toHaveLength(1);
             expect(denialFeedback[0]).toContain('requires interactive approval');
@@ -470,8 +460,7 @@ ${ordinaryConfig}    requiresApproval: false
                 protectedConfigPath,
                 'run',
                 'attempt protected operation',
-                '--format',
-                format,
+                FORMAT_FLAGS[format],
             ]);
             const lines = stdout
                 .trim()
@@ -484,26 +473,26 @@ ${ordinaryConfig}    requiresApproval: false
                     content: 'approval denied; recovery complete',
                 });
             } else {
-                expect(lines.filter((line) => line.type === 'complete')).toHaveLength(1);
+                expect(lines.filter((line) => line.type === 'result')).toHaveLength(1);
                 expect(lines.at(-1)).toMatchObject({
-                    type: 'complete',
+                    type: 'result',
                     content: 'approval denied; recovery complete',
                 });
             }
             const result = lines.at(-1);
-            expect(result.approvalRequired).toEqual([
+            expect(result.permission_denials).toEqual([
                 expect.objectContaining({
-                    approvalId: expect.any(String),
-                    approvalType: 'tool_approval',
-                    sessionId: result.sessionId,
-                    toolName: 'protected_operation',
-                    toolCallId: 'protected-call',
+                    approval_id: expect.any(String),
+                    approval_type: 'tool_approval',
+                    session_id: result.session_id,
+                    tool_name: 'protected_operation',
+                    tool_call_id: 'protected-call',
                     message: expect.stringContaining('Dexto TUI'),
                 }),
             ]);
             if (format === 'jsonl')
                 expect(lines.filter((line) => line.type === 'approval_required')).toEqual([
-                    expect.objectContaining(result.approvalRequired[0]),
+                    expect.objectContaining(result.permission_denials[0]),
                 ]);
             expect(denialFeedback).toHaveLength(1);
             expect(denialFeedback[0]).toContain('requires interactive approval');
