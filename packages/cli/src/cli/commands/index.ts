@@ -45,7 +45,6 @@ export {
 // Auth commands
 
 // Billing commands
-export { showBillingStatus } from './billing/index.js';
 
 // Plugin commands
 export {

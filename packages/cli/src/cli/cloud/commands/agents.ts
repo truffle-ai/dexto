@@ -255,7 +255,7 @@ async function runTurn(
             else streamedText = renderEvent(context, event, streamedText);
             if (event.type === 'approval.requested') {
                 const decided = await decide(context, client, target, event);
-                if (!decided) return EXIT_CODES.needs_confirmation;
+                if (!decided) return EXIT_CODES.waiting_on_person;
             }
             if (event.type === 'run.completed') return 0;
             if (event.type === 'run.failed') return 1;

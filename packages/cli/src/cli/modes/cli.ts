@@ -245,7 +245,8 @@ export async function runCliMode(context: MainModeContext): Promise<void> {
                 currentSignIn: async () =>
                     describeSignIn(
                         await nodeSignInContext({
-                            print: () => undefined,
+                            result: () => undefined,
+                            confirm: async () => false,
                             note: () => undefined,
                             signal: new AbortController().signal,
                         })
@@ -254,7 +255,8 @@ export async function runCliMode(context: MainModeContext): Promise<void> {
                     const printed: string[] = [];
                     await login(
                         await nodeSignInContext({
-                            print: (text) => printed.push(text),
+                            result: (_value, text) => printed.push(text),
+                            confirm: async () => false,
                             note: onNote,
                             signal,
                         }),
@@ -273,7 +275,8 @@ export async function runCliMode(context: MainModeContext): Promise<void> {
                     const said: string[] = [];
                     await logout(
                         await nodeSignInContext({
-                            print: (text) => said.push(text),
+                            result: (_value, text) => said.push(text),
+                            confirm: async () => false,
                             note: (text) => said.push(text),
                             signal: new AbortController().signal,
                         }),

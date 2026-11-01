@@ -5,6 +5,7 @@ import { dextoAccounts } from '@dexto/agent-management';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { resolveConnection } from './connection.js';
 import { cloudCommands, CLOUD_GROUPS } from './host.js';
+import type { SignInFor } from './commands/account.js';
 import { runCloud, type CloudHost } from './run.js';
 import type { CloudRuntime } from './runtime.js';
 
@@ -94,8 +95,25 @@ describe('dexto cloud', () => {
                 stdout += text;
             },
         };
+        const signIn: SignInFor = async (io) => ({
+            ...io,
+            dir,
+            environment: {},
+            appUrl: 'https://app.dexto.ai',
+            apiBaseUrl: API,
+            canOpenBrowser: true,
+            dexto: {
+                signInWithBrowser: async () => signedIn(),
+                signInWithDevice: async () => signedIn(),
+                endSignIn: async () => ({ status: 'ended' }),
+                refreshSignIn: async (login) => login,
+                listProjects: async () => [],
+                acceptsApiKey: async () => true,
+            },
+        });
         host = {
-            commands: cloudCommands(dir),
+            commands: cloudCommands(dir, signIn),
+            signIn,
             groups: CLOUD_GROUPS,
             runtime,
             resolveConnection: (overrides) =>
@@ -233,5 +251,50 @@ describe('dexto cloud', () => {
             'dexto cloud projects create <name>',
             'dexto cloud projects use <project>',
         ]);
+    });
+
+    describe('who you are, your models and credits, under the same contract', () => {
+        it('says who commands act as, as JSON', async () => {
+            await dextoAccounts.writeLogin(dir, 'default', signedIn());
+
+            expect(await runCloud(host, ['whoami'])).toBe(0);
+
+            expect(JSON.parse(stdout)).toMatchObject({
+                as: 'person',
+                profile: 'default',
+                cloud_project: { id: 'prj_main', name: 'Main' },
+            });
+        });
+
+        it('is signed out with exit 3 and the command that signs in', async () => {
+            expect(await runCloud(host, ['whoami'])).toBe(3);
+            expect(JSON.parse(stderr)).toEqual({
+                error: { code: 'needs_sign_in', message: 'Not signed in.', fix: 'dexto login' },
+            });
+        });
+
+        it('asks before removing a sign-in: exit 4 with the command that goes ahead', async () => {
+            await dextoAccounts.writeLogin(dir, 'work', signedIn());
+
+            expect(await runCloud(host, ['accounts', 'remove', 'work'])).toBe(4);
+            expect(JSON.parse(stderr).error.fix).toBe('dexto accounts remove work --yes');
+            expect(await dextoAccounts.readLogin(dir, 'work')).not.toBeNull();
+        });
+
+        it('lists the models Dexto serves as dexto/<model>', async () => {
+            await dextoAccounts.writeLogin(dir, 'default', signedIn());
+            reply = () =>
+                Response.json({
+                    object: 'list',
+                    data: [{ id: 'openai/gpt-5', name: 'GPT-5', context_window: 400000 }],
+                });
+
+            expect(await runCloud(host, ['models', 'list'])).toBe(0);
+
+            expect(JSON.parse(stdout).data.map((model: { id: string }) => model.id)).toEqual([
+                'dexto/openai/gpt-5',
+            ]);
+            expect(requests[0]?.url).toBe(`${API}/v1/models`);
+        });
     });
 });

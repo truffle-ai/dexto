@@ -9,6 +9,10 @@ import { cloudCommands, CLOUD_GROUPS } from '../host.js';
 import { runCloud, type CloudHost } from '../run.js';
 import type { CloudRuntime } from '../runtime.js';
 
+const unusedSignIn = async (): Promise<never> => {
+    throw new Error('These tests sign in with a key or a saved login.');
+};
+
 describe('cloud secrets, web and data-deletions', () => {
     let dir: string;
     let stdout: string;
@@ -61,7 +65,8 @@ describe('cloud secrets, web and data-deletions', () => {
             },
         };
         host = {
-            commands: cloudCommands(dir),
+            commands: cloudCommands(dir, unusedSignIn),
+            signIn: unusedSignIn,
             groups: CLOUD_GROUPS,
             runtime,
             resolveConnection: (overrides) =>
@@ -479,7 +484,7 @@ describe('cloud secrets, web and data-deletions', () => {
             expect(stderr).toContain('Session ses_1');
         });
 
-        it('stops at an approval no one here can decide: exit 4 and how to decide it', async () => {
+        it('stops at an approval no one here can decide: exit 6, waiting on a person, and how to decide it', async () => {
             reply = (url) => {
                 if (url.endsWith('/sessions/ses_1/events'))
                     return sse([
@@ -507,7 +512,7 @@ describe('cloud secrets, web and data-deletions', () => {
                 'ses_1',
             ]);
 
-            expect(code).toBe(4);
+            expect(code).toBe(6);
             expect(stderr).toContain('dexto cloud agents approve agt_1 ses_1 apr_1');
             expect(requests.some((request) => request.url.includes('/approvals/'))).toBe(false);
         });

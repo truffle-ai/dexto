@@ -37,6 +37,10 @@ const TOOLS = [
     },
 ];
 
+const unusedSignIn = async (): Promise<never> => {
+    throw new Error('These tests sign in with a key or a saved login.');
+};
+
 describe('dexto workspace', () => {
     let dir: string;
     let stdout: string;
@@ -126,7 +130,8 @@ describe('dexto workspace', () => {
             },
         };
         host = {
-            commands: cloudCommands(dir),
+            commands: cloudCommands(dir, unusedSignIn),
+            signIn: unusedSignIn,
             groups: CLOUD_GROUPS,
             runtime,
             resolveConnection: (overrides) =>

@@ -3,6 +3,7 @@
 import { dextoGateway } from '@dexto/agent-management';
 import { getDextoGlobalPath } from '@dexto/core';
 import type { Command } from './command.js';
+import { accountCommands, type SignInFor } from './commands/account.js';
 import { agentCommands } from './commands/agents.js';
 import { apiCommands } from './commands/api.js';
 import { chatCommands } from './commands/chats.js';
@@ -24,6 +25,7 @@ import { workspaceCommands } from './commands/workspace.js';
 import { resolveConnection } from './connection.js';
 import type { CloudHost, Group } from './run.js';
 import { nodeCloudRuntime } from './runtime.js';
+import { DEXTO_CREDITS_URL } from '../auth/constants.js';
 
 /** Help's areas: what `dexto cloud` builds with. */
 export const CLOUD_GROUPS: Readonly<Record<string, readonly Group[]>> = {
@@ -45,8 +47,9 @@ export const CLOUD_GROUPS: Readonly<Record<string, readonly Group[]>> = {
 };
 
 /** Every ported cloud command; `dir` is where sign-ins are saved. */
-export function cloudCommands(dir: string): readonly Command[] {
+export function cloudCommands(dir: string, signIn: SignInFor): readonly Command[] {
     return [
+        ...accountCommands(signIn, DEXTO_CREDITS_URL),
         ...projectCommands,
         projectsUse(dir),
         ...agentCommands,
@@ -73,8 +76,11 @@ export function nodeCloudHost(signal: AbortSignal): CloudHost {
     const dir = getDextoGlobalPath('accounts');
     const runtime = nodeCloudRuntime(signal);
     const gateway = dextoGateway.defaultDextoGatewayOptions();
+    const signIn: SignInFor = async (io) =>
+        (await import('../commands/auth/sign-in-context.js')).nodeSignInContext(io);
     return {
-        commands: cloudCommands(dir),
+        commands: cloudCommands(dir, signIn),
+        signIn,
         groups: CLOUD_GROUPS,
         runtime,
         resolveConnection: (overrides) =>
@@ -85,18 +91,25 @@ export function nodeCloudHost(signal: AbortSignal): CloudHost {
                 refresh: gateway.refresh,
             }),
         signInForScope: async (overrides, scope) => {
-            const [{ login }, { nodeSignInContext }] = await Promise.all([
-                import('../commands/auth/sign-in-commands.js'),
-                import('../commands/auth/sign-in-context.js'),
-            ]);
-            await login(await nodeSignInContext(), {
-                profile: overrides.profile,
-                org: null,
-                device: false,
-                browser: true,
-                scopes: [scope],
-                apiKey: null,
-            });
+            const { login } = await import('../commands/auth/sign-in-commands.js');
+            // The sign-in's own words go to stderr: stdout is the command that runs again.
+            const toStderr = (text: string) => runtime.writeError(`${text}\n`);
+            await login(
+                await signIn({
+                    result: (_value, text) => toStderr(text),
+                    note: toStderr,
+                    confirm: async () => false,
+                    signal,
+                }),
+                {
+                    profile: overrides.profile,
+                    org: null,
+                    device: false,
+                    browser: true,
+                    scopes: [scope],
+                    apiKey: null,
+                }
+            );
             return true;
         },
     };

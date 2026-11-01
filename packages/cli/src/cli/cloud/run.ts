@@ -15,6 +15,7 @@ import {
     type OptionSpec,
     type SignInContext,
 } from './command.js';
+import type { SignInFor } from './commands/account.js';
 import type { Connection, ConnectionOverrides } from './connection.js';
 import {
     listWorkspaceApps,
@@ -38,6 +39,8 @@ export interface CloudHost {
     readonly runtime: CloudRuntime;
     /** The connection for these overrides; null when signed out. */
     readonly resolveConnection: (overrides: ConnectionOverrides) => Promise<Connection | null>;
+    /** The sign-in context login, logout, whoami and accounts run in. */
+    readonly signIn: SignInFor;
     /** Signs the profile in again asking for `scope`; true once it did. */
     readonly signInForScope: (overrides: ConnectionOverrides, scope: string) => Promise<boolean>;
 }
@@ -503,7 +506,8 @@ function groupHelp(host: CloudHost, words: readonly string[]): string {
             '',
             "Output is JSON when stdout isn't a terminal; a failure's JSON on stderr names the command",
             'that fixes it. Exit codes: 0 done, 1 failed, 2 usage, 3 needs sign-in or permission,',
-            '4 needs --yes (pass it only once your person has agreed), 5 not found.',
+            '4 needs --yes (pass it only once your person has agreed), 5 not found, 6 waiting on a',
+            'person (such as an approval).',
             '',
         ].join('\n');
     }
@@ -533,6 +537,7 @@ function groupHelpJson(host: CloudHost, words: readonly string[]): Record<string
             '3': 'needs sign-in or permission',
             '4': 'needs confirmation: pass --yes once your person has agreed',
             '5': 'not found',
+            '6': 'waiting on a person, such as an approval',
         },
         usage: `dexto ${words.join(' ')} <command>`,
     };

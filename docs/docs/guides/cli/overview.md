@@ -579,7 +579,7 @@ dexto cloud projects use Main      # act in another project; Dexto models bill i
 dexto cloud api GET /v1/agents     # call any /v1 operation directly
 ```
 
-Every cloud command takes `--json` or `--table`, `--api-key <key>`, `--profile <name>` and `--project <id>`. Output is JSON when stdout isn't a terminal, and a failure prints `{"error":{"code","message","fix"}}` on stderr, where `fix` is the command that fixes it. Exit codes: 0 done, 1 failed, 2 usage, 3 needs sign-in or permission, 4 needs `--yes` (pass it only once your person has agreed), 5 not found. A command that needs a permission your sign-in lacks offers, at a terminal, to sign in again for it.
+Every cloud command takes `--json` or `--table`, `--api-key <key>`, `--profile <name>` and `--project <id>`. Output is JSON when stdout isn't a terminal, and a failure prints `{"error":{"code","message","fix"}}` on stderr, where `fix` is the command that fixes it. Exit codes: 0 done, 1 failed, 2 usage, 3 needs sign-in or permission, 4 needs `--yes` (pass it only once your person has agreed), 5 not found, 6 waiting on a person (such as an agent run paused at an approval). `dexto login`, `logout`, `whoami`, `accounts`, `models list` and `billing` follow the same contract. A command that needs a permission your sign-in lacks offers, at a terminal, to sign in again for it.
 
 Deploy Sites and Functions with `dexto cloud sites deploy` and `dexto cloud functions deploy`, each packed with the project's own packer. Dexto 1.x's `dexto deploy` (workspace deploys) is gone in 2.0, along with `dexto --cloud-agent`; `dexto trace` and `dexto span` are also gone until a public `/v1` traces endpoint brings them back.
 

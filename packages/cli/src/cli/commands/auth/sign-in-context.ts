@@ -12,14 +12,21 @@ import type { SignInContext } from './sign-in-commands.js';
 
 /** Where results and notes go, and what cancels a sign-in; the terminal's by default. */
 export interface SignInIo {
-    readonly print: (text: string) => void;
+    readonly result: (value: unknown, text: string) => void;
     readonly note: (text: string) => void;
+    /** Asks the person; false when there is no one to ask. */
+    readonly confirm: (question: string) => Promise<boolean>;
     readonly signal: AbortSignal;
 }
 
 const TERMINAL: SignInIo = {
-    print: (text) => process.stdout.write(`${text}\n`),
+    result: (_value, text) => process.stdout.write(`${text}\n`),
     note: (text) => process.stderr.write(`${text}\n`),
+    confirm: async (question) => {
+        if (!process.stdin.isTTY) return false;
+        const answer = await p.confirm({ message: question, initialValue: false });
+        return answer === true;
+    },
     signal: new AbortController().signal,
 };
 
@@ -52,13 +59,9 @@ export async function nodeSignInContext(io: SignInIo = TERMINAL): Promise<SignIn
         environment: process.env,
         appUrl: DEXTO_PLATFORM_URL,
         apiBaseUrl: DEXTO_PUBLIC_API_URL,
-        print: io.print,
+        result: io.result,
         note: io.note,
-        confirm: async (question) => {
-            if (!process.stdin.isTTY) return false;
-            const answer = await p.confirm({ message: question, initialValue: false });
-            return answer === true;
-        },
+        confirm: io.confirm,
         canOpenBrowser: shouldAttemptBrowserLaunch(),
         dexto: {
             signInWithBrowser: (input) => dextoSignIn.signInWithBrowser(runtime, input),

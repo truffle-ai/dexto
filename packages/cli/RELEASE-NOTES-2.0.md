@@ -19,7 +19,7 @@ Draft for DEXTO-2031. Each 2.0 change a 1.x user notices is listed here as it la
 
 - `dexto cloud` builds in Dexto Cloud: `projects`, `agents`, `automations`, `files`, `sandboxes`, `secrets`, `sites`, `functions`, `models`, `search`, `fetch`, `data-deletions` and `api`. 1.x's `dexto cloud sources|search|describe` are gone; `dexto find` replaces them.
 - `dexto workspace` uses your workspace as you; `dexto publish`, `dexto profile` and `dexto skills push` are new.
-- Every cloud command prints JSON when stdout isn't a terminal, failures as `{"error":{"code","message","fix"}}` on stderr, and exits 0 done, 1 failed, 2 usage, 3 needs sign-in or permission, 4 needs `--yes`, 5 not found.
+- Every cloud command, and `login`, `logout`, `whoami`, `accounts`, `models list` and `billing`, prints JSON when stdout isn't a terminal (`--json` or `--table` to choose), failures as `{"error":{"code","message","fix"}}` on stderr, and exits 0 done, 1 failed, 2 usage, 3 needs sign-in or permission, 4 needs `--yes`, 5 not found, 6 waiting on a person.
 
 ## Output
 
