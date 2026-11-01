@@ -549,9 +549,9 @@ program
             '  dexto --prompt "query"   Start interactive CLI and run the prompt\n' +
             '  dexto run "query"        Run one-off headless task\n\n' +
             'Session Management Commands:\n' +
-            '  dexto session list              List all sessions\n' +
-            '  dexto session history [id]      Show session history\n' +
-            '  dexto session delete <id>       Delete a session\n' +
+            "  dexto chat list                 List this machine's chats\n" +
+            "  dexto chat history [id]         Show a chat's messages\n" +
+            '  dexto chat delete <id>          Delete a chat\n' +
             '  dexto search <query>            Search across sessions\n' +
             '    Options: --session <id>, --role <user|assistant>, --limit <n>\n\n' +
             'Agent Selection:\n' +

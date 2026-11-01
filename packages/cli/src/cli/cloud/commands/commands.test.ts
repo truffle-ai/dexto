@@ -30,6 +30,7 @@ describe('cloud secrets, web and data-deletions', () => {
         const runtime: CloudRuntime = {
             color: false,
             environment: { DEXTO_API_KEY: 'dxt_key' },
+            homeDirectory: os.tmpdir(),
             fetch: async (input, init) => {
                 const request = new globalThis.Request(input, init);
                 const text = await request.text();

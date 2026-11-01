@@ -1,6 +1,7 @@
 // The process the cloud commands run in, injected so tests drive the public command boundary.
 
 import { spawn } from 'node:child_process';
+import { homedir } from 'node:os';
 import { createInterface } from 'node:readline/promises';
 import { setTimeout as delay } from 'node:timers/promises';
 import chalk from 'chalk';
@@ -10,6 +11,8 @@ export interface CloudRuntime {
     readonly color: boolean;
     readonly environment: Readonly<Record<string, string | undefined>>;
     readonly fetch: typeof globalThis.fetch;
+    /** Where other agents keep their chats, such as ~/.claude and ~/.codex. */
+    readonly homeDirectory: string;
     /** Asks the person at the terminal; null when stdin is not a terminal. */
     readonly prompt: ((question: string, options: { secret: boolean }) => Promise<string>) | null;
     /** All of stdin as text, for piped input. */
@@ -41,6 +44,7 @@ export function nodeCloudRuntime(signal: AbortSignal): CloudRuntime {
         color: process.stdout.isTTY === true && chalk.level > 0,
         environment: process.env,
         fetch: globalThis.fetch.bind(globalThis),
+        homeDirectory: homedir(),
         prompt: process.stdin.isTTY === true ? promptAtTerminal : null,
         readStdin: async () => {
             const chunks: Buffer[] = [];

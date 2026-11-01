@@ -5,6 +5,7 @@ import { getDextoGlobalPath } from '@dexto/core';
 import type { Command } from './command.js';
 import { agentCommands } from './commands/agents.js';
 import { apiCommands } from './commands/api.js';
+import { chatCommands } from './commands/chats.js';
 import { automationCommands } from './commands/automations.js';
 import { dataDeletionCommands } from './commands/data-deletions.js';
 import { deployCommands } from './commands/deploys.js';
@@ -64,6 +65,7 @@ export function cloudCommands(dir: string): readonly Command[] {
         ...profileCommands,
         ...publishCommands,
         ...skillCommands,
+        ...chatCommands,
     ];
 }
 

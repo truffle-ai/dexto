@@ -152,7 +152,7 @@ export async function handleSessionHistoryCommand(
     } catch (error) {
         if (error instanceof Error && error.message.includes('not found')) {
             console.log(chalk.red(`❌ Session not found: ${sessionId || 'current'}`));
-            console.log(chalk.gray('   Use `dexto session list` to see available sessions'));
+            console.log(chalk.gray('   Use `dexto chat list` to see available sessions'));
         } else if (error instanceof Error && error.message !== 'No sessions found') {
             logger.error(`Failed to get session history: ${error.message}`, null, 'red');
         }
