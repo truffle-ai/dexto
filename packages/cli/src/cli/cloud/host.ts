@@ -10,6 +10,9 @@ import { dataDeletionCommands } from './commands/data-deletions.js';
 import { deployCommands } from './commands/deploys.js';
 import { driveCommands } from './commands/drive.js';
 import { findCommands } from './commands/find.js';
+import { profileCommands } from './commands/profile.js';
+import { publishCommands } from './commands/publish.js';
+import { skillCommands } from './commands/skills.js';
 import { fileCommands } from './commands/files.js';
 import { modelCommands } from './commands/models.js';
 import { projectCommands, projectsUse } from './commands/projects.js';
@@ -58,6 +61,9 @@ export function cloudCommands(dir: string): readonly Command[] {
         ...workspaceCommands,
         ...driveCommands,
         ...findCommands,
+        ...profileCommands,
+        ...publishCommands,
+        ...skillCommands,
     ];
 }
 

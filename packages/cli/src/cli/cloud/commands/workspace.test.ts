@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { dextoAccounts } from '@dexto/agent-management';
@@ -18,6 +18,15 @@ const TOOLS = [
         _meta: { 'dexto/app': 'search', 'dexto/level': 'read' },
     },
     {
+        name: 'dexto_site_publish',
+        title: 'Publish a link',
+        inputSchema: {
+            type: 'object',
+            properties: { name: { type: 'string' }, confirm: { type: 'boolean' } },
+        },
+        _meta: { 'dexto/app': 'sites', 'dexto/level': 'act' },
+    },
+    {
         name: 'dexto_email_send',
         title: 'Send an email',
         inputSchema: {
@@ -35,6 +44,7 @@ describe('dexto workspace', () => {
     let calls: { method: string; params: { name?: string; arguments?: unknown } }[];
     let authorization: (string | null)[];
     let environment: Record<string, string>;
+    let uploads: { url: string; method: string; bytes: Uint8Array }[];
     let host: CloudHost;
 
     beforeEach(async () => {
@@ -44,6 +54,7 @@ describe('dexto workspace', () => {
         calls = [];
         authorization = [];
         environment = {};
+        uploads = [];
         await dextoAccounts.writeLogin(dir, 'default', {
             kind: 'oauth',
             accessToken: 'access-1',
@@ -54,7 +65,7 @@ describe('dexto workspace', () => {
             apiBaseUrl: 'https://api.dexto.ai',
             resource: MCP,
             tokenEndpoint: 'https://app.dexto.ai/api/oauth/token',
-            scopes: ['cloud:read', 'email:send'],
+            scopes: ['cloud:read', 'email:send', 'sites:write'],
             savedAt: '2026-11-01T00:00:00.000Z',
             signedInAs: null,
             cloudProject: null,
@@ -66,16 +77,36 @@ describe('dexto workspace', () => {
                 const request = new globalThis.Request(input, init);
                 if (request.url.endsWith('/.well-known/oauth-protected-resource/mcp'))
                     return Response.json({ resource: MCP, dexto_app_scopes: {} });
+                if (request.url.startsWith('https://upload.example/')) {
+                    uploads.push({
+                        url: request.url,
+                        method: request.method,
+                        bytes: new Uint8Array(await request.arrayBuffer()),
+                    });
+                    return new Response(null, { status: 200 });
+                }
                 if (request.url !== MCP) return Response.json({}, { status: 404 });
                 authorization.push(request.headers.get('authorization'));
                 const message = JSON.parse(await request.text());
                 calls.push({ method: message.method, params: message.params });
+                const tool = message.params?.name;
+                const structured =
+                    tool === 'dexto_upload_prepare'
+                        ? {
+                              url: 'https://upload.example/u1',
+                              method: 'PUT',
+                              headers: {},
+                              path: 'uploads/u1.zip',
+                          }
+                        : tool === 'dexto_site_publish'
+                          ? { created: true, files: 2, url: 'https://hello.dexto.page' }
+                          : { status: 'sent' };
                 const result =
                     message.method === 'tools/list'
                         ? { tools: TOOLS }
                         : {
-                              content: [{ type: 'text', text: 'Sent.' }],
-                              structuredContent: { status: 'sent' },
+                              content: [{ type: 'text', text: 'ok' }],
+                              structuredContent: structured,
                           };
                 return Response.json({ jsonrpc: '2.0', id: message.id, result });
             },
@@ -118,6 +149,7 @@ describe('dexto workspace', () => {
         expect(JSON.parse(stdout).apps.map((app: { id: string }) => app.id)).toEqual([
             'email',
             'search',
+            'sites',
         ]);
         expect(authorization[0]).toBe('Bearer access-1');
     });
@@ -167,5 +199,33 @@ describe('dexto workspace', () => {
 
     it('answers an app it does not have with exit 2', async () => {
         expect(await runCloud(host, ['workspace', 'nope'])).toBe(2);
+    });
+
+    it('publishes a folder as a zip, uploaded where Dexto says, once agreed', async () => {
+        const folder = path.join(path.dirname(dir), 'hello');
+        await mkdir(folder, { recursive: true });
+        await writeFile(path.join(folder, 'index.html'), '<h1>hi</h1>');
+        await writeFile(path.join(folder, 'style.css'), 'h1{}');
+        await writeFile(path.join(folder, '.secret'), 'left out');
+
+        expect(await runCloud(host, ['publish', folder])).toBe(4);
+        expect(uploads).toHaveLength(0);
+
+        const code = await runCloud(host, ['publish', folder, '--yes', '--table']);
+
+        expect(code).toBe(0);
+        expect(uploads).toHaveLength(1);
+        expect(uploads[0]?.method).toBe('PUT');
+        expect(new globalThis.TextDecoder().decode(uploads[0]?.bytes.slice(0, 2))).toBe('PK');
+        expect(calls.at(-1)).toEqual({
+            method: 'tools/call',
+            params: {
+                name: 'dexto_site_publish',
+                arguments: { name: 'hello', uploadPath: 'uploads/u1.zip', confirm: true },
+            },
+        });
+        expect(stdout).toContain(
+            'Published hello at https://hello.dexto.page (2 files). Anyone with the link can open it.'
+        );
     });
 });
