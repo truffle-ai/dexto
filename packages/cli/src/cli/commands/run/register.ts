@@ -1,6 +1,5 @@
-import { Option } from 'commander';
 import { handleHeadlessApproval } from '../../approval/headless-approval-handler.js';
-import { writeHeadlessResult, type HeadlessOutputFormat } from './output.js';
+import { chooseHeadlessOutput, writeHeadlessResult } from './output.js';
 import type { HeadlessRunResult } from './headless.js';
 import { resolveAgentPath } from '@dexto/agent-management';
 import type { DextoAgent } from '@dexto/core';
@@ -16,11 +15,9 @@ export function registerRunCommand({
         .command('run [prompt]')
         .description('Run a single prompt non-interactively (headless mode)')
         .option('-m, --model <model>', 'Specify the LLM model to use for this run')
-        .addOption(
-            new Option('--format <format>', 'Output format')
-                .choices(['text', 'json', 'jsonl'])
-                .default('text')
-        )
+        .option('--json', 'Print one JSON result (the default when stdout is not a terminal)')
+        .option('--stream-json', 'Print JSON events, one per line, ending with one result')
+        .option('--text', 'Print only the reply (the default at a terminal)')
         .addHelpText(
             'after',
             `
@@ -28,6 +25,11 @@ Examples:
   $ dexto run "summarize this repository"
   $ echo "fix lint errors" | dexto run
   $ dexto run - < prompt.txt
+  $ dexto run "list the TODOs" --stream-json
+
+Approvals no one here can give are refused and listed in the result's permission_denials.
+Exit codes: 0 done, 1 failed, 2 usage, 3 needs sign-in or permission, 4 needs confirmation,
+5 not found, 6 waiting on a person.
 `
         )
         .action(
@@ -35,13 +37,25 @@ Examples:
                 'run',
                 async (
                     promptArg: string | undefined,
-                    runOptions: { model?: string; format: HeadlessOutputFormat }
+                    runOptions: {
+                        model?: string;
+                        json?: boolean;
+                        streamJson?: boolean;
+                        text?: boolean;
+                    }
                 ) => {
+                    const format = chooseHeadlessOutput(runOptions, process.stdout.isTTY === true);
+                    if (format === null) {
+                        process.stderr.write('Pass --json, --stream-json or --text, only one.\n');
+                        safeExit('run', 2, 'usage');
+                        return;
+                    }
                     let agent: DextoAgent | undefined;
                     let sessionId: string | undefined;
                     let result: HeadlessRunResult = {};
                     let exitCode = 0;
                     let exitReason = 'ok';
+                    let errorCode: 'usage' | 'failed' = 'failed';
 
                     try {
                         const {
@@ -57,8 +71,9 @@ Examples:
                         if (prompt.trim().length === 0) {
                             writeHeadlessError('Prompt cannot be empty.');
                             result = { fatalError: new Error('Prompt cannot be empty.') };
-                            exitCode = 1;
+                            exitCode = 2;
                             exitReason = 'empty-prompt';
+                            errorCode = 'usage';
                         } else {
                             const bootstrapOptions = runOptions.model
                                 ? { mode: 'headless-run' as const, modelOverride: runOptions.model }
@@ -90,7 +105,7 @@ Examples:
                                 agent,
                                 session.id,
                                 prompt,
-                                runOptions.format
+                                format
                             );
                             result = runResult;
 
@@ -99,7 +114,7 @@ Examples:
                                     runResult.finalMessage,
                                     runResult.totalTokens
                                 );
-                                if (runOptions.format === 'text') {
+                                if (format === 'text') {
                                     writeFinalMessageToStdout(runResult.finalMessage);
                                 }
                             } else {
@@ -138,7 +153,7 @@ Examples:
                         }
                     }
 
-                    await writeHeadlessResult(runOptions.format, result, sessionId);
+                    await writeHeadlessResult(format, result, sessionId, errorCode);
                     safeExit('run', exitCode, exitReason);
                 }
             )

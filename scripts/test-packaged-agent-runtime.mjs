@@ -137,7 +137,7 @@ tools:
     securityLevel: moderate
 `
     );
-    for (const format of ['json', 'jsonl']) {
+    for (const format of ['json', 'stream-json']) {
         toolStep = 0;
         finalToolMessages = [];
         const { stdout } = await cli([
@@ -145,20 +145,16 @@ tools:
             'coding-agent',
             'run',
             'Exercise local tools',
-            '--format',
-            format,
+            `--${format}`,
         ]);
         const events = stdout
             .trim()
             .split('\n')
             .map((line) => JSON.parse(line));
-        if (format === 'json') {
-            assert.equal(events.length, 1);
-            assert.equal(events[0].status, 'completed');
-        } else {
-            assert.equal(events.filter((event) => event.type === 'complete').length, 1);
-            assert.equal(events.at(-1).type, 'complete');
-        }
+        if (format === 'json') assert.equal(events.length, 1);
+        assert.equal(events.filter((event) => event.type === 'result').length, 1);
+        assert.equal(events.at(-1).type, 'result');
+        assert.equal(events.at(-1).status, 'completed');
         assert.equal(events.at(-1).content, content);
         assert.equal(toolStep, 5);
         assert.equal(finalToolMessages.length, 4);

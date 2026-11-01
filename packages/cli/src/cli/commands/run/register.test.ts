@@ -13,6 +13,7 @@ vi.mock('@dexto/agent-management', () => ({ resolveAgentPath: vi.fn(async () => 
 vi.mock('@dexto/core', () => ({
     safeStringify: JSON.stringify,
     isTextPart: (part: { type: string }) => part.type === 'text',
+    ApprovalType: { TOOL_APPROVAL: 'tool_approval', COMMAND_APPROVAL: 'command_approval' },
 }));
 
 function streamingAgent(events: StreamingEvent[]): DextoAgent {
@@ -73,10 +74,51 @@ describe('dexto run output', () => {
         return { bootstrap, agent };
     }
 
-    it('keeps plain assistant output as the default and diagnostics on stderr', async () => {
-        await run(['task'], streamingAgent([response]));
+    it('prints the plain reply with --text, diagnostics on stderr', async () => {
+        await run(['task', '--text'], streamingAgent([response]));
         expect(stdout.join('')).toBe('done\n');
         expect(stderr.join('')).toContain('[RUN]');
+    });
+
+    it('prints JSON by default when stdout is not a terminal', async () => {
+        await run(['task'], streamingAgent([response]));
+        expect(JSON.parse(stdout.join(''))).toMatchObject({ type: 'result', status: 'completed' });
+    });
+
+    it('lists approvals no one could give as permission denials, and still completes', async () => {
+        await run(
+            ['task', '--stream-json'],
+            streamingAgent([
+                {
+                    name: 'approval:request',
+                    type: 'tool_approval',
+                    approvalId: 'apr-1',
+                    sessionId: 'session-1',
+                    metadata: { toolName: 'bash_exec', toolCallId: 'call-9', args: {} },
+                    timestamp: new Date(),
+                } as unknown as StreamingEvent,
+                response,
+            ])
+        );
+        const lines = stdout
+            .join('')
+            .trim()
+            .split('\n')
+            .map((line) => JSON.parse(line));
+        const denial = {
+            approval_id: 'apr-1',
+            session_id: 'session-1',
+            approval_type: 'tool_approval',
+            tool_name: 'bash_exec',
+            tool_call_id: 'call-9',
+        };
+        expect(lines[0]).toMatchObject({ type: 'approval_required', ...denial });
+        expect(lines.at(-1)).toMatchObject({
+            type: 'result',
+            status: 'completed',
+            permission_denials: [expect.objectContaining(denial)],
+        });
+        expect(safeExit).toHaveBeenCalledWith('run', 0, 'ok');
     });
 
     it('keeps a final response followed by a fatal error failed', async () => {
@@ -89,50 +131,33 @@ describe('dexto run output', () => {
                 sessionId: 'session-1',
             } as StreamingEvent,
         ]);
-        await run(['task', '--format', 'json'], agent);
+        await run(['task', '--json'], agent);
         expect(JSON.parse(stdout.join(''))).toEqual({
-            version: 1,
+            type: 'result',
             status: 'failed',
-            sessionId: 'session-1',
+            session_id: 'session-1',
             content: 'done',
-            error: 'provider failed',
+            error: { code: 'failed', message: 'provider failed' },
+            permission_denials: [],
         });
         expect(safeExit).toHaveBeenCalledWith('run', 1, 'fatal-error');
         expect(agent.stop).toHaveBeenCalledOnce();
     });
 
-    it('rejects an unsupported format before starting an agent', async () => {
-        const program = new Command().exitOverride();
-        const bootstrap = vi.fn();
-        registerRunCommand({
-            program,
-            cliVersion: 'test',
-            bootstrapAgentFromGlobalOpts: bootstrap,
-        });
-        await expect(
-            program.parseAsync(['run', 'task', '--format', 'yaml'], { from: 'user' })
-        ).rejects.toThrow('Allowed choices');
-        expect(bootstrap).not.toHaveBeenCalled();
-        expect(stdout).toEqual([]);
-    });
-
-    it('includes total token usage in the terminal JSON result', async () => {
-        await run(
-            ['task', '--format', 'json'],
-            streamingAgent([{ ...response, tokenUsage: { totalTokens: 42 } } as StreamingEvent])
+    it('refuses --json with --stream-json before starting an agent: exit 2', async () => {
+        const { bootstrap } = await run(
+            ['task', '--json', '--stream-json'],
+            streamingAgent([response])
         );
-        expect(JSON.parse(stdout.join(''))).toEqual({
-            version: 1,
-            status: 'completed',
-            sessionId: 'session-1',
-            content: 'done',
-            totalTokens: 42,
-        });
+        expect(bootstrap).not.toHaveBeenCalled();
+        expect(safeExit).toHaveBeenCalledWith('run', 2, 'usage');
+        expect(stdout).toEqual([]);
+        expect(stderr.join('')).toContain('Pass --json, --stream-json or --text, only one.');
     });
 
     it('reports recoverable errors, warnings, and tool results without failing successful work', async () => {
         await run(
-            ['task', '--format', 'jsonl'],
+            ['task', '--stream-json'],
             streamingAgent([
                 {
                     name: 'llm:error',
@@ -162,65 +187,71 @@ describe('dexto run output', () => {
             .split('\n')
             .map((line) => JSON.parse(line));
         expect(lines.slice(0, 3)).toEqual([
-            { version: 1, type: 'run_error', recoverable: true, error: 'retry' },
-            { version: 1, type: 'warning', errors: ['attachment skipped'] },
+            { type: 'run_error', recoverable: true, error: 'retry' },
+            { type: 'warning', errors: ['attachment skipped'] },
             {
-                version: 1,
                 type: 'tool_result',
-                toolName: 'read_file',
+                tool_name: 'read_file',
                 success: false,
                 error: 'missing file',
-                callId: 'call-1',
+                call_id: 'call-1',
             },
         ]);
         expect(lines.at(-1)).toEqual({
-            version: 1,
-            type: 'complete',
-            sessionId: 'session-1',
+            type: 'result',
+            status: 'completed',
+            session_id: 'session-1',
             content: 'done',
+            permission_denials: [],
         });
         expect(safeExit).toHaveBeenCalledWith('run', 0, 'ok');
     });
 
     it('rejects an empty prompt with a structured result before bootstrap', async () => {
-        const { bootstrap } = await run([' ', '--format', 'json'], streamingAgent([response]));
+        const { bootstrap } = await run([' ', '--json'], streamingAgent([response]));
         expect(JSON.parse(stdout.join(''))).toEqual({
-            version: 1,
+            type: 'result',
             status: 'failed',
-            error: 'Prompt cannot be empty.',
+            error: { code: 'usage', message: 'Prompt cannot be empty.' },
+            permission_denials: [],
         });
         expect(bootstrap).not.toHaveBeenCalled();
-        expect(safeExit).toHaveBeenCalledWith('run', 1, 'empty-prompt');
+        expect(safeExit).toHaveBeenCalledWith('run', 2, 'empty-prompt');
     });
 
     it('emits one JSONL failure when no final response is produced', async () => {
         const agent = streamingAgent([]);
-        await run(['task', '--format', 'jsonl'], agent);
+        await run(['task', '--stream-json'], agent);
         expect(stdout).toHaveLength(1);
         expect(JSON.parse(stdout.join(''))).toEqual({
-            version: 1,
-            type: 'error',
-            sessionId: 'session-1',
-            error: 'No final response was produced.',
+            type: 'result',
+            status: 'failed',
+            session_id: 'session-1',
+            error: { code: 'failed', message: 'No final response was produced.' },
+            permission_denials: [],
         });
         expect(safeExit).toHaveBeenCalledWith('run', 1, 'no-final-response');
         expect(agent.stop).toHaveBeenCalledOnce();
     });
 
     it('writes a structured failure when bootstrap throws', async () => {
-        await run(['task', '--format', 'json'], new Error('Missing model credentials'));
+        await run(['task', '--json'], new Error('Missing model credentials'));
         expect(stdout).toHaveLength(1);
         expect(JSON.parse(stdout.join(''))).toEqual({
-            version: 1,
+            type: 'result',
             status: 'failed',
-            error: 'Missing model credentials',
+            error: { code: 'failed', message: 'Missing model credentials' },
+            permission_denials: [],
         });
+        expect(stderr.join('')).toContain(
+            JSON.stringify({ error: { code: 'failed', message: 'Missing model credentials' } })
+        );
         expect(safeExit).toHaveBeenCalledWith('run', 1, 'error');
     });
 
     it('streams JSONL events and includes final content in one terminal result', async () => {
         await run(
-            ['task', '--format', 'jsonl'],
+            ['task', '--stream-json'],
             streamingAgent([
                 { name: 'llm:chunk', content: 'do', sessionId: 'session-1' } as StreamingEvent,
                 {
@@ -239,22 +270,27 @@ describe('dexto run output', () => {
             .split('\n')
             .map((line) => JSON.parse(line));
         expect(lines).toEqual([
-            { version: 1, type: 'message_delta', content: 'do' },
+            { type: 'message_delta', content: 'do' },
             {
-                version: 1,
                 type: 'tool_call',
-                toolName: 'read_file',
+                tool_name: 'read_file',
                 args: { path: 'README.md' },
-                callId: 'call-1',
+                call_id: 'call-1',
             },
-            { version: 1, type: 'response', content: 'done' },
-            { version: 1, type: 'complete', sessionId: 'session-1', content: 'done' },
+            { type: 'response', content: 'done' },
+            {
+                type: 'result',
+                status: 'completed',
+                session_id: 'session-1',
+                content: 'done',
+                permission_denials: [],
+            },
         ]);
     });
 
     it('resets abandoned reasoning before retry output in JSONL', async () => {
         await run(
-            ['task', '--format', 'jsonl'],
+            ['task', '--stream-json'],
             streamingAgent([
                 {
                     name: 'llm:chunk',
@@ -288,17 +324,23 @@ describe('dexto run output', () => {
             .split('\n')
             .map((line) => JSON.parse(line));
         expect(lines).toEqual([
-            { version: 1, type: 'message_delta', content: 'abandoned reasoning' },
-            { version: 1, type: 'message_reset', reason: 'empty_response' },
-            { version: 1, type: 'message_delta', content: 'done' },
-            { version: 1, type: 'response', content: 'done' },
-            { version: 1, type: 'complete', sessionId: 'session-1', content: 'done' },
+            { type: 'message_delta', content: 'abandoned reasoning' },
+            { type: 'message_reset', reason: 'empty_response' },
+            { type: 'message_delta', content: 'done' },
+            { type: 'response', content: 'done' },
+            {
+                type: 'result',
+                status: 'completed',
+                session_id: 'session-1',
+                content: 'done',
+                permission_denials: [],
+            },
         ]);
     });
 
     it('does not reset JSONL output for a transient-error retry', async () => {
         await run(
-            ['task', '--format', 'jsonl'],
+            ['task', '--stream-json'],
             streamingAgent([
                 {
                     name: 'llm:retrying',
@@ -320,8 +362,14 @@ describe('dexto run output', () => {
             .split('\n')
             .map((line) => JSON.parse(line));
         expect(lines).toEqual([
-            { version: 1, type: 'response', content: 'done' },
-            { version: 1, type: 'complete', sessionId: 'session-1', content: 'done' },
+            { type: 'response', content: 'done' },
+            {
+                type: 'result',
+                status: 'completed',
+                session_id: 'session-1',
+                content: 'done',
+                permission_denials: [],
+            },
         ]);
     });
 
@@ -334,7 +382,7 @@ describe('dexto run output', () => {
                 return false;
             }
         );
-        const completion = run(['task', '--format', 'json'], streamingAgent([response]));
+        const completion = run(['task', '--json'], streamingAgent([response]));
         await vi.waitFor(() => expect(stdout).toHaveLength(1));
         expect(safeExit).not.toHaveBeenCalled();
         expect(finishWrite).toBeDefined();
@@ -353,7 +401,7 @@ describe('dexto run output', () => {
             }
         );
         const completion = run(
-            ['task', '--format', 'jsonl'],
+            ['task', '--stream-json'],
             streamingAgent([
                 { name: 'llm:chunk', content: 'do', sessionId: 'session-1' } as StreamingEvent,
                 response,
@@ -374,13 +422,14 @@ describe('dexto run output', () => {
 
     it('writes a single JSON result rather than plain assistant text', async () => {
         const agent = streamingAgent([response]);
-        await run(['task', '--format', 'json'], agent);
+        await run(['task', '--json'], agent);
         expect(stdout).toHaveLength(1);
         expect(JSON.parse(stdout.join(''))).toEqual({
-            version: 1,
+            type: 'result',
             status: 'completed',
-            sessionId: 'session-1',
+            session_id: 'session-1',
             content: 'done',
+            permission_denials: [],
         });
         expect(safeExit).toHaveBeenCalledWith('run', 0, 'ok');
         expect(agent.stop).toHaveBeenCalledOnce();

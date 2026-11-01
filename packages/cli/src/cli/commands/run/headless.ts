@@ -253,14 +253,14 @@ export async function executeHeadlessRun(
 
     try {
         for await (const event of await agent.stream(prompt, sessionId)) {
-            if (format === 'jsonl') await writeHeadlessEvent(event);
+            if (format === 'stream-json') await writeHeadlessEvent(event);
             switch (event.name) {
                 case 'approval:request': {
                     const required = toHeadlessApprovalRequired(event);
                     approvalRequired.push(required);
                     writeHeadlessTaggedLine(
                         'APPROVAL_REQUIRED',
-                        `${'toolName' in required ? required.toolName : required.approvalType}: ${required.message} (approval ${required.approvalId})`
+                        `${'tool_name' in required ? required.tool_name : required.approval_type}: ${required.message} (approval ${required.approval_id})`
                     );
                     break;
                 }
