@@ -18,6 +18,7 @@
     { "path": "../agent-management" },
     { "path": "../analytics" },
     { "path": "../client-sdk" },
+    { "path": "../cloud-client" },
     { "path": "../core" },
     { "path": "../image-local" },
     { "path": "../image-logger-agent" },
