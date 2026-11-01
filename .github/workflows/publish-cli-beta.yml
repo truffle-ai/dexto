@@ -43,7 +43,7 @@ jobs:
           set -euo pipefail
           [[ "$BETA" =~ ^[0-9]+$ ]] || { echo "beta must be a whole number, such as 0" >&2; exit 1; }
           for target in packages/cli:2.0.0 packages/agent-management:1.15.0 packages/tui:1.15.0 packages/cloud-client:1.15.0 packages/server:1.15.0 packages/analytics:1.15.0 packages/image-local:1.15.0 packages/image-logger-agent:1.15.0; do
-            (cd "${target%%:*}" && npm pkg set version="${target#*:}-beta.${BETA}")
+            VERSION="${target#*:}-beta.${BETA}" node -e 'const fs = require("fs"); const path = process.argv[1] + "/package.json"; const pkg = JSON.parse(fs.readFileSync(path, "utf8")); pkg.version = process.env.VERSION; fs.writeFileSync(path, JSON.stringify(pkg, null, 4) + "\n");' "${target%%:*}"
           done
 
       - run: pnpm run build
@@ -57,4 +57,4 @@ jobs:
           for dir in packages/cloud-client packages/agent-management packages/analytics packages/image-local packages/image-logger-agent packages/server packages/tui packages/cli; do
             (cd "$dir" && pnpm publish --tag next --access public --no-git-checks)
           done
-          npm view dexto dist-tags
+          pnpm view dexto dist-tags
