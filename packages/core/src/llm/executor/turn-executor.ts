@@ -2030,6 +2030,10 @@ export class TurnExecutor {
 
         let prepared: PreparedToolCall;
         try {
+            // The model was never offered an unlisted tool, so its call is refused as unknown.
+            if (!this.toolManager.isListedForModel(toolCall.toolName)) {
+                throw new Error(`Tool '${toolCall.toolName}' not found`);
+            }
             prepared = await this.toolManager.prepareToolCall({
                 toolName: toolCall.toolName,
                 input: toolCall.input,

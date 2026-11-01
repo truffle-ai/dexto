@@ -886,6 +886,11 @@ export class ToolManager {
         return descriptors;
     }
 
+    /** Whether the model is offered this tool; only an unlisted local tool is not. */
+    isListedForModel(toolName: string): boolean {
+        return this.agentTools.get(toolName)?.modelListing !== 'unlisted';
+    }
+
     /** Whether a successful call of this local tool with this input ends the turn. */
     endsTurn(toolName: string, input: unknown): boolean {
         const endsTurn = this.agentTools.get(toolName)?.endsTurn;
@@ -1164,6 +1169,7 @@ export class ToolManager {
 
         // Add local tools
         for (const [toolName, tool] of this.agentTools) {
+            if (tool.modelListing === 'unlisted') continue;
             const description = await this.getLocalToolDescription(tool);
 
             allTools[toolName] = {
