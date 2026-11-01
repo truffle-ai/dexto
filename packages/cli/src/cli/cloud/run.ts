@@ -16,6 +16,11 @@ import {
     type SignInContext,
 } from './command.js';
 import type { Connection, ConnectionOverrides } from './connection.js';
+import {
+    listWorkspaceApps,
+    runWorkspaceApp,
+    type WorkspaceApp,
+} from './commands/workspace-apps.js';
 import { createOutput, type OutputFormat } from './output.js';
 import type { CloudRuntime } from './runtime.js';
 
@@ -98,6 +103,10 @@ async function run(host: CloudHost, argv: readonly string[], mayGrant: boolean):
         );
     }
     const { command, words, rest } = matchCommand(host.commands, globals.rest);
+    // `workspace` alone lists the apps; `workspace <app> …` is one of them, its operations from the
+    // server. The CLI's own `workspace` commands, such as `tools` and `drive put`, match above.
+    if (command === null && words[0] === 'workspace')
+        return await runWorkspace(host, globals, argv, mayGrant);
     if (command === null) {
         if (!host.commands.some((each) => startsWith(each.path, words)))
             return reportError(
@@ -145,6 +154,79 @@ async function run(host: CloudHost, argv: readonly string[], mayGrant: boolean):
             return await run(host, argv, false);
         return reportError(signIn, output.json, commandHelp(command), error);
     }
+}
+
+/** `workspace` or `workspace <app> [operation] [action] [--field value…]`. */
+async function runWorkspace(
+    host: CloudHost,
+    globals: Globals,
+    argv: readonly string[],
+    mayGrant: boolean
+): Promise<number> {
+    const output = createOutput(host.runtime, globals.format);
+    const context = contextFor(host, globals, output);
+    const args = globals.rest.slice(1);
+    try {
+        if (args.every((arg) => arg.startsWith('-'))) {
+            const apps = await listWorkspaceApps(context);
+            return printHelp(host.runtime, globals, workspaceHelp(host, apps), {
+                apps,
+                ...groupHelpJson(host, ['workspace']),
+            });
+        }
+        const appId = args[0] ?? '';
+        return await runWorkspaceApp(
+            context,
+            args,
+            globals.help,
+            host.commands
+                .filter((each) => each.path[0] === 'workspace' && each.path[1] === appId)
+                .map((each) => ({
+                    name: each.path.slice(2).join(' '),
+                    summary: each.summary,
+                    usage: `dexto ${usage(each)}`,
+                }))
+        );
+    } catch (thrown) {
+        const error = asMissingScope(context, thrown);
+        if (
+            mayGrant &&
+            error instanceof MissingScopeFailure &&
+            host.runtime.prompt !== null &&
+            !output.json &&
+            (await askToGrant(host, globals.overrides, error))
+        )
+            return await run(host, argv, false);
+        return reportError(context, output.json, workspaceHelp(host, null), error);
+    }
+}
+
+/** The workspace's apps, when listed, and the CLI's own workspace commands. */
+function workspaceHelp(host: CloudHost, apps: readonly WorkspaceApp[] | null): string {
+    const commands = host.commands.filter((command) => command.path[0] === 'workspace');
+    const usages = commands.map((command) => usage(command));
+    const width = Math.max(...usages.map((line) => line.length));
+    return [
+        'Usage: dexto workspace <app> [operation] [--field value…] [--yes]',
+        '       dexto workspace <command>',
+        '',
+        'Use your Dexto workspace as yourself: the apps and tools your agents use over the Dexto MCP.',
+        '',
+        "Your workspace's apps (dexto workspace <app> lists what each does):",
+        ...(apps === null
+            ? ['  Run dexto workspace while signed in to list them.']
+            : apps.length === 0
+              ? ['  None yet.']
+              : [`  ${apps.map((app) => app.id).join(' · ')}`]),
+        '',
+        'Commands:',
+        ...commands.map(
+            (command, index) => `  ${(usages[index] ?? '').padEnd(width)}  ${command.summary}`
+        ),
+        '',
+        'Find what to run: dexto find "<what you want to do>"',
+        '',
+    ].join('\n');
 }
 
 /** At a terminal, offers to sign in again for the permission; true once that sign-in succeeded. */
@@ -439,7 +521,7 @@ function groupHelp(host: CloudHost, words: readonly string[]): string {
     ].join('\n');
 }
 
-function groupHelpJson(host: CloudHost, words: readonly string[]): unknown {
+function groupHelpJson(host: CloudHost, words: readonly string[]): Record<string, unknown> {
     return {
         commands: host.commands
             .filter((command) => startsWith(command.path, words))
