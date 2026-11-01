@@ -490,6 +490,51 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             );
         });
 
+        it('keeps an unlisted tool out of the model tool set while a host still prepares it with its approval', async () => {
+            mockMcpManager.getAllTools = vi.fn().mockResolvedValue({});
+            mockMcpManager.getToolDescriptors = vi.fn().mockReturnValue([]);
+            const toolManager = createToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'manual',
+                mockAgentEventBus,
+                { alwaysAllow: [] },
+                [
+                    defineTool({
+                        id: 'listed_tool',
+                        description: 'Listed tool',
+                        inputSchema: z.object({}).strict(),
+                        execute: vi.fn(),
+                    }),
+                    defineTool({
+                        id: 'save_note',
+                        description: 'Saves a note',
+                        inputSchema: z.object({ text: z.string() }).strict(),
+                        modelListing: 'unlisted',
+                        execute: vi.fn(),
+                    }),
+                ],
+                mockLogger
+            );
+
+            expect(Object.keys(await toolManager.getAllTools())).toEqual(['listed_tool']);
+            expect((await toolManager.getToolDescriptors()).map((tool) => tool.name)).toEqual([
+                'listed_tool',
+                'save_note',
+            ]);
+            expect(toolManager.isListedForModel('listed_tool')).toBe(true);
+            expect(toolManager.isListedForModel('save_note')).toBe(false);
+
+            const prepared = await toolManager.prepareToolCall({
+                toolName: 'save_note',
+                input: { text: 'hello' },
+                toolCallId: 'call-unlisted',
+                sessionId: 'session-1',
+            });
+            expect(prepared.kind).toBe('approval-required');
+        });
+
         it('prepares invalid local input as a model-visible invalid-input result', async () => {
             const toolManager = createToolManager(
                 mockMcpManager,

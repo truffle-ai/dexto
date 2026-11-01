@@ -214,6 +214,14 @@ export interface Tool<TSchema extends ZodTypeAny = ZodTypeAny> {
      */
     endsTurn?: boolean | ((input: z.output<TSchema>) => boolean) | undefined;
 
+    /**
+     * Whether the model is offered this tool. An `'unlisted'` tool stays out of each step's tool
+     * set, and a model call to it is refused, while a host that reaches it another way (a script
+     * or a catalog) still prepares and runs it with its rules and approvals. Defaults to
+     * `'listed'`.
+     */
+    modelListing?: 'listed' | 'unlisted' | undefined;
+
     // NOTE: Approval policy is intentionally a simple function/bool/string.
     // Presentation-specific behavior belongs in `tool.presentation`.
 }
