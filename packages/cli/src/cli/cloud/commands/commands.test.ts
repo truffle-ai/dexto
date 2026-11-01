@@ -1,4 +1,5 @@
-import { mkdtemp, rm } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { dextoAccounts } from '@dexto/agent-management';
@@ -13,6 +14,7 @@ describe('cloud secrets, web and data-deletions', () => {
     let stdout: string;
     let stderr: string;
     let stdin: string;
+    let bytes: Uint8Array[];
     let requests: { method: string; url: string; body: unknown; headers: globalThis.Headers }[];
     let reply: (url: string) => Response;
     let host: CloudHost;
@@ -22,6 +24,7 @@ describe('cloud secrets, web and data-deletions', () => {
         stdout = '';
         stderr = '';
         stdin = '';
+        bytes = [];
         requests = [];
         reply = () => Response.json({});
         const runtime: CloudRuntime = {
@@ -30,10 +33,12 @@ describe('cloud secrets, web and data-deletions', () => {
             fetch: async (input, init) => {
                 const request = new globalThis.Request(input, init);
                 const text = await request.text();
+                const isJson =
+                    request.headers.get('content-type')?.includes('json') ?? text.startsWith('{');
                 requests.push({
                     method: request.method,
                     url: request.url,
-                    body: text.length === 0 ? null : JSON.parse(text),
+                    body: text.length === 0 ? null : isJson ? JSON.parse(text) : text,
                     headers: request.headers,
                 });
                 return reply(request.url);
@@ -44,7 +49,9 @@ describe('cloud secrets, web and data-deletions', () => {
             signal: new AbortController().signal,
             sleep: async () => undefined,
             stdoutIsTerminal: false,
-            writeBytes: async () => undefined,
+            writeBytes: async (chunk) => {
+                bytes.push(chunk);
+            },
             writeError: (text) => {
                 stderr += text;
             },
@@ -326,6 +333,100 @@ describe('cloud secrets, web and data-deletions', () => {
             expect(start?.body).toEqual({ estimate_id: 'est_1' });
             expect(start?.headers.get('idempotency-key')).toMatch(/^[0-9a-f-]{36}$/u);
             expect(stdout).toBe('Run gen_1 succeeded.\nflux.png  https://cdn.example/flux.png\n');
+        });
+    });
+
+    describe('sandboxes and files', () => {
+        it('runs a command, passing its output and exit code through', async () => {
+            reply = () =>
+                Response.json({
+                    exit_code: 3,
+                    stdout: 'out\n',
+                    stderr: 'err\n',
+                    stdout_truncated: false,
+                    stderr_truncated: false,
+                });
+
+            const code = await runCloud(host, [
+                'cloud',
+                'sandboxes',
+                'exec',
+                'sbx_1',
+                '--',
+                'ls',
+                '-la',
+            ]);
+
+            expect(code).toBe(3);
+            expect(requests[0]).toMatchObject({
+                url: 'https://api.dexto.ai/v1/sandboxes/sbx_1/processes',
+                body: { command: 'ls -la' },
+            });
+            expect(stdout).toBe('out\n');
+            expect(stderr).toBe('err\n');
+        });
+
+        it('creates a sandbox idempotently', async () => {
+            reply = () =>
+                Response.json({ id: 'sbx_1', name: 'dev', status: 'not_started' }, { status: 201 });
+
+            await runCloud(host, ['cloud', 'sandboxes', 'create', 'dev']);
+
+            expect(requests[0]?.body).toEqual({ name: 'dev', size: 'large' });
+            expect(requests[0]?.headers.get('idempotency-key')).toMatch(/^[0-9a-f-]{36}$/u);
+        });
+
+        it('uploads a small file in one request with its hash, type and length', async () => {
+            const local = path.join(path.dirname(dir), 'notes.md');
+            await writeFile(local, '# hi\n');
+            reply = () => Response.json({ id: 'f1', path: 'docs/notes.md', size_bytes: 5 });
+
+            const code = await runCloud(host, [
+                'cloud',
+                'files',
+                'upload',
+                local,
+                'docs/notes.md',
+                '--overwrite',
+            ]);
+
+            expect(code).toBe(0);
+            expect(requests[0]?.url).toBe(
+                'https://api.dexto.ai/v1/files?path=docs%2Fnotes.md&overwrite=true'
+            );
+            expect(requests[0]?.body).toBe('# hi\n');
+            expect(requests[0]?.headers.get('content-type')).toBe('text/markdown');
+            expect(requests[0]?.headers.get('content-length')).toBe('5');
+            expect(requests[0]?.headers.get('x-content-sha256')).toBe(
+                createHash('sha256').update('# hi\n').digest('hex')
+            );
+        });
+
+        it('finds a file by path and downloads it to stdout', async () => {
+            reply = (url) => {
+                if (url.includes('/v1/files?'))
+                    return Response.json({
+                        object: 'list',
+                        has_more: false,
+                        next_after: null,
+                        data: [{ id: 'f1', path: 'docs/notes.md' }],
+                    });
+                if (url.endsWith('/v1/files/f1'))
+                    return Response.json({ id: 'f1', path: 'docs/notes.md' });
+                if (url.endsWith('/v1/files/f1/content'))
+                    return new Response('# hi\n', {
+                        headers: { 'content-type': 'application/octet-stream' },
+                    });
+                return Response.json({}, { status: 404 });
+            };
+
+            const code = await runCloud(host, ['cloud', 'files', 'download', 'docs/notes.md', '-']);
+
+            expect(code).toBe(0);
+            expect(requests[0]?.url).toBe(
+                'https://api.dexto.ai/v1/files?limit=1000&prefix=docs%2Fnotes.md'
+            );
+            expect(Buffer.concat(bytes).toString('utf8')).toBe('# hi\n');
         });
     });
 });
