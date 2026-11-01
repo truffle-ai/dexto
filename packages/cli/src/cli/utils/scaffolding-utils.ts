@@ -1,6 +1,6 @@
 import fs from 'fs-extra';
 import path from 'path';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import chalk from 'chalk';
 import * as p from '@clack/prompts';
@@ -9,56 +9,60 @@ import { executeWithTimeout } from './execute.js';
 import { textOrExit } from './prompt-helpers.js';
 import { getPackageManager, getPackageManagerInstallCommand } from './package-mgmt.js';
 
-function readVersionFromPackageJson(packageJsonPath: string): string | undefined {
-    if (!existsSync(packageJsonPath)) {
-        return undefined;
-    }
-
-    try {
-        const content = readFileSync(packageJsonPath, 'utf-8');
-        const pkg = JSON.parse(content) as { version?: unknown };
-        if (typeof pkg.version === 'string' && pkg.version.length > 0) {
-            return pkg.version;
-        }
-    } catch {
-        // Ignore parse/read errors and fall back.
-    }
-
-    return undefined;
-}
-
-function resolveCliPackageVersion(): string | undefined {
+/** The installed dexto package's folder: the package.json above this module, or the standalone binary's. */
+function cliPackageRoot(): string {
     const scriptDir = path.dirname(fileURLToPath(import.meta.url));
-    const localPackageJsonPath = path.resolve(scriptDir, '../../../package.json');
-    const localVersion = readVersionFromPackageJson(localPackageJsonPath);
-    if (localVersion) {
-        return localVersion;
-    }
-
+    const local = path.resolve(scriptDir, '../../..');
+    if (existsSync(path.join(local, 'package.json'))) return local;
     const packageRoot = getDextoPackageRoot();
-    if (packageRoot) {
-        const packageJsonPath = path.join(packageRoot, 'package.json');
-        const packageVersion = readVersionFromPackageJson(packageJsonPath);
-        if (packageVersion) {
-            return packageVersion;
+    if (packageRoot !== undefined && existsSync(path.join(packageRoot, 'package.json')))
+        return packageRoot;
+    throw new Error("Could not find the dexto CLI's package.json");
+}
+
+/**
+ * The package.json of the copy of `packageName` the CLI at `cliRoot` loads: the first in the
+ * node_modules folders above it, as ES modules resolve (never NODE_PATH or global folders).
+ */
+function installedPackage(packageName: string, cliRoot: string): Record<string, unknown> | null {
+    for (let dir = realpathSync(cliRoot); ; dir = path.dirname(dir)) {
+        const packageJson = path.join(dir, 'node_modules', packageName, 'package.json');
+        if (path.basename(dir) !== 'node_modules' && existsSync(packageJson)) {
+            const pkg: unknown = JSON.parse(readFileSync(packageJson, 'utf-8'));
+            if (typeof pkg === 'object' && pkg !== null) return { ...pkg };
         }
+        if (path.dirname(dir) === dir) return null;
     }
-
-    return process.env.DEXTO_CLI_VERSION;
 }
 
-const cliPackageVersion = resolveCliPackageVersion();
-
-export function getDextoCliVersion(): string {
-    const version = process.env.DEXTO_CLI_VERSION ?? cliPackageVersion;
-    if (!version) {
-        throw new Error('Could not determine dexto CLI version');
-    }
-    return version;
+function installedVersion(packageName: string, cliRoot: string): string | null {
+    const version = installedPackage(packageName, cliRoot)?.version;
+    return typeof version === 'string' && version.length > 0 ? version : null;
 }
 
-export function getDextoVersionRange(): string {
-    return `^${getDextoCliVersion()}`;
+/**
+ * The range a scaffolded project asks for `packageName` (an `@dexto/*` package): the version the
+ * CLI itself runs, since dexto versions apart from them. A package the CLI doesn't install, such as
+ * @dexto/image-bundler, takes @dexto/core's, as the @dexto/* packages version together.
+ */
+export function dextoPackageRange(packageName: string, cliRoot: string = cliPackageRoot()): string {
+    const version =
+        installedVersion(packageName, cliRoot) ?? installedVersion('@dexto/core', cliRoot);
+    if (version === null)
+        throw new Error(`Could not find the @dexto/core the dexto CLI at ${cliRoot} runs`);
+    return `^${version}`;
+}
+
+/** The range a scaffolded project asks for a peer of @dexto/core, such as zod: core's own. */
+export function dextoPeerRange(peerName: string, cliRoot: string = cliPackageRoot()): string {
+    const peers = installedPackage('@dexto/core', cliRoot)?.peerDependencies;
+    const range =
+        typeof peers === 'object' && peers !== null
+            ? Object.entries(peers).find(([name]) => name === peerName)?.[1]
+            : undefined;
+    if (typeof range !== 'string')
+        throw new Error(`The @dexto/core the dexto CLI at ${cliRoot} runs has no ${peerName} peer`);
+    return range;
 }
 
 export function isLocalDependencySpecifier(specifier: string): boolean {
@@ -84,11 +88,14 @@ export function hasVersionInPackageSpecifier(specifier: string): boolean {
     return true;
 }
 
-export function pinDextoPackageIfUnversioned(specifier: string, versionRange: string): string {
+export function pinDextoPackageIfUnversioned(
+    specifier: string,
+    rangeFor: (packageName: string) => string
+): string {
     if (isLocalDependencySpecifier(specifier)) return specifier;
     if (!specifier.startsWith('@dexto/')) return specifier;
     if (hasVersionInPackageSpecifier(specifier)) return specifier;
-    return `${specifier}@${versionRange}`;
+    return `${specifier}@${rangeFor(specifier)}`;
 }
 
 /**
