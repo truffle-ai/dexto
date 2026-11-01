@@ -5,8 +5,10 @@ import { getDextoGlobalPath } from '@dexto/core';
 import type { Command } from './command.js';
 import { apiCommands } from './commands/api.js';
 import { dataDeletionCommands } from './commands/data-deletions.js';
+import { fileCommands } from './commands/files.js';
 import { modelCommands } from './commands/models.js';
 import { projectCommands, projectsUse } from './commands/projects.js';
+import { sandboxCommands } from './commands/sandboxes.js';
 import { secretCommands } from './commands/secrets.js';
 import { webCommands } from './commands/web.js';
 import { resolveConnection } from './connection.js';
@@ -17,6 +19,8 @@ import { nodeCloudRuntime } from './runtime.js';
 export const CLOUD_GROUPS: Readonly<Record<string, readonly Group[]>> = {
     cloud: [
         { name: 'projects', summary: 'List, create and choose Cloud projects' },
+        { name: 'files', summary: "Upload, download, share and delete the project's files" },
+        { name: 'sandboxes', summary: 'Create sandboxes, run commands in them and move files' },
         { name: 'secrets', summary: 'Credentials agents use without seeing them' },
         { name: 'models', summary: 'Run text and media models, and see media runs' },
         { name: 'search', summary: 'Search the web' },
@@ -31,6 +35,8 @@ export function cloudCommands(dir: string): readonly Command[] {
     return [
         ...projectCommands,
         projectsUse(dir),
+        ...fileCommands,
+        ...sandboxCommands,
         ...secretCommands,
         ...modelCommands,
         ...webCommands,
