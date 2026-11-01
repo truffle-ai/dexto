@@ -3,7 +3,9 @@
 import { dextoGateway } from '@dexto/agent-management';
 import { getDextoGlobalPath } from '@dexto/core';
 import type { Command } from './command.js';
+import { agentCommands } from './commands/agents.js';
 import { apiCommands } from './commands/api.js';
+import { automationCommands } from './commands/automations.js';
 import { dataDeletionCommands } from './commands/data-deletions.js';
 import { fileCommands } from './commands/files.js';
 import { modelCommands } from './commands/models.js';
@@ -19,6 +21,8 @@ import { nodeCloudRuntime } from './runtime.js';
 export const CLOUD_GROUPS: Readonly<Record<string, readonly Group[]>> = {
     cloud: [
         { name: 'projects', summary: 'List, create and choose Cloud projects' },
+        { name: 'agents', summary: 'Define agents, chat with them, read their sessions and runs' },
+        { name: 'automations', summary: 'Run agents on a schedule or a webhook' },
         { name: 'files', summary: "Upload, download, share and delete the project's files" },
         { name: 'sandboxes', summary: 'Create sandboxes, run commands in them and move files' },
         { name: 'secrets', summary: 'Credentials agents use without seeing them' },
@@ -35,6 +39,8 @@ export function cloudCommands(dir: string): readonly Command[] {
     return [
         ...projectCommands,
         projectsUse(dir),
+        ...agentCommands,
+        ...automationCommands,
         ...fileCommands,
         ...sandboxCommands,
         ...secretCommands,

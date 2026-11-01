@@ -429,4 +429,143 @@ describe('cloud secrets, web and data-deletions', () => {
             expect(Buffer.concat(bytes).toString('utf8')).toBe('# hi\n');
         });
     });
+
+    describe('agents and automations', () => {
+        function sse(events: readonly object[]): Response {
+            return new Response(
+                events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join(''),
+                {
+                    headers: { 'content-type': 'text/event-stream' },
+                }
+            );
+        }
+
+        it('chats: starts a session, sends the message and streams the reply', async () => {
+            reply = (url) => {
+                if (url.endsWith('/v1/agents/agt_1/sessions'))
+                    return Response.json({ id: 'ses_1' }, { status: 201 });
+                if (url.endsWith('/sessions/ses_1/events'))
+                    return sse([
+                        { type: 'run.started', run_id: 'run_1', trigger: null },
+                        { type: 'message.delta', run_id: 'run_1', text: 'Hel' },
+                        { type: 'message.delta', run_id: 'run_1', text: 'lo' },
+                        {
+                            type: 'message.completed',
+                            run_id: 'run_1',
+                            message_id: 'm1',
+                            text: 'Hello',
+                        },
+                        {
+                            type: 'run.completed',
+                            run_id: 'run_1',
+                            stop_reason: 'completed',
+                            usage: { credits: 0.01, input_tokens: 10, output_tokens: 2 },
+                        },
+                    ]);
+                if (url.endsWith('/sessions/ses_1/messages'))
+                    return Response.json({ id: 'run_1', status: 'queued' }, { status: 201 });
+                return Response.json({}, { status: 404 });
+            };
+
+            const code = await runCloud(host, ['cloud', 'agents', 'chat', 'agt_1', 'hi', 'there']);
+
+            expect(code).toBe(0);
+            expect(stdout).toBe('Hello\n');
+            expect(requests.find((request) => request.url.endsWith('/messages'))?.body).toEqual({
+                content: 'hi there',
+            });
+            expect(requests[0]?.body).toEqual({ user: 'cli' });
+            expect(stderr).toContain('Session ses_1');
+        });
+
+        it('stops at an approval no one here can decide: exit 4 and how to decide it', async () => {
+            reply = (url) => {
+                if (url.endsWith('/sessions/ses_1/events'))
+                    return sse([
+                        {
+                            type: 'approval.requested',
+                            run_id: 'run_1',
+                            approval_id: 'apr_1',
+                            tool_name: 'send_email',
+                            input: { to: 'a@b.c' },
+                            tool_call_id: 't1',
+                        },
+                    ]);
+                if (url.endsWith('/sessions/ses_1/messages'))
+                    return Response.json({ id: 'run_1' }, { status: 201 });
+                return Response.json({}, { status: 404 });
+            };
+
+            const code = await runCloud(host, [
+                'cloud',
+                'agents',
+                'chat',
+                'agt_1',
+                'send it',
+                '--session',
+                'ses_1',
+            ]);
+
+            expect(code).toBe(4);
+            expect(stderr).toContain('dexto cloud agents approve agt_1 ses_1 apr_1');
+            expect(requests.some((request) => request.url.includes('/approvals/'))).toBe(false);
+        });
+
+        it('creates a recurring automation from flags', async () => {
+            reply = () =>
+                Response.json(
+                    {
+                        id: 'aut_1',
+                        name: 'Daily',
+                        trigger: { type: 'schedule', next_run_at: '2026-11-02T09:00:00Z' },
+                    },
+                    { status: 201 }
+                );
+
+            await runCloud(host, [
+                'cloud',
+                'automations',
+                'create',
+                '--name',
+                'Daily',
+                '--agent',
+                'agt_1',
+                '--message',
+                'Summarize',
+                '--cron',
+                '0 9 * * *',
+                '--timezone',
+                'Europe/London',
+            ]);
+
+            expect(requests[0]?.body).toEqual({
+                name: 'Daily',
+                target: { agent_id: 'agt_1', message: 'Summarize', type: 'agent' },
+                trigger: {
+                    type: 'schedule',
+                    schedule: { cron: '0 9 * * *', timezone: 'Europe/London', type: 'recurring' },
+                },
+            });
+        });
+
+        it('needs exactly one trigger', async () => {
+            const code = await runCloud(host, [
+                'cloud',
+                'automations',
+                'create',
+                '--name',
+                'X',
+                '--agent',
+                'a',
+                '--message',
+                'm',
+                '--cron',
+                '* * * * *',
+                '--webhook',
+            ]);
+
+            expect(code).toBe(2);
+            expect(requests).toHaveLength(0);
+        });
+    });
 });
