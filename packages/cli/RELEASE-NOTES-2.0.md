@@ -25,6 +25,8 @@ Draft for DEXTO-2031. Each 2.0 change a 1.x user notices is listed here as it la
 
 - `dexto run` prints JSON when stdout isn't a terminal, and the reply at one. `--json` prints one result and `--stream-json` prints events ending with one `result`; they replace `--format json|jsonl`, and `--text` forces the reply. JSON keys are snake_case (`session_id`, `total_tokens`), the version field is gone, refused approvals are `permission_denials`, and an empty prompt exits 2.
 
+- `dexto --help --json` lists every command and the exit codes. Notices (an available update, server and web startup banners) go to stderr, so stdout carries only a command's output.
+
 ## Renamed and removed
 
 - `dexto session list|history|delete` are now `dexto chat list|history|delete`. `dexto chat local` and `dexto chat import` bring Claude Code and Codex chats into Dexto.

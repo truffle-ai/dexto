@@ -29,7 +29,7 @@ export async function runServerMode(context: MainModeContext): Promise<void> {
     const apiPort = getPort(process.env.PORT, defaultPort, 'PORT');
     const apiUrl = process.env.DEXTO_URL ?? `http://localhost:${apiPort}`;
 
-    console.log('🌐 Starting server (REST APIs + SSE)...');
+    console.error('🌐 Starting server (REST APIs + SSE)...');
     await startHonoApiServer(
         agent,
         apiPort,
@@ -38,13 +38,13 @@ export async function runServerMode(context: MainModeContext): Promise<void> {
         resolvedPath,
         workspaceRoot
     );
-    console.log(`✅ Server running at ${apiUrl}`);
-    console.log('Available endpoints:');
-    console.log('  POST /api/message - Send async message');
-    console.log('  POST /api/message-sync - Send sync message');
-    console.log('  POST /api/reset - Reset conversation');
-    console.log('  GET  /api/mcp/servers - List MCP servers');
-    console.log('  SSE support available for real-time events');
+    console.error(`✅ Server running at ${apiUrl}`);
+    console.error('Available endpoints:');
+    console.error('  POST /api/message - Send async message');
+    console.error('  POST /api/message-sync - Send sync message');
+    console.error('  POST /api/reset - Reset conversation');
+    console.error('  GET  /api/mcp/servers - List MCP servers');
+    console.error('  SSE support available for real-time events');
 
     const serverUpdateInfo = await getVersionCheckResult();
     if (serverUpdateInfo) {

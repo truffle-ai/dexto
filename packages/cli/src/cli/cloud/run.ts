@@ -5,6 +5,7 @@ import { parseArgs } from 'node:util';
 import { CloudApiError, createCloudClient } from '@dexto/cloud-client';
 import {
     CommandFailure,
+    EXIT_CODE_MEANINGS,
     EXIT_CODES,
     MissingScopeFailure,
     signInCommand,
@@ -530,15 +531,7 @@ function groupHelpJson(host: CloudHost, words: readonly string[]): Record<string
         commands: host.commands
             .filter((command) => startsWith(command.path, words))
             .map((command) => ({ summary: command.summary, usage: `dexto ${usage(command)}` })),
-        exit_codes: {
-            '0': 'done',
-            '1': 'failed',
-            '2': 'usage or invalid input',
-            '3': 'needs sign-in or permission',
-            '4': 'needs confirmation: pass --yes once your person has agreed',
-            '5': 'not found',
-            '6': 'waiting on a person, such as an approval',
-        },
+        exit_codes: EXIT_CODE_MEANINGS,
         usage: `dexto ${words.join(' ')} <command>`,
     };
 }

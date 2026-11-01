@@ -174,6 +174,11 @@ if (apiProcess.stderr) {
         const lines = data.toString().split('\n').filter(Boolean);
         lines.forEach((line: string) => {
             console.error(`[API] ${line}`);
+
+            // The CLI announces readiness on stderr: its stdout is for results only.
+            if (!webuiStarted && line.includes('Server running at')) {
+                startWebUI();
+            }
         });
     });
 }

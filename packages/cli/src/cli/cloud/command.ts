@@ -71,6 +71,17 @@ export const EXIT_CODES = {
     usage: 2,
 } as const satisfies Record<FailureKind | 'usage', number>;
 
+/** What each exit code means; frozen in 2.0 and shown in help. */
+export const EXIT_CODE_MEANINGS = {
+    '0': 'done',
+    '1': 'failed',
+    '2': 'usage or invalid input',
+    '3': 'needs sign-in or permission',
+    '4': 'needs confirmation: pass --yes once your person has agreed',
+    '5': 'not found',
+    '6': 'waiting on a person, such as an approval',
+} as const;
+
 /** A failure that says what kind it is and, where there is one, the command that fixes it. */
 export class CommandFailure extends Error {
     readonly fix: string | null;
