@@ -1,6 +1,18 @@
 import { z } from 'zod';
-import * as path from 'path';
-import { PROMPT_GENERATOR_SOURCES } from './registry.js';
+import { PROMPT_GENERATOR_SOURCES } from './sources.js';
+
+const WINDOWS_ABSOLUTE_PATH = /^(?:[\\/]|[A-Za-z]:[\\/])/;
+
+/**
+ * Runtime-free equivalent of Node's `path.isAbsolute()`.
+ *
+ * Mirrors `path.win32.isAbsolute` on Windows and `path.posix.isAbsolute` everywhere else, so the
+ * schema can be bundled for browser/Worker targets without a Node `path` polyfill.
+ */
+function isAbsolutePath(filePath: string): boolean {
+    const isWindows = typeof process !== 'undefined' && process.platform === 'win32';
+    return isWindows ? WINDOWS_ABSOLUTE_PATH.test(filePath) : filePath.startsWith('/');
+}
 
 // Define a base schema for common fields
 const BaseContributorSchema = z
@@ -38,7 +50,7 @@ const FileContributorSchema = BaseContributorSchema.extend({
     files: z
         .array(
             z.string().superRefine((filePath, ctx) => {
-                if (!path.isAbsolute(filePath)) {
+                if (!isAbsolutePath(filePath)) {
                     ctx.addIssue({
                         code: z.ZodIssueCode.custom,
                         message:
