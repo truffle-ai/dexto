@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { dextoAccounts } from '@dexto/agent-management';
@@ -566,6 +566,96 @@ describe('cloud secrets, web and data-deletions', () => {
 
             expect(code).toBe(2);
             expect(requests).toHaveLength(0);
+        });
+    });
+
+    describe('sites and functions', () => {
+        let packed: object;
+        let ran: { command: string; args: readonly string[]; cwd: string }[];
+
+        beforeEach(() => {
+            packed = { assets: [{ path: 'index.html' }] };
+            ran = [];
+            host = {
+                ...host,
+                runtime: {
+                    ...host.runtime,
+                    runProcess: async (command, args, options) => {
+                        ran.push({ command, args, cwd: options.cwd });
+                        const out = args[args.indexOf('--out') + 1] ?? '';
+                        await writeFile(out, JSON.stringify(packed));
+                        return { exitCode: 0, output: '' };
+                    },
+                },
+            };
+        });
+
+        it("deploys a Site packed with the project's own packer, live by default", async () => {
+            const project = path.join(path.dirname(dir), 'site');
+            await mkdir(path.join(project, '.dexto'), { recursive: true });
+            await writeFile(path.join(project, '.dexto', 'pack.mjs'), '');
+            reply = () =>
+                Response.json({
+                    deployment: { id: 'dep_1' },
+                    promoted: true,
+                    site: { id: 'site_1', slug: 'hello' },
+                    url: 'https://hello.dexto.site',
+                });
+
+            const code = await runCloud(host, ['cloud', 'sites', 'deploy', project, '--table']);
+
+            expect(code).toBe(0);
+            expect(ran[0]).toMatchObject({ command: 'node', cwd: project });
+            expect(ran[0]?.args.slice(0, 2)).toEqual([path.join('.dexto', 'pack.mjs'), '.']);
+            expect(requests[0]).toMatchObject({
+                method: 'POST',
+                url: 'https://api.dexto.ai/v1/sites/deployments?promote=true',
+                body: packed,
+            });
+            expect(stdout).toBe('Deployed hello to https://hello.dexto.site (deployment dep_1).\n');
+        });
+
+        it('refuses to deploy a Function as a Site', async () => {
+            packed = { entry: 'index.js' };
+            expect(await runCloud(host, ['cloud', 'sites', 'deploy', path.dirname(dir)])).toBe(2);
+            expect(requests).toHaveLength(0);
+        });
+
+        it("names the permissions a person's sign-in lacks before packing anything", async () => {
+            host = {
+                ...host,
+                runtime: { ...host.runtime, environment: {} },
+                resolveConnection: (overrides) =>
+                    resolveConnection({
+                        dir,
+                        environment: {},
+                        overrides,
+                        refresh: async (login: dextoAccounts.OAuthLogin) => login,
+                    }),
+            };
+            await dextoAccounts.writeLogin(dir, 'default', {
+                kind: 'oauth',
+                accessToken: 'a',
+                refreshToken: 'r',
+                expiresAt: new Date(Date.now() + 3_600_000).toISOString(),
+                clientId: 'dexto-cli',
+                appUrl: 'https://app.dexto.ai',
+                apiBaseUrl: 'https://api.dexto.ai',
+                resource: 'https://app.dexto.ai/mcp',
+                tokenEndpoint: 'https://app.dexto.ai/api/oauth/token',
+                scopes: ['cloud:read'],
+                savedAt: '2026-11-01T00:00:00.000Z',
+                signedInAs: null,
+                cloudProject: { id: 'prj_main', name: 'Main' },
+            });
+
+            const code = await runCloud(host, ['cloud', 'sites', 'deploy']);
+
+            expect(code).toBe(3);
+            expect(JSON.parse(stderr).error.fix).toBe(
+                'dexto login --device --scope sites:write,cloud:write'
+            );
+            expect(ran).toHaveLength(0);
         });
     });
 });
