@@ -11,6 +11,7 @@
     "@dexto/agent-management": "workspace:*",
     "@dexto/analytics": "workspace:*",
     "@dexto/client-sdk": "workspace:*",
+    "@dexto/cloud-client": "workspace:*",
     "@dexto/core": "workspace:*",
     "@dexto/image-local": "workspace:*",
     "@dexto/image-logger-agent": "workspace:*",

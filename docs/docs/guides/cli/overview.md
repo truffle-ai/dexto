@@ -683,22 +683,17 @@ dexto search "error" --role assistant
 dexto session history my-session-id
 ```
 
-## Cloud Capability Discovery
+## Dexto Cloud
 
-Use the CLI to find Cloud capabilities before choosing an operation:
+`dexto cloud` builds in Dexto Cloud through the public `/v1` API, as your sign-in (`dexto login`) or an API key:
 
 ```bash
-dexto login
-dexto cloud sources --json
-dexto cloud search "web search" --limit 10 --json
-dexto cloud describe dexto.platform.web_search --json
+dexto cloud projects list          # * marks the project you act in
+dexto cloud projects use Main      # act in another project; Dexto models bill it too
+dexto cloud api GET /v1/agents     # call any /v1 operation directly
 ```
 
-These commands use the existing device login/API-key flow and provide read-only discovery. An organization key needs `capabilities:read`; Cloud checks current membership and permissions on every request. Description results include input schemas, execution details, and availability. Listing a capability does not authorize its execution.
-
-Omit `--json` for human-readable output. Search JSON includes `hasMore`, `nextOffset`, and `total`; pass `--offset <nextOffset>` to request another page. Sources and search support `--limit` (1–100, default 20). Each command fetches one page. JSON failures contain an `error` object and exit with code 1.
-
-For automation, set `DEXTO_API_KEY` to your organization key. Use `--platform-url <application-origin>` or `DEXTO_PLATFORM_URL` for another Dexto installation. Device login accepts the same `--platform-url` option and binds the saved credential to that origin. The binding remains when the same saved key is present in the environment; a different shell environment key can target another installation. Cloud discovery uses explicit shell environment overrides, not values loaded from `.env` files. Legacy saved credentials without origin metadata require a fresh `dexto login --platform-url <application-origin>` before discovery.
+Every cloud command takes `--json` or `--table`, `--api-key <key>`, `--profile <name>` and `--project <id>`. Output is JSON when stdout isn't a terminal, and a failure prints `{"error":{"code","message","fix"}}` on stderr, where `fix` is the command that fixes it. Exit codes: 0 done, 1 failed, 2 usage, 3 needs sign-in or permission, 4 needs `--yes` (pass it only once your person has agreed), 5 not found. A command that needs a permission your sign-in lacks offers, at a terminal, to sign in again for it.
 
 ## Next Steps
 
