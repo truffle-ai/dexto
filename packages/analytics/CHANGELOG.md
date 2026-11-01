@@ -1,5 +1,17 @@
 # @dexto/analytics
 
+## 1.14.5
+
+### Patch Changes
+
+- Updated dependencies [77101ce]
+- Updated dependencies [e17975f]
+- Updated dependencies [3f3c456]
+- Updated dependencies [7cdf653]
+- Updated dependencies [ce63e57]
+    - @dexto/core@1.14.5
+    - @dexto/agent-management@1.14.5
+
 ## 1.14.4
 
 ### Patch Changes
