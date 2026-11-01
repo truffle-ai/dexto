@@ -9,7 +9,7 @@ import {
     createGitignore,
     initPackageJson,
     createTsconfigForImage,
-    getDextoVersionRange,
+    dextoPackageRange,
     installDependencies,
     pinDextoPackageIfUnversioned,
     ensureDirectory,
@@ -190,28 +190,25 @@ export async function createImage(name?: string): Promise<string> {
         const executionContext = getExecutionContext();
         const isDextoSource = executionContext === 'dexto-source';
 
-        const versionRange = getDextoVersionRange();
-        const dextoDependencyVersion = isDextoSource ? 'workspace:*' : versionRange;
+        const dextoRange = (name: string) =>
+            isDextoSource ? 'workspace:*' : dextoPackageRange(name);
+        const dexto = (name: string) => `${name}@${dextoRange(name)}`;
 
         // Determine dependencies based on whether extending
         const dependencies: string[] = [
-            `@dexto/core@${dextoDependencyVersion}`,
-            `@dexto/agent-config@${dextoDependencyVersion}`,
-            `@dexto/storage@${dextoDependencyVersion}`,
+            dexto('@dexto/core'),
+            dexto('@dexto/agent-config'),
+            dexto('@dexto/storage'),
             'zod@^3.25.0',
         ];
         const devDependencies = [
             'typescript@^5.0.0',
             '@types/node@^20.0.0',
-            `@dexto/image-bundler@${dextoDependencyVersion}`,
+            dexto('@dexto/image-bundler'),
         ];
 
         if (baseImage) {
-            const baseImageDependency = pinDextoPackageIfUnversioned(
-                baseImage,
-                isDextoSource ? dextoDependencyVersion : versionRange
-            );
-            dependencies.push(baseImageDependency);
+            dependencies.push(pinDextoPackageIfUnversioned(baseImage, dextoRange));
         }
 
         // Install dependencies (use pnpm in dexto source for workspace protocol support)

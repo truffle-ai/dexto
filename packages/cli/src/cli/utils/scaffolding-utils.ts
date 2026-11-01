@@ -1,6 +1,7 @@
 import fs from 'fs-extra';
 import path from 'path';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, realpathSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import chalk from 'chalk';
 import * as p from '@clack/prompts';
@@ -9,56 +10,41 @@ import { executeWithTimeout } from './execute.js';
 import { textOrExit } from './prompt-helpers.js';
 import { getPackageManager, getPackageManagerInstallCommand } from './package-mgmt.js';
 
-function readVersionFromPackageJson(packageJsonPath: string): string | undefined {
-    if (!existsSync(packageJsonPath)) {
-        return undefined;
-    }
-
-    try {
-        const content = readFileSync(packageJsonPath, 'utf-8');
-        const pkg = JSON.parse(content) as { version?: unknown };
-        if (typeof pkg.version === 'string' && pkg.version.length > 0) {
-            return pkg.version;
-        }
-    } catch {
-        // Ignore parse/read errors and fall back.
-    }
-
-    return undefined;
-}
-
-function resolveCliPackageVersion(): string | undefined {
+/** The installed dexto package's folder: the package.json above this module, or the standalone binary's. */
+function cliPackageRoot(): string {
     const scriptDir = path.dirname(fileURLToPath(import.meta.url));
-    const localPackageJsonPath = path.resolve(scriptDir, '../../../package.json');
-    const localVersion = readVersionFromPackageJson(localPackageJsonPath);
-    if (localVersion) {
-        return localVersion;
-    }
-
+    const local = path.resolve(scriptDir, '../../..');
+    if (existsSync(path.join(local, 'package.json'))) return local;
     const packageRoot = getDextoPackageRoot();
-    if (packageRoot) {
-        const packageJsonPath = path.join(packageRoot, 'package.json');
-        const packageVersion = readVersionFromPackageJson(packageJsonPath);
-        if (packageVersion) {
-            return packageVersion;
-        }
-    }
-
-    return process.env.DEXTO_CLI_VERSION;
+    if (packageRoot !== undefined && existsSync(path.join(packageRoot, 'package.json')))
+        return packageRoot;
+    throw new Error("Could not find the dexto CLI's package.json");
 }
 
-const cliPackageVersion = resolveCliPackageVersion();
-
-export function getDextoCliVersion(): string {
-    const version = process.env.DEXTO_CLI_VERSION ?? cliPackageVersion;
-    if (!version) {
-        throw new Error('Could not determine dexto CLI version');
+/** The version of the copy of `packageName` the CLI at `cliRoot` loads, found as Node finds it. */
+function installedVersion(packageName: string, cliRoot: string): string | null {
+    const lookup = createRequire(path.join(realpathSync(cliRoot), 'package.json'));
+    for (const modules of lookup.resolve.paths(packageName) ?? []) {
+        const packageJson = path.join(modules, packageName, 'package.json');
+        if (!existsSync(packageJson)) continue;
+        const pkg: unknown = JSON.parse(readFileSync(packageJson, 'utf-8'));
+        if (typeof pkg === 'object' && pkg !== null && 'version' in pkg)
+            if (typeof pkg.version === 'string' && pkg.version.length > 0) return pkg.version;
     }
-    return version;
+    return null;
 }
 
-export function getDextoVersionRange(): string {
-    return `^${getDextoCliVersion()}`;
+/**
+ * The range a scaffolded project asks for `packageName` (an `@dexto/*` package): the version the
+ * CLI itself runs, since dexto versions apart from them. A package the CLI doesn't install, such as
+ * @dexto/image-bundler, takes @dexto/core's, as the @dexto/* packages version together.
+ */
+export function dextoPackageRange(packageName: string, cliRoot: string = cliPackageRoot()): string {
+    const version =
+        installedVersion(packageName, cliRoot) ?? installedVersion('@dexto/core', cliRoot);
+    if (version === null)
+        throw new Error(`Could not find the @dexto/core the dexto CLI at ${cliRoot} runs`);
+    return `^${version}`;
 }
 
 export function isLocalDependencySpecifier(specifier: string): boolean {
@@ -84,11 +70,14 @@ export function hasVersionInPackageSpecifier(specifier: string): boolean {
     return true;
 }
 
-export function pinDextoPackageIfUnversioned(specifier: string, versionRange: string): string {
+export function pinDextoPackageIfUnversioned(
+    specifier: string,
+    rangeFor: (packageName: string) => string
+): string {
     if (isLocalDependencySpecifier(specifier)) return specifier;
     if (!specifier.startsWith('@dexto/')) return specifier;
     if (hasVersionInPackageSpecifier(specifier)) return specifier;
-    return `${specifier}@${versionRange}`;
+    return `${specifier}@${rangeFor(specifier)}`;
 }
 
 /**

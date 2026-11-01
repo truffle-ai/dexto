@@ -77,7 +77,9 @@ Image definition files use the convention `dexto.image.ts` and register provider
 
 ### Adding New Packages
 
-All `@dexto/*` packages use **fixed versioning** (shared version number).
+All `@dexto/*` packages use **fixed versioning** (shared version number). The `dexto` CLI is not in
+that group and versions on its own (2.0 while `@dexto/*` stay 1.x), so never derive an `@dexto/*`
+version from the CLI's: scaffolding asks for each package's installed version (`dextoPackageRange`).
 
 When creating a new package:
 

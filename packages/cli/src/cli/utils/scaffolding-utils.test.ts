@@ -56,32 +56,35 @@ describe('scaffolding-utils', () => {
     });
 
     describe('pinDextoPackageIfUnversioned', () => {
-        it('pins @dexto packages when unversioned', () => {
-            expect(pinDextoPackageIfUnversioned('@dexto/image-local', '^1.2.3')).toBe(
-                '@dexto/image-local@^1.2.3'
-            );
+        it("pins an unversioned @dexto package to that package's own range", () => {
+            const ranges: Record<string, string> = { '@dexto/image-local': '^1.15.0-beta.3' };
+            expect(
+                pinDextoPackageIfUnversioned('@dexto/image-local', (name) => ranges[name] ?? '')
+            ).toBe('@dexto/image-local@^1.15.0-beta.3');
         });
 
         it('supports workspace protocol pinning', () => {
-            expect(pinDextoPackageIfUnversioned('@dexto/image-local', 'workspace:*')).toBe(
+            expect(pinDextoPackageIfUnversioned('@dexto/image-local', () => 'workspace:*')).toBe(
                 '@dexto/image-local@workspace:*'
             );
         });
 
         it('does not pin when a version is already present', () => {
-            expect(pinDextoPackageIfUnversioned('@dexto/image-local@1.0.0', '^1.2.3')).toBe(
+            expect(pinDextoPackageIfUnversioned('@dexto/image-local@1.0.0', () => '^1.2.3')).toBe(
                 '@dexto/image-local@1.0.0'
             );
         });
 
         it('does not pin non-@dexto packages', () => {
-            expect(pinDextoPackageIfUnversioned('@myorg/image-base', '^1.2.3')).toBe(
+            expect(pinDextoPackageIfUnversioned('@myorg/image-base', () => '^1.2.3')).toBe(
                 '@myorg/image-base'
             );
         });
 
         it('does not pin local specifiers', () => {
-            expect(pinDextoPackageIfUnversioned('./local/path', '^1.2.3')).toBe('./local/path');
+            expect(pinDextoPackageIfUnversioned('./local/path', () => '^1.2.3')).toBe(
+                './local/path'
+            );
         });
     });
 

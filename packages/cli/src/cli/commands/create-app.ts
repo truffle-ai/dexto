@@ -13,7 +13,7 @@ import {
     installDependencies,
     createEnvExample,
     ensureDirectory,
-    getDextoVersionRange,
+    dextoPackageRange,
 } from '../utils/scaffolding-utils.js';
 import {
     generateIndexForCodeFirstDI,
@@ -175,12 +175,12 @@ async function scaffoldCodeFirstDI(
     const executionContext = getExecutionContext();
     const isDextoSource = executionContext === 'dexto-source';
 
-    const versionRange = getDextoVersionRange();
-    const dextoDependencyVersion = isDextoSource ? 'workspace:*' : versionRange;
+    const dexto = (name: string) =>
+        `${name}@${isDextoSource ? 'workspace:*' : dextoPackageRange(name)}`;
 
     const dependencies = [
-        `@dexto/core@${dextoDependencyVersion}`,
-        `@dexto/storage@${dextoDependencyVersion}`,
+        dexto('@dexto/core'),
+        dexto('@dexto/storage'),
         // Intentionally omit tool packs in the scaffold to keep the onboarding example minimal.
         // TODO: Revisit adding a default tool pack once tool IDs no longer require manual qualification.
         'dotenv',
@@ -188,7 +188,7 @@ async function scaffoldCodeFirstDI(
     ];
 
     if (appType === 'webapp') {
-        dependencies.push(`@dexto/server@${dextoDependencyVersion}`);
+        dependencies.push(dexto('@dexto/server'));
     }
 
     await installDependencies(
