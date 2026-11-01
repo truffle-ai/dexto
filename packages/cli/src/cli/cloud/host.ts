@@ -7,6 +7,7 @@ import { agentCommands } from './commands/agents.js';
 import { apiCommands } from './commands/api.js';
 import { automationCommands } from './commands/automations.js';
 import { dataDeletionCommands } from './commands/data-deletions.js';
+import { deployCommands } from './commands/deploys.js';
 import { fileCommands } from './commands/files.js';
 import { modelCommands } from './commands/models.js';
 import { projectCommands, projectsUse } from './commands/projects.js';
@@ -26,6 +27,8 @@ export const CLOUD_GROUPS: Readonly<Record<string, readonly Group[]>> = {
         { name: 'files', summary: "Upload, download, share and delete the project's files" },
         { name: 'sandboxes', summary: 'Create sandboxes, run commands in them and move files' },
         { name: 'secrets', summary: 'Credentials agents use without seeing them' },
+        { name: 'sites', summary: 'Deploy, list and delete Sites, packed with their own packer' },
+        { name: 'functions', summary: 'Deploy and list Functions, packed with their own packer' },
         { name: 'models', summary: 'Run text and media models, and see media runs' },
         { name: 'search', summary: 'Search the web' },
         { name: 'fetch', summary: 'Read web pages' },
@@ -44,6 +47,7 @@ export function cloudCommands(dir: string): readonly Command[] {
         ...fileCommands,
         ...sandboxCommands,
         ...secretCommands,
+        ...deployCommands,
         ...modelCommands,
         ...webCommands,
         ...dataDeletionCommands,
