@@ -100,9 +100,6 @@ import { registerMcpCommand } from './cli/commands/mcp/register.js';
 import { registerImageCommand } from './cli/commands/image/register.js';
 import { registerPluginCommand } from './cli/commands/plugin/register.js';
 import { registerAgentsCommand } from './cli/commands/agents/register.js';
-import { registerDeployCommand } from './cli/commands/deploy/register.js';
-import { registerSpanCommand } from './cli/commands/span/register.js';
-import { registerTraceCommand } from './cli/commands/trace/register.js';
 import { registerInitCommand } from './cli/commands/init.js';
 import type { BootstrapAgentMode } from './cli/commands/register-context.js';
 import type { MainModeOptions } from './cli/modes/context.js';
@@ -149,7 +146,6 @@ program
     .description('AI-powered CLI and WebUI for interacting with MCP servers.')
     .version(cliVersion, '-v, --version', 'output the current version')
     .option('-a, --agent <id|path>', 'Agent ID or path to agent config file')
-    .option('--cloud-agent <id>', 'Connect the interactive CLI to a deployed cloud agent by ID')
     .option('-p, --prompt <text>', 'Start the interactive CLI and immediately run the prompt')
     .option('-s, --strict', 'Require all server connections to succeed')
     .option('--no-verbose', 'Disable verbose output')
@@ -213,9 +209,6 @@ program
     );
 
 registerImageCommand({ program });
-registerDeployCommand({ program });
-registerSpanCommand({ program });
-registerTraceCommand({ program });
 registerInitCommand({ program });
 
 // 4) `init-app` SUB-COMMAND
@@ -626,12 +619,10 @@ program
                 // ——— FORCE CLI MODE FOR PROMPT/SESSION FLAGS ———
                 // If a prompt or session flag was provided, force CLI mode.
                 const modeForcedByChatFlags = Boolean(
-                    initialPrompt || opts.continue || opts.resume || opts.cloudAgent
+                    initialPrompt || opts.continue || opts.resume
                 );
                 if (modeForcedByChatFlags && opts.mode !== 'cli') {
-                    console.error(
-                        `ℹ️  Forcing CLI mode due to --prompt/--continue/--resume/--cloud-agent.`
-                    );
+                    console.error(`ℹ️  Forcing CLI mode due to --prompt/--continue/--resume.`);
                     console.error(`   Original mode: ${opts.mode} → Overridden to: cli`);
                     opts.mode = 'cli';
                 }
@@ -643,30 +634,6 @@ program
                         '💡 For non-interactive runs, use `dexto run "<prompt>"`, or use --mode server for automation.'
                     );
                     safeExit('main', 1, 'no-tty');
-                }
-
-                if (opts.cloudAgent) {
-                    if (opts.agent) {
-                        console.error(
-                            '❌ `--agent` and `--cloud-agent` are mutually exclusive. Use one chat target at a time.'
-                        );
-                        safeExit('main', 1, 'cloud-agent-conflict');
-                    }
-
-                    try {
-                        const { startCloudChatCli } = await import('./cli/cloud-chat.js');
-                        await startCloudChatCli({
-                            cloudAgentId: String(opts.cloudAgent),
-                            ...(initialPrompt ? { initialPrompt } : {}),
-                            ...(opts.resume ? { resume: String(opts.resume) } : {}),
-                            ...(opts.continue ? { continueMostRecent: true } : {}),
-                        });
-                        safeExit('main', 0);
-                    } catch (err) {
-                        if (err instanceof ExitSignal) throw err;
-                        console.error(`❌ Cloud chat failed: ${err}`);
-                        safeExit('main', 1, 'cloud-chat-error');
-                    }
                 }
 
                 // ——— Infer provider & API key from model ———

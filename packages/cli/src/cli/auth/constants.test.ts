@@ -14,14 +14,6 @@ describe('auth constants', () => {
         expect(DEXTO_PLATFORM_URL).toBe('https://app.dexto.ai');
     });
 
-    it('defaults the gateway host to app.dexto.ai', async () => {
-        delete process.env.DEXTO_API_URL;
-
-        const { DEXTO_API_URL } = await import('./constants.js');
-
-        expect(DEXTO_API_URL).toBe('https://app.dexto.ai');
-    });
-
     it('defaults the versioned API host to api.dexto.ai', async () => {
         delete process.env.DEXTO_PUBLIC_API_URL;
 

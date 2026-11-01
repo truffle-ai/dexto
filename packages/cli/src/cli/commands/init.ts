@@ -23,8 +23,6 @@ import path from 'node:path';
 import { z } from 'zod';
 import { ExitSignal, safeExit, withAnalytics } from '../../analytics/wrapper.js';
 import { getEffectiveLLMConfig } from '../../config/effective-llm.js';
-import { getDeployConfigPath, isWorkspaceDeployAgent, loadDeployConfig } from './deploy/config.js';
-import { discoverPrimaryWorkspaceAgent } from './deploy/entry-agent.js';
 import {
     confirmOrExit,
     multiselectOrExit,
@@ -56,7 +54,7 @@ This workspace can define project-specific agents and skills.
 
 ## Defaults
 - If no workspace agent is defined, Dexto uses your global default agent locally
-- Cloud deploys without a workspace agent use the managed cloud default agent
+- Deploy Sites and Functions with \`dexto cloud sites deploy\` and \`dexto cloud functions deploy\`
 `;
 
 type ScaffoldEntryStatus = 'created' | 'existing';
@@ -111,8 +109,6 @@ export interface WorkspaceStatusResult {
         parentAgentId: string | null;
     }>;
     skills: string[];
-    deployConfigPath: string | null;
-    effectiveDeploySummary: string;
 }
 
 export interface InitCommandRegisterContext {
@@ -1809,24 +1805,9 @@ async function listWorkspaceSkillIds(workspaceRoot: string): Promise<string[]> {
         .sort((left, right) => left.localeCompare(right));
 }
 
-function describeEffectiveDeployAgent(input: {
-    deployConfigPath: string | null;
-    deployConfig: Awaited<ReturnType<typeof loadDeployConfig>>;
-    implicitWorkspaceAgent: string | null;
-}): string {
-    if (input.deployConfig) {
-        const configuredAgent = isWorkspaceDeployAgent(input.deployConfig.agent)
-            ? `workspace agent (${input.deployConfig.agent.path})`
-            : 'default cloud agent';
-        return `${configuredAgent} via ${input.deployConfigPath ?? '.dexto/deploy.json'}`;
-    }
-
-    if (input.implicitWorkspaceAgent) {
-        return `workspace agent (${input.implicitWorkspaceAgent}) if you run \`dexto deploy\``;
-    }
-
-    return 'default cloud agent if you run `dexto deploy`';
-}
+/** Where deploys went: 1.x's workspace deploy is gone in 2.0. */
+const DEPLOY_SUMMARY =
+    'dexto cloud sites deploy or dexto cloud functions deploy (dexto deploy is gone in 2.0)';
 
 export async function inspectWorkspaceStatus(
     workspaceRoot: string = process.cwd()
@@ -1855,10 +1836,6 @@ export async function inspectWorkspaceStatus(
             .sort((left, right) => left.id.localeCompare(right.id)) ?? [];
     const skills = await listWorkspaceSkillIds(root);
 
-    const deployConfigPath = getDeployConfigPath(root);
-    const deployConfig = await loadDeployConfig(root);
-    const implicitWorkspaceAgent = await discoverPrimaryWorkspaceAgent(root);
-
     return {
         workspaceRoot: root,
         agentsFilePresent,
@@ -1869,12 +1846,6 @@ export async function inspectWorkspaceStatus(
         allowGlobalAgents: registry ? registry.allowGlobalAgents : null,
         agents,
         skills,
-        deployConfigPath: deployConfig ? deployConfigPath : null,
-        effectiveDeploySummary: describeEffectiveDeployAgent({
-            deployConfigPath: deployConfig ? deployConfigPath : null,
-            deployConfig,
-            implicitWorkspaceAgent,
-        }),
     };
 }
 
@@ -1891,7 +1862,7 @@ function formatWorkspaceStatus(result: WorkspaceStatusResult): string {
                 ? 'n/a (no workspace registry)'
                 : String(result.allowGlobalAgents)
         }`,
-        `Deploy: ${result.effectiveDeploySummary}`,
+        `Deploy: ${DEPLOY_SUMMARY}`,
         '',
         'Agents:',
         ...(result.agents.length > 0
@@ -2167,7 +2138,7 @@ Examples:
 
     initCommand
         .command('status')
-        .description('Show the current workspace configuration and deploy preview')
+        .description('Show the current workspace configuration')
         .action(
             withAnalytics('init status', async () => {
                 try {
