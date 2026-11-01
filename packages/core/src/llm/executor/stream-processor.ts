@@ -15,10 +15,12 @@ import { isEmptyModelResponse } from './empty-response.js';
 import { LLMError } from '../errors.js';
 
 /**
- * How long a model stream may send no event before its attempt counts as stalled. Long reasoning
- * stays under it because providers stream reasoning or its summaries as they go.
+ * How long a model stream may send no event before its attempt counts as stalled. Production
+ * (DEXTO-2093) has waited up to 715 s for a first text (kimi-k3) and 308 s for a first reasoning
+ * delta (gpt-6.1-sol), and no stream ran 15 minutes in 30 days. Three attempts still fit inside
+ * Dexto Cloud's one-hour model step.
  */
-export const MODEL_STREAM_IDLE_TIMEOUT_MS = 5 * 60_000;
+export const MODEL_STREAM_IDLE_TIMEOUT_MS = 15 * 60_000;
 
 /**
  * Yields the stream's events and throws `stall()` once none arrives within
