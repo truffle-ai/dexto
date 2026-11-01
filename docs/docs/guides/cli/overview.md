@@ -695,6 +695,22 @@ dexto cloud api GET /v1/agents     # call any /v1 operation directly
 
 Every cloud command takes `--json` or `--table`, `--api-key <key>`, `--profile <name>` and `--project <id>`. Output is JSON when stdout isn't a terminal, and a failure prints `{"error":{"code","message","fix"}}` on stderr, where `fix` is the command that fixes it. Exit codes: 0 done, 1 failed, 2 usage, 3 needs sign-in or permission, 4 needs `--yes` (pass it only once your person has agreed), 5 not found. A command that needs a permission your sign-in lacks offers, at a terminal, to sign in again for it.
 
+## Your Dexto Workspace
+
+Signed in, `dexto workspace` uses your workspace as you, over the Dexto MCP: the same apps and tools your agents use.
+
+```bash
+dexto workspace                            # your apps
+dexto workspace drive                      # what an app does
+dexto workspace drive put ./report.pdf     # upload into Drive
+dexto workspace email send --to a@b.c --yes
+dexto workspace tools --search calendar    # every tool, by MCP name
+dexto workspace call dexto_search --data '{"query":"invoices"}'
+dexto find "share a file"                  # the command for what you want to do
+```
+
+An operation that acts, approves or spends asks first; pass `--yes` only once your person has agreed (without it, and with no one to ask, the command exits 4 with the command that goes ahead). Workspace tools act as a person, so an API key can't use them. An operation your sign-in can't use yet names the `dexto login --scope` that grants it.
+
 ## Next Steps
 
 - **[Interactive Commands](./interactive-commands)** - Slash commands for chat sessions

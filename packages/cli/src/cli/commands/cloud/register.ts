@@ -1,31 +1,39 @@
 import type { Command } from 'commander';
 import { withAnalytics, safeExit } from '../../../analytics/wrapper.js';
 
+/** The top-level words the cloud command engine owns, and what each is for. */
+const ENGINE_WORDS = {
+    cloud: 'Build in Dexto Cloud: projects, agents, files, sandboxes and more',
+    workspace: 'Use your Dexto workspace as yourself: its apps and tools, over the Dexto MCP',
+    find: 'Find the command for something you want to do in Dexto',
+} as const;
+
 /**
- * `dexto cloud …` runs on the cloud command engine, which reads its own arguments and global
- * options (--json, --api-key, --profile, --project). Analytics records only the command name, never
- * its arguments, which can hold a key.
+ * `dexto cloud …`, `dexto workspace …` and `dexto find …` run on the cloud command engine, which
+ * reads its own arguments and global options (--json, --api-key, --profile, --project). Analytics
+ * records only the command name, never its arguments, which can hold a key.
  */
 export function registerCloudCommand(program: Command): void {
-    program
-        .command('cloud')
-        .description('Build in Dexto Cloud: projects, agents, files, sandboxes and more')
-        .helpOption(false)
-        .passThroughOptions()
-        .allowUnknownOption()
-        .allowExcessArguments()
-        .argument('[args...]')
-        .action(async (args: string[]) => {
-            await withAnalytics('cloud', async () => {
-                const [{ runCloud }, { nodeCloudHost }] = await Promise.all([
-                    import('../../cloud/run.js'),
-                    import('../../cloud/host.js'),
-                ]);
-                const code = await runCloud(nodeCloudHost(new AbortController().signal), [
-                    'cloud',
-                    ...args,
-                ]);
-                safeExit('cloud', code);
-            })();
-        });
+    for (const [word, description] of Object.entries(ENGINE_WORDS))
+        program
+            .command(word)
+            .description(description)
+            .helpOption(false)
+            .passThroughOptions()
+            .allowUnknownOption()
+            .allowExcessArguments()
+            .argument('[args...]')
+            .action(async (args: string[]) => {
+                await withAnalytics(word, async () => {
+                    const [{ runCloud }, { nodeCloudHost }] = await Promise.all([
+                        import('../../cloud/run.js'),
+                        import('../../cloud/host.js'),
+                    ]);
+                    const code = await runCloud(nodeCloudHost(new AbortController().signal), [
+                        word,
+                        ...args,
+                    ]);
+                    safeExit(word, code);
+                })();
+            });
 }
