@@ -3,7 +3,6 @@
   "changelog": "@changesets/cli/changelog",
   "commit": false,
   "fixed": [[
-    "dexto",
     "@dexto/core",
     "@dexto/storage",
     "@dexto/llm",
