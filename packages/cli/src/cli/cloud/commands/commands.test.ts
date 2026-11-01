@@ -13,7 +13,7 @@ describe('cloud secrets, web and data-deletions', () => {
     let stdout: string;
     let stderr: string;
     let stdin: string;
-    let requests: { method: string; url: string; body: unknown }[];
+    let requests: { method: string; url: string; body: unknown; headers: globalThis.Headers }[];
     let reply: (url: string) => Response;
     let host: CloudHost;
 
@@ -34,6 +34,7 @@ describe('cloud secrets, web and data-deletions', () => {
                     method: request.method,
                     url: request.url,
                     body: text.length === 0 ? null : JSON.parse(text),
+                    headers: request.headers,
                 });
                 return reply(request.url);
             },
@@ -84,7 +85,7 @@ describe('cloud secrets, web and data-deletions', () => {
         ]);
 
         expect(code).toBe(0);
-        expect(requests[0]).toEqual({
+        expect(requests[0]).toMatchObject({
             method: 'POST',
             url: 'https://api.dexto.ai/v1/secrets',
             body: {
@@ -175,5 +176,156 @@ describe('cloud secrets, web and data-deletions', () => {
     it('needs --user or --agent to delete data', async () => {
         expect(await runCloud(host, ['cloud', 'data-deletions', 'create', '--yes'])).toBe(2);
         expect(requests).toHaveLength(0);
+    });
+
+    describe('models', () => {
+        const textModel = {
+            id: 'openai/gpt-5',
+            name: 'GPT-5',
+            object: 'model',
+            capabilities: {
+                input: ['text'],
+                output: ['text'],
+                maxInputTokens: 400000,
+                reasoning: true,
+                supportsToolCall: true,
+            },
+            pricing: { inputPerM: 1.25, outputPerM: 10, contextOver200kPerM: null },
+        };
+        const mediaModel = {
+            id: 'fal/flux',
+            title: 'Flux',
+            description: 'Images',
+            media_kind: 'image',
+            input: {
+                fields: [{ name: 'prompt', type: 'string', description: '' }],
+                required: ['prompt'],
+            },
+            pricing: {
+                currency: 'usd',
+                estimate_mode: 'fixed',
+                unit: 'image',
+                unit_price_usd: 0.04,
+            },
+        };
+        const run = (completed: boolean) => ({
+            id: 'gen_1',
+            model: 'fal/flux',
+            media_kind: 'image',
+            status: completed ? 'succeeded' : 'running',
+            completed,
+            error: null,
+            created_at: '2026-11-01T00:00:00.000Z',
+            resources: completed
+                ? [
+                      {
+                          id: 'r1',
+                          file_path: null,
+                          filename: 'flux.png',
+                          url: 'https://cdn.example/flux.png',
+                      },
+                  ]
+                : [],
+        });
+        let polls: number;
+
+        beforeEach(() => {
+            polls = 0;
+            reply = (url) => {
+                if (url.endsWith('/v1/models'))
+                    return Response.json({ object: 'list', data: [textModel] });
+                if (url.endsWith('/v1/media/models'))
+                    return Response.json({ object: 'list', data: [mediaModel] });
+                if (url.endsWith('/v1/media/estimates'))
+                    return Response.json({
+                        id: 'est_1',
+                        amount_usd: 0.04,
+                        confidence: 'exact',
+                        explanation: '1 image',
+                    });
+                if (url.endsWith('/v1/media/generations'))
+                    return Response.json(run(false), { status: 201 });
+                if (url.endsWith('/v1/media/generations/gen_1'))
+                    return Response.json(run(++polls > 1));
+                if (url.endsWith('/v1/chat/completions'))
+                    return Response.json({
+                        id: 'c',
+                        object: 'chat.completion',
+                        choices: [
+                            {
+                                index: 0,
+                                finish_reason: 'stop',
+                                message: { role: 'assistant', content: 'Hi there' },
+                            },
+                        ],
+                    });
+                return Response.json({}, { status: 404 });
+            };
+        });
+
+        it('lists text and media models together, and filters by kind', async () => {
+            await runCloud(host, ['cloud', 'models', 'list']);
+            expect(JSON.parse(stdout).data.map((model: { id: string }) => model.id)).toEqual([
+                'openai/gpt-5',
+                'fal/flux',
+            ]);
+
+            stdout = '';
+            await runCloud(host, ['cloud', 'models', 'list', '--type', 'image']);
+            expect(JSON.parse(stdout).data.map((model: { id: string }) => model.id)).toEqual([
+                'fal/flux',
+            ]);
+        });
+
+        it('runs a text model with a system prompt and prints its reply', async () => {
+            const code = await runCloud(host, [
+                'cloud',
+                'models',
+                'run',
+                'openai/gpt-5',
+                'say',
+                'hi',
+                '--system',
+                'Be brief',
+            ]);
+
+            expect(code).toBe(0);
+            expect(requests.at(-1)?.body).toEqual({
+                model: 'openai/gpt-5',
+                messages: [
+                    { role: 'system', content: 'Be brief' },
+                    { role: 'user', content: 'say hi' },
+                ],
+            });
+            expect(stdout).toBe('Hi there\n');
+        });
+
+        it('prices a media run and asks first: without --yes, exit 4 and nothing generated', async () => {
+            const code = await runCloud(host, ['cloud', 'models', 'run', 'fal/flux', 'a cat']);
+
+            expect(code).toBe(4);
+            expect(requests.some((request) => request.url.endsWith('/v1/media/generations'))).toBe(
+                false
+            );
+            expect(stderr).toContain('Estimated $0.04 (exact): 1 image');
+        });
+
+        it('starts a media run once agreed, idempotently, and waits for it', async () => {
+            const code = await runCloud(host, [
+                'cloud',
+                'models',
+                'run',
+                'fal/flux',
+                'a cat',
+                '--yes',
+                '--table',
+            ]);
+
+            expect(code).toBe(0);
+            const start = requests.find((request) => request.url.endsWith('/v1/media/generations'));
+            expect(start?.body).toEqual({ estimate_id: 'est_1' });
+            expect(start?.headers.get('idempotency-key')).toMatch(/^[0-9a-f-]{36}$/u);
+            expect(stdout).toBe('Run gen_1 succeeded.\nflux.png  https://cdn.example/flux.png\n');
+        });
     });
 });

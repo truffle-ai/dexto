@@ -5,6 +5,7 @@ import { getDextoGlobalPath } from '@dexto/core';
 import type { Command } from './command.js';
 import { apiCommands } from './commands/api.js';
 import { dataDeletionCommands } from './commands/data-deletions.js';
+import { modelCommands } from './commands/models.js';
 import { projectCommands, projectsUse } from './commands/projects.js';
 import { secretCommands } from './commands/secrets.js';
 import { webCommands } from './commands/web.js';
@@ -17,6 +18,7 @@ export const CLOUD_GROUPS: Readonly<Record<string, readonly Group[]>> = {
     cloud: [
         { name: 'projects', summary: 'List, create and choose Cloud projects' },
         { name: 'secrets', summary: 'Credentials agents use without seeing them' },
+        { name: 'models', summary: 'Run text and media models, and see media runs' },
         { name: 'search', summary: 'Search the web' },
         { name: 'fetch', summary: 'Read web pages' },
         { name: 'data-deletions', summary: "Delete an end user's or agent's data" },
@@ -30,6 +32,7 @@ export function cloudCommands(dir: string): readonly Command[] {
         ...projectCommands,
         projectsUse(dir),
         ...secretCommands,
+        ...modelCommands,
         ...webCommands,
         ...dataDeletionCommands,
         ...apiCommands,
