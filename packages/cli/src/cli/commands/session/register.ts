@@ -5,24 +5,26 @@ export function registerSessionCommand({
     program,
     bootstrapAgentFromGlobalOpts,
 }: RuntimeCommandRegisterContext): void {
-    const sessionCommand = program.command('session').description('Manage chat sessions');
+    const chatCommand = program
+        .command('chat')
+        .description("Your chats: this machine's sessions, and other agents' chats into Dexto");
 
-    sessionCommand
+    chatCommand
         .command('list')
-        .description('List all sessions')
+        .description("List this machine's chats")
         .action(
-            withAnalytics('session list', async () => {
+            withAnalytics('chat list', async () => {
                 let agent: Awaited<ReturnType<typeof bootstrapAgentFromGlobalOpts>> | null = null;
                 try {
                     agent = await bootstrapAgentFromGlobalOpts({ mode: 'non-interactive' });
 
                     const { handleSessionListCommand } = await import('../session-commands.js');
                     await handleSessionListCommand(agent);
-                    safeExit('session list', 0);
+                    safeExit('chat list', 0);
                 } catch (err) {
                     if (err instanceof ExitSignal) throw err;
-                    console.error(`❌ dexto session list command failed: ${err}`);
-                    safeExit('session list', 1, 'error');
+                    console.error(`❌ dexto chat list command failed: ${err}`);
+                    safeExit('chat list', 1, 'error');
                 } finally {
                     if (agent) {
                         await agent.stop().catch(() => {});
@@ -31,23 +33,23 @@ export function registerSessionCommand({
             })
         );
 
-    sessionCommand
+    chatCommand
         .command('history')
-        .description('Show session history')
-        .argument('[sessionId]', 'Session ID (defaults to current session)')
+        .description("Show a chat's messages")
+        .argument('[sessionId]', 'The chat (default: the current one)')
         .action(
-            withAnalytics('session history', async (sessionId: string) => {
+            withAnalytics('chat history', async (sessionId: string) => {
                 let agent: Awaited<ReturnType<typeof bootstrapAgentFromGlobalOpts>> | null = null;
                 try {
                     agent = await bootstrapAgentFromGlobalOpts({ mode: 'non-interactive' });
 
                     const { handleSessionHistoryCommand } = await import('../session-commands.js');
                     await handleSessionHistoryCommand(agent, sessionId);
-                    safeExit('session history', 0);
+                    safeExit('chat history', 0);
                 } catch (err) {
                     if (err instanceof ExitSignal) throw err;
-                    console.error(`❌ dexto session history command failed: ${err}`);
-                    safeExit('session history', 1, 'error');
+                    console.error(`❌ dexto chat history command failed: ${err}`);
+                    safeExit('chat history', 1, 'error');
                 } finally {
                     if (agent) {
                         await agent.stop().catch(() => {});
@@ -56,23 +58,23 @@ export function registerSessionCommand({
             })
         );
 
-    sessionCommand
+    chatCommand
         .command('delete')
-        .description('Delete a session')
-        .argument('<sessionId>', 'Session ID to delete')
+        .description('Delete a chat')
+        .argument('<sessionId>', 'The chat to delete')
         .action(
-            withAnalytics('session delete', async (sessionId: string) => {
+            withAnalytics('chat delete', async (sessionId: string) => {
                 let agent: Awaited<ReturnType<typeof bootstrapAgentFromGlobalOpts>> | null = null;
                 try {
                     agent = await bootstrapAgentFromGlobalOpts({ mode: 'non-interactive' });
 
                     const { handleSessionDeleteCommand } = await import('../session-commands.js');
                     await handleSessionDeleteCommand(agent, sessionId);
-                    safeExit('session delete', 0);
+                    safeExit('chat delete', 0);
                 } catch (err) {
                     if (err instanceof ExitSignal) throw err;
-                    console.error(`❌ dexto session delete command failed: ${err}`);
-                    safeExit('session delete', 1, 'error');
+                    console.error(`❌ dexto chat delete command failed: ${err}`);
+                    safeExit('chat delete', 1, 'error');
                 } finally {
                     if (agent) {
                         await agent.stop().catch(() => {});
@@ -80,4 +82,33 @@ export function registerSessionCommand({
                 }
             })
         );
+
+    // Claude Code and Codex chats on this machine, and importing them into Dexto, run on the
+    // cloud command engine with its own options; analytics records only the command name.
+    for (const [word, description] of [
+        ['local', 'List Claude Code and Codex chats on this machine that Dexto can import'],
+        ['import', 'Import Claude Code or Codex chats into Dexto'],
+    ] as const)
+        chatCommand
+            .command(word)
+            .description(description)
+            .helpOption(false)
+            .passThroughOptions()
+            .allowUnknownOption()
+            .allowExcessArguments()
+            .argument('[args...]')
+            .action(async (args: string[]) => {
+                await withAnalytics(`chat ${word}`, async () => {
+                    const [{ runCloud }, { nodeCloudHost }] = await Promise.all([
+                        import('../../cloud/run.js'),
+                        import('../../cloud/host.js'),
+                    ]);
+                    const code = await runCloud(nodeCloudHost(new AbortController().signal), [
+                        'chat',
+                        word,
+                        ...args,
+                    ]);
+                    safeExit(`chat ${word}`, code);
+                })();
+            });
 }

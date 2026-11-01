@@ -73,6 +73,7 @@ describe('dexto workspace', () => {
         const runtime: CloudRuntime = {
             color: false,
             environment,
+            homeDirectory: os.tmpdir(),
             fetch: async (input, init) => {
                 const request = new globalThis.Request(input, init);
                 if (request.url.endsWith('/.well-known/oauth-protected-resource/mcp'))

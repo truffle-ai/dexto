@@ -417,36 +417,45 @@ dexto which nano-banana-agent
 dexto which coding-agent
 ```
 
-### `session` - Manage Sessions
+### `chat` - Your Chats
 
 Manage conversation sessions.
 
-#### `session list`
+#### `chat list`
 
 List all available sessions.
 
 ```bash
-dexto session list
+dexto chat list
 ```
 
-#### `session history`
+#### `chat history`
 
 Show message history for a session.
 
 ```bash
 # Show history for current session
-dexto session history
+dexto chat history
 
 # Show history for specific session
-dexto session history my-session-id
+dexto chat history my-session-id
 ```
 
-#### `session delete`
+#### `chat delete`
 
 Delete a specific session.
 
 ```bash
-dexto session delete old-session-id
+dexto chat delete old-session-id
+```
+
+#### `chat local` and `chat import`
+
+Bring Claude Code and Codex chats from this machine into Dexto, signed in:
+
+```bash
+dexto chat local                 # chats Dexto can import
+dexto chat import --all          # import every chat that local lists
 ```
 
 ### `search` - Search Session History
@@ -542,7 +551,7 @@ dexto --continue --mode cli
 dexto -c -p "now add error handling"
 
 # Resume specific session (opens Web UI)
-# Get session id from the web UI or session list command
+# Get session id from the web UI or dexto chat list
 dexto --resume my-project-session
 
 # Resume session in CLI mode
@@ -680,7 +689,7 @@ dexto search "bug fix" --session my-session-id
 dexto search "error" --role assistant
 
 # View session history
-dexto session history my-session-id
+dexto chat history my-session-id
 ```
 
 ## Dexto Cloud

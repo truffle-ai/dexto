@@ -74,6 +74,7 @@ describe('dexto cloud', () => {
         const runtime: CloudRuntime = {
             color: false,
             environment: {},
+            homeDirectory: os.tmpdir(),
             fetch: async (input, init) => {
                 const request = new globalThis.Request(input, init);
                 requests.push(request);

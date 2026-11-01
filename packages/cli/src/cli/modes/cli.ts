@@ -176,7 +176,7 @@ export async function runCliMode(context: MainModeContext): Promise<void> {
             const existing = await agent.getSession(opts.resume);
             if (!existing) {
                 console.error(`❌ Session '${opts.resume}' not found`);
-                console.error('💡 Use `dexto session list` to see available sessions');
+                console.error('💡 Use `dexto chat list` to see available sessions');
                 safeExit('main', 1, 'resume-failed');
             }
             cliSessionId = opts.resume;
