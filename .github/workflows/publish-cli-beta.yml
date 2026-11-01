@@ -3,7 +3,8 @@
 # It never touches `latest`, and main's release path (changesets-publish.yml) is unchanged.
 # dexto resolves its @dexto/* dependencies to exact versions when published, so the packages it
 # needs that changed since 1.14.4 publish as prereleases with it, also under `next`:
-# @dexto/agent-management, @dexto/tui and the new @dexto/cloud-client. @dexto/core and the rest
+# @dexto/agent-management, @dexto/tui and the new @dexto/cloud-client, plus the packages that depend
+# on @dexto/agent-management, so one copy is installed. @dexto/core and the rest
 # are unchanged since 1.14.4 and resolve to the versions already on npm.
 name: Publish dexto beta (manual)
 
@@ -41,7 +42,7 @@ jobs:
         run: |
           set -euo pipefail
           [[ "$BETA" =~ ^[0-9]+$ ]] || { echo "beta must be a whole number, such as 0" >&2; exit 1; }
-          for target in packages/cli:2.0.0 packages/agent-management:1.15.0 packages/tui:1.15.0 packages/cloud-client:1.15.0; do
+          for target in packages/cli:2.0.0 packages/agent-management:1.15.0 packages/tui:1.15.0 packages/cloud-client:1.15.0 packages/server:1.15.0 packages/analytics:1.15.0 packages/image-local:1.15.0 packages/image-logger-agent:1.15.0; do
             (cd "${target%%:*}" && npm pkg set version="${target#*:}-beta.${BETA}")
           done
 
@@ -53,7 +54,7 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           set -euo pipefail
-          for dir in packages/cloud-client packages/agent-management packages/tui packages/cli; do
+          for dir in packages/cloud-client packages/agent-management packages/analytics packages/image-local packages/image-logger-agent packages/server packages/tui packages/cli; do
             (cd "$dir" && pnpm publish --tag next --access public --no-git-checks)
           done
           npm view dexto dist-tags
