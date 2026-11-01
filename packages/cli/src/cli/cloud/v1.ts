@@ -26,15 +26,19 @@ export async function fetchV1(
     );
 }
 
-/** Sends bytes, such as a file, to a `/v1` path, with the headers that describe them. */
+/**
+ * Sends one request to a `/v1` path with its own headers and body, such as a file or a request
+ * for an event stream; `signal` ends it early.
+ */
 export async function sendV1(
     context: CommandContext,
     method: string,
     requestPath: string,
     content: {
-        readonly body: string | globalThis.Blob;
+        readonly body: string | globalThis.Blob | null;
         readonly headers: Readonly<Record<string, string>>;
-    } | null
+    } | null,
+    signal: AbortSignal = context.runtime.signal
 ): Promise<Response> {
     const connection = await context.connection();
     const apiOrigin = new URL(connection.apiBaseUrl).origin;
@@ -54,8 +58,8 @@ export async function sendV1(
                 : {}),
         },
         method,
-        ...(content === null ? {} : { body: content.body }),
-        signal: context.runtime.signal,
+        ...(content === null || content.body === null ? {} : { body: content.body }),
+        signal,
     });
 }
 
