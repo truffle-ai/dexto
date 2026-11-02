@@ -17,6 +17,8 @@ import { tone } from '../../signal/index.js';
 export interface ParsedHunk {
     oldStart: number;
     newStart: number;
+    /** The hunk's own "@@ -1,2 +1,3 @@ context" line. */
+    header: string;
     lines: ParsedLine[];
 }
 
@@ -61,6 +63,7 @@ export function parseUnifiedDiff(unified: string): ParsedHunk[] {
             currentHunk = {
                 oldStart: oldLine,
                 newStart: newLine,
+                header: line,
                 lines: [],
             };
             continue;

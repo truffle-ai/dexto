@@ -194,4 +194,21 @@ describe('Signal approval gate', () => {
         const rows = frame.split('\n').filter((line) => line.includes('word'));
         expect(rows.join(' ').match(/word/g)).toHaveLength(20);
     });
+
+    it('names the file an edit approval would change', () => {
+        const metadata = {
+            toolName: 'edit_file',
+            args: {},
+            displayPreview: {
+                type: 'diff',
+                unified: '@@ -1 +1 @@\n-a\n+b',
+                filename: `${process.cwd()}/src/token.ts`,
+                additions: 1,
+                deletions: 1,
+            },
+        };
+        expect(renderFrame(prompt(request({ metadata })), TEXT_ONLY)).toContain(
+            'src/token.ts +1 −1'
+        );
+    });
 });

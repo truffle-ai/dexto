@@ -6,7 +6,7 @@ import React, {
     useEffect,
     useMemo,
 } from 'react';
-import { Box, Text } from 'ink';
+import { Box, Text, useStdout } from 'ink';
 import type {
     HostRuntimeContext,
     ToolDisplayData,
@@ -17,9 +17,10 @@ import { ApprovalType, isToolPresentationSnapshotV1 } from '@dexto/core';
 import type { Key } from '../hooks/useInputOrchestrator.js';
 import { ElicitationForm, type ElicitationFormHandle } from './ElicitationForm.js';
 import { DiffPreview, CreateFilePreview } from './renderers/index.js';
+import { SignalDiff } from './renderers/SignalDiff.js';
 import { isEditWriteTool } from '../utils/toolUtils.js';
 import { formatApprovalScope } from '../utils/approvalScope.js';
-import { formatToolHeader } from '../utils/messageFormatting.js';
+import { formatToolHeader, makeRelativePath } from '../utils/messageFormatting.js';
 import { DiffInsetContext } from './renderers/diff-shared.js';
 import { GateFrame, glyphText, tone, useCaps } from '../signal/index.js';
 
@@ -102,6 +103,8 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
         const isElicitation = approval.type === 'elicitation';
         const { palette, glyphs } = useCaps();
         const signal = palette === 'signal';
+        const { stdout } = useStdout();
+        const columns = stdout?.columns ?? 80;
 
         // Extract tool metadata
         const toolName = approval.metadata.toolName as string | undefined;
@@ -379,7 +382,21 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
         if (signal && !isPlanReview) {
             const shellCommand =
                 displayPreview?.type === 'shell' ? displayPreview.command : (command ?? null);
-            const preview = displayPreview?.type === 'shell' ? null : renderPreview();
+            const preview =
+                displayPreview?.type === 'shell' ? null : displayPreview?.type === 'diff' ? (
+                    <>
+                        <Text bold color={tone('hi')}>
+                            {makeRelativePath(displayPreview.filename)}{' '}
+                            <Text color={tone('add')}>+{displayPreview.additions}</Text>{' '}
+                            <Text color={tone('del')}>
+                                {glyphText(`−${displayPreview.deletions}`, glyphs)}
+                            </Text>
+                        </Text>
+                        <SignalDiff data={displayPreview} width={columns - GATE_INSET} />
+                    </>
+                ) : (
+                    renderPreview()
+                );
             return (
                 <DiffInsetContext.Provider value={GATE_INSET}>
                     <GateFrame

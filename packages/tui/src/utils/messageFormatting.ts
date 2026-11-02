@@ -333,6 +333,7 @@ export function createErrorMessage(error: Error | string): Message {
         role: 'system',
         content: `Error: ${content}`,
         timestamp: new Date(),
+        systemKind: 'fault',
     };
 }
 
