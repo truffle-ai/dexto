@@ -39,6 +39,7 @@ const backgroundCompletionRegex =
 const stripBackgroundCompletion = (text: string): string =>
     text.replace(backgroundCompletionRegex, '').replace('<background-task-completion>', '').trim();
 
+import { storedBackgroundFailure } from './background-failure.js';
 import { generateMessageId } from './idGenerator.js';
 
 const AUTOMATION_TRIGGER_REGEX =
@@ -559,6 +560,7 @@ export function convertHistoryToUIMessages(
                 toolStatus: 'finished',
                 toolResult: resultPreview,
                 isError: msg.success === false,
+                ...storedBackgroundFailure(msg.name, extractTextContent(msg.content)),
                 // Store content parts for potential rich rendering
                 toolContent: msg.content,
                 // Restore structured display data for rich rendering (diffs, shell output, etc.)
