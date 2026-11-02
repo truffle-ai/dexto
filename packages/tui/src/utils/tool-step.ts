@@ -5,7 +5,10 @@
 import type { ToolDisplayData } from '@dexto/core';
 import type { Step, StepState } from '../signal/index.js';
 import type { Message } from '../state/types.js';
+import { backgroundFailure } from './background-failure.js';
 import { formatDuration, makeRelativePath } from './messageFormatting.js';
+
+export { backgroundFailure };
 
 const VERB_CELLS = 7;
 const OUTPUT_LINES = 5;
@@ -118,25 +121,6 @@ function stepDetail(message: Message, state: StepState): string | null {
         return `${plural(message.subAgentProgress.toolsCalled, 'tool')} so far`;
     }
     return message.toolDisplayData === undefined ? null : displayDetail(message.toolDisplayData);
-}
-
-/**
- * A background command's failure, read back by `bash_output`. Reading it succeeds as a tool call,
- * so its outcome is only in the result.
- */
-export function backgroundFailure(toolName: string, rawResult: unknown): Partial<Message> {
-    if (toolName !== 'bash_output' || typeof rawResult !== 'object' || rawResult === null) {
-        return {};
-    }
-    const { status, stderr, stdout, exit_code: exitCode } = rawResult as Record<string, unknown>;
-    if (status !== 'failed') return {};
-    const output = [stderr, stdout].find(
-        (text): text is string => typeof text === 'string' && text.trim().length > 0
-    );
-    return {
-        toolOutcome: 'failed',
-        toolFailureText: output ?? `exit ${String(exitCode ?? 'unknown')}`,
-    };
 }
 
 export function toolStep(message: Message): Step {
