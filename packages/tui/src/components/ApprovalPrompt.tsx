@@ -20,7 +20,7 @@ import { DiffPreview, CreateFilePreview } from './renderers/index.js';
 import { SignalDiff } from './renderers/SignalDiff.js';
 import { isEditWriteTool } from '../utils/toolUtils.js';
 import { formatApprovalScope } from '../utils/approvalScope.js';
-import { formatToolHeader } from '../utils/messageFormatting.js';
+import { formatToolHeader, makeRelativePath } from '../utils/messageFormatting.js';
 import { DiffInsetContext } from './renderers/diff-shared.js';
 import { GateFrame, glyphText, tone, useCaps } from '../signal/index.js';
 
@@ -384,7 +384,16 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
                 displayPreview?.type === 'shell' ? displayPreview.command : (command ?? null);
             const preview =
                 displayPreview?.type === 'shell' ? null : displayPreview?.type === 'diff' ? (
-                    <SignalDiff data={displayPreview} width={columns - GATE_INSET} />
+                    <>
+                        <Text bold color={tone('hi')}>
+                            {makeRelativePath(displayPreview.filename)}{' '}
+                            <Text color={tone('add')}>+{displayPreview.additions}</Text>{' '}
+                            <Text color={tone('del')}>
+                                {glyphText(`−${displayPreview.deletions}`, glyphs)}
+                            </Text>
+                        </Text>
+                        <SignalDiff data={displayPreview} width={columns - GATE_INSET} />
+                    </>
                 ) : (
                     renderPreview()
                 );

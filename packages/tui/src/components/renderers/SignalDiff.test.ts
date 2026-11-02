@@ -64,6 +64,16 @@ describe('SignalDiff', () => {
         for (const line of frame.split('\n')) expect(line.length).toBeLessThanOrEqual(40);
     });
 
+    it('widens the gutter for large line numbers and keeps rows aligned', () => {
+        const large = { ...data, unified: '@@ -100000,1 +100000,1 @@\n-old\n+new' };
+        const lines = renderFrame(createElement(SignalDiff, { data: large, width: 60 }), {
+            columns: 60,
+            terminal: 'no-color',
+        }).split('\n');
+        expect(lines[1]?.trimEnd()).toBe('100000        − old');
+        expect(lines[2]?.trimEnd()).toBe('       100000 + new');
+    });
+
     it('falls back to plain signs on an ASCII terminal', () => {
         const frame = renderFrame(createElement(SignalDiff, { data, width: 60 }), {
             columns: 60,

@@ -44,12 +44,24 @@ export function diffRows(hunk: ParsedHunk): DiffRow[] {
     return rows;
 }
 
-const NUMBER_CELLS = 4;
-/** Two line numbers, a space after each, the sign and a space. */
-const GUTTER_CELLS = NUMBER_CELLS * 2 + 4;
+const MIN_NUMBER_CELLS = 4;
 
-function cell(line: number | null): string {
-    return (line === null ? '' : String(line)).padStart(NUMBER_CELLS, ' ');
+/** Cells for a line number: wide enough for the largest in the diff, the same on every row. */
+export function numberCells(hunks: ParsedHunk[]): number {
+    const largest = hunks
+        .flatMap((hunk) => diffRows(hunk))
+        .flatMap((row) => [row.oldLine ?? 0, row.newLine ?? 0])
+        .reduce((a, b) => Math.max(a, b), 0);
+    return Math.max(MIN_NUMBER_CELLS, String(largest).length);
+}
+
+/** Two line numbers, a space after each, the sign and a space. */
+function gutterCells(cells: number): number {
+    return cells * 2 + 4;
+}
+
+function cell(line: number | null, cells: number): string {
+    return (line === null ? '' : String(line)).padStart(cells, ' ');
 }
 
 const ROW_STYLE: Readonly<
@@ -60,7 +72,7 @@ const ROW_STYLE: Readonly<
     context: { bg: null, strong: null, sign: ' ', role: 'dim' },
 };
 
-function RowText({ row, width }: { row: DiffRow; width: number }) {
+function RowText({ row, width, cells }: { row: DiffRow; width: number; cells: number }) {
     const tone = useTone();
     const { glyphs } = useCaps();
     const style = ROW_STYLE[row.kind];
@@ -69,15 +81,16 @@ function RowText({ row, width }: { row: DiffRow; width: number }) {
         ...part,
         value: part.value.replace(/\t/g, '    '),
     }));
-    const room = Math.max(1, width - GUTTER_CELLS);
+    const gutter = gutterCells(cells);
+    const room = Math.max(1, width - gutter);
     const used = stringWidth(parts.map((part) => part.value).join(''));
     return (
         <Box>
-            <Box width={GUTTER_CELLS} flexShrink={0}>
+            <Box width={gutter} flexShrink={0}>
                 <Text {...bg}>
                     <Text
                         color={tone('faint')}
-                    >{`${cell(row.oldLine)} ${cell(row.newLine)} `}</Text>
+                    >{`${cell(row.oldLine, cells)} ${cell(row.newLine, cells)} `}</Text>
                     <Text bold color={tone(style.role)}>
                         {glyphText(style.sign, glyphs)}{' '}
                     </Text>
@@ -115,9 +128,11 @@ export interface SignalDiffProps {
 export function SignalDiff({ data, width }: SignalDiffProps) {
     const tone = useTone();
     const { glyphs } = useCaps();
+    const hunks = parseUnifiedDiff(data.unified);
+    const cells = numberCells(hunks);
     return (
         <Box flexDirection="column">
-            {parseUnifiedDiff(data.unified).map((hunk, h) => (
+            {hunks.map((hunk, h) => (
                 <Box key={h} flexDirection="column">
                     <Text wrap="truncate-end">
                         <Text color={tone('ghost')}>{glyphText('┊ ', glyphs)}</Text>
@@ -126,7 +141,7 @@ export function SignalDiff({ data, width }: SignalDiffProps) {
                         </Text>
                     </Text>
                     {diffRows(hunk).map((row, i) => (
-                        <RowText key={i} row={row} width={width} />
+                        <RowText key={i} row={row} width={width} cells={cells} />
                     ))}
                 </Box>
             ))}
