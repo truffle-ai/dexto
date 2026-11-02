@@ -11,11 +11,10 @@
 
 import React, { memo, useMemo } from 'react';
 import { Text, Box, useStdout } from 'ink';
-import chalk from 'chalk';
 import wrapAnsi from 'wrap-ansi';
 import stringWidth from 'string-width';
 import { highlight, supportsLanguage } from 'cli-highlight';
-import { tone } from '../../signal/index.js';
+import { markdownChalk, paint, tone } from '../../signal/index.js';
 
 // ============================================================================
 // Inline Markdown Parsing
@@ -113,7 +112,7 @@ function parseInlineMarkdown(text: string): InlineSegment[] {
  * This allows wrap-ansi to properly handle styled text while word-wrapping.
  */
 function segmentsToAnsi(segments: InlineSegment[], defaultColor: string): string {
-    const colorFn = getChalkColor(defaultColor);
+    const colorFn = markdownChalk(defaultColor);
 
     return segments
         .map((segment) => {
@@ -121,51 +120,20 @@ function segmentsToAnsi(segments: InlineSegment[], defaultColor: string): string
                 case 'bold':
                     return colorFn.bold(segment.content);
                 case 'code':
-                    return chalk.cyan(segment.content);
+                    return paint('teal')(segment.content);
                 case 'italic':
-                    return chalk.gray(segment.content);
+                    return paint('dim')(segment.content);
                 case 'strikethrough':
                     return colorFn.strikethrough(segment.content);
                 case 'link':
-                    return colorFn(segment.content) + chalk.blue(` (${segment.url})`);
+                    return colorFn(segment.content) + paint('fg')(` (${segment.url})`);
                 case 'url':
-                    return chalk.blue(segment.content);
+                    return paint('fg')(segment.content);
                 default:
                     return colorFn(segment.content);
             }
         })
         .join('');
-}
-
-/**
- * Get chalk color function from color name
- */
-function getChalkColor(color: string): typeof chalk {
-    // Signal palette values: hex, or '' for the terminal's default colour.
-    if (color.startsWith('#')) return chalk.hex(color);
-    if (color === '') return chalk;
-    switch (color) {
-        case 'white':
-            return chalk.white;
-        case 'gray':
-            return chalk.gray;
-        case 'blue':
-            return chalk.blue;
-        case 'cyan':
-            return chalk.cyan;
-        case 'green':
-            return chalk.green;
-        case 'yellow':
-            return chalk.rgb(255, 165, 0);
-        case 'orange':
-            return chalk.rgb(255, 165, 0);
-        case 'red':
-            return chalk.red;
-        case 'magenta':
-            return chalk.green;
-        default:
-            return chalk.white;
-    }
 }
 
 // ============================================================================
@@ -598,7 +566,7 @@ const RenderCodeBlockInternal: React.FC<RenderCodeBlockProps> = ({
                 return highlight(code, { language, ignoreIllegals: true });
             } catch {
                 // Fall back to plain cyan if highlighting fails
-                return chalk.cyan(code);
+                return paint('teal')(code);
             }
         }
 
@@ -608,12 +576,12 @@ const RenderCodeBlockInternal: React.FC<RenderCodeBlockProps> = ({
                 return highlight(code, { ignoreIllegals: true });
             } catch {
                 // Fall back to plain cyan if auto-detection fails
-                return chalk.cyan(code);
+                return paint('teal')(code);
             }
         }
 
         // Fallback: plain cyan text
-        return chalk.cyan(code);
+        return paint('teal')(code);
     }, [lines, language]);
 
     return (
