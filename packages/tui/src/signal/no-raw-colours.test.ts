@@ -14,8 +14,8 @@ const NAMES =
 const RAW_PROP = new RegExp(`\\b\\w*[cC]olor=(["'])(${NAMES}|#[0-9a-fA-F]{3,8})\\1`);
 // 'cyan' or "#224488" as a value anywhere else (ternaries, maps, defaults)
 const RAW_VALUE = new RegExp(`(["'])(${NAMES}|#[0-9a-fA-F]{6})\\1`);
-// Where a colour name is a key, not a value: MarkdownText maps names to chalk.
-const ALLOWED_LINE = /^\s*case (["'])\w+\1:/;
+// chalk.cyan(...), chalk.bold.rgb(...): paint(role) instead. Modifiers like chalk.dim are not colours.
+const RAW_CHALK = new RegExp(`\\bchalk(\\.\\w+)*\\.(${NAMES}|rgb|hex|bgRgb|bgHex|ansi256)\\b`);
 
 function sourceFiles(dir: string): string[] {
     return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
@@ -32,8 +32,12 @@ describe('TUI colours', () => {
             readFileSync(file, 'utf8')
                 .split('\n')
                 .forEach((line, i) => {
-                    if (ALLOWED_LINE.test(line) || /^\s*(\/\/|\*)/.test(line)) return;
-                    if (RAW_PROP.test(line) || RAW_VALUE.test(line.replace(/tone\('\w+'\)/g, ''))) {
+                    if (/^\s*(\/\/|\*)/.test(line)) return;
+                    if (
+                        RAW_CHALK.test(line) ||
+                        RAW_PROP.test(line) ||
+                        RAW_VALUE.test(line.replace(/(tone|paint)\('\w+'\)/g, ''))
+                    ) {
                         offenders.push(`${relative(SRC, file)}:${i + 1}: ${line.trim()}`);
                     }
                 });

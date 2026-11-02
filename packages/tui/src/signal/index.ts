@@ -13,6 +13,7 @@ export {
 } from './caps.js';
 export { detectBackgroundTheme } from './background.js';
 export { resolveTone, tone, useTone, type Role } from './tone.js';
+export { markdownChalk, paint } from './paint.js';
 export { glyphText } from './glyphs.js';
 export { CUT_ROWS, cutLines, cutWidth } from './cut.js';
 export {
