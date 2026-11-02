@@ -7,7 +7,8 @@
  *   neutral fg, hi, dim, faint, ghost: everything you read for hours
  * Surfaces (s1, s2, sel, *Bg) are backgrounds.
  */
-import { getCaps, type Caps } from './caps.js';
+import { useCallback } from 'react';
+import { getCaps, useCaps, type Caps } from './caps.js';
 
 export type Role =
     | 'bg'
@@ -94,7 +95,16 @@ export function resolveTone(role: Role, caps: Caps): string {
     }
 }
 
-/** The Ink colour for a role in this terminal. Use for `color`, `borderColor`, `backgroundColor`. */
+/**
+ * The Ink colour for a role in this terminal. Use for `color`, `borderColor`, `backgroundColor`.
+ * Reads caps once; inside a component prefer `useTone()`, which re-renders when caps change.
+ */
 export function tone(role: Role): string {
     return resolveTone(role, getCaps());
+}
+
+/** `tone` bound to the current caps; the component re-renders when they change (OSC 11, tests). */
+export function useTone(): (role: Role) => string {
+    const caps = useCaps();
+    return useCallback((role: Role) => resolveTone(role, caps), [caps]);
 }

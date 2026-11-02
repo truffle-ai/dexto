@@ -2,7 +2,7 @@ import { createElement, type ReactElement } from 'react';
 import { PassThrough } from 'node:stream';
 import { render, Text } from 'ink';
 import stripAnsi from 'strip-ansi';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { getCaps, setCaps, type Caps } from './caps.js';
 import { ActorRow, CutText, Deck, GateFrame, StepRow, Wordmark, type Step } from './components.js';
 
@@ -53,6 +53,35 @@ describe('Signal kit parts', () => {
     it('StepRow lays out verb, target, detail, time and the state word', () => {
         const out = frame(createElement(StepRow, { step }), 100);
         expect(out).toMatch(/▸ RUN\s+pnpm db:migrate --env staging\s+\+12 −3 0\.4s\s+NEEDS YOU/);
+    });
+
+    it('StepRow draws ASCII glyphs on terminals without UTF-8', () => {
+        setCaps({ ...getCaps(), glyphs: 'ascii' });
+        const out = frame(createElement(StepRow, { step: { ...step, state: 'ok' } }), 100);
+        expect(out).toMatch(/^\* RUN\s+pnpm db:migrate --env staging\s+\+12 -3 0\.4s/m);
+        expect(out).not.toMatch(/[▪▸▫◆−]/);
+    });
+
+    it('re-renders mounted parts when caps change', async () => {
+        const stdout = Object.assign(new PassThrough(), { columns: 100, rows: 40, isTTY: false });
+        let output = '';
+        stdout.on('data', (chunk) => {
+            output += String(chunk);
+        });
+        const view = render(createElement(StepRow, { step }), {
+            stdout: stdout as unknown as NodeJS.WriteStream,
+            debug: true,
+            patchConsole: false,
+            exitOnCtrlC: false,
+        });
+        try {
+            expect(output).toContain('▸ RUN');
+            setCaps({ ...getCaps(), glyphs: 'ascii' });
+            await vi.waitFor(() => expect(output).toContain('> RUN'));
+        } finally {
+            view.unmount();
+            stdout.destroy();
+        }
     });
 
     it('ActorRow puts the actor in the margin, or a glyph when narrow', () => {

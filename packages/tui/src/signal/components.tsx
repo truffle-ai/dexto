@@ -5,8 +5,9 @@
 import type { ReactNode } from 'react';
 import { Box, Text, useStdout } from 'ink';
 import { useCaps } from './caps.js';
+import { glyphText } from './glyphs.js';
 import { cutLines } from './cut.js';
-import { tone, type Role } from './tone.js';
+import { useTone, type Role } from './tone.js';
 
 // ---------------------------------------------------------------- wordmark
 
@@ -19,10 +20,12 @@ export interface WordmarkProps {
 
 /** The Dexto wordmark: the mark in teal, the word in the reading colour. */
 export function Wordmark({ rows }: WordmarkProps) {
+    const tone = useTone();
+    const { glyphs } = useCaps();
     return (
         <Box flexDirection="column" height={Math.max(1, rows)} flexShrink={0}>
             <Text bold>
-                <Text color={tone('teal')}>◢ </Text>
+                <Text color={tone('teal')}>{glyphText('◢ ', glyphs)}</Text>
                 <Text color={tone('hi')}>dexto</Text>
             </Text>
         </Box>
@@ -38,6 +41,7 @@ export interface CutTextProps {
 
 /** A title in cut type, 3 rows tall. ASCII terminals get the plain word. */
 export function CutText({ text, role = 'hi' }: CutTextProps) {
+    const tone = useTone();
     const caps = useCaps();
     if (caps.glyphs === 'ascii') {
         return (
@@ -130,6 +134,8 @@ export interface DeckProps {
 
 /** The slim band under the transcript: wordmark, live trace, status; then gate and input. */
 export function Deck({ state, gate, children }: DeckProps) {
+    const tone = useTone();
+    const { glyphs } = useCaps();
     const mode = DECK_MODES[state.mode];
     return (
         <Box flexDirection="column">
@@ -139,8 +145,10 @@ export function Deck({ state, gate, children }: DeckProps) {
                 <Text bold color={tone(mode.role)}>
                     {mode.label}
                 </Text>
-                {state.readout !== null && <Text color={tone('dim')}> · {state.readout}</Text>}
-                <Text color={tone('dim')}> · {state.status.model}</Text>
+                {state.readout !== null && (
+                    <Text color={tone('dim')}>{glyphText(` · ${state.readout}`, glyphs)}</Text>
+                )}
+                <Text color={tone('dim')}>{glyphText(` · ${state.status.model}`, glyphs)}</Text>
             </Box>
             {gate}
             {children}
@@ -173,6 +181,8 @@ export interface ActorRowProps {
 
 /** A transcript block with the actor in the left margin. */
 export function ActorRow({ actor, label, children }: ActorRowProps) {
+    const tone = useTone();
+    const { glyphs } = useCaps();
     const { stdout } = useStdout();
     const margin = actorMarginWidth(stdout.columns || 80);
     const role = ACTOR_ROLE[actor];
@@ -181,7 +191,7 @@ export function ActorRow({ actor, label, children }: ActorRowProps) {
         <Box>
             <Box width={margin} flexShrink={0}>
                 <Text bold color={tone(role)} wrap="truncate-end">
-                    {margin >= 8 ? ` ${head}` : head}
+                    {glyphText(margin >= 8 ? ` ${head}` : head, glyphs)}
                 </Text>
             </Box>
             <Box flexDirection="column" flexGrow={1}>
@@ -232,13 +242,15 @@ function stepGlyph(step: Step): string {
 }
 
 function DetailText({ detail }: { detail: string }) {
+    const tone = useTone();
+    const { glyphs } = useCaps();
     return (
         <>
             {detail.split(/(\+\d+|−\d+)/).map((part, i) => {
                 const role: Role = /^\+\d/.test(part) ? 'add' : /^−\d/.test(part) ? 'del' : 'dim';
                 return (
                     <Text key={i} color={tone(role)}>
-                        {part}
+                        {glyphText(part, glyphs)}
                     </Text>
                 );
             })}
@@ -252,13 +264,15 @@ export interface StepRowProps {
 
 /** One tool call as one fixed-column row: glyph · VERB · target · detail · time · state word. */
 export function StepRow({ step }: StepRowProps) {
+    const tone = useTone();
     const role = stepRole(step);
     const quiet = step.state === 'queue' || step.state === 'skip';
     const word = STEP_WORD[step.state];
+    const { glyphs } = useCaps();
     return (
         <Box>
             <Box width={2} flexShrink={0}>
-                <Text color={tone(role)}>{stepGlyph(step)}</Text>
+                <Text color={tone(role)}>{glyphText(stepGlyph(step), glyphs)}</Text>
             </Box>
             <Box width={8} flexShrink={0}>
                 <Text bold color={tone(quiet ? 'dim' : step.cloud ? 'cloud' : 'hi')}>
@@ -267,7 +281,7 @@ export function StepRow({ step }: StepRowProps) {
             </Box>
             <Box flexGrow={1} flexShrink={1}>
                 <Text color={tone(quiet ? 'dim' : 'fg')} wrap="truncate-end">
-                    {step.target}
+                    {glyphText(step.target, glyphs)}
                 </Text>
             </Box>
             {step.detail !== null && (
@@ -279,7 +293,7 @@ export function StepRow({ step }: StepRowProps) {
             )}
             {step.time !== null && (
                 <Box flexShrink={0} marginLeft={1}>
-                    <Text color={tone('faint')}>{step.time}</Text>
+                    <Text color={tone('faint')}>{glyphText(step.time, glyphs)}</Text>
                 </Box>
             )}
             {word !== undefined && (
@@ -307,13 +321,20 @@ export interface GateFrameProps {
 
 /** The frame around anything that waits on the user: approvals, questions, steer. */
 export function GateFrame({ title, role = 'amber', hint, children }: GateFrameProps) {
+    const tone = useTone();
+    const { glyphs } = useCaps();
     return (
-        <Box flexDirection="column" borderStyle="round" borderColor={tone(role)} paddingX={1}>
+        <Box
+            flexDirection="column"
+            borderStyle={glyphs === 'ascii' ? 'classic' : 'round'}
+            borderColor={tone(role)}
+            paddingX={1}
+        >
             <Text bold color={tone(role)}>
-                {title}
+                {glyphText(title, glyphs)}
             </Text>
             {children}
-            {hint !== undefined && <Text color={tone('dim')}>{hint}</Text>}
+            {hint !== undefined && <Text color={tone('dim')}>{glyphText(hint, glyphs)}</Text>}
         </Box>
     );
 }

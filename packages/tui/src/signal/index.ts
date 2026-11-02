@@ -10,7 +10,8 @@ export {
     type Motion,
     type ThemeName,
 } from './caps.js';
-export { resolveTone, tone, type Role } from './tone.js';
+export { resolveTone, tone, useTone, type Role } from './tone.js';
+export { glyphText } from './glyphs.js';
 export { CUT_ROWS, cutLines, cutWidth } from './cut.js';
 export {
     ActorRow,
