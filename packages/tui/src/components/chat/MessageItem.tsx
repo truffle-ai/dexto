@@ -39,7 +39,12 @@ import {
     stripAutomationTriggerTags,
 } from '../../utils/messageFormatting.js';
 import { tone, useCaps } from '../../signal/index.js';
-import { SignalAgentMessage, SignalToolMessage, SignalUserMessage } from './SignalMessage.js';
+import {
+    SignalAgentMessage,
+    SignalNote,
+    SignalToolMessage,
+    SignalUserMessage,
+} from './SignalMessage.js';
 
 /**
  * Strip <plan-mode>...</plan-mode> tags from content.
@@ -165,6 +170,20 @@ export const MessageItem = memo(
                 case 'run-summary': {
                     const data = message.styledData as RunSummaryStyledData;
                     const durationStr = formatDuration(data.durationMs);
+                    if (signal) {
+                        const tokens =
+                            data.totalTokens >= 1000
+                                ? ` · ${(data.totalTokens / 1000).toFixed(1)}k tokens`
+                                : '';
+                        return (
+                            <SignalNote
+                                message={{
+                                    ...message,
+                                    content: `worked for ${durationStr}${tokens}`,
+                                }}
+                            />
+                        );
+                    }
                     // Only show tokens when >= 1000, using K notation
                     const tokensStr =
                         data.totalTokens >= 1000
@@ -397,6 +416,9 @@ export const MessageItem = memo(
                 );
             }
         }
+        if (signal) {
+            return <SignalNote message={message} />;
+        }
 
         return (
             <Box flexDirection="column" marginBottom={1} width={terminalWidth}>
@@ -413,6 +435,7 @@ export const MessageItem = memo(
             prev.message.role === next.message.role &&
             prev.message.toolStatus === next.message.toolStatus &&
             prev.message.toolOutcome === next.message.toolOutcome &&
+            prev.message.systemKind === next.message.systemKind &&
             prev.message.toolResult === next.message.toolResult &&
             prev.message.isStreaming === next.message.isStreaming &&
             prev.message.styledType === next.message.styledType &&

@@ -326,6 +326,7 @@ export function useInputOrchestrator({
                     role: 'system',
                     content: 'Interrupted - what should Dexto do next?',
                     timestamp: new Date(),
+                    systemKind: 'stopped',
                 },
             ]);
 

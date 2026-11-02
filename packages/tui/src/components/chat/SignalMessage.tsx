@@ -12,10 +12,10 @@ import {
     useTone,
 } from '../../signal/index.js';
 import type { Message } from '../../state/types.js';
+import { faultBlock } from '../../utils/fault-block.js';
 import { toolOutput, toolStep } from '../../utils/tool-step.js';
 import { MarkdownInsetContext, MarkdownText } from '../shared/MarkdownText.js';
-import { DiffInsetContext } from '../renderers/diff-shared.js';
-import { DiffRenderer } from '../renderers/index.js';
+import { SignalDiff } from '../renderers/SignalDiff.js';
 
 function useMargin(): number {
     const { stdout } = useStdout();
@@ -71,6 +71,7 @@ export function SignalToolMessage({ message }: { message: Message }) {
     const tone = useTone();
     const { glyphs } = useCaps();
     const margin = useMargin();
+    const { stdout } = useStdout();
     const step = toolStep(message);
     const display = message.toolDisplayData;
     return (
@@ -83,10 +84,65 @@ export function SignalToolMessage({ message }: { message: Message }) {
                 </Text>
             ))}
             {display?.type === 'diff' && (
-                <DiffInsetContext.Provider value={margin}>
-                    <DiffRenderer data={display} />
-                </DiffInsetContext.Provider>
+                <SignalDiff data={display} width={(stdout?.columns ?? 80) - margin} />
             )}
+        </Box>
+    );
+}
+
+/** A system message: a fault, the point where the user stopped the run, or a quiet note. */
+export function SignalNote({ message }: { message: Message }) {
+    const tone = useTone();
+    const { glyphs } = useCaps();
+    const margin = useMargin();
+    if (message.systemKind === 'fault') {
+        const fault = faultBlock(message.content);
+        return (
+            <Box flexDirection="column" marginTop={1} marginLeft={Math.max(0, margin - 2)}>
+                <Text>
+                    <Text color={tone('red')}>{glyphText('▌ ', glyphs)}</Text>
+                    <Text bold color={tone('red')}>
+                        FAULT{' '}
+                    </Text>
+                    <Text bold color={tone('hi')}>
+                        {fault.title}
+                    </Text>
+                </Text>
+                {fault.body.map((line, i) => (
+                    <Text key={`body-${i}`}>
+                        <Text color={tone('redDim')}>{glyphText('▌ ', glyphs)}</Text>
+                        <Text color={tone('fg')}>{line}</Text>
+                    </Text>
+                ))}
+                {fault.next.map((line, i) => (
+                    <Text key={`next-${i}`}>
+                        <Text color={tone('redDim')}>{glyphText('▌ ', glyphs)}</Text>
+                        <Text color={tone('dim')}>next </Text>
+                        <Text color={tone('amber')}>{line}</Text>
+                    </Text>
+                ))}
+            </Box>
+        );
+    }
+    if (message.systemKind === 'stopped') {
+        const at = message.timestamp.toLocaleTimeString([], { hour12: false });
+        return (
+            <Box marginTop={1} marginLeft={Math.max(0, margin - 2)}>
+                <Text>
+                    <Text color={tone('hi')}>{glyphText('■ ', glyphs)}</Text>
+                    <Text bold color={tone('hi')}>
+                        STOPPED{' '}
+                    </Text>
+                    <Text color={tone('dim')}>
+                        {glyphText(`by you at ${at} · type what to do next`, glyphs)}
+                    </Text>
+                </Text>
+            </Box>
+        );
+    }
+    return (
+        <Box marginLeft={margin}>
+            <Text color={tone('dim')}>{glyphText(`· ${message.content}`, glyphs)}</Text>
         </Box>
     );
 }

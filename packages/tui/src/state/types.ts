@@ -258,6 +258,8 @@ export interface Message {
     toolResult?: string; // Tool result preview (first 4-5 lines)
     toolStatus?: ToolStatus; // Status for tool messages (running/finished)
     isError?: boolean; // True if tool execution failed
+    /** What a system message reports, when the Signal transcript draws it as more than a note. */
+    systemKind?: 'fault' | 'stopped';
     /** The tool's id ("edit_file"), for tool messages. The content holds its display form. */
     toolName?: string;
     /** The call's arguments as its header shows them, without the display name or status line. */

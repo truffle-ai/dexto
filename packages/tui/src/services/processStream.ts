@@ -1008,6 +1008,7 @@ export async function processStream(
                             role: 'system',
                             content: errorContent,
                             timestamp: new Date(),
+                            systemKind: 'fault',
                         },
                     ]);
 

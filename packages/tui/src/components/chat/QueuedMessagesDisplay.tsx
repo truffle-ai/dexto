@@ -9,10 +9,10 @@
  */
 
 import React from 'react';
-import { Box, Text } from 'ink';
+import { Box, Text, useStdout } from 'ink';
 import type { QueuedMessage } from '@dexto/core';
 import { previewQueuedContent } from '../../utils/queuedComposerContent.js';
-import { tone } from '../../signal/index.js';
+import { actorMarginWidth, glyphText, tone, useCaps } from '../../signal/index.js';
 
 const isMac = process.platform === 'darwin';
 
@@ -44,7 +44,27 @@ export function QueuedMessagesDisplay({
     label = 'queued',
     hint = '↑ to edit',
 }: QueuedMessagesDisplayProps) {
+    const { palette, glyphs } = useCaps();
+    const { stdout } = useStdout();
     if (messages.length === 0) return null;
+
+    if (palette === 'signal') {
+        return (
+            <Box flexDirection="column" marginLeft={actorMarginWidth(stdout?.columns ?? 80)}>
+                {messages.map((message) => (
+                    <Text key={message.id} wrap="truncate-end">
+                        <Text color={tone('amber')}>{glyphText('↳ ', glyphs)}</Text>
+                        <Text color={tone('fg')}>
+                            {truncateText(previewQueuedContent(message.content))}
+                        </Text>
+                    </Text>
+                ))}
+                <Text color={tone('amber')} wrap="truncate-end">
+                    {glyphText(`${label} · ${hint}`, glyphs)}
+                </Text>
+            </Box>
+        );
+    }
 
     return (
         <Box flexDirection="column" marginBottom={1}>
