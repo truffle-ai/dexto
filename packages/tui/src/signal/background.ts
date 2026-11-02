@@ -6,7 +6,6 @@
  * reply marks the end: a terminal that ignores OSC 11 costs one round trip, not the timeout.
  * Runs once at start-up, before Ink takes stdin.
  */
-import { StringDecoder } from 'node:string_decoder';
 import { getCaps, setCaps, type Caps, type ThemeName } from './caps.js';
 
 export const BACKGROUND_QUERY = '\x1b]11;?\x07\x1b[c';
@@ -49,27 +48,29 @@ export interface TerminalIO {
 
 /**
  * Sends the query and resolves with the background's theme, or null when the terminal does not
- * say. Bytes that are not part of a reply (keys typed during start-up) go back onto stdin for
- * Ink to read. Leaves stdin paused and in the raw mode it found it in.
+ * say. Everything read that is not a complete reply goes back onto stdin byte for byte: keys
+ * typed during start-up, a UTF-8 character cut off by the timeout, and the start of a reply cut
+ * off by it (the keypress filter drops the rest of that reply when it arrives). Leaves stdin
+ * paused and in the raw mode it found it in.
  */
 export function queryBackgroundTheme(io: TerminalIO, timeoutMs: number): Promise<ThemeName | null> {
     const { stdin, stdout } = io;
     const wasRaw = stdin.isRaw === true;
     return new Promise((resolve) => {
-        const decoder = new StringDecoder('utf8');
+        // latin1 keeps one char per byte, so raw bytes survive the round trip; replies are ASCII.
         let received = '';
         const finish = () => {
             clearTimeout(timer);
             stdin.removeListener('data', onData);
             stdin.setRawMode?.(wasRaw);
             stdin.pause();
-            received += decoder.end();
-            const typed = createTerminalReplyFilter()(received);
-            if (typed !== '') stdin.unshift(Buffer.from(typed, 'utf8'));
+            const { keys, held } = stripReplies(received);
+            const rest = keys + held;
+            if (rest !== '') stdin.unshift(Buffer.from(rest, 'latin1'));
             resolve(parseBackgroundReply(received));
         };
         const onData = (chunk: Buffer | string) => {
-            received += typeof chunk === 'string' ? chunk : decoder.write(chunk);
+            received += (typeof chunk === 'string' ? Buffer.from(chunk) : chunk).toString('latin1');
             if (DA1_REPLY.test(received)) finish();
         };
         const timer = setTimeout(finish, timeoutMs);
@@ -127,6 +128,32 @@ function scanReply(s: string, at: number): ReplyScan {
 }
 
 /**
+ * Splits `input` into the keys outside complete OSC 10/11 and DA1 replies, and the start of a
+ * reply still arriving at its end (`held`).
+ */
+function stripReplies(input: string): { keys: string; held: string } {
+    let keys = '';
+    let i = 0;
+    while (i < input.length) {
+        const esc = input.indexOf('\x1b', i);
+        if (esc === -1) {
+            keys += input.slice(i);
+            break;
+        }
+        keys += input.slice(i, esc);
+        const end = scanReply(input, esc);
+        if (end === 'partial') return { keys, held: input.slice(esc) };
+        if (end === 'none') {
+            keys += '\x1b';
+            i = esc + 1;
+        } else {
+            i = end;
+        }
+    }
+    return { keys, held: '' };
+}
+
+/**
  * Removes OSC 10/11 and DA1 replies from keyboard input, holding back the start of one that is
  * split across chunks. Sits in front of the keypress parser so a reply that arrives after
  * `queryBackgroundTheme` gave up never becomes prompt text. One filter per input stream.
@@ -134,30 +161,9 @@ function scanReply(s: string, at: number): ReplyScan {
 export function createTerminalReplyFilter(): (data: string) => string {
     let held = '';
     return (data) => {
-        const input = held + data;
-        held = '';
-        let out = '';
-        let i = 0;
-        while (i < input.length) {
-            const esc = input.indexOf('\x1b', i);
-            if (esc === -1) {
-                out += input.slice(i);
-                break;
-            }
-            out += input.slice(i, esc);
-            const end = scanReply(input, esc);
-            if (end === 'partial') {
-                held = input.slice(esc);
-                break;
-            }
-            if (end === 'none') {
-                out += '\x1b';
-                i = esc + 1;
-            } else {
-                i = end;
-            }
-        }
-        return out;
+        const result = stripReplies(held + data);
+        held = result.held;
+        return result.keys;
     };
 }
 

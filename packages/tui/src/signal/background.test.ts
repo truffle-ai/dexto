@@ -196,3 +196,23 @@ describe('createTerminalReplyFilter', () => {
         expect(filter(' hello')).toBe('\x1b]11;rgb hello');
     });
 });
+
+describe('queryBackgroundTheme hands back unfinished input as raw bytes', () => {
+    it('returns a reply cut off by the timeout, so the keypress filter can finish dropping it', async () => {
+        const { io, stdin } = fakeTerminal(() => '\x1b]11;rgb:ff');
+        await expect(queryBackgroundTheme(io, 50)).resolves.toBeNull();
+        const handedBack = String(stdin.read());
+        expect(handedBack).toBe('\x1b]11;rgb:ff');
+        const filter = createTerminalReplyFilter();
+        expect(filter(handedBack) + filter('ff/ffff/ffff\x07a')).toBe('a');
+    });
+
+    it('returns a UTF-8 character cut off by the timeout unchanged', async () => {
+        const { io, stdin } = fakeTerminal(() => null);
+        const pending = queryBackgroundTheme(io, 50);
+        stdin.write(Buffer.from([0x68, 0xe2]));
+        await expect(pending).resolves.toBeNull();
+        const handedBack = stdin.read() as Buffer;
+        expect(Buffer.concat([handedBack, Buffer.from([0x82, 0xac])]).toString('utf8')).toBe('h€');
+    });
+});
