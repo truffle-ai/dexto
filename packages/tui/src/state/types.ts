@@ -258,6 +258,17 @@ export interface Message {
     toolResult?: string; // Tool result preview (first 4-5 lines)
     toolStatus?: ToolStatus; // Status for tool messages (running/finished)
     isError?: boolean; // True if tool execution failed
+    /** The tool's id ("edit_file"), for tool messages. The content holds its display form. */
+    toolName?: string;
+    /** The call's arguments as its header shows them, without the display name or status line. */
+    toolArgs?: string;
+    /**
+     * How a call ended when isError doesn't say: the user denied it, the run was stopped, or a
+     * background command it read back had failed.
+     */
+    toolOutcome?: 'denied' | 'cancelled' | 'failed';
+    /** Why that background command failed. */
+    toolFailureText?: string;
     styledType?: StyledMessageType; // Type of styled rendering (if any)
     styledData?: StyledData; // Structured data for styled rendering
     /** True for split messages that continue a previous message (no role indicator) */

@@ -34,10 +34,12 @@ import { ToolResultRenderer } from '../renderers/index.js';
 import { MarkdownText } from '../shared/MarkdownText.js';
 import { ToolIcon } from './ToolIcon.js';
 import {
+    formatDuration,
     formatToolResultPreview,
     stripAutomationTriggerTags,
 } from '../../utils/messageFormatting.js';
-import { tone } from '../../signal/index.js';
+import { tone, useCaps } from '../../signal/index.js';
+import { SignalAgentMessage, SignalToolMessage, SignalUserMessage } from './SignalMessage.js';
 
 /**
  * Strip <plan-mode>...</plan-mode> tags from content.
@@ -49,30 +51,6 @@ function stripPlanModeTags(content: string): string {
     const stripped = content.replace(/<plan-mode>[\s\S]*?<\/plan-mode>\s*/g, '');
     // Only trim if a tag was actually removed
     return stripped === content ? content : stripped.trim();
-}
-
-/**
- * Format milliseconds into a compact human-readable string
- * Examples: "1.2s", "1m 23s", "1h 2m"
- */
-function formatDuration(ms: number): string {
-    const seconds = Math.floor(ms / 1000);
-    const tenths = Math.floor((ms % 1000) / 100);
-
-    if (seconds < 60) {
-        return `${seconds}.${tenths}s`;
-    }
-
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = seconds % 60;
-
-    if (minutes < 60) {
-        return `${minutes}m ${remainingSeconds}s`;
-    }
-
-    const hours = Math.floor(minutes / 60);
-    const remainingMinutes = minutes % 60;
-    return `${hours}h ${remainingMinutes}m`;
 }
 
 function formatTime(timestamp: Date | string): string {
@@ -165,6 +143,8 @@ interface MessageItemProps {
  */
 export const MessageItem = memo(
     ({ message, terminalWidth = 80, showReasoning = true }: MessageItemProps) => {
+        const signal = useCaps().palette === 'signal';
+
         // Check for styled message first
         if (message.styledType && message.styledData) {
             switch (message.styledType) {
@@ -218,6 +198,13 @@ export const MessageItem = memo(
         // User message: '>' prefix with gray background
         // Strip plan-mode tags before display (plan instructions are for LLM, not user)
         // Properly wrap text accounting for prefix "> " (2 chars) and paddingX={1} (2 chars total)
+        if (signal && message.role === 'user') {
+            return (
+                <SignalUserMessage
+                    content={stripAutomationTriggerTags(stripPlanModeTags(message.content))}
+                />
+            );
+        }
         if (message.role === 'user') {
             const prefix = '> ';
             const paddingChars = 2; // paddingX={1} = 1 char on each side
@@ -248,6 +235,9 @@ export const MessageItem = memo(
         // IMPORTANT: width="100%" is required to prevent Ink layout failures on large content.
         // Without width constraints, streaming content causes terminal blackout at ~50+ lines.
         // marginTop={1} for consistent spacing with tool messages
+        if (signal && message.role === 'assistant') {
+            return <SignalAgentMessage message={message} showReasoning={showReasoning} />;
+        }
         if (message.role === 'assistant') {
             const hasContent = message.content.trim().length > 0;
             const reasoningBlock =
@@ -286,6 +276,9 @@ export const MessageItem = memo(
         // - Running: green spinner + "Running..."
         // - Finished (success): green dot
         // - Finished (error): red dot
+        if (signal && message.role === 'tool') {
+            return <SignalToolMessage message={message} />;
+        }
         if (message.role === 'tool') {
             // Use structured renderers if display data is available
             const hasStructuredDisplay = message.toolDisplayData && message.toolContent;
@@ -419,6 +412,7 @@ export const MessageItem = memo(
             prev.message.reasoning === next.message.reasoning &&
             prev.message.role === next.message.role &&
             prev.message.toolStatus === next.message.toolStatus &&
+            prev.message.toolOutcome === next.message.toolOutcome &&
             prev.message.toolResult === next.message.toolResult &&
             prev.message.isStreaming === next.message.isStreaming &&
             prev.message.styledType === next.message.styledType &&

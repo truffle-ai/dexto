@@ -28,6 +28,7 @@ import type { Message, UIState, ToolStatus } from '../state/types.js';
 import type { ApprovalRequest } from '../components/ApprovalPrompt.js';
 import { generateMessageId } from '../utils/idGenerator.js';
 import { checkForSplit } from '../utils/streamSplitter.js';
+import { backgroundFailure } from '../utils/tool-step.js';
 import { formatToolHeader, shouldHideTool } from '../utils/messageFormatting.js';
 import { isAutoApprovableInEditMode } from '../utils/toolUtils.js';
 import { captureAnalytics } from '../host/index.js';
@@ -855,7 +856,7 @@ export async function processStream(
                         : generateMessageId('tool');
 
                     // Format tool header using shared utility
-                    const { header: toolContent } = formatToolHeader({
+                    const { header: toolContent, argsFormatted: toolArgs } = formatToolHeader({
                         toolName: event.toolName,
                         args: (event.args as Record<string, unknown>) || {},
                         ...(event.presentationSnapshot !== undefined && {
@@ -882,6 +883,8 @@ export async function processStream(
                         role: 'tool',
                         content: finalToolContent,
                         timestamp: new Date(),
+                        toolName: event.toolName,
+                        toolArgs,
                         toolStatus: 'pending',
                     });
 
@@ -952,6 +955,7 @@ export async function processStream(
                             toolResult: resultPreview,
                             toolStatus: 'finished',
                             isError: !event.success,
+                            ...backgroundFailure(event.toolName, event.rawResult),
                             ...(toolDisplayData && { toolDisplayData }),
                             ...(toolContent && { toolContent }),
                         });
@@ -1294,6 +1298,8 @@ export async function processStream(
                                 toolStatus: 'finished',
                                 toolResult: 'Cancelled',
                                 isError: true,
+                                toolOutcome:
+                                    event.status === ApprovalStatus.DENIED ? 'denied' : 'cancelled',
                             });
                         }
                     }
