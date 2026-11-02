@@ -20,7 +20,8 @@ import { DiffPreview, CreateFilePreview } from './renderers/index.js';
 import { isEditWriteTool } from '../utils/toolUtils.js';
 import { formatApprovalScope } from '../utils/approvalScope.js';
 import { formatToolHeader } from '../utils/messageFormatting.js';
-import { GateFrame, tone, useCaps } from '../signal/index.js';
+import { DiffInsetContext } from './renderers/diff-shared.js';
+import { GateFrame, glyphText, tone, useCaps } from '../signal/index.js';
 
 export interface ApprovalRequest {
     approvalId: string;
@@ -75,6 +76,9 @@ export function approvalGateTitle(type: string, toolName: string | undefined): s
     return 'NEEDS YOU · USE A TOOL';
 }
 
+/** Columns the gate's border and padding take. */
+const GATE_INSET = 4;
+
 type SelectionOption =
     | 'yes'
     | 'yes-session'
@@ -96,7 +100,8 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
     ({ approval, onApprove, onDeny, onCancel }, ref) => {
         const isCommandApproval = approval.type === ApprovalType.COMMAND_APPROVAL;
         const isElicitation = approval.type === 'elicitation';
-        const signal = useCaps().palette === 'signal';
+        const { palette, glyphs } = useCaps();
+        const signal = palette === 'signal';
 
         // Extract tool metadata
         const toolName = approval.metadata.toolName as string | undefined;
@@ -376,39 +381,48 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
                 displayPreview?.type === 'shell' ? displayPreview.command : (command ?? null);
             const preview = displayPreview?.type === 'shell' ? null : renderPreview();
             return (
-                <GateFrame
-                    title={approvalGateTitle(approval.type, toolName)}
-                    hint="←→ choose · ⏎ confirm · esc cancel"
-                >
-                    {shellCommand !== null ? (
-                        shellCommand.split('\n').map((line, i) => (
-                            <Text key={i} bold color={tone('hi')}>
-                                <Text color={tone('amber')}>{i === 0 ? '$ ' : '  '}</Text>
-                                {line}
-                            </Text>
-                        ))
-                    ) : preview === null && formattedTool ? (
-                        <Text color={tone('hi')}>{formattedTool.header}</Text>
-                    ) : (
-                        preview
-                    )}
-                    {callDescription && <Text color={tone('dim')}>{callDescription}</Text>}
-                    <Box flexWrap="wrap" columnGap={3}>
-                        {options.map((option, index) => {
-                            const selected = index === selectedIndex;
-                            return (
-                                <Text key={option.id}>
-                                    <Text bold color={tone('amber')} backgroundColor={tone('s2')}>
-                                        {` ${OPTION_KEYS[option.id] ?? ''} `}
-                                    </Text>{' '}
-                                    <Text bold={selected} color={tone(selected ? 'hi' : 'fg')}>
-                                        {option.label}
-                                    </Text>
+                <DiffInsetContext.Provider value={GATE_INSET}>
+                    <GateFrame
+                        title={approvalGateTitle(approval.type, toolName)}
+                        hint="←→ choose · ⏎ confirm · esc cancel"
+                    >
+                        {shellCommand !== null ? (
+                            shellCommand.split('\n').map((line, i) => (
+                                <Text key={i} bold color={tone('hi')}>
+                                    <Text color={tone('amber')}>{i === 0 ? '$ ' : '  '}</Text>
+                                    {line}
                                 </Text>
-                            );
-                        })}
-                    </Box>
-                </GateFrame>
+                            ))
+                        ) : preview === null && formattedTool ? (
+                            <Text color={tone('hi')}>{formattedTool.header}</Text>
+                        ) : (
+                            preview
+                        )}
+                        {callDescription && <Text color={tone('dim')}>{callDescription}</Text>}
+                        <Box flexWrap="wrap" columnGap={3}>
+                            {options.map((option, index) => {
+                                const selected = index === selectedIndex;
+                                return (
+                                    <Text key={option.id}>
+                                        <Text bold color={tone('amber')}>
+                                            {selected ? glyphText('› ', glyphs) : '  '}
+                                        </Text>
+                                        <Text
+                                            bold
+                                            color={tone('amber')}
+                                            backgroundColor={tone('s2')}
+                                        >
+                                            {` ${OPTION_KEYS[option.id] ?? ''} `}
+                                        </Text>{' '}
+                                        <Text bold={selected} color={tone(selected ? 'hi' : 'fg')}>
+                                            {option.label}
+                                        </Text>
+                                    </Text>
+                                );
+                            })}
+                        </Box>
+                    </GateFrame>
+                </DiffInsetContext.Provider>
             );
         }
 
@@ -529,7 +543,9 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
             </Box>
         );
         return signal ? (
-            <GateFrame title={approvalGateTitle(approval.type, toolName)}>{prompt}</GateFrame>
+            <DiffInsetContext.Provider value={GATE_INSET}>
+                <GateFrame title={approvalGateTitle(approval.type, toolName)}>{prompt}</GateFrame>
+            </DiffInsetContext.Provider>
         ) : (
             prompt
         );

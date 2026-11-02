@@ -86,7 +86,7 @@ describe('Signal approval gate', () => {
         expect(frame).toContain('NEEDS YOU · RUN A COMMAND');
         expect(frame).toContain('$ make migrate');
         expect(frame).toContain('Applies the pending migration');
-        expect(frame).toMatch(/ y {2}Allow once/);
+        expect(frame).toMatch(/› {2}y {2}Allow once/);
         expect(frame).toMatch(/ a {2}Allow .* for this session/);
         expect(frame).toMatch(/ n {2}Reject/);
     });
@@ -129,5 +129,45 @@ describe('Signal approval gate', () => {
         expect(frame).toMatch(/› 1 {2}One release/);
         expect(frame).toMatch(/ {2}2 {2}Two releases/);
         expect(frame).not.toMatch(/│ +│/);
+    });
+
+    it('marks the selected option without relying on colour', () => {
+        const frame = renderFrame(prompt(SHELL), TEXT_ONLY);
+        expect(frame.match(/›/g)).toHaveLength(1);
+    });
+
+    it('keeps long question help to two rows', () => {
+        const help = 'word '.repeat(200).trim();
+        const properties = {
+            how_long: { type: 'string', enum: ['One'], title: 'How long?', description: help },
+        };
+        const metadata = { ...QUESTION.metadata, schema: { type: 'object', properties } };
+        const frame = renderFrame(prompt({ ...QUESTION, metadata }), TEXT_ONLY);
+        expect(frame.split('\n').filter((line) => line.includes('word')).length).toBeLessThan(3);
+    });
+
+    it('fits an edit preview inside the frame', () => {
+        const unified = `@@ -1 +1 @@\n+${'x '.repeat(200)}`;
+        const frame = renderFrame(
+            prompt(
+                request({
+                    metadata: {
+                        toolName: 'edit_file',
+                        args: {},
+                        displayPreview: {
+                            type: 'diff',
+                            unified,
+                            filename: 'a.ts',
+                            additions: 1,
+                            deletions: 0,
+                        },
+                    },
+                })
+            ),
+            TEXT_ONLY
+        );
+        for (const line of frame.split('\n')) {
+            if (line.includes('x x')) expect(line.trimEnd().endsWith('│')).toBe(true);
+        }
     });
 });

@@ -787,12 +787,20 @@ export const ElicitationForm = forwardRef<ElicitationFormHandle, ElicitationForm
                     title={
                         isReviewing
                             ? 'QUESTION · Review your answers'
-                            : `QUESTION${position} · ${questionText}`
+                            : `QUESTION${position} · ${questionLines.filter(Boolean).join(' ')}`
                     }
                     hint={hintLine.replaceAll(' • ', ' · ')}
                 >
-                    {helpText !== '' && <Text color={tone('dim')}>{helpText}</Text>}
-                    {errorLineText !== '' && <Text color={tone('red')}>{errorLineText}</Text>}
+                    {helpLines.filter(Boolean).map((line, index) => (
+                        <Text key={`help-${index}`} color={tone('dim')} wrap="truncate-end">
+                            {line}
+                        </Text>
+                    ))}
+                    {errorLines.filter(Boolean).map((line, index) => (
+                        <Text key={`error-${index}`} color={tone('red')} wrap="truncate-end">
+                            {line}
+                        </Text>
+                    ))}
                     {renderContent()}
                 </GateFrame>
             );
