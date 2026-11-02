@@ -97,6 +97,14 @@ export function deckCredits(c: DeckCreditsInput): DeckCredits {
     return { kind: 'balance', balance: c.balance, spend: spent > 0 ? spent : null };
 }
 
+/**
+ * Whether the turn's spend baseline survives a session id change. The first turn creates its
+ * session after it starts, so null to an id is the same turn; anything else is a real switch.
+ */
+export function keepsTurnSpend(previous: string | null, next: string | null): boolean {
+    return previous === null && next !== null;
+}
+
 export interface PermissionInput {
     isShellMode: boolean;
     planModeActive: boolean;

@@ -15,6 +15,7 @@ import {
     deckMode,
     deckModelId,
     deckReadout,
+    keepsTurnSpend,
     permissionLabel,
 } from '../utils/deck-state.js';
 import { useContextStats } from './useContextStats.js';
@@ -124,8 +125,8 @@ export function useDeckState(input: DeckStateInput): DeckState {
     // The spend belongs to a turn in this session: a session switch clears it.
     const turnSession = useRef(sessionId);
     if (turnSession.current !== sessionId) {
+        if (!keepsTurnSpend(turnSession.current, sessionId)) turnStart.current = null;
         turnSession.current = sessionId;
-        turnStart.current = null;
     }
     if (ui.isProcessing && !wasProcessing.current) turnStart.current = balance;
     wasProcessing.current = ui.isProcessing;

@@ -4,6 +4,7 @@ import {
     deckMode,
     deckModelId,
     deckReadout,
+    keepsTurnSpend,
     permissionLabel,
     type DeckActivity,
 } from './deck-state.js';
@@ -177,5 +178,16 @@ describe('permissionLabel', () => {
         expect(permissionLabel({ ...configured, isShellMode: true })).toBe(
             'shell mode · auto-approve'
         );
+    });
+});
+
+describe('keepsTurnSpend', () => {
+    it('keeps the spend when the first turn creates its session', () => {
+        expect(keepsTurnSpend(null, 's1')).toBe(true);
+    });
+
+    it('clears the spend on a switch to another session', () => {
+        expect(keepsTurnSpend('s1', 's2')).toBe(false);
+        expect(keepsTurnSpend('s1', null)).toBe(false);
     });
 });

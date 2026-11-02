@@ -63,6 +63,26 @@ describe('keepScrollbackOnResize', () => {
         kept.dispose();
     });
 
+    it('repairs a frame only once when two shrinks arrive before Ink redraws', () => {
+        const real = new FakeStdout();
+        const kept = keepScrollbackOnResize(real as unknown as NodeJS.WriteStream);
+        kept.stdout.write(`${'x'.repeat(70)}\nok\n`);
+        real.written = [];
+        real.columns = 60;
+        real.emit('resize');
+        real.columns = 40;
+        real.emit('resize');
+        expect(real.written).toHaveLength(1);
+
+        // The next frame Ink writes is tracked again.
+        kept.stdout.write(`${'y'.repeat(70)}\nok\n`);
+        real.written = [];
+        real.columns = 30;
+        real.emit('resize');
+        expect(real.written).toHaveLength(1);
+        kept.dispose();
+    });
+
     it('leaves a growing terminal alone', () => {
         const real = new FakeStdout();
         const kept = keepScrollbackOnResize(real as unknown as NodeJS.WriteStream);

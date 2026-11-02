@@ -100,7 +100,11 @@ export function keepScrollbackOnResize(real: NodeJS.WriteStream): KeptScrollback
         const next = real.columns || 80;
         if (next < columns && lastFrame !== '') {
             const repair = shrinkRepair(lastFrame, next);
-            if (repair !== '') real.write(repair);
+            if (repair !== '') {
+                real.write(repair);
+                // That frame is gone: another shrink before Ink redraws has nothing to repair.
+                lastFrame = '';
+            }
         }
         columns = next;
     };
