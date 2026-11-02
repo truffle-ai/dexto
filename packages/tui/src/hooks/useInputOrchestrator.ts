@@ -301,6 +301,7 @@ export function useInputOrchestrator({
                                 toolStatus: 'finished' as const,
                                 toolResult: 'Cancelled',
                                 isError: true,
+                                toolOutcome: 'cancelled' as const,
                             };
                         }
                         return msg;

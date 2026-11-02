@@ -376,6 +376,30 @@ function extractTextContent(content: ContentPart[] | null): string {
 }
 
 /**
+ * Format milliseconds into a compact human-readable string
+ * Examples: "1.2s", "1m 23s", "1h 2m"
+ */
+export function formatDuration(ms: number): string {
+    const seconds = Math.floor(ms / 1000);
+    const tenths = Math.floor((ms % 1000) / 100);
+
+    if (seconds < 60) {
+        return `${seconds}.${tenths}s`;
+    }
+
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+
+    if (minutes < 60) {
+        return `${minutes}m ${remainingSeconds}s`;
+    }
+
+    const hours = Math.floor(minutes / 60);
+    const remainingMinutes = minutes % 60;
+    return `${hours}h ${remainingMinutes}m`;
+}
+
+/**
  * Generates a preview of tool result content for display
  */
 export function formatToolResultPreview(result: string): string {
@@ -526,6 +550,7 @@ export function convertHistoryToUIMessages(
                 role: 'tool',
                 content: toolContent,
                 timestamp,
+                toolName: msg.name,
                 toolStatus: 'finished',
                 toolResult: resultPreview,
                 isError: msg.success === false,

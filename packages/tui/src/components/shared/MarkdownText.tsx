@@ -9,7 +9,7 @@
  * so they render as plain text until complete.
  */
 
-import React, { memo, useMemo } from 'react';
+import React, { createContext, memo, useContext, useMemo } from 'react';
 import { Text, Box, useStdout } from 'ink';
 import wrapAnsi from 'wrap-ansi';
 import stringWidth from 'string-width';
@@ -140,6 +140,19 @@ function segmentsToAnsi(segments: InlineSegment[], defaultColor: string): string
 // Wrapped Paragraph Component (uses wrap-ansi for proper word wrapping)
 // ============================================================================
 
+/** Columns a surrounding margin takes from the terminal, so paragraphs wrap inside it. */
+export const MarkdownInsetContext = createContext(0);
+
+function useMarkdownColumns(): number {
+    const { stdout } = useStdout();
+    const inset = useContext(MarkdownInsetContext);
+    return Math.max(20, (stdout?.columns ?? 80) - inset);
+}
+
+// One space at the start of a line, after any colour escapes.
+// eslint-disable-next-line no-control-regex
+const LEADING_BREAK_SPACE = /^((?:\u001B\[[0-9;]*m)*) /;
+
 interface WrappedParagraphProps {
     text: string;
     defaultColor: string;
@@ -157,8 +170,7 @@ const WrappedParagraphInternal: React.FC<WrappedParagraphProps> = ({
     bulletPrefix,
     isFirstParagraph = false,
 }) => {
-    const { stdout } = useStdout();
-    const terminalWidth = stdout?.columns ?? 80;
+    const terminalWidth = useMarkdownColumns();
 
     const wrappedLines = useMemo(() => {
         // Parse markdown and convert to ANSI string
@@ -176,7 +188,10 @@ const WrappedParagraphInternal: React.FC<WrappedParagraphProps> = ({
             trim: false, // Don't trim whitespace
         });
 
-        return wrapped.split('\n');
+        // With trim off, a space that lands exactly on the break starts the next line.
+        return wrapped
+            .split('\n')
+            .map((line, i) => (i === 0 ? line : line.replace(LEADING_BREAK_SPACE, '$1')));
     }, [text, defaultColor, bulletPrefix, isFirstParagraph, terminalWidth]);
 
     // Calculate indent for continuation lines (spaces to align with first line content)
@@ -502,8 +517,7 @@ const RenderListItemInternal: React.FC<RenderListItemProps> = ({
     text,
     defaultColor,
 }) => {
-    const { stdout } = useStdout();
-    const terminalWidth = stdout?.columns ?? 80;
+    const terminalWidth = useMarkdownColumns();
 
     const paddingLeft = Math.floor(indent / 2);
     const markerWithSpace = `${marker} `;
