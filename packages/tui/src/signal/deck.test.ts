@@ -215,11 +215,11 @@ describe('Deck', () => {
     });
 
     it('draws only the input when collapsed, leaving it mounted', async () => {
-        const collapsed = createElement(
-            Deck,
-            { state, collapsed: true },
-            createElement(Text, null, 'INPUT')
-        );
+        const collapsed = createElement(Deck, {
+            state,
+            collapsed: true,
+            children: createElement(Text, null, 'INPUT'),
+        });
         expect(await frame(collapsed, 120)).toBe('INPUT');
     });
 
