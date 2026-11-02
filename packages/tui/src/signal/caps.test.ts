@@ -48,6 +48,11 @@ describe('detectCaps', () => {
         expect(detectCaps({ COLORFGBG: '0;300' }, true).theme).toBe('dark'); // out of range
     });
 
+    it('keeps the legacy palette unless DEXTO_PALETTE=signal', () => {
+        expect(detectCaps({}, true).palette).toBe('legacy');
+        expect(detectCaps({ DEXTO_PALETTE: 'signal' }, true).palette).toBe('signal');
+    });
+
     it('uses sextants only when asked for on a terminal that draws them', () => {
         expect(detectCaps({ DEXTO_LOGO: 'sextant', TERM_PROGRAM: 'ghostty' }, true).logo).toBe(
             'sextant'

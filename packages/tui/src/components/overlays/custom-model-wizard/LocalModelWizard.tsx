@@ -36,6 +36,7 @@ import {
     type ModelDownloadProgress,
 } from '@dexto/core';
 import { SetupInfoBanner } from './shared/index.js';
+import { tone } from '../../../signal/index.js';
 
 type WizardStep =
     | 'install-node-llama'
@@ -685,28 +686,30 @@ const LocalModelWizard = forwardRef<LocalModelWizardHandle, LocalModelWizardProp
                 <Box
                     flexDirection="column"
                     borderStyle="round"
-                    borderColor="yellow"
+                    borderColor={tone('amberDim')}
                     paddingX={1}
                     marginTop={1}
                 >
                     <Box marginBottom={1}>
-                        <Text bold color="yellow">
+                        <Text bold color={tone('amberDim')}>
                             Dependency Required
                         </Text>
                     </Box>
 
                     <Text>Local model execution requires node-llama-cpp.</Text>
-                    <Text color="gray">This will compile native bindings for your system.</Text>
+                    <Text color={tone('dim')}>
+                        This will compile native bindings for your system.
+                    </Text>
 
                     {isInstallingNodeLlama ? (
                         <Box marginTop={1} flexDirection="column">
                             <Box>
-                                <Text color="cyan">
+                                <Text color={tone('teal')}>
                                     {BRAILLE_SPINNER_FRAMES[installSpinnerFrame]} Installing
                                     node-llama-cpp (compiling native bindings)...
                                 </Text>
                             </Box>
-                            <Text color="gray">This may take 1-2 minutes.</Text>
+                            <Text color={tone('dim')}>This may take 1-2 minutes.</Text>
                         </Box>
                     ) : (
                         <>
@@ -716,12 +719,16 @@ const LocalModelWizard = forwardRef<LocalModelWizardHandle, LocalModelWizardProp
 
                             {options.map((option, idx) => (
                                 <Box key={option.label}>
-                                    <Text color={idx === installConfirmIndex ? 'cyan' : 'white'}>
+                                    <Text
+                                        color={
+                                            idx === installConfirmIndex ? tone('teal') : tone('hi')
+                                        }
+                                    >
                                         {idx === installConfirmIndex ? '❯ ' : '  '}
                                         {option.label}
                                     </Text>
                                     {idx === installConfirmIndex && (
-                                        <Text color="gray"> - {option.description}</Text>
+                                        <Text color={tone('dim')}> - {option.description}</Text>
                                     )}
                                 </Box>
                             ))}
@@ -730,12 +737,12 @@ const LocalModelWizard = forwardRef<LocalModelWizardHandle, LocalModelWizardProp
 
                     {error && (
                         <Box marginTop={1}>
-                            <Text color="red">{error}</Text>
+                            <Text color={tone('red')}>{error}</Text>
                         </Box>
                     )}
 
                     <Box marginTop={1}>
-                        <Text color="gray">
+                        <Text color={tone('dim')}>
                             {isInstallingNodeLlama
                                 ? 'Please wait...'
                                 : '↑↓ navigate • Enter select • Esc cancel'}
@@ -751,11 +758,11 @@ const LocalModelWizard = forwardRef<LocalModelWizardHandle, LocalModelWizardProp
                 <Box
                     flexDirection="column"
                     borderStyle="round"
-                    borderColor="green"
+                    borderColor={tone('add')}
                     paddingX={1}
                     marginTop={1}
                 >
-                    <Text color="gray">Loading models...</Text>
+                    <Text color={tone('dim')}>Loading models...</Text>
                 </Box>
             );
         }
@@ -766,21 +773,21 @@ const LocalModelWizard = forwardRef<LocalModelWizardHandle, LocalModelWizardProp
                 <Box
                     flexDirection="column"
                     borderStyle="round"
-                    borderColor="green"
+                    borderColor={tone('add')}
                     paddingX={1}
                     marginTop={1}
                 >
                     <Box marginBottom={1}>
-                        <Text bold color="green">
+                        <Text bold color={tone('add')}>
                             Downloading Model
                         </Text>
                     </Box>
 
                     {downloadError ? (
                         <>
-                            <Text color="red">Download failed: {downloadError}</Text>
+                            <Text color={tone('red')}>Download failed: {downloadError}</Text>
                             <Box marginTop={1}>
-                                <Text color="gray">Press Esc to go back</Text>
+                                <Text color={tone('dim')}>Press Esc to go back</Text>
                             </Box>
                         </>
                     ) : downloadProgress ? (
@@ -788,7 +795,7 @@ const LocalModelWizard = forwardRef<LocalModelWizardHandle, LocalModelWizardProp
                             <Text>
                                 {selectedModelId}: {downloadProgress.percentage.toFixed(1)}%
                             </Text>
-                            <Text color="gray">
+                            <Text color={tone('dim')}>
                                 {formatSize(downloadProgress.bytesDownloaded)} /{' '}
                                 {formatSize(downloadProgress.totalBytes)}
                                 {downloadProgress.speed
@@ -800,12 +807,12 @@ const LocalModelWizard = forwardRef<LocalModelWizardHandle, LocalModelWizardProp
                             </Text>
                             {/* Simple progress bar */}
                             <Box marginTop={1}>
-                                <Text color="green">
+                                <Text color={tone('add')}>
                                     {'█'.repeat(
                                         Math.min(20, Math.floor(downloadProgress.percentage / 5))
                                     )}
                                 </Text>
-                                <Text color="gray">
+                                <Text color={tone('dim')}>
                                     {'░'.repeat(
                                         Math.max(
                                             0,
@@ -816,7 +823,7 @@ const LocalModelWizard = forwardRef<LocalModelWizardHandle, LocalModelWizardProp
                             </Box>
                         </>
                     ) : (
-                        <Text color="gray">Starting download...</Text>
+                        <Text color={tone('dim')}>Starting download...</Text>
                     )}
                 </Box>
             );
@@ -833,29 +840,33 @@ const LocalModelWizard = forwardRef<LocalModelWizardHandle, LocalModelWizardProp
                 <Box
                     flexDirection="column"
                     borderStyle="round"
-                    borderColor="green"
+                    borderColor={tone('add')}
                     paddingX={1}
                     marginTop={1}
                 >
                     <Box marginBottom={1}>
-                        <Text bold color="green">
+                        <Text bold color={tone('add')}>
                             {selectedInstalledModel.displayName}
                         </Text>
-                        <Text color="gray"> (installed)</Text>
+                        <Text color={tone('dim')}> (installed)</Text>
                     </Box>
 
                     {isDeleting ? (
-                        <Text color="yellow">Deleting model...</Text>
+                        <Text color={tone('amberDim')}>Deleting model...</Text>
                     ) : (
                         <>
                             {options.map((option, idx) => (
                                 <Box key={option.label}>
-                                    <Text color={idx === installedOptionIndex ? 'cyan' : 'white'}>
+                                    <Text
+                                        color={
+                                            idx === installedOptionIndex ? tone('teal') : tone('hi')
+                                        }
+                                    >
                                         {idx === installedOptionIndex ? '❯ ' : '  '}
                                         {option.label}
                                     </Text>
                                     {idx === installedOptionIndex && (
-                                        <Text color="gray"> - {option.description}</Text>
+                                        <Text color={tone('dim')}> - {option.description}</Text>
                                     )}
                                 </Box>
                             ))}
@@ -864,12 +875,12 @@ const LocalModelWizard = forwardRef<LocalModelWizardHandle, LocalModelWizardProp
 
                     {error && (
                         <Box marginTop={1}>
-                            <Text color="red">{error}</Text>
+                            <Text color={tone('red')}>{error}</Text>
                         </Box>
                     )}
 
                     <Box marginTop={1}>
-                        <Text color="gray">
+                        <Text color={tone('dim')}>
                             {isDeleting ? 'Please wait...' : 'Enter to select • Esc to go back'}
                         </Text>
                     </Box>
@@ -883,32 +894,34 @@ const LocalModelWizard = forwardRef<LocalModelWizardHandle, LocalModelWizardProp
                 <Box
                     flexDirection="column"
                     borderStyle="round"
-                    borderColor="green"
+                    borderColor={tone('add')}
                     paddingX={1}
                     marginTop={1}
                 >
                     <Box marginBottom={1}>
-                        <Text bold color="green">
+                        <Text bold color={tone('add')}>
                             Custom GGUF File
                         </Text>
                     </Box>
 
                     <Text>Enter path to GGUF file:</Text>
                     <Box marginTop={1}>
-                        <Text color="gray">&gt; </Text>
+                        <Text color={tone('dim')}>&gt; </Text>
                         <Text>{customPath}</Text>
-                        <Text color="cyan">▌</Text>
+                        <Text color={tone('teal')}>▌</Text>
                     </Box>
-                    <Text color="gray">e.g., /path/to/model.gguf or ~/models/llama.gguf</Text>
+                    <Text color={tone('dim')}>
+                        e.g., /path/to/model.gguf or ~/models/llama.gguf
+                    </Text>
 
                     {error && (
                         <Box marginTop={1}>
-                            <Text color="red">{error}</Text>
+                            <Text color={tone('red')}>{error}</Text>
                         </Box>
                     )}
 
                     <Box marginTop={1}>
-                        <Text color="gray">Enter to continue • Esc to go back</Text>
+                        <Text color={tone('dim')}>Enter to continue • Esc to go back</Text>
                     </Box>
                 </Box>
             );
@@ -920,31 +933,31 @@ const LocalModelWizard = forwardRef<LocalModelWizardHandle, LocalModelWizardProp
                 <Box
                     flexDirection="column"
                     borderStyle="round"
-                    borderColor="green"
+                    borderColor={tone('add')}
                     paddingX={1}
                     marginTop={1}
                 >
                     <Box marginBottom={1}>
-                        <Text bold color="green">
+                        <Text bold color={tone('add')}>
                             Display Name
                         </Text>
                     </Box>
 
                     <Text>Display name (optional):</Text>
                     <Box marginTop={1}>
-                        <Text color="gray">&gt; </Text>
+                        <Text color={tone('dim')}>&gt; </Text>
                         <Text>{displayName}</Text>
-                        <Text color="cyan">▌</Text>
+                        <Text color={tone('teal')}>▌</Text>
                     </Box>
 
                     {error && (
                         <Box marginTop={1}>
-                            <Text color="red">{error}</Text>
+                            <Text color={tone('red')}>{error}</Text>
                         </Box>
                     )}
 
                     <Box marginTop={1}>
-                        <Text color="gray">Enter to save • Esc to go back</Text>
+                        <Text color={tone('dim')}>Enter to save • Esc to go back</Text>
                     </Box>
                 </Box>
             );
@@ -966,16 +979,16 @@ const LocalModelWizard = forwardRef<LocalModelWizardHandle, LocalModelWizardProp
             <Box
                 flexDirection="column"
                 borderStyle="round"
-                borderColor="green"
+                borderColor={tone('add')}
                 paddingX={1}
                 marginTop={1}
             >
                 {/* Header */}
                 <Box marginBottom={1}>
-                    <Text bold color="green">
+                    <Text bold color={tone('add')}>
                         Local Model
                     </Text>
-                    <Text color="gray">
+                    <Text color={tone('dim')}>
                         {' '}
                         ({selectedIndex + 1}/{allItems.length})
                     </Text>
@@ -997,13 +1010,16 @@ const LocalModelWizard = forwardRef<LocalModelWizardHandle, LocalModelWizardProp
                         if (item.type === 'show-all') {
                             return (
                                 <Box key="show-all" paddingY={0}>
-                                    <Text color={isSelected ? 'cyan' : 'blue'} bold={isSelected}>
+                                    <Text
+                                        color={isSelected ? tone('teal') : tone('fg')}
+                                        bold={isSelected}
+                                    >
                                         {isSelected ? '› ' : '  '}
                                         {showAllModels
                                             ? '↩ Show recommended'
                                             : '... Show all models'}
                                     </Text>
-                                    <Text color="gray">
+                                    <Text color={tone('dim')}>
                                         {' '}
                                         ({getAllLocalModels().length} available)
                                     </Text>
@@ -1013,7 +1029,10 @@ const LocalModelWizard = forwardRef<LocalModelWizardHandle, LocalModelWizardProp
                         if (item.type === 'custom-path') {
                             return (
                                 <Box key="custom-path" paddingY={0}>
-                                    <Text color={isSelected ? 'cyan' : 'blue'} bold={isSelected}>
+                                    <Text
+                                        color={isSelected ? tone('teal') : tone('fg')}
+                                        bold={isSelected}
+                                    >
                                         {isSelected ? '› ' : '  '}
                                         ... Use custom GGUF file
                                     </Text>
@@ -1023,7 +1042,10 @@ const LocalModelWizard = forwardRef<LocalModelWizardHandle, LocalModelWizardProp
                         if (item.type === 'back') {
                             return (
                                 <Box key="back" paddingY={0}>
-                                    <Text color={isSelected ? 'cyan' : 'gray'} bold={isSelected}>
+                                    <Text
+                                        color={isSelected ? tone('teal') : tone('dim')}
+                                        bold={isSelected}
+                                    >
                                         {isSelected ? '› ' : '  '}← Back
                                     </Text>
                                 </Box>
@@ -1034,19 +1056,19 @@ const LocalModelWizard = forwardRef<LocalModelWizardHandle, LocalModelWizardProp
                     // Model option
                     const model = item as ModelOption;
                     const statusIcon = model.isInstalled ? '✓' : '○';
-                    const statusColor = model.isInstalled ? 'green' : 'gray';
+                    const statusColor = model.isInstalled ? tone('add') : tone('dim');
                     const vramHint = model.minVRAM ? `${model.minVRAM}GB+ VRAM` : 'CPU OK';
 
                     return (
                         <Box key={model.id} paddingY={0}>
-                            <Text color={isSelected ? 'cyan' : 'white'} bold={isSelected}>
+                            <Text color={isSelected ? tone('teal') : tone('hi')} bold={isSelected}>
                                 {isSelected ? '› ' : '  '}
                             </Text>
                             <Text color={statusColor}>{statusIcon} </Text>
-                            <Text color={isSelected ? 'cyan' : 'white'} bold={isSelected}>
+                            <Text color={isSelected ? tone('teal') : tone('hi')} bold={isSelected}>
                                 {model.name}
                             </Text>
-                            <Text color="gray">
+                            <Text color={tone('dim')}>
                                 {' '}
                                 {formatSize(model.sizeBytes)} | {vramHint}
                                 {model.isInstalled ? ' (installed)' : ''}
@@ -1058,7 +1080,7 @@ const LocalModelWizard = forwardRef<LocalModelWizardHandle, LocalModelWizardProp
                 {/* Scroll indicator */}
                 {allItems.length > MAX_VISIBLE_ITEMS && (
                     <Box marginTop={1}>
-                        <Text color="gray">
+                        <Text color={tone('dim')}>
                             {scrollOffset > 0 ? '↑ more above ' : ''}
                             {visibleEnd < allItems.length ? '↓ more below' : ''}
                         </Text>
@@ -1067,12 +1089,12 @@ const LocalModelWizard = forwardRef<LocalModelWizardHandle, LocalModelWizardProp
 
                 {/* Help text */}
                 <Box marginTop={1}>
-                    <Text color="gray">↑↓ navigate • Enter select • Esc back</Text>
+                    <Text color={tone('dim')}>↑↓ navigate • Enter select • Esc back</Text>
                 </Box>
 
                 {error && (
                     <Box marginTop={1}>
-                        <Text color="red">{error}</Text>
+                        <Text color={tone('red')}>{error}</Text>
                     </Box>
                 )}
             </Box>

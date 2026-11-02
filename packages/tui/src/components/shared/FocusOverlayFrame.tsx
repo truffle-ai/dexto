@@ -1,6 +1,7 @@
 import React from 'react';
 import { Box, Text } from 'ink';
 import { useTerminalSize } from '../../hooks/useTerminalSize.js';
+import { tone } from '../../signal/index.js';
 
 interface FocusOverlayFrameProps {
     children: React.ReactNode;
@@ -12,11 +13,11 @@ export function FocusOverlayFrame({ children }: FocusOverlayFrameProps) {
 
     return (
         <Box flexDirection="column" width={columns}>
-            <Text color="gray">{divider}</Text>
+            <Text color={tone('dim')}>{divider}</Text>
             <Box paddingX={1} flexDirection="column">
                 {children}
             </Box>
-            <Text color="gray">{divider}</Text>
+            <Text color={tone('dim')}>{divider}</Text>
         </Box>
     );
 }

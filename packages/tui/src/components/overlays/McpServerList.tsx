@@ -17,6 +17,7 @@ import type { Key } from '../../hooks/useInputOrchestrator.js';
 import type { McpServerStatus, McpConnectionStatus } from '@dexto/core';
 import { BaseSelector, type BaseSelectorHandle } from '../base/BaseSelector.js';
 import type { TuiAgentBackend } from '../../agent-backend.js';
+import { tone } from '../../signal/index.js';
 
 export type McpServerListAction =
     | { type: 'select-server'; server: McpServerStatus }
@@ -141,7 +142,7 @@ const McpServerList = forwardRef<McpServerListHandle, McpServerListProps>(functi
         if (item.isAddNew) {
             return (
                 <Box>
-                    <Text color={isSelected ? 'green' : 'gray'} bold={isSelected}>
+                    <Text color={isSelected ? tone('add') : tone('dim')} bold={isSelected}>
                         + Add new server
                     </Text>
                 </Box>
@@ -155,19 +156,19 @@ const McpServerList = forwardRef<McpServerListHandle, McpServerListProps>(functi
         return (
             <Box>
                 <Text>{statusIcon} </Text>
-                <Text color={isSelected ? 'cyan' : 'white'} bold={isSelected}>
+                <Text color={isSelected ? tone('teal') : tone('hi')} bold={isSelected}>
                     {server.name}
                 </Text>
-                <Text color="gray"> ({server.type}) </Text>
+                <Text color={tone('dim')}> ({server.type}) </Text>
                 <Text
                     color={
                         server.status === 'connected'
-                            ? 'green'
+                            ? tone('add')
                             : server.status === 'disconnected'
-                              ? 'gray'
+                              ? tone('dim')
                               : server.status === 'auth-required'
-                                ? 'yellow'
-                                : 'red'
+                                ? tone('amberDim')
+                                : tone('red')
                     }
                 >
                     [{statusText}]
@@ -197,7 +198,7 @@ const McpServerList = forwardRef<McpServerListHandle, McpServerListProps>(functi
             onClose={onClose}
             formatItem={formatItem}
             title="MCP Servers"
-            borderColor="magenta"
+            borderColor={tone('faint')}
             emptyMessage="No servers configured"
         />
     );

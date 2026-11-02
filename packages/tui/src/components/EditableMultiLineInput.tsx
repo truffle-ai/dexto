@@ -5,6 +5,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { Box, Text, useInput } from 'ink';
+import { tone } from '../signal/index.js';
 
 interface EditableMultiLineInputProps {
     value: string;
@@ -141,7 +142,7 @@ export default function EditableMultiLineInput({
             // No cursor on this line
             return (
                 <Text key={lineIdx}>
-                    <Text color="cyan">{prefix}</Text>
+                    <Text color={tone('teal')}>{prefix}</Text>
                     <Text>{line || ' '}</Text>
                 </Text>
             );
@@ -154,9 +155,9 @@ export default function EditableMultiLineInput({
 
         return (
             <Text key={lineIdx}>
-                <Text color="cyan">{prefix}</Text>
+                <Text color={tone('teal')}>{prefix}</Text>
                 <Text>{before}</Text>
-                <Text backgroundColor="green" color="black">
+                <Text backgroundColor={tone('add')} color={tone('bg')}>
                     {atCursor}
                 </Text>
                 <Text>{after}</Text>
@@ -169,13 +170,13 @@ export default function EditableMultiLineInput({
         return (
             <Box flexDirection="column">
                 <Text>
-                    <Text color="cyan">{'» '}</Text>
-                    <Text backgroundColor="green" color="black">
+                    <Text color={tone('teal')}>{'» '}</Text>
+                    <Text backgroundColor={tone('add')} color={tone('bg')}>
                         {' '}
                     </Text>
-                    <Text color="gray"> {placeholder}</Text>
+                    <Text color={tone('dim')}> {placeholder}</Text>
                 </Text>
-                <Text color="gray">
+                <Text color={tone('dim')}>
                     Multi-line mode • Cmd/Ctrl+Enter to submit • Shift+Enter for single-line
                 </Text>
             </Box>
@@ -185,7 +186,7 @@ export default function EditableMultiLineInput({
     return (
         <Box flexDirection="column">
             {lines.map((line, idx) => renderLine(line, idx))}
-            <Text color="gray">
+            <Text color={tone('dim')}>
                 Multi-line mode • Cmd/Ctrl+Enter to submit • Shift+Enter for single-line
             </Text>
         </Box>

@@ -78,11 +78,48 @@ const ROLES: Readonly<Record<Role, RoleSpec>> = {
 };
 
 /**
+ * The colours the TUI drew before the Signal look, one per role, so moving a raw colour onto its
+ * role changes nothing on screen. Each role was assigned from exactly one raw colour, so the
+ * mapping back is exact. Roles no existing screen used are '' (terminal default).
+ * Removed when the Signal palette becomes the default.
+ */
+const LEGACY: Readonly<Record<Role, string>> = {
+    bg: 'black',
+    fg: 'blue',
+    hi: 'white',
+    dim: 'gray',
+    faint: 'magenta',
+    ghost: '',
+    teal: 'cyan',
+    tealDim: 'greenBright',
+    cloud: '',
+    cloudDim: 'magentaBright',
+    amber: 'yellowBright',
+    amberDim: 'yellow',
+    red: 'red',
+    redDim: '',
+    add: 'green',
+    del: 'redBright',
+    s1: '#0E3B2E',
+    s2: 'gray',
+    sel: '#1E3B5A',
+    addBg: '#224466',
+    addBg2: '#224488',
+    delBg: '#662222',
+    delBg2: '#882222',
+    cloudBg: '#3A235A',
+    amberBg: '',
+    redBg: '',
+};
+
+/**
  * The Ink colour for a role under the given caps. Returns '' for "terminal default"
  * (16-colour neutrals and surfaces, NO_COLOR); Ink draws '' as no colour.
  * Truecolor and 256 both return hex; chalk reduces hex to the 256 cube itself.
+ * The legacy palette returns the pre-Signal colour whatever the tier, as the TUI did.
  */
 export function resolveTone(role: Role, caps: Caps): string {
+    if (caps.palette === 'legacy') return LEGACY[role];
     const spec = ROLES[role];
     switch (caps.color) {
         case 'none':

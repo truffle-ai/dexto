@@ -19,6 +19,7 @@ import type { Key } from '../../hooks/useInputOrchestrator.js';
 import { useTerminalSize } from '../../hooks/useTerminalSize.js';
 import { getMaxVisibleItemsForTerminalRows } from '../../utils/overlaySizing.js';
 import { HintBar } from '../shared/HintBar.js';
+import { tone } from '../../signal/index.js';
 
 export interface BaseSelectorProps<T> {
     items: T[];
@@ -60,7 +61,7 @@ function BaseSelectorInner<T>(
         maxVisibleItems = 8,
         loadingMessage = 'Loading...',
         emptyMessage = 'No items found',
-        borderColor = 'cyan',
+        borderColor = tone('teal'),
         onTab,
         supportsTab = false,
         instructionsOverride,
@@ -197,7 +198,7 @@ function BaseSelectorInner<T>(
                 {isLoading ? (
                     <>
                         <Box paddingX={0} paddingY={0}>
-                            <Text color="gray">{loadingMessage}</Text>
+                            <Text color={tone('dim')}>{loadingMessage}</Text>
                         </Box>
                         {Array.from({ length: Math.max(0, viewportItems - 1) }, (_, index) => (
                             <Box key={`loading-spacer-${index}`} paddingX={0} paddingY={0}>
@@ -208,7 +209,7 @@ function BaseSelectorInner<T>(
                 ) : items.length === 0 ? (
                     <>
                         <Box paddingX={0} paddingY={0}>
-                            <Text color="gray">{emptyMessage}</Text>
+                            <Text color={tone('dim')}>{emptyMessage}</Text>
                         </Box>
                         {Array.from({ length: Math.max(0, viewportItems - 1) }, (_, index) => (
                             <Box key={`empty-spacer-${index}`} paddingX={0} paddingY={0}>
@@ -239,7 +240,7 @@ function BaseSelectorInner<T>(
             </Box>
             <Box paddingX={0} paddingY={0} marginTop={1}>
                 {instructionsOverride ? (
-                    <Text color="gray" wrap="truncate-end">
+                    <Text color={tone('dim')} wrap="truncate-end">
                         {instructionsOverride}
                     </Text>
                 ) : (

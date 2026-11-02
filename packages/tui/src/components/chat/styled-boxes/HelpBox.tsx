@@ -6,6 +6,7 @@ import React from 'react';
 import { Box, Text } from 'ink';
 import type { HelpStyledData } from '../../../state/types.js';
 import { StyledBox } from './StyledBox.js';
+import { tone } from '../../../signal/index.js';
 
 interface HelpBoxProps {
     data: HelpStyledData;
@@ -29,15 +30,15 @@ export function HelpBox({ data }: HelpBoxProps) {
         <StyledBox title="Available Commands">
             {Object.entries(categories).map(([category, commands]) => (
                 <Box key={category} flexDirection="column" marginTop={1}>
-                    <Text bold color="gray">
+                    <Text bold color={tone('dim')}>
                         {category}
                     </Text>
                     {commands.map((cmd) => (
                         <Box key={cmd.name} marginLeft={2}>
                             <Box width={16}>
-                                <Text color="cyan">/{cmd.name}</Text>
+                                <Text color={tone('teal')}>/{cmd.name}</Text>
                             </Box>
-                            <Text color="gray">{cmd.description}</Text>
+                            <Text color={tone('dim')}>{cmd.description}</Text>
                         </Box>
                     ))}
                 </Box>

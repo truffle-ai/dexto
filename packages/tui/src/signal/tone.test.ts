@@ -9,6 +9,7 @@ const base: Caps = {
     logo: 'quadrant',
     theme: 'dark',
     motion: 'full',
+    palette: 'signal',
 };
 
 describe('resolveTone', () => {
@@ -34,6 +35,43 @@ describe('resolveTone', () => {
         const caps: Caps = { ...base, color: '16' };
         expect(resolveTone('fg', caps)).toBe('');
         expect(resolveTone('amberBg', caps)).toBe('');
+    });
+
+    it('gives the pre-Signal colour for every tier on the legacy palette', () => {
+        const legacy: Caps = { ...base, palette: 'legacy' };
+        expect(resolveTone('dim', legacy)).toBe('gray');
+        expect(resolveTone('amber', legacy)).toBe('yellowBright');
+        expect(resolveTone('amberDim', legacy)).toBe('yellow');
+        expect(resolveTone('teal', { ...legacy, color: 'none' })).toBe('cyan');
+        expect(resolveTone('delBg', { ...legacy, color: '16' })).toBe('#662222');
+    });
+
+    // The raw colours the TUI used, and the role each one moved to. The legacy palette must give
+    // back exactly the original colour, or a screen changes before the Signal look ships.
+    it.each([
+        ['gray', 'dim'],
+        ['white', 'hi'],
+        ['cyan', 'teal'],
+        ['green', 'add'],
+        ['greenBright', 'tealDim'],
+        ['red', 'red'],
+        ['redBright', 'del'],
+        ['yellowBright', 'amber'],
+        ['yellow', 'amberDim'],
+        ['magenta', 'faint'],
+        ['magentaBright', 'cloudDim'],
+        ['blue', 'fg'],
+        ['black', 'bg'],
+        ['gray', 's2'],
+        ['#662222', 'delBg'],
+        ['#224466', 'addBg'],
+        ['#882222', 'delBg2'],
+        ['#224488', 'addBg2'],
+        ['#3A235A', 'cloudBg'],
+        ['#0E3B2E', 's1'],
+        ['#1E3B5A', 'sel'],
+    ] as const)('legacy %s moved to %s and draws the same', (colour, role) => {
+        expect(resolveTone(role, { ...base, palette: 'legacy' })).toBe(colour);
     });
 
     it('draws no colour under NO_COLOR', () => {

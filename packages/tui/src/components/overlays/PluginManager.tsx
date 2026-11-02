@@ -7,6 +7,7 @@ import React, { useState, useEffect, forwardRef, useRef, useImperativeHandle } f
 import { Box, Text } from 'ink';
 import type { Key } from '../../hooks/useInputOrchestrator.js';
 import { BaseSelector, type BaseSelectorHandle } from '../base/BaseSelector.js';
+import { tone } from '../../signal/index.js';
 
 export type PluginAction = 'list' | 'marketplace' | 'back';
 
@@ -83,13 +84,20 @@ const PluginManager = forwardRef<PluginManagerHandle, PluginManagerProps>(functi
 
         return (
             <Box>
-                <Text color={isSelected ? 'cyan' : 'gray'}>{isSelected ? '▸ ' : '  '}</Text>
-                <Text color={isBack ? 'gray' : isSelected ? 'white' : 'gray'}>{option.icon} </Text>
-                <Text color={isBack ? 'gray' : isSelected ? 'cyan' : 'white'} bold={isSelected}>
+                <Text color={isSelected ? tone('teal') : tone('dim')}>
+                    {isSelected ? '▸ ' : '  '}
+                </Text>
+                <Text color={isBack ? tone('dim') : isSelected ? tone('hi') : tone('dim')}>
+                    {option.icon}{' '}
+                </Text>
+                <Text
+                    color={isBack ? tone('dim') : isSelected ? tone('teal') : tone('hi')}
+                    bold={isSelected}
+                >
                     {option.label}
                 </Text>
                 {option.hint && (
-                    <Text color="gray" dimColor>
+                    <Text color={tone('dim')} dimColor>
                         {' '}
                         — {option.hint}
                     </Text>
@@ -119,7 +127,7 @@ const PluginManager = forwardRef<PluginManagerHandle, PluginManagerProps>(functi
             onClose={onClose}
             formatItem={formatItem}
             title="Plugins"
-            borderColor="magenta"
+            borderColor={tone('faint')}
             emptyMessage="No options available"
         />
     );

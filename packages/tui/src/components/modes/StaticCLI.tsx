@@ -43,6 +43,7 @@ import { BackgroundTasksPanel } from '../BackgroundTasksPanel.js';
 import { InputContainer, type InputContainerHandle } from '../../containers/InputContainer.js';
 import { OverlayContainer } from '../../containers/OverlayContainer.js';
 import { shouldHideStatusChrome } from '../../utils/overlayPresentation.js';
+import { tone } from '../../signal/index.js';
 
 interface StaticCLIProps {
     agent: TuiAgentBackend;
@@ -328,10 +329,10 @@ export function StaticCLI({
                 {/* Exit warning (Ctrl+C pressed once) - shown above footer */}
                 {!shouldHideStatusChrome(ui.activeOverlay, approval) && ui.exitWarningShown && (
                     <Box paddingX={1}>
-                        <Text color="yellowBright" bold>
+                        <Text color={tone('amber')} bold>
                             ⚠ Press Ctrl+C again to exit
                         </Text>
-                        <Text color="gray"> (or press any key to cancel)</Text>
+                        <Text color={tone('dim')}> (or press any key to cancel)</Text>
                     </Box>
                 )}
 

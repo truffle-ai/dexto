@@ -7,6 +7,7 @@ import React, { useState, useEffect, forwardRef, useRef, useImperativeHandle } f
 import { Text } from 'ink';
 import type { Key } from '../../hooks/useInputOrchestrator.js';
 import { BaseSelector, type BaseSelectorHandle } from '../base/BaseSelector.js';
+import { tone } from '../../signal/index.js';
 
 export type SessionAction = 'list' | 'history' | 'delete' | 'switch';
 
@@ -68,10 +69,10 @@ const SessionSubcommandSelector = forwardRef<
     const formatItem = (option: SessionOption, isSelected: boolean) => (
         <>
             <Text>{option.icon} </Text>
-            <Text color={isSelected ? 'cyan' : 'gray'} bold={isSelected}>
+            <Text color={isSelected ? tone('teal') : tone('dim')} bold={isSelected}>
                 {option.label}
             </Text>
-            <Text color={isSelected ? 'white' : 'gray'}> - {option.description}</Text>
+            <Text color={isSelected ? tone('hi') : tone('dim')}> - {option.description}</Text>
         </>
     );
 
@@ -92,7 +93,7 @@ const SessionSubcommandSelector = forwardRef<
             onClose={onClose}
             formatItem={formatItem}
             title="Session Management"
-            borderColor="blue"
+            borderColor={tone('fg')}
             emptyMessage="No options available"
         />
     );

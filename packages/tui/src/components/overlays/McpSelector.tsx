@@ -7,6 +7,7 @@ import React, { useState, useEffect, forwardRef, useRef, useImperativeHandle } f
 import { Text } from 'ink';
 import type { Key } from '../../hooks/useInputOrchestrator.js';
 import { BaseSelector, type BaseSelectorHandle } from '../base/BaseSelector.js';
+import { tone } from '../../signal/index.js';
 
 export type McpAction = 'list' | 'add-preset' | 'add-custom' | 'remove';
 
@@ -78,10 +79,10 @@ const McpSelector = forwardRef<McpSelectorHandle, McpSelectorProps>(function Mcp
     const formatItem = (option: McpOption, isSelected: boolean) => (
         <>
             <Text>{option.icon} </Text>
-            <Text color={isSelected ? 'cyan' : 'gray'} bold={isSelected}>
+            <Text color={isSelected ? tone('teal') : tone('dim')} bold={isSelected}>
                 {option.label}
             </Text>
-            <Text color={isSelected ? 'white' : 'gray'}> - {option.description}</Text>
+            <Text color={isSelected ? tone('hi') : tone('dim')}> - {option.description}</Text>
         </>
     );
 
@@ -102,7 +103,7 @@ const McpSelector = forwardRef<McpSelectorHandle, McpSelectorProps>(function Mcp
             onClose={onClose}
             formatItem={formatItem}
             title="MCP Servers"
-            borderColor="magenta"
+            borderColor={tone('faint')}
             emptyMessage="No options available"
         />
     );

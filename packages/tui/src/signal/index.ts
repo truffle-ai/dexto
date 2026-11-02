@@ -8,6 +8,7 @@ export {
     type GlyphTier,
     type LogoTier,
     type Motion,
+    type Palette,
     type ThemeName,
 } from './caps.js';
 export { resolveTone, tone, useTone, type Role } from './tone.js';

@@ -6,6 +6,7 @@
 import React, { useState, useEffect, forwardRef, useImperativeHandle, useCallback } from 'react';
 import { Box, Text } from 'ink';
 import type { Key } from '../../hooks/useInputOrchestrator.js';
+import { tone } from '../../signal/index.js';
 
 export interface SessionRenameOverlayProps {
     isVisible: boolean;
@@ -90,13 +91,13 @@ const SessionRenameOverlay = forwardRef<SessionRenameOverlayHandle, SessionRenam
             <Box
                 flexDirection="column"
                 borderStyle="round"
-                borderColor="cyan"
+                borderColor={tone('teal')}
                 paddingX={1}
                 marginTop={1}
             >
                 {/* Header */}
                 <Box marginBottom={1}>
-                    <Text bold color="cyan">
+                    <Text bold color={tone('teal')}>
                         Rename Session
                     </Text>
                 </Box>
@@ -104,8 +105,8 @@ const SessionRenameOverlay = forwardRef<SessionRenameOverlayHandle, SessionRenam
                 {/* Current title hint */}
                 {currentTitle && (
                     <Box marginBottom={1}>
-                        <Text color="gray">Current: </Text>
-                        <Text color="white">{currentTitle}</Text>
+                        <Text color={tone('dim')}>Current: </Text>
+                        <Text color={tone('hi')}>{currentTitle}</Text>
                     </Box>
                 )}
 
@@ -116,21 +117,21 @@ const SessionRenameOverlay = forwardRef<SessionRenameOverlayHandle, SessionRenam
 
                 {/* Input field */}
                 <Box marginTop={1}>
-                    <Text color="cyan">&gt; </Text>
+                    <Text color={tone('teal')}>&gt; </Text>
                     <Text>{title}</Text>
-                    <Text color="cyan">_</Text>
+                    <Text color={tone('teal')}>_</Text>
                 </Box>
 
                 {/* Error message */}
                 {error && (
                     <Box marginTop={1}>
-                        <Text color="red">{error}</Text>
+                        <Text color={tone('red')}>{error}</Text>
                     </Box>
                 )}
 
                 {/* Help text */}
                 <Box marginTop={1}>
-                    <Text color="gray">Enter to save • Esc to cancel</Text>
+                    <Text color={tone('dim')}>Enter to save • Esc to cancel</Text>
                 </Box>
             </Box>
         );

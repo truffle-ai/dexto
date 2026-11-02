@@ -15,6 +15,7 @@ import { centerTruncatePath } from '../utils/messageFormatting.js';
 import { useTerminalSize } from '../hooks/useTerminalSize.js';
 import { getMaxVisibleItemsForTerminalRows } from '../utils/overlaySizing.js';
 import { supportsResources, type TuiAgentBackend } from '../agent-backend.js';
+import { tone } from '../signal/index.js';
 
 export interface ResourceAutocompleteHandle {
     handleInput: (input: string, key: Key) => boolean;
@@ -451,7 +452,7 @@ const ResourceAutocompleteInner = forwardRef<ResourceAutocompleteHandle, Resourc
         if (isLoading) {
             return (
                 <Box paddingX={0} paddingY={0}>
-                    <Text color="gray">Loading resources...</Text>
+                    <Text color={tone('dim')}>Loading resources...</Text>
                 </Box>
             );
         }
@@ -459,7 +460,7 @@ const ResourceAutocompleteInner = forwardRef<ResourceAutocompleteHandle, Resourc
         if (displayItems.length === 0) {
             return (
                 <Box paddingX={0} paddingY={0}>
-                    <Text color="gray">
+                    <Text color={tone('dim')}>
                         {mentionQuery
                             ? `No resources match "${mentionQuery}"`
                             : 'No resources available. Connect an MCP server or enable internal resources.'}
@@ -485,12 +486,12 @@ const ResourceAutocompleteInner = forwardRef<ResourceAutocompleteHandle, Resourc
 
                     return (
                         <Box key={item.path}>
-                            <Text color={isSelected ? 'cyan' : 'gray'}>
+                            <Text color={isSelected ? tone('teal') : tone('dim')}>
                                 {isSelected ? '❯ ' : '  '}
                             </Text>
                             <Text
                                 wrap="truncate-end"
-                                color={isSelected ? 'cyan' : 'white'}
+                                color={isSelected ? tone('teal') : tone('hi')}
                                 bold={isSelected}
                             >
                                 {isImage && '🖼️  '}

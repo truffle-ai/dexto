@@ -9,6 +9,8 @@
  *           terminal that draws them itself
  *   theme:  COLORFGBG when set, else dark. The OSC 11 background query refines this at start-up
  *           through `setCaps`.
+ *   palette: legacy (the pre-Signal colours) unless DEXTO_PALETTE=signal. Signal becomes the
+ *           default when the new screens ship.
  *
  * Caps are process-wide: one terminal, one answer. `useCaps()` re-renders when they change.
  */
@@ -19,6 +21,7 @@ export type GlyphTier = 'unicode' | 'ascii';
 export type LogoTier = 'sextant' | 'quadrant';
 export type ThemeName = 'dark' | 'light';
 export type Motion = 'full' | 'reduced';
+export type Palette = 'legacy' | 'signal';
 
 export interface Caps {
     tty: boolean;
@@ -27,6 +30,7 @@ export interface Caps {
     logo: LogoTier;
     theme: ThemeName;
     motion: Motion;
+    palette: Palette;
 }
 
 type Env = Readonly<Record<string, string | undefined>>;
@@ -88,6 +92,7 @@ export function detectCaps(env: Env, isTTY: boolean): Caps {
                 : 'quadrant',
         theme: themeFromColorFgBg(env.COLORFGBG),
         motion: env.DEXTO_MOTION === 'reduced' ? 'reduced' : 'full',
+        palette: env.DEXTO_PALETTE === 'signal' ? 'signal' : 'legacy',
     };
 }
 

@@ -53,6 +53,7 @@ import {
 } from '../../utils/textUtils.js';
 import { HintBar } from '../shared/HintBar.js';
 import type { TuiAgentBackend } from '../../agent-backend.js';
+import { tone } from '../../signal/index.js';
 
 type ModelSelectorTab = 'all-models' | 'featured' | 'recents' | 'favorites' | 'custom';
 const FEATURED_SECTION_LIMIT = 8;
@@ -1693,13 +1694,13 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
         return (
             <Box flexDirection="column" width={overlayWidth}>
                 <Box paddingX={0} paddingY={0} width={overlayWidth}>
-                    <Text color="cyan" bold>
+                    <Text color={tone('teal')} bold>
                         Reasoning Variant
-                        {isSettingDefault ? <Text color="gray"> (default)</Text> : null}
+                        {isSettingDefault ? <Text color={tone('dim')}> (default)</Text> : null}
                     </Text>
                 </Box>
                 <Box paddingX={0} paddingY={0} width={overlayWidth}>
-                    <Text color="gray">
+                    <Text color={tone('dim')}>
                         {formatLineToWidth(
                             pendingReasoningModel.displayName || pendingReasoningModel.name,
                             overlayWidth
@@ -1731,7 +1732,10 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                         const isSelected = actualIndex === reasoningVariantIndex;
                         return (
                             <Box key={option.value} paddingX={0} paddingY={0} width={overlayWidth}>
-                                <Text color={isSelected ? 'cyan' : 'gray'} bold={isSelected}>
+                                <Text
+                                    color={isSelected ? tone('teal') : tone('dim')}
+                                    bold={isSelected}
+                                >
                                     {formatLineToWidth(
                                         `${isSelected ? '›' : ' '} ${option.label}`,
                                         overlayWidth
@@ -1742,7 +1746,7 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                     })}
                 </Box>
                 <Box paddingX={0} paddingY={0} marginTop={1} width={overlayWidth}>
-                    <Text color="gray">
+                    <Text color={tone('dim')}>
                         {formatLineToWidth(
                             selectedReasoningOption?.description ?? '',
                             overlayWidth
@@ -1784,7 +1788,7 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
         <Box flexDirection="column" width={overlayWidth}>
             {/* Header */}
             <Box paddingX={0} paddingY={0} width={overlayWidth}>
-                <Text color="cyan" bold>
+                <Text color={tone('teal')} bold>
                     Models
                 </Text>
             </Box>
@@ -1794,11 +1798,11 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                         key={tab.id}
                         marginRight={1}
                         borderStyle="round"
-                        borderColor={activeTab === tab.id ? 'cyan' : 'gray'}
+                        borderColor={activeTab === tab.id ? tone('teal') : tone('dim')}
                         paddingX={1}
                     >
                         <Text
-                            color={activeTab === tab.id ? 'cyan' : 'gray'}
+                            color={activeTab === tab.id ? tone('teal') : tone('dim')}
                             bold={activeTab === tab.id}
                         >
                             {tab.label}
@@ -1809,7 +1813,7 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
 
             {/* Search input */}
             <Box paddingX={0} paddingY={0} width={overlayWidth}>
-                <Text color={searchQuery ? 'white' : 'gray'}>{searchLine}</Text>
+                <Text color={searchQuery ? tone('hi') : tone('dim')}>{searchLine}</Text>
             </Box>
 
             {/* Items */}
@@ -1817,7 +1821,7 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                 {hasAddCustomOption && (
                     <Box paddingX={0} paddingY={0} width={overlayWidth}>
                         <Text
-                            color={selectedIndex === 0 ? 'green' : 'gray'}
+                            color={selectedIndex === 0 ? tone('add') : tone('dim')}
                             bold={selectedIndex === 0}
                         >
                             {addCustomLine}
@@ -1882,7 +1886,10 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                                       paddingY={0}
                                       width={overlayWidth}
                                   >
-                                      <Text color={isSelected ? 'cyan' : 'gray'} bold={isSelected}>
+                                      <Text
+                                          color={isSelected ? tone('teal') : tone('dim')}
+                                          bold={isSelected}
+                                      >
                                           {formatLineToWidth(
                                               `${prefix} ${name} (${providerDisplay})`,
                                               overlayWidth

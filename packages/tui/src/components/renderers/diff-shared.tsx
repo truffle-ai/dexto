@@ -8,6 +8,7 @@
 import React from 'react';
 import { Box, Text, useStdout } from 'ink';
 import { diffWords } from 'diff';
+import { tone } from '../../signal/index.js';
 
 // =============================================================================
 // Types
@@ -189,9 +190,9 @@ export function DiffLine({ type, lineNum, lineNumWidth, content, wordDiffParts }
     const getColors = () => {
         switch (type) {
             case 'deletion':
-                return { bg: '#662222', fg: 'white', symbol: '-', symbolColor: 'red' };
+                return { bg: tone('delBg'), fg: tone('hi'), symbol: '-', symbolColor: tone('red') };
             case 'addition':
-                return { bg: '#224466', fg: 'white', symbol: '+', symbolColor: 'blue' };
+                return { bg: tone('addBg'), fg: tone('hi'), symbol: '+', symbolColor: tone('fg') };
             default:
                 return { bg: undefined, fg: undefined, symbol: ' ', symbolColor: undefined };
         }
@@ -205,13 +206,13 @@ export function DiffLine({ type, lineNum, lineNumWidth, content, wordDiffParts }
             return wordDiffParts.map((part, i) => {
                 if (type === 'deletion' && part.removed) {
                     return (
-                        <Text key={i} backgroundColor="#882222">
+                        <Text key={i} backgroundColor={tone('delBg2')}>
                             {part.value}
                         </Text>
                     );
                 } else if (type === 'addition' && part.added) {
                     return (
-                        <Text key={i} backgroundColor="#224488">
+                        <Text key={i} backgroundColor={tone('addBg2')}>
                             {part.value}
                         </Text>
                     );
@@ -226,7 +227,7 @@ export function DiffLine({ type, lineNum, lineNumWidth, content, wordDiffParts }
         <Box>
             {/* Column 1: Fixed-width gutter */}
             <Box width={gutterWidth} flexShrink={0}>
-                <Text color="gray">{lineNumStr}</Text>
+                <Text color={tone('dim')}>{lineNumStr}</Text>
                 <Text color={colors.symbolColor as any}> {colors.symbol} </Text>
             </Box>
             {/* Column 2: Fixed-width content - text wraps within this boundary */}
@@ -245,7 +246,7 @@ export function DiffLine({ type, lineNum, lineNumWidth, content, wordDiffParts }
 export function HunkSeparator() {
     return (
         <Box>
-            <Text color="gray">...</Text>
+            <Text color={tone('dim')}>...</Text>
         </Box>
     );
 }

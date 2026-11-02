@@ -7,6 +7,7 @@ import React from 'react';
 import { Box, Text } from 'ink';
 import type { StartupInfo } from '../../state/types.js';
 import { useTerminalSize } from '../../hooks/useTerminalSize.js';
+import { tone } from '../../signal/index.js';
 
 interface HeaderProps {
     modelName: string;
@@ -25,14 +26,14 @@ export function Header({ modelName, sessionId, hasActiveSession, startupInfo }: 
     return (
         <Box
             borderStyle="single"
-            borderColor="gray"
+            borderColor={tone('dim')}
             paddingX={1}
             flexDirection="column"
             flexShrink={0}
             width={columns}
         >
             <Box marginTop={1}>
-                <Text color="greenBright">
+                <Text color={tone('tealDim')}>
                     {`██████╗ ███████╗██╗  ██╗████████╗ ██████╗
 ██╔══██╗██╔════╝╚██╗██╔╝╚══██╔══╝██╔═══██╗
 ██║  ██║█████╗   ╚███╔╝    ██║   ██║   ██║
@@ -44,28 +45,28 @@ export function Header({ modelName, sessionId, hasActiveSession, startupInfo }: 
 
             {/* Model and Session */}
             <Box marginTop={1} flexDirection="row">
-                <Text color="gray">Model: </Text>
-                <Text color="white">{modelName}</Text>
+                <Text color={tone('dim')}>Model: </Text>
+                <Text color={tone('hi')}>{modelName}</Text>
                 {hasActiveSession && sessionId && (
                     <>
-                        <Text color="gray"> • Session: </Text>
-                        <Text color="white">{sessionId.slice(0, 8)}</Text>
+                        <Text color={tone('dim')}> • Session: </Text>
+                        <Text color={tone('hi')}>{sessionId.slice(0, 8)}</Text>
                     </>
                 )}
             </Box>
 
             {/* MCP Servers and Tools */}
             <Box flexDirection="row">
-                <Text color="gray">Servers: </Text>
-                <Text color="white">{startupInfo.connectedServers.count}</Text>
-                <Text color="gray"> • Tools: </Text>
-                <Text color="white">{startupInfo.toolCount}</Text>
+                <Text color={tone('dim')}>Servers: </Text>
+                <Text color={tone('hi')}>{startupInfo.connectedServers.count}</Text>
+                <Text color={tone('dim')}> • Tools: </Text>
+                <Text color={tone('hi')}>{startupInfo.toolCount}</Text>
             </Box>
 
             {/* Failed connections warning */}
             {startupInfo.failedConnections.length > 0 && (
                 <Box flexDirection="row">
-                    <Text color="yellowBright">
+                    <Text color={tone('amber')}>
                         ⚠️ Failed: {startupInfo.failedConnections.join(', ')}
                     </Text>
                 </Box>
@@ -74,20 +75,22 @@ export function Header({ modelName, sessionId, hasActiveSession, startupInfo }: 
             {/* Update available notification */}
             {startupInfo.updateInfo && (
                 <Box marginTop={1} flexDirection="row">
-                    <Text color="yellow">
+                    <Text color={tone('amberDim')}>
                         ⬆️ Update available: {startupInfo.updateInfo.current} →{' '}
                         {startupInfo.updateInfo.latest}
                     </Text>
-                    <Text color="gray"> • Run: </Text>
-                    <Text color="cyan">{startupInfo.updateInfo.updateCommand}</Text>
+                    <Text color={tone('dim')}> • Run: </Text>
+                    <Text color={tone('teal')}>{startupInfo.updateInfo.updateCommand}</Text>
                 </Box>
             )}
 
             {/* Agent sync notification */}
             {startupInfo.needsAgentSync && (
                 <Box marginTop={startupInfo.updateInfo ? 0 : 1} flexDirection="row">
-                    <Text color="yellow">🔄 Agent configs have updates available. Run: </Text>
-                    <Text color="cyan">dexto sync-agents</Text>
+                    <Text color={tone('amberDim')}>
+                        🔄 Agent configs have updates available. Run:{' '}
+                    </Text>
+                    <Text color={tone('teal')}>dexto sync-agents</Text>
                 </Box>
             )}
 

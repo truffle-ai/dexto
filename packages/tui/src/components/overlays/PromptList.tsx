@@ -18,6 +18,7 @@ import type { Key } from '../../hooks/useInputOrchestrator.js';
 import type { PromptInfo } from '@dexto/core';
 import { BaseSelector, type BaseSelectorHandle } from '../base/BaseSelector.js';
 import type { TuiAgentBackend } from '../../agent-backend.js';
+import { tone } from '../../signal/index.js';
 
 export type PromptListAction =
     | { type: 'select-prompt'; prompt: PromptInfo }
@@ -49,13 +50,13 @@ interface ListItem {
 function getSourceIndicator(source: string): { icon: string; label: string; color: string } {
     switch (source) {
         case 'config':
-            return { icon: '📄', label: 'config', color: 'blue' };
+            return { icon: '📄', label: 'config', color: tone('fg') };
         case 'custom':
-            return { icon: '✨', label: 'custom', color: 'magenta' };
+            return { icon: '✨', label: 'custom', color: tone('faint') };
         case 'mcp':
-            return { icon: '🔌', label: 'mcp', color: 'green' };
+            return { icon: '🔌', label: 'mcp', color: tone('add') };
         default:
-            return { icon: '📝', label: source, color: 'gray' };
+            return { icon: '📝', label: source, color: tone('dim') };
     }
 }
 
@@ -161,7 +162,7 @@ const PromptList = forwardRef<PromptListHandle, PromptListProps>(function Prompt
         if (item.type === 'add') {
             return (
                 <Box>
-                    <Text color={isSelected ? 'green' : 'gray'} bold={isSelected}>
+                    <Text color={isSelected ? tone('add') : tone('dim')} bold={isSelected}>
                         + Add new prompt
                     </Text>
                 </Box>
@@ -171,7 +172,7 @@ const PromptList = forwardRef<PromptListHandle, PromptListProps>(function Prompt
         if (item.type === 'delete') {
             return (
                 <Box>
-                    <Text color={isSelected ? 'red' : 'gray'} bold={isSelected}>
+                    <Text color={isSelected ? tone('red') : tone('dim')} bold={isSelected}>
                         - Delete a prompt
                     </Text>
                 </Box>
@@ -190,10 +191,10 @@ const PromptList = forwardRef<PromptListHandle, PromptListProps>(function Prompt
 
         return (
             <Box>
-                <Text color={isSelected ? 'cyan' : 'white'} bold={isSelected}>
+                <Text color={isSelected ? tone('teal') : tone('hi')} bold={isSelected}>
                     {displayName}
                 </Text>
-                {prompt.title && <Text color="gray"> - {prompt.title}</Text>}
+                {prompt.title && <Text color={tone('dim')}> - {prompt.title}</Text>}
                 <Text color={sourceInfo.color}> ({sourceLabel})</Text>
             </Box>
         );
@@ -232,7 +233,7 @@ const PromptList = forwardRef<PromptListHandle, PromptListProps>(function Prompt
             onTab={handleTab}
             supportsTab={true}
             title="Prompts"
-            borderColor="yellowBright"
+            borderColor={tone('amber')}
             emptyMessage="No prompts configured"
             maxVisibleItems={12}
         />

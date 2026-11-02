@@ -12,6 +12,7 @@ import React from 'react';
 import { Box, Text } from 'ink';
 import type { QueuedMessage } from '@dexto/core';
 import { previewQueuedContent } from '../../utils/queuedComposerContent.js';
+import { tone } from '../../signal/index.js';
 
 const isMac = process.platform === 'darwin';
 
@@ -49,20 +50,20 @@ export function QueuedMessagesDisplay({
         <Box flexDirection="column" marginBottom={1}>
             {/* Header with count and keyboard hint */}
             <Box>
-                <Text color="gray">
+                <Text color={tone('dim')}>
                     {messages.length} message{messages.length !== 1 ? 's' : ''} {label}
                 </Text>
-                <Text color="gray"> • </Text>
-                <Text color="gray">{hint}</Text>
+                <Text color={tone('dim')}> • </Text>
+                <Text color={tone('dim')}>{hint}</Text>
             </Box>
 
             {/* Messages list */}
             {messages.map((message, index) => (
                 <Box key={message.id} flexDirection="row">
                     {/* Arrow indicator - last message gets special indicator */}
-                    <Text color="gray">{index === messages.length - 1 ? '↳ ' : '│ '}</Text>
+                    <Text color={tone('dim')}>{index === messages.length - 1 ? '↳ ' : '│ '}</Text>
                     {/* Message preview */}
-                    <Text color="gray" italic>
+                    <Text color={tone('dim')} italic>
                         {truncateText(previewQueuedContent(message.content))}
                     </Text>
                 </Box>

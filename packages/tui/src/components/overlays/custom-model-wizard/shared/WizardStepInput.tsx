@@ -6,6 +6,7 @@
 import React from 'react';
 import { Box, Text } from 'ink';
 import type { WizardStep } from '../types.js';
+import { tone } from '../../../../signal/index.js';
 
 interface WizardStepInputProps {
     /** Current step configuration */
@@ -42,35 +43,35 @@ export function WizardStepInput({
             {/* Current step prompt */}
             <Box flexDirection="column">
                 <Text bold>{step.label}:</Text>
-                <Text color="gray">{step.placeholder}</Text>
+                <Text color={tone('dim')}>{step.placeholder}</Text>
                 {additionalContent}
             </Box>
 
             {/* Input field */}
             <Box marginTop={1}>
-                <Text color="cyan">&gt; </Text>
+                <Text color={tone('teal')}>&gt; </Text>
                 <Text>{currentInput}</Text>
-                <Text color="cyan">_</Text>
+                <Text color={tone('teal')}>_</Text>
             </Box>
 
             {/* Error message */}
             {error && (
                 <Box marginTop={1}>
-                    <Text color="red">{error}</Text>
+                    <Text color={tone('red')}>{error}</Text>
                 </Box>
             )}
 
             {/* Validating indicator */}
             {isValidating && (
                 <Box marginTop={1}>
-                    <Text color="yellowBright">Validating model...</Text>
+                    <Text color={tone('amber')}>Validating model...</Text>
                 </Box>
             )}
 
             {/* Saving indicator */}
             {isSaving && (
                 <Box marginTop={1}>
-                    <Text color="yellowBright">Saving...</Text>
+                    <Text color={tone('amber')}>Saving...</Text>
                 </Box>
             )}
         </>

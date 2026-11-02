@@ -11,6 +11,7 @@ import { Box, Text } from 'ink';
 import type { FileDisplayData } from '@dexto/core';
 import { makeRelativePath } from '../../utils/messageFormatting.js';
 import { formatLineNum, getLineNumWidth } from './diff-shared.js';
+import { tone } from '../../signal/index.js';
 
 interface FileRendererProps {
     /** File display data from tool result */
@@ -32,7 +33,7 @@ export function FileRenderer({ data, maxLines = 20 }: FileRendererProps) {
         // Format: "Read N lines"
         const lineText = lineCount !== undefined ? `${lineCount} lines` : 'file';
         return (
-            <Text color="gray">
+            <Text color={tone('dim')}>
                 {'  ⎿ '}Read {lineText} from {relativePath}
             </Text>
         );
@@ -51,14 +52,16 @@ export function FileRenderer({ data, maxLines = 20 }: FileRendererProps) {
             return (
                 <Box flexDirection="column">
                     <Box>
-                        <Text color="gray">{'  ⎿ '}</Text>
+                        <Text color={tone('dim')}>{'  ⎿ '}</Text>
                         <Text>{relativePath}</Text>
-                        <Text color="green"> (created)</Text>
+                        <Text color={tone('add')}> (created)</Text>
                     </Box>
                     <Box flexDirection="column" paddingLeft={2}>
                         {displayLines.map((line, index) => (
                             <Box key={index}>
-                                <Text color="gray">{formatLineNum(index + 1, lineNumWidth)}</Text>
+                                <Text color={tone('dim')}>
+                                    {formatLineNum(index + 1, lineNumWidth)}
+                                </Text>
                                 <Text wrap="wrap">
                                     {'   '}
                                     {line}
@@ -66,7 +69,7 @@ export function FileRenderer({ data, maxLines = 20 }: FileRendererProps) {
                             </Box>
                         ))}
                         {truncatedCount > 0 && (
-                            <Text color="gray">... +{truncatedCount} lines</Text>
+                            <Text color={tone('dim')}>... +{truncatedCount} lines</Text>
                         )}
                     </Box>
                 </Box>
@@ -75,7 +78,7 @@ export function FileRenderer({ data, maxLines = 20 }: FileRendererProps) {
 
         const lineText = lineCount !== undefined ? `${lineCount} lines` : 'content';
         return (
-            <Text color="gray">
+            <Text color={tone('dim')}>
                 {'  ⎿ '}
                 {verb} {lineText} to {relativePath}
             </Text>
@@ -85,7 +88,7 @@ export function FileRenderer({ data, maxLines = 20 }: FileRendererProps) {
     // Delete operation
     if (operation === 'delete') {
         return (
-            <Text color="gray">
+            <Text color={tone('dim')}>
                 {'  ⎿ '}Deleted {relativePath}
             </Text>
         );
@@ -93,7 +96,7 @@ export function FileRenderer({ data, maxLines = 20 }: FileRendererProps) {
 
     // Fallback
     return (
-        <Text color="gray">
+        <Text color={tone('dim')}>
             {'  ⎿ '}
             {operation}
         </Text>

@@ -2,6 +2,7 @@ import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useStat
 import { Box, Text } from 'ink';
 import type { Key } from '../../hooks/useInputOrchestrator.js';
 import { currentSignIn, isUsingDextoCredits, signOut } from '../../host/index.js';
+import { tone } from '../../signal/index.js';
 
 export type LogoutOverlayOutcome =
     | { outcome: 'success'; summary: string; wasUsingDextoCredits: boolean }
@@ -123,33 +124,33 @@ const LogoutOverlay = forwardRef<LogoutOverlayHandle, LogoutOverlayProps>(functi
         <Box
             flexDirection="column"
             borderStyle="round"
-            borderColor="cyan"
+            borderColor={tone('teal')}
             paddingX={1}
             marginTop={1}
         >
             <Box marginBottom={1}>
-                <Text bold color="cyan">
+                <Text bold color={tone('teal')}>
                     Logout
                 </Text>
             </Box>
 
             {step === 'not-authenticated' ? (
                 <Box marginBottom={1}>
-                    <Text color="yellow">Not signed in</Text>
+                    <Text color={tone('amberDim')}>Not signed in</Text>
                 </Box>
             ) : (
                 <Box marginBottom={1}>
-                    <Text color="gray">Account: </Text>
+                    <Text color={tone('dim')}>Account: </Text>
                     <Text>{userLabel ?? '...'}</Text>
                 </Box>
             )}
 
             {usingDextoCredits && step !== 'not-authenticated' && (
                 <Box flexDirection="column" marginBottom={1}>
-                    <Text color="yellow">
+                    <Text color={tone('amberDim')}>
                         ⚠️ You are configured to use Dexto models, which run on this sign-in.
                     </Text>
-                    <Text color="gray" dimColor>
+                    <Text color={tone('dim')} dimColor>
                         After logout, you will need to run `/login` to authenticate again, or `dexto
                         setup` to configure a different provider.
                     </Text>
@@ -158,18 +159,18 @@ const LogoutOverlay = forwardRef<LogoutOverlayHandle, LogoutOverlayProps>(functi
 
             {step === 'logging-out' && (
                 <Box marginBottom={1}>
-                    <Text color="gray">Logging out...</Text>
+                    <Text color={tone('dim')}>Logging out...</Text>
                 </Box>
             )}
 
             {error && (
                 <Box flexDirection="column" marginBottom={1}>
-                    <Text color="red">Error: {error}</Text>
+                    <Text color={tone('red')}>Error: {error}</Text>
                 </Box>
             )}
 
             <Box>
-                <Text color="gray" dimColor>
+                <Text color={tone('dim')} dimColor>
                     {hint}
                 </Text>
             </Box>

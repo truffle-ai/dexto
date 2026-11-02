@@ -8,6 +8,7 @@ import { Box, Text } from 'ink';
 import type { Key } from '../../hooks/useInputOrchestrator.js';
 import { BaseSelector, type BaseSelectorHandle } from '../base/BaseSelector.js';
 import type { PromptAddScope } from '../../state/types.js';
+import { tone } from '../../signal/index.js';
 
 export type PromptAddChoiceResult = PromptAddScope | 'back';
 
@@ -75,13 +76,13 @@ const PromptAddChoice = forwardRef<PromptAddChoiceHandle, PromptAddChoiceProps>(
         const formatItem = (item: ChoiceItem, isSelected: boolean) => {
             return (
                 <Box>
-                    <Text color={isSelected ? 'cyan' : 'white'} bold={isSelected}>
+                    <Text color={isSelected ? tone('teal') : tone('hi')} bold={isSelected}>
                         {item.label}
                     </Text>
                     {item.recommended && (
-                        <Text color={isSelected ? 'green' : 'gray'}> (Recommended)</Text>
+                        <Text color={isSelected ? tone('add') : tone('dim')}> (Recommended)</Text>
                     )}
-                    <Text color="gray"> · {item.description}</Text>
+                    <Text color={tone('dim')}> · {item.description}</Text>
                 </Box>
             );
         };
@@ -102,7 +103,7 @@ const PromptAddChoice = forwardRef<PromptAddChoiceHandle, PromptAddChoiceProps>(
                 onClose={onClose}
                 formatItem={formatItem}
                 title="Add Prompt"
-                borderColor="yellowBright"
+                borderColor={tone('amber')}
                 emptyMessage="No options available"
             />
         );

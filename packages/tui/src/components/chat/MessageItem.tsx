@@ -37,6 +37,7 @@ import {
     formatToolResultPreview,
     stripAutomationTriggerTags,
 } from '../../utils/messageFormatting.js';
+import { tone } from '../../signal/index.js';
 
 /**
  * Strip <plan-mode>...</plan-mode> tags from content.
@@ -91,13 +92,13 @@ function getExternalTriggerColors(source: ExternalTriggerStyledData['source']): 
 } {
     switch (source) {
         case 'scheduler':
-            return { background: '#3A235A', foreground: 'white' };
+            return { background: tone('cloudBg'), foreground: tone('hi') };
         case 'a2a':
-            return { background: '#0E3B2E', foreground: 'white' };
+            return { background: tone('s1'), foreground: tone('hi') };
         case 'api':
-            return { background: '#1E3B5A', foreground: 'white' };
+            return { background: tone('sel'), foreground: tone('hi') };
         default:
-            return { background: 'gray', foreground: 'white' };
+            return { background: tone('s2'), foreground: tone('hi') };
     }
 }
 
@@ -191,7 +192,7 @@ export const MessageItem = memo(
                             : '';
                     return (
                         <Box marginTop={1} marginBottom={1} width={terminalWidth}>
-                            <Text color="gray">
+                            <Text color={tone('dim')}>
                                 ─ Worked for {durationStr}
                                 {tokensStr} ─
                             </Text>
@@ -231,11 +232,11 @@ export const MessageItem = memo(
 
             return (
                 <Box flexDirection="column" marginTop={1} marginBottom={0} width={terminalWidth}>
-                    <Box flexDirection="column" paddingX={1} backgroundColor="gray">
+                    <Box flexDirection="column" paddingX={1} backgroundColor={tone('s2')}>
                         {lines.map((line, i) => (
                             <Box key={i} flexDirection="row">
-                                <Text color="green">{i === 0 ? prefix : '  '}</Text>
-                                <Text color="white">{line}</Text>
+                                <Text color={tone('add')}>{i === 0 ? prefix : '  '}</Text>
+                                <Text color={tone('hi')}>{line}</Text>
                             </Box>
                         ))}
                     </Box>
@@ -252,7 +253,7 @@ export const MessageItem = memo(
             const reasoningBlock =
                 showReasoning && message.reasoning ? (
                     <Box flexDirection="column" marginBottom={1}>
-                        <MarkdownText color="gray" bulletPrefix="⏺ ">
+                        <MarkdownText color={tone('dim')} bulletPrefix="⏺ ">
                             {message.reasoning}
                         </MarkdownText>
                     </Box>
@@ -352,13 +353,13 @@ export const MessageItem = memo(
                     ))}
                     {subHeaderLine && (
                         <Box marginLeft={2}>
-                            <Text color="gray">{subHeaderLine}</Text>
+                            <Text color={tone('dim')}>{subHeaderLine}</Text>
                         </Box>
                     )}
                     {/* Sub-agent progress line - show when we have progress data */}
                     {subAgentProgress && isRunning && (
                         <Box marginLeft={2}>
-                            <Text color="gray">
+                            <Text color={tone('dim')}>
                                 └─ {subAgentProgress.toolsCalled} tool
                                 {subAgentProgress.toolsCalled !== 1 ? 's' : ''} called | Current:{' '}
                                 {subAgentProgress.currentTool}
@@ -381,7 +382,7 @@ export const MessageItem = memo(
                     ) : (
                         message.toolResult && (
                             <Box flexDirection="column">
-                                <Text color="gray">
+                                <Text color={tone('dim')}>
                                     ⎿ {formatToolResultPreview(message.toolResult)}
                                 </Text>
                             </Box>
@@ -406,7 +407,7 @@ export const MessageItem = memo(
 
         return (
             <Box flexDirection="column" marginBottom={1} width={terminalWidth}>
-                <Text color="gray">{message.content}</Text>
+                <Text color={tone('dim')}>{message.content}</Text>
             </Box>
         );
     },

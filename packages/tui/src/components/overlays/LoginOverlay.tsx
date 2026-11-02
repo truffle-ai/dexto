@@ -9,6 +9,7 @@ import React, {
 import { Box, Text } from 'ink';
 import type { Key } from '../../hooks/useInputOrchestrator.js';
 import { currentSignIn, signIn } from '../../host/index.js';
+import { tone } from '../../signal/index.js';
 
 export type LoginOverlayOutcome =
     | { outcome: 'success'; summary: string }
@@ -163,24 +164,24 @@ const LoginOverlay = forwardRef<LoginOverlayHandle, LoginOverlayProps>(function 
         <Box
             flexDirection="column"
             borderStyle="round"
-            borderColor="cyan"
+            borderColor={tone('teal')}
             paddingX={1}
             marginTop={1}
         >
             <Box marginBottom={1}>
-                <Text bold color="cyan">
+                <Text bold color={tone('teal')}>
                     Sign in to Dexto
                 </Text>
             </Box>
 
             {existingUser && step === 'already-authenticated' && (
                 <Box marginBottom={1}>
-                    <Text color="green">Signed in as {existingUser}</Text>
+                    <Text color={tone('add')}>Signed in as {existingUser}</Text>
                 </Box>
             )}
 
             <Box marginBottom={1}>
-                <Text color="gray">Status: </Text>
+                <Text color={tone('dim')}>Status: </Text>
                 <Text>{status}</Text>
             </Box>
 
@@ -192,12 +193,12 @@ const LoginOverlay = forwardRef<LoginOverlayHandle, LoginOverlayProps>(function 
 
             {error && (
                 <Box flexDirection="column" marginBottom={1}>
-                    <Text color="red">Error: {error}</Text>
+                    <Text color={tone('red')}>Error: {error}</Text>
                 </Box>
             )}
 
             <Box>
-                <Text color="gray" dimColor>
+                <Text color={tone('dim')} dimColor>
                     {hint}
                 </Text>
             </Box>

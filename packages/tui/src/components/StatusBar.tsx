@@ -15,6 +15,7 @@ import { useTokenCounter } from '../hooks/useTokenCounter.js';
 import { useAnimationTick } from '../hooks/useAnimationTick.js';
 import { BRAILLE_SPINNER_FRAMES } from '../constants/spinnerFrames.js';
 import type { TuiAgentBackend } from '../agent-backend.js';
+import { tone } from '../signal/index.js';
 
 function StatusSpinner({ enabled, color }: { enabled: boolean; color: string }) {
     const tick = useAnimationTick({ enabled, intervalMs: 80 });
@@ -83,7 +84,7 @@ export function StatusBar({
     if (copyModeEnabled) {
         return (
             <Box paddingX={1} marginBottom={0}>
-                <Text color="yellowBright" bold>
+                <Text color={tone('amber')} bold>
                     📋 Copy Mode - Select text with mouse. Press any key to exit.
                 </Text>
             </Box>
@@ -127,12 +128,12 @@ export function StatusBar({
             <Box paddingX={1} marginTop={1} flexDirection="column">
                 {/* Line 1: spinner + compacting message */}
                 <Box flexDirection="row" alignItems="center">
-                    <StatusSpinner enabled={true} color="yellow" />
-                    <Text color="yellow"> 📦 Compacting context...</Text>
+                    <StatusSpinner enabled={true} color={tone('amberDim')} />
+                    <Text color={tone('amberDim')}> 📦 Compacting context...</Text>
                 </Box>
                 {/* Line 2: meta info */}
                 <Box marginLeft={2}>
-                    <Text color="gray">{metaContent}</Text>
+                    <Text color={tone('dim')}>{metaContent}</Text>
                 </Box>
             </Box>
         );
@@ -159,12 +160,12 @@ export function StatusBar({
             <Box paddingX={1} marginTop={1} flexDirection="column">
                 {/* Line 1: spinner + phrase */}
                 <Box flexDirection="row" alignItems="center">
-                    <StatusSpinner enabled={true} color="green" />
-                    <Text color="green"> {phrase}</Text>
+                    <StatusSpinner enabled={true} color={tone('add')} />
+                    <Text color={tone('add')}> {phrase}</Text>
                 </Box>
                 {/* Line 2: meta info */}
                 <Box marginLeft={2}>
-                    <Text color="gray">{metaContent}</Text>
+                    <Text color={tone('dim')}>{metaContent}</Text>
                 </Box>
             </Box>
         );
@@ -188,15 +189,15 @@ export function StatusBar({
         <Box paddingX={1} marginTop={1} flexDirection="column">
             {/* Line 1: spinner + phrase + queue count */}
             <Box flexDirection="row" alignItems="center">
-                <StatusSpinner enabled={true} color="green" />
-                <Text color="green"> {phrase}</Text>
+                <StatusSpinner enabled={true} color={tone('add')} />
+                <Text color={tone('add')}> {phrase}</Text>
                 {approvalQueueCount > 0 && (
-                    <Text color="yellowBright"> • {approvalQueueCount} queued</Text>
+                    <Text color={tone('amber')}> • {approvalQueueCount} queued</Text>
                 )}
             </Box>
             {/* Line 2: meta info (time, tokens, cancel hint) */}
             <Box marginLeft={2}>
-                <Text color="gray">{metaContent}</Text>
+                <Text color={tone('dim')}>{metaContent}</Text>
             </Box>
         </Box>
     );
