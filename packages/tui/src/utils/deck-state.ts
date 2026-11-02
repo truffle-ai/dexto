@@ -39,6 +39,8 @@ export interface DeckReadoutInput {
     steerCount: number;
     /** "plan mode", "accept edits", "auto-approve"; null in the default mode. */
     permission: string | null;
+    /** The reasoning variant beside the model ("high"); null when the model has none. */
+    reasoning: string | null;
     /** ChatGPT plan usage, when it is worth showing. */
     rateLimitHint: string | null;
 }
@@ -62,7 +64,11 @@ export function deckReadout(mode: DeckMode, r: DeckReadoutInput): string | null 
         case 'cloud':
             return join([r.compacting ? 'compacting' : r.tokens, r.elapsed]);
         default:
-            return join([r.permission, r.rateLimitHint]);
+            return join([
+                r.permission,
+                r.reasoning === null ? null : `r:${r.reasoning}`,
+                r.rateLimitHint,
+            ]);
     }
 }
 

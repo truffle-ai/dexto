@@ -6,10 +6,11 @@
 import { useState } from 'react';
 import path from 'node:path';
 import { Box, Text } from 'ink';
-import { getModelDisplayName, getReasoningProfile } from '@dexto/llm';
+import { getModelDisplayName } from '@dexto/llm';
 import type { CodexRateLimitSnapshot } from '@dexto/core';
 import { getLLMProviderDisplayName } from '../utils/llm-provider-display.js';
 import { resolveChatGPTRateLimitHint } from '../utils/chatgpt-rate-limit.js';
+import { displayedReasoningVariant } from '../utils/reasoning-variant.js';
 import type { TuiAgentBackend } from '../agent-backend.js';
 import { useContextStats } from '../hooks/useContextStats.js';
 import { useDextoCreditBalance } from '../hooks/useDextoCredits.js';
@@ -52,12 +53,7 @@ export function Footer({
     const llmConfig = sessionId ? agent.getCurrentLLMConfig(sessionId) : null;
     const provider = llmConfig?.provider ?? null;
     const providerLabel = provider ? getLLMProviderDisplayName(provider, llmConfig?.baseURL) : null;
-    const reasoningProfile =
-        provider && llmConfig ? getReasoningProfile(provider, llmConfig.model) : null;
-    const reasoningVariant =
-        llmConfig?.reasoning?.variant ?? reasoningProfile?.defaultVariant ?? undefined;
-    const showReasoningVariant =
-        reasoningProfile?.capable === true && typeof reasoningVariant === 'string';
+    const reasoningVariant = displayedReasoningVariant(llmConfig);
     const chatGPTRateLimitHint = resolveChatGPTRateLimitHint(llmConfig, chatgptRateLimitStatus);
     const chatGPTRateLimitColor = chatgptRateLimitStatus?.exceeded
         ? tone('del')
@@ -87,7 +83,7 @@ export function Footer({
                 <Box>
                     <Text color={tone('teal')}>{displayModelName}</Text>
                     {providerLabel && <Text color={tone('dim')}> ({providerLabel})</Text>}
-                    {showReasoningVariant && (
+                    {reasoningVariant !== null && (
                         <>
                             <Text color={tone('dim')}> · r:</Text>
                             <Text color={tone('cloudDim')}>{reasoningVariant}</Text>

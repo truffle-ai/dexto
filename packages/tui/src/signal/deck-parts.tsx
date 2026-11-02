@@ -252,22 +252,63 @@ export function StatusBlock({
     );
 }
 
+/** How the compact status row shares its width. */
+export interface StatusRowFit {
+    /** Columns for model and context; 0 hides them. */
+    model: number;
+    /** Columns for the lane. */
+    lane: number;
+}
+
 /**
- * Model, context and lane in one row under the input. The branch and dirty count only come
- * back when the row has room for them.
+ * Where the agent runs and the balance always fit, then the notice; model and context take
+ * what is left and truncate first, and disappear below four columns.
  */
-export function StatusRow({ status, width }: { status: DeckStatus; width: number }) {
-    const tone = useTone();
+export function statusRowFit(status: DeckStatus, width: number, noticeWidth: number): StatusRowFit {
     const context = contextText(status, false);
-    const lead = status.model.length + (context === null ? 0 : context.length + 2) + 2;
+    const natural = status.model.length + (context === null ? 0 : context.length + 2);
+    const laneMin = whereText(status.where).length + creditsText(status.credits).length;
+    const room = width - noticeWidth - laneMin - 2;
+    const model = room >= 4 ? Math.min(natural, room) : 0;
+    return { model, lane: Math.max(0, width - noticeWidth - (model > 0 ? model + 2 : 0)) };
+}
+
+/**
+ * Model, context and lane in one row under the input. `notice` leads the row when the band
+ * has no room for the readout, so the permission mode stays on screen.
+ */
+export function StatusRow({
+    status,
+    width,
+    notice,
+}: {
+    status: DeckStatus;
+    width: number;
+    notice: { text: string; color: string } | null;
+}) {
+    const tone = useTone();
+    const { glyphs } = useCaps();
+    const context = contextText(status, false);
+    const noticeText = notice === null ? '' : `${glyphText(notice.text, glyphs)}  `;
+    const fit = statusRowFit(status, width, noticeText.length);
     return (
-        <Box>
-            <Text wrap="truncate-end">
-                <ModelName model={status.model} />
-                {context !== null && <Text color={tone('dim')}>{`  ${context}`}</Text>}
-                <Text>{'  '}</Text>
-                <Lane status={status} width={Math.max(0, width - lead)} />
-            </Text>
+        <Box width={width}>
+            {notice !== null && (
+                <Box flexShrink={0}>
+                    <Text color={notice.color}>{noticeText}</Text>
+                </Box>
+            )}
+            {fit.model > 0 && (
+                <Box width={fit.model} marginRight={2} flexShrink={0}>
+                    <Text wrap="truncate-end">
+                        <ModelName model={status.model} />
+                        {context !== null && <Text color={tone('dim')}>{`  ${context}`}</Text>}
+                    </Text>
+                </Box>
+            )}
+            <Box width={fit.lane} flexShrink={0}>
+                <Lane status={status} width={fit.lane} />
+            </Box>
         </Box>
     );
 }

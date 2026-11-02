@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { getCaps, setCaps, type Caps } from './caps.js';
 import { Deck, type DeckState } from './components.js';
 import { deckLayout, formatTokens } from './deck-layout.js';
-import { laneParts } from './deck-parts.js';
+import { laneParts, statusRowFit } from './deck-parts.js';
 
 async function frame(element: ReactElement, columns: number): Promise<string> {
     const stdout = Object.assign(new PassThrough(), { columns, rows: 40, isTTY: false });
@@ -93,6 +93,23 @@ describe('laneParts', () => {
     });
 });
 
+describe('statusRowFit', () => {
+    const status = { ...state.status, model: 'dexto/anthropic/claude-sonnet-4.5' };
+
+    it('reserves the lane and lets the model truncate', () => {
+        // lane minimum: "◇ local" 7 + " · ◆ $12.84" 11 = 18
+        expect(statusRowFit(status, 42, 0)).toEqual({ model: 22, lane: 18 });
+    });
+
+    it('hides the model rather than show a stub', () => {
+        expect(statusRowFit(status, 42, 19)).toEqual({ model: 0, lane: 23 });
+    });
+
+    it('gives the lane whatever the model leaves', () => {
+        expect(statusRowFit(state.status, 120, 0)).toEqual({ model: 21, lane: 97 });
+    });
+});
+
 describe('formatTokens', () => {
     it('reads like 46k, 1.2M and 850', () => {
         expect(formatTokens(46_000)).toBe('46k');
@@ -123,7 +140,7 @@ describe('Deck', () => {
         const out = await frame(deck(), 78);
         const lines = out.split('\n');
         expect(lines).toHaveLength(5);
-        expect(lines[0]).toMatch(/STREAMING\s*$/);
+        expect(lines[0]).toMatch(/STREAMING · 84 tok\/s · 12\.4s\s*$/);
         expect(lines[3]).toBe('› ask');
         expect(lines[4]).toMatch(/^dexto\/sonnet-5\.5\s+46k\s+◇ local ⎇ main ±3 · ◆ \$12\.84/);
     });
@@ -135,7 +152,25 @@ describe('Deck', () => {
         expect(out).not.toContain('dexto ');
         expect(lines[0]).toMatch(/[▁-█]/);
         expect(lines[2]).toBe('› ask');
-        expect(lines[3]).toMatch(/^dexto\/sonnet-5\.5\s+46k\s+◇ local · ◆ \$12\.84$/);
+        expect(lines[3]).toMatch(/^84 tok\/s · 12\.4s\s+dex…\s+◇ local · ◆ \$12\.84$/);
+    });
+
+    it('keeps the readout, and so the permission mode, in the middle step', async () => {
+        const out = await frame(deck({ ...state, mode: 'idle', readout: 'plan mode' }), 78);
+        expect(out.split('\n')[0]).toMatch(/READY · plan mode\s*$/);
+    });
+
+    it('leads the bare status row with the readout and never cuts the lane', async () => {
+        const long = {
+            ...state,
+            mode: 'idle' as const,
+            readout: 'auto-approve',
+            status: { ...state.status, model: 'dexto/anthropic/claude-sonnet-4.5' },
+        };
+        const row = (await frame(deck(long), 42)).split('\n')[3] ?? '';
+        expect(row).toMatch(/^auto-approve\s+dexto.*◇ local · ◆ \$12\.84$/);
+        const plain = (await frame(deck({ ...long, readout: null }), 42)).split('\n')[3] ?? '';
+        expect(plain).toMatch(/^dexto\/anthropic.*…\s+◇ local · ◆ \$12\.84$/);
     });
 
     it('slots a gate between the band and the input', async () => {

@@ -59,6 +59,7 @@ describe('deckReadout', () => {
         compacting: false,
         steerCount: 0,
         permission: null,
+        reasoning: null,
         rateLimitHint: null,
     };
 
@@ -85,6 +86,13 @@ describe('deckReadout', () => {
         expect(
             deckReadout('idle', { ...base, permission: 'plan mode', rateLimitHint: '91% used' })
         ).toBe('plan mode · 91% used');
+    });
+
+    it('shows the reasoning variant when idle, so Tab has visible feedback', () => {
+        expect(deckReadout('idle', { ...base, reasoning: 'high' })).toBe('r:high');
+        expect(deckReadout('idle', { ...base, permission: 'plan mode', reasoning: 'low' })).toBe(
+            'plan mode · r:low'
+        );
     });
 });
 

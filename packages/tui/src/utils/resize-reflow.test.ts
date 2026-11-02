@@ -10,6 +10,12 @@ describe('reflowedRows', () => {
         expect(reflowedRows(`${'a'.repeat(100)}\n\nbb\n`, 40)).toBe(3 + 1 + 1 + 1);
     });
 
+    it('wraps a wide character that would straddle the right margin', () => {
+        // 49 two-cell characters at 49 columns: 24 per row (the 25th won't fit in the
+        // last cell), so 3 rows, plus the trailing newline.
+        expect(reflowedRows(`${'界'.repeat(49)}\n`, 49)).toBe(3 + 1);
+    });
+
     it('ignores colour codes when measuring', () => {
         expect(reflowedRows(`${ESC}31m${'a'.repeat(40)}${ESC}39m\n`, 40)).toBe(1 + 1);
     });

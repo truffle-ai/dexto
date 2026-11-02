@@ -9,6 +9,7 @@ import type { ApprovalRequest } from '../components/ApprovalPrompt.js';
 import type { DeckState } from '../signal/index.js';
 import type { Message, UIState } from '../state/types.js';
 import { resolveChatGPTRateLimitHint } from '../utils/chatgpt-rate-limit.js';
+import { displayedReasoningVariant } from '../utils/reasoning-variant.js';
 import { deckCredits, deckMode, deckModelId, deckReadout } from '../utils/deck-state.js';
 import { useContextStats } from './useContextStats.js';
 import { useDextoCreditBalance, useDextoSignedIn } from './useDextoCredits.js';
@@ -92,6 +93,7 @@ export function useDeckState(input: DeckStateInput): DeckState {
         compacting: ui.isCompacting,
         steerCount: input.steerCount,
         permission: permissionLabel(ui, input.isShellMode),
+        reasoning: displayedReasoningVariant(llmConfig),
         rateLimitHint: resolveChatGPTRateLimitHint(llmConfig, input.chatgptRateLimitStatus),
     });
 

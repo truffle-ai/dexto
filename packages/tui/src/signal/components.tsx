@@ -224,8 +224,15 @@ export function Deck({ state, gate, children }: DeckProps) {
                 >
                     {layout.band === 'mid' && (
                         <Box justifyContent="flex-end" height={1}>
-                            <Text bold color={tone(mode.role)}>
-                                {mode.label}
+                            <Text wrap="truncate-end">
+                                <Text bold color={tone(mode.role)}>
+                                    {mode.label}
+                                </Text>
+                                {state.readout !== null && (
+                                    <Text color={tone('dim')}>
+                                        {glyphText(` · ${state.readout}`, caps.glyphs)}
+                                    </Text>
+                                )}
                             </Text>
                         </Box>
                     )}
@@ -246,7 +253,17 @@ export function Deck({ state, gate, children }: DeckProps) {
             </Box>
             {gate}
             {children}
-            {layout.statusRow && <StatusRow status={state.status} width={columns} />}
+            {layout.statusRow && (
+                <StatusRow
+                    status={state.status}
+                    width={columns}
+                    notice={
+                        bare && state.readout !== null
+                            ? { text: state.readout, color: tone(mode.role) }
+                            : null
+                    }
+                />
+            )}
         </Box>
     );
 }

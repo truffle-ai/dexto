@@ -39,15 +39,31 @@ function eraseLines(count: number): string {
     return count > 0 ? out + CURSOR_LEFT : '';
 }
 
+const graphemes = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
+
+/**
+ * Rows one line takes at `columns` once the terminal wraps it. Walks the line a grapheme at a
+ * time, since a wide character that won't fit in the last cell moves whole to the next row.
+ */
+function lineRows(line: string, columns: number): number {
+    let rows = 1;
+    let col = 0;
+    for (const { segment } of graphemes.segment(stripAnsi(line))) {
+        const width = stringWidth(segment);
+        if (width === 0) continue;
+        if (col + width > columns) {
+            rows++;
+            col = 0;
+        }
+        col += width;
+    }
+    return rows;
+}
+
 /** Rows `frame` (ending in a newline, as Ink writes it) takes at `columns` once rewrapped. */
 export function reflowedRows(frame: string, columns: number): number {
     const cols = Math.max(1, columns);
-    return frame
-        .split('\n')
-        .reduce(
-            (rows, line) => rows + Math.max(1, Math.ceil(stringWidth(stripAnsi(line)) / cols)),
-            0
-        );
+    return frame.split('\n').reduce((rows, line) => rows + lineRows(line, cols), 0);
 }
 
 /**
