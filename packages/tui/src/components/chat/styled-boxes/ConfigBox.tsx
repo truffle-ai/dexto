@@ -6,6 +6,7 @@ import React from 'react';
 import { Box, Text } from 'ink';
 import type { ConfigStyledData } from '../../../state/types.js';
 import { StyledBox, StyledSection, StyledRow } from './StyledBox.js';
+import { tone } from '../../../signal/index.js';
 
 interface ConfigBoxProps {
     data: ConfigStyledData;
@@ -13,12 +14,12 @@ interface ConfigBoxProps {
 
 export function ConfigBox({ data }: ConfigBoxProps) {
     return (
-        <StyledBox title="Runtime Configuration" titleColor="cyan">
+        <StyledBox title="Runtime Configuration" titleColor={tone('teal')}>
             {/* Config file path at the top */}
             {data.configFilePath && (
                 <Box>
-                    <Text color="gray">Agent config: </Text>
-                    <Text color="blue">{data.configFilePath}</Text>
+                    <Text color={tone('dim')}>Agent config: </Text>
+                    <Text color={tone('fg')}>{data.configFilePath}</Text>
                 </Box>
             )}
 
@@ -46,17 +47,17 @@ export function ConfigBox({ data }: ConfigBoxProps) {
                 {data.mcpServers.length > 0 ? (
                     data.mcpServers.map((server) => (
                         <Box key={server}>
-                            <Text color="cyan">{server}</Text>
+                            <Text color={tone('teal')}>{server}</Text>
                         </Box>
                     ))
                 ) : (
-                    <Text color="gray">No MCP servers configured</Text>
+                    <Text color={tone('dim')}>No MCP servers configured</Text>
                 )}
             </StyledSection>
 
             {data.promptsCount > 0 && (
                 <StyledSection title="Prompts">
-                    <Text color="gray">{data.promptsCount} prompt(s) configured</Text>
+                    <Text color={tone('dim')}>{data.promptsCount} prompt(s) configured</Text>
                 </StyledSection>
             )}
 
@@ -64,7 +65,7 @@ export function ConfigBox({ data }: ConfigBoxProps) {
                 <StyledSection title="Hooks">
                     {data.hooksEnabled.map((hook) => (
                         <Box key={hook}>
-                            <Text color="green">{hook}</Text>
+                            <Text color={tone('add')}>{hook}</Text>
                         </Box>
                     ))}
                 </StyledSection>
@@ -72,7 +73,7 @@ export function ConfigBox({ data }: ConfigBoxProps) {
 
             {/* Footer note about CLI-populated fields */}
             <Box marginTop={1}>
-                <Text color="gray" italic>
+                <Text color={tone('dim')} italic>
                     Note: Some fields (logs, database paths) are auto-populated by the CLI.
                 </Text>
             </Box>

@@ -22,6 +22,7 @@ import { writeToClipboard } from '../../utils/clipboardUtils.js';
 import { getMaxVisibleItemsForTerminalRows } from '../../utils/overlaySizing.js';
 import { HintBar } from '../shared/HintBar.js';
 import type { TuiAgentBackend } from '../../agent-backend.js';
+import { tone } from '../../signal/index.js';
 
 interface ToolBrowserProps {
     isVisible: boolean;
@@ -687,10 +688,10 @@ const ToolBrowser = forwardRef<ToolBrowserHandle, ToolBrowserProps>(function Too
         <Box flexDirection="column" width={columns}>
             {/* Header */}
             <Box paddingX={0} paddingY={0}>
-                <Text color="cyan" bold>
+                <Text color={tone('teal')} bold>
                     Tools
                 </Text>
-                <Text color="gray">
+                <Text color={tone('dim')}>
                     {' '}
                     ({filteredTools.length} tools: {filteredLocalCount} local, {filteredMcpCount}{' '}
                     MCP)
@@ -699,8 +700,8 @@ const ToolBrowser = forwardRef<ToolBrowserHandle, ToolBrowserProps>(function Too
 
             {/* Search input */}
             <Box paddingX={0} paddingY={0} marginTop={1}>
-                <Text color="gray">Search: </Text>
-                <Text color={searchQuery ? 'white' : 'gray'} wrap="truncate-end">
+                <Text color={tone('dim')}>Search: </Text>
+                <Text color={searchQuery ? tone('hi') : tone('dim')} wrap="truncate-end">
                     {searchQuery || 'Type to filter tools…'}
                 </Text>
             </Box>
@@ -728,25 +729,30 @@ const ToolBrowser = forwardRef<ToolBrowserHandle, ToolBrowserProps>(function Too
 
                           return (
                               <Box key={tool.name} paddingX={0} paddingY={0}>
-                                  <Text color={isSelected ? 'cyan' : 'white'}>
+                                  <Text color={isSelected ? tone('teal') : tone('hi')}>
                                       {isSelected ? '▶ ' : '  '}
                                   </Text>
-                                  <Text color={isSelected ? 'cyan' : 'white'} bold={isSelected}>
+                                  <Text
+                                      color={isSelected ? tone('teal') : tone('hi')}
+                                      bold={isSelected}
+                                  >
                                       {truncateText(tool.name, 35)}
                                   </Text>
-                                  <Text color={tool.source === 'local' ? 'magenta' : 'blue'}>
+                                  <Text
+                                      color={tool.source === 'local' ? tone('faint') : tone('fg')}
+                                  >
                                       {' '}
                                       [{tool.source === 'local' ? 'Local' : 'MCP'}]
                                   </Text>
                                   {tool.serverName && (
-                                      <Text color="gray"> ({tool.serverName})</Text>
+                                      <Text color={tone('dim')}> ({tool.serverName})</Text>
                                   )}
-                                  <Text color={tool.isEnabled ? 'green' : 'red'}>
+                                  <Text color={tool.isEnabled ? tone('add') : tone('red')}>
                                       {' '}
                                       {tool.isEnabled ? 'Enabled' : 'Disabled'}
                                   </Text>
                                   {tool.isAutoApproved && (
-                                      <Text color="yellow"> [auto-approved]</Text>
+                                      <Text color={tone('amberDim')}> [auto-approved]</Text>
                                   )}
                               </Box>
                           );
@@ -754,7 +760,7 @@ const ToolBrowser = forwardRef<ToolBrowserHandle, ToolBrowserProps>(function Too
             </Box>
 
             <Box paddingX={0} paddingY={0} marginTop={1}>
-                <Text color={loadError ? 'red' : 'gray'} wrap="truncate-end">
+                <Text color={loadError ? tone('red') : tone('dim')} wrap="truncate-end">
                     {detailLine}
                 </Text>
             </Box>
@@ -858,13 +864,13 @@ function renderDetailLine(line: DetailLineType, _index: number): React.ReactElem
     switch (line.type) {
         case 'title':
             return (
-                <Text color="cyan" bold>
+                <Text color={tone('teal')} bold>
                     {line.text}
                 </Text>
             );
         case 'source':
             return (
-                <Text color={line.source === 'local' ? 'magenta' : 'blue'}>
+                <Text color={line.source === 'local' ? tone('faint') : tone('fg')}>
                     {line.source === 'local' ? 'Local Tool' : 'MCP Tool'}
                     {line.serverName ? ` (${line.serverName})` : ''}
                 </Text>
@@ -872,7 +878,7 @@ function renderDetailLine(line: DetailLineType, _index: number): React.ReactElem
         case 'empty':
             return <Text> </Text>;
         case 'header':
-            return <Text color="gray">{line.text}</Text>;
+            return <Text color={tone('dim')}>{line.text}</Text>;
         case 'description':
             return (
                 <>
@@ -884,23 +890,23 @@ function renderDetailLine(line: DetailLineType, _index: number): React.ReactElem
             return (
                 <>
                     <Text> </Text>
-                    <Text color="cyan">{line.name}</Text>
-                    <Text color="gray"> ({line.paramType})</Text>
-                    {line.required && <Text color="red"> *required</Text>}
+                    <Text color={tone('teal')}>{line.name}</Text>
+                    <Text color={tone('dim')}> ({line.paramType})</Text>
+                    {line.required && <Text color={tone('red')}> *required</Text>}
                 </>
             );
         case 'param-desc':
             return (
                 <>
                     <Text> </Text>
-                    <Text color="gray">{line.text}</Text>
+                    <Text color={tone('dim')}>{line.text}</Text>
                 </>
             );
         case 'param-enum':
             return (
                 <>
                     <Text> </Text>
-                    <Text color="gray">Allowed: {line.values.join(' | ')}</Text>
+                    <Text color={tone('dim')}>Allowed: {line.values.join(' | ')}</Text>
                 </>
             );
     }
@@ -918,28 +924,28 @@ function ToolActionsMenu({
     return (
         <Box flexDirection="column" width={columns}>
             <Box paddingX={0} paddingY={0}>
-                <Text color="cyan" bold>
+                <Text color={tone('teal')} bold>
                     Tool Options
                 </Text>
-                <Text color="gray"> {tool.name}</Text>
+                <Text color={tone('dim')}> {tool.name}</Text>
             </Box>
             <Box paddingX={0} paddingY={0}>
-                <Text color={listActionsIndex === 0 ? 'cyan' : 'gray'}>
+                <Text color={listActionsIndex === 0 ? tone('teal') : tone('dim')}>
                     {listActionsIndex === 0 ? '▶ ' : '  '}View details
                 </Text>
             </Box>
             <Box paddingX={0} paddingY={0}>
-                <Text color={listActionsIndex === 1 ? 'cyan' : 'gray'}>
+                <Text color={listActionsIndex === 1 ? tone('teal') : tone('dim')}>
                     {listActionsIndex === 1 ? '▶ ' : '  '}Edit tool settings
                 </Text>
             </Box>
             <Box paddingX={0} paddingY={0}>
-                <Text color={listActionsIndex === 2 ? 'cyan' : 'gray'}>
+                <Text color={listActionsIndex === 2 ? tone('teal') : tone('dim')}>
                     {listActionsIndex === 2 ? '▶ ' : '  '}Back
                 </Text>
             </Box>
             <Box paddingX={0} paddingY={0}>
-                <Text color="gray">↑↓ select · Enter confirm · Esc back</Text>
+                <Text color={tone('dim')}>↑↓ select · Enter confirm · Esc back</Text>
             </Box>
         </Box>
     );
@@ -978,12 +984,15 @@ function ToolDetailView({
     return (
         <Box flexDirection="column" width={columns}>
             <Box paddingX={0} paddingY={0}>
-                <Text color="cyan" bold>
+                <Text color={tone('teal')} bold>
                     Tool Details
                 </Text>
-                <Text color="gray"> - ↑↓ scroll, c copy schema, Enter settings, Esc back</Text>
+                <Text color={tone('dim')}>
+                    {' '}
+                    - ↑↓ scroll, c copy schema, Enter settings, Esc back
+                </Text>
                 {copyFeedback && (
-                    <Text color="green" bold>
+                    <Text color={tone('add')} bold>
                         {' '}
                         {copyFeedback}
                     </Text>
@@ -992,12 +1001,14 @@ function ToolDetailView({
 
             {/* Separator */}
             <Box paddingX={0} paddingY={0}>
-                <Text color="gray">{'─'.repeat(Math.min(60, columns - 2))}</Text>
+                <Text color={tone('dim')}>{'─'.repeat(Math.min(60, columns - 2))}</Text>
             </Box>
 
             {/* Scroll indicator - above (always present to avoid layout shift) */}
             <Box paddingX={0} paddingY={0}>
-                <Text color="gray">{hasMoreAbove ? `↑ ${clampedOffset} more above` : ' '}</Text>
+                <Text color={tone('dim')}>
+                    {hasMoreAbove ? `↑ ${clampedOffset} more above` : ' '}
+                </Text>
             </Box>
 
             {/* Visible content - render directly from data like TextBufferInput */}
@@ -1013,7 +1024,7 @@ function ToolDetailView({
 
             {/* Scroll indicator - below (always present to avoid layout shift) */}
             <Box paddingX={0} paddingY={0}>
-                <Text color="gray">
+                <Text color={tone('dim')}>
                     {hasMoreBelow
                         ? `↓ ${totalLines - clampedOffset - maxVisibleLines} more below`
                         : ' '}
@@ -1040,29 +1051,29 @@ function ToolSettingsView({
     return (
         <Box flexDirection="column" width={columns}>
             <Box paddingX={0} paddingY={0}>
-                <Text color="cyan" bold>
+                <Text color={tone('teal')} bold>
                     Tool Settings
                 </Text>
-                <Text color="gray"> {tool.name}</Text>
+                <Text color={tone('dim')}> {tool.name}</Text>
             </Box>
             <Box paddingX={0} paddingY={0}>
-                <Text color="gray">Status: </Text>
-                <Text color={tool.isEnabled ? 'green' : 'red'}>
+                <Text color={tone('dim')}>Status: </Text>
+                <Text color={tool.isEnabled ? tone('add') : tone('red')}>
                     {tool.isEnabled ? 'Enabled' : 'Disabled'}
                 </Text>
-                <Text color="gray"> · Auto-approve: </Text>
-                <Text color={tool.isAutoApproved ? 'green' : 'red'}>
+                <Text color={tone('dim')}> · Auto-approve: </Text>
+                <Text color={tool.isAutoApproved ? tone('add') : tone('red')}>
                     {tool.isAutoApproved ? 'On' : 'Off'}
                 </Text>
-                <Text color="gray"> (session)</Text>
+                <Text color={tone('dim')}> (session)</Text>
             </Box>
             {autoApproveDisabled && (
                 <Box paddingX={0} paddingY={0}>
-                    <Text color="yellow">Enable the tool to allow auto-approve.</Text>
+                    <Text color={tone('amberDim')}>Enable the tool to allow auto-approve.</Text>
                 </Box>
             )}
             <Box paddingX={0} paddingY={0}>
-                <Text color={configIndex === 0 ? 'cyan' : 'gray'}>
+                <Text color={configIndex === 0 ? tone('teal') : tone('dim')}>
                     {configIndex === 0 ? '▶ ' : '  '}
                     {tool.isEnabled ? 'Disable tool' : 'Enable tool'}
                 </Text>
@@ -1070,7 +1081,11 @@ function ToolSettingsView({
             <Box paddingX={0} paddingY={0}>
                 <Text
                     color={
-                        configIndex === 1 ? (autoApproveUnavailable ? 'yellow' : 'cyan') : 'gray'
+                        configIndex === 1
+                            ? autoApproveUnavailable
+                                ? tone('amberDim')
+                                : tone('teal')
+                            : tone('dim')
                     }
                 >
                     {configIndex === 1 ? '▶ ' : '  '}
@@ -1081,16 +1096,16 @@ function ToolSettingsView({
             </Box>
             {!sessionAvailable && (
                 <Box paddingX={0} paddingY={0}>
-                    <Text color="yellow">Auto-approve requires an active session.</Text>
+                    <Text color={tone('amberDim')}>Auto-approve requires an active session.</Text>
                 </Box>
             )}
             <Box paddingX={0} paddingY={0}>
-                <Text color={configIndex === 2 ? 'cyan' : 'gray'}>
+                <Text color={configIndex === 2 ? tone('teal') : tone('dim')}>
                     {configIndex === 2 ? '▶ ' : '  '}Back
                 </Text>
             </Box>
             <Box paddingX={0} paddingY={0}>
-                <Text color="gray">↑↓ select · Enter confirm · Esc back</Text>
+                <Text color={tone('dim')}>↑↓ select · Enter confirm · Esc back</Text>
             </Box>
         </Box>
     );
@@ -1112,31 +1127,31 @@ function ToolScopeView({
     return (
         <Box flexDirection="column" width={columns}>
             <Box paddingX={0} paddingY={0}>
-                <Text color="cyan" bold>
+                <Text color={tone('teal')} bold>
                     {scopeNextEnabled ? 'Enable Tool' : 'Disable Tool'}
                 </Text>
-                <Text color="gray"> {tool.name}</Text>
+                <Text color={tone('dim')}> {tool.name}</Text>
             </Box>
             <Box paddingX={0} paddingY={0}>
-                <Text color="gray">Apply to:</Text>
+                <Text color={tone('dim')}>Apply to:</Text>
             </Box>
             <Box paddingX={0} paddingY={0}>
-                <Text color={scopeTarget === 'session' ? 'cyan' : 'gray'}>
+                <Text color={scopeTarget === 'session' ? tone('teal') : tone('dim')}>
                     {scopeTarget === 'session' ? '▶ ' : '  '}Session (default)
                 </Text>
             </Box>
             <Box paddingX={0} paddingY={0}>
-                <Text color={scopeTarget === 'global' ? 'cyan' : 'gray'}>
+                <Text color={scopeTarget === 'global' ? tone('teal') : tone('dim')}>
                     {scopeTarget === 'global' ? '▶ ' : '  '}Global (persisted)
                 </Text>
             </Box>
             {!sessionAvailable && scopeTarget === 'session' && (
                 <Box paddingX={0} paddingY={0}>
-                    <Text color="yellow">No active session; switching to global.</Text>
+                    <Text color={tone('amberDim')}>No active session; switching to global.</Text>
                 </Box>
             )}
             <Box paddingX={0} paddingY={0}>
-                <Text color="gray">↑↓ choose scope · Enter confirm · Esc back</Text>
+                <Text color={tone('dim')}>↑↓ choose scope · Enter confirm · Esc back</Text>
             </Box>
         </Box>
     );

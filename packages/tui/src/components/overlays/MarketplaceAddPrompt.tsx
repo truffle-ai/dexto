@@ -8,6 +8,7 @@ import { Box, Text } from 'ink';
 import { addMarketplace } from '@dexto/agent-management';
 import { logger } from '@dexto/core';
 import type { Key } from '../../hooks/useInputOrchestrator.js';
+import { tone } from '../../signal/index.js';
 
 interface MarketplaceAddPromptProps {
     isVisible: boolean;
@@ -105,51 +106,51 @@ const MarketplaceAddPrompt = forwardRef<MarketplaceAddPromptHandle, MarketplaceA
             <Box
                 flexDirection="column"
                 borderStyle="round"
-                borderColor="green"
+                borderColor={tone('add')}
                 paddingX={1}
                 marginTop={1}
             >
                 <Box marginBottom={1}>
-                    <Text bold color="green">
+                    <Text bold color={tone('add')}>
                         Add Marketplace
                     </Text>
                 </Box>
 
                 <Box marginBottom={1}>
-                    <Text color="gray">Enter marketplace source:</Text>
+                    <Text color={tone('dim')}>Enter marketplace source:</Text>
                 </Box>
                 <Box marginBottom={1} flexDirection="column">
-                    <Text color="gray" dimColor>
+                    <Text color={tone('dim')} dimColor>
                         - GitHub: owner/repo (e.g., anthropics/claude-plugins-official)
                     </Text>
-                    <Text color="gray" dimColor>
+                    <Text color={tone('dim')} dimColor>
                         - Git URL: https://github.com/user/repo.git
                     </Text>
-                    <Text color="gray" dimColor>
+                    <Text color={tone('dim')} dimColor>
                         - Local: /path/to/marketplace or ~/marketplace
                     </Text>
                 </Box>
 
                 <Box>
-                    <Text color="cyan">{'> '}</Text>
+                    <Text color={tone('teal')}>{'> '}</Text>
                     <Text>{input}</Text>
-                    <Text color="cyan">_</Text>
+                    <Text color={tone('teal')}>_</Text>
                 </Box>
 
                 {error && (
                     <Box marginTop={1}>
-                        <Text color="red">{error}</Text>
+                        <Text color={tone('red')}>{error}</Text>
                     </Box>
                 )}
 
                 {isAdding && (
                     <Box marginTop={1}>
-                        <Text color="yellow">Adding marketplace...</Text>
+                        <Text color={tone('amberDim')}>Adding marketplace...</Text>
                     </Box>
                 )}
 
                 <Box marginTop={1}>
-                    <Text color="gray" dimColor>
+                    <Text color={tone('dim')} dimColor>
                         Press Enter to add, Escape to cancel
                     </Text>
                 </Box>

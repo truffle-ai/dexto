@@ -6,6 +6,7 @@
 import React from 'react';
 import { Box, Text } from 'ink';
 import { useTerminalSize } from '../../../hooks/useTerminalSize.js';
+import { tone } from '../../../signal/index.js';
 
 interface StyledBoxProps {
     title: string;
@@ -17,7 +18,7 @@ interface StyledBoxProps {
  * Base styled box component with rounded border and title
  * Automatically adjusts width to terminal size
  */
-export function StyledBox({ title, titleColor = 'cyan', children }: StyledBoxProps) {
+export function StyledBox({ title, titleColor = tone('teal'), children }: StyledBoxProps) {
     const { columns } = useTerminalSize();
 
     return (
@@ -25,7 +26,7 @@ export function StyledBox({ title, titleColor = 'cyan', children }: StyledBoxPro
             <Box
                 flexDirection="column"
                 borderStyle="round"
-                borderColor="gray"
+                borderColor={tone('dim')}
                 paddingX={1}
                 paddingY={0}
             >
@@ -75,10 +76,10 @@ interface StyledRowProps {
 /**
  * Key-value row within a section
  */
-export function StyledRow({ label, value, valueColor = 'cyan' }: StyledRowProps) {
+export function StyledRow({ label, value, valueColor = tone('teal') }: StyledRowProps) {
     return (
         <Box>
-            <Text color="gray">{label}: </Text>
+            <Text color={tone('dim')}>{label}: </Text>
             <Text color={valueColor}>{value}</Text>
         </Box>
     );
@@ -98,11 +99,11 @@ export function StyledListItem({ icon, text, isActive, dimmed }: StyledListItemP
     // Build props object conditionally to avoid undefined with exactOptionalPropertyTypes
     const textProps: Record<string, unknown> = {};
     if (isActive) {
-        textProps.color = 'green';
+        textProps.color = tone('add');
         textProps.bold = true;
     }
     if (dimmed) {
-        textProps.color = 'gray';
+        textProps.color = tone('dim');
     }
 
     return (

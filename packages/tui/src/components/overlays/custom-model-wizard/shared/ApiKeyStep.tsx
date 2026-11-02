@@ -8,6 +8,7 @@ import { Box, Text } from 'ink';
 import { getProviderKeyStatus } from '@dexto/agent-management';
 import type { LLMProvider } from '@dexto/llm';
 import type { CustomModelProvider } from '@dexto/agent-management';
+import { tone } from '../../../../signal/index.js';
 
 interface ApiKeyStepProps {
     /** The provider type */
@@ -22,10 +23,12 @@ export function ApiKeyStep({ provider }: ApiKeyStepProps): React.ReactElement {
     const keyStatus = getProviderKeyStatus(provider as LLMProvider);
 
     if (keyStatus.hasApiKey) {
-        return <Text color="green">✓ {keyStatus.envVar} already set, press Enter to skip</Text>;
+        return (
+            <Text color={tone('add')}>✓ {keyStatus.envVar} already set, press Enter to skip</Text>
+        );
     }
 
-    return <Text color="yellowBright">No {keyStatus.envVar} configured</Text>;
+    return <Text color={tone('amber')}>No {keyStatus.envVar} configured</Text>;
 }
 
 /**

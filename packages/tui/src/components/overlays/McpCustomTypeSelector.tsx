@@ -8,6 +8,7 @@ import { Text } from 'ink';
 import type { Key } from '../../hooks/useInputOrchestrator.js';
 import type { McpServerType } from '@dexto/core';
 import { BaseSelector, type BaseSelectorHandle } from '../base/BaseSelector.js';
+import { tone } from '../../signal/index.js';
 
 interface McpCustomTypeSelectorProps {
     isVisible: boolean;
@@ -75,10 +76,10 @@ const McpCustomTypeSelector = forwardRef<McpCustomTypeSelectorHandle, McpCustomT
         const formatItem = (option: ServerTypeOption, isSelected: boolean) => (
             <>
                 <Text>{option.icon} </Text>
-                <Text color={isSelected ? 'cyan' : 'gray'} bold={isSelected}>
+                <Text color={isSelected ? tone('teal') : tone('dim')} bold={isSelected}>
                     {option.label}
                 </Text>
-                <Text color={isSelected ? 'white' : 'gray'}> - {option.description}</Text>
+                <Text color={isSelected ? tone('hi') : tone('dim')}> - {option.description}</Text>
             </>
         );
 
@@ -98,7 +99,7 @@ const McpCustomTypeSelector = forwardRef<McpCustomTypeSelectorHandle, McpCustomT
                 onClose={onClose}
                 formatItem={formatItem}
                 title="Select Server Type"
-                borderColor="yellowBright"
+                borderColor={tone('amber')}
                 emptyMessage="No options available"
             />
         );

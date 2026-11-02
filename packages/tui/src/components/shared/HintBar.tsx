@@ -1,5 +1,6 @@
 import React from 'react';
 import { Text } from 'ink';
+import { tone } from '../../signal/index.js';
 
 export interface HintBarProps {
     hints: readonly string[];
@@ -9,7 +10,7 @@ export interface HintBarProps {
 export function HintBar({ hints, separator = ' • ' }: HintBarProps) {
     const line = hints.filter(Boolean).join(separator);
     return (
-        <Text color="gray" wrap="truncate-end">
+        <Text color={tone('dim')} wrap="truncate-end">
             {line}
         </Text>
     );

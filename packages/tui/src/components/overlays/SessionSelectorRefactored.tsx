@@ -11,6 +11,7 @@ import type { SessionMetadata } from '@dexto/core';
 import { logger } from '@dexto/core';
 import { BaseSelector, type BaseSelectorHandle } from '../base/BaseSelector.js';
 import type { TuiAgentBackend } from '../../agent-backend.js';
+import { tone } from '../../signal/index.js';
 
 interface SessionSelectorProps {
     isVisible: boolean;
@@ -163,11 +164,11 @@ const SessionSelector = forwardRef<SessionSelectorHandle, SessionSelectorProps>(
         // Format session item for display
         const formatItem = (session: SessionOption, isSelected: boolean) => (
             <>
-                <Text color={isSelected ? 'cyan' : 'gray'} bold={isSelected}>
+                <Text color={isSelected ? tone('teal') : tone('dim')} bold={isSelected}>
                     {formatSession(session)}
                 </Text>
                 {session.isCurrent && (
-                    <Text color={isSelected ? 'cyan' : 'gray'} bold={isSelected}>
+                    <Text color={isSelected ? tone('teal') : tone('dim')} bold={isSelected}>
                         {' '}
                         ← Current
                     </Text>
@@ -192,7 +193,7 @@ const SessionSelector = forwardRef<SessionSelectorHandle, SessionSelectorProps>(
                 onClose={onClose}
                 formatItem={formatItem}
                 title="Select Session"
-                borderColor="cyan"
+                borderColor={tone('teal')}
                 loadingMessage="Loading sessions..."
                 emptyMessage="No sessions found"
             />

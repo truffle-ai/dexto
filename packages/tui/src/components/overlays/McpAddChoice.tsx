@@ -8,6 +8,7 @@ import React, { useState, useEffect, forwardRef, useRef, useImperativeHandle } f
 import { Box, Text } from 'ink';
 import type { Key } from '../../hooks/useInputOrchestrator.js';
 import { BaseSelector, type BaseSelectorHandle } from '../base/BaseSelector.js';
+import { tone } from '../../signal/index.js';
 
 export type McpAddChoiceType = 'registry' | 'custom' | 'back';
 
@@ -85,10 +86,10 @@ const McpAddChoice = forwardRef<McpAddChoiceHandle, McpAddChoiceProps>(function 
     const formatItem = (item: ChoiceItem, isSelected: boolean) => (
         <Box>
             <Text>{item.icon} </Text>
-            <Text color={isSelected ? 'cyan' : 'gray'} bold={isSelected}>
+            <Text color={isSelected ? tone('teal') : tone('dim')} bold={isSelected}>
                 {item.label}
             </Text>
-            <Text color={isSelected ? 'white' : 'gray'}> - {item.description}</Text>
+            <Text color={isSelected ? tone('hi') : tone('dim')}> - {item.description}</Text>
         </Box>
     );
 
@@ -109,7 +110,7 @@ const McpAddChoice = forwardRef<McpAddChoiceHandle, McpAddChoiceProps>(function 
             onClose={onClose}
             formatItem={formatItem}
             title="Add MCP Server"
-            borderColor="green"
+            borderColor={tone('add')}
             emptyMessage="No options available"
         />
     );

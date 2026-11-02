@@ -8,6 +8,7 @@ import { Box, Text } from 'ink';
 import type { Key } from '../../hooks/useInputOrchestrator.js';
 import { BaseSelector, type BaseSelectorHandle } from '../base/BaseSelector.js';
 import type { TuiAgentBackend } from '../../agent-backend.js';
+import { tone } from '../../signal/index.js';
 
 interface LogLevelSelectorProps {
     isVisible: boolean;
@@ -102,12 +103,12 @@ const LogLevelSelector = forwardRef<LogLevelSelectorHandle, LogLevelSelectorProp
         const formatItem = (option: LogLevelOption, isSelected: boolean) => (
             <>
                 <Text>{option.icon} </Text>
-                <Text color={isSelected ? 'cyan' : 'gray'} bold={isSelected}>
+                <Text color={isSelected ? tone('teal') : tone('dim')} bold={isSelected}>
                     {option.level}
                 </Text>
-                <Text color={isSelected ? 'white' : 'gray'}> - {option.description}</Text>
+                <Text color={isSelected ? tone('hi') : tone('dim')}> - {option.description}</Text>
                 {option.isCurrent && (
-                    <Text color={isSelected ? 'cyan' : 'gray'} bold={isSelected}>
+                    <Text color={isSelected ? tone('teal') : tone('dim')} bold={isSelected}>
                         {' '}
                         ← Current
                     </Text>
@@ -124,7 +125,7 @@ const LogLevelSelector = forwardRef<LogLevelSelectorHandle, LogLevelSelectorProp
             <Box flexDirection="column">
                 {logFilePath && (
                     <Box marginBottom={1}>
-                        <Text color="gray">📁 Log file: {logFilePath}</Text>
+                        <Text color={tone('dim')}>📁 Log file: {logFilePath}</Text>
                     </Box>
                 )}
                 <BaseSelector
@@ -138,7 +139,7 @@ const LogLevelSelector = forwardRef<LogLevelSelectorHandle, LogLevelSelectorProp
                     onClose={onClose}
                     formatItem={formatItem}
                     title="Select Log Level"
-                    borderColor="yellowBright"
+                    borderColor={tone('amber')}
                     emptyMessage="No log levels available"
                 />
             </Box>

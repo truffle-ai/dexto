@@ -20,6 +20,7 @@ import { DiffPreview, CreateFilePreview } from './renderers/index.js';
 import { isEditWriteTool } from '../utils/toolUtils.js';
 import { formatApprovalScope } from '../utils/approvalScope.js';
 import { formatToolHeader } from '../utils/messageFormatting.js';
+import { tone } from '../signal/index.js';
 
 export interface ApprovalRequest {
     approvalId: string;
@@ -295,29 +296,29 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
                     return (
                         <Box flexDirection="column" marginBottom={1}>
                             <Box marginBottom={0}>
-                                <Text color="cyan" bold>
+                                <Text color={tone('teal')} bold>
                                     {displayPreview.title ?? 'Bash'}
                                 </Text>
                             </Box>
                             <Box
                                 flexDirection="column"
                                 borderStyle="round"
-                                borderColor="gray"
+                                borderColor={tone('dim')}
                                 paddingX={1}
                             >
                                 {displayPreview.command.split('\n').map((line, i) => (
-                                    <Text key={i} color="yellowBright" wrap="wrap">
+                                    <Text key={i} color={tone('amber')} wrap="wrap">
                                         {i === 0 ? '$ ' : '  '}
                                         {line}
                                     </Text>
                                 ))}
                                 {displayPreview.isBackground && (
-                                    <Text color="gray">(background)</Text>
+                                    <Text color={tone('dim')}>(background)</Text>
                                 )}
                             </Box>
                             {callDescription && (
                                 <Box marginTop={0}>
-                                    <Text color="gray">{callDescription}</Text>
+                                    <Text color={tone('dim')}>{callDescription}</Text>
                                 </Box>
                             )}
                         </Box>
@@ -330,7 +331,7 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
                     // Fallback for other file operations
                     return (
                         <Box marginBottom={1}>
-                            <Text color="gray">
+                            <Text color={tone('dim')}>
                                 {displayPreview.operation === 'read' &&
                                     `Read ${displayPreview.lineCount ?? 'file'} lines`}
                                 {displayPreview.operation === 'write' &&
@@ -355,7 +356,7 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
                         {isCommandApproval ? (
                             <>
                                 <Box flexDirection="row">
-                                    <Text color="yellowBright" bold>
+                                    <Text color={tone('amber')} bold>
                                         Confirm command:{' '}
                                     </Text>
                                 </Box>
@@ -364,11 +365,11 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
                                         <Box
                                             flexDirection="column"
                                             borderStyle="round"
-                                            borderColor="gray"
+                                            borderColor={tone('dim')}
                                             paddingX={1}
                                         >
                                             {command.split('\n').map((line, i) => (
-                                                <Text key={i} color="red" wrap="wrap">
+                                                <Text key={i} color={tone('red')} wrap="wrap">
                                                     {line}
                                                 </Text>
                                             ))}
@@ -379,17 +380,17 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
                         ) : (
                             <>
                                 <Box flexDirection="row">
-                                    <Text color="yellowBright" bold>
+                                    <Text color={tone('amber')} bold>
                                         Confirm:{' '}
                                     </Text>
                                     {formattedTool && (
-                                        <Text color="cyan">{formattedTool.header}</Text>
+                                        <Text color={tone('teal')}>{formattedTool.header}</Text>
                                     )}
                                 </Box>
                                 {callDescription && (
                                     <Box flexDirection="row" marginTop={0}>
-                                        <Text color="gray">{'  '}</Text>
-                                        <Text color="gray">{callDescription}</Text>
+                                        <Text color={tone('dim')}>{'  '}</Text>
+                                        <Text color={tone('dim')}>{callDescription}</Text>
                                     </Box>
                                 )}
                             </>
@@ -409,12 +410,12 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
                         return (
                             <Box key={option.id}>
                                 {isSelected ? (
-                                    <Text color={isNo ? 'red' : 'green'} bold>
+                                    <Text color={isNo ? tone('red') : tone('add')} bold>
                                         {'  ▶ '}
                                         {option.label}
                                     </Text>
                                 ) : (
-                                    <Text color="gray">
+                                    <Text color={tone('dim')}>
                                         {'    '}
                                         {option.label}
                                     </Text>
@@ -429,24 +430,24 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
                             {selectedIndex === options.length ? (
                                 // Selected - show editable input
                                 <Box flexDirection="row">
-                                    <Text color="red" bold>
+                                    <Text color={tone('red')} bold>
                                         {'  ▶ '}
                                     </Text>
                                     {feedbackText ? (
-                                        <Text color="white">
+                                        <Text color={tone('hi')}>
                                             {feedbackText}
-                                            <Text color="cyan">▋</Text>
+                                            <Text color={tone('teal')}>▋</Text>
                                         </Text>
                                     ) : (
-                                        <Text color="gray">
+                                        <Text color={tone('dim')}>
                                             What changes would you like?
-                                            <Text color="cyan">▋</Text>
+                                            <Text color={tone('teal')}>▋</Text>
                                         </Text>
                                     )}
                                 </Box>
                             ) : (
                                 // Not selected - show placeholder
-                                <Text color="gray">
+                                <Text color={tone('dim')}>
                                     {'    '}
                                     {feedbackText || 'What changes would you like?'}
                                 </Text>
@@ -457,7 +458,9 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
 
                 {/* Compact instructions */}
                 <Box marginTop={0}>
-                    <Text color="gray">{'  '}↑↓ to select • Enter to confirm • Esc to cancel</Text>
+                    <Text color={tone('dim')}>
+                        {'  '}↑↓ to select • Enter to confirm • Esc to cancel
+                    </Text>
                 </Box>
             </Box>
         );

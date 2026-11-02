@@ -42,6 +42,7 @@ import {
 import { InputContainer, type InputContainerHandle } from '../../containers/InputContainer.js';
 import { OverlayContainer } from '../../containers/OverlayContainer.js';
 import { shouldHideStatusChrome } from '../../utils/overlayPresentation.js';
+import { tone } from '../../signal/index.js';
 
 // Union type for virtualized list items: header or message
 type ListItem = { type: 'header' } | { type: 'message'; message: Message };
@@ -349,7 +350,7 @@ export function AlternateBufferCLI({
 
                         {selectionHintVisible && (
                             <Box paddingX={1}>
-                                <Text color="yellowBright">
+                                <Text color={tone('amber')}>
                                     💡 Tip: Hold Option (⌥) and click to select text, or press
                                     Ctrl+S to toggle copy mode
                                 </Text>
@@ -420,10 +421,10 @@ export function AlternateBufferCLI({
                 {/* Exit warning (Ctrl+C pressed once) - shown above footer */}
                 {!hideChrome && ui.exitWarningShown && (
                     <Box paddingX={1}>
-                        <Text color="yellowBright" bold>
+                        <Text color={tone('amber')} bold>
                             ⚠ Press Ctrl+C again to exit
                         </Text>
-                        <Text color="gray"> (or press any key to cancel)</Text>
+                        <Text color={tone('dim')}> (or press any key to cancel)</Text>
                     </Box>
                 )}
 

@@ -15,6 +15,7 @@ import chalk from 'chalk';
 import wrapAnsi from 'wrap-ansi';
 import stringWidth from 'string-width';
 import { highlight, supportsLanguage } from 'cli-highlight';
+import { tone } from '../../signal/index.js';
 
 // ============================================================================
 // Inline Markdown Parsing
@@ -140,6 +141,9 @@ function segmentsToAnsi(segments: InlineSegment[], defaultColor: string): string
  * Get chalk color function from color name
  */
 function getChalkColor(color: string): typeof chalk {
+    // Signal palette values: hex, or '' for the terminal's default colour.
+    if (color.startsWith('#')) return chalk.hex(color);
+    if (color === '') return chalk;
     switch (color) {
         case 'white':
             return chalk.white;
@@ -251,7 +255,7 @@ interface RenderInlineProps {
  */
 const RenderInlineInternal: React.FC<RenderInlineProps> = ({
     text,
-    defaultColor = 'white',
+    defaultColor = tone('hi'),
     bold: baseBold = false,
 }) => {
     const segments = parseInlineMarkdown(text);
@@ -268,13 +272,13 @@ const RenderInlineInternal: React.FC<RenderInlineProps> = ({
                         );
                     case 'code':
                         return (
-                            <Text key={i} bold={baseBold} color="cyan">
+                            <Text key={i} bold={baseBold} color={tone('teal')}>
                                 {segment.content}
                             </Text>
                         );
                     case 'italic':
                         return (
-                            <Text key={i} bold={baseBold} color="gray">
+                            <Text key={i} bold={baseBold} color={tone('dim')}>
                                 {segment.content}
                             </Text>
                         );
@@ -288,12 +292,12 @@ const RenderInlineInternal: React.FC<RenderInlineProps> = ({
                         return (
                             <Text key={i} bold={baseBold} color={defaultColor}>
                                 {segment.content}
-                                <Text color="blue"> ({segment.url})</Text>
+                                <Text color={tone('fg')}> ({segment.url})</Text>
                             </Text>
                         );
                     case 'url':
                         return (
-                            <Text key={i} bold={baseBold} color="blue">
+                            <Text key={i} bold={baseBold} color={tone('fg')}>
                                 {segment.content}
                             </Text>
                         );
@@ -330,7 +334,7 @@ interface MarkdownTextProps {
  */
 const MarkdownTextInternal: React.FC<MarkdownTextProps> = ({
     children,
-    color = 'white',
+    color = tone('hi'),
     bulletPrefix,
 }) => {
     if (!children) return null;
@@ -404,7 +408,7 @@ const MarkdownTextInternal: React.FC<MarkdownTextProps> = ({
         if (hrRegex.test(trimmedLine)) {
             blocks.push(
                 <Box key={key}>
-                    <Text color="gray">{'─'.repeat(40)}</Text>
+                    <Text color={tone('dim')}>{'─'.repeat(40)}</Text>
                 </Box>
             );
             return;
@@ -495,14 +499,14 @@ interface RenderHeaderProps {
 const RenderHeaderInternal: React.FC<RenderHeaderProps> = ({ level, text }) => {
     // Color based on header level
     const headerColors: Record<number, string> = {
-        1: 'blue',
-        2: 'cyan',
-        3: 'white',
-        4: 'gray',
-        5: 'gray',
-        6: 'gray',
+        1: tone('fg'),
+        2: tone('teal'),
+        3: tone('hi'),
+        4: tone('dim'),
+        5: tone('dim'),
+        6: tone('dim'),
     };
-    const headerColor = headerColors[level] || 'white';
+    const headerColor = headerColors[level] || tone('hi');
 
     return (
         <Box marginTop={level <= 2 ? 1 : 0}>
@@ -614,10 +618,10 @@ const RenderCodeBlockInternal: React.FC<RenderCodeBlockProps> = ({
 
     return (
         <Box flexDirection="column" marginTop={1} marginBottom={1}>
-            {language && <Text color="gray">{language}</Text>}
+            {language && <Text color={tone('dim')}>{language}</Text>}
             <Box flexDirection="column" paddingLeft={1}>
                 <Text>{highlightedCode}</Text>
-                {isPending && <Text color="gray">...</Text>}
+                {isPending && <Text color={tone('dim')}>...</Text>}
             </Box>
         </Box>
     );

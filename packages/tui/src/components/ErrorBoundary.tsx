@@ -6,6 +6,7 @@
 import React from 'react';
 import { Box, Text } from 'ink';
 import { logger } from '@dexto/core';
+import { tone } from '../signal/index.js';
 
 interface ErrorBoundaryProps {
     children: React.ReactNode;
@@ -36,12 +37,17 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
     override render(): React.ReactNode {
         if (this.state.hasError) {
             return (
-                <Box flexDirection="column" padding={1} borderStyle="round" borderColor="red">
-                    <Text color="red" bold>
+                <Box
+                    flexDirection="column"
+                    padding={1}
+                    borderStyle="round"
+                    borderColor={tone('red')}
+                >
+                    <Text color={tone('red')} bold>
                         CLI Error
                     </Text>
-                    <Text color="red">{this.state.error?.message || 'Unknown error'}</Text>
-                    <Text color="yellowBright">Press Ctrl+C to exit</Text>
+                    <Text color={tone('red')}>{this.state.error?.message || 'Unknown error'}</Text>
+                    <Text color={tone('amber')}>Press Ctrl+C to exit</Text>
                 </Box>
             );
         }

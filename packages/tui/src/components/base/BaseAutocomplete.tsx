@@ -6,6 +6,7 @@
 
 import React, { useState, useEffect, useRef, useMemo, type ReactNode } from 'react';
 import { Box, Text, useInput } from 'ink';
+import { tone } from '../../signal/index.js';
 
 export interface BaseAutocompleteProps<T> {
     items: T[];
@@ -45,7 +46,7 @@ export function BaseAutocomplete<T>({
     maxVisibleItems = 10,
     loadingMessage = 'Loading...',
     emptyMessage = 'No matches found',
-    borderColor = 'cyan',
+    borderColor = tone('teal'),
 }: BaseAutocompleteProps<T>) {
     const [selectedIndex, setSelectedIndex] = useState(0);
     const [scrollOffset, setScrollOffset] = useState(0);
@@ -132,16 +133,16 @@ export function BaseAutocomplete<T>({
 
     if (isLoading) {
         return (
-            <Box borderStyle="single" borderColor="gray" paddingX={1} paddingY={1}>
-                <Text color="gray">{loadingMessage}</Text>
+            <Box borderStyle="single" borderColor={tone('dim')} paddingX={1} paddingY={1}>
+                <Text color={tone('dim')}>{loadingMessage}</Text>
             </Box>
         );
     }
 
     if (filteredItems.length === 0) {
         return (
-            <Box borderStyle="single" borderColor="gray" paddingX={1} paddingY={1}>
-                <Text color="gray">{emptyMessage}</Text>
+            <Box borderStyle="single" borderColor={tone('dim')} paddingX={1} paddingY={1}>
+                <Text color={tone('dim')}>{emptyMessage}</Text>
             </Box>
         );
     }
@@ -158,7 +159,7 @@ export function BaseAutocomplete<T>({
             height={Math.min(maxVisibleItems + 3, totalItems + 3)}
         >
             <Box paddingX={1} paddingY={0}>
-                <Text color="gray">
+                <Text color={tone('dim')}>
                     {title} ({selectedIndex + 1}/{totalItems}) - ↑↓ navigate
                     {onLoadIntoInput && ', Tab load'}
                     {', Enter select, Esc close'}
@@ -166,7 +167,7 @@ export function BaseAutocomplete<T>({
             </Box>
             {hasMoreAbove && (
                 <Box paddingX={1} paddingY={0}>
-                    <Text color="gray">... ↑ ({scrollOffset} more above)</Text>
+                    <Text color={tone('dim')}>... ↑ ({scrollOffset} more above)</Text>
                 </Box>
             )}
             {visibleItems.map((item, visibleIndex) => {
@@ -181,7 +182,7 @@ export function BaseAutocomplete<T>({
             })}
             {hasMoreBelow && (
                 <Box paddingX={1} paddingY={0}>
-                    <Text color="gray">
+                    <Text color={tone('dim')}>
                         ... ↓ ({totalItems - scrollOffset - maxVisibleItems} more below)
                     </Text>
                 </Box>

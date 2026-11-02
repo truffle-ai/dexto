@@ -15,6 +15,7 @@ import { Box, Text } from 'ink';
 import type { Key } from '../../hooks/useInputOrchestrator.js';
 import type { ListedPlugin } from '@dexto/agent-management';
 import { BaseSelector, type BaseSelectorHandle } from '../base/BaseSelector.js';
+import { tone } from '../../signal/index.js';
 
 export type PluginActionType = 'uninstall' | 'back';
 
@@ -80,14 +81,14 @@ const PluginActions = forwardRef<PluginActionsHandle, PluginActionsProps>(functi
                 type: 'back' as const,
                 label: 'Back to list',
                 icon: '←',
-                color: 'gray',
+                color: tone('dim'),
             },
             {
                 id: 'uninstall',
                 type: 'uninstall' as const,
                 label: 'Uninstall',
                 icon: '🗑',
-                color: 'red',
+                color: tone('red'),
             },
         ];
     }, [plugin]);
@@ -98,11 +99,21 @@ const PluginActions = forwardRef<PluginActionsHandle, PluginActionsProps>(functi
 
         return (
             <Box>
-                <Text color={isSelected ? 'cyan' : 'gray'}>{isSelected ? '▸ ' : '  '}</Text>
-                <Text color={isBack ? 'gray' : isSelected ? item.color : 'gray'}>{item.icon} </Text>
+                <Text color={isSelected ? tone('teal') : tone('dim')}>
+                    {isSelected ? '▸ ' : '  '}
+                </Text>
+                <Text color={isBack ? tone('dim') : isSelected ? item.color : tone('dim')}>
+                    {item.icon}{' '}
+                </Text>
                 <Text
                     color={
-                        isBack ? (isSelected ? 'white' : 'gray') : isSelected ? item.color : 'white'
+                        isBack
+                            ? isSelected
+                                ? tone('hi')
+                                : tone('dim')
+                            : isSelected
+                              ? item.color
+                              : tone('hi')
                     }
                     bold={isSelected && !isBack}
                 >
@@ -136,7 +147,7 @@ const PluginActions = forwardRef<PluginActionsHandle, PluginActionsProps>(functi
             onClose={onClose}
             formatItem={formatItem}
             title={title}
-            borderColor="magenta"
+            borderColor={tone('faint')}
             emptyMessage="No actions available"
         />
     );

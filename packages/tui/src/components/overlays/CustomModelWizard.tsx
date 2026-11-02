@@ -47,6 +47,7 @@ import {
 import LocalModelWizard, {
     type LocalModelWizardHandle,
 } from './custom-model-wizard/LocalModelWizard.js';
+import { tone } from '../../signal/index.js';
 
 interface CustomModelWizardProps {
     isVisible: boolean;
@@ -412,16 +413,16 @@ const CustomModelWizard = forwardRef<CustomModelWizardHandle, CustomModelWizardP
             <Box
                 flexDirection="column"
                 borderStyle="round"
-                borderColor="green"
+                borderColor={tone('add')}
                 paddingX={1}
                 marginTop={1}
             >
                 {/* Header */}
                 <Box marginBottom={1}>
-                    <Text bold color="green">
+                    <Text bold color={tone('add')}>
                         {isEditing ? 'Edit Custom Model' : 'Add Custom Model'}
                     </Text>
-                    <Text color="gray">
+                    <Text color={tone('dim')}>
                         {' '}
                         ({providerConfig.displayName}) Step {currentStep + 1}/{visibleSteps.length}
                     </Text>
@@ -452,7 +453,7 @@ const CustomModelWizard = forwardRef<CustomModelWizardHandle, CustomModelWizardP
 
                 {/* Help text */}
                 <Box marginTop={1}>
-                    <Text color="gray">
+                    <Text color={tone('dim')}>
                         Enter to continue • Esc to{' '}
                         {currentStep > 0 ? 'go back' : 'back to provider'}
                     </Text>

@@ -15,6 +15,7 @@ import type { CommandDefinition } from '../interactive-commands/command-parser.j
 import { useTerminalSize } from '../hooks/useTerminalSize.js';
 import { getMaxVisibleItemsForTerminalRows } from '../utils/overlaySizing.js';
 import { supportsPrompts, type TuiAgentBackend } from '../agent-backend.js';
+import { tone } from '../signal/index.js';
 
 export interface SlashCommandAutocompleteHandle {
     handleInput: (input: string, key: Key) => boolean;
@@ -482,7 +483,7 @@ const SlashCommandAutocompleteInner = forwardRef<
     if (isLoading) {
         return (
             <Box width={terminalWidth} paddingX={0} paddingY={0}>
-                <Text color="gray">Loading commands...</Text>
+                <Text color={tone('dim')}>Loading commands...</Text>
             </Box>
         );
     }
@@ -493,8 +494,8 @@ const SlashCommandAutocompleteInner = forwardRef<
     }
 
     const nameColumnWidth = Math.max(16, Math.min(28, Math.floor(terminalWidth * 0.32)));
-    const descriptionColor = (isSelected: boolean) => (isSelected ? 'white' : 'gray');
-    const commandColor = (isSelected: boolean) => (isSelected ? 'cyan' : 'gray');
+    const descriptionColor = (isSelected: boolean) => (isSelected ? tone('hi') : tone('dim'));
+    const commandColor = (isSelected: boolean) => (isSelected ? tone('teal') : tone('dim'));
 
     return (
         <Box flexDirection="column" width={terminalWidth}>

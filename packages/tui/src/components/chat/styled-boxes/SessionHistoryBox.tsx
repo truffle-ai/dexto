@@ -6,6 +6,7 @@ import React from 'react';
 import { Box, Text } from 'ink';
 import type { SessionHistoryStyledData } from '../../../state/types.js';
 import { StyledBox } from './StyledBox.js';
+import { tone } from '../../../signal/index.js';
 
 interface SessionHistoryBoxProps {
     data: SessionHistoryStyledData;
@@ -25,15 +26,15 @@ function truncateContent(content: string, maxLength: number = 100): string {
 function getRoleStyle(role: string): { color: string; icon: string } {
     switch (role) {
         case 'user':
-            return { color: 'blue', icon: '>' };
+            return { color: tone('fg'), icon: '>' };
         case 'assistant':
-            return { color: 'green', icon: '|' };
+            return { color: tone('add'), icon: '|' };
         case 'system':
             return { color: 'orange', icon: '#' };
         case 'tool':
-            return { color: 'green', icon: '*' };
+            return { color: tone('add'), icon: '*' };
         default:
-            return { color: 'white', icon: '-' };
+            return { color: tone('hi'), icon: '-' };
     }
 }
 
@@ -42,7 +43,7 @@ export function SessionHistoryBox({ data }: SessionHistoryBoxProps) {
         return (
             <StyledBox title={`Session History: ${data.sessionId.slice(0, 8)}`}>
                 <Box marginTop={1}>
-                    <Text color="gray">No messages in this session yet.</Text>
+                    <Text color={tone('dim')}>No messages in this session yet.</Text>
                 </Box>
             </StyledBox>
         );
@@ -59,7 +60,7 @@ export function SessionHistoryBox({ data }: SessionHistoryBoxProps) {
                                 {style.icon}{' '}
                             </Text>
                             <Text color={style.color}>[{msg.role}]</Text>
-                            <Text color="gray"> {msg.timestamp}</Text>
+                            <Text color={tone('dim')}> {msg.timestamp}</Text>
                         </Box>
                         <Box marginLeft={2}>
                             <Text>{truncateContent(msg.content)}</Text>
@@ -68,7 +69,7 @@ export function SessionHistoryBox({ data }: SessionHistoryBoxProps) {
                 );
             })}
             <Box marginTop={1}>
-                <Text color="gray">Total: {data.total} messages</Text>
+                <Text color={tone('dim')}>Total: {data.total} messages</Text>
             </Box>
         </StyledBox>
     );

@@ -6,6 +6,7 @@
 
 import React from 'react';
 import { Box, Text } from 'ink';
+import { tone } from '../signal/index.js';
 
 interface BackgroundTaskItem {
     taskId: string;
@@ -63,15 +64,15 @@ export function BackgroundTasksPanel({
             <Box
                 flexDirection="column"
                 borderStyle={isProcessing ? undefined : 'round'}
-                borderColor="gray"
+                borderColor={tone('dim')}
                 paddingX={1}
                 marginX={1}
                 marginBottom={1}
             >
-                <Text bold color="cyan">
+                <Text bold color={tone('teal')}>
                     {headerText}
                 </Text>
-                <Text color="gray" dimColor>
+                <Text color={tone('dim')} dimColor>
                     No background tasks
                 </Text>
             </Box>
@@ -86,22 +87,22 @@ export function BackgroundTasksPanel({
         <Box
             flexDirection="column"
             borderStyle={isProcessing ? undefined : 'round'}
-            borderColor="gray"
+            borderColor={tone('dim')}
             paddingX={1}
             marginX={1}
             marginBottom={1}
         >
             <Box>
-                <Text bold color="cyan">
+                <Text bold color={tone('teal')}>
                     {headerText}
                 </Text>
-                <Text color="gray" dimColor>
+                <Text color={tone('dim')} dimColor>
                     {' '}
                     · ctrl+b to hide bg tasks
                 </Text>
             </Box>
             <Box>
-                <Text color="gray">
+                <Text color={tone('dim')}>
                     {padText('status', statusWidth)}
                     {padText('task id', idWidth)}
                     {padText('description', descWidth)}
@@ -112,7 +113,7 @@ export function BackgroundTasksPanel({
                 const desc = task.description ?? '';
                 return (
                     <Box key={task.taskId}>
-                        <Text color={task.status === 'running' ? 'yellow' : 'gray'}>
+                        <Text color={task.status === 'running' ? tone('amberDim') : tone('dim')}>
                             {padText(status, statusWidth)}
                             {padText(task.taskId, idWidth)}
                             {padText(desc, descWidth)}
