@@ -37,7 +37,8 @@ import { useStreaming } from './hooks/useStreaming.js';
 
 // Utils
 import { getStartupInfo } from './utils/messageFormatting.js';
-import { detectBackgroundTheme, paint } from './signal/index.js';
+import { keepScrollbackOnResize } from './utils/resize-reflow.js';
+import { detectBackgroundTheme, getCaps, paint } from './signal/index.js';
 
 // Rendering mode: true = alternate buffer with VirtualizedList, false = Static pattern
 // Toggle this to switch between modes for testing
@@ -285,6 +286,13 @@ export async function startInkCliRefactored(
     // Ask the terminal for its background before Ink takes stdin (Signal palette only).
     await detectBackgroundTheme({ stdin: process.stdin, stdout: process.stdout });
 
+    // Signal, inline mode: a resize redraws the live region in place instead of clearing the
+    // terminal and reprinting the transcript, so scrollback survives.
+    const keptScrollback =
+        !USE_ALTERNATE_BUFFER && getCaps().palette === 'signal'
+            ? keepScrollbackOnResize(process.stdout)
+            : null;
+
     const inkApp = render(
         <InkCLIRefactored
             agent={agent}
@@ -297,6 +305,7 @@ export async function startInkCliRefactored(
         />,
         {
             exitOnCtrlC: false,
+            ...(keptScrollback ? { stdout: keptScrollback.stdout } : {}),
             alternateBuffer: USE_ALTERNATE_BUFFER,
             // Incremental rendering works better with VirtualizedList
             // Static pattern doesn't need it (and may work better without)
@@ -308,6 +317,7 @@ export async function startInkCliRefactored(
     registerExitHandler(() => inkApp.unmount());
 
     await inkApp.waitUntilExit();
+    keptScrollback?.dispose();
 
     // Disable bracketed paste mode to restore normal terminal behavior
     disableBracketedPaste();

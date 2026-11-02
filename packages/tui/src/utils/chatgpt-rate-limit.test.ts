@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import { createCodexBaseURL } from '@dexto/core';
 import {
     getChatGPTRateLimitHint,
+    resolveChatGPTRateLimitHint,
     resolveChatGPTFallbackModel,
     shouldShowChatGPTRateLimitHint,
 } from './chatgpt-rate-limit.js';
@@ -21,6 +23,16 @@ describe('chatgpt-rate-limit utils', () => {
                 exceeded: false,
             })
         ).toBe('ChatGPT cap 82% used');
+    });
+
+    it('gives a short form for tight status lines, and nothing for other providers', () => {
+        const chatgpt = { provider: 'openai-compatible', baseURL: createCodexBaseURL('chatgpt') };
+        const near = { source: 'chatgpt-login' as const, usedPercent: 95, exceeded: false };
+        const capped = { source: 'chatgpt-login' as const, usedPercent: 100, exceeded: true };
+        expect(resolveChatGPTRateLimitHint(chatgpt, near, 'short')).toBe('cap 95%');
+        expect(resolveChatGPTRateLimitHint(chatgpt, capped, 'short')).toBe('cap reached');
+        expect(resolveChatGPTRateLimitHint(chatgpt, near, 'full')).toBe('ChatGPT cap 95% used');
+        expect(resolveChatGPTRateLimitHint({ provider: 'openai' }, near, 'short')).toBeNull();
     });
 
     it('formats a hard cap state without showing fake reset data', () => {

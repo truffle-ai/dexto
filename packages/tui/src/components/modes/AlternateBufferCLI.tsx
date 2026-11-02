@@ -30,6 +30,7 @@ import { QUEUE_EDIT_SHORTCUTS, QueuedMessagesDisplay } from '../chat/QueuedMessa
 import { StatusBar } from '../StatusBar.js';
 import { HistorySearchBar } from '../HistorySearchBar.js';
 import { Footer } from '../Footer.js';
+import { DeckArea } from '../DeckArea.js';
 import { TodoPanel } from '../TodoPanel.js';
 import { BackgroundTasksPanel } from '../BackgroundTasksPanel.js';
 import {
@@ -42,7 +43,7 @@ import {
 import { InputContainer, type InputContainerHandle } from '../../containers/InputContainer.js';
 import { OverlayContainer } from '../../containers/OverlayContainer.js';
 import { shouldHideStatusChrome } from '../../utils/overlayPresentation.js';
-import { tone } from '../../signal/index.js';
+import { tone, useCaps } from '../../signal/index.js';
 
 // Union type for virtualized list items: header or message
 type ListItem = { type: 'header' } | { type: 'message'; message: Message };
@@ -125,6 +126,8 @@ export function AlternateBufferCLI({
 
     // Get current git branch name
     const branchName = useGitBranch();
+    // The Signal look replaces the status bar and footer with the deck.
+    const signal = useCaps().palette === 'signal';
 
     // Register the VirtualizedList as scrollable so ScrollProvider can handle mouse scroll
     const getScrollState = useCallback(() => {
@@ -302,6 +305,37 @@ export function AlternateBufferCLI({
 
     const hideChrome = shouldHideStatusChrome(ui.activeOverlay, approval);
 
+    const inputArea = (
+        <InputContainer
+            ref={inputContainerRef}
+            buffer={buffer}
+            input={input}
+            ui={ui}
+            session={session}
+            initialPrompt={initialPrompt}
+            isHydratingHistory={isHydratingHistory}
+            approval={approval}
+            steerMessages={steerMessages}
+            queuedMessages={queuedMessages}
+            setInput={setInput}
+            setUi={setUi}
+            setSession={setSession}
+            setMessages={setMessages}
+            setPendingMessages={setPendingMessages}
+            setDequeuedBuffer={setDequeuedBuffer}
+            setSteerMessages={setSteerMessages}
+            setQueuedMessages={setQueuedMessages}
+            setApproval={setApproval}
+            setApprovalQueue={setApprovalQueue}
+            setTodos={setTodos}
+            agent={agent}
+            inputService={inputService}
+            onKeyboardScroll={handleKeyboardScroll}
+            useStreaming={useStreaming}
+            configFilePath={configFilePath}
+        />
+    );
+
     return (
         <Box flexDirection="column" height={terminalHeight}>
             {/* Content area - VirtualizedList */}
@@ -321,20 +355,22 @@ export function AlternateBufferCLI({
             <Box flexDirection="column" flexShrink={0}>
                 {!hideChrome && (
                     <>
-                        <StatusBar
-                            agent={agent}
-                            isProcessing={ui.isProcessing}
-                            isThinking={ui.isThinking}
-                            isCompacting={ui.isCompacting}
-                            approvalQueueCount={approvalQueue.length}
-                            copyModeEnabled={ui.copyModeEnabled}
-                            isAwaitingApproval={approval !== null}
-                            todoExpanded={ui.todoExpanded}
-                            hasTodos={todos.some((t) => t.status !== 'completed')}
-                            planModeActive={ui.planModeActive}
-                            autoApproveEdits={ui.autoApproveEdits}
-                            backgroundTasksRunning={ui.backgroundTasksRunning}
-                        />
+                        {(!signal || ui.copyModeEnabled) && (
+                            <StatusBar
+                                agent={agent}
+                                isProcessing={ui.isProcessing}
+                                isThinking={ui.isThinking}
+                                isCompacting={ui.isCompacting}
+                                approvalQueueCount={approvalQueue.length}
+                                copyModeEnabled={ui.copyModeEnabled}
+                                isAwaitingApproval={approval !== null}
+                                todoExpanded={ui.todoExpanded}
+                                hasTodos={todos.some((t) => t.status !== 'completed')}
+                                planModeActive={ui.planModeActive}
+                                autoApproveEdits={ui.autoApproveEdits}
+                                backgroundTasksRunning={ui.backgroundTasksRunning}
+                            />
+                        )}
 
                         <BackgroundTasksPanel
                             tasks={ui.backgroundTasks}
@@ -370,34 +406,25 @@ export function AlternateBufferCLI({
                     </>
                 )}
 
-                <InputContainer
-                    ref={inputContainerRef}
-                    buffer={buffer}
-                    input={input}
-                    ui={ui}
-                    session={session}
-                    initialPrompt={initialPrompt}
-                    isHydratingHistory={isHydratingHistory}
-                    approval={approval}
-                    steerMessages={steerMessages}
-                    queuedMessages={queuedMessages}
-                    setInput={setInput}
-                    setUi={setUi}
-                    setSession={setSession}
-                    setMessages={setMessages}
-                    setPendingMessages={setPendingMessages}
-                    setDequeuedBuffer={setDequeuedBuffer}
-                    setSteerMessages={setSteerMessages}
-                    setQueuedMessages={setQueuedMessages}
-                    setApproval={setApproval}
-                    setApprovalQueue={setApprovalQueue}
-                    setTodos={setTodos}
-                    agent={agent}
-                    inputService={inputService}
-                    onKeyboardScroll={handleKeyboardScroll}
-                    useStreaming={useStreaming}
-                    configFilePath={configFilePath}
-                />
+                {signal ? (
+                    <DeckArea
+                        agent={agent}
+                        sessionId={session.id}
+                        modelName={session.modelName}
+                        ui={ui}
+                        approval={approval}
+                        pendingMessages={pendingMessages}
+                        steerCount={steerMessages.length}
+                        branch={branchName ?? null}
+                        cwd={process.cwd()}
+                        isShellMode={buffer.text.startsWith('!')}
+                        chatgptRateLimitStatus={ui.chatgptRateLimitStatus}
+                    >
+                        {inputArea}
+                    </DeckArea>
+                ) : (
+                    inputArea
+                )}
 
                 <OverlayContainer
                     ref={overlayContainerRef}
@@ -429,7 +456,7 @@ export function AlternateBufferCLI({
                 )}
 
                 {/* Footer status line */}
-                {!hideChrome && (
+                {!signal && !hideChrome && (
                     <Footer
                         agent={agent}
                         sessionId={session.id}

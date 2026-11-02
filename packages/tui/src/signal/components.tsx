@@ -2,13 +2,17 @@
  * Signal kit parts. The prop types here are the contract the deck, transcript and view owners
  * build against; the bodies are first cuts that later work replaces in place.
  */
-import type { ReactNode } from 'react';
-import { Box, Text, useStdout } from 'ink';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { Box, Text, measureElement, useStdout, type DOMElement } from 'ink';
 import { useAnimationTick } from '../hooks/useAnimationTick.js';
 import { useCaps } from './caps.js';
 import { glyphText } from './glyphs.js';
 import { cutLines } from './cut.js';
 import { useTone, type Role } from './tone.js';
+import { deckLayout } from './deck-layout.js';
+import { StatusBlock, StatusRow, TraceView } from './deck-parts.js';
+import { traceKind } from './trace.js';
+import { useTrace } from './use-trace.js';
 import { pickWordmark, pulseInk, wordmarkTier } from './wordmark.js';
 
 // ---------------------------------------------------------------- wordmark
@@ -136,6 +140,8 @@ export type DeckWhere = { kind: 'local' } | { kind: 'computer'; name: string };
 /** Dexto credits as the status line shows them. */
 export type DeckCredits =
     | { kind: 'signed-out' }
+    /** Signed in; balance not known yet (loading, or the request failed). */
+    | { kind: 'signed-in' }
     | { kind: 'balance'; balance: number; spend: number | null }
     | { kind: 'out' };
 
@@ -161,30 +167,110 @@ export interface DeckProps {
     state: DeckState;
     /** An approval or question, drawn between the band and the input. */
     gate?: ReactNode;
+    /** Draw only the gate and input, for overlays that budget for the whole screen. */
+    collapsed: boolean;
+    /** Hold the animations still, so text in the live region can be selected. */
+    paused: boolean;
     /** The input row. */
     children: ReactNode;
 }
 
-/** The slim band under the transcript: wordmark, live trace, status; then gate and input. */
-export function Deck({ state, gate, children }: DeckProps) {
+/**
+ * The slim band under the transcript: wordmark, live trace, status; then gate and input.
+ * It steps down with width (see `deckLayout`): 4 rows wide, 5 in the middle, 4 when bare.
+ */
+export function Deck({ state, gate, collapsed, paused, children }: DeckProps) {
     const tone = useTone();
-    const { glyphs } = useCaps();
+    const caps = useCaps();
+    const { stdout } = useStdout();
+    // Re-render on resize ourselves rather than relying on a parent to.
+    const [columns, setColumns] = useState(stdout.columns || 80);
+    useEffect(() => {
+        const onResize = () => setColumns(stdout.columns || 80);
+        stdout.on('resize', onResize);
+        return () => {
+            stdout.off('resize', onResize);
+        };
+    }, [stdout]);
+    const wordmarkColumns = pickWordmark(wordmarkTier(caps), 3).cols + 3;
+    const layout = deckLayout(columns, wordmarkColumns);
+    const bare = layout.band === 'bare';
     const mode = DECK_MODES[state.mode];
+    const kind = traceKind(state.mode);
+
+    // The trace takes what the wordmark and status block leave. Measured after layout, since
+    // the wordmark's width depends on the drawing it picks; the first frame uses an estimate.
+    const traceRef = useRef<DOMElement>(null);
+    const [measured, setMeasured] = useState<number | null>(null);
+    useEffect(() => {
+        if (traceRef.current === null) return;
+        const { width } = measureElement(traceRef.current);
+        if (width !== measured) setMeasured(width);
+    });
+    const estimate =
+        columns -
+        (bare ? 0 : wordmarkColumns) -
+        (layout.blockWidth > 0 ? layout.blockWidth + 4 : 0);
+    const traceWidth = measured ?? Math.max(4, estimate);
+    const history = useTrace(kind, traceWidth, paused);
+
     return (
-        <Box flexDirection="column">
-            <Box>
-                <Wordmark rows={1} pulse={state.mode === 'think'} />
-                <Text> </Text>
-                <Text bold color={tone(mode.role)}>
-                    {mode.label}
-                </Text>
-                {state.readout !== null && (
-                    <Text color={tone('dim')}>{glyphText(` · ${state.readout}`, glyphs)}</Text>
+        <Box flexDirection="column" flexShrink={0}>
+            <Box height={collapsed ? 0 : layout.bandRows} flexShrink={0} overflow="hidden">
+                {!bare && (
+                    <Box marginLeft={1} marginRight={2} flexShrink={0}>
+                        <Wordmark rows={3} pulse={state.mode === 'think' && !paused} />
+                    </Box>
                 )}
-                <Text color={tone('dim')}>{glyphText(` · ${state.status.model}`, glyphs)}</Text>
+                <Box
+                    ref={traceRef}
+                    flexDirection="column"
+                    flexGrow={1}
+                    flexShrink={1}
+                    overflow="hidden"
+                >
+                    {layout.band === 'mid' && (
+                        <Box justifyContent="flex-end" height={1}>
+                            <Text wrap="truncate-end">
+                                <Text bold color={tone(mode.role)}>
+                                    {mode.label}
+                                </Text>
+                                {state.readout !== null && (
+                                    <Text color={tone('dim')}>
+                                        {glyphText(` · ${state.readout}`, caps.glyphs)}
+                                    </Text>
+                                )}
+                            </Text>
+                        </Box>
+                    )}
+                    {layout.band === 'wide' && <Box height={1} />}
+                    <TraceView history={history} width={traceWidth} height={2} />
+                </Box>
+                {layout.band === 'wide' && (
+                    <Box marginLeft={3} marginRight={1} flexShrink={0}>
+                        <StatusBlock
+                            label={mode.label}
+                            labelColor={tone(mode.role)}
+                            readout={state.readout}
+                            status={state.status}
+                            width={layout.blockWidth}
+                        />
+                    </Box>
+                )}
             </Box>
             {gate}
             {children}
+            {layout.statusRow && !collapsed && (
+                <StatusRow
+                    status={state.status}
+                    width={columns}
+                    notice={
+                        bare && state.readout !== null
+                            ? { text: state.readout, color: tone(mode.role) }
+                            : null
+                    }
+                />
+            )}
         </Box>
     );
 }

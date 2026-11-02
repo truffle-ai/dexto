@@ -119,6 +119,8 @@ describe('Signal kit parts', () => {
     it('Deck shows the mode, the gate, then the input', () => {
         const out = frame(
             createElement(Deck, {
+                collapsed: false,
+                paused: false,
                 state: {
                     mode: 'wait',
                     readout: 'paused 0:14',

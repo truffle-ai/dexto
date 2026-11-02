@@ -36,6 +36,7 @@ import { QUEUE_EDIT_SHORTCUTS, QueuedMessagesDisplay } from '../chat/QueuedMessa
 import { StatusBar } from '../StatusBar.js';
 import { HistorySearchBar } from '../HistorySearchBar.js';
 import { Footer } from '../Footer.js';
+import { DeckArea } from '../DeckArea.js';
 import { TodoPanel } from '../TodoPanel.js';
 import { BackgroundTasksPanel } from '../BackgroundTasksPanel.js';
 
@@ -43,7 +44,7 @@ import { BackgroundTasksPanel } from '../BackgroundTasksPanel.js';
 import { InputContainer, type InputContainerHandle } from '../../containers/InputContainer.js';
 import { OverlayContainer } from '../../containers/OverlayContainer.js';
 import { shouldHideStatusChrome } from '../../utils/overlayPresentation.js';
-import { tone } from '../../signal/index.js';
+import { tone, useCaps } from '../../signal/index.js';
 
 interface StaticCLIProps {
     agent: TuiAgentBackend;
@@ -104,6 +105,8 @@ export function StaticCLI({
 
     // Get current git branch name
     const branchName = useGitBranch();
+    // The Signal look replaces the status bar and footer with the deck.
+    const signal = useCaps().palette === 'signal';
 
     // Terminal resize handling - clear and re-render Static content
     const { write: stdoutWrite } = useStdout();
@@ -142,13 +145,16 @@ export function StaticCLI({
         setStaticRemountKey((prev) => prev + 1);
     }, [stdoutWrite]);
 
-    // Handle terminal resize - debounced refresh of static content
+    // Handle terminal resize - debounced refresh of static content. The Signal look keeps
+    // scrollback instead: the live region is repaired in place (see utils/resize-reflow.ts)
+    // and the transcript keeps the width it was printed at.
     useEffect(() => {
         // Skip initial mount to avoid unnecessary clear on startup
         if (isInitialMount.current) {
             isInitialMount.current = false;
             return;
         }
+        if (signal) return;
 
         // Debounce resize handling (300ms)
         const handler = setTimeout(() => {
@@ -158,7 +164,7 @@ export function StaticCLI({
         return () => {
             clearTimeout(handler);
         };
-    }, [terminalWidth, refreshStatic]);
+    }, [terminalWidth, refreshStatic, signal]);
 
     useEffect(() => {
         // Skip initial mount to avoid unnecessary clear on startup
@@ -200,6 +206,36 @@ export function StaticCLI({
         ui.showReasoning,
     ]);
 
+    const inputArea = (
+        <InputContainer
+            ref={inputContainerRef}
+            buffer={buffer}
+            input={input}
+            ui={ui}
+            session={session}
+            initialPrompt={initialPrompt}
+            isHydratingHistory={isHydratingHistory}
+            approval={approval}
+            steerMessages={steerMessages}
+            queuedMessages={queuedMessages}
+            setInput={setInput}
+            setUi={setUi}
+            setSession={setSession}
+            setMessages={setMessages}
+            setPendingMessages={setPendingMessages}
+            setDequeuedBuffer={setDequeuedBuffer}
+            setSteerMessages={setSteerMessages}
+            setQueuedMessages={setQueuedMessages}
+            setApproval={setApproval}
+            setApprovalQueue={setApprovalQueue}
+            setTodos={setTodos}
+            agent={agent}
+            inputService={inputService}
+            useStreaming={useStreaming}
+            configFilePath={configFilePath}
+        />
+    );
+
     return (
         <Box flexDirection="column" width={terminalWidth}>
             {/* Static: header + finalized messages - rendered once to terminal scrollback */}
@@ -237,20 +273,22 @@ export function StaticCLI({
 
                     return (
                         <>
-                            <StatusBar
-                                agent={agent}
-                                isProcessing={ui.isProcessing}
-                                isThinking={ui.isThinking}
-                                isCompacting={ui.isCompacting}
-                                approvalQueueCount={approvalQueue.length}
-                                copyModeEnabled={ui.copyModeEnabled}
-                                isAwaitingApproval={approval !== null}
-                                todoExpanded={ui.todoExpanded}
-                                hasTodos={todos.some((t) => t.status !== 'completed')}
-                                planModeActive={ui.planModeActive}
-                                autoApproveEdits={ui.autoApproveEdits}
-                                backgroundTasksRunning={ui.backgroundTasksRunning}
-                            />
+                            {(!signal || ui.copyModeEnabled) && (
+                                <StatusBar
+                                    agent={agent}
+                                    isProcessing={ui.isProcessing}
+                                    isThinking={ui.isThinking}
+                                    isCompacting={ui.isCompacting}
+                                    approvalQueueCount={approvalQueue.length}
+                                    copyModeEnabled={ui.copyModeEnabled}
+                                    isAwaitingApproval={approval !== null}
+                                    todoExpanded={ui.todoExpanded}
+                                    hasTodos={todos.some((t) => t.status !== 'completed')}
+                                    planModeActive={ui.planModeActive}
+                                    autoApproveEdits={ui.autoApproveEdits}
+                                    backgroundTasksRunning={ui.backgroundTasksRunning}
+                                />
+                            )}
 
                             <BackgroundTasksPanel
                                 tasks={ui.backgroundTasks}
@@ -278,33 +316,25 @@ export function StaticCLI({
                     );
                 })()}
 
-                <InputContainer
-                    ref={inputContainerRef}
-                    buffer={buffer}
-                    input={input}
-                    ui={ui}
-                    session={session}
-                    initialPrompt={initialPrompt}
-                    isHydratingHistory={isHydratingHistory}
-                    approval={approval}
-                    steerMessages={steerMessages}
-                    queuedMessages={queuedMessages}
-                    setInput={setInput}
-                    setUi={setUi}
-                    setSession={setSession}
-                    setMessages={setMessages}
-                    setPendingMessages={setPendingMessages}
-                    setDequeuedBuffer={setDequeuedBuffer}
-                    setSteerMessages={setSteerMessages}
-                    setQueuedMessages={setQueuedMessages}
-                    setApproval={setApproval}
-                    setApprovalQueue={setApprovalQueue}
-                    setTodos={setTodos}
-                    agent={agent}
-                    inputService={inputService}
-                    useStreaming={useStreaming}
-                    configFilePath={configFilePath}
-                />
+                {signal ? (
+                    <DeckArea
+                        agent={agent}
+                        sessionId={session.id}
+                        modelName={session.modelName}
+                        ui={ui}
+                        approval={approval}
+                        pendingMessages={pendingMessages}
+                        steerCount={steerMessages.length}
+                        branch={branchName ?? null}
+                        cwd={process.cwd()}
+                        isShellMode={buffer.text.startsWith('!')}
+                        chatgptRateLimitStatus={ui.chatgptRateLimitStatus}
+                    >
+                        {inputArea}
+                    </DeckArea>
+                ) : (
+                    inputArea
+                )}
 
                 <OverlayContainer
                     ref={overlayContainerRef}
@@ -337,7 +367,7 @@ export function StaticCLI({
                 )}
 
                 {/* Footer status line */}
-                {!shouldHideStatusChrome(ui.activeOverlay, approval) && (
+                {!signal && !shouldHideStatusChrome(ui.activeOverlay, approval) && (
                     <Footer
                         agent={agent}
                         sessionId={session.id}

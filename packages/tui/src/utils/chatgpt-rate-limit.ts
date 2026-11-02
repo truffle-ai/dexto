@@ -3,7 +3,7 @@ import {
     getModelDisplayName,
     isModelValidForProvider,
 } from '@dexto/llm';
-import { type CodexRateLimitSnapshot } from '@dexto/core';
+import { parseCodexBaseURL, type CodexRateLimitSnapshot } from '@dexto/core';
 
 export const CHATGPT_RATE_LIMIT_WARNING_THRESHOLD = 80;
 
@@ -15,6 +15,25 @@ export function shouldShowChatGPTRateLimitHint(
     }
 
     return status.exceeded || status.usedPercent >= CHATGPT_RATE_LIMIT_WARNING_THRESHOLD;
+}
+
+/**
+ * The ChatGPT plan usage hint for the active model, or null when the model isn't a ChatGPT
+ * login or usage is below the warning threshold. `short` is for tight status lines:
+ * "cap 95%" or "cap reached", without the reset time.
+ */
+export function resolveChatGPTRateLimitHint(
+    llmConfig: { provider: string; baseURL?: string | undefined } | null,
+    status: CodexRateLimitSnapshot | null | undefined,
+    form: 'full' | 'short'
+): string | null {
+    const isChatGPTLogin =
+        llmConfig?.provider === 'openai-compatible' &&
+        parseCodexBaseURL(llmConfig.baseURL)?.authMode === 'chatgpt';
+    if (!isChatGPTLogin || !status || !shouldShowChatGPTRateLimitHint(status)) return null;
+    if (form === 'full') return getChatGPTRateLimitHint(status);
+    if (status.exceeded) return 'cap reached';
+    return `cap ${Math.max(0, Math.min(100, Math.round(status.usedPercent)))}%`;
 }
 
 function formatResetTime(resetsAt: string | undefined): string | null {
