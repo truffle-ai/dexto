@@ -167,6 +167,8 @@ export interface DeckProps {
     state: DeckState;
     /** An approval or question, drawn between the band and the input. */
     gate?: ReactNode;
+    /** Draw only the gate and input, for overlays that budget for the whole screen. */
+    collapsed: boolean;
     /** The input row. */
     children: ReactNode;
 }
@@ -175,7 +177,7 @@ export interface DeckProps {
  * The slim band under the transcript: wordmark, live trace, status; then gate and input.
  * It steps down with width (see `deckLayout`): 4 rows wide, 5 in the middle, 4 when bare.
  */
-export function Deck({ state, gate, children }: DeckProps) {
+export function Deck({ state, gate, collapsed, children }: DeckProps) {
     const tone = useTone();
     const caps = useCaps();
     const { stdout } = useStdout();
@@ -212,7 +214,7 @@ export function Deck({ state, gate, children }: DeckProps) {
 
     return (
         <Box flexDirection="column" flexShrink={0}>
-            <Box height={layout.bandRows} flexShrink={0}>
+            <Box height={collapsed ? 0 : layout.bandRows} flexShrink={0} overflow="hidden">
                 {!bare && (
                     <Box marginLeft={1} marginRight={2} flexShrink={0}>
                         <Wordmark rows={3} pulse={state.mode === 'think'} />
@@ -256,7 +258,7 @@ export function Deck({ state, gate, children }: DeckProps) {
             </Box>
             {gate}
             {children}
-            {layout.statusRow && (
+            {layout.statusRow && !collapsed && (
                 <StatusRow
                     status={state.status}
                     width={columns}

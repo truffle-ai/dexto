@@ -51,7 +51,9 @@ function deck(s: DeckState = state, gate: ReactElement | null = null) {
     const children = createElement(Text, null, '› ask');
     return createElement(
         Deck,
-        gate === null ? { state: s, children } : { state: s, gate, children }
+        gate === null
+            ? { state: s, collapsed: false, children }
+            : { state: s, gate, collapsed: false, children }
     );
 }
 
@@ -210,6 +212,15 @@ describe('Deck', () => {
         const long = { ...state, mode: 'idle' as const, readout: 'auto-approve · r:medium' };
         const row = (await frame(deck(long), 42)).split('\n')[3] ?? '';
         expect(row).toMatch(/^auto-approve · r:medi…\s+◇ local · ◆ \$12\.84$/);
+    });
+
+    it('draws only the input when collapsed, leaving it mounted', async () => {
+        const collapsed = createElement(
+            Deck,
+            { state, collapsed: true },
+            createElement(Text, null, 'INPUT')
+        );
+        expect(await frame(collapsed, 120)).toBe('INPUT');
     });
 
     it('keeps context use visible beside a long model id', async () => {

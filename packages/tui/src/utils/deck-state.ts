@@ -3,6 +3,8 @@
  * tested on its own; `useDeckState` gathers the inputs.
  */
 import type { DeckCredits, DeckMode } from '../signal/index.js';
+import type { OverlayType } from '../state/types.js';
+import { getOverlayPresentation } from './overlayPresentation.js';
 
 export interface DeckActivity {
     isProcessing: boolean;
@@ -107,6 +109,30 @@ export function deckCredits(c: DeckCreditsInput): DeckCredits {
  */
 export function keepsTurnSpend(previous: string | null, next: string | null): boolean {
     return previous === null && next !== null;
+}
+
+/** The balance a turn's spend is measured from, and what it was worked out from. */
+export interface TurnBaseline {
+    sessionId: string | null;
+    isProcessing: boolean;
+    balance: number | null;
+}
+
+/** Cleared by a session switch or sign-out; set when a turn starts. */
+export function nextTurnBaseline(
+    prev: TurnBaseline,
+    now: TurnBaseline & { signedIn: boolean }
+): TurnBaseline {
+    const switched =
+        prev.sessionId !== now.sessionId && !keepsTurnSpend(prev.sessionId, now.sessionId);
+    let balance = switched || !now.signedIn ? null : prev.balance;
+    if (now.isProcessing && !prev.isProcessing) balance = now.balance;
+    return { sessionId: now.sessionId, isProcessing: now.isProcessing, balance };
+}
+
+/** Focused overlays size themselves to the screen, so the deck's rows would overflow it. */
+export function deckCollapsed(activeOverlay: OverlayType): boolean {
+    return getOverlayPresentation(activeOverlay, null) === 'focus';
 }
 
 export interface PermissionInput {

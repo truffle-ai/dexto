@@ -15,8 +15,9 @@ import {
     deckMode,
     deckModelId,
     deckReadout,
-    keepsTurnSpend,
+    nextTurnBaseline,
     permissionLabel,
+    type TurnBaseline,
 } from '../utils/deck-state.js';
 import { useContextStats } from './useContextStats.js';
 import { useDextoCreditBalance, useDextoSignedIn } from './useDextoCredits.js';
@@ -120,16 +121,17 @@ export function useDeckState(input: DeckStateInput): DeckState {
         ui.activeOverlay === 'insufficient-credits'
     );
     // The balance when the current turn started, so the status line can show what it spent.
-    const turnStart = useRef<number | null>(null);
-    const wasProcessing = useRef(false);
-    // The spend belongs to a turn in this session: a session switch clears it.
-    const turnSession = useRef(sessionId);
-    if (turnSession.current !== sessionId) {
-        if (!keepsTurnSpend(turnSession.current, sessionId)) turnStart.current = null;
-        turnSession.current = sessionId;
-    }
-    if (ui.isProcessing && !wasProcessing.current) turnStart.current = balance;
-    wasProcessing.current = ui.isProcessing;
+    const turnBaseline = useRef<TurnBaseline>({
+        sessionId,
+        isProcessing: false,
+        balance: null,
+    });
+    turnBaseline.current = nextTurnBaseline(turnBaseline.current, {
+        sessionId,
+        signedIn,
+        isProcessing: ui.isProcessing,
+        balance,
+    });
     const dirtyFiles = useGitDirtyFiles(agent, input.cwd);
 
     return {
@@ -142,7 +144,11 @@ export function useDeckState(input: DeckStateInput): DeckState {
             where: { kind: 'local' },
             branch: input.branch,
             dirtyFiles,
-            credits: deckCredits({ signedIn, balance, turnStartBalance: turnStart.current }),
+            credits: deckCredits({
+                signedIn,
+                balance,
+                turnStartBalance: turnBaseline.current.balance,
+            }),
         },
     };
 }

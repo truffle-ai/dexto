@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
+    deckCollapsed,
     deckCredits,
     deckMode,
     deckModelId,
     deckReadout,
     keepsTurnSpend,
+    nextTurnBaseline,
     permissionLabel,
     type DeckActivity,
 } from './deck-state.js';
@@ -200,5 +202,42 @@ describe('keepsTurnSpend', () => {
     it('clears the spend on a switch to another session', () => {
         expect(keepsTurnSpend('s1', 's2')).toBe(false);
         expect(keepsTurnSpend('s1', null)).toBe(false);
+    });
+});
+
+describe('nextTurnBaseline', () => {
+    const before = { sessionId: 's1', isProcessing: false, balance: 12.84 };
+    const now = { sessionId: 's1', signedIn: true, isProcessing: false, balance: 12.5 };
+
+    it('takes the balance when a turn starts and holds it through the turn', () => {
+        const started = nextTurnBaseline(before, { ...now, isProcessing: true });
+        expect(started.balance).toBe(12.5);
+        const later = nextTurnBaseline(started, { ...now, isProcessing: true, balance: 12.1 });
+        expect(later.balance).toBe(12.5);
+    });
+
+    it('keeps the baseline while the first turn creates its session', () => {
+        const prev = { sessionId: null, isProcessing: true, balance: 12.84 };
+        const next = nextTurnBaseline(prev, { ...now, isProcessing: true });
+        expect(next).toEqual({ sessionId: 's1', isProcessing: true, balance: 12.84 });
+    });
+
+    it('clears the baseline on a session switch', () => {
+        expect(nextTurnBaseline(before, { ...now, sessionId: 's2' }).balance).toBeNull();
+    });
+
+    it('clears the baseline on sign-out, so it never carries to another account', () => {
+        expect(nextTurnBaseline(before, { ...now, signedIn: false }).balance).toBeNull();
+    });
+});
+
+describe('deckCollapsed', () => {
+    it('collapses under focused overlays, which budget for the whole screen', () => {
+        expect(deckCollapsed('model-selector')).toBe(true);
+    });
+
+    it('stays up with no overlay and under inline ones', () => {
+        expect(deckCollapsed('none')).toBe(false);
+        expect(deckCollapsed('slash-autocomplete')).toBe(false);
     });
 });
