@@ -1,0 +1,60 @@
+# Publishes a dexto 2.0 beta from cli-2.0 under npm's `next` tag, by hand only (DEXTO-2031).
+#
+# It never touches `latest`, and main's release path (changesets-publish.yml) is unchanged.
+# dexto resolves its @dexto/* dependencies to exact versions when published, so the packages it
+# needs that changed since 1.14.4 publish as prereleases with it, also under `next`:
+# @dexto/agent-management, @dexto/tui and the new @dexto/cloud-client, plus the packages that depend
+# on @dexto/agent-management, so one copy is installed. @dexto/core and the rest
+# are unchanged since 1.14.4 and resolve to the versions already on npm.
+name: Publish dexto beta (manual)
+
+on:
+  workflow_dispatch:
+    inputs:
+      beta:
+        description: 'The beta number: 0 publishes dexto 2.0.0-beta.0'
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-cli-beta
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.ref == 'refs/heads/cli-2.0'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: corepack enable
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+          registry-url: 'https://registry.npmjs.org'
+      - run: pnpm install --frozen-lockfile
+
+      - name: Version the beta
+        env:
+          BETA: ${{ inputs.beta }}
+        run: |
+          set -euo pipefail
+          [[ "$BETA" =~ ^[0-9]+$ ]] || { echo "beta must be a whole number, such as 0" >&2; exit 1; }
+          for target in packages/cli:2.0.0 packages/agent-management:1.15.0 packages/tui:1.15.0 packages/cloud-client:1.15.0 packages/server:1.15.0 packages/analytics:1.15.0 packages/image-local:1.15.0 packages/image-logger-agent:1.15.0; do
+            VERSION="${target#*:}-beta.${BETA}" node -e 'const fs = require("fs"); const path = process.argv[1] + "/package.json"; const pkg = JSON.parse(fs.readFileSync(path, "utf8")); pkg.version = process.env.VERSION; fs.writeFileSync(path, JSON.stringify(pkg, null, 4) + "\n");' "${target%%:*}"
+          done
+
+      - run: pnpm run build
+
+      # The token is only in this step, never during install or build.
+      - name: Publish under next
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          set -euo pipefail
+          for dir in packages/cloud-client packages/agent-management packages/analytics packages/image-local packages/image-logger-agent packages/server packages/tui packages/cli; do
+            (cd "$dir" && pnpm publish --tag next --access public --no-git-checks)
+          done
+          pnpm view dexto dist-tags
