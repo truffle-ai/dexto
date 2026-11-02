@@ -154,6 +154,22 @@ function getFocusTarget(approval: ApprovalRequest | null, activeOverlay: Overlay
  * All keyboard handling is routed through this single point.
  * Mouse events are handled separately by MouseProvider/ScrollProvider.
  */
+/** What a stop adds to the transcript: pending messages, running tools marked, then the marker. */
+export function stoppedTranscript(pending: Message[], interrupted: Message): Message[] {
+    const stopped = pending.map((msg) =>
+        msg.role === 'tool' && msg.toolStatus === 'running'
+            ? {
+                  ...msg,
+                  toolStatus: 'finished' as const,
+                  toolResult: 'Cancelled',
+                  isError: true,
+                  toolOutcome: 'cancelled' as const,
+              }
+            : msg
+    );
+    return [...stopped, interrupted];
+}
+
 export function useInputOrchestrator({
     ui,
     approval,
@@ -289,25 +305,18 @@ export function useInputOrchestrator({
                 setSteerMessages([]);
             }
 
-            // Finalize any pending messages first (move to messages)
-            // Mark running tools as cancelled with error state
+            const interrupted: Message = {
+                id: generateMessageId('system'),
+                role: 'system',
+                content: 'Interrupted - what should Dexto do next?',
+                timestamp: new Date(),
+                systemKind: 'stopped',
+            };
+
+            // Finalize pending messages, then the marker, in one update: the updater runs after
+            // this handler, so a separate append would land above the stopped tool row.
             setPendingMessages((pending) => {
-                if (pending.length > 0) {
-                    const updated = pending.map((msg) => {
-                        // Mark running tools as cancelled
-                        if (msg.role === 'tool' && msg.toolStatus === 'running') {
-                            return {
-                                ...msg,
-                                toolStatus: 'finished' as const,
-                                toolResult: 'Cancelled',
-                                isError: true,
-                                toolOutcome: 'cancelled' as const,
-                            };
-                        }
-                        return msg;
-                    });
-                    setMessages((prev) => [...prev, ...updated]);
-                }
+                setMessages((prev) => [...prev, ...stoppedTranscript(pending, interrupted)]);
                 return [];
             });
 
@@ -317,18 +326,6 @@ export function useInputOrchestrator({
                 isProcessing: false,
                 isThinking: false,
             }));
-
-            // Add interrupted message
-            setMessages((prev) => [
-                ...prev,
-                {
-                    id: generateMessageId('system'),
-                    role: 'system',
-                    content: 'Interrupted - what should Dexto do next?',
-                    timestamp: new Date(),
-                    systemKind: 'stopped',
-                },
-            ]);
 
             // If there were active-turn steer messages, bring them back to input for editing.
             // Follow-up messages intentionally remain queued across cancellation.

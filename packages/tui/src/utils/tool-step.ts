@@ -139,6 +139,19 @@ export function toolStep(message: Message): Step {
     };
 }
 
+/** A failed call's stored result is often {"error":"…"}: a person reads the message inside. */
+function readableFailure(text: string): string {
+    try {
+        const parsed: unknown = JSON.parse(text);
+        if (typeof parsed === 'object' && parsed !== null && 'error' in parsed) {
+            return typeof parsed.error === 'string' ? parsed.error : text;
+        }
+    } catch {
+        // Not JSON: it is already the message.
+    }
+    return text;
+}
+
 /** The lines under a failed call's row: why it failed. A call that worked stays one row. */
 export function toolOutput(message: Message): string[] {
     if (stepState(message) !== 'fail') return [];
@@ -148,7 +161,7 @@ export function toolOutput(message: Message): string[] {
             ? message.toolFailureText
             : display?.type === 'shell'
               ? display.stderr?.trim() || display.stdout?.trim() || ''
-              : (message.toolResult ?? '');
+              : readableFailure(message.toolResult ?? '');
     return text
         .split('\n')
         .filter((line) => line.trim().length > 0)

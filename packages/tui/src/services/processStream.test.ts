@@ -538,6 +538,46 @@ describe('processStream (reasoning)', () => {
         expect(assistantMessages[1]?.reasoning).toBeUndefined();
     });
 
+    it('reports a fatal error once when the stream rethrows it', async () => {
+        const { getMessages, setters } = createSetters();
+        const error = new Error('Provider error 500');
+        async function* failing(): AsyncGenerator<StreamingEvent> {
+            yield { name: 'llm:error', sessionId: 'test-session', error };
+            throw new Error('Provider error 500');
+        }
+
+        await processStream(failing(), setters, {
+            useStreaming: true,
+            autoApproveEditsRef: { current: false },
+            bypassPermissionsRef: { current: false },
+            eventBus: { emit: vi.fn() },
+        });
+
+        const faults = getMessages().filter((each) => each.content.includes('Provider error 500'));
+        expect(faults).toHaveLength(1);
+        expect(faults[0]?.systemKind).toBe('fault');
+    });
+
+    it('still reports a stream failure nothing has reported', async () => {
+        const { getMessages, setters } = createSetters();
+        async function* failing(): AsyncGenerator<StreamingEvent> {
+            yield* [];
+            throw new Error('socket closed');
+        }
+
+        await processStream(failing(), setters, {
+            useStreaming: true,
+            autoApproveEditsRef: { current: false },
+            bypassPermissionsRef: { current: false },
+            eventBus: { emit: vi.fn() },
+        });
+
+        expect(getMessages().at(-1)).toMatchObject({
+            content: 'Stream error: socket closed',
+            systemKind: 'fault',
+        });
+    });
+
     it('shows the billing recovery overlay for insufficient credits', async () => {
         const { getMessages, getUi, setters } = createSetters();
 
