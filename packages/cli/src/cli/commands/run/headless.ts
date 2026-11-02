@@ -13,6 +13,8 @@ import {
     type HeadlessApprovalRequired,
     type HeadlessOutputFormat,
 } from './output.js';
+import { finishedToolStep } from '@dexto/tui/tool-step';
+import { logLine, startLine, stepLine, stepLogEnabled } from './step-log.js';
 
 const HEADLESS_TOOL_OUTPUT_MAX_LINES = 20;
 const HEADLESS_SECTION_SEPARATOR = '========================================';
@@ -39,6 +41,11 @@ function writeHeadlessSeparator(): void {
 }
 
 function writeHeadlessTaggedLine(tag: string, message: string): void {
+    if (stepLogEnabled()) {
+        const error = tag === 'ERROR';
+        writeHeadlessLine(logLine(tag.toLowerCase(), message, { error }));
+        return;
+    }
     writeHeadlessLine(`[${tag}] ${message}`);
 }
 
@@ -182,6 +189,17 @@ export async function resolveHeadlessPrompt(promptArg?: string): Promise<string>
 
 export function printHeadlessMcpStartup(agent: DextoAgent): void {
     const serverStatuses = agent.getMcpServersWithStatus().filter((server) => server.enabled);
+    if (stepLogEnabled()) {
+        for (const server of serverStatuses) {
+            if (server.status === 'connected') continue;
+            writeHeadlessLine(
+                logLine('mcp', `${server.name} failed: ${server.error ?? server.status}`, {
+                    error: true,
+                })
+            );
+        }
+        return;
+    }
 
     if (serverStatuses.length === 0) {
         writeHeadlessTaggedLine('MCP', 'startup: no servers');
@@ -224,6 +242,11 @@ export function printHeadlessRunSummary(params: {
     const { agent, sessionId, prompt, agentPath, cliVersion } = params;
     const llmConfig = agent.getCurrentLLMConfig(sessionId);
 
+    if (stepLogEnabled()) {
+        writeHeadlessLine(startLine(`${llmConfig.provider}/${llmConfig.model}`, sessionId));
+        return;
+    }
+
     writeHeadlessSeparator();
     writeHeadlessTaggedLine('RUN', `Dexto CLI v${cliVersion}`);
     writeHeadlessSeparator();
@@ -258,6 +281,16 @@ export async function executeHeadlessRun(
                 case 'approval:request': {
                     const required = toHeadlessApprovalRequired(event);
                     approvalRequired.push(required);
+                    if (stepLogEnabled()) {
+                        writeHeadlessLine(
+                            logLine(
+                                'denied',
+                                `${'tool_name' in required ? required.tool_name : required.approval_type} · ${required.message} · approval ${required.approval_id}`,
+                                { error: false }
+                            )
+                        );
+                        break;
+                    }
                     writeHeadlessTaggedLine(
                         'APPROVAL_REQUIRED',
                         `${'tool_name' in required ? required.tool_name : required.approval_type}: ${required.message} (approval ${required.approval_id})`
@@ -272,6 +305,7 @@ export async function executeHeadlessRun(
                         startedAt: Date.now(),
                     };
                     toolCallState.set(callKey, call);
+                    if (stepLogEnabled()) break;
                     writeHeadlessTaggedLine(
                         'TOOL',
                         formatToolInvocationForHeadless(call.toolName, call.args)
@@ -306,6 +340,26 @@ export async function executeHeadlessRun(
 
                     const toolName = matchedCall?.toolName ?? event.toolName;
                     const args = matchedCall?.args ?? {};
+                    if (stepLogEnabled()) {
+                        const display = event.sanitized?.meta.display;
+                        const { step, output } = finishedToolStep({
+                            toolName,
+                            args,
+                            success: event.success,
+                            rawResult: event.rawResult,
+                            ...(event.error !== undefined && { error: event.error }),
+                            ...(event.presentationSnapshot !== undefined && {
+                                presentationSnapshot: event.presentationSnapshot,
+                            }),
+                            ...(display !== undefined && { display }),
+                        });
+                        writeHeadlessLine(stepLine(step));
+                        for (const line of output) {
+                            writeHeadlessLine(logLine('', line, { error: true }));
+                        }
+                        if (matchedCallKey) toolCallState.delete(matchedCallKey);
+                        break;
+                    }
                     const invocation = formatToolInvocationForHeadless(toolName, args);
                     const durationText = matchedCall
                         ? ` in ${formatHeadlessDuration(Date.now() - matchedCall.startedAt)}`
@@ -377,6 +431,14 @@ export async function executeHeadlessRun(
 }
 
 export function printHeadlessAssistantResponse(message: string, totalTokens?: number): void {
+    if (stepLogEnabled()) {
+        const tokens =
+            typeof totalTokens === 'number'
+                ? `${new Intl.NumberFormat('en-US').format(totalTokens)} tokens`
+                : 'finished';
+        writeHeadlessLine(logLine('done', tokens, { error: false }));
+        return;
+    }
     writeHeadlessSeparator();
     writeHeadlessTaggedBlock('DEXTO', message);
     if (typeof totalTokens === 'number') {

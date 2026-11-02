@@ -2,11 +2,13 @@
  * What one tool call shows as a Signal step row, worked out from its message. Pure, so each rule
  * is tested on its own.
  */
-import type { ToolDisplayData } from '@dexto/core';
+import type { ToolDisplayData, ToolPresentationSnapshotV1 } from '@dexto/core';
 import type { Step, StepState } from '../signal/index.js';
+
+export type { Step };
 import type { Message } from '../state/types.js';
 import { backgroundFailure } from './background-failure.js';
-import { formatDuration, makeRelativePath } from './messageFormatting.js';
+import { formatDuration, formatToolHeader, makeRelativePath } from './messageFormatting.js';
 
 export { backgroundFailure };
 
@@ -151,4 +153,39 @@ export function toolOutput(message: Message): string[] {
         .split('\n')
         .filter((line) => line.trim().length > 0)
         .slice(-OUTPUT_LINES);
+}
+
+export interface FinishedToolCall {
+    toolName: string;
+    args: Record<string, unknown>;
+    presentationSnapshot?: ToolPresentationSnapshotV1;
+    success: boolean;
+    error?: string;
+    rawResult?: unknown;
+    display?: ToolDisplayData;
+}
+
+/** A finished call seen outside the TUI: `dexto run` prints these as its log. */
+export function finishedToolStep(call: FinishedToolCall): { step: Step; output: string[] } {
+    const { header, argsFormatted } = formatToolHeader({
+        toolName: call.toolName,
+        args: call.args,
+        ...(call.presentationSnapshot !== undefined && {
+            presentationSnapshot: call.presentationSnapshot,
+        }),
+    });
+    const message: Message = {
+        id: call.toolName,
+        role: 'tool',
+        content: header,
+        timestamp: new Date(0),
+        toolName: call.toolName,
+        toolArgs: argsFormatted,
+        toolStatus: 'finished',
+        isError: !call.success,
+        ...(call.error !== undefined && { toolResult: call.error }),
+        ...(call.display !== undefined && { toolDisplayData: call.display }),
+        ...backgroundFailure(call.toolName, call.rawResult),
+    };
+    return { step: toolStep(message), output: toolOutput(message) };
 }
