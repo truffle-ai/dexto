@@ -3,7 +3,7 @@ import {
     getModelDisplayName,
     isModelValidForProvider,
 } from '@dexto/llm';
-import { type CodexRateLimitSnapshot } from '@dexto/core';
+import { parseCodexBaseURL, type CodexRateLimitSnapshot } from '@dexto/core';
 
 export const CHATGPT_RATE_LIMIT_WARNING_THRESHOLD = 80;
 
@@ -15,6 +15,21 @@ export function shouldShowChatGPTRateLimitHint(
     }
 
     return status.exceeded || status.usedPercent >= CHATGPT_RATE_LIMIT_WARNING_THRESHOLD;
+}
+
+/**
+ * The ChatGPT plan usage hint for the active model, or null when the model isn't a ChatGPT
+ * login or usage is below the warning threshold.
+ */
+export function resolveChatGPTRateLimitHint(
+    llmConfig: { provider: string; baseURL?: string | undefined } | null,
+    status: CodexRateLimitSnapshot | null | undefined
+): string | null {
+    const isChatGPTLogin =
+        llmConfig?.provider === 'openai-compatible' &&
+        parseCodexBaseURL(llmConfig.baseURL)?.authMode === 'chatgpt';
+    if (!isChatGPTLogin || !status || !shouldShowChatGPTRateLimitHint(status)) return null;
+    return getChatGPTRateLimitHint(status);
 }
 
 function formatResetTime(resetsAt: string | undefined): string | null {

@@ -1,0 +1,67 @@
+/**
+ * Dexto account state for the status line: signed in or not, and the credit balance,
+ * refreshed after each reply.
+ */
+import { useEffect, useState } from 'react';
+import type { TuiAgentBackend } from '../agent-backend.js';
+import { currentSignIn, dextoCreditBalance } from '../host/index.js';
+
+/** The credit balance in USD while `enabled`; null when off or not known. */
+export function useDextoCreditBalance(
+    agent: TuiAgentBackend,
+    sessionId: string | null,
+    enabled: boolean
+): number | null {
+    const [balance, setBalance] = useState<number | null>(null);
+    useEffect(() => {
+        setBalance(null);
+        if (!enabled) return;
+        let cancelled = false;
+        const refresh = () => {
+            dextoCreditBalance()
+                .then((next) => {
+                    if (!cancelled) setBalance(next);
+                })
+                .catch(() => undefined);
+        };
+        refresh();
+        const controller = new AbortController();
+        agent.on(
+            'llm:response',
+            (payload: { sessionId?: string }) => {
+                if (!payload.sessionId || payload.sessionId === sessionId) refresh();
+            },
+            { signal: controller.signal }
+        );
+        return () => {
+            cancelled = true;
+            controller.abort();
+        };
+    }, [agent, sessionId, enabled]);
+    return balance;
+}
+
+/** Whether the user is signed in to Dexto. Checked at start and after each run. */
+export function useDextoSignedIn(agent: TuiAgentBackend): boolean {
+    const [signedIn, setSignedIn] = useState(false);
+    useEffect(() => {
+        let cancelled = false;
+        const check = () => {
+            currentSignIn()
+                .then((who) => {
+                    if (!cancelled) setSignedIn(who !== null);
+                })
+                .catch(() => {
+                    if (!cancelled) setSignedIn(false);
+                });
+        };
+        check();
+        const controller = new AbortController();
+        agent.on('run:complete', check, { signal: controller.signal });
+        return () => {
+            cancelled = true;
+            controller.abort();
+        };
+    }, [agent]);
+    return signedIn;
+}
