@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Message } from '../state/types.js';
-import { backgroundFailure, toolOutput, toolStep } from './tool-step.js';
+import { backgroundFailure, finishedToolStep, toolOutput, toolStep } from './tool-step.js';
 
 function tool(overrides: Partial<Message>): Message {
     return {
@@ -235,5 +235,44 @@ describe('backgroundFailure', () => {
     it('ignores a running or completed process and any other tool', () => {
         expect(backgroundFailure('bash_output', { status: 'completed' })).toEqual({});
         expect(backgroundFailure('read_file', { status: 'failed' })).toEqual({});
+    });
+});
+
+describe('finishedToolStep', () => {
+    it('builds the row from the call itself', () => {
+        const { step, output } = finishedToolStep({
+            toolName: 'bash_exec',
+            args: { command: 'make' },
+            presentationSnapshot: {
+                version: 1,
+                source: { type: 'local' },
+                header: { title: 'Bash', argsText: 'make' },
+            },
+            success: true,
+        });
+        expect(step.verb).toBe('RUN');
+        expect(step.target).toBe('make');
+        expect(step.state).toBe('ok');
+        expect(output).toEqual([]);
+    });
+
+    it('carries why a call failed, including a failed background readback', () => {
+        const failed = finishedToolStep({
+            toolName: 'read_file',
+            args: {},
+            success: false,
+            error: 'ENOENT',
+        });
+        expect(failed.step.state).toBe('fail');
+        expect(failed.output).toEqual(['ENOENT']);
+
+        const readback = finishedToolStep({
+            toolName: 'bash_output',
+            args: {},
+            success: true,
+            rawResult: { status: 'failed', stderr: 'boom' },
+        });
+        expect(readback.step.state).toBe('fail');
+        expect(readback.output).toEqual(['boom']);
     });
 });

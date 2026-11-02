@@ -342,24 +342,21 @@ export async function executeHeadlessRun(
                     const args = matchedCall?.args ?? {};
                     if (stepLogEnabled()) {
                         const display = event.sanitized?.meta.display;
-                        writeHeadlessLine(
-                            stepLine(
-                                finishedToolStep({
-                                    toolName,
-                                    args,
-                                    success: event.success,
-                                    durationMs: matchedCall
-                                        ? Date.now() - matchedCall.startedAt
-                                        : null,
-                                    ...(event.presentationSnapshot !== undefined && {
-                                        presentationSnapshot: event.presentationSnapshot,
-                                    }),
-                                    ...(display !== undefined && { display }),
-                                })
-                            )
-                        );
-                        const failure = !event.success ? event.error : undefined;
-                        if (failure) writeHeadlessLine(logLine('', failure, { error: true }));
+                        const { step, output } = finishedToolStep({
+                            toolName,
+                            args,
+                            success: event.success,
+                            rawResult: event.rawResult,
+                            ...(event.error !== undefined && { error: event.error }),
+                            ...(event.presentationSnapshot !== undefined && {
+                                presentationSnapshot: event.presentationSnapshot,
+                            }),
+                            ...(display !== undefined && { display }),
+                        });
+                        writeHeadlessLine(stepLine(step));
+                        for (const line of output) {
+                            writeHeadlessLine(logLine('', line, { error: true }));
+                        }
                         if (matchedCallKey) toolCallState.delete(matchedCallKey);
                         break;
                     }

@@ -176,28 +176,32 @@ export interface FinishedToolCall {
     args: Record<string, unknown>;
     presentationSnapshot?: ToolPresentationSnapshotV1;
     success: boolean;
-    durationMs: number | null;
+    error?: string;
+    rawResult?: unknown;
     display?: ToolDisplayData;
 }
 
-/** The step of a finished call seen outside the TUI: `dexto run` prints these as its log. */
-export function finishedToolStep(call: FinishedToolCall): Step {
-    const { header } = formatToolHeader({
+/** A finished call seen outside the TUI: `dexto run` prints these as its log. */
+export function finishedToolStep(call: FinishedToolCall): { step: Step; output: string[] } {
+    const { header, argsFormatted } = formatToolHeader({
         toolName: call.toolName,
         args: call.args,
         ...(call.presentationSnapshot !== undefined && {
             presentationSnapshot: call.presentationSnapshot,
         }),
     });
-    return toolStep({
+    const message: Message = {
         id: call.toolName,
         role: 'tool',
         content: header,
         timestamp: new Date(0),
         toolName: call.toolName,
+        toolArgs: argsFormatted,
         toolStatus: 'finished',
         isError: !call.success,
-        ...(call.durationMs !== null && { toolDurationMs: call.durationMs }),
+        ...(call.error !== undefined && { toolResult: call.error }),
         ...(call.display !== undefined && { toolDisplayData: call.display }),
-    });
+        ...backgroundFailure(call.toolName, call.rawResult),
+    };
+    return { step: toolStep(message), output: toolOutput(message) };
 }
