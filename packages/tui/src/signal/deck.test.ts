@@ -42,8 +42,11 @@ const state: DeckState = {
 };
 
 function deck(s: DeckState = state, gate: ReactElement | null = null) {
-    const props = gate === null ? { state: s } : { state: s, gate };
-    return createElement(Deck, props, createElement(Text, null, '› ask'));
+    const children = createElement(Text, null, '› ask');
+    return createElement(
+        Deck,
+        gate === null ? { state: s, children } : { state: s, gate, children }
+    );
 }
 
 describe('deckLayout', () => {
