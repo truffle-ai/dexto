@@ -40,6 +40,14 @@ describe('detectCaps', () => {
         expect(detectCaps({}, true).theme).toBe('dark');
     });
 
+    it('reads 256-colour COLORFGBG backgrounds by their brightness', () => {
+        expect(detectCaps({ COLORFGBG: '15;234' }, true).theme).toBe('dark'); // grey ramp, dark
+        expect(detectCaps({ COLORFGBG: '0;254' }, true).theme).toBe('light'); // grey ramp, light
+        expect(detectCaps({ COLORFGBG: '15;17' }, true).theme).toBe('dark'); // cube, navy
+        expect(detectCaps({ COLORFGBG: '0;231' }, true).theme).toBe('light'); // cube, white
+        expect(detectCaps({ COLORFGBG: '0;300' }, true).theme).toBe('dark'); // out of range
+    });
+
     it('uses sextants only when asked for on a terminal that draws them', () => {
         expect(detectCaps({ DEXTO_LOGO: 'sextant', TERM_PROGRAM: 'ghostty' }, true).logo).toBe(
             'sextant'

@@ -57,10 +57,23 @@ function terminalProgram(env: Env): string {
     return '';
 }
 
-/** COLORFGBG is "fg;bg" (sometimes "fg;default;bg"); a light background is 7 or 9–15. */
+/** Whether an xterm-256 colour index is a light colour. */
+function isLightIndex(index: number): boolean {
+    // 0–15: the user's palette; white (7) and the bright colours other than grey (8) read light.
+    if (index < 16) return index === 7 || index >= 9;
+    // 232–255: the grey ramp, 8 to 238 in steps of 10.
+    if (index >= 232) return 8 + (index - 232) * 10 >= 128;
+    // 16–231: the 6×6×6 cube; levels 0, 95, 135, 175, 215, 255.
+    const level = (n: number) => (n === 0 ? 0 : 55 + n * 40);
+    const i = index - 16;
+    const [r, g, b] = [level(Math.floor(i / 36)), level(Math.floor(i / 6) % 6), level(i % 6)];
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b >= 128;
+}
+
+/** COLORFGBG is "fg;bg" (sometimes "fg;default;bg"); bg is an xterm-256 index. */
 function themeFromColorFgBg(value: string | undefined): ThemeName {
     const bg = Number(value?.split(';').pop());
-    return Number.isInteger(bg) && bg >= 7 && bg !== 8 ? 'light' : 'dark';
+    return Number.isInteger(bg) && bg >= 0 && bg <= 255 && isLightIndex(bg) ? 'light' : 'dark';
 }
 
 export function detectCaps(env: Env, isTTY: boolean): Caps {
