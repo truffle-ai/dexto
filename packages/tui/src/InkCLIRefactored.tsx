@@ -37,6 +37,7 @@ import { useStreaming } from './hooks/useStreaming.js';
 
 // Utils
 import { getStartupInfo } from './utils/messageFormatting.js';
+import { detectBackgroundTheme } from './signal/index.js';
 
 // Rendering mode: true = alternate buffer with VirtualizedList, false = Static pattern
 // Toggle this to switch between modes for testing
@@ -280,6 +281,9 @@ export async function startInkCliRefactored(
 
     // Import exit handler before render to avoid race condition
     const { registerExitHandler } = await import('./interactive-commands/exit-handler.js');
+
+    // Ask the terminal for its background before Ink takes stdin (Signal palette only).
+    await detectBackgroundTheme({ stdin: process.stdin, stdout: process.stdout });
 
     const inkApp = render(
         <InkCLIRefactored
