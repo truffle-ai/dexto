@@ -170,4 +170,28 @@ describe('Signal approval gate', () => {
             if (line.includes('x x')) expect(line.trimEnd().endsWith('│')).toBe(true);
         }
     });
+
+    it('says a command will run in the background', () => {
+        const preview = { type: 'shell', command: 'x', exitCode: 0, duration: 0 };
+        const metadata = {
+            toolName: 'bash_exec',
+            args: {},
+            displayPreview: { ...preview, isBackground: true },
+        };
+        expect(renderFrame(prompt(request({ metadata })), TEXT_ONLY)).toContain('(background)');
+    });
+
+    it('wraps question help to the width inside the gate, losing nothing mid-text', () => {
+        const help = 'word '.repeat(20).trim();
+        const properties = {
+            how_long: { type: 'string', enum: ['One'], title: 'How long?', description: help },
+        };
+        const metadata = { ...QUESTION.metadata, schema: { type: 'object', properties } };
+        const frame = renderFrame(prompt({ ...QUESTION, metadata }), {
+            columns: 80,
+            terminal: 'no-color',
+        });
+        const rows = frame.split('\n').filter((line) => line.includes('word'));
+        expect(rows.join(' ').match(/word/g)).toHaveLength(20);
+    });
 });

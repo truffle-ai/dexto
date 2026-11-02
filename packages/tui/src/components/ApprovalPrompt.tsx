@@ -398,6 +398,9 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
                         ) : (
                             preview
                         )}
+                        {displayPreview?.type === 'shell' && displayPreview.isBackground && (
+                            <Text color={tone('dim')}>(background)</Text>
+                        )}
                         {callDescription && <Text color={tone('dim')}>{callDescription}</Text>}
                         <Box flexWrap="wrap" columnGap={3}>
                             {options.map((option, index) => {

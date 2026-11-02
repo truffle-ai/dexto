@@ -81,7 +81,10 @@ export const ElicitationForm = forwardRef<ElicitationFormHandle, ElicitationForm
             return Math.min(maxHeight, desired);
         }, [footerHeight, maxHeaderHeight, minContentHeight, terminalRows]);
 
-        const availableWidth = Math.max(20, terminalColumns - 2);
+        const { palette, glyphs } = useCaps();
+        const signal = palette === 'signal';
+        // The overlay frame takes 2 columns; the gate's border and padding take 4 more.
+        const availableWidth = Math.max(20, terminalColumns - (signal ? 6 : 2));
 
         const fields = useMemo(() => {
             return parseElicitationSchema(metadata.schema);
@@ -118,8 +121,6 @@ export const ElicitationForm = forwardRef<ElicitationFormHandle, ElicitationForm
         );
 
         // Form state
-        const { palette, glyphs } = useCaps();
-        const signal = palette === 'signal';
         const [activeFieldIndex, setActiveFieldIndex] = useState(0);
         const [formData, setFormData] = useState<Record<string, unknown>>({});
         const [draftInputs, setDraftInputs] = useState<Record<string, string>>({});
