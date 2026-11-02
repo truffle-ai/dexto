@@ -15,6 +15,7 @@ import type React from 'react';
 import { createContext, useCallback, useContext, useEffect, useRef } from 'react';
 import { ESC, FOCUS_IN, FOCUS_OUT } from '../utils/input.js';
 import { parseMouseEvent } from '../utils/mouse.js';
+import { createTerminalReplyFilter } from '../signal/background.js';
 
 export const BACKSLASH_ENTER_TIMEOUT = 5;
 export const ESC_TIMEOUT = 50;
@@ -497,11 +498,14 @@ export function KeypressProvider({ children }: KeypressProviderProps) {
         process.stdin.setEncoding('utf8');
 
         // Build the processing pipeline:
-        // dataListener -> pasteBufferer -> backslashBufferer -> mouseFilterer -> broadcast
+        // dataListener -> dropReplies -> pasteBufferer -> backslashBufferer -> mouseFilterer -> broadcast
         const mouseFilterer = nonKeyboardEventFilter(broadcast);
         const backslashBufferer = bufferBackslashEnter(mouseFilterer);
         const pasteBufferer = bufferPaste(backslashBufferer);
-        const dataListener = createDataListener(pasteBufferer);
+        const parse = createDataListener(pasteBufferer);
+        // Terminal replies (a late OSC 11 background answer) are not keys; drop them first.
+        const dropReplies = createTerminalReplyFilter();
+        const dataListener = (data: string) => parse(dropReplies(data));
 
         stdin.on('data', dataListener);
 

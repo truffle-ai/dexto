@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { getCaps, setCaps, type Caps } from './caps.js';
 import {
     BACKGROUND_QUERY,
+    createTerminalReplyFilter,
     detectBackgroundTheme,
     parseBackgroundReply,
     queryBackgroundTheme,
@@ -138,5 +139,60 @@ describe('detectBackgroundTheme', () => {
         } finally {
             setCaps(saved);
         }
+    });
+});
+
+describe('queryBackgroundTheme keeps what the user typed', () => {
+    it('hands bytes that are not part of the reply back to stdin', async () => {
+        const { io, stdin } = fakeTerminal(
+            () => `\x1b]11;rgb:ffff/ffff/ffff\x07summarize this\r${DA1}`
+        );
+        await expect(queryBackgroundTheme(io, 500)).resolves.toBe('light');
+        expect(String(stdin.read())).toBe('summarize this\r');
+    });
+
+    it('hands back nothing when only the replies arrived', async () => {
+        const { io, stdin } = fakeTerminal(() => `\x1b]11;rgb:ffff/ffff/ffff\x07${DA1}`);
+        await queryBackgroundTheme(io, 500);
+        expect(stdin.read()).toBeNull();
+    });
+});
+
+describe('createTerminalReplyFilter', () => {
+    const OSC = '\x1b]11;rgb:ffff/ffff/ffff';
+
+    it('drops background and DA1 replies, with either terminator', () => {
+        const filter = createTerminalReplyFilter();
+        expect(filter(`${OSC}\x07`)).toBe('');
+        expect(filter(`${OSC}\x1b\\`)).toBe('');
+        expect(filter(DA1)).toBe('');
+        expect(filter('\x1b]10;rgb:0/0/0\x07')).toBe('');
+    });
+
+    it('keeps the keys around a reply', () => {
+        const filter = createTerminalReplyFilter();
+        expect(filter(`ab${OSC}\x07cd${DA1}e`)).toBe('abcde');
+    });
+
+    it('drops a reply split across chunks', () => {
+        const filter = createTerminalReplyFilter();
+        expect(filter('x\x1b]11;rgb:ff')).toBe('x');
+        expect(filter('ff/ffff/ffff\x07y\x1b[?6')).toBe('y');
+        expect(filter('2;22cz')).toBe('z');
+    });
+
+    it('passes keyboard escapes through untouched', () => {
+        const filter = createTerminalReplyFilter();
+        expect(filter('\x1b')).toBe('\x1b');
+        expect(filter('\x1b]')).toBe('\x1b]');
+        expect(filter('\x1b[')).toBe('\x1b[');
+        expect(filter('\x1b[A\x1b[1;5C\x1b[<0;10;5M')).toBe('\x1b[A\x1b[1;5C\x1b[<0;10;5M');
+        expect(filter('\x1b]a')).toBe('\x1b]a');
+    });
+
+    it('releases held bytes that turn out not to be a reply', () => {
+        const filter = createTerminalReplyFilter();
+        expect(filter('\x1b]11;rgb')).toBe('');
+        expect(filter(' hello')).toBe('\x1b]11;rgb hello');
     });
 });
