@@ -75,9 +75,9 @@ describe('Signal kit parts', () => {
             exitOnCtrlC: false,
         });
         try {
-            expect(output).toContain('▸ RUN');
+            expect(stripAnsi(output)).toContain('▸ RUN');
             setCaps({ ...getCaps(), glyphs: 'ascii' });
-            await vi.waitFor(() => expect(output).toContain('> RUN'));
+            await vi.waitFor(() => expect(stripAnsi(output)).toContain('> RUN'));
         } finally {
             view.unmount();
             stdout.destroy();
