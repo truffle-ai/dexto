@@ -151,11 +151,18 @@ describe('permissionLabel', () => {
         expect(permissionLabel({ ...none, configuredMode: 'auto-approve' })).toBe('auto-approve');
     });
 
-    it('puts session overrides first', () => {
+    it('names the session mode first and keeps configured auto-approval beside it', () => {
         const configured = { ...none, configuredMode: 'auto-approve' };
-        expect(permissionLabel({ ...configured, planModeActive: true })).toBe('plan mode');
-        expect(permissionLabel({ ...configured, autoApproveEdits: true })).toBe('accept edits');
+        expect(permissionLabel({ ...configured, planModeActive: true })).toBe(
+            'plan mode · auto-approve'
+        );
+        expect(permissionLabel({ ...configured, autoApproveEdits: true })).toBe(
+            'accept edits · auto-approve'
+        );
+        expect(permissionLabel({ ...none, autoApproveEdits: true })).toBe('accept edits');
         expect(permissionLabel({ ...none, bypassPermissions: true })).toBe('auto-approve');
-        expect(permissionLabel({ ...configured, isShellMode: true })).toBe('shell mode');
+        expect(permissionLabel({ ...configured, isShellMode: true })).toBe(
+            'shell mode · auto-approve'
+        );
     });
 });

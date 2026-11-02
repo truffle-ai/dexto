@@ -105,13 +105,18 @@ export interface PermissionInput {
 }
 
 /**
- * The approval policy in force, for the idle readout; null for manual approvals. Session
- * overrides (Shift+Tab) come first, then the agent's configured mode.
+ * The approval policy in force, for the idle readout; null for manual approvals. The session
+ * mode (Shift+Tab) comes first. Auto-approval is always named when it applies: the session
+ * flags don't narrow an agent configured to auto-approve.
  */
 export function permissionLabel(p: PermissionInput): string | null {
-    if (p.isShellMode) return 'shell mode';
-    if (p.planModeActive) return 'plan mode';
-    if (p.autoApproveEdits) return 'accept edits';
-    if (p.bypassPermissions || p.configuredMode === 'auto-approve') return 'auto-approve';
-    return null;
+    const session = p.isShellMode
+        ? 'shell mode'
+        : p.planModeActive
+          ? 'plan mode'
+          : p.autoApproveEdits
+            ? 'accept edits'
+            : null;
+    const auto = p.bypassPermissions || p.configuredMode === 'auto-approve';
+    return join([session, auto ? 'auto-approve' : null]);
 }

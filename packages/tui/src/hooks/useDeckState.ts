@@ -112,6 +112,12 @@ export function useDeckState(input: DeckStateInput): DeckState {
     // The balance when the current turn started, so the status line can show what it spent.
     const turnStart = useRef<number | null>(null);
     const wasProcessing = useRef(false);
+    // The spend belongs to a turn in this session: a session switch clears it.
+    const turnSession = useRef(sessionId);
+    if (turnSession.current !== sessionId) {
+        turnSession.current = sessionId;
+        turnStart.current = null;
+    }
     if (ui.isProcessing && !wasProcessing.current) turnStart.current = balance;
     wasProcessing.current = ui.isProcessing;
     const dirtyFiles = useGitDirtyFiles(agent, input.cwd);

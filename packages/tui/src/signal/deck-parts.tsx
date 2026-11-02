@@ -215,6 +215,38 @@ function Lane({ status, width }: { status: DeckStatus; width: number }) {
     );
 }
 
+/**
+ * The model, then context use. Context keeps its room and the model name truncates; when
+ * fewer than four columns are left for the model, context shows alone.
+ */
+function ModelAndContext({
+    model,
+    context,
+    width,
+}: {
+    model: string;
+    context: string | null;
+    width: number;
+}) {
+    const tone = useTone();
+    const contextCells = context === null ? 0 : cells(context) + 2;
+    const modelWidth = Math.min(cells(model), width - contextCells);
+    return (
+        <Box width={width} flexShrink={0}>
+            {modelWidth >= 4 && (
+                <Box width={modelWidth} flexShrink={0}>
+                    <Text wrap="truncate-end">
+                        <ModelName model={model} />
+                    </Text>
+                </Box>
+            )}
+            {context !== null && (
+                <Text color={tone('dim')}>{modelWidth >= 4 ? `  ${context}` : context}</Text>
+            )}
+        </Box>
+    );
+}
+
 function contextText(status: DeckStatus, withMax: boolean): string | null {
     if (status.contextUsedTokens === null) return null;
     const used = formatTokens(status.contextUsedTokens);
@@ -249,10 +281,7 @@ export function StatusBlock({
                     <Text color={tone('dim')}>{glyphText(` · ${readout}`, glyphs)}</Text>
                 )}
             </Text>
-            <Text wrap="truncate-end">
-                <ModelName model={status.model} />
-                {context !== null && <Text color={tone('dim')}>{`  ${context}`}</Text>}
-            </Text>
+            <ModelAndContext model={status.model} context={context} width={width} />
             <Lane status={status} width={width} />
         </Box>
     );
@@ -292,7 +321,6 @@ export function StatusRow({
     width: number;
     notice: { text: string; color: string } | null;
 }) {
-    const tone = useTone();
     const { glyphs } = useCaps();
     const context = contextText(status, false);
     const noticeText = notice === null ? '' : `${glyphText(notice.text, glyphs)}  `;
@@ -305,11 +333,8 @@ export function StatusRow({
                 </Box>
             )}
             {fit.model > 0 && (
-                <Box width={fit.model} marginRight={2} flexShrink={0}>
-                    <Text wrap="truncate-end">
-                        <ModelName model={status.model} />
-                        {context !== null && <Text color={tone('dim')}>{`  ${context}`}</Text>}
-                    </Text>
+                <Box marginRight={2} flexShrink={0}>
+                    <ModelAndContext model={status.model} context={context} width={fit.model} />
                 </Box>
             )}
             <Box width={fit.lane} flexShrink={0}>

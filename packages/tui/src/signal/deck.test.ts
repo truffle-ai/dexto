@@ -176,7 +176,7 @@ describe('Deck', () => {
         expect(out).not.toContain('dexto ');
         expect(lines[0]).toMatch(/[▁-█]/);
         expect(lines[2]).toBe('› ask');
-        expect(lines[3]).toMatch(/^84 tok\/s · 12\.4s\s+dex…\s+◇ local · ◆ \$12\.84$/);
+        expect(lines[3]).toMatch(/^84 tok\/s · 12\.4s\s+46k\s+◇ local · ◆ \$12\.84$/);
     });
 
     it('keeps the readout, and so the permission mode, in the middle step', async () => {
@@ -192,9 +192,18 @@ describe('Deck', () => {
             status: { ...state.status, model: 'dexto/anthropic/claude-sonnet-4.5' },
         };
         const row = (await frame(deck(long), 42)).split('\n')[3] ?? '';
-        expect(row).toMatch(/^auto-approve\s+dexto.*◇ local · ◆ \$12\.84$/);
+        expect(row).toMatch(/^auto-approve\s+46k\s+◇ local · ◆ \$12\.84$/);
         const plain = (await frame(deck({ ...long, readout: null }), 42)).split('\n')[3] ?? '';
-        expect(plain).toMatch(/^dexto\/anthropic.*…\s+◇ local · ◆ \$12\.84$/);
+        expect(plain).toMatch(/^dexto\/anthropic.*…\s+46k\s+◇ local · ◆ \$12\.84$/);
+    });
+
+    it('keeps context use visible beside a long model id', async () => {
+        const long = {
+            ...state,
+            status: { ...state.status, model: 'anthropic/claude-sonnet-4-5-20250929' },
+        };
+        const lines = (await frame(deck(long), 120)).split('\n');
+        expect(lines[1]).toMatch(/anthropic\/claude-\S*…\s+46k\/200k\s*$/);
     });
 
     it('slots a gate between the band and the input', async () => {
