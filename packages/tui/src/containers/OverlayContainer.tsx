@@ -87,6 +87,7 @@ import ChatGPTUsageCapOverlay, {
 import InsufficientCreditsOverlay, {
     type InsufficientCreditsOverlayHandle,
 } from '../components/overlays/InsufficientCreditsOverlay.js';
+import { approvedResponseData } from '../utils/approval-response.js';
 import { getLLMProviderDisplayName } from '../utils/llm-provider-display.js';
 import { resolveChatGPTFallbackModel } from '../utils/chatgpt-rate-limit.js';
 import {
@@ -479,10 +480,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                     status: ApprovalStatus.APPROVED,
                     sessionId: approval.sessionId,
                     hostRuntime: approval.hostRuntime,
-                    data: {
-                        rememberChoice: options.rememberChoice,
-                        formData: options.formData,
-                    },
+                    data: approvedResponseData(approval.type, options),
                 });
 
                 completeApproval();
