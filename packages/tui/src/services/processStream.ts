@@ -855,7 +855,7 @@ export async function processStream(
                         : generateMessageId('tool');
 
                     // Format tool header using shared utility
-                    const { header: toolContent } = formatToolHeader({
+                    const { header: toolContent, argsFormatted: toolArgs } = formatToolHeader({
                         toolName: event.toolName,
                         args: (event.args as Record<string, unknown>) || {},
                         ...(event.presentationSnapshot !== undefined && {
@@ -883,6 +883,7 @@ export async function processStream(
                         content: finalToolContent,
                         timestamp: new Date(),
                         toolName: event.toolName,
+                        toolArgs,
                         toolStatus: 'pending',
                     });
 
@@ -948,14 +949,8 @@ export async function processStream(
 
                     if (event.callId) {
                         const toolMessageId = `tool-${event.callId}`;
-                        const startedAt = localPending.find(
-                            (msg) => msg.id === toolMessageId
-                        )?.toolStartedAt;
                         // Finalize tool message - move to messages with result and display data
                         finalizeMessage(toolMessageId, {
-                            ...(startedAt !== undefined && {
-                                toolDurationMs: Date.now() - startedAt,
-                            }),
                             toolResult: resultPreview,
                             toolStatus: 'finished',
                             isError: !event.success,
@@ -1162,10 +1157,6 @@ export async function processStream(
                     // Update status from 'pending' or 'pending_approval' to 'running'
                     const runningToolId = `tool-${event.toolCallId}`;
                     updatePendingStatus(runningToolId, 'running');
-                    localPending = localPending.map((msg) =>
-                        msg.id === runningToolId ? { ...msg, toolStartedAt: Date.now() } : msg
-                    );
-                    setPendingMessages(localPending);
                     break;
                 }
 

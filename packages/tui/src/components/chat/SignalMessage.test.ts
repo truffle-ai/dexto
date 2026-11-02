@@ -45,8 +45,14 @@ describe('Signal transcript', () => {
             message: message({
                 content: 'Bash(make lint)',
                 toolName: 'bash_exec',
+                toolArgs: 'make lint',
                 toolStatus: 'finished',
-                toolDurationMs: 4200,
+                toolDisplayData: {
+                    type: 'shell',
+                    command: 'make lint',
+                    exitCode: 0,
+                    duration: 4200,
+                },
             }),
         });
         const okFrame = renderFrame(ok, TEXT_ONLY);
@@ -57,6 +63,7 @@ describe('Signal transcript', () => {
             message: message({
                 content: 'Read(a.ts)',
                 toolName: 'read_file',
+                toolArgs: 'a.ts',
                 toolStatus: 'finished',
                 isError: true,
                 toolResult: 'ENOENT: a.ts',

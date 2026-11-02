@@ -47,24 +47,25 @@ describe('toolStep', () => {
         expect(toolStep(tool({ toolName: 'summarize_everything' })).verb).toBe('SUMMARI');
     });
 
-    it('takes the target from inside the header, without status lines or badges', () => {
+    it('names an MCP target by server and tool, then its arguments', () => {
         const step = toolStep(
             tool({
                 toolName: 'mcp--github--create_pull_request',
                 content: 'Create Pull Request(title=x) [MCP: github]\nOpening the PR',
+                toolArgs: 'title=x',
             })
         );
         expect(step.target).toBe('github.create_pull_request title=x');
     });
 
     it('shows file paths relative to the working directory', () => {
-        const step = toolStep(tool({ content: `Read(${process.cwd()}/src/a.ts)` }));
+        const step = toolStep(tool({ toolArgs: `${process.cwd()}/src/a.ts` }));
         expect(step.target).toBe('src/a.ts');
     });
 
-    it('keeps parentheses inside the arguments', () => {
-        const step = toolStep(tool({ toolName: 'bash_exec', content: 'Bash(echo $(date))' }));
-        expect(step.target).toBe('echo $(date)');
+    it('reads a multi-line command on one row', () => {
+        const step = toolStep(tool({ toolName: 'bash_exec', toolArgs: 'echo a\n  echo $(b)' }));
+        expect(step.target).toBe('echo a echo $(b)');
     });
 
     it('sums up an edit, with hunks when there are several', () => {
@@ -127,9 +128,25 @@ describe('toolStep', () => {
         );
     });
 
-    it('formats the time only when it is known', () => {
+    it('counts a command that exited nonzero as failed', () => {
+        const toolDisplayData = {
+            type: 'shell',
+            command: 'x',
+            duration: 5,
+            exitCode: 2,
+        } as const;
+        expect(toolStep(tool({ toolDisplayData })).state).toBe('fail');
+    });
+
+    it('times a shell run from its own duration, and no other tool', () => {
+        const toolDisplayData = {
+            type: 'shell',
+            command: 'x',
+            duration: 4200,
+            exitCode: 0,
+        } as const;
+        expect(toolStep(tool({ toolDisplayData })).time).toBe('4.2s');
         expect(toolStep(tool({})).time).toBeNull();
-        expect(toolStep(tool({ toolDurationMs: 412 })).time).toBe('0.4s');
     });
 });
 
@@ -154,6 +171,21 @@ describe('toolOutput', () => {
             })
         );
         expect(lines).toEqual(['line 4', 'line 5', 'line 6', 'line 7', 'line 8']);
+    });
+
+    it('keeps the output of a command that exited nonzero', () => {
+        const lines = toolOutput(
+            tool({
+                toolDisplayData: {
+                    type: 'shell',
+                    command: 'x',
+                    exitCode: 1,
+                    duration: 1,
+                    stdout: 'expected 1, got 2',
+                },
+            })
+        );
+        expect(lines).toEqual(['expected 1, got 2']);
     });
 
     it('shows the error text of any other failed call', () => {

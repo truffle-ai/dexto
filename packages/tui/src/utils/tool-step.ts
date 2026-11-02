@@ -46,7 +46,12 @@ function stepState(message: Message): StepState {
         default:
             if (message.toolOutcome === 'denied') return 'deny';
             if (message.toolOutcome === 'cancelled') return 'stop';
-            return message.isError === true ? 'fail' : 'ok';
+            if (message.isError === true) return 'fail';
+            // A command that exits nonzero still comes back as a successful tool call.
+            return message.toolDisplayData?.type === 'shell' &&
+                message.toolDisplayData.exitCode !== 0
+                ? 'fail'
+                : 'ok';
     }
 }
 
@@ -58,15 +63,9 @@ function stepVerb(toolName: string): string {
     return firstWord.toUpperCase().slice(0, VERB_CELLS);
 }
 
-/** The arguments inside "Name(args) [badge]", the first line of a tool message. */
-function headerArgs(content: string): string {
-    const header = (content.split('\n')[0] ?? '').replace(/ \[MCP[^\]]*\]$/, '');
-    const open = header.indexOf('(');
-    return open > 0 && header.endsWith(')') ? header.slice(open + 1, -1) : '';
-}
-
-function stepTarget(toolName: string, content: string): string {
-    const args = headerArgs(content);
+/** One row's worth of the call's arguments: a multi-line command reads on one line. */
+function stepTarget(toolName: string, toolArgs: string): string {
+    const args = toolArgs.replace(/\s*\n\s*/g, ' ').trim();
     if (toolName.startsWith('mcp--')) {
         const [, server, ...name] = toolName.split('--');
         return [`${server ?? ''}.${name.join('--')}`, args].filter((part) => part !== '').join(' ');
@@ -122,12 +121,13 @@ function stepDetail(message: Message, state: StepState): string | null {
 export function toolStep(message: Message): Step {
     const toolName = message.toolName ?? '';
     const state = stepState(message);
+    const display = message.toolDisplayData;
     return {
         state,
         verb: stepVerb(toolName !== '' ? toolName : message.content),
-        target: stepTarget(toolName, message.content),
+        target: stepTarget(toolName, message.toolArgs ?? ''),
         detail: stepDetail(message, state),
-        time: message.toolDurationMs === undefined ? null : formatDuration(message.toolDurationMs),
+        time: display?.type === 'shell' ? formatDuration(display.duration) : null,
         cloud: false,
     };
 }

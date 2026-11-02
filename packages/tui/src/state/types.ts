@@ -260,10 +260,8 @@ export interface Message {
     isError?: boolean; // True if tool execution failed
     /** The tool's id ("edit_file"), for tool messages. The content holds its display form. */
     toolName?: string;
-    /** When the tool started executing (epoch ms). Set by tool:running, after any approval. */
-    toolStartedAt?: number;
-    /** How long the tool executed, once it finished. */
-    toolDurationMs?: number;
+    /** The call's arguments as its header shows them, without the display name or status line. */
+    toolArgs?: string;
     /** Why a call that never completed ended: the user denied it, or the run was stopped. */
     toolOutcome?: 'denied' | 'cancelled';
     styledType?: StyledMessageType; // Type of styled rendering (if any)

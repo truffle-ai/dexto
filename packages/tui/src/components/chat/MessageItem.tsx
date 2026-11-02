@@ -413,7 +413,6 @@ export const MessageItem = memo(
             prev.message.role === next.message.role &&
             prev.message.toolStatus === next.message.toolStatus &&
             prev.message.toolOutcome === next.message.toolOutcome &&
-            prev.message.toolDurationMs === next.message.toolDurationMs &&
             prev.message.toolResult === next.message.toolResult &&
             prev.message.isStreaming === next.message.isStreaming &&
             prev.message.styledType === next.message.styledType &&

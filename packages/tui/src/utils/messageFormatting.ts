@@ -520,9 +520,11 @@ export function convertHistoryToUIMessages(
 
             // Format args if we have them
             let toolContent = displayName;
+            let toolArgs = '';
             const snapshotArgsText = msg.presentationSnapshot?.header?.argsText;
             if (typeof snapshotArgsText === 'string' && snapshotArgsText.length > 0) {
                 toolContent = `${displayName}(${snapshotArgsText})`;
+                toolArgs = snapshotArgsText;
             }
             if (!snapshotArgsText && toolCall) {
                 try {
@@ -530,6 +532,7 @@ export function convertHistoryToUIMessages(
                     const argsFormatted = formatArgsFallback(args);
                     if (argsFormatted) {
                         toolContent = `${displayName}(${argsFormatted})`;
+                        toolArgs = argsFormatted;
                     }
                 } catch {
                     // Ignore JSON parse errors
@@ -551,6 +554,7 @@ export function convertHistoryToUIMessages(
                 content: toolContent,
                 timestamp,
                 toolName: msg.name,
+                toolArgs,
                 toolStatus: 'finished',
                 toolResult: resultPreview,
                 isError: msg.success === false,
