@@ -22,8 +22,9 @@ export interface DeckActivity {
 /** Highest first: what needs the user, then what the agent is doing. */
 export function deckMode(a: DeckActivity): DeckMode {
     if (a.awaitingUser) return 'wait';
-    if (!a.isProcessing) return a.lastRunFailed ? 'fault' : 'idle';
+    // Before the idle check: Escape clears isProcessing as it sets isCancelling.
     if (a.isCancelling) return 'stop';
+    if (!a.isProcessing) return a.lastRunFailed ? 'fault' : 'idle';
     if (a.steerCount > 0) return 'steer';
     if (a.isThinking) return 'think';
     if (a.toolRunning || a.isCompacting) return 'tool';

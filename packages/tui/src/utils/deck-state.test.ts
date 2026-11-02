@@ -35,7 +35,9 @@ describe('deckMode', () => {
     });
 
     it('shows STOPPED while a cancel lands', () => {
-        expect(deckMode({ ...idle, isProcessing: true, isCancelling: true })).toBe('stop');
+        // Escape sets isCancelling and clears isProcessing together.
+        expect(deckMode({ ...idle, isCancelling: true })).toBe('stop');
+        expect(deckMode({ ...idle, isCancelling: true, lastRunFailed: true })).toBe('stop');
     });
 
     it('shows STEERING while a steer waits for the current step', () => {

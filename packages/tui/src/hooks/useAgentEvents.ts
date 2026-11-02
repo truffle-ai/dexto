@@ -599,6 +599,7 @@ export function useAgentEvents({
                 setUi((prev) => ({
                     ...prev,
                     isProcessing: false,
+                    isCancelling: false,
                     isThinking: false,
                 }));
 

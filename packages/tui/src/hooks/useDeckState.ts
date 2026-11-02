@@ -112,7 +112,12 @@ export function useDeckState(input: DeckStateInput): DeckState {
     const context = useContextStats(agent, sessionId, () => setLlmTick((prev) => prev + 1));
     // Login and logout run in overlays: re-check the account whenever one opens or closes.
     const signedIn = useDextoSignedIn(agent, ui.activeOverlay);
-    const balance = useDextoCreditBalance(agent, sessionId, signedIn);
+    const balance = useDextoCreditBalance(
+        agent,
+        sessionId,
+        signedIn,
+        ui.activeOverlay === 'insufficient-credits'
+    );
     // The balance when the current turn started, so the status line can show what it spent.
     const turnStart = useRef<number | null>(null);
     const wasProcessing = useRef(false);

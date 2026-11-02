@@ -6,15 +6,21 @@ import { useEffect, useState } from 'react';
 import type { TuiAgentBackend } from '../agent-backend.js';
 import { currentSignIn, dextoCreditBalance } from '../host/index.js';
 
-/** The credit balance in USD while `enabled`; null when off or not known. */
+/**
+ * The credit balance in USD while `enabled`; null when off or not known. Refetches when
+ * `billingOverlayOpen` changes, since a top-up in the browser emits no agent event.
+ */
 export function useDextoCreditBalance(
     agent: TuiAgentBackend,
     sessionId: string | null,
-    enabled: boolean
+    enabled: boolean,
+    billingOverlayOpen: boolean
 ): number | null {
     const [balance, setBalance] = useState<number | null>(null);
     useEffect(() => {
         setBalance(null);
+    }, [agent, sessionId, enabled]);
+    useEffect(() => {
         if (!enabled) return;
         let cancelled = false;
         const refresh = () => {
@@ -37,7 +43,7 @@ export function useDextoCreditBalance(
             cancelled = true;
             controller.abort();
         };
-    }, [agent, sessionId, enabled]);
+    }, [agent, sessionId, enabled, billingOverlayOpen]);
     return balance;
 }
 
