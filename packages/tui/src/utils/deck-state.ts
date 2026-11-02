@@ -56,14 +56,18 @@ export function deckReadout(mode: DeckMode, r: DeckReadoutInput): string | null 
         case 'wait':
             return `paused ${r.elapsed}`;
         case 'steer':
-            return `${r.steerCount} steer${r.steerCount === 1 ? '' : 's'} queued`;
+            return join([
+                r.permission,
+                `${r.steerCount} steer${r.steerCount === 1 ? '' : 's'} queued`,
+            ]);
         case 'stop':
             return 'stopping';
         case 'think':
         case 'stream':
         case 'tool':
         case 'cloud':
-            return join([r.compacting ? 'compacting' : r.tokens, r.elapsed]);
+            // Shift+Tab still changes the policy mid-run, and the next tool call follows it.
+            return join([r.permission, r.compacting ? 'compacting' : r.tokens, r.elapsed]);
         default:
             // Most important first, since a narrow readout truncates from the end.
             return join([

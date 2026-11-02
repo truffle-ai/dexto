@@ -289,6 +289,8 @@ export function StatusBlock({
 
 /** How the compact status row shares its width. */
 export interface StatusRowFit {
+    /** Columns for the notice, without its gap; 0 hides it. */
+    notice: number;
     /** Columns for model and context; 0 hides them. */
     model: number;
     /** Columns for the lane. */
@@ -296,16 +298,24 @@ export interface StatusRowFit {
 }
 
 /**
- * Where the agent runs and the balance always fit, then the notice; model and context take
- * what is left and truncate first, and disappear below four columns.
+ * Where the agent runs and the balance always fit, then the notice, which truncates to what
+ * they leave; model and context take the rest and truncate first. Notice and model disappear
+ * below four columns. `noticeWidth` is the notice's natural width, without its gap.
  */
 export function statusRowFit(status: DeckStatus, width: number, noticeWidth: number): StatusRowFit {
     const context = contextText(status, false);
     const natural = cells(status.model) + (context === null ? 0 : cells(context) + 2);
     const laneMin = cells(whereText(status.where)) + cells(creditsText(status.credits));
-    const room = width - noticeWidth - laneMin - 2;
+    const noticeRoom = Math.min(noticeWidth, width - laneMin - 2);
+    const notice = noticeRoom >= 4 ? noticeRoom : 0;
+    const noticeCells = notice > 0 ? notice + 2 : 0;
+    const room = width - noticeCells - laneMin - 2;
     const model = room >= 4 ? Math.min(natural, room) : 0;
-    return { model, lane: Math.max(0, width - noticeWidth - (model > 0 ? model + 2 : 0)) };
+    return {
+        notice,
+        model,
+        lane: Math.max(0, width - noticeCells - (model > 0 ? model + 2 : 0)),
+    };
 }
 
 /**
@@ -323,13 +333,15 @@ export function StatusRow({
 }) {
     const { glyphs } = useCaps();
     const context = contextText(status, false);
-    const noticeText = notice === null ? '' : `${glyphText(notice.text, glyphs)}  `;
+    const noticeText = notice === null ? '' : glyphText(notice.text, glyphs);
     const fit = statusRowFit(status, width, cells(noticeText));
     return (
         <Box width={width}>
-            {notice !== null && (
-                <Box flexShrink={0}>
-                    <Text color={notice.color}>{noticeText}</Text>
+            {notice !== null && fit.notice > 0 && (
+                <Box width={fit.notice} marginRight={2} flexShrink={0}>
+                    <Text color={notice.color} wrap="truncate-end">
+                        {noticeText}
+                    </Text>
                 </Box>
             )}
             {fit.model > 0 && (

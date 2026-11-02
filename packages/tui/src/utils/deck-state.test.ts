@@ -80,6 +80,17 @@ describe('deckReadout', () => {
         expect(deckReadout('steer', { ...base, steerCount: 2 })).toBe('2 steers queued');
     });
 
+    it('leads with the permission mode during a run, since Shift+Tab still changes it', () => {
+        const auto = { ...base, permission: 'auto-approve' };
+        expect(deckReadout('stream', auto)).toBe('auto-approve · 1.9K tokens · 12s');
+        expect(deckReadout('tool', { ...auto, compacting: true })).toBe(
+            'auto-approve · compacting · 12s'
+        );
+        expect(deckReadout('steer', { ...auto, steerCount: 1 })).toBe(
+            'auto-approve · 1 steer queued'
+        );
+    });
+
     it('shows how long it has waited on you', () => {
         expect(deckReadout('wait', base)).toBe('paused 12s');
     });

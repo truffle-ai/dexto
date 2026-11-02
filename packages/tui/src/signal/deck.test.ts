@@ -122,15 +122,24 @@ describe('statusRowFit', () => {
 
     it('reserves the lane and lets the model truncate', () => {
         // lane minimum: "◇ local" 7 + " · ◆ $12.84" 11 = 18
-        expect(statusRowFit(status, 42, 0)).toEqual({ model: 22, lane: 18 });
+        expect(statusRowFit(status, 42, 0)).toEqual({ notice: 0, model: 22, lane: 18 });
     });
 
     it('hides the model rather than show a stub', () => {
-        expect(statusRowFit(status, 42, 19)).toEqual({ model: 0, lane: 23 });
+        expect(statusRowFit(status, 42, 17)).toEqual({ notice: 17, model: 0, lane: 23 });
+    });
+
+    it('truncates a long notice rather than the lane', () => {
+        // "auto-approve · r:medium" is 23 cells, and only 22 are left beside the lane.
+        expect(statusRowFit(status, 42, 23)).toEqual({ notice: 22, model: 0, lane: 18 });
+    });
+
+    it('hides the notice when a stub is all that fits', () => {
+        expect(statusRowFit(status, 22, 12)).toEqual({ notice: 0, model: 0, lane: 22 });
     });
 
     it('gives the lane whatever the model leaves', () => {
-        expect(statusRowFit(state.status, 120, 0)).toEqual({ model: 21, lane: 97 });
+        expect(statusRowFit(state.status, 120, 0)).toEqual({ notice: 0, model: 21, lane: 97 });
     });
 });
 
@@ -195,6 +204,12 @@ describe('Deck', () => {
         expect(row).toMatch(/^auto-approve\s+46k\s+◇ local · ◆ \$12\.84$/);
         const plain = (await frame(deck({ ...long, readout: null }), 42)).split('\n')[3] ?? '';
         expect(plain).toMatch(/^dexto\/anthropic.*…\s+46k\s+◇ local · ◆ \$12\.84$/);
+    });
+
+    it('keeps the lane whole beside a notice too long to fit', async () => {
+        const long = { ...state, mode: 'idle' as const, readout: 'auto-approve · r:medium' };
+        const row = (await frame(deck(long), 42)).split('\n')[3] ?? '';
+        expect(row).toMatch(/^auto-approve · r:medi…\s+◇ local · ◆ \$12\.84$/);
     });
 
     it('keeps context use visible beside a long model id', async () => {
