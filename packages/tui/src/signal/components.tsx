@@ -4,6 +4,7 @@
  */
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Box, Text, measureElement, useStdout, type DOMElement } from 'ink';
+import { useAnimationTick } from '../hooks/useAnimationTick.js';
 import { useCaps } from './caps.js';
 import { glyphText } from './glyphs.js';
 import { cutLines } from './cut.js';
@@ -12,6 +13,7 @@ import { deckLayout } from './deck-layout.js';
 import { StatusBlock, StatusRow, TraceView } from './deck-parts.js';
 import { traceKind } from './trace.js';
 import { useTrace } from './use-trace.js';
+import { pickWordmark, pulseInk, wordmarkTier } from './wordmark.js';
 
 // ---------------------------------------------------------------- wordmark
 
@@ -22,16 +24,47 @@ export interface WordmarkProps {
     pulse?: boolean;
 }
 
-/** The Dexto wordmark: the mark in teal, the word in the reading colour. */
-export function Wordmark({ rows }: WordmarkProps) {
+const WORDMARK_INK: Readonly<Record<string, Role>> = { m: 'teal', f: 'tealDim', w: 'hi' };
+/** Ticks of the shared 80 ms animation clock per pulse cycle (1.2 s). */
+const PULSE_CYCLE_TICKS = 15;
+
+/** Cells of one row grouped into runs of the same ink, so each run is one <Text>. */
+function inkRuns(text: string, ink: string): { ink: string; text: string }[] {
+    const glyphs = Array.from(text);
+    const runs: { ink: string; text: string }[] = [];
+    glyphs.forEach((glyph, c) => {
+        const letter = ink[c] ?? ' ';
+        const last = runs[runs.length - 1];
+        if (last !== undefined && last.ink === letter) last.text += glyph;
+        else runs.push({ ink: letter, text: glyph });
+    });
+    return runs;
+}
+
+/** The Dexto logo: the mark in teal (thin arcs dimmer), the word in the reading colour. */
+export function Wordmark({ rows, pulse = false }: WordmarkProps) {
     const tone = useTone();
-    const { glyphs } = useCaps();
+    const caps = useCaps();
+    const art = pickWordmark(wordmarkTier(caps), Math.max(1, rows));
+    const animate = pulse && caps.motion === 'full';
+    const tick = useAnimationTick({ enabled: animate, intervalMs: 80 });
+    const ink = animate ? pulseInk(art, tick / PULSE_CYCLE_TICKS) : art.ink;
     return (
-        <Box flexDirection="column" height={Math.max(1, rows)} flexShrink={0}>
-            <Text bold>
-                <Text color={tone('teal')}>{glyphText('◢ ', glyphs)}</Text>
-                <Text color={tone('hi')}>dexto</Text>
-            </Text>
+        <Box flexDirection="column" flexShrink={0}>
+            {art.text.map((line, r) => (
+                <Text key={r} wrap="truncate-end">
+                    {inkRuns(line, ink[r] ?? '').map((run, i) => {
+                        const role = WORDMARK_INK[run.ink];
+                        return role === undefined ? (
+                            run.text
+                        ) : (
+                            <Text key={i} color={tone(role)}>
+                                {run.text}
+                            </Text>
+                        );
+                    })}
+                </Text>
+            ))}
         </Box>
     );
 }
@@ -144,6 +177,7 @@ export interface DeckProps {
  */
 export function Deck({ state, gate, children }: DeckProps) {
     const tone = useTone();
+    const caps = useCaps();
     const { stdout } = useStdout();
     // Re-render on resize ourselves rather than relying on a parent to.
     const [columns, setColumns] = useState(stdout.columns || 80);
@@ -168,9 +202,8 @@ export function Deck({ state, gate, children }: DeckProps) {
         const { width } = measureElement(traceRef.current);
         if (width !== measured) setMeasured(width);
     });
-    // 39: the 3-row wordmark's width (quadrant and ascii), plus its margins.
-    const estimate =
-        columns - (bare ? 0 : 42) - (layout.blockWidth > 0 ? layout.blockWidth + 4 : 0);
+    const wordmarkCols = bare ? 0 : pickWordmark(wordmarkTier(caps), 3).cols + 3;
+    const estimate = columns - wordmarkCols - (layout.blockWidth > 0 ? layout.blockWidth + 4 : 0);
     const traceWidth = measured ?? Math.max(4, estimate);
     const history = useTrace(kind, traceWidth);
 
