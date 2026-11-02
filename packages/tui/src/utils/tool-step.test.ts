@@ -91,7 +91,7 @@ describe('toolStep', () => {
     it('sums up a search by hits and files', () => {
         const match = { line: 1, content: 'x' };
         const toolDisplayData = {
-            type: 'search',
+            type: 'search' as const,
             pattern: 'x',
             matches: [
                 { ...match, file: 'a' },
@@ -100,7 +100,7 @@ describe('toolStep', () => {
             ],
             totalMatches: 3,
             truncated: false,
-        } as const;
+        };
         expect(toolStep(tool({ toolDisplayData })).detail).toBe('3 hits · 2 files');
     });
 
