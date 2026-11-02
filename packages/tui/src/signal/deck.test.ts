@@ -8,22 +8,25 @@ import { Deck, type DeckState } from './components.js';
 import { deckLayout, formatTokens } from './deck-layout.js';
 import { laneParts, statusRowFit } from './deck-parts.js';
 
-async function frame(element: ReactElement, columns: number): Promise<string> {
+/** A stdout that records each write as it happens. */
+function recordingStdout(columns: number) {
+    const writes: string[] = [];
     const stdout = Object.assign(new PassThrough(), { columns, rows: 40, isTTY: false });
-    let last = '';
-    stdout.on('data', (chunk) => {
-        last = String(chunk);
-    });
-    const view = render(element, {
-        stdout: stdout as unknown as NodeJS.WriteStream,
-        debug: true,
-        patchConsole: false,
-        exitOnCtrlC: false,
-    });
+    stdout.write = ((chunk: unknown) => {
+        writes.push(String(chunk));
+        return true;
+    }) as typeof stdout.write;
+    return { stdout: stdout as unknown as NodeJS.WriteStream, writes };
+}
+
+async function frame(element: ReactElement, columns: number): Promise<string> {
+    const { stdout, writes } = recordingStdout(columns);
+    const view = render(element, { stdout, debug: true, patchConsole: false, exitOnCtrlC: false });
     // Let the trace measure itself and draw at its real width.
     await new Promise((resolve) => setTimeout(resolve, 20));
     view.unmount();
-    stdout.destroy();
+    // Debug mode writes the whole frame each time; in CI, unmount adds a lone newline.
+    const last = writes.filter((w) => w.trim() !== '').at(-1) ?? '';
     return stripAnsi(last).replace(/\n+$/, '');
 }
 
@@ -245,23 +248,18 @@ describe('Deck trace clock', () => {
     afterEach(() => setCaps(saved));
 
     async function framesOver(s: DeckState, ms: number): Promise<number> {
-        const stdout = Object.assign(new PassThrough(), { columns: 120, rows: 40, isTTY: false });
-        let frames = 0;
-        stdout.on('data', () => {
-            frames++;
-        });
+        const { stdout, writes } = recordingStdout(120);
         const view = render(deck(s), {
-            stdout: stdout as unknown as NodeJS.WriteStream,
+            stdout,
             debug: true,
             patchConsole: false,
             exitOnCtrlC: false,
         });
         await new Promise((resolve) => setTimeout(resolve, 50));
-        const settled = frames;
+        const settled = writes.length;
         await new Promise((resolve) => setTimeout(resolve, ms));
-        const written = frames - settled;
+        const written = writes.length - settled;
         view.unmount();
-        stdout.destroy();
         return written;
     }
 
