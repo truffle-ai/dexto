@@ -4,10 +4,12 @@
  */
 import type { ReactNode } from 'react';
 import { Box, Text, useStdout } from 'ink';
+import { useAnimationTick } from '../hooks/useAnimationTick.js';
 import { useCaps } from './caps.js';
 import { glyphText } from './glyphs.js';
 import { cutLines } from './cut.js';
 import { useTone, type Role } from './tone.js';
+import { pickWordmark, pulseInk, wordmarkTier } from './wordmark.js';
 
 // ---------------------------------------------------------------- wordmark
 
@@ -18,16 +20,47 @@ export interface WordmarkProps {
     pulse?: boolean;
 }
 
-/** The Dexto wordmark: the mark in teal, the word in the reading colour. */
-export function Wordmark({ rows }: WordmarkProps) {
+const WORDMARK_INK: Readonly<Record<string, Role>> = { m: 'teal', f: 'tealDim', w: 'hi' };
+/** Ticks of the shared 80 ms animation clock per pulse cycle (1.2 s). */
+const PULSE_CYCLE_TICKS = 15;
+
+/** Cells of one row grouped into runs of the same ink, so each run is one <Text>. */
+function inkRuns(text: string, ink: string): { ink: string; text: string }[] {
+    const glyphs = Array.from(text);
+    const runs: { ink: string; text: string }[] = [];
+    glyphs.forEach((glyph, c) => {
+        const letter = ink[c] ?? ' ';
+        const last = runs[runs.length - 1];
+        if (last !== undefined && last.ink === letter) last.text += glyph;
+        else runs.push({ ink: letter, text: glyph });
+    });
+    return runs;
+}
+
+/** The Dexto logo: the mark in teal (thin arcs dimmer), the word in the reading colour. */
+export function Wordmark({ rows, pulse = false }: WordmarkProps) {
     const tone = useTone();
-    const { glyphs } = useCaps();
+    const caps = useCaps();
+    const art = pickWordmark(wordmarkTier(caps), Math.max(1, rows));
+    const animate = pulse && caps.motion === 'full';
+    const tick = useAnimationTick({ enabled: animate, intervalMs: 80 });
+    const ink = animate ? pulseInk(art, tick / PULSE_CYCLE_TICKS) : art.ink;
     return (
-        <Box flexDirection="column" height={Math.max(1, rows)} flexShrink={0}>
-            <Text bold>
-                <Text color={tone('teal')}>{glyphText('◢ ', glyphs)}</Text>
-                <Text color={tone('hi')}>dexto</Text>
-            </Text>
+        <Box flexDirection="column" flexShrink={0}>
+            {art.text.map((line, r) => (
+                <Text key={r} wrap="truncate-end">
+                    {inkRuns(line, ink[r] ?? '').map((run, i) => {
+                        const role = WORDMARK_INK[run.ink];
+                        return role === undefined ? (
+                            run.text
+                        ) : (
+                            <Text key={i} color={tone(role)}>
+                                {run.text}
+                            </Text>
+                        );
+                    })}
+                </Text>
+            ))}
         </Box>
     );
 }

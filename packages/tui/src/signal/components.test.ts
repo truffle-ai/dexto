@@ -5,6 +5,7 @@ import stripAnsi from 'strip-ansi';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { getCaps, setCaps, type Caps } from './caps.js';
 import { ActorRow, CutText, Deck, GateFrame, StepRow, Wordmark, type Step } from './components.js';
+import { pickWordmark } from './wordmark.js';
 
 function frame(element: ReactElement, columns: number): string {
     const stdout = Object.assign(new PassThrough(), { columns, rows: 40, isTTY: false });
@@ -36,12 +37,19 @@ describe('Signal kit parts', () => {
     let saved: Caps;
     beforeEach(() => {
         saved = getCaps();
-        setCaps({ ...saved, color: 'none', glyphs: 'unicode' });
+        setCaps({ ...saved, color: 'none', glyphs: 'unicode', logo: 'quadrant' });
     });
     afterEach(() => setCaps(saved));
 
-    it('Wordmark names dexto', () => {
-        expect(frame(createElement(Wordmark, { rows: 3 }), 80)).toContain('dexto');
+    it('Wordmark draws the logo art that fits the rows', () => {
+        const out = frame(createElement(Wordmark, { rows: 3 }), 80);
+        for (const line of pickWordmark('quadrant', 3).text) expect(out).toContain(line.trimEnd());
+    });
+
+    it('Wordmark draws the ASCII art on terminals without UTF-8', () => {
+        setCaps({ ...getCaps(), glyphs: 'ascii' });
+        const out = frame(createElement(Wordmark, { rows: 4 }), 80);
+        for (const line of pickWordmark('ascii', 4).text) expect(out).toContain(line.trimEnd());
     });
 
     it('CutText draws three rows of half blocks, or the plain word in ASCII', () => {
