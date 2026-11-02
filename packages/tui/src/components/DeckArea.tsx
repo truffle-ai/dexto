@@ -17,7 +17,11 @@ export interface DeckAreaProps extends DeckStateInput {
 export function DeckArea({ children, ...input }: DeckAreaProps) {
     const state = useDeckState(input);
     return (
-        <Deck state={state} collapsed={deckCollapsed(input.ui.activeOverlay)}>
+        <Deck
+            state={state}
+            collapsed={deckCollapsed(input.ui.activeOverlay)}
+            paused={input.ui.copyModeEnabled}
+        >
             {children}
         </Deck>
     );

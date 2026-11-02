@@ -20,7 +20,7 @@ function windowIsQuiet(history: readonly TraceSample[], width: number): boolean 
     return true;
 }
 
-export function useTrace(kind: TraceKind, width: number): TraceSample[] {
+export function useTrace(kind: TraceKind, width: number, paused: boolean): TraceSample[] {
     const { motion } = useCaps();
     const [history, setHistory] = useState<TraceSample[]>([]);
     const tick = useRef(0);
@@ -30,7 +30,7 @@ export function useTrace(kind: TraceKind, width: number): TraceSample[] {
     maxRef.current = Math.max(1, width);
 
     const settled = isQuiet(kind) && windowIsQuiet(history, width);
-    const running = motion === 'full' && !settled;
+    const running = motion === 'full' && !settled && !paused;
 
     useEffect(() => {
         if (!running) return;

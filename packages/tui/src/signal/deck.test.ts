@@ -47,13 +47,13 @@ const state: DeckState = {
     },
 };
 
-function deck(s: DeckState = state, gate: ReactElement | null = null) {
+function deck(s: DeckState = state, gate: ReactElement | null = null, paused = false) {
     const children = createElement(Text, null, '› ask');
     return createElement(
         Deck,
         gate === null
-            ? { state: s, collapsed: false, children }
-            : { state: s, gate, collapsed: false, children }
+            ? { state: s, collapsed: false, paused, children }
+            : { state: s, gate, collapsed: false, paused, children }
     );
 }
 
@@ -218,6 +218,7 @@ describe('Deck', () => {
         const collapsed = createElement(Deck, {
             state,
             collapsed: true,
+            paused: false,
             children: createElement(Text, null, 'INPUT'),
         });
         expect(await frame(collapsed, 120)).toBe('INPUT');
@@ -303,9 +304,9 @@ describe('Deck trace clock', () => {
     });
     afterEach(() => setCaps(saved));
 
-    async function framesOver(s: DeckState, ms: number): Promise<number> {
+    async function framesOver(s: DeckState, ms: number, paused = false): Promise<number> {
         const { stdout, writes } = recordingStdout(120);
-        const view = render(deck(s), {
+        const view = render(deck(s, null, paused), {
             stdout,
             debug: true,
             patchConsole: false,
@@ -321,6 +322,10 @@ describe('Deck trace clock', () => {
 
     it('scrolls while the agent works', async () => {
         expect(await framesOver(state, 350)).toBeGreaterThanOrEqual(2);
+    });
+
+    it('holds trace and wordmark still while paused for copy mode', async () => {
+        expect(await framesOver({ ...state, mode: 'think' }, 350, true)).toBe(0);
     });
 
     it('writes nothing while the session sits idle', async () => {

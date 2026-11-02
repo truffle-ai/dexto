@@ -206,8 +206,8 @@ describe('keepsTurnSpend', () => {
 });
 
 describe('nextTurnBaseline', () => {
-    const before = { sessionId: 's1', isProcessing: false, balance: 12.84 };
-    const now = { sessionId: 's1', signedIn: true, isProcessing: false, balance: 12.5 };
+    const before = { sessionId: 's1', account: 'ada', isProcessing: false, balance: 12.84 };
+    const now = { sessionId: 's1', account: 'ada', isProcessing: false, balance: 12.5 };
 
     it('takes the balance when a turn starts and holds it through the turn', () => {
         const started = nextTurnBaseline(before, { ...now, isProcessing: true });
@@ -217,9 +217,14 @@ describe('nextTurnBaseline', () => {
     });
 
     it('keeps the baseline while the first turn creates its session', () => {
-        const prev = { sessionId: null, isProcessing: true, balance: 12.84 };
+        const prev = { sessionId: null, account: 'ada', isProcessing: true, balance: 12.84 };
         const next = nextTurnBaseline(prev, { ...now, isProcessing: true });
-        expect(next).toEqual({ sessionId: 's1', isProcessing: true, balance: 12.84 });
+        expect(next).toEqual({
+            sessionId: 's1',
+            account: 'ada',
+            isProcessing: true,
+            balance: 12.84,
+        });
     });
 
     it('clears the baseline on a session switch', () => {
@@ -227,7 +232,11 @@ describe('nextTurnBaseline', () => {
     });
 
     it('clears the baseline on sign-out, so it never carries to another account', () => {
-        expect(nextTurnBaseline(before, { ...now, signedIn: false }).balance).toBeNull();
+        expect(nextTurnBaseline(before, { ...now, account: null }).balance).toBeNull();
+    });
+
+    it('clears the baseline when another account signs in without a sign-out', () => {
+        expect(nextTurnBaseline(before, { ...now, account: 'grace' }).balance).toBeNull();
     });
 });
 

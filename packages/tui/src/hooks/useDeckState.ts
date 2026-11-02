@@ -20,7 +20,7 @@ import {
     type TurnBaseline,
 } from '../utils/deck-state.js';
 import { useContextStats } from './useContextStats.js';
-import { useDextoCreditBalance, useDextoSignedIn } from './useDextoCredits.js';
+import { useDextoAccount, useDextoCreditBalance } from './useDextoCredits.js';
 import { useElapsedTime } from './useElapsedTime.js';
 import { useGitDirtyFiles } from './useGitDirtyFiles.js';
 import { useTokenCounter } from './useTokenCounter.js';
@@ -113,22 +113,23 @@ export function useDeckState(input: DeckStateInput): DeckState {
 
     const context = useContextStats(agent, sessionId, () => setLlmTick((prev) => prev + 1));
     // Login and logout run in overlays: re-check the account whenever one opens or closes.
-    const signedIn = useDextoSignedIn(agent, ui.activeOverlay);
+    const account = useDextoAccount(agent, ui.activeOverlay);
     const balance = useDextoCreditBalance(
         agent,
         sessionId,
-        signedIn,
+        account,
         ui.activeOverlay === 'insufficient-credits'
     );
     // The balance when the current turn started, so the status line can show what it spent.
     const turnBaseline = useRef<TurnBaseline>({
         sessionId,
+        account,
         isProcessing: false,
         balance: null,
     });
     turnBaseline.current = nextTurnBaseline(turnBaseline.current, {
         sessionId,
-        signedIn,
+        account,
         isProcessing: ui.isProcessing,
         balance,
     });
@@ -145,7 +146,7 @@ export function useDeckState(input: DeckStateInput): DeckState {
             branch: input.branch,
             dirtyFiles,
             credits: deckCredits({
-                signedIn,
+                signedIn: account !== null,
                 balance,
                 turnStartBalance: turnBaseline.current.balance,
             }),

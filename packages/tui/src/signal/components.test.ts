@@ -120,6 +120,7 @@ describe('Signal kit parts', () => {
         const out = frame(
             createElement(Deck, {
                 collapsed: false,
+                paused: false,
                 state: {
                     mode: 'wait',
                     readout: 'paused 0:14',

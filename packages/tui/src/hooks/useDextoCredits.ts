@@ -7,21 +7,22 @@ import type { TuiAgentBackend } from '../agent-backend.js';
 import { currentSignIn, dextoCreditBalance } from '../host/index.js';
 
 /**
- * The credit balance in USD while `enabled`; null when off or not known. Refetches when
- * `billingOverlayOpen` changes, since a top-up in the browser emits no agent event.
+ * The credit balance in USD of `account`; null when `account` is null or the balance is not
+ * known. Refetches when `billingOverlayOpen` changes, since a top-up in the browser emits no
+ * agent event.
  */
 export function useDextoCreditBalance(
     agent: TuiAgentBackend,
     sessionId: string | null,
-    enabled: boolean,
+    account: string | null,
     billingOverlayOpen: boolean
 ): number | null {
     const [balance, setBalance] = useState<number | null>(null);
     useEffect(() => {
         setBalance(null);
-    }, [agent, sessionId, enabled]);
+    }, [agent, sessionId, account]);
     useEffect(() => {
-        if (!enabled) return;
+        if (account === null) return;
         let cancelled = false;
         const refresh = () => {
             dextoCreditBalance()
@@ -43,25 +44,26 @@ export function useDextoCreditBalance(
             cancelled = true;
             controller.abort();
         };
-    }, [agent, sessionId, enabled, billingOverlayOpen]);
+    }, [agent, sessionId, account, billingOverlayOpen]);
     return balance;
 }
 
 /**
- * Whether the user is signed in to Dexto. Checked at start, after each run, and whenever
+ * Who is signed in to Dexto, or null. Compared by label, so replacing one account with another
+ * shows up even though the user stays signed in. Checked at start, after each run, and whenever
  * `recheckKey` changes (the deck passes the active overlay, since /login and /logout are overlays).
  */
-export function useDextoSignedIn(agent: TuiAgentBackend, recheckKey: string): boolean {
-    const [signedIn, setSignedIn] = useState(false);
+export function useDextoAccount(agent: TuiAgentBackend, recheckKey: string): string | null {
+    const [account, setAccount] = useState<string | null>(null);
     useEffect(() => {
         let cancelled = false;
         const check = () => {
             currentSignIn()
                 .then((who) => {
-                    if (!cancelled) setSignedIn(who !== null);
+                    if (!cancelled) setAccount(who);
                 })
                 .catch(() => {
-                    if (!cancelled) setSignedIn(false);
+                    if (!cancelled) setAccount(null);
                 });
         };
         check();
@@ -72,5 +74,5 @@ export function useDextoSignedIn(agent: TuiAgentBackend, recheckKey: string): bo
             controller.abort();
         };
     }, [agent, recheckKey]);
-    return signedIn;
+    return account;
 }

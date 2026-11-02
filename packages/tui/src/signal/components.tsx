@@ -169,6 +169,8 @@ export interface DeckProps {
     gate?: ReactNode;
     /** Draw only the gate and input, for overlays that budget for the whole screen. */
     collapsed: boolean;
+    /** Hold the animations still, so text in the live region can be selected. */
+    paused: boolean;
     /** The input row. */
     children: ReactNode;
 }
@@ -177,7 +179,7 @@ export interface DeckProps {
  * The slim band under the transcript: wordmark, live trace, status; then gate and input.
  * It steps down with width (see `deckLayout`): 4 rows wide, 5 in the middle, 4 when bare.
  */
-export function Deck({ state, gate, collapsed, children }: DeckProps) {
+export function Deck({ state, gate, collapsed, paused, children }: DeckProps) {
     const tone = useTone();
     const caps = useCaps();
     const { stdout } = useStdout();
@@ -210,14 +212,14 @@ export function Deck({ state, gate, collapsed, children }: DeckProps) {
         (bare ? 0 : wordmarkColumns) -
         (layout.blockWidth > 0 ? layout.blockWidth + 4 : 0);
     const traceWidth = measured ?? Math.max(4, estimate);
-    const history = useTrace(kind, traceWidth);
+    const history = useTrace(kind, traceWidth, paused);
 
     return (
         <Box flexDirection="column" flexShrink={0}>
             <Box height={collapsed ? 0 : layout.bandRows} flexShrink={0} overflow="hidden">
                 {!bare && (
                     <Box marginLeft={1} marginRight={2} flexShrink={0}>
-                        <Wordmark rows={3} pulse={state.mode === 'think'} />
+                        <Wordmark rows={3} pulse={state.mode === 'think' && !paused} />
                     </Box>
                 )}
                 <Box

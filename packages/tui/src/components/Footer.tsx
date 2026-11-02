@@ -72,7 +72,12 @@ export function Footer({
 
     // Dexto models spend the organization's credits: show what's left, refreshed after each reply.
     // The footer remounts around overlays, so it refetches after billing recovery anyway.
-    const creditBalance = useDextoCreditBalance(agent, sessionId, provider === 'dexto-nova', false);
+    const creditBalance = useDextoCreditBalance(
+        agent,
+        sessionId,
+        provider === 'dexto-nova' ? provider : null,
+        false
+    );
 
     // Shell mode changes the path color to yellow as indicator
     const pathColor = isShellMode ? tone('amberDim') : tone('fg');

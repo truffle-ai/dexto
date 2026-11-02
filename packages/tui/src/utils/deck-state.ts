@@ -114,20 +114,19 @@ export function keepsTurnSpend(previous: string | null, next: string | null): bo
 /** The balance a turn's spend is measured from, and what it was worked out from. */
 export interface TurnBaseline {
     sessionId: string | null;
+    /** Who is signed in; null when no one is. */
+    account: string | null;
     isProcessing: boolean;
     balance: number | null;
 }
 
-/** Cleared by a session switch or sign-out; set when a turn starts. */
-export function nextTurnBaseline(
-    prev: TurnBaseline,
-    now: TurnBaseline & { signedIn: boolean }
-): TurnBaseline {
+/** Cleared by a session switch or an account change; set when a turn starts. */
+export function nextTurnBaseline(prev: TurnBaseline, now: TurnBaseline): TurnBaseline {
     const switched =
         prev.sessionId !== now.sessionId && !keepsTurnSpend(prev.sessionId, now.sessionId);
-    let balance = switched || !now.signedIn ? null : prev.balance;
+    let balance = switched || prev.account !== now.account ? null : prev.balance;
     if (now.isProcessing && !prev.isProcessing) balance = now.balance;
-    return { sessionId: now.sessionId, isProcessing: now.isProcessing, balance };
+    return { ...now, balance };
 }
 
 /** Focused overlays size themselves to the screen, so the deck's rows would overflow it. */
