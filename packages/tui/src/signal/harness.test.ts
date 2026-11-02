@@ -41,6 +41,15 @@ describe('renderFrame', () => {
         );
     });
 
+    it('returns an empty frame when an update on mount clears the screen', () => {
+        function Clears() {
+            const [shown, setShown] = useState(true);
+            useLayoutEffect(() => setShown(false), []);
+            return shown ? createElement(Text, null, 'first') : null;
+        }
+        expect(renderFrame(createElement(Clears), { columns: 40, terminal: 'no-color' })).toBe('');
+    });
+
     it('puts the process-wide caps and chalk level back, even when rendering throws', () => {
         const caps = getCaps();
         const level = chalk.level;
