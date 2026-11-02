@@ -9,6 +9,10 @@
         ".": {
             "types": "./dist/index.d.ts",
             "import": "./dist/index.js"
+        },
+        "./tool-step": {
+            "types": "./dist/utils/tool-step.d.ts",
+            "import": "./dist/utils/tool-step.js"
         }
     },
     "files": [
