@@ -46,7 +46,7 @@ function stepState(message: Message): StepState {
         default:
             if (message.toolOutcome === 'denied') return 'deny';
             if (message.toolOutcome === 'cancelled') return 'stop';
-            if (message.isError === true) return 'fail';
+            if (message.isError === true || message.toolOutcome === 'failed') return 'fail';
             // A command that exits nonzero still comes back as a successful tool call.
             return message.toolDisplayData?.type === 'shell' &&
                 message.toolDisplayData.exitCode !== 0
@@ -96,7 +96,9 @@ function displayDetail(display: ToolDisplayData): string | null {
         }
         case 'search': {
             const files = new Set(display.matches.map((match) => match.file)).size;
-            return `${plural(display.totalMatches, 'hit')} · ${plural(files, 'file')}`;
+            // A capped search only knows a lower bound.
+            const more = display.truncated ? '+' : '';
+            return `${display.totalMatches}${more} hit${display.totalMatches === 1 && !more ? '' : 's'} · ${files}${more} file${files === 1 && !more ? '' : 's'}`;
         }
         case 'file': {
             const lines =
@@ -118,6 +120,25 @@ function stepDetail(message: Message, state: StepState): string | null {
     return message.toolDisplayData === undefined ? null : displayDetail(message.toolDisplayData);
 }
 
+/**
+ * A background command's failure, read back by `bash_output`. Reading it succeeds as a tool call,
+ * so its outcome is only in the result.
+ */
+export function backgroundFailure(toolName: string, rawResult: unknown): Partial<Message> {
+    if (toolName !== 'bash_output' || typeof rawResult !== 'object' || rawResult === null) {
+        return {};
+    }
+    const { status, stderr, stdout, exit_code: exitCode } = rawResult as Record<string, unknown>;
+    if (status !== 'failed') return {};
+    const output = [stderr, stdout].find(
+        (text): text is string => typeof text === 'string' && text.trim().length > 0
+    );
+    return {
+        toolOutcome: 'failed',
+        toolFailureText: output ?? `exit ${String(exitCode ?? 'unknown')}`,
+    };
+}
+
 export function toolStep(message: Message): Step {
     const toolName = message.toolName ?? '';
     const state = stepState(message);
@@ -137,9 +158,11 @@ export function toolOutput(message: Message): string[] {
     if (stepState(message) !== 'fail') return [];
     const display = message.toolDisplayData;
     const text =
-        display?.type === 'shell'
-            ? display.stderr?.trim() || display.stdout?.trim() || ''
-            : (message.toolResult ?? '');
+        message.toolFailureText !== undefined
+            ? message.toolFailureText
+            : display?.type === 'shell'
+              ? display.stderr?.trim() || display.stdout?.trim() || ''
+              : (message.toolResult ?? '');
     return text
         .split('\n')
         .filter((line) => line.trim().length > 0)

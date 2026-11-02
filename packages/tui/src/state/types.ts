@@ -262,8 +262,13 @@ export interface Message {
     toolName?: string;
     /** The call's arguments as its header shows them, without the display name or status line. */
     toolArgs?: string;
-    /** Why a call that never completed ended: the user denied it, or the run was stopped. */
-    toolOutcome?: 'denied' | 'cancelled';
+    /**
+     * How a call ended when isError doesn't say: the user denied it, the run was stopped, or a
+     * background command it read back had failed.
+     */
+    toolOutcome?: 'denied' | 'cancelled' | 'failed';
+    /** Why that background command failed. */
+    toolFailureText?: string;
     styledType?: StyledMessageType; // Type of styled rendering (if any)
     styledData?: StyledData; // Structured data for styled rendering
     /** True for split messages that continue a previous message (no role indicator) */

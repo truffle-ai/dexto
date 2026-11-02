@@ -28,6 +28,7 @@ import type { Message, UIState, ToolStatus } from '../state/types.js';
 import type { ApprovalRequest } from '../components/ApprovalPrompt.js';
 import { generateMessageId } from '../utils/idGenerator.js';
 import { checkForSplit } from '../utils/streamSplitter.js';
+import { backgroundFailure } from '../utils/tool-step.js';
 import { formatToolHeader, shouldHideTool } from '../utils/messageFormatting.js';
 import { isAutoApprovableInEditMode } from '../utils/toolUtils.js';
 import { captureAnalytics } from '../host/index.js';
@@ -954,6 +955,7 @@ export async function processStream(
                             toolResult: resultPreview,
                             toolStatus: 'finished',
                             isError: !event.success,
+                            ...backgroundFailure(event.toolName, event.rawResult),
                             ...(toolDisplayData && { toolDisplayData }),
                             ...(toolContent && { toolContent }),
                         });

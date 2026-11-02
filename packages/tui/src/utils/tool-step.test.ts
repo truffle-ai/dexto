@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Message } from '../state/types.js';
-import { toolOutput, toolStep } from './tool-step.js';
+import { backgroundFailure, toolOutput, toolStep } from './tool-step.js';
 
 function tool(overrides: Partial<Message>): Message {
     return {
@@ -105,6 +105,17 @@ describe('toolStep', () => {
         expect(toolStep(tool({ toolDisplayData })).detail).toBe('3 hits · 2 files');
     });
 
+    it('says when a capped search has more than it counted', () => {
+        const toolDisplayData = {
+            type: 'search' as const,
+            pattern: 'x',
+            matches: [{ file: 'a', line: 1, content: 'x' }],
+            totalMatches: 1,
+            truncated: true,
+        };
+        expect(toolStep(tool({ toolDisplayData })).detail).toBe('1+ hits · 1+ files');
+    });
+
     it('sums up a file read and a created file', () => {
         const file = { type: 'file', path: 'a', lineCount: 88 } as const;
         expect(toolStep(tool({ toolDisplayData: { ...file, operation: 'read' } })).detail).toBe(
@@ -198,5 +209,31 @@ describe('toolOutput', () => {
         const cancelled = { isError: true, toolResult: 'Cancelled' };
         expect(toolOutput(tool({ ...cancelled, toolOutcome: 'denied' }))).toEqual([]);
         expect(toolOutput(tool({ ...cancelled, toolOutcome: 'cancelled' }))).toEqual([]);
+    });
+});
+
+describe('backgroundFailure', () => {
+    it('reads a failed bash_output as a failed row with its output', () => {
+        const failure = backgroundFailure('bash_output', {
+            status: 'failed',
+            stderr: 'boom',
+            stdout: 'out',
+            exit_code: 2,
+        });
+        expect(failure).toEqual({ toolOutcome: 'failed', toolFailureText: 'boom' });
+        const message = tool({ toolName: 'bash_output', ...failure });
+        expect(toolStep(message).state).toBe('fail');
+        expect(toolOutput(message)).toEqual(['boom']);
+    });
+
+    it('falls back to the exit code when there is no output', () => {
+        expect(
+            backgroundFailure('bash_output', { status: 'failed', stderr: '', exit_code: 2 })
+        ).toEqual({ toolOutcome: 'failed', toolFailureText: 'exit 2' });
+    });
+
+    it('ignores a running or completed process and any other tool', () => {
+        expect(backgroundFailure('bash_output', { status: 'completed' })).toEqual({});
+        expect(backgroundFailure('read_file', { status: 'failed' })).toEqual({});
     });
 });
