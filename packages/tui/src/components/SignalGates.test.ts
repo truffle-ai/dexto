@@ -211,4 +211,22 @@ describe('Signal approval gate', () => {
             'src/token.ts +1 −1'
         );
     });
+
+    it('words a directory approval and keeps a wrapped option under its label', () => {
+        const metadata = {
+            toolName: 'edit_file',
+            args: {},
+            approvalKey: `directory:/tmp/${'long/'.repeat(14)}outside:operation:edit`,
+        };
+        const frame = renderFrame(prompt(request({ metadata })), {
+            columns: 60,
+            terminal: 'no-color',
+        });
+        expect(frame).not.toContain('directory:');
+        expect(frame).not.toContain(':operation:');
+        const label = frame.split('\n').findIndex((line) => line.includes('Allow edits in'));
+        expect(label).toBeGreaterThan(-1);
+        const start = (frame.split('\n')[label] ?? '').indexOf('Allow edits in');
+        expect((frame.split('\n')[label + 1] ?? '').slice(0, start).replace(/[│ ]/g, '')).toBe('');
+    });
 });

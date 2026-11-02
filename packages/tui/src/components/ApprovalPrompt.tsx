@@ -423,21 +423,30 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
                             {options.map((option, index) => {
                                 const selected = index === selectedIndex;
                                 return (
-                                    <Text key={option.id}>
-                                        <Text bold color={tone('amber')}>
-                                            {selected ? glyphText('› ', glyphs) : '  '}
-                                        </Text>
-                                        <Text
-                                            bold
-                                            color={tone('amber')}
-                                            backgroundColor={tone('s2')}
-                                        >
-                                            {` ${OPTION_KEYS[option.id] ?? ''} `}
-                                        </Text>{' '}
-                                        <Text bold={selected} color={tone(selected ? 'hi' : 'fg')}>
-                                            {option.label}
-                                        </Text>
-                                    </Text>
+                                    <Box key={option.id}>
+                                        <Box flexShrink={0}>
+                                            <Text>
+                                                <Text bold color={tone('amber')}>
+                                                    {selected ? glyphText('› ', glyphs) : '  '}
+                                                </Text>
+                                                <Text
+                                                    bold
+                                                    color={tone('amber')}
+                                                    backgroundColor={tone('s2')}
+                                                >
+                                                    {` ${OPTION_KEYS[option.id] ?? ''} `}
+                                                </Text>{' '}
+                                            </Text>
+                                        </Box>
+                                        <Box flexShrink={1}>
+                                            <Text
+                                                bold={selected}
+                                                color={tone(selected ? 'hi' : 'fg')}
+                                            >
+                                                {option.label}
+                                            </Text>
+                                        </Box>
+                                    </Box>
                                 );
                             })}
                         </Box>
