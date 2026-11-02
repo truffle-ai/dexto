@@ -20,7 +20,8 @@ import { DiffPreview, CreateFilePreview } from './renderers/index.js';
 import { isEditWriteTool } from '../utils/toolUtils.js';
 import { formatApprovalScope } from '../utils/approvalScope.js';
 import { formatToolHeader } from '../utils/messageFormatting.js';
-import { tone } from '../signal/index.js';
+import { DiffInsetContext } from './renderers/diff-shared.js';
+import { GateFrame, glyphText, tone, useCaps } from '../signal/index.js';
 
 export interface ApprovalRequest {
     approvalId: string;
@@ -56,6 +57,28 @@ interface ApprovalPromptProps {
     onCancel: () => void;
 }
 
+/** Keys for the Signal gate's option row. Plan review keeps its list and feedback input. */
+const OPTION_KEYS: Readonly<Partial<Record<SelectionOption, string>>> = {
+    yes: 'y',
+    'yes-session': 'a',
+    'yes-accept-edits': 'e',
+    no: 'n',
+};
+
+/** The gate's title: what the agent is waiting to do. */
+export function approvalGateTitle(type: string, toolName: string | undefined): string {
+    if (type === ApprovalType.COMMAND_APPROVAL || toolName === 'bash_exec') {
+        return 'NEEDS YOU · RUN A COMMAND';
+    }
+    if (toolName === 'plan_review') return 'NEEDS YOU · REVIEW THE PLAN';
+    if (toolName === 'edit_file') return 'NEEDS YOU · EDIT A FILE';
+    if (toolName === 'write_file') return 'NEEDS YOU · WRITE A FILE';
+    return 'NEEDS YOU · USE A TOOL';
+}
+
+/** Columns the gate's border and padding take. */
+const GATE_INSET = 4;
+
 type SelectionOption =
     | 'yes'
     | 'yes-session'
@@ -77,6 +100,8 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
     ({ approval, onApprove, onDeny, onCancel }, ref) => {
         const isCommandApproval = approval.type === ApprovalType.COMMAND_APPROVAL;
         const isElicitation = approval.type === 'elicitation';
+        const { palette, glyphs } = useCaps();
+        const signal = palette === 'signal';
 
         // Extract tool metadata
         const toolName = approval.metadata.toolName as string | undefined;
@@ -143,6 +168,13 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
 
         // Build the list of options based on approval type
         const options: Array<{ id: SelectionOption; label: string }> = [];
+        const chooseOption = (id: SelectionOption) => {
+            if (id === 'plan-approve' || id === 'yes') onApprove({});
+            else if (id === 'yes-session') onApprove({ rememberChoice: true });
+            else if (id === 'plan-approve-accept-edits' || id === 'yes-accept-edits') {
+                onApprove({ enableAcceptEditsMode: true });
+            } else if (id === 'no') onDeny();
+        };
 
         if (isPlanReview) {
             // Plan review - show plan-specific options (2 options + feedback input)
@@ -214,12 +246,12 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
                         return true; // Consume all input when feedback is selected
                     }
 
-                    if (key.upArrow) {
+                    if (key.upArrow || (signal && !isPlanReview && key.leftArrow)) {
                         setSelectedIndex((current) =>
                             current === 0 ? totalOptions - 1 : current - 1
                         );
                         return true;
-                    } else if (key.downArrow) {
+                    } else if (key.downArrow || (signal && !isPlanReview && key.rightArrow)) {
                         setSelectedIndex((current) =>
                             current === totalOptions - 1 ? 0 : current + 1
                         );
@@ -228,21 +260,7 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
                         const option = getCurrentOption();
                         if (!option) return false;
 
-                        // Plan review options
-                        if (option.id === 'plan-approve') {
-                            onApprove({});
-                        } else if (option.id === 'plan-approve-accept-edits') {
-                            onApprove({ enableAcceptEditsMode: true });
-                        } else if (option.id === 'yes') {
-                            onApprove({});
-                        } else if (option.id === 'yes-session') {
-                            onApprove({ rememberChoice: true });
-                        } else if (option.id === 'yes-accept-edits') {
-                            // Approve and enable "accept all edits" mode
-                            onApprove({ enableAcceptEditsMode: true });
-                        } else if (option.id === 'no') {
-                            onDeny();
-                        }
+                        chooseOption(option.id);
                         return true;
                     } else if (key.shift && key.tab && canAcceptEdits) {
                         // Shift+Tab on edit/write tool: approve and enable "accept all edits" mode
@@ -252,10 +270,20 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
                         onCancel();
                         return true;
                     }
+                    if (signal && !isPlanReview && !key.ctrl && !key.meta) {
+                        const shortcut = options.find(
+                            (option) => OPTION_KEYS[option.id] === input.toLowerCase()
+                        );
+                        if (shortcut) {
+                            chooseOption(shortcut.id);
+                            return true;
+                        }
+                    }
                     return false;
                 },
             }),
             [
+                signal,
                 isElicitation,
                 canAcceptEdits,
                 isPlanReview,
@@ -348,7 +376,60 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
 
         const showHeaderBlock = isCommandApproval || !displayPreview;
 
-        return (
+        if (signal && !isPlanReview) {
+            const shellCommand =
+                displayPreview?.type === 'shell' ? displayPreview.command : (command ?? null);
+            const preview = displayPreview?.type === 'shell' ? null : renderPreview();
+            return (
+                <DiffInsetContext.Provider value={GATE_INSET}>
+                    <GateFrame
+                        title={approvalGateTitle(approval.type, toolName)}
+                        hint="←→ choose · ⏎ confirm · esc cancel"
+                    >
+                        {shellCommand !== null ? (
+                            shellCommand.split('\n').map((line, i) => (
+                                <Text key={i} bold color={tone('hi')}>
+                                    <Text color={tone('amber')}>{i === 0 ? '$ ' : '  '}</Text>
+                                    {line}
+                                </Text>
+                            ))
+                        ) : preview === null && formattedTool ? (
+                            <Text color={tone('hi')}>{formattedTool.header}</Text>
+                        ) : (
+                            preview
+                        )}
+                        {displayPreview?.type === 'shell' && displayPreview.isBackground && (
+                            <Text color={tone('dim')}>(background)</Text>
+                        )}
+                        {callDescription && <Text color={tone('dim')}>{callDescription}</Text>}
+                        <Box flexWrap="wrap" columnGap={3}>
+                            {options.map((option, index) => {
+                                const selected = index === selectedIndex;
+                                return (
+                                    <Text key={option.id}>
+                                        <Text bold color={tone('amber')}>
+                                            {selected ? glyphText('› ', glyphs) : '  '}
+                                        </Text>
+                                        <Text
+                                            bold
+                                            color={tone('amber')}
+                                            backgroundColor={tone('s2')}
+                                        >
+                                            {` ${OPTION_KEYS[option.id] ?? ''} `}
+                                        </Text>{' '}
+                                        <Text bold={selected} color={tone(selected ? 'hi' : 'fg')}>
+                                            {option.label}
+                                        </Text>
+                                    </Text>
+                                );
+                            })}
+                        </Box>
+                    </GateFrame>
+                </DiffInsetContext.Provider>
+            );
+        }
+
+        const prompt = (
             <Box paddingX={0} paddingY={0} flexDirection="column">
                 {/* Compact header with context (only when we don't have a rich preview) */}
                 {showHeaderBlock && (
@@ -463,6 +544,13 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
                     </Text>
                 </Box>
             </Box>
+        );
+        return signal ? (
+            <DiffInsetContext.Provider value={GATE_INSET}>
+                <GateFrame title={approvalGateTitle(approval.type, toolName)}>{prompt}</GateFrame>
+            </DiffInsetContext.Provider>
+        ) : (
+            prompt
         );
     }
 );

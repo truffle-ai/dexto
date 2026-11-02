@@ -13,7 +13,7 @@ import type { ElicitationMetadata } from '@dexto/core';
 import type { Key } from '../hooks/useInputOrchestrator.js';
 import { useTerminalSize } from '../hooks/useTerminalSize.js';
 import { parseElicitationSchema, type ElicitationFormField } from '../utils/elicitationSchema.js';
-import { tone } from '../signal/index.js';
+import { GateFrame, glyphText, tone, useCaps } from '../signal/index.js';
 
 export interface ElicitationFormHandle {
     handleInput: (input: string, key: Key) => boolean;
@@ -81,7 +81,10 @@ export const ElicitationForm = forwardRef<ElicitationFormHandle, ElicitationForm
             return Math.min(maxHeight, desired);
         }, [footerHeight, maxHeaderHeight, minContentHeight, terminalRows]);
 
-        const availableWidth = Math.max(20, terminalColumns - 2);
+        const { palette, glyphs } = useCaps();
+        const signal = palette === 'signal';
+        // The overlay frame takes 2 columns; the gate's border and padding take 4 more.
+        const availableWidth = Math.max(20, terminalColumns - (signal ? 6 : 2));
 
         const fields = useMemo(() => {
             return parseElicitationSchema(metadata.schema);
@@ -413,6 +416,11 @@ export const ElicitationForm = forwardRef<ElicitationFormHandle, ElicitationForm
                                 }
                                 return true;
                             }
+                            // The Signal gate numbers its options: a digit moves to one.
+                            if (signal && /^[1-9]$/.test(input) && Number(input) <= values.length) {
+                                setEnumIndex(Number(input) - 1);
+                                return true;
+                            }
                             break;
                         }
 
@@ -524,6 +532,7 @@ export const ElicitationForm = forwardRef<ElicitationFormHandle, ElicitationForm
                 },
             }),
             [
+                signal,
                 activeField,
                 activeFieldIndex,
                 arraySelections,
@@ -609,7 +618,7 @@ export const ElicitationForm = forwardRef<ElicitationFormHandle, ElicitationForm
 
             if (activeField.type === 'string' || activeField.type === 'number') {
                 return (
-                    <Box height={contentHeight}>
+                    <Box height={signal ? 1 : contentHeight}>
                         <Text wrap="truncate-end">
                             <Text color={tone('teal')}>&gt; </Text>
                             {currentInput || <Text color={tone('dim')}>Type your answer…</Text>}
@@ -673,12 +682,40 @@ export const ElicitationForm = forwardRef<ElicitationFormHandle, ElicitationForm
                     overflowY="scroll"
                     overflowX="hidden"
                     scrollbarThumbColor={tone('dim')}
-                    height={contentHeight}
+                    height={signal ? Math.min(contentHeight, options.length) : contentHeight}
                     scrollTop={targetScrollTop}
                     flexDirection="column"
                     paddingRight={1}
                 >
-                    {options.map((opt) => {
+                    {options.map((opt, index) => {
+                        if (signal) {
+                            const check =
+                                activeField.type === 'array-enum'
+                                    ? opt.isSelected
+                                        ? '[✓] '
+                                        : '[ ] '
+                                    : '';
+                            return (
+                                <Text
+                                    key={opt.key}
+                                    bold={opt.isFocused}
+                                    color={tone(opt.isFocused ? 'hi' : 'fg')}
+                                    {...(opt.isFocused && { backgroundColor: tone('sel') })}
+                                    wrap="truncate-end"
+                                >
+                                    <Text bold color={tone('amber')}>
+                                        {opt.isFocused ? glyphText('› ', glyphs) : '  '}
+                                    </Text>
+                                    <Text bold color={tone(opt.isFocused ? 'amber' : 'dim')}>
+                                        {activeField.type === 'enum' && index < 9
+                                            ? `${index + 1}  `
+                                            : ''}
+                                    </Text>
+                                    {glyphText(check, glyphs)}
+                                    {opt.label}
+                                </Text>
+                            );
+                        }
                         const prefix = opt.isFocused ? '▶ ' : '  ';
                         const mark =
                             activeField.type === 'array-enum'
@@ -742,6 +779,33 @@ export const ElicitationForm = forwardRef<ElicitationFormHandle, ElicitationForm
         const questionLines = wrapClampedLines(questionText, questionLineCount);
         const helpLines = wrapClampedLines(helpText, helpLineCount);
         const errorLines = wrapClampedLines(errorLineText, errorLineCount);
+
+        if (signal) {
+            const position =
+                fields.length > 1 ? ` · ${activeFieldIndex + 1} of ${fields.length}` : '';
+            return (
+                <GateFrame
+                    title={
+                        isReviewing
+                            ? 'QUESTION · Review your answers'
+                            : `QUESTION${position} · ${questionLines.filter(Boolean).join(' ')}`
+                    }
+                    hint={hintLine.replaceAll(' • ', ' · ')}
+                >
+                    {helpLines.filter(Boolean).map((line, index) => (
+                        <Text key={`help-${index}`} color={tone('dim')} wrap="truncate-end">
+                            {line}
+                        </Text>
+                    ))}
+                    {errorLines.filter(Boolean).map((line, index) => (
+                        <Text key={`error-${index}`} color={tone('red')} wrap="truncate-end">
+                            {line}
+                        </Text>
+                    ))}
+                    {renderContent()}
+                </GateFrame>
+            );
+        }
 
         return (
             <Box flexDirection="column" paddingX={0} height={viewportHeight}>

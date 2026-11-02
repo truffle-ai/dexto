@@ -5,7 +5,7 @@
  * Handles unified diff parsing, word-level diff highlighting, and line rendering.
  */
 
-import React from 'react';
+import React, { createContext, useContext } from 'react';
 import { Box, Text, useStdout } from 'ink';
 import { diffWords } from 'diff';
 import { tone } from '../../signal/index.js';
@@ -160,6 +160,9 @@ export function formatLineNum(num: number, width: number): string {
 // Diff Line Component
 // =============================================================================
 
+/** Columns a surrounding frame takes from the terminal, so diff rows fit inside it. */
+export const DiffInsetContext = createContext(0);
+
 interface DiffLineProps {
     type: 'context' | 'addition' | 'deletion';
     lineNum: number;
@@ -176,7 +179,7 @@ interface DiffLineProps {
  */
 export function DiffLine({ type, lineNum, lineNumWidth, content, wordDiffParts }: DiffLineProps) {
     const { stdout } = useStdout();
-    const terminalWidth = stdout?.columns ?? 80;
+    const terminalWidth = (stdout?.columns ?? 80) - useContext(DiffInsetContext);
 
     const lineNumStr = formatLineNum(lineNum, lineNumWidth);
     // Gutter: line number + space + symbol + space (e.g., " 42 - ")
