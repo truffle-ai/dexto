@@ -37,7 +37,7 @@ describe('Signal kit parts', () => {
     let saved: Caps;
     beforeEach(() => {
         saved = getCaps();
-        setCaps({ ...saved, color: 'none', glyphs: 'unicode' });
+        setCaps({ ...saved, color: 'none', glyphs: 'unicode', logo: 'quadrant' });
     });
     afterEach(() => setCaps(saved));
 
