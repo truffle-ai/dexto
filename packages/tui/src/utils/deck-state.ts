@@ -94,3 +94,24 @@ export function deckCredits(c: DeckCreditsInput): DeckCredits {
         c.turnStartBalance === null ? 0 : Math.round((c.turnStartBalance - c.balance) * 100) / 100;
     return { kind: 'balance', balance: c.balance, spend: spent > 0 ? spent : null };
 }
+
+export interface PermissionInput {
+    isShellMode: boolean;
+    planModeActive: boolean;
+    autoApproveEdits: boolean;
+    bypassPermissions: boolean;
+    /** The agent's configured permissions mode, under any session override. */
+    configuredMode: string;
+}
+
+/**
+ * The approval policy in force, for the idle readout; null for manual approvals. Session
+ * overrides (Shift+Tab) come first, then the agent's configured mode.
+ */
+export function permissionLabel(p: PermissionInput): string | null {
+    if (p.isShellMode) return 'shell mode';
+    if (p.planModeActive) return 'plan mode';
+    if (p.autoApproveEdits) return 'accept edits';
+    if (p.bypassPermissions || p.configuredMode === 'auto-approve') return 'auto-approve';
+    return null;
+}

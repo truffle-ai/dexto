@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import { supportsContextStats, type TuiAgentBackend } from '../agent-backend.js';
 
 export interface ContextUsage {
-    /** Tokens in context: the last count the model reported, else the estimate. */
+    /** Tokens in context: the full estimate, which already counts the last reply. */
     usedTokens: number;
     maxTokens: number;
     usagePercent: number;
@@ -49,7 +49,7 @@ export function useContextStats(
                 const stats = await agent.getContextStats(sessionId);
                 if (cancelled || requestId !== refreshId) return;
                 setUsage({
-                    usedTokens: stats.actualTokens ?? stats.estimatedTokens,
+                    usedTokens: stats.estimatedTokens,
                     maxTokens: stats.maxContextTokens,
                     usagePercent: stats.usagePercent,
                 });

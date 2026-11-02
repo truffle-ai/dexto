@@ -10,7 +10,13 @@ import type { DeckState } from '../signal/index.js';
 import type { Message, UIState } from '../state/types.js';
 import { resolveChatGPTRateLimitHint } from '../utils/chatgpt-rate-limit.js';
 import { displayedReasoningVariant } from '../utils/reasoning-variant.js';
-import { deckCredits, deckMode, deckModelId, deckReadout } from '../utils/deck-state.js';
+import {
+    deckCredits,
+    deckMode,
+    deckModelId,
+    deckReadout,
+    permissionLabel,
+} from '../utils/deck-state.js';
 import { useContextStats } from './useContextStats.js';
 import { useDextoCreditBalance, useDextoSignedIn } from './useDextoCredits.js';
 import { useElapsedTime } from './useElapsedTime.js';
@@ -29,14 +35,6 @@ export interface DeckStateInput {
     cwd: string;
     isShellMode: boolean;
     chatgptRateLimitStatus: CodexRateLimitSnapshot | null;
-}
-
-function permissionLabel(ui: UIState, isShellMode: boolean): string | null {
-    if (isShellMode) return 'shell mode';
-    if (ui.planModeActive) return 'plan mode';
-    if (ui.autoApproveEdits) return 'accept edits';
-    if (ui.bypassPermissions) return 'auto-approve';
-    return null;
 }
 
 /** Whether the last run ended on an error; reset when the next run starts. */
@@ -92,7 +90,13 @@ export function useDeckState(input: DeckStateInput): DeckState {
         tokens,
         compacting: ui.isCompacting,
         steerCount: input.steerCount,
-        permission: permissionLabel(ui, input.isShellMode),
+        permission: permissionLabel({
+            isShellMode: input.isShellMode,
+            planModeActive: ui.planModeActive,
+            autoApproveEdits: ui.autoApproveEdits,
+            bypassPermissions: ui.bypassPermissions,
+            configuredMode: agent.getEffectiveConfig(sessionId ?? undefined).permissions.mode,
+        }),
         reasoning: displayedReasoningVariant(llmConfig),
         rateLimitHint: resolveChatGPTRateLimitHint(llmConfig, input.chatgptRateLimitStatus),
     });

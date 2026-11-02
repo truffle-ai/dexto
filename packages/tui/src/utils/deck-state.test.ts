@@ -4,6 +4,7 @@ import {
     deckMode,
     deckModelId,
     deckReadout,
+    permissionLabel,
     type DeckActivity,
 } from './deck-state.js';
 
@@ -130,5 +131,31 @@ describe('deckCredits', () => {
             balance: 12.5,
             spend: null,
         });
+    });
+});
+
+describe('permissionLabel', () => {
+    const none = {
+        isShellMode: false,
+        planModeActive: false,
+        autoApproveEdits: false,
+        bypassPermissions: false,
+        configuredMode: 'manual',
+    };
+
+    it('is null for manual approvals', () => {
+        expect(permissionLabel(none)).toBeNull();
+    });
+
+    it('shows an agent configured to auto-approve, with no session override', () => {
+        expect(permissionLabel({ ...none, configuredMode: 'auto-approve' })).toBe('auto-approve');
+    });
+
+    it('puts session overrides first', () => {
+        const configured = { ...none, configuredMode: 'auto-approve' };
+        expect(permissionLabel({ ...configured, planModeActive: true })).toBe('plan mode');
+        expect(permissionLabel({ ...configured, autoApproveEdits: true })).toBe('accept edits');
+        expect(permissionLabel({ ...none, bypassPermissions: true })).toBe('auto-approve');
+        expect(permissionLabel({ ...configured, isShellMode: true })).toBe('shell mode');
     });
 });
