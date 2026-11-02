@@ -73,4 +73,26 @@ describe('Signal transcript', () => {
         expect(lines[0]).toMatch(/READ {4}a\.ts +FAIL$/);
         expect(lines[1]).toBe('        ┊ ENOENT: a.ts');
     });
+
+    it('keeps a diff inside the terminal, under the margin', () => {
+        const row = createElement(SignalToolMessage, {
+            message: message({
+                content: 'Edit(a.ts)',
+                toolName: 'edit_file',
+                toolArgs: 'a.ts',
+                toolStatus: 'finished',
+                toolDisplayData: {
+                    type: 'diff',
+                    unified: `@@ -1 +1 @@\n+${'x '.repeat(200)}`,
+                    filename: 'a.ts',
+                    additions: 1,
+                    deletions: 0,
+                },
+            }),
+        });
+        const lines = renderFrame(row, { columns: 80, terminal: 'no-color' }).split('\n');
+        // A row wider than the terminal would be clipped and lose text.
+        expect(lines.join('').match(/x/g)).toHaveLength(200);
+        for (const line of lines) expect(line.trimEnd().length).toBeLessThanOrEqual(80);
+    });
 });

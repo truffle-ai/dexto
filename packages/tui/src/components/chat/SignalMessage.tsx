@@ -14,6 +14,7 @@ import {
 import type { Message } from '../../state/types.js';
 import { toolOutput, toolStep } from '../../utils/tool-step.js';
 import { MarkdownInsetContext, MarkdownText } from '../shared/MarkdownText.js';
+import { DiffInsetContext } from '../renderers/diff-shared.js';
 import { DiffRenderer } from '../renderers/index.js';
 
 function useMargin(): number {
@@ -81,7 +82,11 @@ export function SignalToolMessage({ message }: { message: Message }) {
                     <Text color={tone('red')}>{line}</Text>
                 </Text>
             ))}
-            {display?.type === 'diff' && <DiffRenderer data={display} />}
+            {display?.type === 'diff' && (
+                <DiffInsetContext.Provider value={margin}>
+                    <DiffRenderer data={display} />
+                </DiffInsetContext.Provider>
+            )}
         </Box>
     );
 }
