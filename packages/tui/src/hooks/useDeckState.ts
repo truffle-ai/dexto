@@ -87,9 +87,11 @@ export function useDeckState(input: DeckStateInput): DeckState {
         lastRunFailed,
     });
 
-    const working = ui.isProcessing && approval === null && !ui.copyModeEnabled;
-    const run = useElapsedTime({ isActive: working, intervalMs: 1000 });
-    const wait = useElapsedTime({ isActive: approval !== null, intervalMs: 1000 });
+    // Copy mode holds the clocks, so nothing redraws under a text selection, without resetting them.
+    const working = ui.isProcessing && approval === null;
+    const paused = ui.copyModeEnabled;
+    const run = useElapsedTime({ isActive: working, intervalMs: 1000, paused });
+    const wait = useElapsedTime({ isActive: approval !== null, intervalMs: 1000, paused });
     const { formatted: tokens } = useTokenCounter({ agent, isActive: working });
     const readout = deckReadout(mode, {
         elapsed: mode === 'wait' ? wait.formatted : run.formatted,

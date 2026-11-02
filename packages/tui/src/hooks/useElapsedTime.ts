@@ -10,6 +10,8 @@ export interface ElapsedTimeOptions {
     isActive: boolean;
     /** Update interval in milliseconds (default: 100ms) */
     intervalMs?: number;
+    /** Hold the shown value without redrawing; time still counts (default: false) */
+    paused?: boolean;
 }
 
 export interface ElapsedTimeResult {
@@ -54,40 +56,25 @@ function formatElapsedTime(ms: number): string {
 export function useElapsedTime({
     isActive,
     intervalMs = 100,
+    paused = false,
 }: ElapsedTimeOptions): ElapsedTimeResult {
     const [elapsedMs, setElapsedMs] = useState(0);
     const startTimeRef = useRef<number | null>(null);
-    const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
     useEffect(() => {
-        if (isActive) {
-            // Start timing
-            startTimeRef.current = Date.now();
-            setElapsedMs(0);
+        startTimeRef.current = isActive ? Date.now() : null;
+        setElapsedMs(0);
+    }, [isActive]);
 
-            // Update elapsed time at regular intervals
-            intervalRef.current = setInterval(() => {
-                if (startTimeRef.current !== null) {
-                    setElapsedMs(Date.now() - startTimeRef.current);
-                }
-            }, intervalMs);
-        } else {
-            // Stop timing
-            if (intervalRef.current) {
-                clearInterval(intervalRef.current);
-                intervalRef.current = null;
+    useEffect(() => {
+        if (!isActive || paused) return;
+        const interval = setInterval(() => {
+            if (startTimeRef.current !== null) {
+                setElapsedMs(Date.now() - startTimeRef.current);
             }
-            startTimeRef.current = null;
-            setElapsedMs(0);
-        }
-
-        return () => {
-            if (intervalRef.current) {
-                clearInterval(intervalRef.current);
-                intervalRef.current = null;
-            }
-        };
-    }, [isActive, intervalMs]);
+        }, intervalMs);
+        return () => clearInterval(interval);
+    }, [isActive, paused, intervalMs]);
 
     return {
         elapsedMs,
