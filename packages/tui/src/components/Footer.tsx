@@ -54,7 +54,11 @@ export function Footer({
     const provider = llmConfig?.provider ?? null;
     const providerLabel = provider ? getLLMProviderDisplayName(provider, llmConfig?.baseURL) : null;
     const reasoningVariant = displayedReasoningVariant(llmConfig);
-    const chatGPTRateLimitHint = resolveChatGPTRateLimitHint(llmConfig, chatgptRateLimitStatus);
+    const chatGPTRateLimitHint = resolveChatGPTRateLimitHint(
+        llmConfig,
+        chatgptRateLimitStatus,
+        'full'
+    );
     const chatGPTRateLimitColor = chatgptRateLimitStatus?.exceeded
         ? tone('del')
         : (chatgptRateLimitStatus?.usedPercent ?? 0) >= 90

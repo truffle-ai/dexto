@@ -102,7 +102,11 @@ export function useDeckState(input: DeckStateInput): DeckState {
             configuredMode: agent.getEffectiveConfig(sessionId ?? undefined).permissions.mode,
         }),
         reasoning: displayedReasoningVariant(llmConfig),
-        rateLimitHint: resolveChatGPTRateLimitHint(llmConfig, input.chatgptRateLimitStatus),
+        rateLimitHint: resolveChatGPTRateLimitHint(
+            llmConfig,
+            input.chatgptRateLimitStatus,
+            'short'
+        ),
     });
 
     const context = useContextStats(agent, sessionId, () => setLlmTick((prev) => prev + 1));

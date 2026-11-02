@@ -89,6 +89,17 @@ describe('deckReadout', () => {
         ).toBe('plan mode · 91% used');
     });
 
+    it('puts the usage warning before the reasoning variant, since the end truncates first', () => {
+        expect(
+            deckReadout('idle', {
+                ...base,
+                permission: 'auto-approve',
+                reasoning: 'medium',
+                rateLimitHint: 'cap 95%',
+            })
+        ).toBe('auto-approve · cap 95% · r:medium');
+    });
+
     it('shows the reasoning variant when idle, so Tab has visible feedback', () => {
         expect(deckReadout('idle', { ...base, reasoning: 'high' })).toBe('r:high');
         expect(deckReadout('idle', { ...base, permission: 'plan mode', reasoning: 'low' })).toBe(
