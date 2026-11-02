@@ -20,6 +20,7 @@ import type { HelpStyledData, ShortcutsStyledData } from '../state/types.js';
 import { writeToClipboard } from '../utils/clipboardUtils.js';
 import { hasMeaningfulTokenUsage, setExitStats } from './exit-stats.js';
 import { triggerExit } from './exit-handler.js';
+import { paint } from '../signal/index.js';
 import type { TuiAgentBackend } from '../agent-backend.js';
 
 /**
@@ -191,14 +192,14 @@ export const generalCommands: CommandDefinition[] = [
                 lines.push(stdout.trim());
             }
             if (stderr.trim()) {
-                lines.push(chalk.yellow(stderr.trim()));
+                lines.push(paint('amberDim')(stderr.trim()));
             }
             if (exitCode !== 0) {
-                lines.push(chalk.red(`Exit code: ${exitCode}`));
+                lines.push(paint('red')(`Exit code: ${exitCode}`));
             }
 
             if (lines.length === 0) {
-                return formatForInkCli(chalk.gray('(no output)'));
+                return formatForInkCli(paint('dim')('(no output)'));
             }
 
             return formatForInkCli(lines.join('\n'));
@@ -415,9 +416,9 @@ export const generalCommands: CommandDefinition[] = [
                 const progressBar = '█'.repeat(filledWidth) + '░'.repeat(emptyWidth);
 
                 // Color based on usage
-                let usageColor = chalk.green;
-                if (stats.usagePercent > 80) usageColor = chalk.red;
-                else if (stats.usagePercent > 60) usageColor = chalk.yellow;
+                let usageColor = paint('add');
+                if (stats.usagePercent > 80) usageColor = paint('red');
+                else if (stats.usagePercent > 60) usageColor = paint('amberDim');
 
                 // Helper to format token counts
                 const formatTokens = (tokens: number): string => {
@@ -464,7 +465,7 @@ export const generalCommands: CommandDefinition[] = [
                     `   ${usageColor(progressBar)} ${stats.usagePercent}%${overflowWarning}`,
                     `   ${chalk.dim(stats.modelDisplayName)} · ${tokenDisplay} / ${formatTokens(totalTokenSpace)} tokens`,
                     ``,
-                    `   ${chalk.cyan('Breakdown:')} ${breakdownLabel}`,
+                    `   ${paint('teal')('Breakdown:')} ${breakdownLabel}`,
                     `   ├─ System prompt: ${formatTokens(breakdown.systemPrompt)} (${pct(breakdown.systemPrompt)})`,
                     `   ├─ Tools: ${formatTokens(breakdown.tools.total)} (${pct(breakdown.tools.total)})`,
                     `   ├─ Messages: ${formatTokens(breakdown.messages)} (${pct(breakdown.messages)})`,
