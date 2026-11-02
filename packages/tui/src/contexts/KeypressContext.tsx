@@ -505,7 +505,12 @@ export function KeypressProvider({ children }: KeypressProviderProps) {
         const parse = createDataListener(pasteBufferer);
         // Terminal replies (a late OSC 11 background answer) are not keys; drop them first.
         const dropReplies = createTerminalReplyFilter();
-        const dataListener = (data: string) => parse(dropReplies(data));
+        const dataListener = (data: string) => {
+            const keys = dropReplies(data);
+            // A read that was all reply must not touch the parser: parse('') would cancel the
+            // pending ESC timeout and swallow a lone Escape typed just before it.
+            if (keys !== '') parse(keys);
+        };
 
         stdin.on('data', dataListener);
 

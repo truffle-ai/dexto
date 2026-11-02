@@ -64,4 +64,20 @@ describe('KeypressProvider', () => {
             done();
         }
     });
+
+    it('still sends a lone Escape when a reply arrives right after it', async () => {
+        const { stdin, keys, done } = mount();
+        try {
+            await vi.waitFor(() => expect(stdin.isRaw).toBe(true));
+            stdin.write('\x1b');
+            await new Promise((r) => setTimeout(r, 10));
+            stdin.write('\x1b]11;rgb:ffff/ffff/ffff\x07');
+            await vi.waitFor(() => expect(keys.map((k) => k.name)).toEqual(['escape']));
+            stdin.write('a');
+            await vi.waitFor(() => expect(keys.map((k) => k.sequence)).toEqual(['\x1b', 'a']));
+            expect(keys[1]?.meta).toBe(false);
+        } finally {
+            done();
+        }
+    });
 });
