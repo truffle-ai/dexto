@@ -41,8 +41,11 @@ export function useDextoCreditBalance(
     return balance;
 }
 
-/** Whether the user is signed in to Dexto. Checked at start and after each run. */
-export function useDextoSignedIn(agent: TuiAgentBackend): boolean {
+/**
+ * Whether the user is signed in to Dexto. Checked at start, after each run, and whenever
+ * `recheckKey` changes (the deck passes the active overlay, since /login and /logout are overlays).
+ */
+export function useDextoSignedIn(agent: TuiAgentBackend, recheckKey: string): boolean {
     const [signedIn, setSignedIn] = useState(false);
     useEffect(() => {
         let cancelled = false;
@@ -62,6 +65,6 @@ export function useDextoSignedIn(agent: TuiAgentBackend): boolean {
             cancelled = true;
             controller.abort();
         };
-    }, [agent]);
+    }, [agent, recheckKey]);
     return signedIn;
 }

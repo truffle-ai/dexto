@@ -3,6 +3,7 @@
  * runs, branch, credits) as a block beside the trace or a compact row under the input.
  */
 import { Box, Text } from 'ink';
+import stringWidth from 'string-width';
 import { useCaps } from './caps.js';
 import { glyphText } from './glyphs.js';
 import { useTone } from './tone.js';
@@ -142,6 +143,11 @@ function Credits({ credits, showSpend }: { credits: DeckCredits; showSpend: bool
     }
 }
 
+/** Terminal cells a string takes (CJK is two per character). */
+function cells(text: string): number {
+    return stringWidth(text);
+}
+
 function whereText(where: DeckWhere): string {
     return where.kind === 'computer' ? `◆ ${where.name}` : '◇ local';
 }
@@ -177,10 +183,10 @@ export interface LaneParts {
  * the branch, then this turn's spend. Where the agent runs and the balance always stay.
  */
 export function laneParts(status: DeckStatus, width: number): LaneParts {
-    const base = whereText(status.where).length + creditsText(status.credits).length;
-    const spend = spendText(status.credits).length;
-    const branch = status.branch === null ? 0 : ` ⎇ ${status.branch}`.length;
-    const dirty = status.dirtyFiles > 0 ? ` ±${status.dirtyFiles}`.length : 0;
+    const base = cells(whereText(status.where)) + cells(creditsText(status.credits));
+    const spend = cells(spendText(status.credits));
+    const branch = status.branch === null ? 0 : cells(` ⎇ ${status.branch}`);
+    const dirty = status.dirtyFiles > 0 ? cells(` ±${status.dirtyFiles}`) : 0;
     if (base + spend + branch + dirty <= width) {
         return { branch: branch > 0, dirty: dirty > 0, spend: spend > 0 };
     }
@@ -266,8 +272,8 @@ export interface StatusRowFit {
  */
 export function statusRowFit(status: DeckStatus, width: number, noticeWidth: number): StatusRowFit {
     const context = contextText(status, false);
-    const natural = status.model.length + (context === null ? 0 : context.length + 2);
-    const laneMin = whereText(status.where).length + creditsText(status.credits).length;
+    const natural = cells(status.model) + (context === null ? 0 : cells(context) + 2);
+    const laneMin = cells(whereText(status.where)) + cells(creditsText(status.credits));
     const room = width - noticeWidth - laneMin - 2;
     const model = room >= 4 ? Math.min(natural, room) : 0;
     return { model, lane: Math.max(0, width - noticeWidth - (model > 0 ? model + 2 : 0)) };
@@ -290,7 +296,7 @@ export function StatusRow({
     const { glyphs } = useCaps();
     const context = contextText(status, false);
     const noticeText = notice === null ? '' : `${glyphText(notice.text, glyphs)}  `;
-    const fit = statusRowFit(status, width, noticeText.length);
+    const fit = statusRowFit(status, width, cells(noticeText));
     return (
         <Box width={width}>
             {notice !== null && (

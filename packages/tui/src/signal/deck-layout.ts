@@ -3,8 +3,11 @@
  * narrowest step drops it and keeps the trace.
  *
  *   ≥100 cols  wide  band with the status block on its right, then input      = 4 rows
- *   44–99      mid   band (wordmark, trace, mode), input, compact status row  = 5 rows
- *   <44        bare  trace only, input, compact status row                    = 4 rows
+ *   mid        band (wordmark, trace, mode · readout), input, status row      = 5 rows
+ *   bare       trace only, input, status row led by the readout               = 4 rows
+ *
+ * The middle step needs room for the mode and readout beside the wordmark (39 columns for the
+ * 3-row quadrant drawing, so from 66 columns); narrower than that the deck goes bare.
  */
 export type DeckBand = 'wide' | 'mid' | 'bare';
 
@@ -19,9 +22,11 @@ export interface DeckLayout {
 }
 
 export const WIDE_COLUMNS = 100;
-export const BARE_BELOW_COLUMNS = 44;
+/** Columns the mode and readout need beside the wordmark in the middle step. */
+export const MID_READOUT_COLUMNS = 24;
 
-export function deckLayout(columns: number): DeckLayout {
+/** `wordmarkColumns`: the 3-row wordmark's width plus its margins. */
+export function deckLayout(columns: number, wordmarkColumns: number): DeckLayout {
     if (columns >= WIDE_COLUMNS) {
         return {
             band: 'wide',
@@ -30,7 +35,7 @@ export function deckLayout(columns: number): DeckLayout {
             blockWidth: Math.min(36, Math.max(30, Math.floor(columns * 0.26))),
         };
     }
-    if (columns >= BARE_BELOW_COLUMNS) {
+    if (columns >= wordmarkColumns + MID_READOUT_COLUMNS) {
         return { band: 'mid', bandRows: 3, statusRow: true, blockWidth: 0 };
     }
     return { band: 'bare', bandRows: 2, statusRow: true, blockWidth: 0 };

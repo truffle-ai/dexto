@@ -47,6 +47,10 @@ function useLastRunFailed(
     useEffect(() => {
         if (isProcessing) setFailed(false);
     }, [isProcessing]);
+    // A failure belongs to its session: switching sessions clears it.
+    useEffect(() => {
+        setFailed(false);
+    }, [sessionId]);
     useEffect(() => {
         const controller = new AbortController();
         agent.on(
@@ -102,7 +106,8 @@ export function useDeckState(input: DeckStateInput): DeckState {
     });
 
     const context = useContextStats(agent, sessionId, () => setLlmTick((prev) => prev + 1));
-    const signedIn = useDextoSignedIn(agent);
+    // Login and logout run in overlays: re-check the account whenever one opens or closes.
+    const signedIn = useDextoSignedIn(agent, ui.activeOverlay);
     const balance = useDextoCreditBalance(agent, sessionId, signedIn);
     // The balance when the current turn started, so the status line can show what it spent.
     const turnStart = useRef<number | null>(null);

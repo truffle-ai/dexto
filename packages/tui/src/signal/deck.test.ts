@@ -30,6 +30,9 @@ async function frame(element: ReactElement, columns: number): Promise<string> {
     return stripAnsi(last).replace(/\n+$/, '');
 }
 
+/** The 3-row quadrant wordmark (39) plus its margins. */
+const WORDMARK = 42;
+
 const state: DeckState = {
     mode: 'stream',
     readout: '84 tok/s · 12.4s',
@@ -54,14 +57,26 @@ function deck(s: DeckState = state, gate: ReactElement | null = null) {
 
 describe('deckLayout', () => {
     it('steps down from a status block to a status row to a bare trace', () => {
-        expect(deckLayout(120)).toMatchObject({ band: 'wide', bandRows: 3, statusRow: false });
-        expect(deckLayout(78)).toMatchObject({ band: 'mid', bandRows: 3, statusRow: true });
-        expect(deckLayout(42)).toMatchObject({ band: 'bare', bandRows: 2, statusRow: true });
+        expect(deckLayout(120, WORDMARK)).toMatchObject({
+            band: 'wide',
+            bandRows: 3,
+            statusRow: false,
+        });
+        expect(deckLayout(78, WORDMARK)).toMatchObject({
+            band: 'mid',
+            bandRows: 3,
+            statusRow: true,
+        });
+        expect(deckLayout(42, WORDMARK)).toMatchObject({
+            band: 'bare',
+            bandRows: 2,
+            statusRow: true,
+        });
     });
 
     it('keeps the deck to four or five rows with a one-line input', () => {
         const rows = (cols: number) => {
-            const l = deckLayout(cols);
+            const l = deckLayout(cols, WORDMARK);
             return l.bandRows + 1 + (l.statusRow ? 1 : 0);
         };
         expect(rows(120)).toBe(4);
@@ -69,10 +84,16 @@ describe('deckLayout', () => {
         expect(rows(42)).toBe(4);
     });
 
+    it('goes bare when the wordmark would leave no room for the mode and readout', () => {
+        expect(deckLayout(66, WORDMARK).band).toBe('mid');
+        expect(deckLayout(65, WORDMARK).band).toBe('bare');
+        expect(deckLayout(50, WORDMARK).band).toBe('bare');
+    });
+
     it('sizes the status block between 30 and 36 columns', () => {
-        expect(deckLayout(100).blockWidth).toBe(30);
-        expect(deckLayout(200).blockWidth).toBe(36);
-        expect(deckLayout(80).blockWidth).toBe(0);
+        expect(deckLayout(100, WORDMARK).blockWidth).toBe(30);
+        expect(deckLayout(200, WORDMARK).blockWidth).toBe(36);
+        expect(deckLayout(80, WORDMARK).blockWidth).toBe(0);
     });
 });
 

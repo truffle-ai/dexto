@@ -188,7 +188,8 @@ export function Deck({ state, gate, children }: DeckProps) {
             stdout.off('resize', onResize);
         };
     }, [stdout]);
-    const layout = deckLayout(columns);
+    const wordmarkColumns = pickWordmark(wordmarkTier(caps), 3).cols + 3;
+    const layout = deckLayout(columns, wordmarkColumns);
     const bare = layout.band === 'bare';
     const mode = DECK_MODES[state.mode];
     const kind = traceKind(state.mode);
@@ -202,8 +203,10 @@ export function Deck({ state, gate, children }: DeckProps) {
         const { width } = measureElement(traceRef.current);
         if (width !== measured) setMeasured(width);
     });
-    const wordmarkCols = bare ? 0 : pickWordmark(wordmarkTier(caps), 3).cols + 3;
-    const estimate = columns - wordmarkCols - (layout.blockWidth > 0 ? layout.blockWidth + 4 : 0);
+    const estimate =
+        columns -
+        (bare ? 0 : wordmarkColumns) -
+        (layout.blockWidth > 0 ? layout.blockWidth + 4 : 0);
     const traceWidth = measured ?? Math.max(4, estimate);
     const history = useTrace(kind, traceWidth);
 
