@@ -2,10 +2,12 @@
  * What one tool call shows as a Signal step row, worked out from its message. Pure, so each rule
  * is tested on its own.
  */
-import type { ToolDisplayData } from '@dexto/core';
+import type { ToolDisplayData, ToolPresentationSnapshotV1 } from '@dexto/core';
 import type { Step, StepState } from '../signal/index.js';
+
+export type { Step };
 import type { Message } from '../state/types.js';
-import { formatDuration, makeRelativePath } from './messageFormatting.js';
+import { formatDuration, formatToolHeader, makeRelativePath } from './messageFormatting.js';
 
 const VERB_CELLS = 7;
 const OUTPUT_LINES = 5;
@@ -167,4 +169,35 @@ export function toolOutput(message: Message): string[] {
         .split('\n')
         .filter((line) => line.trim().length > 0)
         .slice(-OUTPUT_LINES);
+}
+
+export interface FinishedToolCall {
+    toolName: string;
+    args: Record<string, unknown>;
+    presentationSnapshot?: ToolPresentationSnapshotV1;
+    success: boolean;
+    durationMs: number | null;
+    display?: ToolDisplayData;
+}
+
+/** The step of a finished call seen outside the TUI: `dexto run` prints these as its log. */
+export function finishedToolStep(call: FinishedToolCall): Step {
+    const { header } = formatToolHeader({
+        toolName: call.toolName,
+        args: call.args,
+        ...(call.presentationSnapshot !== undefined && {
+            presentationSnapshot: call.presentationSnapshot,
+        }),
+    });
+    return toolStep({
+        id: call.toolName,
+        role: 'tool',
+        content: header,
+        timestamp: new Date(0),
+        toolName: call.toolName,
+        toolStatus: 'finished',
+        isError: !call.success,
+        ...(call.durationMs !== null && { toolDurationMs: call.durationMs }),
+        ...(call.display !== undefined && { toolDisplayData: call.display }),
+    });
 }
