@@ -11,6 +11,147 @@ mockValidateModelFileSupport.mockReturnValue({ isSupported: true, fileType: 'pdf
 const mockLogger = createMockLogger();
 
 describe('VercelMessageFormatter', () => {
+    test('keeps the pre-change output for a normal parallel-tool history', () => {
+        const formatter = new VercelMessageFormatter(mockLogger);
+        const history: InternalMessage[] = [
+            { role: 'system', content: [{ type: 'text', text: 'system' }] },
+            { role: 'user', content: [{ type: 'text', text: 'question' }] },
+            {
+                role: 'assistant',
+                content: [{ type: 'text', text: 'calling' }],
+                assistantOutput: { status: 'complete' },
+                toolCalls: [
+                    { id: 'a', type: 'function', function: { name: 'one', arguments: '{}' } },
+                    { id: 'b', type: 'function', function: { name: 'two', arguments: '{}' } },
+                ],
+            },
+            {
+                role: 'tool',
+                name: 'two',
+                toolCallId: 'b',
+                success: true,
+                content: [{ type: 'text', text: 'result-b' }],
+            },
+            {
+                role: 'tool',
+                name: 'one',
+                toolCallId: 'a',
+                success: true,
+                content: [{ type: 'text', text: 'result-a' }],
+            },
+            {
+                role: 'tool',
+                name: 'orphan',
+                toolCallId: 'x',
+                success: true,
+                content: [{ type: 'text', text: 'orphan' }],
+            },
+            { role: 'user', content: [{ type: 'text', text: 'follow up' }] },
+        ];
+        const context = { provider: 'xai', model: 'grok-4' } as const;
+        const expected = [
+            { role: 'system', content: '[object Object]' },
+            { role: 'user', content: [{ type: 'text', text: 'question' }] },
+            {
+                role: 'assistant',
+                content: [
+                    { type: 'text', text: 'calling' },
+                    { type: 'tool-call', toolCallId: 'a', toolName: 'one', input: {} },
+                    { type: 'tool-call', toolCallId: 'b', toolName: 'two', input: {} },
+                ],
+                function_call: { name: 'one', arguments: '{}' },
+            },
+            {
+                role: 'tool',
+                content: [
+                    {
+                        type: 'tool-result',
+                        toolCallId: 'b',
+                        toolName: 'two',
+                        output: { type: 'text', value: 'result-b' },
+                    },
+                ],
+            },
+            {
+                role: 'tool',
+                content: [
+                    {
+                        type: 'tool-result',
+                        toolCallId: 'a',
+                        toolName: 'one',
+                        output: { type: 'text', value: 'result-a' },
+                    },
+                ],
+            },
+            { role: 'user', content: [{ type: 'text', text: 'follow up' }] },
+        ];
+        expect(formatter.format(history, context, null)).toEqual(expected);
+        expect(
+            formatter.format(
+                history.map((message) => ({
+                    ...message,
+                    metadata: { [IMPORTED_TRANSCRIPT_METADATA_KEY]: true },
+                })),
+                context,
+                null
+            )
+        ).toEqual(expected);
+    });
+
+    test.each([
+        { provider: 'anthropic', model: 'claude-sonnet-4-6' },
+        { provider: 'openai', model: 'gpt-5.4' },
+    ] as const)('keeps imported tool results adjacent for $provider', (context) => {
+        const metadata = { [IMPORTED_TRANSCRIPT_METADATA_KEY]: true };
+        const history: InternalMessage[] = [
+            {
+                role: 'assistant',
+                metadata,
+                content: [],
+                assistantOutput: { status: 'complete' },
+                toolCalls: [
+                    { id: 'a', type: 'function', function: { name: 'one', arguments: '{}' } },
+                    { id: 'b', type: 'function', function: { name: 'two', arguments: '{}' } },
+                ],
+            },
+            {
+                role: 'assistant',
+                metadata,
+                content: [{ type: 'text', text: 'between' }],
+                assistantOutput: { status: 'complete' },
+            },
+            {
+                role: 'tool',
+                metadata,
+                name: 'two',
+                toolCallId: 'b',
+                success: true,
+                content: [{ type: 'text', text: 'result-b' }],
+            },
+            {
+                role: 'tool',
+                metadata,
+                name: 'one',
+                toolCallId: 'a',
+                success: true,
+                content: [{ type: 'text', text: 'result-a' }],
+            },
+        ];
+        const result = new VercelMessageFormatter(mockLogger).format(history, context, null);
+        expect(result.map((message) => message.role)).toEqual([
+            'assistant',
+            'tool',
+            'tool',
+            'assistant',
+        ]);
+        expect(
+            result
+                .slice(1, 3)
+                .flatMap((message) =>
+                    message.role === 'tool' ? message.content.map((part) => part.toolCallId) : []
+                )
+        ).toEqual(['b', 'a']);
+    });
     test('retains the real result after interleaved assistant text', () => {
         const formatter = new VercelMessageFormatter(mockLogger);
         const metadata = { [IMPORTED_TRANSCRIPT_METADATA_KEY]: true };
@@ -312,7 +453,7 @@ describe('VercelMessageFormatter', () => {
                 name: 'second',
                 toolCallId: 'b',
                 success: true,
-                content: [{ type: 'text', text: 'native-result-b' }],
+                content: [{ type: 'text', text: 'imported-result-b' }],
             },
         ];
         const result = formatter.format(history, { provider: 'xai', model: 'grok-4' }, null);
@@ -323,7 +464,7 @@ describe('VercelMessageFormatter', () => {
             'assistant',
             'tool',
         ]);
-        expect(JSON.stringify(result)).toContain('native-result-b');
+        expect(JSON.stringify(result)).toContain('imported-result-b');
     });
     describe('URL string auto-detection', () => {
         test('should inline markdown file content as text for model messages', () => {

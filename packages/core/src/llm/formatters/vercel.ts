@@ -20,7 +20,7 @@ type RemoteToolMedia =
     | { type: 'image'; image: URL; mediaType: string }
     | { type: 'file'; data: URL; mediaType: string; filename?: string };
 
-/** Providers require results directly after calls; keep other imported messages in order. */
+/** Providers require results directly after calls; system and unmarked messages end the imported region. */
 function normalizeInterleavedToolHistory(history: InternalMessage[]): InternalMessage[] {
     const normalized: InternalMessage[] = [];
     for (let index = 0; index < history.length; ) {
