@@ -133,9 +133,6 @@ export function useCLIState({
         autoApproveEdits: false,
         bypassPermissions: initialBypassPermissions,
         todoExpanded: true, // Default to expanded to show full todo list
-        backgroundTasksRunning: 0,
-        backgroundTasksExpanded: false,
-        backgroundTasks: [],
         chatgptRateLimitStatus: null,
         insufficientCredits: null,
         planModeActive: false,

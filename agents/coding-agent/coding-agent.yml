@@ -127,8 +127,6 @@ permissions:
       - plan_create    # Create plan without approval
       - plan_read      # Read plan without approval
       - plan_update    # Update plan without approval
-      - wait_for       # Wait for background tasks without approval
-      - check_task     # Check background tasks without approval
 
 # Compaction configuration - automatically summarizes conversation when context is full
 compaction:
