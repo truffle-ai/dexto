@@ -65,4 +65,19 @@ describe('personal skill discovery', () => {
         });
         expect(skills.map((skill) => [skill.source, skill.name])).toEqual([['codex', 'mine']]);
     });
+
+    it('excludes a project reached through a symlinked ancestor', async () => {
+        const home = await mkdtemp(path.join(tmpdir(), 'personal-skills-ancestor-'));
+        const project = path.join(home, 'project');
+        await mkdir(path.join(project, '.git'), { recursive: true });
+        await mkdir(path.join(project, 'nested', 'config', 'skills', 'repo'), { recursive: true });
+        await writeFile(
+            path.join(project, 'nested', 'config', 'skills', 'repo', 'SKILL.md'),
+            'repo'
+        );
+        await symlink(path.join(project, 'nested'), path.join(home, 'alias'));
+        expect(
+            await findPersonalSkills(home, { CODEX_HOME: path.join(home, 'alias', 'config') })
+        ).toEqual([]);
+    });
 });

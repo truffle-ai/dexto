@@ -1,4 +1,4 @@
-import { lstat, readdir } from 'node:fs/promises';
+import { lstat, readdir, realpath } from 'node:fs/promises';
 import path from 'node:path';
 import type { LocalChatSource } from './transcript.js';
 import { findRepository } from './git.js';
@@ -39,7 +39,9 @@ export async function findPersonalSkills(
             throw error;
         }
         if (!rootStat.isDirectory() || rootStat.isSymbolicLink()) continue;
-        if (await findRepository(root.path)) continue;
+        // An ancestor may be a symlink into a repository outside the lexical path.
+        if ((await findRepository(root.path)) || (await findRepository(await realpath(root.path))))
+            continue;
         const entries = await readdir(root.path, { withFileTypes: true });
         for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
             if (!entry.isDirectory() || entry.name.startsWith('.')) continue;
