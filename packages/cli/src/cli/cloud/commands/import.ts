@@ -1,4 +1,5 @@
 import { findLocalChats } from '../../import/local-chats.js';
+import { findPersonalSkills } from '../../import/personal-skills.js';
 import { redactSecrets, toImportInput } from '../../import/redaction.js';
 import { LOCAL_CHAT_SOURCES, type LocalChat } from '../../import/transcript.js';
 import { CommandFailure, EXIT_CODES } from '../../failure.js';
@@ -41,6 +42,14 @@ async function runImport(
     const current = flag(input, 'current-session');
     if (selection !== undefined && current)
         throw new UsageError('Pass --select or --current-session, not both.');
+    if (
+        selection?.split(',').some((id) => id.trim().startsWith('skill:')) ||
+        (selection === 'all' &&
+            (await findPersonalSkills(context.runtime.homeDirectory)).length > 0)
+    )
+        throw new UsageError(
+            'Personal skill import is not available yet. Select chat IDs explicitly.'
+        );
     const codexId = current ? context.runtime.environment.CODEX_THREAD_ID : undefined;
     const claudeId = current ? context.runtime.environment.CLAUDE_CODE_SESSION_ID : undefined;
     if (codexId && claudeId)
@@ -61,6 +70,16 @@ async function runImport(
         for (const notice of scan.notices) context.output.note(notice.message);
     const chats = scans.flatMap((scan) => scan.chats);
     if (listOnly || (selection === undefined && !current)) {
+        const personalSkills = await findPersonalSkills(context.runtime.homeDirectory);
+        const skills = personalSkills.map((skill) => {
+            const name = redactSecrets(skill.name).text;
+            return {
+                id: `skill:${skill.source}:${name}`,
+                source: skill.source,
+                name,
+                status: 'not_available' as const,
+            };
+        });
         const sessions = chats.map((chat) => ({
             id: key(chat),
             source: chat.source,
@@ -70,8 +89,11 @@ async function runImport(
             updatedAt: chat.updatedAt,
         }));
         context.output.result(
-            { sessions },
-            sessions.map((item) => `${item.id} ${item.title}`).join('\n')
+            { sessions, skills },
+            [
+                ...sessions.map((item) => `${item.id} ${item.title}`),
+                ...skills.map((item) => `${item.id} (import not available yet)`),
+            ].join('\n')
         );
         return 0;
     }

@@ -4,11 +4,15 @@ import { nodeCloudRuntime } from '../runtime.js';
 import type { CommandContext } from '../command.js';
 import { importCommands } from './import.js';
 import { findLocalChats } from '../../import/local-chats.js';
+import { findPersonalSkills } from '../../import/personal-skills.js';
 import { queryWorkspaceTool } from './workspace.js';
 import { CommandFailure } from '../../failure.js';
 
 vi.mock('../../import/local-chats.js', () => ({
     findLocalChats: vi.fn(async () => ({ chats: [], notices: [] })),
+}));
+vi.mock('../../import/personal-skills.js', () => ({
+    findPersonalSkills: vi.fn(async () => []),
 }));
 vi.mock('./workspace.js', () => ({
     queryWorkspaceTool: vi.fn(async () => ({
@@ -449,5 +453,66 @@ describe('headless import', () => {
             await command.run(context, { positionals: [], values: { select: 'all', yes: true } })
         ).toBe(0);
         expect(JSON.parse(output).sessions).toEqual([]);
+    });
+
+    it('lists personal skills in discovery without uploading them', async () => {
+        vi.mocked(findPersonalSkills).mockResolvedValueOnce([
+            { source: 'claude-code', name: 'sample', path: '/home/test/.claude/skills/sample' },
+        ]);
+        let output = '';
+        const runtime = {
+            ...nodeCloudRuntime(new AbortController().signal),
+            prompt: null,
+            writeOutput: (text: string) => {
+                output += text;
+            },
+        };
+        const context: CommandContext = {
+            runtime,
+            output: createOutput(runtime, 'json'),
+            invocation: ['import'],
+            overrides: { apiBaseUrl: null, apiKey: null, cloudProject: null, profile: null },
+            connection: async () => {
+                throw new Error('unexpected authentication');
+            },
+            client: async () => {
+                throw new Error('unexpected network');
+            },
+        };
+        const command = importCommands[0];
+        if (!command) throw new Error('missing import command');
+        await command.run(context, { positionals: [], values: {} });
+        expect(JSON.parse(output).skills).toEqual([
+            {
+                id: 'skill:claude-code:sample',
+                source: 'claude-code',
+                name: 'sample',
+                status: 'not_available',
+            },
+        ]);
+    });
+
+    it('does not silently omit personal skills from select all', async () => {
+        vi.mocked(findPersonalSkills).mockResolvedValueOnce([
+            { source: 'codex', name: 'sample', path: '/home/test/.codex/skills/sample' },
+        ]);
+        const runtime = { ...nodeCloudRuntime(new AbortController().signal), prompt: null };
+        const context: CommandContext = {
+            runtime,
+            output: createOutput(runtime, 'json'),
+            invocation: ['import'],
+            overrides: { apiBaseUrl: null, apiKey: null, cloudProject: null, profile: null },
+            connection: async () => {
+                throw new Error('unexpected authentication');
+            },
+            client: async () => {
+                throw new Error('unexpected network');
+            },
+        };
+        const command = importCommands[0];
+        if (!command) throw new Error('missing import command');
+        await expect(
+            command.run(context, { positionals: [], values: { select: 'all', yes: true } })
+        ).rejects.toThrow(/skill import.*not available/i);
     });
 });
