@@ -88,7 +88,12 @@ const push: Command = {
 
         const mode =
             flag(input, 'update') || (await ownsSkill(context, slug)) ? 'update' : 'create';
-        const metadata = { description, mode, slug, title };
+        const metadata = { description, mode, slug, title } satisfies {
+            description: string;
+            mode: 'create' | 'update';
+            slug: string;
+            title: string;
+        };
         // Ask before anything is sent: the import is what changes the library.
         const tool = (await listWorkspaceTools(context)).find(
             (each) => each.name === 'dexto_skill_bundle_import'
