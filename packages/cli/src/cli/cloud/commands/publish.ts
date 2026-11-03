@@ -139,7 +139,9 @@ const publish: Command = {
         await requireConsent(
             context,
             flag(input, 'yes'),
-            `Publish ${name}${visibility === undefined ? '' : ` with ${visibility} visibility`}.`
+            visibility === undefined
+                ? `Publish ${name} (a new Site is unlisted: anyone with the link can open it; an existing Site keeps its visibility).`
+                : `Publish ${name} with ${visibility} visibility.`
         );
 
         const prepared = PreparedSchema.safeParse(

@@ -393,6 +393,28 @@ describe('dexto workspace', () => {
         expect(calls.some((call) => call.method === 'tools/list')).toBe(false);
     });
 
+    it('explains the default visibility before asking for publish consent', async () => {
+        const file = path.join(path.dirname(dir), 'consent.html');
+        await writeFile(file, '<h1>Consent</h1>');
+        const questions: string[] = [];
+        host = {
+            ...host,
+            runtime: {
+                ...host.runtime,
+                prompt: async (question) => {
+                    questions.push(question);
+                    return 'yes';
+                },
+            },
+        };
+        expect(await runCloud(host, ['publish', file, '--json'])).toBe(0);
+        expect(questions).toHaveLength(1);
+        expect(questions[0]).toContain('new Site is unlisted');
+        expect(questions[0]).toContain('anyone with the link can open it');
+        expect(questions[0]).toContain('existing Site keeps its visibility');
+        expect(calls.at(-1)?.params.arguments).not.toHaveProperty('visibility');
+    });
+
     it('passes private visibility to the Site publish operation', async () => {
         const file = path.join(path.dirname(dir), 'private.html');
         await writeFile(file, '<h1>private</h1>');
