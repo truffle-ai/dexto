@@ -34,7 +34,7 @@ const options = {
     },
     'current-session': {
         type: 'boolean',
-        description: 'Select the current Codex session when its ID is available.',
+        description: 'Select the current Claude Code or Codex session when its ID is available.',
     },
     'dry-run': { type: 'boolean', description: 'Preview redactions without uploading.' },
     ...YES_OPTION,
@@ -53,8 +53,14 @@ async function runImport(
     const current = flag(input, 'current-session');
     if (selection !== undefined && current)
         throw new UsageError('Pass --select or --current-session, not both.');
-    const currentId = current ? context.runtime.environment.CODEX_THREAD_ID : undefined;
-    if (current && !currentId)
+    const codexId = current ? context.runtime.environment.CODEX_THREAD_ID : undefined;
+    const claudeId = current ? context.runtime.environment.CLAUDE_CODE_SESSION_ID : undefined;
+    if (codexId && claudeId)
+        throw new UsageError(
+            'Multiple current sessions are present. Select a source:id explicitly with --select.'
+        );
+    const currentKey = codexId ? `codex:${codexId}` : claudeId ? `claude-code:${claudeId}` : null;
+    if (current && currentKey === null)
         throw new UsageError(
             'Cannot identify the current session. Select a source:id explicitly with --select.'
         );
@@ -81,8 +87,8 @@ async function runImport(
         );
         return 0;
     }
-    const ids = currentId
-        ? [`codex:${currentId}`]
+    const ids = currentKey
+        ? [currentKey]
         : selection === 'all'
           ? chats.map(key)
           : (selection ?? '')

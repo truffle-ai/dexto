@@ -161,4 +161,53 @@ describe('headless import', () => {
             command.run(context, { positionals: [], values: { select: 'codex:test-2' } })
         ).rejects.toMatchObject({ kind: 'needs_confirmation' });
     });
+
+    it('identifies a Claude Code session without guessing', async () => {
+        const chat = {
+            id: 'claude-1',
+            source: 'claude-code' as const,
+            title: 'Test',
+            cwd: '/tmp/test',
+            gitBranch: null,
+            path: '/tmp/test.jsonl',
+            pullRequests: [],
+            repository: null,
+            startedAt: '2026-01-01T00:00:00Z',
+            updatedAt: '2026-01-01T00:00:00Z',
+            messages: [{ role: 'user' as const, text: 'hello', createdAt: '2026-01-01T00:00:00Z' }],
+        };
+        vi.mocked(findLocalChats)
+            .mockResolvedValueOnce({ chats: [chat], notices: [] })
+            .mockResolvedValueOnce({ chats: [], notices: [] });
+        let output = '';
+        const runtime = {
+            ...nodeCloudRuntime(new AbortController().signal),
+            environment: { CLAUDE_CODE_SESSION_ID: 'claude-1' },
+            prompt: null,
+            writeOutput: (text: string) => {
+                output += text;
+            },
+        };
+        const context: CommandContext = {
+            runtime,
+            output: createOutput(runtime, 'json'),
+            invocation: ['import'],
+            overrides: { apiBaseUrl: null, apiKey: null, cloudProject: null, profile: null },
+            connection: async () => {
+                throw new Error('unexpected authentication');
+            },
+            client: async () => {
+                throw new Error('unexpected network');
+            },
+        };
+        const command = importCommands[0];
+        if (!command) throw new Error('missing import command');
+        expect(
+            await command.run(context, {
+                positionals: [],
+                values: { 'current-session': true, 'dry-run': true },
+            })
+        ).toBe(0);
+        expect(JSON.parse(output).sessions[0].id).toBe('claude-code:claude-1');
+    });
 });
