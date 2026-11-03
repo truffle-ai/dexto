@@ -7,8 +7,7 @@ import { readdir, readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 
 import { z } from 'zod';
-import { AjvJsonSchemaValidator } from '@modelcontextprotocol/sdk/validation/ajv';
-import type { JsonSchemaType } from '@modelcontextprotocol/sdk/validation/types';
+import { unwrap } from '@dexto/cloud-client';
 
 import { argument, stringOption, flag, UsageError, YES_OPTION, type Command } from '../command.js';
 import { sendBytes } from '../transfer.js';
@@ -30,13 +29,6 @@ const PreparedSchema = z.object({
     path: z.string(),
     url: z.string(),
 });
-type Published = {
-    created: boolean;
-    files: number;
-    url: string;
-    visibility: 'private' | 'unlisted' | 'public';
-};
-
 const publish: Command = {
     arguments: '<path>',
     options: {
@@ -61,9 +53,13 @@ const publish: Command = {
     path: ['publish'],
     summary: 'Publish a file, folder or .zip as a Site; publishing the same name again updates it.',
     async run(context, input) {
-        const visibility = stringOption(input, 'visibility');
-        if (visibility !== undefined && !['private', 'unlisted', 'public'].includes(visibility))
+        const parsedVisibility = z
+            .enum(['private', 'unlisted', 'public'])
+            .optional()
+            .safeParse(stringOption(input, 'visibility'));
+        if (!parsedVisibility.success)
             throw new UsageError('--visibility must be private, unlisted, or public.');
+        const visibility = parsedVisibility.data;
         await requireLoginScopes(context, ['sites:write']);
         const target = path.resolve(argument(input, 0, 'path'));
         const found = await stat(target).catch(() => null);
@@ -79,7 +75,6 @@ const publish: Command = {
         const title = stringOption(input, 'title');
 
         let archive: Uint8Array<ArrayBuffer>;
-        let count: number | null = null;
         if (isZip) archive = new Uint8Array(await readFile(target));
         else {
             const files = found.isDirectory()
@@ -87,7 +82,6 @@ const publish: Command = {
                 : [{ bytes: await readFile(target), path: path.basename(target) }];
             checkSizes(files);
             archive = zipArchive(files);
-            count = files.length;
         }
         if (archive.byteLength > MAX_UPLOAD_BYTES)
             throw new UsageError(
@@ -105,7 +99,7 @@ const publish: Command = {
             ...(title === undefined ? {} : { title }),
             ...(visibility === undefined ? {} : { visibility }),
         };
-        const agreed = await agreeToCall(
+        await agreeToCall(
             context,
             {
                 level: toolCallLevel(tool, call),
@@ -128,30 +122,16 @@ const publish: Command = {
             throw new CommandFailure('failed', "Dexto didn't say where to upload the files.", null);
         const { headers, method, url } = prepared.data;
         await sendBytes(context, { headers, method, url }, new globalThis.Blob([archive]));
-        const published = await queryWorkspaceTool(context, 'dexto_site_publish', {
-            ...call,
-            uploadPath: prepared.data.path,
-            ...agreed,
-        });
-        const shown =
-            tool.outputSchema === undefined
-                ? null
-                : new AjvJsonSchemaValidator().getValidator<Published>(
-                      tool.outputSchema as JsonSchemaType
-                  )(published);
-        if (shown !== null && !shown.valid)
-            throw new CommandFailure(
-                'failed',
-                'The Site may have published, but Dexto returned an invalid result.',
-                'Check your Sites before retrying.'
-            );
-        const files = shown?.valid ? shown.data.files : count;
-        const publishedVisibility = shown?.valid ? shown.data.visibility : visibility;
+        const published = await unwrap(
+            await (
+                await context.client()
+            ).POST('/v1/sites/publish', {
+                body: { ...call, uploadPath: prepared.data.path },
+            })
+        );
         context.output.result(
             published,
-            shown?.valid
-                ? `${shown.data.created ? 'Published' : 'Updated'} ${name} at ${shown.data.url} (${files} file${files === 1 ? '' : 's'}).${publishedVisibility === 'private' ? ' Open it from Dexto as an organization member.' : ' Anyone with the link can open it.'}`
-                : JSON.stringify(published, null, 2)
+            `${published.created ? 'Published' : 'Updated'} ${name} at ${published.url} (${published.files} file${published.files === 1 ? '' : 's'}).${published.visibility === 'private' ? ' Open it from Dexto as an organization member.' : ' Anyone with the link can open it.'}`
         );
     },
 };

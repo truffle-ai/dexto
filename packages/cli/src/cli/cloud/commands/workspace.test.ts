@@ -24,19 +24,6 @@ const TOOLS = [
             type: 'object',
             properties: { name: { type: 'string' }, confirm: { type: 'boolean' } },
         },
-        outputSchema: {
-            $schema: 'http://json-schema.org/draft-07/schema#',
-            type: 'object',
-            required: ['created', 'files', 'homepage', 'site', 'url', 'visibility'],
-            properties: {
-                created: { type: 'boolean' },
-                files: { type: 'integer' },
-                homepage: { type: 'string' },
-                site: { type: 'object' },
-                url: { type: 'string' },
-                visibility: { enum: ['private', 'unlisted', 'public'] },
-            },
-        },
         _meta: { 'dexto/app': 'sites', 'dexto/level': 'act' },
     },
     {
@@ -62,7 +49,6 @@ describe('dexto workspace', () => {
     let authorization: (string | null)[];
     let environment: Record<string, string>;
     let uploads: { url: string; method: string; bytes: Uint8Array }[];
-    let malformedPublishResult: boolean;
     let host: CloudHost;
 
     beforeEach(async () => {
@@ -73,7 +59,6 @@ describe('dexto workspace', () => {
         authorization = [];
         environment = {};
         uploads = [];
-        malformedPublishResult = false;
         await dextoAccounts.writeLogin(dir, 'default', {
             kind: 'oauth',
             accessToken: 'access-1',
@@ -105,6 +90,25 @@ describe('dexto workspace', () => {
                     });
                     return new Response(null, { status: 200 });
                 }
+                if (request.url === 'https://api.dexto.ai/v1/sites/publish') {
+                    const body: unknown = await request.json();
+                    calls.push({
+                        method: 'POST',
+                        params: { name: 'dexto_site_publish', arguments: body },
+                    });
+                    const visibility =
+                        typeof body === 'object' && body !== null && 'visibility' in body
+                            ? body.visibility
+                            : 'unlisted';
+                    return Response.json({
+                        created: true,
+                        files: 2,
+                        homepage: 'index.html',
+                        site: { id: 'site-1', slug: 'hello', title: 'Hello' },
+                        url: 'https://hello.dexto.page',
+                        visibility,
+                    });
+                }
                 if (request.url !== MCP) return Response.json({}, { status: 404 });
                 authorization.push(request.headers.get('authorization'));
                 const message = JSON.parse(await request.text());
@@ -118,18 +122,7 @@ describe('dexto workspace', () => {
                               headers: {},
                               path: 'uploads/u1.zip',
                           }
-                        : tool === 'dexto_site_publish'
-                          ? {
-                                created: true,
-                                files: 2,
-                                homepage: 'index.html',
-                                site: { id: 'site-1', slug: 'hello', title: 'Hello' },
-                                url: 'https://hello.dexto.page',
-                                visibility: malformedPublishResult
-                                    ? 'broken'
-                                    : (message.params.arguments?.visibility ?? 'unlisted'),
-                            }
-                          : { status: 'sent' };
+                        : { status: 'sent' };
                 const result =
                     message.method === 'tools/list'
                         ? { tools: TOOLS }
@@ -261,14 +254,6 @@ describe('dexto workspace', () => {
         expect(stdout).toContain('Open it from Dexto as an organization member.');
     });
 
-    it('reports an invalid publish result without claiming a retry is safe', async () => {
-        const file = path.join(path.dirname(dir), 'private.html');
-        await writeFile(file, '<h1>private</h1>');
-        malformedPublishResult = true;
-        expect(await runCloud(host, ['publish', file, '--yes', '--json'])).toBe(1);
-        expect(JSON.parse(stderr).error.message).toContain('may have published');
-    });
-
     it('publishes a folder as a zip, uploaded where Dexto says, once agreed', async () => {
         const folder = path.join(path.dirname(dir), 'hello');
         await mkdir(folder, { recursive: true });
@@ -286,10 +271,10 @@ describe('dexto workspace', () => {
         expect(uploads[0]?.method).toBe('PUT');
         expect(new globalThis.TextDecoder().decode(uploads[0]?.bytes.slice(0, 2))).toBe('PK');
         expect(calls.at(-1)).toEqual({
-            method: 'tools/call',
+            method: 'POST',
             params: {
                 name: 'dexto_site_publish',
-                arguments: { name: 'hello', uploadPath: 'uploads/u1.zip', confirm: true },
+                arguments: { name: 'hello', uploadPath: 'uploads/u1.zip' },
             },
         });
         expect(stdout).toContain(

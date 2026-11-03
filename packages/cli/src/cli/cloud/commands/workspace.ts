@@ -25,7 +25,6 @@ const ToolSchema = z.object({
     _meta: z.record(z.string(), z.unknown()).optional(),
     description: z.string().optional(),
     inputSchema: z.unknown(),
-    outputSchema: z.record(z.string(), z.unknown()).optional(),
     name: z.string(),
     title: z.string().optional(),
 });
