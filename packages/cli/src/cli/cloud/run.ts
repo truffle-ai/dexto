@@ -1,19 +1,17 @@
 // Runs `dexto cloud …` and the other ported cloud commands: global options, help, the agent
 // contract's JSON output and exit codes, and signing in again for a permission a command lacked.
 
+import { CommandFailure, EXIT_CODE_MEANINGS, EXIT_CODES, type FailureKind } from '../failure.js';
+
 import { parseArgs } from 'node:util';
 import { jsonError } from '../output.js';
 import { CloudApiError, createCloudClient } from '@dexto/cloud-client';
 import {
-    CommandFailure,
-    EXIT_CODE_MEANINGS,
-    EXIT_CODES,
     MissingScopeFailure,
     signInCommand,
     UsageError,
     type Command,
     type CommandContext,
-    type FailureKind,
     type OptionSpec,
     type SignInContext,
 } from './command.js';

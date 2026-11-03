@@ -1,17 +1,18 @@
 // `cloud models`: every model call, text or media, as a model id and its input.
 
+import { CommandFailure } from '../../failure.js';
+import { requireConsent } from '../../interaction.js';
+
 import { randomUUID } from 'node:crypto';
 import { unwrap, type CloudClient, type V1Response } from '@dexto/cloud-client';
 import {
     argument,
     BODY_OPTIONS,
-    CommandFailure,
     flag,
     isJsonObject,
     PAGE_OPTIONS,
     pageQuery,
     readJsonBody,
-    requireConsent,
     stringOption,
     UsageError,
     type Command,

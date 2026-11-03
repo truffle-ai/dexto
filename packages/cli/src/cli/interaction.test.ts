@@ -1,55 +1,39 @@
 import { describe, expect, it, vi } from 'vitest';
-import { requireConfirmation } from './interaction.js';
+import { requireConsent, requireInteractive } from './interaction.js';
 
 describe('non-interactive confirmation', () => {
-    it('fails with the missing flag without asking when non-interactive', async () => {
-        const prompt = vi.fn(async () => true);
+    it('names the missing flag and gives the exact rerun when input is unavailable', async () => {
         await expect(
-            requireConfirmation({
-                yes: false,
-                interactive: false,
-                prompt,
-                message: 'Delete?',
-                fix: 'dexto delete --yes',
-            })
+            requireConsent(
+                { invocation: ['delete', 'a b'], runtime: { prompt: null } },
+                false,
+                'Delete?'
+            )
         ).rejects.toMatchObject({
             kind: 'needs_confirmation',
             message: 'Delete? Run it again with --yes once your person has agreed.',
-            fix: 'dexto delete --yes',
+            fix: "dexto delete 'a b' --yes",
         });
+    });
+    it('does not ask after explicit confirmation', async () => {
+        const prompt = vi.fn(async () => 'no');
+        await expect(
+            requireConsent({ invocation: [], runtime: { prompt } }, true, 'Delete?')
+        ).resolves.toBeUndefined();
         expect(prompt).not.toHaveBeenCalled();
     });
-});
-
-it('does not ask after explicit confirmation', async () => {
-    const prompt = vi.fn(async () => false);
-    await expect(
-        requireConfirmation({
-            yes: true,
-            interactive: true,
-            prompt,
-            message: 'Delete?',
-            fix: 'dexto delete --yes',
-        })
-    ).resolves.toBeUndefined();
-    expect(prompt).not.toHaveBeenCalled();
-});
-
-it('honors a declined interactive confirmation', async () => {
-    await expect(
-        requireConfirmation({
-            yes: false,
-            interactive: true,
-            prompt: async () => false,
-            message: 'Delete?',
-            fix: 'dexto delete --yes',
-        })
-    ).rejects.toMatchObject({ kind: 'needs_confirmation', message: 'Not done.' });
-});
-
-it('names the required flag when a prompt cannot be shown', async () => {
-    const { requireInteractive } = await import('./interaction.js');
-    expect(() => requireInteractive(false, '--select')).toThrow(
-        'Pass --select when running non-interactively.'
-    );
+    it('honors a declined interactive confirmation', async () => {
+        await expect(
+            requireConsent(
+                { invocation: [], runtime: { prompt: async () => 'no' } },
+                false,
+                'Delete?'
+            )
+        ).rejects.toMatchObject({ kind: 'needs_confirmation', message: 'Not done.' });
+    });
+    it('names the required flag when a prompt cannot be shown', () => {
+        expect(() => requireInteractive(false, '--select')).toThrow(
+            'Pass --select when running non-interactively.'
+        );
+    });
 });

@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises';
 import type { CloudClient } from '@dexto/cloud-client';
 
 import { CommandFailure } from '../failure.js';
-import { requireConfirmation } from '../interaction.js';
+import { shellWord } from '../interaction.js';
 
 import type { Connection, ConnectionOverrides } from './connection.js';
 import type { Output } from './output.js';
@@ -52,9 +52,6 @@ export class UsageError extends Error {
         this.name = 'UsageError';
     }
 }
-
-export { CommandFailure, EXIT_CODES, EXIT_CODE_MEANINGS } from '../failure.js';
-export type { FailureKind } from '../failure.js';
 
 /** A permission the sign-in lacks: signing in again for `scope` (one, or several comma-separated) fixes it. */
 export class MissingScopeFailure extends CommandFailure {
@@ -171,42 +168,12 @@ export async function readValue(
     return value;
 }
 
-/** Asks yes or no at a terminal; without one, only `--yes` agrees. */
-export async function confirm(context: CommandContext, question: string): Promise<boolean> {
-    if (context.runtime.prompt === null) return false;
-    const answer = await context.runtime.prompt(`${question} [y/N] `, { secret: false });
-    return /^y(es)?$/iu.test(answer.trim());
-}
-
 export const YES_OPTION = {
     yes: {
         description: 'Go ahead without being asked. Pass it only once your person has agreed.',
         type: 'boolean',
     },
 } as const satisfies Record<string, OptionSpec>;
-
-/**
- * Goes ahead with something that asks first: at once with `--yes`, after a yes at a terminal, and
- * otherwise not at all, failing with the command that goes ahead.
- */
-export async function requireConsent(
-    context: CommandContext,
-    yes: boolean,
-    what: string
-): Promise<void> {
-    await requireConfirmation({
-        yes,
-        interactive: context.runtime.prompt !== null,
-        prompt: () => confirm(context, `${what} Go ahead?`),
-        message: what,
-        fix: rerunWith(context, '--yes'),
-    });
-}
-
-/** The command as it was run plus more words, quoted to paste into a shell. */
-export function rerunWith(context: CommandContext, ...extra: string[]): string {
-    return ['dexto', ...context.invocation, ...extra].map(shellWord).join(' ');
-}
 
 /**
  * Whether a sign-in here should use a device code: no one is at this terminal, or it is an SSH
@@ -238,9 +205,4 @@ export function signInCommand(context: SignInContext, scope: string | null): str
     ]
         .map(shellWord)
         .join(' ');
-}
-
-/** A word as a shell reads it: quoted unless it is plain. */
-export function shellWord(word: string): string {
-    return /^[\w@%+=:,./-]+$/u.test(word) ? word : `'${word.replaceAll("'", "'\\''")}'`;
 }

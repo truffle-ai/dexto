@@ -1,13 +1,14 @@
 // `cloud agents`: define agents, chat with them, and read their sessions, messages and runs.
 
+import { EXIT_CODES } from '../../failure.js';
+import { confirm, requireConsent } from '../../interaction.js';
+
 import chalk from 'chalk';
 import { unwrap, type CloudClient, type V1Body, type V1Response } from '@dexto/cloud-client';
 
 import {
     argument,
     BODY_OPTIONS,
-    confirm,
-    EXIT_CODES,
     flag,
     integerOption,
     isJsonObject,
@@ -15,7 +16,6 @@ import {
     PAGE_OPTIONS,
     pageQuery,
     readJsonBody,
-    requireConsent,
     stringOption,
     UsageError,
     YES_OPTION,

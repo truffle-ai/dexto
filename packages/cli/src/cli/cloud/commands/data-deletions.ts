@@ -1,12 +1,13 @@
 // `cloud data-deletions`: delete an end user's or an agent's data in the background.
 
+import { requireConsent } from '../../interaction.js';
+
 import { unwrap, type V1Response } from '@dexto/cloud-client';
 import {
     argument,
     flag,
     PAGE_OPTIONS,
     pageQuery,
-    requireConsent,
     stringOption,
     UsageError,
     YES_OPTION,

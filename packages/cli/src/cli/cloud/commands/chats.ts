@@ -1,11 +1,12 @@
 // `chat local` and `chat import`: find Claude Code and Codex chats on this machine and import them.
 
+import { requireConsent } from '../../interaction.js';
+
 import { z } from 'zod';
 
 import {
     flag,
     MissingScopeFailure,
-    requireConsent,
     stringOption,
     UsageError,
     YES_OPTION,
