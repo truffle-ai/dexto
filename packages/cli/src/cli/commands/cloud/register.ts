@@ -14,7 +14,7 @@ const ENGINE_WORDS = {
     find: 'Find the command for something you want to do in Dexto',
     publish: 'Publish a file, folder or .zip as a link anyone with it can open',
     profile: 'Show and change your Dexto profile: handle, name, bio and who can see it',
-    skills: 'Push a local Skill folder into your Dexto Skills library',
+    skills: 'Push a local Skill to your Dexto Skills library, or sync the library to this computer',
 } as const;
 
 /**

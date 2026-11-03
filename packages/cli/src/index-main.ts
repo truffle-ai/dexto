@@ -112,6 +112,7 @@ import { ensureImageImporterConfigured } from './cli/utils/image-importer.js';
 const program = new Command();
 
 let earlierSignInsCarriedOver = false;
+let cloudSkillsSynced = false;
 let versionCheckPromise: Promise<UpdateInfo | null> | null = null;
 let llmRegistryAutoUpdateStarted = false;
 
@@ -120,6 +121,14 @@ async function ensureDextoSignInsCarriedOver(): Promise<void> {
     const { carryOverEarlierSignIns } = await import('./cli/commands/auth/sign-in-context.js');
     await carryOverEarlierSignIns();
     earlierSignInsCarriedOver = true;
+}
+
+/** Puts the person's Dexto Skills library where the session's skill discovery finds it. */
+async function syncCloudSkillsOnce(): Promise<void> {
+    if (cloudSkillsSynced) return;
+    cloudSkillsSynced = true;
+    const { syncCloudSkillsAtStart } = await import('./cli/cloud/skills-sync.js');
+    await syncCloudSkillsAtStart();
 }
 
 async function getVersionCheckResult(): Promise<UpdateInfo | null> {
@@ -381,6 +390,7 @@ async function bootstrapAgentFromGlobalOpts(options: {
     const { mode, modelOverride } = options;
     const isHeadlessRun = mode === 'headless-run';
     await ensureDextoSignInsCarriedOver();
+    await syncCloudSkillsOnce();
     await ensureImageImporterConfigured();
     const globalOpts = program.opts();
     const effectiveModel = modelOverride ?? globalOpts.model;
@@ -560,6 +570,7 @@ program
             'main',
             async () => {
                 await ensureDextoSignInsCarriedOver();
+                await syncCloudSkillsOnce();
                 await ensureImageImporterConfigured();
                 ensureLlmRegistryAutoUpdateStarted();
 
