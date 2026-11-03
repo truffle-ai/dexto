@@ -140,6 +140,46 @@ describe('VercelMessageFormatter', () => {
         expect(JSON.stringify(result)).toContain('Tool execution was interrupted');
         expect(JSON.stringify(result)).not.toContain('late');
     });
+
+    test('retains a paired result when another imported call remains incomplete', () => {
+        const formatter = new VercelMessageFormatter(mockLogger);
+        const history: InternalMessage[] = [
+            {
+                role: 'assistant',
+                content: [],
+                metadata: { importedTranscript: true },
+                assistantOutput: { status: 'complete' },
+                toolCalls: [
+                    { id: 'a', type: 'function', function: { name: 'first', arguments: '{}' } },
+                ],
+            },
+            {
+                role: 'assistant',
+                content: [],
+                assistantOutput: { status: 'complete' },
+                toolCalls: [
+                    { id: 'b', type: 'function', function: { name: 'second', arguments: '{}' } },
+                ],
+            },
+            {
+                role: 'tool',
+                name: 'first',
+                toolCallId: 'a',
+                success: true,
+                content: [{ type: 'text', text: 'result-a' }],
+            },
+            { role: 'user', content: [{ type: 'text', text: 'later user' }] },
+        ];
+        const result = formatter.format(history, { provider: 'xai', model: 'grok-4' }, null);
+        expect(JSON.stringify(result)).toContain('result-a');
+        expect(JSON.stringify(result)).toContain('Tool execution was interrupted');
+        expect(result.map((message) => message.role)).toEqual([
+            'assistant',
+            'tool',
+            'tool',
+            'user',
+        ]);
+    });
     describe('URL string auto-detection', () => {
         test('should inline markdown file content as text for model messages', () => {
             const formatter = new VercelMessageFormatter(mockLogger);

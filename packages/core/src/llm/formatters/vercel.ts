@@ -39,7 +39,12 @@ function normalizeInterleavedToolHistory(history: InternalMessage[]): InternalMe
         const calls = [...first.toolCalls];
         const results: InternalMessage[] = [];
         const deferred: InternalMessage[] = [];
-        let end = index;
+        let matched: {
+            end: number;
+            calls: number;
+            results: number;
+            deferred: number;
+        } | null = null;
         let interleaved = false;
         for (let cursor = index + 1; cursor < history.length && pending.size > 0; cursor++) {
             const message = history[cursor];
@@ -58,15 +63,28 @@ function normalizeInterleavedToolHistory(history: InternalMessage[]): InternalMe
                 interleaved = true;
                 deferred.push(message);
             } else {
-                if (!pending.has(message.toolCallId)) break;
+                if (!pending.has(message.toolCallId)) {
+                    results.push(message);
+                    continue;
+                }
                 pending.delete(message.toolCallId);
                 results.push(message);
+                if (interleaved)
+                    matched = {
+                        end: cursor,
+                        calls: calls.length,
+                        results: results.length,
+                        deferred: deferred.length,
+                    };
             }
-            end = cursor;
         }
-        if (interleaved && pending.size === 0) {
-            normalized.push({ ...first, toolCalls: calls }, ...results, ...deferred);
-            index = end;
+        if (matched !== null) {
+            normalized.push(
+                { ...first, toolCalls: calls.slice(0, matched.calls) },
+                ...results.slice(0, matched.results),
+                ...deferred.slice(0, matched.deferred)
+            );
+            index = matched.end;
         } else {
             normalized.push(first);
         }
