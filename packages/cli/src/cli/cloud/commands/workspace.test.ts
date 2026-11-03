@@ -391,6 +391,25 @@ describe('dexto workspace', () => {
         expect(calls.at(-1)?.params.arguments).not.toHaveProperty('visibility');
         expect(publishProject).toBe('project-1');
         expect(calls.some((call) => call.method === 'tools/list')).toBe(false);
+        expect(stderr).toContain('unlisted: anyone with the link can open it');
+        expect(JSON.parse(stdout).visibility).toBe('unlisted');
+    });
+
+    it('reports the effective visibility of an existing Site when --yes is used', async () => {
+        const file = path.join(path.dirname(dir), 'existing.html');
+        await writeFile(file, '<h1>Existing</h1>');
+        publishResponse = {
+            created: false,
+            files: 1,
+            homepage: 'index.html',
+            site: { id: 'site-1', slug: 'page', title: 'Page' },
+            url: 'https://page.example',
+            visibility: 'private',
+        };
+        expect(await runCloud(host, ['publish', file, '--yes', '--json'])).toBe(0);
+        expect(stderr).toContain('private: only you and your organization can open it');
+        expect(JSON.parse(stdout).visibility).toBe('private');
+        expect(calls.at(-1)?.params.arguments).not.toHaveProperty('visibility');
     });
 
     it('explains the default visibility before asking for publish consent', async () => {

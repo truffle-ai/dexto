@@ -189,6 +189,10 @@ const publish: Command = {
                 `The Site was published with ${published.visibility} visibility, not the requested ${visibility}. Check its visibility in Dexto before sharing it.`,
                 null
             );
+        if (flag(input, 'yes'))
+            context.output.note(
+                `Site visibility: ${published.visibility}: ${published.visibility === 'private' ? 'only you and your organization can open it' : 'anyone with the link can open it'}.`
+            );
         context.output.result(
             published,
             `${published.created ? 'Published' : 'Updated'} ${name} at ${published.url} (${published.files} file${published.files === 1 ? '' : 's'}).${published.visibility === 'private' ? ' Open it from Dexto as an organization member.' : ' Anyone with the link can open it.'}`
