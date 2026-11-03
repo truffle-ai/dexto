@@ -1174,7 +1174,7 @@ export interface paths {
         put?: never;
         /**
          * Publish files as a Site
-         * @description Publish files uploaded under the caller's workspace grant. Requires a workspace OAuth token with sites:write and cloud:read or cloud:write.
+         * @description Publish files uploaded under the caller's workspace grant. Requires a workspace OAuth token with sites:write and cloud:write and a Dexto-Cloud-Project header.
          */
         post: operations["publishSiteFiles"];
         delete?: never;

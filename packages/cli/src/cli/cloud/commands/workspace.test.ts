@@ -50,6 +50,8 @@ describe('dexto workspace', () => {
     let environment: Record<string, string>;
     let uploads: { url: string; method: string; bytes: Uint8Array }[];
     let host: CloudHost;
+    let publishResponse: unknown;
+    let publishProject: string | null;
 
     beforeEach(async () => {
         dir = path.join(await mkdtemp(path.join(os.tmpdir(), 'dexto-ws-')), 'accounts');
@@ -59,6 +61,8 @@ describe('dexto workspace', () => {
         authorization = [];
         environment = {};
         uploads = [];
+        publishResponse = undefined;
+        publishProject = null;
         await dextoAccounts.writeLogin(dir, 'default', {
             kind: 'oauth',
             accessToken: 'access-1',
@@ -69,10 +73,10 @@ describe('dexto workspace', () => {
             apiBaseUrl: 'https://api.dexto.ai',
             resource: MCP,
             tokenEndpoint: 'https://app.dexto.ai/api/oauth/token',
-            scopes: ['cloud:read', 'email:send', 'sites:write'],
+            scopes: ['cloud:read', 'cloud:write', 'email:send', 'sites:write'],
             savedAt: '2026-11-01T00:00:00.000Z',
             signedInAs: null,
-            cloudProject: null,
+            cloudProject: { id: 'project-1', name: 'Main' },
         });
         const runtime: CloudRuntime = {
             color: false,
@@ -92,22 +96,25 @@ describe('dexto workspace', () => {
                 }
                 if (request.url === 'https://api.dexto.ai/v1/sites/publish') {
                     const body: unknown = await request.json();
+                    publishProject = request.headers.get('dexto-cloud-project');
                     calls.push({
                         method: 'POST',
-                        params: { name: 'dexto_site_publish', arguments: body },
+                        params: { name: 'POST /v1/sites/publish', arguments: body },
                     });
                     const visibility =
                         typeof body === 'object' && body !== null && 'visibility' in body
                             ? body.visibility
                             : 'unlisted';
-                    return Response.json({
-                        created: true,
-                        files: 2,
-                        homepage: 'index.html',
-                        site: { id: 'site-1', slug: 'hello', title: 'Hello' },
-                        url: 'https://hello.dexto.page',
-                        visibility,
-                    });
+                    return Response.json(
+                        publishResponse ?? {
+                            created: true,
+                            files: 2,
+                            homepage: 'index.html',
+                            site: { id: 'site-1', slug: 'hello', title: 'Hello' },
+                            url: 'https://hello.dexto.page',
+                            visibility,
+                        }
+                    );
                 }
                 if (request.url !== MCP) return Response.json({}, { status: 404 });
                 authorization.push(request.headers.get('authorization'));
@@ -238,8 +245,116 @@ describe('dexto workspace', () => {
         if (login?.kind !== 'oauth') throw new Error('Expected OAuth login.');
         await dextoAccounts.writeLogin(dir, 'default', { ...login, scopes: ['sites:write'] });
         expect(await runCloud(host, ['publish', 'anything', '--yes', '--json'])).toBe(3);
-        expect(JSON.parse(stderr).error.message).toContain('cloud:read');
+        expect(JSON.parse(stderr).error.message).toContain('cloud:write');
         expect(uploads).toHaveLength(0);
+    });
+
+    it('asks for both missing permissions before uploading', async () => {
+        const login = await dextoAccounts.readLogin(dir, 'default');
+        if (login?.kind !== 'oauth') throw new Error('Expected OAuth login.');
+        await dextoAccounts.writeLogin(dir, 'default', { ...login, scopes: [] });
+        expect(await runCloud(host, ['publish', 'anything', '--yes', '--json'])).toBe(3);
+        const error = JSON.parse(stderr).error;
+        expect(error.message).toContain('cloud:write');
+        expect(error.message).toContain('sites:write');
+        expect(uploads).toHaveLength(0);
+    });
+
+    it('requests both permissions in one interactive sign-in', async () => {
+        const login = await dextoAccounts.readLogin(dir, 'default');
+        if (login?.kind !== 'oauth') throw new Error('Expected OAuth login.');
+        await dextoAccounts.writeLogin(dir, 'default', { ...login, scopes: [] });
+        const granted: string[] = [];
+        host = {
+            ...host,
+            runtime: { ...host.runtime, prompt: async () => 'yes', stdoutIsTerminal: true },
+            signInForScope: async (_overrides, scopes) => {
+                granted.push(scopes);
+                await dextoAccounts.writeLogin(dir, 'default', {
+                    ...login,
+                    scopes: ['sites:write', 'cloud:write'],
+                });
+                return true;
+            },
+        };
+        const file = path.join(path.dirname(dir), 'interactive.html');
+        await writeFile(file, '<h1>hello</h1>');
+        expect(await runCloud(host, ['publish', file, '--yes', '--table'])).toBe(0);
+        expect(granted).toEqual(['sites:write,cloud:write']);
+    });
+
+    it('requires explicit public confirmation even with --yes', async () => {
+        expect(
+            await runCloud(host, [
+                'publish',
+                'anything',
+                '--visibility',
+                'public',
+                '--yes',
+                '--json',
+            ])
+        ).toBe(4);
+        expect(JSON.parse(stderr).error.fix).toContain('--confirm-public');
+        expect(uploads).toHaveLength(0);
+    });
+
+    it('publishes public only with the explicit public confirmation', async () => {
+        const file = path.join(path.dirname(dir), 'public.html');
+        await writeFile(file, '<h1>public</h1>');
+        expect(
+            await runCloud(host, [
+                'publish',
+                file,
+                '--visibility',
+                'public',
+                '--confirm-public',
+                '--yes',
+                '--json',
+            ])
+        ).toBe(0);
+        expect(calls.at(-1)?.params.arguments).toMatchObject({ visibility: 'public' });
+        expect(JSON.parse(stdout).visibility).toBe('public');
+    });
+
+    it('requires a Cloud project before uploading', async () => {
+        const login = await dextoAccounts.readLogin(dir, 'default');
+        if (login?.kind !== 'oauth') throw new Error('Expected OAuth login.');
+        await dextoAccounts.writeLogin(dir, 'default', { ...login, cloudProject: null });
+        expect(await runCloud(host, ['publish', 'anything', '--yes', '--json'])).toBe(2);
+        expect(JSON.parse(stderr).error.message).toContain('--project');
+        expect(uploads).toHaveLength(0);
+    });
+
+    it('refuses malformed or mismatched publish results', async () => {
+        const file = path.join(path.dirname(dir), 'page.html');
+        await writeFile(file, '<h1>private</h1>');
+        publishResponse = { created: true };
+        expect(
+            await runCloud(host, ['publish', file, '--visibility', 'private', '--yes', '--json'])
+        ).not.toBe(0);
+        expect(stdout).toBe('');
+        stderr = '';
+        publishResponse = {
+            created: false,
+            files: 1,
+            homepage: 'index.html',
+            site: { id: 'site-1', slug: 'page', title: 'Page' },
+            url: 'https://page.example',
+            visibility: 'public',
+        };
+        expect(
+            await runCloud(host, ['publish', file, '--visibility', 'private', '--yes', '--json'])
+        ).not.toBe(0);
+        expect(stdout).toBe('');
+    });
+
+    it('keeps omitted visibility omitted and sends the selected project', async () => {
+        const file = path.join(path.dirname(dir), 'page.html');
+        await writeFile(file, '<h1>update</h1>');
+        expect(await runCloud(host, ['publish', file, '--yes', '--json'])).toBe(0);
+        expect(calls.at(-1)?.params.arguments).not.toHaveProperty('visibility');
+        expect(publishProject).toBe('project-1');
+        expect(calls.some((call) => call.method === 'tools/list')).toBe(false);
     });
 
     it('passes private visibility to the Site publish operation', async () => {
@@ -282,7 +397,7 @@ describe('dexto workspace', () => {
         expect(calls.at(-1)).toEqual({
             method: 'POST',
             params: {
-                name: 'dexto_site_publish',
+                name: 'POST /v1/sites/publish',
                 arguments: { name: 'hello', uploadPath: 'uploads/u1.zip' },
             },
         });
