@@ -241,6 +241,8 @@ prompts:
     file: "${{dexto.agent_dir}}/skills/code-review.md"
     # user-invocable: true (default) - appears as /code-review slash command
     # disable-model-invocation: false (default) - LLM can load via skill_load
+  - type: file
+    file: "${{dexto.agent_dir}}/skills/import-chats.md"
   - type: inline
     id: analyze-codebase
     title: "🔍 Analyze Codebase"
