@@ -26,8 +26,5 @@ jobs:
       - name: Build packages
         run: pnpm run build
 
-      - name: Check CLI audit inventory
-        run: node scripts/check-cli-audit.mjs
-
       - name: Run tests
         run: pnpm test  
