@@ -109,6 +109,9 @@ require_value() {
 
 # Everything runs from main, so a download cut off midway runs nothing.
 main() {
+staging_dir=""
+work_dir=""
+replaced_dir=""
 trap 'clean_up; exit 130' INT TERM HUP
 requested_version="${DEXTO_VERSION:-}"
 install_dir="${DEXTO_INSTALL_DIR:-}"
@@ -431,8 +434,9 @@ if npm_prefix="$(npm prefix --global </dev/null 2>/dev/null)" && [ -n "${npm_pre
     [ -d "${npm_prefix}/lib/node_modules/${DEXTO_PACKAGE}" ] &&
     [ "$(cd "${npm_prefix}/bin" 2>/dev/null && pwd -P)" = "$(cd "${install_dir}" && pwd -P)" ]; then
     say "Removing the global npm ${DEXTO_PACKAGE} at ${npm_prefix}, which uses ${link_path}..."
+    # The link is made next either way: npm may have removed it before it failed.
     if ! npm uninstall --global "${DEXTO_PACKAGE}" --loglevel=error </dev/null >&2; then
-        fail install_failed "Could not remove the global npm ${DEXTO_PACKAGE} that owns ${link_path}." "Run: npm uninstall -g ${DEXTO_PACKAGE}, then run the installer again."
+        say "warning: could not remove the global npm ${DEXTO_PACKAGE}. If ${link_path} goes missing, run: npm uninstall -g ${DEXTO_PACKAGE}, then run the installer again."
     fi
 fi
 
@@ -483,9 +487,21 @@ done
 if [ -n "${replaced_dir}" ]; then
     rm -rf "${replaced_dir}"
 fi
-# Leftovers of runs that were killed before they could clean up.
-find "${cli_root}" -mindepth 1 -maxdepth 1 -type d \( -name '.download.*' -o -name '.staging-*' -o -name '.replaced-*' \) \
-    -mtime +0 -exec rm -rf {} + 2>/dev/null || true
+# Leftovers of runs that were killed before they could clean up: downloads and staging dirs over a
+# day old (-mmin, since BSD find rounds -mtime up), and copies moved aside by a run that has exited.
+# A moved copy keeps its old mtime, so it's matched by the PID in its name instead.
+find "${cli_root}" -mindepth 1 -maxdepth 1 -type d \( -name '.download.*' -o -name '.staging-*' \) \
+    -mmin +1440 -exec rm -rf {} + 2>/dev/null || true
+for leftover in "${cli_root}"/.replaced-*; do
+    [ -d "${leftover}" ] || continue
+    leftover_pid="${leftover##*-}"
+    case "${leftover_pid}" in
+        '' | *[!0-9]*) continue ;;
+    esac
+    if ! kill -0 "${leftover_pid}" 2>/dev/null; then
+        rm -rf "${leftover}"
+    fi
+done
 rm -rf "${work_dir}"
 work_dir=""
 

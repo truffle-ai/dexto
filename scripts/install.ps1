@@ -33,7 +33,7 @@ param(
 )
 
 # Everything runs inside one script block, so a download cut off midway runs nothing.
-$DextoInstallState = @{ ExitCode = 0; StagingDir = $null; WorkDir = $null }
+$DextoInstallState = @{ ExitCode = 0; StagingDir = $null; WorkDir = $null; LauncherTemp = $null }
 try {
 & {
     Set-StrictMode -Version 3.0
@@ -386,7 +386,7 @@ Environment:
     # one running `dexto upgrade`. Windows refuses the move while a dexto has its files loaded.
     $replacedDir = $null
     if (Test-Path -LiteralPath $versionDir) {
-        $replacedDir = Join-Path $cliRoot (".replaced-$targetVersion-" + [guid]::NewGuid().ToString('N'))
+        $replacedDir = Join-Path $cliRoot (".replaced-$targetVersion-" + [guid]::NewGuid().ToString('N') + "-$PID")
         try {
             Move-Item -LiteralPath $versionDir -Destination $replacedDir
         } catch {
@@ -404,6 +404,7 @@ Environment:
     $state.StagingDir = $null
 
     $launcherTemp = "$launcherPath.tmp-$PID"
+    $state.LauncherTemp = $launcherTemp
     [IO.File]::WriteAllText($launcherTemp, $launcherText, $launcherEncoding)
 
     # A 1.x standalone dexto.exe would run before dexto.cmd. It may be the running `dexto upgrade`,
@@ -418,6 +419,7 @@ Environment:
     }
 
     Move-Item -LiteralPath $launcherTemp -Destination $launcherPath -Force
+    $state.LauncherTemp = $null
 
     $meta = [ordered]@{
         schemaVersion = 1
@@ -437,7 +439,8 @@ Environment:
     # A launcher left in another install dir would point at a version removed below.
     if ($previousPath -and ($previousPath -ine $launcherPath) -and (Test-Path -LiteralPath $previousPath)) {
         $previousText = Get-Content -LiteralPath $previousPath -Raw -ErrorAction SilentlyContinue
-        if ($previousText -and $previousText.Contains($cliRoot)) {
+        # Launchers name the CLI dir as %USERPROFILE%\.dexto\cli, older ones by its full path.
+        if ($previousText -and [Environment]::ExpandEnvironmentVariables($previousText).Contains($cliRoot)) {
             Remove-Item -LiteralPath $previousPath -Force -ErrorAction SilentlyContinue
         }
     }
@@ -450,10 +453,16 @@ Environment:
             Remove-Item -LiteralPath $oldDir.FullName -Recurse -Force -ErrorAction SilentlyContinue
         }
     }
-    # Copies moved aside by reinstalls, and leftovers of runs that were killed before cleaning up.
+    # Leftovers of runs that were killed before cleaning up: downloads and staging dirs over a day
+    # old, and copies moved aside by a run that has exited. A moved copy keeps its old timestamp, so
+    # it's matched by the PID at the end of its name instead.
     $staleBefore = [DateTime]::Now.AddDays(-1)
     foreach ($leftover in @(Get-ChildItem -LiteralPath $cliRoot -Directory -Force)) {
-        $isReplaced = $leftover.Name.StartsWith('.replaced-') -and ($leftover.FullName -ine $replacedDir)
+        $isReplaced = $false
+        if ($leftover.Name.StartsWith('.replaced-') -and ($leftover.FullName -ine $replacedDir)) {
+            $ownerPid = $leftover.Name.Substring($leftover.Name.LastIndexOf('-') + 1)
+            $isReplaced = ($ownerPid -match '^[0-9]+$') -and -not (Get-Process -Id ([int]$ownerPid) -ErrorAction SilentlyContinue)
+        }
         $isAbandoned = ($leftover.Name.StartsWith('.download-') -or $leftover.Name.StartsWith('.staging-')) -and
             ($leftover.LastWriteTime -lt $staleBefore)
         if ($isReplaced -or $isAbandoned) {
@@ -502,7 +511,7 @@ Environment:
         $DextoInstallState.ExitCode = 1
     }
 } finally {
-    foreach ($leftover in @($DextoInstallState.StagingDir, $DextoInstallState.WorkDir)) {
+    foreach ($leftover in @($DextoInstallState.StagingDir, $DextoInstallState.WorkDir, $DextoInstallState.LauncherTemp)) {
         if ($leftover -and (Test-Path -LiteralPath $leftover)) {
             Remove-Item -LiteralPath $leftover -Recurse -Force -ErrorAction SilentlyContinue
         }

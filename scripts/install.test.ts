@@ -5,6 +5,7 @@ import {
     lstatSync,
     mkdirSync,
     mkdtempSync,
+    realpathSync,
     readFileSync,
     readlinkSync,
     readdirSync,
@@ -86,6 +87,7 @@ if (command === 'view') {
     const prefix = process.env.STUB_GLOBAL_PREFIX;
     fs.rmSync(path.join(prefix, 'lib', 'node_modules', 'dexto'), { recursive: true, force: true });
     fs.rmSync(path.join(prefix, 'bin', 'dexto'), { force: true });
+    if (process.env.STUB_UNINSTALL_FAILS) process.exit(1);
 } else {
     process.exit(1);
 }
@@ -169,7 +171,8 @@ posixOnly('scripts/install.sh', () => {
         path.join(home, '.dexto', 'cli', version, 'bin', 'dexto');
 
     beforeEach(() => {
-        root = mkdtempSync(path.join(tmpdir(), 'dexto-install-test-'));
+        // Resolved, since macOS's tmpdir is under a symlink and the stub logs resolved cwds.
+        root = realpathSync(mkdtempSync(path.join(tmpdir(), 'dexto-install-test-')));
         home = path.join(root, 'home');
         registry = path.join(root, 'registry');
         stubBin = path.join(root, 'stub-bin');
@@ -313,6 +316,35 @@ posixOnly('scripts/install.sh', () => {
         expect(result.status).toBe(0);
         expect(npmCalls()).toContain('uninstall --global dexto --loglevel=error');
         expect(readlinkSync(linkPath())).toBe(versionBin('2.0.0'));
+    });
+
+    it('still links dexto when removing the global npm dexto fails partway', () => {
+        const prefix = path.join(home, '.local');
+        mkdirSync(path.join(prefix, 'lib', 'node_modules', 'dexto'), { recursive: true });
+        mkdirSync(path.join(prefix, 'bin'), { recursive: true });
+
+        const result = run([], { STUB_GLOBAL_PREFIX: prefix, STUB_UNINSTALL_FAILS: '1' });
+
+        expect(result.status).toBe(0);
+        expect(result.stderr).toContain('could not remove the global npm dexto');
+        expect(readlinkSync(linkPath())).toBe(versionBin('2.0.0'));
+    });
+
+    it('sweeps copies moved aside by runs that exited, not by runs still going', () => {
+        const cliRoot = path.join(home, '.dexto', 'cli');
+        const dead = path.join(cliRoot, '.replaced-1.0.0-999999999');
+        const live = path.join(cliRoot, `.replaced-1.0.0-${process.pid}`);
+        const freshStaging = path.join(cliRoot, '.staging-1.0.0-1');
+        mkdirSync(dead, { recursive: true });
+        mkdirSync(live);
+        mkdirSync(freshStaging);
+
+        expect(run().status).toBe(0);
+
+        expect(existsSync(dead)).toBe(false);
+        expect(existsSync(live)).toBe(true);
+        // Less than a day old, so it may belong to a run still installing.
+        expect(existsSync(freshStaging)).toBe(true);
     });
 
     it('leaves a global npm dexto alone when it uses another bin dir', () => {
