@@ -34,9 +34,8 @@ describe('headless import', () => {
             path.join(folder, 'SKILL.md'),
             '---\nname: sample\ndescription: Sample\n---\n'
         );
-        vi.mocked(findPersonalSkills).mockResolvedValueOnce([
-            { source: 'codex', name: 'sample', path: folder },
-        ]);
+        const skill = { source: 'codex' as const, name: 'sample', path: folder };
+        vi.mocked(findPersonalSkills).mockResolvedValueOnce([skill]).mockResolvedValueOnce([skill]);
         vi.mocked(queryWorkspaceTool).mockClear();
         const runtime = { ...nodeCloudRuntime(new AbortController().signal), prompt: null };
         const context: CommandContext = {
@@ -53,6 +52,10 @@ describe('headless import', () => {
         };
         const command = importCommands[0];
         if (!command) throw new Error('missing import command');
+        await expect(
+            command.run(context, { positionals: [], values: { select: 'skill:codex:sample' } })
+        ).rejects.toMatchObject({ kind: 'needs_confirmation' });
+        expect(queryWorkspaceTool).not.toHaveBeenCalled();
         await expect(
             command.run(context, {
                 positionals: [],
