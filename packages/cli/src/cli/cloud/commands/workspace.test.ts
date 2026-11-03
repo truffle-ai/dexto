@@ -233,6 +233,15 @@ describe('dexto workspace', () => {
         expect(calls).toHaveLength(0);
     });
 
+    it('requires gateway access before uploading a Site', async () => {
+        const login = await dextoAccounts.readLogin(dir, 'default');
+        if (login?.kind !== 'oauth') throw new Error('Expected OAuth login.');
+        await dextoAccounts.writeLogin(dir, 'default', { ...login, scopes: ['sites:write'] });
+        expect(await runCloud(host, ['publish', 'anything', '--yes', '--json'])).toBe(3);
+        expect(JSON.parse(stderr).error.message).toContain('cloud:read');
+        expect(uploads).toHaveLength(0);
+    });
+
     it('passes private visibility to the Site publish operation', async () => {
         const file = path.join(path.dirname(dir), 'private.html');
         await writeFile(file, '<h1>private</h1>');

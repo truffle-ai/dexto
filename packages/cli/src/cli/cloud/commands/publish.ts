@@ -61,6 +61,9 @@ const publish: Command = {
             throw new UsageError('--visibility must be private, unlisted, or public.');
         const visibility = parsedVisibility.data;
         await requireLoginScopes(context, ['sites:write']);
+        const connection = await context.connection();
+        if (connection.kind === 'oauth' && !connection.login.scopes.includes('cloud:write'))
+            await requireLoginScopes(context, ['cloud:read']);
         const target = path.resolve(argument(input, 0, 'path'));
         const found = await stat(target).catch(() => null);
         if (found === null || !(found.isFile() || found.isDirectory()))
