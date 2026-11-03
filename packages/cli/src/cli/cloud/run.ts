@@ -1,3 +1,4 @@
+import { jsonError } from '../output.js';
 // Runs `dexto cloud …` and the other ported cloud commands: global options, help, the agent
 // contract's JSON output and exit codes, and signing in again for a permission a command lacked.
 
@@ -311,19 +312,13 @@ function reportError(context: SignInContext, json: boolean, help: string, error:
     const failure = describeFailure(context, error);
     if (json) {
         runtime.writeError(
-            `${JSON.stringify(
-                {
-                    error: {
-                        code: failure.code,
-                        message: failure.message,
-                        ...(failure.fix === null ? {} : { fix: failure.fix }),
-                        ...(failure.apiCode === null ? {} : { api_code: failure.apiCode }),
-                        ...(failure.details === null ? {} : { details: failure.details }),
-                    },
-                },
-                null,
-                2
-            )}\n`
+            jsonError({
+                code: failure.code,
+                message: failure.message,
+                ...(failure.fix === null ? {} : { fix: failure.fix }),
+                ...(failure.apiCode === null ? {} : { api_code: failure.apiCode }),
+                ...(failure.details === null ? {} : { details: failure.details }),
+            })
         );
     } else if (failure.code === 'usage') {
         runtime.writeError(`${failure.message}\n\n${help}`);
