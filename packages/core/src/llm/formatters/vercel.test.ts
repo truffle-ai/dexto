@@ -327,8 +327,29 @@ describe('VercelMessageFormatter', () => {
             },
         ];
         const result = formatter.format(history, { provider: 'xai', model: 'grok-4' }, null);
-        expect(JSON.stringify(result)).toContain('Tool execution was interrupted');
-        expect(JSON.stringify(result)).not.toContain('late');
+        expect(result).toEqual([
+            {
+                role: 'assistant',
+                content: [{ type: 'tool-call', toolCallId: 'a', toolName: 'first', input: {} }],
+                function_call: { name: 'first', arguments: '{}' },
+            },
+            {
+                role: 'tool',
+                content: [
+                    {
+                        type: 'tool-result',
+                        toolCallId: 'a',
+                        toolName: 'first',
+                        output: {
+                            type: 'text',
+                            value: 'Error: Tool execution was interrupted (session crashed or cancelled before completion)',
+                        },
+                        isError: true,
+                    },
+                ],
+            },
+            { role: 'assistant', content: [{ type: 'text', text: 'after' }] },
+        ]);
     });
 
     test('retains a paired result when another imported call remains incomplete', () => {
