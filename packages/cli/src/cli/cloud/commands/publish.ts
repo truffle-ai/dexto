@@ -32,7 +32,7 @@ const PublishedSchema = z.object({
     created: z.boolean(),
     files: z.number(),
     url: z.string(),
-    visibility: z.enum(['private', 'unlisted', 'public']).optional(),
+    visibility: z.enum(['private', 'unlisted', 'public']),
 });
 
 const publish: Command = {
@@ -133,13 +133,11 @@ const publish: Command = {
         });
         const shown = PublishedSchema.safeParse(published);
         const files = shown.success ? shown.data.files : count;
-        const publishedVisibility = shown.success
-            ? (shown.data.visibility ?? visibility)
-            : visibility;
+        const publishedVisibility = shown.success ? shown.data.visibility : visibility;
         context.output.result(
             published,
             shown.success
-                ? `${shown.data.created ? 'Published' : 'Updated'} ${name} at ${shown.data.url} (${files} file${files === 1 ? '' : 's'}).${publishedVisibility === 'private' ? ' Only authorized viewers can open it.' : publishedVisibility === undefined ? '' : ' Anyone with the link can open it.'}`
+                ? `${shown.data.created ? 'Published' : 'Updated'} ${name} at ${shown.data.url} (${files} file${files === 1 ? '' : 's'}).${publishedVisibility === 'private' ? ' Open it from Dexto as an organization member.' : ' Anyone with the link can open it.'}`
                 : JSON.stringify(published, null, 2)
         );
     },

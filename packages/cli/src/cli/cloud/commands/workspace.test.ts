@@ -107,6 +107,8 @@ describe('dexto workspace', () => {
                           ? {
                                 created: true,
                                 files: 2,
+                                homepage: 'index.html',
+                                site: { id: 'site-1', slug: 'hello', title: 'Hello' },
                                 url: 'https://hello.dexto.page',
                                 visibility: message.params.arguments?.visibility ?? 'unlisted',
                             }
@@ -229,6 +231,7 @@ describe('dexto workspace', () => {
         ).toBe(0);
         expect(calls.at(-1)?.params.arguments).toMatchObject({ visibility: 'private' });
         expect(stdout).not.toContain('Anyone with the link can open it');
+        expect(JSON.parse(stdout).visibility).toBe('private');
     });
 
     it('describes a private Site correctly in human output', async () => {
@@ -238,6 +241,7 @@ describe('dexto workspace', () => {
             await runCloud(host, ['publish', file, '--visibility', 'private', '--yes', '--table'])
         ).toBe(0);
         expect(stdout).not.toContain('Anyone with the link can open it');
+        expect(stdout).toContain('Open it from Dexto as an organization member.');
     });
 
     it('publishes a folder as a zip, uploaded where Dexto says, once agreed', async () => {
