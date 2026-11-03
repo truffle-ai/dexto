@@ -125,14 +125,27 @@ export async function handleUninstallCliCommand(
                 if (!validated.purge) {
                     const installerPackagesPath = path.join(dextoHomePath, 'cli');
                     try {
-                        const removedPackages = await removeTargets(
-                            [installerPackagesPath],
-                            validated.dryRun
-                        );
-                        if (removedPackages.length > 0) {
+                        // On Windows this CLI runs from that directory, through a dexto.cmd that
+                        // cmd.exe reads again after node exits, so it goes once this process ends.
+                        if (
+                            process.platform === 'win32' &&
+                            !validated.dryRun &&
+                            (await pathExists(installerPackagesPath))
+                        ) {
+                            await scheduleDeferredWindowsRemoval([installerPackagesPath]);
                             console.log(
-                                `🗑️  Removed installed CLI packages: ${installerPackagesPath}`
+                                `🗑️  Scheduled ${installerPackagesPath} removal after exit.`
                             );
+                        } else {
+                            const removedPackages = await removeTargets(
+                                [installerPackagesPath],
+                                validated.dryRun
+                            );
+                            if (removedPackages.length > 0) {
+                                console.log(
+                                    `🗑️  Removed installed CLI packages: ${installerPackagesPath}`
+                                );
+                            }
                         }
                     } catch (error) {
                         const message = error instanceof Error ? error.message : String(error);

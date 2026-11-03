@@ -33,6 +33,7 @@ const crypto = require('crypto');
 const { execFileSync } = require('child_process');
 const registry = process.env.STUB_REGISTRY;
 fs.appendFileSync(path.join(registry, 'calls.log'), process.argv.slice(2).join(' ') + '\\n');
+fs.appendFileSync(path.join(registry, 'cwd.log'), process.cwd() + '\\n');
 const [command, ...args] = process.argv.slice(2);
 const tags = JSON.parse(fs.readFileSync(path.join(registry, 'tags.json'), 'utf8'));
 const resolve = (spec) => {
@@ -55,11 +56,14 @@ if (command === 'view') {
     const integrity = process.env.STUB_BAD_INTEGRITY
         ? 'sha512-' + crypto.createHash('sha512').update('tampered').digest('base64')
         : 'sha512-' + crypto.createHash('sha512').update(tarball).digest('base64');
-    process.stdout.write(JSON.stringify({
+    const entry = {
         version,
         'dist.integrity': integrity,
         'dist.tarball': 'https://registry.example/dexto/-/dexto-' + version + '.tgz',
-    }));
+    };
+    // A range matching several versions prints a list, oldest first.
+    const older = { ...entry, version: '0.0.1', 'dist.integrity': 'sha512-older' };
+    process.stdout.write(JSON.stringify(process.env.STUB_VIEW_ARRAY ? [older, entry] : entry));
 } else if (command === 'pack') {
     const version = resolve(args[0]);
     const destination = args[args.indexOf('--pack-destination') + 1];
@@ -74,6 +78,14 @@ if (command === 'view') {
     execFileSync('tar', ['-xzf', tarball, '-C', packageDir, '--strip-components=1']);
     fs.mkdirSync(path.join(prefix, 'bin'), { recursive: true });
     fs.symlinkSync('../lib/node_modules/dexto/bin.sh', path.join(prefix, 'bin', 'dexto'));
+} else if (command === 'prefix') {
+    if (!process.env.STUB_GLOBAL_PREFIX) process.exit(1);
+    process.stdout.write(process.env.STUB_GLOBAL_PREFIX + '\\n');
+} else if (command === 'uninstall') {
+    // Like npm, it deletes the bin link without checking what it points to.
+    const prefix = process.env.STUB_GLOBAL_PREFIX;
+    fs.rmSync(path.join(prefix, 'lib', 'node_modules', 'dexto'), { recursive: true, force: true });
+    fs.rmSync(path.join(prefix, 'bin', 'dexto'), { force: true });
 } else {
     process.exit(1);
 }
@@ -244,7 +256,8 @@ posixOnly('scripts/install.sh', () => {
         ).toEqual(['view']);
     });
 
-    it('upgrades to a pinned version from DEXTO_VERSION and removes the old one', () => {
+    it('upgrades to a pinned version from DEXTO_VERSION, keeping only the previous version', () => {
+        publish('2.0.2');
         expect(run().status).toBe(0);
 
         const result = run([], { DEXTO_VERSION: 'dexto@2.0.1' });
@@ -256,7 +269,66 @@ posixOnly('scripts/install.sh', () => {
             previous_version: '2.0.0',
         });
         expect(readlinkSync(linkPath())).toBe(versionBin('2.0.1'));
-        expect(readdirSync(path.join(home, '.dexto', 'cli'))).toEqual(['2.0.1']);
+        // A dexto still running 2.0.0 keeps its files until the next install.
+        expect(readdirSync(path.join(home, '.dexto', 'cli')).sort()).toEqual(['2.0.0', '2.0.1']);
+
+        expect(run(['--version', '2.0.2']).status).toBe(0);
+        expect(readdirSync(path.join(home, '.dexto', 'cli')).sort()).toEqual(['2.0.1', '2.0.2']);
+    });
+
+    it('takes the newest version when the registry lists several', () => {
+        const result = run([], { STUB_VIEW_ARRAY: '1' });
+
+        expect(result.status).toBe(0);
+        expect(result.json.installed).toMatchObject({ version: '2.0.0' });
+    });
+
+    it('runs npm from the home directory, away from a project .npmrc', () => {
+        const project = path.join(root, 'project');
+        mkdirSync(project);
+        const result = spawnSync(SHELL, [INSTALLER], {
+            cwd: project,
+            env: {
+                HOME: home,
+                PATH: [stubBin, path.dirname(process.execPath), '/usr/bin', '/bin'].join(':'),
+                STUB_REGISTRY: registry,
+            },
+            encoding: 'utf8',
+        });
+
+        expect(result.status).toBe(0);
+        const cwds = readFileSync(path.join(registry, 'cwd.log'), 'utf8').trim().split('\n');
+        expect(new Set(cwds)).toEqual(new Set([home]));
+    });
+
+    it('removes a global npm dexto that owns the link path, so 1.x upgrade cannot delete the link', () => {
+        // npm's global prefix is ~/.local, so its bin dir is the install dir.
+        const prefix = path.join(home, '.local');
+        mkdirSync(path.join(prefix, 'lib', 'node_modules', 'dexto'), { recursive: true });
+        mkdirSync(path.join(prefix, 'bin'), { recursive: true });
+        symlinkSync('../lib/node_modules/dexto/bin.sh', linkPath());
+
+        const result = run([], { STUB_GLOBAL_PREFIX: prefix });
+
+        expect(result.status).toBe(0);
+        expect(npmCalls()).toContain('uninstall --global dexto --loglevel=error');
+        expect(readlinkSync(linkPath())).toBe(versionBin('2.0.0'));
+    });
+
+    it('leaves a global npm dexto alone when it uses another bin dir', () => {
+        const prefix = path.join(root, 'npm-global');
+        mkdirSync(path.join(prefix, 'lib', 'node_modules', 'dexto'), { recursive: true });
+        mkdirSync(path.join(prefix, 'bin'), { recursive: true });
+
+        expect(run([], { STUB_GLOBAL_PREFIX: prefix }).status).toBe(0);
+        expect(npmCalls().some((call) => call.startsWith('uninstall'))).toBe(false);
+    });
+
+    it('keeps the escaped last line valid JSON for control characters in input', () => {
+        const result = run(['--install-dir', 'rel\u0001\u001b[31mdir']);
+
+        expect(result.status).toBe(2);
+        expect(result.json.error).toMatchObject({ code: 'invalid_input' });
     });
 
     it('resolves dist-tags and accepts --version in both spellings', () => {
@@ -275,6 +347,7 @@ posixOnly('scripts/install.sh', () => {
             action: 'reinstalled',
         });
         expect(readlinkSync(linkPath())).toBe(versionBin('2.0.0'));
+        expect(readdirSync(path.join(home, '.dexto', 'cli'))).toEqual(['2.0.0']);
     });
 
     it('replaces a 1.x standalone binary at ~/.local/bin/dexto', () => {

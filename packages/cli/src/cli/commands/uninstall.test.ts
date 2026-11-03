@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi, afterEach } from 'vitest';
+import path from 'path';
 
 vi.mock('../utils/self-management.js', () => ({
     detectInstallMethod: vi.fn(),
@@ -210,5 +211,27 @@ describe('uninstall command', () => {
             '/home/test/.dexto',
         ]);
         expect(removePath).not.toHaveBeenCalled();
+    });
+
+    it('defers removing ~/.dexto/cli on Windows, where the running CLI lives in it', async () => {
+        Object.defineProperty(process, 'platform', { value: 'win32' });
+
+        vi.mocked(detectInstallMethod).mockResolvedValue({
+            method: 'native',
+            source: 'metadata',
+            metadata: null,
+            installedPath: '/home/test/.dexto/bin/dexto.cmd',
+            installDir: '/home/test/.dexto/bin',
+            allDetectedPaths: ['/home/test/.dexto/bin/dexto.cmd'],
+            multipleInstallWarning: null,
+        });
+
+        await expect(handleUninstallCliCommand({})).resolves.not.toThrow();
+
+        expect(removePath).toHaveBeenCalledTimes(1);
+        expect(removePath).toHaveBeenCalledWith('/home/test/.dexto/bin/dexto.cmd');
+        expect(scheduleDeferredWindowsRemoval).toHaveBeenCalledWith([
+            path.join('/home/test/.dexto', 'cli'),
+        ]);
     });
 });

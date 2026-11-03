@@ -1,6 +1,9 @@
 # End-to-end check of scripts/install.ps1 against the real npm registry, for clean Windows runners
-# in CI. It runs the installer the way `dexto upgrade` does (a new PowerShell process with
-# -Command and `iex`), then checks the result, a no-op re-run and the installed CLI.
+# in CI. Each run is a new PowerShell process with -Command. Runs with options build a script block,
+# as `& ([scriptblock]::Create((irm ...))) -Version next` does. Runs without options pipe the
+# script into `iex` with the DEXTO_* variables set, as `irm ... | iex` and 1.x `dexto upgrade` do.
+# It checks the result, a no-op re-run, a forced reinstall, a move to another install dir, error
+# exit codes and the installed CLI.
 #
 #   scripts/test-install-e2e.ps1 -Installer scripts/install.ps1 -Version next -Shell powershell
 
@@ -14,7 +17,11 @@ $ErrorActionPreference = 'Stop'
 $installerPath = (Resolve-Path -LiteralPath $Installer).Path
 
 function Invoke-Installer([string]$Arguments) {
-    $command = "& ([scriptblock]::Create((Get-Content -LiteralPath '$installerPath' -Raw))) $Arguments"
+    $command = if ($Arguments) {
+        "& ([scriptblock]::Create((Get-Content -LiteralPath '$installerPath' -Raw))) $Arguments"
+    } else {
+        "Get-Content -LiteralPath '$installerPath' -Raw | Invoke-Expression"
+    }
     $output = & $Shell -NoProfile -ExecutionPolicy Bypass -Command $command 2>$null
     $status = $LASTEXITCODE
     $line = @($output)[-1]
@@ -47,11 +54,28 @@ Assert-That ($meta.method -eq 'native') 'install.json is missing method native'
 Assert-That ($meta.installedPath -eq $launcher) 'install.json has the wrong installedPath'
 
 $env:DEXTO_VERSION = $Version
-$second = Invoke-Installer '-Yes'
-Remove-Item Env:DEXTO_VERSION
+$second = Invoke-Installer ''
 Write-Output "second run: $($second.Line)"
 Assert-That ($second.Status -eq 0) "expected exit 0, got $($second.Status)"
 Assert-That ($second.Result.installed.action -eq 'unchanged') 'expected a no-op second run'
+
+$env:DEXTO_INSTALL_FORCE = '1'
+$forced = Invoke-Installer ''
+Remove-Item Env:DEXTO_INSTALL_FORCE
+Write-Output "forced run: $($forced.Line)"
+Assert-That ($forced.Result.installed.action -eq 'reinstalled') 'expected DEXTO_INSTALL_FORCE to reinstall'
+$reported = (& $launcher --version | Out-String).Trim()
+Assert-That ($reported.Contains($version)) 'dexto does not run after a forced reinstall'
+
+$otherDir = Join-Path $env:USERPROFILE 'dexto-e2e-bin'
+$env:DEXTO_INSTALL_DIR = $otherDir
+$moved = Invoke-Installer ''
+Remove-Item Env:DEXTO_INSTALL_DIR
+Remove-Item Env:DEXTO_VERSION
+Write-Output "other install dir: $($moved.Line)"
+Assert-That ($moved.Result.installed.path -eq (Join-Path $otherDir 'dexto.cmd')) 'expected the launcher in DEXTO_INSTALL_DIR'
+Assert-That (-not (Test-Path -LiteralPath $launcher)) 'the launcher in the old install dir was left behind'
+$launcher = $moved.Result.installed.path
 
 $bad = Invoke-Installer "-Version 'not a version'"
 Write-Output "invalid version: $($bad.Line)"

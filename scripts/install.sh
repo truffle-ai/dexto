@@ -55,7 +55,7 @@ say() {
 }
 
 json_string() {
-    printf '"%s"' "$(printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' | tr '\t\r\n' '   ')"
+    printf '"%s"' "$(printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' | tr '\t\r\n' '   ' | LC_ALL=C tr -d '\000-\037\177')"
 }
 
 json_string_or_null() {
@@ -63,6 +63,20 @@ json_string_or_null() {
         json_string "$1"
     else
         printf 'null'
+    fi
+}
+
+# Removes this run's temporary directories, and puts back a version directory moved aside for a
+# reinstall if the new one never made it into place.
+clean_up() {
+    if [ -n "${staging_dir:-}" ] && [ -d "${staging_dir}" ]; then
+        rm -rf "${staging_dir}"
+    fi
+    if [ -n "${work_dir:-}" ] && [ -d "${work_dir}" ]; then
+        rm -rf "${work_dir}"
+    fi
+    if [ -n "${replaced_dir:-}" ] && [ -d "${replaced_dir}" ] && [ ! -e "${version_dir}" ]; then
+        mv "${replaced_dir}" "${version_dir}"
     fi
 }
 
@@ -75,12 +89,7 @@ fail() {
     if [ -n "${fail_fix}" ]; then
         say "fix: ${fail_fix}"
     fi
-    if [ -n "${staging_dir:-}" ] && [ -d "${staging_dir}" ]; then
-        rm -rf "${staging_dir}"
-    fi
-    if [ -n "${work_dir:-}" ] && [ -d "${work_dir}" ]; then
-        rm -rf "${work_dir}"
-    fi
+    clean_up
     printf '{"error":{"code":%s,"message":%s,"fix":%s}}\n' \
         "$(json_string "${fail_code}")" \
         "$(json_string "${fail_message}")" \
@@ -100,6 +109,7 @@ require_value() {
 
 # Everything runs from main, so a download cut off midway runs nothing.
 main() {
+trap 'clean_up; exit 130' INT TERM HUP
 requested_version="${DEXTO_VERSION:-}"
 install_dir="${DEXTO_INSTALL_DIR:-}"
 force=0
@@ -209,6 +219,10 @@ fi
 if ! command -v npm >/dev/null 2>&1; then
     fail npm_missing "npm is required and is not on PATH." "Install npm (it ships with Node.js), then run the installer again."
 fi
+
+# npm reads .npmrc from the working directory, and fails if it was deleted; a project's settings
+# shouldn't change what gets installed.
+cd "${HOME}" 2>/dev/null || cd / || fail failed "Could not change to the home directory." ""
 
 say "Resolving ${DEXTO_PACKAGE}@${version_spec}..."
 view_errors="$(mktemp "${TMPDIR:-/tmp}/dexto-install.XXXXXX")" ||
@@ -393,11 +407,34 @@ case "${reported_version}" in
     *) fail verify_failed "The installed dexto did not report version ${version} (got: ${reported_version:-nothing})." "Run the installer again with --force." ;;
 esac
 
-rm -rf "${version_dir}"
+# Reinstalling a version moves the current copy aside first, and puts it back if the move fails.
+replaced_dir=""
+if [ -e "${version_dir}" ]; then
+    replaced_dir="${cli_root}/.replaced-${version}-$$"
+    rm -rf "${replaced_dir}"
+    if ! mv "${version_dir}" "${replaced_dir}"; then
+        fail install_failed "Could not replace ${version_dir}." "Check that you can write to ${cli_root}, then run the installer again."
+    fi
+fi
 if ! mv "${staging_dir}" "${version_dir}"; then
+    if [ -n "${replaced_dir}" ]; then
+        mv "${replaced_dir}" "${version_dir}"
+    fi
     fail install_failed "Could not move the install into ${version_dir}." ""
 fi
 staging_dir=""
+
+# When the install dir is npm's global bin (a ~/.local prefix), a global npm dexto owns that path,
+# and 1.x's `dexto upgrade` runs `npm uninstall -g dexto` after this script, which deletes
+# whatever is there. Uninstalling it first makes that a no-op.
+if npm_prefix="$(npm prefix --global </dev/null 2>/dev/null)" && [ -n "${npm_prefix}" ] &&
+    [ -d "${npm_prefix}/lib/node_modules/${DEXTO_PACKAGE}" ] &&
+    [ "$(cd "${npm_prefix}/bin" 2>/dev/null && pwd -P)" = "$(cd "${install_dir}" && pwd -P)" ]; then
+    say "Removing the global npm ${DEXTO_PACKAGE} at ${npm_prefix}, which uses ${link_path}..."
+    if ! npm uninstall --global "${DEXTO_PACKAGE}" --loglevel=error </dev/null >&2; then
+        fail install_failed "Could not remove the global npm ${DEXTO_PACKAGE} that owns ${link_path}." "Run: npm uninstall -g ${DEXTO_PACKAGE}, then run the installer again."
+    fi
+fi
 
 temp_link="${install_dir}/.dexto-link-$$"
 rm -f "${temp_link}"
@@ -436,11 +473,19 @@ if [ -n "${previous_path}" ] && [ "${previous_path}" != "${link_path}" ] && [ -L
     esac
 fi
 
+# The previous version stays until the next install, so a dexto still running it keeps its files.
 for old_dir in "${cli_root}"/*; do
-    if [ -d "${old_dir}" ] && [ "${old_dir}" != "${version_dir}" ]; then
+    if [ -d "${old_dir}" ] && [ "${old_dir}" != "${version_dir}" ] &&
+        { [ -z "${previous_version}" ] || [ "${old_dir}" != "${cli_root}/${previous_version}" ]; }; then
         rm -rf "${old_dir}"
     fi
 done
+if [ -n "${replaced_dir}" ]; then
+    rm -rf "${replaced_dir}"
+fi
+# Leftovers of runs that were killed before they could clean up.
+find "${cli_root}" -mindepth 1 -maxdepth 1 -type d \( -name '.download.*' -o -name '.staging-*' -o -name '.replaced-*' \) \
+    -mtime +0 -exec rm -rf {} + 2>/dev/null || true
 rm -rf "${work_dir}"
 work_dir=""
 

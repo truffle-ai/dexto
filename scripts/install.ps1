@@ -67,20 +67,28 @@ try {
     }
 
     # Windows PowerShell turns a native command's stderr into errors, which 'Stop' would throw on,
-    # so native commands run here with stderr collected instead.
+    # so native commands run here with stderr collected instead. They run from the home directory:
+    # npm reads .npmrc from the working directory, and a project's settings shouldn't change what
+    # gets installed.
     function Invoke-Native([string]$File, [string[]]$Arguments) {
         $ErrorActionPreference = 'Continue'
         $stdout = New-Object System.Collections.Generic.List[string]
         $stderr = New-Object System.Collections.Generic.List[string]
-        & $File @Arguments 2>&1 | ForEach-Object {
-            if ($_ -is [System.Management.Automation.ErrorRecord]) {
-                $stderr.Add($_.ToString())
-            } else {
-                $stdout.Add([string]$_)
+        Push-Location -LiteralPath $userHome
+        try {
+            & $File @Arguments 2>&1 | ForEach-Object {
+                if ($_ -is [System.Management.Automation.ErrorRecord]) {
+                    $stderr.Add($_.ToString())
+                } else {
+                    $stdout.Add([string]$_)
+                }
             }
+            $exitCode = $LASTEXITCODE
+        } finally {
+            Pop-Location
         }
         [pscustomobject]@{
-            ExitCode = $LASTEXITCODE
+            ExitCode = $exitCode
             Stdout = ($stdout -join "`n").Trim()
             Stderr = ($stderr -join "`n").Trim()
         }
@@ -92,7 +100,7 @@ try {
         }
         $wanted = $Dir.TrimEnd('\')
         foreach ($entry in $PathList.Split(';')) {
-            if ($entry -and ($entry.TrimEnd('\') -ieq $wanted)) {
+            if ($entry -and ([Environment]::ExpandEnvironmentVariables($entry).TrimEnd('\') -ieq $wanted)) {
                 return $true
             }
         }
@@ -232,7 +240,21 @@ Environment:
 
     $versionDir = Join-Path $cliRoot $targetVersion
     $versionCmd = Join-Path $versionDir 'dexto.cmd'
-    $launcherText = "@`"$versionCmd`" %*`r`n"
+    # cmd.exe reads batch files in the OEM code page, so a profile path with non-ASCII letters is written
+    # as %USERPROFILE%, keeping the launcher ASCII.
+    $launcherTarget = $versionCmd
+    if ($versionCmd.StartsWith("$userHome\", [StringComparison]::OrdinalIgnoreCase)) {
+        $launcherTarget = '%USERPROFILE%' + $versionCmd.Substring($userHome.Length)
+    }
+    $launcherText = "@`"$launcherTarget`" %*`r`n"
+    $launcherEncoding = [Text.Encoding]::ASCII
+    if ($launcherText -match '[^\x00-\x7F]') {
+        try {
+            $launcherEncoding = [Text.Encoding]::GetEncoding([Globalization.CultureInfo]::CurrentCulture.TextInfo.OEMCodePage)
+        } catch {
+            $launcherEncoding = [Text.Encoding]::Default
+        }
+    }
 
     $previousVersion = $null
     $previousPath = $null
@@ -252,7 +274,7 @@ Environment:
         ($previousPath -ieq $launcherPath) -and
         (Test-Path -LiteralPath $versionCmd) -and
         (Test-Path -LiteralPath $launcherPath) -and
-        ((Get-Content -LiteralPath $launcherPath -Raw) -eq $launcherText)
+        ([IO.File]::ReadAllText($launcherPath, $launcherEncoding) -eq $launcherText)
 
     $oldExe = Join-Path $InstallDir 'dexto.exe'
     $action = if ($alreadyInstalled -and -not $Force) {
@@ -360,11 +382,29 @@ Environment:
         Fail 'verify_failed' "The installed dexto did not report version $targetVersion (got: $got)." 'Run the installer again with -Force.'
     }
 
+    # Reinstalling a version moves the current copy aside rather than deleting it: it may be the
+    # one running `dexto upgrade`. Windows refuses the move while a dexto has its files loaded.
+    $replacedDir = $null
     if (Test-Path -LiteralPath $versionDir) {
-        Remove-Item -LiteralPath $versionDir -Recurse -Force
+        $replacedDir = Join-Path $cliRoot (".replaced-$targetVersion-" + [guid]::NewGuid().ToString('N'))
+        try {
+            Move-Item -LiteralPath $versionDir -Destination $replacedDir
+        } catch {
+            Fail 'install_failed' "Could not replace $versionDir, which is in use." 'Close any running dexto, then run the installer again.'
+        }
     }
-    Move-Item -LiteralPath $state.StagingDir -Destination $versionDir
+    try {
+        Move-Item -LiteralPath $state.StagingDir -Destination $versionDir
+    } catch {
+        if ($replacedDir) {
+            Move-Item -LiteralPath $replacedDir -Destination $versionDir -ErrorAction SilentlyContinue
+        }
+        Fail 'install_failed' "Could not move the install into $versionDir." ''
+    }
     $state.StagingDir = $null
+
+    $launcherTemp = "$launcherPath.tmp-$PID"
+    [IO.File]::WriteAllText($launcherTemp, $launcherText, $launcherEncoding)
 
     # A 1.x standalone dexto.exe would run before dexto.cmd. It may be the running `dexto upgrade`,
     # which Windows won't delete but will rename, so move it aside first.
@@ -377,8 +417,6 @@ Environment:
         Remove-Item -LiteralPath $aside -Force -ErrorAction SilentlyContinue
     }
 
-    $launcherTemp = "$launcherPath.tmp-$PID"
-    [IO.File]::WriteAllText($launcherTemp, $launcherText, [Text.Encoding]::ASCII)
     Move-Item -LiteralPath $launcherTemp -Destination $launcherPath -Force
 
     $meta = [ordered]@{
@@ -412,16 +450,38 @@ Environment:
             Remove-Item -LiteralPath $oldDir.FullName -Recurse -Force -ErrorAction SilentlyContinue
         }
     }
+    # Copies moved aside by reinstalls, and leftovers of runs that were killed before cleaning up.
+    $staleBefore = [DateTime]::Now.AddDays(-1)
+    foreach ($leftover in @(Get-ChildItem -LiteralPath $cliRoot -Directory -Force)) {
+        $isReplaced = $leftover.Name.StartsWith('.replaced-') -and ($leftover.FullName -ine $replacedDir)
+        $isAbandoned = ($leftover.Name.StartsWith('.download-') -or $leftover.Name.StartsWith('.staging-')) -and
+            ($leftover.LastWriteTime -lt $staleBefore)
+        if ($isReplaced -or $isAbandoned) {
+            Remove-Item -LiteralPath $leftover.FullName -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    }
     Remove-Item -LiteralPath $state.WorkDir -Recurse -Force -ErrorAction SilentlyContinue
     $state.WorkDir = $null
 
     $pathUpdated = $false
     if (-not $NoModifyPath) {
-        $userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
-        if (-not (Test-PathListEntry $userPath $InstallDir)) {
-            $newUserPath = if ($userPath) { "$InstallDir;$userPath" } else { $InstallDir }
-            [Environment]::SetEnvironmentVariable('Path', $newUserPath, 'User')
-            $pathUpdated = $true
+        # Read and written as stored, so entries like %LOCALAPPDATA%\... stay unexpanded.
+        $envKey = [Microsoft.Win32.Registry]::CurrentUser.CreateSubKey('Environment')
+        try {
+            $userPath = [string]$envKey.GetValue('Path', '', [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)
+            if (-not (Test-PathListEntry $userPath $InstallDir)) {
+                $newUserPath = if ($userPath) { "$InstallDir;$userPath" } else { $InstallDir }
+                $envKey.SetValue('Path', $newUserPath, [Microsoft.Win32.RegistryValueKind]::ExpandString)
+                $pathUpdated = $true
+            }
+        } finally {
+            $envKey.Dispose()
+        }
+        if ($pathUpdated) {
+            # Setting a user variable through .NET tells Explorer, and so new terminals, to re-read
+            # the environment.
+            [Environment]::SetEnvironmentVariable('DEXTO_INSTALL_PATH_REFRESH', '1', 'User')
+            [Environment]::SetEnvironmentVariable('DEXTO_INSTALL_PATH_REFRESH', $null, 'User')
             Write-Note "Added $InstallDir to your user PATH. Open a new terminal to use it there."
         }
         if (-not (Test-PathListEntry $env:Path $InstallDir)) {
@@ -453,9 +513,10 @@ Environment:
 # code is only returned when PowerShell was started just to run this (as `dexto upgrade` and
 # agents do); otherwise it is left in $LASTEXITCODE.
 if ($DextoInstallState.ExitCode -ne 0) {
-    $startedForCommand = @([Environment]::GetCommandLineArgs() | Select-Object -Skip 1 |
-        Where-Object { $_ -match '^[-/](c|command|f|file|e|ec|encodedcommand)$' }).Count -gt 0
-    if ($startedForCommand -or -not [Environment]::UserInteractive) {
+    $hostArgs = @([Environment]::GetCommandLineArgs() | Select-Object -Skip 1)
+    $startedForCommand = @($hostArgs | Where-Object { $_ -match '^[-/](c|co|com|comm|comma|comman|command|f|fi|fil|file|e|ec|en|enc|encodedcommand)$' }).Count -gt 0
+    $keepsWindowOpen = @($hostArgs | Where-Object { $_ -match '^[-/]noe(x|xi|xit)?$' }).Count -gt 0
+    if (($startedForCommand -and -not $keepsWindowOpen) -or -not [Environment]::UserInteractive) {
         exit $DextoInstallState.ExitCode
     }
     $global:LASTEXITCODE = $DextoInstallState.ExitCode
