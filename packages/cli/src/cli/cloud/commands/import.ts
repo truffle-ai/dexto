@@ -1,6 +1,5 @@
-import { z } from 'zod';
 import { findLocalChats } from '../../import/local-chats.js';
-import { toImportInput, type ChatImportInput } from '../../import/redaction.js';
+import { toImportInput } from '../../import/redaction.js';
 import { LOCAL_CHAT_SOURCES, type LocalChat } from '../../import/transcript.js';
 import { CommandFailure } from '../../failure.js';
 import { requireConsent } from '../../interaction.js';
@@ -13,18 +12,7 @@ import {
     type CommandContext,
     type CommandInput,
 } from '../command.js';
-import { queryWorkspaceTool } from './workspace.js';
-
-const ImportedSchema = z.object({
-    session: z.object({ id: z.string() }),
-    status: z.enum(['imported', 'already_imported']),
-    url: z.string(),
-});
-
-/** Boundary for the current text contract; native parts can replace this without changing selection. */
-async function importTranscript(context: CommandContext, input: ChatImportInput) {
-    return ImportedSchema.parse(await queryWorkspaceTool(context, 'dexto_chat_import', input));
-}
+import { sendTranscript } from './import-client.js';
 
 const options = {
     select: {
@@ -137,7 +125,7 @@ async function runImport(
     for (const { chat, prepared } of planned) {
         if (prepared.kind !== 'ready') continue;
         try {
-            const result = await importTranscript(context, prepared.input);
+            const result = await sendTranscript(context, { kind: 'text', input: prepared.input });
             results.push({ id: key(chat), ...result });
         } catch (error) {
             if (error instanceof CommandFailure) throw error;
