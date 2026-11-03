@@ -25,6 +25,7 @@ const TOOLS = [
             properties: { name: { type: 'string' }, confirm: { type: 'boolean' } },
         },
         outputSchema: {
+            $schema: 'http://json-schema.org/draft-07/schema#',
             type: 'object',
             required: ['created', 'files', 'homepage', 'site', 'url', 'visibility'],
             properties: {
