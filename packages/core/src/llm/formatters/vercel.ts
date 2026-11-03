@@ -48,7 +48,12 @@ function normalizeInterleavedToolHistory(history: InternalMessage[]): InternalMe
         let interleaved = false;
         for (let cursor = index + 1; cursor < history.length && pending.size > 0; cursor++) {
             const message = history[cursor];
-            if (!message || message.role === 'system') break;
+            if (
+                !message ||
+                message.role === 'system' ||
+                message.metadata?.[IMPORTED_TRANSCRIPT_METADATA_KEY] !== true
+            )
+                break;
             if (message.role === 'assistant') {
                 interleaved = true;
                 if (message.toolCalls?.some((call) => seen.has(call.id))) break;

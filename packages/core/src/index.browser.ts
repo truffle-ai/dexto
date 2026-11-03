@@ -30,6 +30,7 @@ export type {
 
 // Message type guards (used by CLI and webui packages)
 export {
+    IMPORTED_TRANSCRIPT_METADATA_KEY,
     isSystemMessage,
     isUserMessage,
     isAssistantMessage,

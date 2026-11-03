@@ -1,7 +1,7 @@
 import { describe, test, expect, vi } from 'vitest';
 import { VercelMessageFormatter } from './vercel.js';
 import { createMockLogger } from '../../logger/v2/test-utils.js';
-import type { InternalMessage } from '../../context/types.js';
+import { IMPORTED_TRANSCRIPT_METADATA_KEY, type InternalMessage } from '../../context/types.js';
 import * as llm from '@dexto/llm';
 
 vi.mock('@dexto/llm');
@@ -17,7 +17,7 @@ describe('VercelMessageFormatter', () => {
             {
                 role: 'assistant',
                 content: [],
-                metadata: { importedTranscript: true },
+                metadata: { [IMPORTED_TRANSCRIPT_METADATA_KEY]: true },
                 assistantOutput: { status: 'complete' },
                 toolCalls: [
                     { id: 'a', type: 'function', function: { name: 'first', arguments: '{}' } },
@@ -51,7 +51,14 @@ describe('VercelMessageFormatter', () => {
                 content: [{ type: 'text', text: 'result-a' }],
             },
         ];
-        const result = formatter.format(history, { provider: 'xai', model: 'grok-4' }, null);
+        const result = formatter.format(
+            history.map((message) => ({
+                ...message,
+                metadata: { ...message.metadata, [IMPORTED_TRANSCRIPT_METADATA_KEY]: true },
+            })),
+            { provider: 'xai', model: 'grok-4' },
+            null
+        );
         expect(result.map((message) => message.role)).toEqual([
             'assistant',
             'tool',
@@ -70,7 +77,7 @@ describe('VercelMessageFormatter', () => {
             {
                 role: 'assistant',
                 content: [],
-                metadata: { importedTranscript: true },
+                metadata: { [IMPORTED_TRANSCRIPT_METADATA_KEY]: true },
                 assistantOutput: { status: 'complete' },
                 toolCalls: [
                     { id: 'a', type: 'function', function: { name: 'first', arguments: '{}' } },
@@ -85,7 +92,14 @@ describe('VercelMessageFormatter', () => {
                 content: [{ type: 'text', text: 'result-a' }],
             },
         ];
-        const result = formatter.format(history, { provider: 'xai', model: 'grok-4' }, null);
+        const result = formatter.format(
+            history.map((message) => ({
+                ...message,
+                metadata: { ...message.metadata, [IMPORTED_TRANSCRIPT_METADATA_KEY]: true },
+            })),
+            { provider: 'xai', model: 'grok-4' },
+            null
+        );
         expect(result.map((message) => message.role)).toEqual(['assistant', 'tool', 'user']);
         expect(JSON.stringify(result)).toContain('result-a');
         expect(JSON.stringify(result)).toContain('follow up');
@@ -147,7 +161,7 @@ describe('VercelMessageFormatter', () => {
             {
                 role: 'assistant',
                 content: [],
-                metadata: { importedTranscript: true },
+                metadata: { [IMPORTED_TRANSCRIPT_METADATA_KEY]: true },
                 assistantOutput: { status: 'complete' },
                 toolCalls: [
                     { id: 'a', type: 'function', function: { name: 'first', arguments: '{}' } },
@@ -170,7 +184,21 @@ describe('VercelMessageFormatter', () => {
             },
             { role: 'user', content: [{ type: 'text', text: 'later user' }] },
         ];
-        const result = formatter.format(history, { provider: 'xai', model: 'grok-4' }, null);
+        const result = formatter.format(
+            history.map((message, index) =>
+                index < 3
+                    ? {
+                          ...message,
+                          metadata: {
+                              ...message.metadata,
+                              [IMPORTED_TRANSCRIPT_METADATA_KEY]: true,
+                          },
+                      }
+                    : message
+            ),
+            { provider: 'xai', model: 'grok-4' },
+            null
+        );
         expect(JSON.stringify(result)).toContain('result-a');
         expect(JSON.stringify(result)).toContain('Tool execution was interrupted');
         expect(result.map((message) => message.role)).toEqual([
@@ -179,6 +207,45 @@ describe('VercelMessageFormatter', () => {
             'tool',
             'user',
         ]);
+    });
+    test('does not move later native turns into an incomplete imported group', () => {
+        const formatter = new VercelMessageFormatter(mockLogger);
+        const history: InternalMessage[] = [
+            {
+                role: 'assistant',
+                content: [],
+                metadata: { [IMPORTED_TRANSCRIPT_METADATA_KEY]: true },
+                assistantOutput: { status: 'complete' },
+                toolCalls: [
+                    { id: 'a', type: 'function', function: { name: 'first', arguments: '{}' } },
+                ],
+            },
+            { role: 'user', content: [{ type: 'text', text: 'native question' }] },
+            {
+                role: 'assistant',
+                content: [],
+                assistantOutput: { status: 'complete' },
+                toolCalls: [
+                    { id: 'b', type: 'function', function: { name: 'second', arguments: '{}' } },
+                ],
+            },
+            {
+                role: 'tool',
+                name: 'second',
+                toolCallId: 'b',
+                success: true,
+                content: [{ type: 'text', text: 'native result' }],
+            },
+        ];
+        const result = formatter.format(history, { provider: 'xai', model: 'grok-4' }, null);
+        expect(result.map((message) => message.role)).toEqual([
+            'assistant',
+            'tool',
+            'user',
+            'assistant',
+            'tool',
+        ]);
+        expect(JSON.stringify(result)).toContain('native result');
     });
     describe('URL string auto-detection', () => {
         test('should inline markdown file content as text for model messages', () => {
