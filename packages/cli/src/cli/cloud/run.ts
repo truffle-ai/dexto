@@ -8,6 +8,7 @@ import { jsonError } from '../output.js';
 import { CloudApiError, createCloudClient } from '@dexto/cloud-client';
 import {
     MissingScopeFailure,
+    readValue,
     signInCommand,
     UsageError,
     type Command,
@@ -52,7 +53,8 @@ export const GLOBAL_OPTIONS: Readonly<Record<string, OptionSpec>> = {
         valueName: 'URL',
     },
     'api-key': {
-        description: 'Use this key instead of DEXTO_API_KEY or the saved sign-in.',
+        description:
+            'Use this key instead of DEXTO_API_KEY or the saved sign-in; pass - to read it from stdin, or no value to be asked.',
         type: 'string',
         valueName: 'KEY',
     },
@@ -95,7 +97,7 @@ async function run(host: CloudHost, argv: readonly string[], mayGrant: boolean):
     const { runtime } = host;
     let globals: Globals;
     try {
-        globals = extractGlobals(argv);
+        globals = await extractGlobals(runtime, argv);
     } catch (error) {
         // The format isn't settled yet: JSON as asked, or when no one reads stdout.
         return reportError(
@@ -379,8 +381,12 @@ interface Globals {
     readonly rest: readonly string[];
 }
 
-/** Takes the global options out wherever they appear, before the command's own parsing. */
-function extractGlobals(argv: readonly string[]): Globals {
+/**
+ * Takes the global options out wherever they appear, before the command's own parsing.
+ * `--api-key -` reads the key from stdin, and `--api-key` with no value asks for it, so the key
+ * needn't sit in the shell history.
+ */
+async function extractGlobals(runtime: CloudRuntime, argv: readonly string[]): Promise<Globals> {
     const rest: string[] = [];
     let apiBaseUrl: string | null = null;
     let apiKey: string | null = null;
@@ -407,8 +413,13 @@ function extractGlobals(argv: readonly string[]): Globals {
             const value = inline ?? argv[index + 1];
             // Never take another option as the value, so `--project --api-key KEY` can't leave
             // the key behind as a word that gets printed back.
-            if (value === undefined || (inline === null && value.startsWith('-')))
-                throw new UsageError(`Missing value for ${name}.`);
+            const missing = value === undefined || (inline === null && value.startsWith('-'));
+            if (name === '--api-key' && (missing || value === '-')) {
+                if (value === '-') index += 1;
+                apiKey = await readValue({ runtime }, 'Dexto API key: ', true);
+                continue;
+            }
+            if (missing) throw new UsageError(`Missing value for ${name}.`);
             if (inline === null) index += 1;
             if (name === '--api-key') apiKey = value;
             else {

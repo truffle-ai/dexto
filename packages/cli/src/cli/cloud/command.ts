@@ -156,7 +156,7 @@ export function isJsonObject(value: unknown): value is Record<string, unknown> {
 
 /** A value the person types, hidden when secret, or piped on stdin. */
 export async function readValue(
-    context: CommandContext,
+    context: Pick<CommandContext, 'runtime'>,
     question: string,
     secret: boolean
 ): Promise<string> {
