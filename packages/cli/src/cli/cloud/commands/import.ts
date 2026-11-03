@@ -45,7 +45,8 @@ async function runImport(
     if (
         selection?.split(',').some((id) => id.trim().startsWith('skill:')) ||
         (selection === 'all' &&
-            (await findPersonalSkills(context.runtime.homeDirectory)).length > 0)
+            (await findPersonalSkills(context.runtime.homeDirectory, context.runtime.environment))
+                .length > 0)
     )
         throw new UsageError(
             'Personal skill import is not available yet. Select chat IDs explicitly.'
@@ -70,7 +71,10 @@ async function runImport(
         for (const notice of scan.notices) context.output.note(notice.message);
     const chats = scans.flatMap((scan) => scan.chats);
     if (listOnly || (selection === undefined && !current)) {
-        const personalSkills = await findPersonalSkills(context.runtime.homeDirectory);
+        const personalSkills = await findPersonalSkills(
+            context.runtime.homeDirectory,
+            context.runtime.environment
+        );
         const skills = personalSkills.map((skill) => {
             const name = redactSecrets(skill.name).text;
             return {

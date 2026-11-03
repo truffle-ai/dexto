@@ -36,4 +36,33 @@ describe('personal skill discovery', () => {
         await symlink(project, path.join(home, '.claude'));
         expect(await findPersonalSkills(home)).toEqual([]);
     });
+
+    it('finds user-level Codex skills and ignores hidden and malformed entries', async () => {
+        const home = await mkdtemp(path.join(tmpdir(), 'personal-skills-codex-'));
+        const root = path.join(home, '.codex', 'skills');
+        await mkdir(path.join(root, 'useful'), { recursive: true });
+        await mkdir(path.join(root, '.system', 'hidden'), { recursive: true });
+        await mkdir(path.join(root, 'no-manifest'), { recursive: true });
+        await writeFile(path.join(root, 'useful', 'SKILL.md'), 'valid');
+        await writeFile(path.join(root, '.system', 'hidden', 'SKILL.md'), 'hidden');
+        expect((await findPersonalSkills(home)).map((skill) => [skill.source, skill.name])).toEqual(
+            [['codex', 'useful']]
+        );
+    });
+
+    it('honours a user-level config override but excludes one inside a repository', async () => {
+        const home = await mkdtemp(path.join(tmpdir(), 'personal-skills-config-'));
+        const custom = path.join(home, 'custom');
+        const project = path.join(home, 'project');
+        await mkdir(path.join(custom, 'skills', 'mine'), { recursive: true });
+        await writeFile(path.join(custom, 'skills', 'mine', 'SKILL.md'), 'mine');
+        await mkdir(path.join(project, '.git'), { recursive: true });
+        await mkdir(path.join(project, '.claude', 'skills', 'repo'), { recursive: true });
+        await writeFile(path.join(project, '.claude', 'skills', 'repo', 'SKILL.md'), 'repo');
+        const skills = await findPersonalSkills(home, {
+            CODEX_HOME: custom,
+            CLAUDE_CONFIG_DIR: path.join(project, '.claude'),
+        });
+        expect(skills.map((skill) => [skill.source, skill.name])).toEqual([['codex', 'mine']]);
+    });
 });
