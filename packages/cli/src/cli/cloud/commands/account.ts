@@ -1,10 +1,11 @@
 // `login`, `logout`, `whoami`, `accounts`, `models list` and `billing`: who commands act as, and
 // the models and credits that sign-in reaches, under the CLI's one output contract.
 
+import { confirm } from '../../interaction.js';
+
 import { unwrap } from '@dexto/cloud-client';
 import {
     argument,
-    confirm,
     flag,
     listOption,
     stringOption,

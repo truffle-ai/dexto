@@ -1,5 +1,7 @@
 // `cloud sandboxes`: create and control project sandboxes, run commands and move files.
 
+import { requireConsent } from '../../interaction.js';
+
 import { randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { unwrap, type CloudClient, type V1Response } from '@dexto/cloud-client';
@@ -10,7 +12,6 @@ import {
     integerOption,
     PAGE_OPTIONS,
     pageQuery,
-    requireConsent,
     stringOption,
     UsageError,
     YES_OPTION,

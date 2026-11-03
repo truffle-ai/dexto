@@ -1,20 +1,14 @@
 // `publish`: puts a page, a document or a folder online as a Site.
 
+import { CommandFailure } from '../../failure.js';
+
 import { createHash } from 'node:crypto';
 import { readdir, readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 
 import { z } from 'zod';
 
-import {
-    argument,
-    CommandFailure,
-    stringOption,
-    flag,
-    UsageError,
-    YES_OPTION,
-    type Command,
-} from '../command.js';
+import { argument, stringOption, flag, UsageError, YES_OPTION, type Command } from '../command.js';
 import { sendBytes } from '../transfer.js';
 import { zipArchive, type ZipFile } from '../zip.js';
 import { requireLoginScopes } from './deploys.js';

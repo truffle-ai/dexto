@@ -1,5 +1,7 @@
 // `skills push`: packs a local Skill folder and creates or updates it in the person's library.
 
+import { CommandFailure } from '../../failure.js';
+
 import { createHash } from 'node:crypto';
 import { readdir, readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
@@ -8,7 +10,6 @@ import { z } from 'zod';
 
 import {
     argument,
-    CommandFailure,
     flag,
     stringOption,
     UsageError,

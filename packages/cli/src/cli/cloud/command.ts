@@ -3,6 +3,9 @@ import { readFile } from 'node:fs/promises';
 
 import type { CloudClient } from '@dexto/cloud-client';
 
+import { CommandFailure } from '../failure.js';
+import { shellWord } from '../interaction.js';
+
 import type { Connection, ConnectionOverrides } from './connection.js';
 import type { Output } from './output.js';
 import type { CloudRuntime } from './runtime.js';
@@ -47,51 +50,6 @@ export class UsageError extends Error {
     constructor(message: string) {
         super(message);
         this.name = 'UsageError';
-    }
-}
-
-/** What kind of thing went wrong; each kind has an exit code an agent can branch on. */
-export type FailureKind =
-    | 'failed'
-    | 'invalid_input'
-    | 'needs_confirmation'
-    | 'needs_permission'
-    | 'needs_sign_in'
-    | 'not_found'
-    | 'waiting_on_person';
-
-export const EXIT_CODES = {
-    failed: 1,
-    invalid_input: 2,
-    needs_confirmation: 4,
-    needs_permission: 3,
-    needs_sign_in: 3,
-    not_found: 5,
-    waiting_on_person: 6,
-    usage: 2,
-} as const satisfies Record<FailureKind | 'usage', number>;
-
-/** What each exit code means; frozen in 2.0 and shown in help. */
-export const EXIT_CODE_MEANINGS = {
-    '0': 'done',
-    '1': 'failed',
-    '2': 'usage or invalid input',
-    '3': 'needs sign-in or permission',
-    '4': 'needs confirmation: pass --yes once your person has agreed',
-    '5': 'not found',
-    '6': 'waiting on a person, such as an approval',
-} as const;
-
-/** A failure that says what kind it is and, where there is one, the command that fixes it. */
-export class CommandFailure extends Error {
-    readonly fix: string | null;
-    readonly kind: FailureKind;
-
-    constructor(kind: FailureKind, message: string, fix: string | null) {
-        super(message);
-        this.name = 'CommandFailure';
-        this.fix = fix;
-        this.kind = kind;
     }
 }
 
@@ -210,45 +168,12 @@ export async function readValue(
     return value;
 }
 
-/** Asks yes or no at a terminal; without one, only `--yes` agrees. */
-export async function confirm(context: CommandContext, question: string): Promise<boolean> {
-    if (context.runtime.prompt === null) return false;
-    const answer = await context.runtime.prompt(`${question} [y/N] `, { secret: false });
-    return /^y(es)?$/iu.test(answer.trim());
-}
-
 export const YES_OPTION = {
     yes: {
         description: 'Go ahead without being asked. Pass it only once your person has agreed.',
         type: 'boolean',
     },
 } as const satisfies Record<string, OptionSpec>;
-
-/**
- * Goes ahead with something that asks first: at once with `--yes`, after a yes at a terminal, and
- * otherwise not at all, failing with the command that goes ahead.
- */
-export async function requireConsent(
-    context: CommandContext,
-    yes: boolean,
-    what: string
-): Promise<void> {
-    if (yes) return;
-    if (context.runtime.prompt !== null) {
-        if (await confirm(context, `${what} Go ahead?`)) return;
-        throw new CommandFailure('needs_confirmation', 'Not done.', null);
-    }
-    throw new CommandFailure(
-        'needs_confirmation',
-        `${what} Run it again with --yes once your person has agreed.`,
-        rerunWith(context, '--yes')
-    );
-}
-
-/** The command as it was run plus more words, quoted to paste into a shell. */
-export function rerunWith(context: CommandContext, ...extra: string[]): string {
-    return ['dexto', ...context.invocation, ...extra].map(shellWord).join(' ');
-}
 
 /**
  * Whether a sign-in here should use a device code: no one is at this terminal, or it is an SSH
@@ -280,9 +205,4 @@ export function signInCommand(context: SignInContext, scope: string | null): str
     ]
         .map(shellWord)
         .join(' ');
-}
-
-/** A word as a shell reads it: quoted unless it is plain. */
-export function shellWord(word: string): string {
-    return /^[\w@%+=:,./-]+$/u.test(word) ? word : `'${word.replaceAll("'", "'\\''")}'`;
 }

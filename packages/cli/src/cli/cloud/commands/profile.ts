@@ -1,14 +1,10 @@
 // `profile`: read and change your own Dexto profile, as Settings → Profile does.
 
+import { CommandFailure } from '../../failure.js';
+
 import { z } from 'zod';
 
-import {
-    CommandFailure,
-    stringOption,
-    UsageError,
-    type Command,
-    type CommandContext,
-} from '../command.js';
+import { stringOption, UsageError, type Command, type CommandContext } from '../command.js';
 import { queryWorkspaceTool } from './workspace.js';
 
 const ProfileSchema = z.object({
