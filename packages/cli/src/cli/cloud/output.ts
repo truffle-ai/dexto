@@ -1,5 +1,6 @@
 // Prints API values: JSON for agents (--json, or stdout not a terminal), tables for people.
 import chalk from 'chalk';
+import { jsonResult } from '../output.js';
 
 import type { CloudRuntime } from './runtime.js';
 
@@ -43,7 +44,7 @@ export function createOutput(runtime: CloudRuntime, format: OutputFormat): Outpu
     const json = format === 'json' || (format === 'auto' && !runtime.stdoutIsTerminal);
     const color = runtime.color;
     const printJson = (value: unknown): void => {
-        runtime.writeOutput(`${JSON.stringify(value, null, 2)}\n`);
+        runtime.writeOutput(jsonResult(value));
     };
     return {
         json,

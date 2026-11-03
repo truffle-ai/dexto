@@ -1,18 +1,17 @@
 // Runs `dexto cloud …` and the other ported cloud commands: global options, help, the agent
 // contract's JSON output and exit codes, and signing in again for a permission a command lacked.
 
+import { CommandFailure, EXIT_CODE_MEANINGS, EXIT_CODES, type FailureKind } from '../failure.js';
+
 import { parseArgs } from 'node:util';
+import { jsonError } from '../output.js';
 import { CloudApiError, createCloudClient } from '@dexto/cloud-client';
 import {
-    CommandFailure,
-    EXIT_CODE_MEANINGS,
-    EXIT_CODES,
     MissingScopeFailure,
     signInCommand,
     UsageError,
     type Command,
     type CommandContext,
-    type FailureKind,
     type OptionSpec,
     type SignInContext,
 } from './command.js';
@@ -311,19 +310,13 @@ function reportError(context: SignInContext, json: boolean, help: string, error:
     const failure = describeFailure(context, error);
     if (json) {
         runtime.writeError(
-            `${JSON.stringify(
-                {
-                    error: {
-                        code: failure.code,
-                        message: failure.message,
-                        ...(failure.fix === null ? {} : { fix: failure.fix }),
-                        ...(failure.apiCode === null ? {} : { api_code: failure.apiCode }),
-                        ...(failure.details === null ? {} : { details: failure.details }),
-                    },
-                },
-                null,
-                2
-            )}\n`
+            jsonError({
+                code: failure.code,
+                message: failure.message,
+                ...(failure.fix === null ? {} : { fix: failure.fix }),
+                ...(failure.apiCode === null ? {} : { api_code: failure.apiCode }),
+                ...(failure.details === null ? {} : { details: failure.details }),
+            })
         );
     } else if (failure.code === 'usage') {
         runtime.writeError(`${failure.message}\n\n${help}`);

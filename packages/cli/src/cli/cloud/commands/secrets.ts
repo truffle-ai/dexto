@@ -1,5 +1,7 @@
 // `cloud secrets`: credentials the project's agents use without ever seeing them.
 
+import { requireConsent } from '../../interaction.js';
+
 import { unwrap, type V1Body, type V1Response } from '@dexto/cloud-client';
 import {
     argument,
@@ -8,7 +10,6 @@ import {
     PAGE_OPTIONS,
     pageQuery,
     readValue,
-    requireConsent,
     stringOption,
     YES_OPTION,
     type Command,

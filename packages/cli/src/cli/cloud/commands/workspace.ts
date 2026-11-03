@@ -1,17 +1,17 @@
 // `workspace`: the tools an agent uses in your Dexto workspace over MCP, called as you.
 
+import { CommandFailure } from '../../failure.js';
+import { requireConsent, rerunWith } from '../../interaction.js';
+
 import { z } from 'zod';
 
 import {
     argument,
     BODY_OPTIONS,
-    CommandFailure,
     flag,
     isJsonObject,
     MissingScopeFailure,
     readJsonBody,
-    requireConsent,
-    rerunWith,
     signInCommand,
     stringOption,
     UsageError,
