@@ -10,21 +10,15 @@ export interface PersonalSkill {
 }
 
 /** Only the two user-level skill directories; project skills stay with their repository. */
-export async function findPersonalSkills(
-    homeDirectory: string,
-    environment: Readonly<Record<string, string | undefined>> = {}
-): Promise<PersonalSkill[]> {
+export async function findPersonalSkills(homeDirectory: string): Promise<PersonalSkill[]> {
     const roots: readonly { source: LocalChatSource; path: string }[] = [
         {
             source: 'claude-code',
-            path: path.join(
-                environment.CLAUDE_CONFIG_DIR || path.join(homeDirectory, '.claude'),
-                'skills'
-            ),
+            path: path.join(homeDirectory, '.claude', 'skills'),
         },
         {
             source: 'codex',
-            path: path.join(environment.CODEX_HOME || path.join(homeDirectory, '.codex'), 'skills'),
+            path: path.join(homeDirectory, '.codex', 'skills'),
         },
     ];
     const skills: PersonalSkill[] = [];
