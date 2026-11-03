@@ -152,7 +152,7 @@ const ThreadRowsSchema = z.array(
 
 /**
  * The threads Codex lists, read from its state database without writing to it; null when there is
- * no such database, or it can't be read (an older Codex, another schema, or no SQLite here).
+ * no such database. A present database that cannot be read is reported to the caller.
  * Archived threads are left out, as their rollouts are not where sessions are read from.
  */
 export async function readCodexThreads(home: string): Promise<CodexThread[] | null> {
@@ -174,7 +174,9 @@ export async function readCodexThreads(home: string): Promise<CodexThread[] | nu
             db.close();
         }
     } catch {
-        return null;
+        throw new Error(
+            'Cannot read Codex state database; titles and migrated history are unavailable.'
+        );
     }
     const threads: CodexThread[] = [];
     for (const row of rows) {

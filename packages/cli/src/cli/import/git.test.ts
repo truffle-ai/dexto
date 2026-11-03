@@ -31,7 +31,7 @@ describe('findRepository', () => {
             base,
             'git@github.com:truffle-ai/dexto.git'
         );
-        const expected = { remoteUrl: 'git@github.com:truffle-ai/dexto.git', root: main };
+        const expected = { remoteUrl: 'github.com:truffle-ai/dexto.git', root: main };
 
         expect(await findRepository(path.join(main, 'packages', 'cli'))).toEqual(expected);
         expect(await findRepository(path.join(worktree, 'src'))).toEqual(expected);
@@ -59,7 +59,7 @@ describe('findRepository', () => {
         );
         expect(await findRepository(checkout)).toEqual({
             root: checkout,
-            remoteUrl: 'git@github.com:a/sub.git',
+            remoteUrl: 'github.com:a/sub.git',
         });
     });
 });
@@ -81,12 +81,14 @@ describe('withoutCredentials', () => {
         expect(withoutCredentials('https://ghp_secret@github.com/a/b.git?token=1#x')).toBe(
             'https://github.com/a/b.git'
         );
-        expect(withoutCredentials('ssh://git@github.com/a/b.git')).toBe(
-            'ssh://git@github.com/a/b.git'
+        expect(withoutCredentials('ssh://git@github.com/a/b.git')).toBe('ssh://github.com/a/b.git');
+        expect(withoutCredentials('ssh://secret@github.com/a/b.git')).toBe(
+            'ssh://github.com/a/b.git'
         );
+        expect(withoutCredentials('user:secret@github.com:a/b.git')).toBe('github.com:a/b.git');
         expect(withoutCredentials('ssh://git:hunter2@github.com/a/b.git')).toBe(
             'ssh://github.com/a/b.git'
         );
-        expect(withoutCredentials('git@github.com:a/b.git')).toBe('git@github.com:a/b.git');
+        expect(withoutCredentials('git@github.com:a/b.git')).toBe('github.com:a/b.git');
     });
 });

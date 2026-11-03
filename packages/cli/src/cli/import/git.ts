@@ -82,24 +82,19 @@ export function originUrl(config: string): string | null {
 }
 
 /**
- * A remote URL with any `user:password@` or token left out, and its query and fragment too. An scp
- * style `git@host:owner/name` is kept as it is: its user is not a secret.
+ * A remote URL with userinfo, query and fragment removed, including scp-style userinfo.
  */
 export function withoutCredentials(url: string): string {
-    if (!/^[a-z][a-z0-9+.-]*:\/\//iu.test(url)) return url;
+    if (!/^[a-z][a-z0-9+.-]*:\/\//iu.test(url))
+        return url.replace(/^[^/@]+@(?=[^/]+:)/u, '').split(/[?#]/u, 1)[0] ?? '';
     try {
         const parsed = new URL(url);
-        if (parsed.protocol === 'ssh:' && parsed.password === '') {
-            parsed.search = '';
-            parsed.hash = '';
-            return parsed.toString();
-        }
         parsed.username = '';
         parsed.password = '';
         parsed.search = '';
         parsed.hash = '';
         return parsed.toString();
     } catch {
-        return url.replace(/\/\/[^/@]*@/u, '//');
+        return url.replace(/\/\/[^/@]*@/u, '//').split(/[?#]/u, 1)[0] ?? '';
     }
 }

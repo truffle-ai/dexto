@@ -97,10 +97,10 @@ describe('readCodexThreads', () => {
         ]);
     });
 
-    it('is null without a state database, or with one of another shape', async () => {
+    it('reports an unreadable state database instead of silently losing titles and migration notices', async () => {
         const home = await mkdtemp(path.join(tmpdir(), 'codex-state-'));
         expect(await readCodexThreads(home)).toBeNull();
         await writeFile(path.join(home, 'state_5.sqlite'), 'not a database');
-        expect(await readCodexThreads(home)).toBeNull();
+        await expect(readCodexThreads(home)).rejects.toThrow('Cannot read Codex state database');
     });
 });

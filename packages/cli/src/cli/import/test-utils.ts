@@ -221,7 +221,7 @@ export async function writeCodexState(
         readonly cwd: string;
         readonly id: string;
         readonly name?: string | null;
-        readonly rolloutPath: string;
+        readonly rolloutPath: string | null;
         readonly title: string;
         readonly updatedAt: string;
     }[]
@@ -230,7 +230,7 @@ export async function writeCodexState(
     const db = new Database(path.join(home, 'state_5.sqlite'));
     try {
         db.exec(
-            'CREATE TABLE threads (id TEXT PRIMARY KEY, rollout_path TEXT NOT NULL, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, cwd TEXT NOT NULL, title TEXT NOT NULL, archived INTEGER NOT NULL DEFAULT 0, name TEXT)'
+            'CREATE TABLE threads (id TEXT PRIMARY KEY, rollout_path TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, cwd TEXT NOT NULL, title TEXT NOT NULL, archived INTEGER NOT NULL DEFAULT 0, name TEXT)'
         );
         const insert = db.prepare(
             'INSERT INTO threads (id, rollout_path, created_at, updated_at, cwd, title, archived, name) VALUES (?, ?, 0, ?, ?, ?, ?, ?)'

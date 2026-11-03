@@ -179,4 +179,24 @@ describe('toImportInput', () => {
         expect(sent[0]?.text).toContain('Imported from Codex: the first');
         expect(sent.at(-1)?.text.startsWith('69 ')).toBe(true);
     });
+
+    it('orders the omission note before retained messages even when timestamps tie', () => {
+        const at = '2026-10-01T00:00:00.000Z';
+        const prepared = toImportInput({
+            cwd: null,
+            gitBranch: null,
+            id: 's',
+            source: 'codex',
+            title: 'T',
+            messages: Array.from({ length: MAX_IMPORT_MESSAGES + 1 }, (_, i) => ({
+                createdAt: at,
+                role: i % 2 ? ('assistant' as const) : ('user' as const),
+                text: `${i}`,
+            })),
+        });
+        if (prepared.kind !== 'ready') throw new Error('Expected it to be ready.');
+        expect(Date.parse(prepared.input.messages[0]?.createdAt ?? '')).toBeLessThan(
+            Date.parse(at)
+        );
+    });
 });

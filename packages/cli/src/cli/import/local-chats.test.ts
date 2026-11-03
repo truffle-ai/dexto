@@ -6,9 +6,46 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { findLocalChats } from './local-chats.js';
-import { claudeSession, codexRollout } from './test-utils.js';
+import { claudeSession, codexRollout, writeCodexState } from './test-utils.js';
 
 describe('findLocalChats', () => {
+    it('applies Codex state titles and reports missing rollouts with query filters', async () => {
+        const home = await mkdtemp(path.join(tmpdir(), 'local-codex-state-'));
+        const codex = path.join(home, '.codex');
+        const sessions = path.join(codex, 'sessions');
+        await mkdir(sessions, { recursive: true });
+        const file = path.join(sessions, 'rollout-test.jsonl');
+        await writeFile(file, codexRollout('kept'));
+        await writeCodexState(codex, [
+            {
+                id: 'kept',
+                cwd: '/work/web',
+                rolloutPath: file,
+                title: 'State title',
+                updatedAt: '2026-10-02T00:00:00Z',
+            },
+            {
+                id: 'gone',
+                cwd: '/work/web',
+                rolloutPath: null,
+                title: 'Gone',
+                updatedAt: '2026-10-03T00:00:00Z',
+            },
+            {
+                id: 'other',
+                cwd: '/work/other',
+                rolloutPath: null,
+                title: 'Other',
+                updatedAt: '2026-10-03T00:00:00Z',
+            },
+        ]);
+        const scan = await findLocalChats(
+            { environment: {}, homeDirectory: home },
+            { source: 'codex', dir: null, folder: '/work/web', since: '2026-10-01' }
+        );
+        expect(scan.chats[0]?.title).toBe('State title');
+        expect(scan.notices).toMatchObject([{ code: 'codex_history_migrated', count: 1 }]);
+    });
     it('finds Claude Code sessions one folder deep and Codex rollouts by date, newest first', async () => {
         const home = await mkdtemp(path.join(tmpdir(), 'local-chats-'));
         const project = path.join(home, '.claude', 'projects', '-work-api');

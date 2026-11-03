@@ -148,12 +148,16 @@ function newestWithin(
     }
     kept.reverse();
     const leftOut = messages.length - kept.length;
-    // Over either bound, at least one message is left out; the note is dated as the last of
-    // them, so it sorts before every message kept.
+    // Date the note before all retained messages, including when source timestamps tie or regress.
     const lastLeftOut = messages[leftOut - 1];
     if (lastLeftOut === undefined) return { leftOut: 0, messages: kept };
     const note: LocalChatMessage = {
-        createdAt: lastLeftOut.createdAt,
+        createdAt: new Date(
+            Math.min(
+                Date.parse(lastLeftOut.createdAt),
+                ...kept.map((message) => Date.parse(message.createdAt) - 1)
+            )
+        ).toISOString(),
         role: 'assistant',
         text: leftOutNote(source, leftOut),
     };
