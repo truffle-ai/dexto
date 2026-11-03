@@ -283,6 +283,7 @@ export {
     // Discovery
     discoverClaudeCodePlugins,
     discoverStandaloneSkills,
+    getStandaloneSkillPaths,
     getPluginSearchPaths,
     // Loading
     loadClaudeCodePlugin,
