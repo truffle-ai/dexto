@@ -2,10 +2,10 @@ import { z } from 'zod';
 import { findLocalChats } from '../../import/local-chats.js';
 import { toImportInput, type ChatImportInput } from '../../import/redaction.js';
 import { LOCAL_CHAT_SOURCES, type LocalChat } from '../../import/transcript.js';
+import { CommandFailure } from '../../failure.js';
+import { requireConsent } from '../../interaction.js';
 import {
     flag,
-    CommandFailure,
-    requireConsent,
     stringOption,
     UsageError,
     YES_OPTION,
