@@ -14,6 +14,13 @@ import {
     type CommandInput,
 } from '../command.js';
 import { sendTranscript } from './import-client.js';
+import {
+    importPersonalSkill,
+    personalSkillId,
+    preparePersonalSkill,
+    requireSkillProvenance,
+    selectPersonalSkillSlug,
+} from './import-skills.js';
 
 const options = {
     select: {
@@ -26,6 +33,11 @@ const options = {
         description: 'Select the current Claude Code or Codex session when its ID is available.',
     },
     'dry-run': { type: 'boolean', description: 'Preview redactions without uploading.' },
+    'on-clash': {
+        type: 'string',
+        valueName: 'ask|skip|rename',
+        description: 'How to handle an existing personal skill.',
+    },
     ...YES_OPTION,
 } as const;
 
@@ -42,14 +54,9 @@ async function runImport(
     const current = flag(input, 'current-session');
     if (selection !== undefined && current)
         throw new UsageError('Pass --select or --current-session, not both.');
-    if (
-        selection?.split(',').some((id) => id.trim().startsWith('skill:')) ||
-        (selection === 'all' &&
-            (await findPersonalSkills(context.runtime.homeDirectory)).length > 0)
-    )
-        throw new UsageError(
-            'Personal skill import is not available yet. Select chat IDs explicitly.'
-        );
+    const clash = stringOption(input, 'on-clash') ?? 'ask';
+    if (clash !== 'ask' && clash !== 'skip' && clash !== 'rename')
+        throw new UsageError('--on-clash must be ask, skip or rename.');
     const codexId = current ? context.runtime.environment.CODEX_THREAD_ID : undefined;
     const claudeId = current ? context.runtime.environment.CLAUDE_CODE_SESSION_ID : undefined;
     if (codexId && claudeId)
@@ -69,15 +76,15 @@ async function runImport(
     for (const scan of scans)
         for (const notice of scan.notices) context.output.note(notice.message);
     const chats = scans.flatMap((scan) => scan.chats);
+    const personalSkills = await findPersonalSkills(context.runtime.homeDirectory);
     if (listOnly || (selection === undefined && !current)) {
-        const personalSkills = await findPersonalSkills(context.runtime.homeDirectory);
         const skills = personalSkills.map((skill) => {
             const name = redactSecrets(skill.name).text;
             return {
-                id: `skill:${skill.source}:${name}`,
+                id: personalSkillId(skill),
                 source: skill.source,
                 name,
-                status: 'not_available' as const,
+                status: 'available' as const,
             };
         });
         const sessions = chats.map((chat) => ({
@@ -92,7 +99,7 @@ async function runImport(
             { sessions, skills },
             [
                 ...sessions.map((item) => `${item.id} ${item.title}`),
-                ...skills.map((item) => `${item.id} (import not available yet)`),
+                ...skills.map((item) => `${item.id} ${item.name}`),
             ].join('\n')
         );
         return 0;
@@ -100,7 +107,7 @@ async function runImport(
     const ids = currentKey
         ? [currentKey]
         : selection === 'all'
-          ? chats.map(key)
+          ? [...chats.map(key), ...personalSkills.map(personalSkillId)]
           : (selection ?? '')
                 .split(',')
                 .map((id) => id.trim())
@@ -111,13 +118,26 @@ async function runImport(
     }
     if (ids.length === 0 || new Set(ids).size !== ids.length)
         throw new UsageError('Select one or more distinct source:id values, or all.');
-    const chosen = ids.map((id) => {
-        const chat = chats.find((item) => key(item) === id);
-        if (chat === undefined)
-            throw new UsageError(`Session ${id} was not found; run dexto import list --json.`);
-        return chat;
-    });
+    const chosenSkills = ids
+        .filter((id) => id.startsWith('skill:'))
+        .map((id) => {
+            const skill = personalSkills.find((item) => personalSkillId(item) === id);
+            if (skill === undefined)
+                throw new UsageError('Skill was not found; run dexto import list --json.');
+            return skill;
+        });
+    const chosen = ids
+        .filter((id) => !id.startsWith('skill:'))
+        .map((id) => {
+            const chat = chats.find((item) => key(item) === id);
+            if (chat === undefined)
+                throw new UsageError(`Session ${id} was not found; run dexto import list --json.`);
+            return chat;
+        });
     const planned = chosen.map((chat) => ({ chat, prepared: toImportInput(chat) }));
+    const skillPlans = await Promise.all(
+        chosenSkills.map(async (skill) => ({ skill, prepared: await preparePersonalSkill(skill) }))
+    );
     const preview = planned.map(({ chat, prepared }) =>
         prepared.kind === 'skipped'
             ? { id: key(chat), status: 'skipped', reason: prepared.reason }
@@ -135,7 +155,13 @@ async function runImport(
             const prepared = planned[index]?.prepared;
             return prepared?.kind === 'ready' ? { ...item, payload: prepared.input } : item;
         });
-        context.output.result({ sessions }, JSON.stringify(sessions, null, 2));
+        const skills = skillPlans.map(({ skill, prepared }) => ({
+            id: personalSkillId(skill),
+            status: 'ready',
+            files: prepared.files,
+            redactions: prepared.redactions,
+        }));
+        context.output.result({ sessions, skills }, JSON.stringify({ sessions, skills }, null, 2));
         return planned.some(({ prepared }) => prepared.kind === 'skipped') ? 1 : 0;
     }
     if (planned.some(({ prepared }) => prepared.kind === 'skipped')) {
@@ -145,8 +171,16 @@ async function runImport(
     await requireConsent(
         context,
         flag(input, 'yes'),
-        `Upload ${chosen.length} locally redacted chats to Dexto?`
+        `Upload ${chosen.length} locally redacted chats and ${chosenSkills.length} personal skills to Dexto?`
     );
+    if (skillPlans.length > 0) requireSkillProvenance();
+    const reserved = new Set<string>();
+    const selectedSkills = [];
+    for (const item of skillPlans)
+        selectedSkills.push({
+            ...item,
+            slug: await selectPersonalSkillSlug(context, item.prepared, clash, reserved),
+        });
     const results = [];
     for (const [index, { chat, prepared }] of planned.entries()) {
         if (prepared.kind !== 'ready') continue;
@@ -184,8 +218,41 @@ async function runImport(
             results.push({ id: key(chat), status: 'failed', reason: 'Import failed.' });
         }
     }
-    context.output.result({ sessions: results }, JSON.stringify(results, null, 2));
-    return results.some((result) => result.status === 'failed') ? 1 : 0;
+    const skills = [];
+    for (const { skill, prepared, slug } of selectedSkills) {
+        if (slug === null) {
+            skills.push({
+                id: personalSkillId(skill),
+                status: 'skipped',
+                reason: 'Skill already exists.',
+            });
+            continue;
+        }
+        try {
+            skills.push(await importPersonalSkill(context, skill, prepared, slug));
+        } catch (error) {
+            if (
+                error instanceof CommandFailure &&
+                (error.kind === 'needs_confirmation' ||
+                    error.kind === 'needs_sign_in' ||
+                    error.kind === 'needs_permission')
+            )
+                throw error;
+            skills.push({
+                id: personalSkillId(skill),
+                status: 'failed',
+                reason: 'Import failed; check for an existing skill before retrying.',
+            });
+        }
+    }
+    context.output.result(
+        { sessions: results, skills },
+        JSON.stringify({ sessions: results, skills }, null, 2)
+    );
+    return results.some((result) => result.status === 'failed') ||
+        skills.some((item) => item.status === 'failed')
+        ? 1
+        : 0;
 }
 
 const discover: Command = {

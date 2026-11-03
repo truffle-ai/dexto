@@ -7,6 +7,9 @@ import { findLocalChats } from '../../import/local-chats.js';
 import { findPersonalSkills } from '../../import/personal-skills.js';
 import { queryWorkspaceTool } from './workspace.js';
 import { CommandFailure } from '../../failure.js';
+import { mkdtemp, mkdir, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 
 vi.mock('../../import/local-chats.js', () => ({
     findLocalChats: vi.fn(async () => ({ chats: [], notices: [] })),
@@ -23,6 +26,41 @@ vi.mock('./workspace.js', () => ({
 }));
 
 describe('headless import', () => {
+    it('never uploads a selected personal skill while provenance retry semantics are provisional', async () => {
+        const home = await mkdtemp(path.join(tmpdir(), 'guard-personal-skill-'));
+        const folder = path.join(home, '.codex', 'skills', 'sample');
+        await mkdir(folder, { recursive: true });
+        await writeFile(
+            path.join(folder, 'SKILL.md'),
+            '---\nname: sample\ndescription: Sample\n---\n'
+        );
+        vi.mocked(findPersonalSkills).mockResolvedValueOnce([
+            { source: 'codex', name: 'sample', path: folder },
+        ]);
+        vi.mocked(queryWorkspaceTool).mockClear();
+        const runtime = { ...nodeCloudRuntime(new AbortController().signal), prompt: null };
+        const context: CommandContext = {
+            runtime,
+            output: createOutput(runtime, 'json'),
+            invocation: ['import'],
+            overrides: { apiBaseUrl: null, apiKey: null, cloudProject: null, profile: null },
+            connection: async () => {
+                throw new Error('unexpected authentication');
+            },
+            client: async () => {
+                throw new Error('unexpected network');
+            },
+        };
+        const command = importCommands[0];
+        if (!command) throw new Error('missing import command');
+        await expect(
+            command.run(context, {
+                positionals: [],
+                values: { select: 'skill:codex:sample', yes: true },
+            })
+        ).rejects.toThrow(/provenance/i);
+        expect(queryWorkspaceTool).not.toHaveBeenCalled();
+    });
     it('discovers both sources without authentication or network access', async () => {
         let output = '';
         const runtime = {
@@ -487,12 +525,12 @@ describe('headless import', () => {
                 id: 'skill:claude-code:sample',
                 source: 'claude-code',
                 name: 'sample',
-                status: 'not_available',
+                status: 'available',
             },
         ]);
     });
 
-    it('does not silently omit personal skills from select all', async () => {
+    it('fails rather than silently omitting a missing selected skill from select all', async () => {
         vi.mocked(findPersonalSkills).mockResolvedValueOnce([
             { source: 'codex', name: 'sample', path: '/home/test/.codex/skills/sample' },
         ]);
@@ -513,6 +551,6 @@ describe('headless import', () => {
         if (!command) throw new Error('missing import command');
         await expect(
             command.run(context, { positionals: [], values: { select: 'all', yes: true } })
-        ).rejects.toThrow(/skill import.*not available/i);
+        ).rejects.toThrow(/not a folder/i);
     });
 });
