@@ -101,6 +101,7 @@ describe('readCodexThreads', () => {
         const home = await mkdtemp(path.join(tmpdir(), 'codex-state-'));
         expect(await readCodexThreads(home)).toBeNull();
         await writeFile(path.join(home, 'state_5.sqlite'), 'not a database');
-        await expect(readCodexThreads(home)).rejects.toThrow('Cannot read Codex state database');
+        await expect(readCodexThreads(home)).rejects.toThrow('--dir');
+        await expect(readCodexThreads(home)).rejects.toHaveProperty('cause');
     });
 });

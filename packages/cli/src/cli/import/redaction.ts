@@ -30,17 +30,19 @@ export function truncate(text: string, max: number): string {
 const SECRET_PATTERNS: readonly (readonly [kind: string, pattern: RegExp])[] = [
     ['private_key', /-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----/gu],
     ['secret_key', /\bsk-[A-Za-z0-9_-]{20,}/gu],
+    ['secret_key', /\b(?:sk|rk)_(?:live|test)_[A-Za-z0-9_-]{8,}/gu],
+    ['gitlab_token', /\bglpat-[A-Za-z0-9_-]{8,}/gu],
     ['github_token', /\b(?:gh[pousr]_[A-Za-z0-9]{36,}|github_pat_[A-Za-z0-9_]{22,})/gu],
     ['aws_access_key', /\b(?:AKIA|ASIA)[0-9A-Z]{16}\b/gu],
     ['slack_token', /\bxox[abprs]-[A-Za-z0-9-]{10,}/gu],
     ['google_api_key', /\bAIza[0-9A-Za-z_-]{35}/gu],
     ['jwt', /\beyJ[A-Za-z0-9_-]{8,}\.eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}/gu],
     ['bearer_token', /\bBearer\s+[A-Za-z0-9._~+/=-]{16,}/gu],
+    ['auth_token', /\bAuthorization\s*:\s*(?:Basic|Token)\s+[A-Za-z0-9._~+/=-]{8,}/giu],
 ];
 
 /** `password = value` and the like: the name stays, the value goes. */
-const SECRET_ASSIGNMENT =
-    /\b((?:[A-Za-z0-9_]*_)?(?:password|passwd|secret|token|api[_-]?key)["']?\s*[:=]\s*["']?)([^\s"'[]{8,})/giu;
+const SECRET_ASSIGNMENT = /\b([A-Za-z_][A-Za-z0-9_-]*)(\\*["']?\s*[:=]\s*\\*["']?)([^\s"'[]{8,})/gu;
 
 const REDACTED_MARKER = /\[redacted:([a-z_]+)\]/gu;
 
@@ -55,10 +57,33 @@ export function redactSecrets(text: string): { counts: Record<string, number>; t
             count(kind);
             return `[redacted:${kind}]`;
         });
-    redacted = redacted.replace(SECRET_ASSIGNMENT, (_match, name: string) => {
-        count('assignment');
-        return `${name}[redacted:assignment]`;
-    });
+    redacted = redacted.replace(
+        /(:\/\/[^\s/:@]+:)([^\s/]+)(@)/gu,
+        (_match, prefix: string, _password: string, suffix: string) => {
+            count('url_password');
+            return `${prefix}[redacted:url_password]${suffix}`;
+        }
+    );
+    redacted = redacted.replace(
+        SECRET_ASSIGNMENT,
+        (match, name: string, separator: string, value: string) => {
+            const words = name
+                .replace(/([a-z0-9])([A-Z])/gu, '$1_$2')
+                .toLowerCase()
+                .split(/[_-]+/u);
+            const secret =
+                words.some((word) =>
+                    ['password', 'passwd', 'pass', 'secret', 'token'].includes(word)
+                ) ||
+                words.some(
+                    (word, index) =>
+                        ['api', 'private', 'access'].includes(word) && words[index + 1] === 'key'
+                );
+            if (!secret || /^z\.\w+\(/u.test(value)) return match;
+            count('assignment');
+            return `${name}${separator}[redacted:assignment]`;
+        }
+    );
     return { counts, text: redacted };
 }
 

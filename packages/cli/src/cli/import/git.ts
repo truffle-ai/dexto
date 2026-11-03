@@ -86,7 +86,7 @@ export function originUrl(config: string): string | null {
  */
 export function withoutCredentials(url: string): string {
     if (!/^[a-z][a-z0-9+.-]*:\/\//iu.test(url))
-        return url.replace(/^[^/@]+@(?=[^/]+:)/u, '').split(/[?#]/u, 1)[0] ?? '';
+        return url.replace(/^(\/\/)?[^\s]*@(?=[^/]+(?:\/|:|$))/u, '$1').split(/[?#]/u, 1)[0] ?? '';
     try {
         const parsed = new URL(url);
         parsed.username = '';

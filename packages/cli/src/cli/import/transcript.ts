@@ -126,7 +126,7 @@ export function validTime(value: string | null): string | null {
 
 function firstLine(text: string): string {
     const line = text.split('\n').find((each) => each.trim() !== '') ?? '';
-    return truncate(line.trim(), 80);
+    return truncate(redactSecrets(line.trim()).text, 80);
 }
 
 /**
@@ -146,7 +146,7 @@ export function finishChat(
         ...fields,
         messages,
         startedAt: first.createdAt,
-        title: truncate(fields.title?.trim() ?? firstLine(firstUser.text), 200),
+        title: truncate(redactSecrets(fields.title?.trim() ?? firstLine(firstUser.text)).text, 200),
         updatedAt: lastAt,
     };
 }
@@ -181,7 +181,14 @@ function prettyJson(text: string): string {
 
 export function toolCallText(name: string, input: unknown): string {
     const body =
-        typeof input === 'string' ? prettyJson(input) : JSON.stringify(input ?? null, null, 2);
+        typeof input === 'string'
+            ? prettyJson(redactSecrets(input).text)
+            : JSON.stringify(
+                  input ?? null,
+                  (_key, value: unknown) =>
+                      typeof value === 'string' ? redactSecrets(value).text : value,
+                  2
+              );
     return `**Tool call: ${name}**\n${toolBody(body)}`;
 }
 

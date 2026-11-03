@@ -173,9 +173,10 @@ export async function readCodexThreads(home: string): Promise<CodexThread[] | nu
         } finally {
             db.close();
         }
-    } catch {
+    } catch (error) {
         throw new Error(
-            'Cannot read Codex state database; titles and migrated history are unavailable.'
+            `Cannot read Codex state database; titles and migrated history are unavailable. Use --dir to read rollout files without it. ${error instanceof Error ? error.message : 'Unknown error.'}`,
+            { cause: error }
         );
     }
     const threads: CodexThread[] = [];

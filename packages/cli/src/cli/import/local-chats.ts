@@ -63,7 +63,9 @@ export async function findLocalChats(
     for (const file of sessions.files) {
         const stats = await stat(file).catch(() => null);
         if (stats === null || stats.size > MAX_FILE_BYTES) continue;
-        const parsed = sessions.parse(await readFile(file, 'utf8'), file);
+        const text = await readFile(file, 'utf8').catch(() => null);
+        if (text === null) continue;
+        const parsed = sessions.parse(text, file);
         if (parsed === null || !matches(parsed.updatedAt, parsed.cwd)) continue;
         chats.push(await withRepository(parsed, repositoryOf));
     }

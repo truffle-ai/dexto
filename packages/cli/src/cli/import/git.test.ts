@@ -86,6 +86,10 @@ describe('withoutCredentials', () => {
             'ssh://github.com/a/b.git'
         );
         expect(withoutCredentials('user:secret@github.com:a/b.git')).toBe('github.com:a/b.git');
+        expect(withoutCredentials('user:secret@github.com/a/b.git')).toBe('github.com/a/b.git');
+        expect(withoutCredentials('user:p@ss@github.com/a/b.git')).toBe('github.com/a/b.git');
+        expect(withoutCredentials('user:pa/ss@github.com/a/b.git')).toBe('github.com/a/b.git');
+        expect(withoutCredentials('//user:secret@github.com/a/b.git')).toBe('//github.com/a/b.git');
         expect(withoutCredentials('ssh://git:hunter2@github.com/a/b.git')).toBe(
             'ssh://github.com/a/b.git'
         );
