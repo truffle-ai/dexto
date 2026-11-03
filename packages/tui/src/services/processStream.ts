@@ -29,7 +29,7 @@ import type { ApprovalRequest } from '../components/ApprovalPrompt.js';
 import { generateMessageId } from '../utils/idGenerator.js';
 import { checkForSplit } from '../utils/streamSplitter.js';
 import { backgroundFailure } from '../utils/tool-step.js';
-import { formatToolHeader, shouldHideTool } from '../utils/messageFormatting.js';
+import { formatToolHeader } from '../utils/messageFormatting.js';
 import { isAutoApprovableInEditMode } from '../utils/toolUtils.js';
 import { captureAnalytics } from '../host/index.js';
 import chalk from 'chalk';
@@ -755,9 +755,6 @@ export async function processStream(
                 }
 
                 case 'llm:tool-call': {
-                    if (shouldHideTool(event.toolName)) {
-                        break;
-                    }
                     debug.log('TOOL-CALL: state check', {
                         toolName: event.toolName,
                         hasMessageId: !!state.messageId,
@@ -905,9 +902,6 @@ export async function processStream(
                 }
 
                 case 'llm:tool-result': {
-                    if (shouldHideTool(event.toolName)) {
-                        break;
-                    }
                     // Extract structured display data and content from sanitized result
                     const sanitized = event.sanitized as SanitizedToolResult | undefined;
                     const toolDisplayData = sanitized?.meta?.display;

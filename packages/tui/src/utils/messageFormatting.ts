@@ -15,25 +15,6 @@ import { isTextPart, isAssistantMessage, isToolMessage } from '@dexto/core';
 import type { Message, ExternalTriggerStyledData } from '../state/types.js';
 import { supportsStartupInfo, type TuiAgentBackend } from '../agent-backend.js';
 
-const HIDDEN_TOOL_NAMES = new Set(['wait_for']);
-
-export function normalizeToolName(toolName: string): string {
-    if (toolName.startsWith('mcp--')) {
-        const trimmed = toolName.substring('mcp--'.length);
-        const parts = trimmed.split('--');
-        return parts.length >= 2 ? parts.slice(1).join('--') : trimmed;
-    }
-    return toolName;
-}
-
-export function shouldHideTool(toolName: string | undefined): boolean {
-    if (!toolName) {
-        return false;
-    }
-
-    return HIDDEN_TOOL_NAMES.has(normalizeToolName(toolName));
-}
-
 const backgroundCompletionRegex =
     /<background-task-completion>[\s\S]*?<\/background-task-completion>/g;
 const stripBackgroundCompletion = (text: string): string =>
@@ -509,10 +490,6 @@ export function convertHistoryToUIMessages(
 
         // Handle tool messages specially
         if (isToolMessage(msg)) {
-            if (shouldHideTool(msg.name)) {
-                return;
-            }
-
             // Look up the original tool call to get args
             const toolCall = toolCallMap.get(msg.toolCallId);
 
