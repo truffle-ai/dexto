@@ -6,6 +6,7 @@ import type {
     ToolMessage,
     FilePart,
 } from '../../context/types.js';
+import { IMPORTED_TRANSCRIPT_METADATA_KEY } from '../../context/types.js';
 import {
     getImageData,
     getFileData,
@@ -18,6 +19,60 @@ import { DextoLogComponent } from '../../logger/v2/types.js';
 type RemoteToolMedia =
     | { type: 'image'; image: URL; mediaType: string }
     | { type: 'file'; data: URL; mediaType: string; filename?: string };
+
+/** Providers require every tool result immediately after its assistant's calls. */
+function normalizeInterleavedToolHistory(history: InternalMessage[]): InternalMessage[] {
+    const normalized: InternalMessage[] = [];
+    for (let index = 0; index < history.length; index++) {
+        const first = history[index];
+        if (
+            !first ||
+            first.role !== 'assistant' ||
+            !first.toolCalls?.length ||
+            first.metadata?.[IMPORTED_TRANSCRIPT_METADATA_KEY] !== true
+        ) {
+            if (first) normalized.push(first);
+            continue;
+        }
+        const pending = new Set(first.toolCalls.map((call) => call.id));
+        const seen = new Set(pending);
+        const calls = [...first.toolCalls];
+        const results: InternalMessage[] = [];
+        const deferred: InternalMessage[] = [];
+        let end = index;
+        let interleaved = false;
+        for (let cursor = index + 1; cursor < history.length && pending.size > 0; cursor++) {
+            const message = history[cursor];
+            if (!message || message.role === 'system') break;
+            if (message.role === 'assistant') {
+                interleaved = true;
+                if (message.toolCalls?.some((call) => seen.has(call.id))) break;
+                for (const call of message.toolCalls ?? []) {
+                    calls.push(call);
+                    pending.add(call.id);
+                    seen.add(call.id);
+                }
+                const { toolCalls: _toolCalls, ...rest } = message;
+                if (rest.content?.length || rest.reasoning) deferred.push(rest);
+            } else if (message.role === 'user') {
+                interleaved = true;
+                deferred.push(message);
+            } else {
+                if (!pending.has(message.toolCallId)) break;
+                pending.delete(message.toolCallId);
+                results.push(message);
+            }
+            end = cursor;
+        }
+        if (interleaved && pending.size === 0) {
+            normalized.push({ ...first, toolCalls: calls }, ...results, ...deferred);
+            index = end;
+        } else {
+            normalized.push(first);
+        }
+    }
+    return normalized;
+}
 
 /**
  * Checks if a string is a URL (http:// or https://).
@@ -242,7 +297,7 @@ export class VercelMessageFormatter {
             }
         };
 
-        for (const msg of filteredHistory) {
+        for (const msg of normalizeInterleavedToolHistory(filteredHistory)) {
             if (msg.role !== 'tool' && pendingToolCalls.size > 0) {
                 closePendingToolTurn();
             }

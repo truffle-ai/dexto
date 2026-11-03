@@ -95,6 +95,9 @@ export interface UIResourcePart {
  */
 export type ContentPart = TextPart | ImagePart | FilePart | ResourcePart | UIResourcePart;
 
+/** Identifies tool calls reconstructed from an external ordered transcript. */
+export const IMPORTED_TRANSCRIPT_METADATA_KEY = 'importedTranscript';
+
 // =============================================================================
 // Content Part Type Guards
 // =============================================================================
