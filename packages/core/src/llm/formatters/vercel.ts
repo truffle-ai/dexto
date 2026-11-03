@@ -20,79 +20,64 @@ type RemoteToolMedia =
     | { type: 'image'; image: URL; mediaType: string }
     | { type: 'file'; data: URL; mediaType: string; filename?: string };
 
-/** Providers require every tool result immediately after its assistant's calls. */
+/** Providers require results directly after calls; keep other imported messages in order. */
 function normalizeInterleavedToolHistory(history: InternalMessage[]): InternalMessage[] {
     const normalized: InternalMessage[] = [];
-    for (let index = 0; index < history.length; index++) {
+    for (let index = 0; index < history.length; ) {
         const first = history[index];
         if (
             !first ||
-            first.role !== 'assistant' ||
-            !first.toolCalls?.length ||
+            first.role === 'system' ||
             first.metadata?.[IMPORTED_TRANSCRIPT_METADATA_KEY] !== true
         ) {
             if (first) normalized.push(first);
+            index++;
             continue;
         }
-        const pending = new Set(first.toolCalls.map((call) => call.id));
-        const seen = new Set(pending);
-        const calls = [...first.toolCalls];
-        const results: InternalMessage[] = [];
-        const deferred: InternalMessage[] = [];
-        let matched: {
-            end: number;
-            calls: number;
-            results: number;
-            deferred: number;
-        } | null = null;
-        let interleaved = false;
-        for (let cursor = index + 1; cursor < history.length && pending.size > 0; cursor++) {
-            const message = history[cursor];
+        let end = index;
+        const resultIndexes = new Map<string, number[]>();
+        while (end < history.length) {
+            const message = history[end];
             if (
                 !message ||
                 message.role === 'system' ||
                 message.metadata?.[IMPORTED_TRANSCRIPT_METADATA_KEY] !== true
             )
                 break;
-            if (message.role === 'assistant') {
-                interleaved = true;
-                if (message.toolCalls?.some((call) => seen.has(call.id))) break;
-                for (const call of message.toolCalls ?? []) {
-                    calls.push(call);
-                    pending.add(call.id);
-                    seen.add(call.id);
+            if (message.role === 'tool') {
+                const indexes = resultIndexes.get(message.toolCallId) ?? [];
+                indexes.push(end);
+                resultIndexes.set(message.toolCallId, indexes);
+            }
+            end++;
+        }
+        const moved = new Set<number>();
+        for (let cursor = index; cursor < end; cursor++) {
+            if (moved.has(cursor)) continue;
+            const message = history[cursor];
+            if (!message) continue;
+            normalized.push(message);
+            if (message.role !== 'assistant' || !message.toolCalls?.length) continue;
+            const matching: number[] = [];
+            for (const call of message.toolCalls) {
+                const indexes = resultIndexes.get(call.id);
+                if (!indexes) continue;
+                while (indexes.length > 0) {
+                    const candidate = indexes[0];
+                    if (candidate === undefined || candidate > cursor) break;
+                    indexes.shift();
                 }
-                const { toolCalls: _toolCalls, ...rest } = message;
-                if (rest.content?.length || rest.reasoning) deferred.push(rest);
-            } else if (message.role === 'user') {
-                interleaved = true;
-                deferred.push(message);
-            } else {
-                if (!pending.has(message.toolCallId)) {
-                    results.push(message);
-                    continue;
-                }
-                pending.delete(message.toolCallId);
-                results.push(message);
-                if (interleaved)
-                    matched = {
-                        end: cursor,
-                        calls: calls.length,
-                        results: results.length,
-                        deferred: deferred.length,
-                    };
+                const resultIndex = indexes.shift();
+                if (resultIndex !== undefined) matching.push(resultIndex);
+            }
+            matching.sort((left, right) => left - right);
+            for (const resultIndex of matching) {
+                const result = history[resultIndex];
+                if (result) normalized.push(result);
+                moved.add(resultIndex);
             }
         }
-        if (matched !== null) {
-            normalized.push(
-                { ...first, toolCalls: calls.slice(0, matched.calls) },
-                ...results.slice(0, matched.results),
-                ...deferred.slice(0, matched.deferred)
-            );
-            index = matched.end;
-        } else {
-            normalized.push(first);
-        }
+        index = end;
     }
     return normalized;
 }

@@ -11,6 +11,40 @@ mockValidateModelFileSupport.mockReturnValue({ isSupported: true, fileType: 'pdf
 const mockLogger = createMockLogger();
 
 describe('VercelMessageFormatter', () => {
+    test('retains the real result after interleaved assistant text', () => {
+        const formatter = new VercelMessageFormatter(mockLogger);
+        const metadata = { [IMPORTED_TRANSCRIPT_METADATA_KEY]: true };
+        const history: InternalMessage[] = [
+            {
+                role: 'assistant',
+                metadata,
+                content: [],
+                assistantOutput: { status: 'complete' },
+                toolCalls: [
+                    { id: 'c', type: 'function', function: { name: 'shell', arguments: '{}' } },
+                ],
+            },
+            {
+                role: 'assistant',
+                metadata,
+                content: [{ type: 'text', text: 'between' }],
+                assistantOutput: { status: 'complete' },
+            },
+            {
+                role: 'tool',
+                metadata,
+                name: 'shell',
+                toolCallId: 'c',
+                success: true,
+                content: [{ type: 'text', text: 'REAL_OUTPUT' }],
+            },
+        ];
+        const result = formatter.format(history, { provider: 'xai', model: 'grok-4' }, null);
+        const serialized = JSON.stringify(result);
+        expect(serialized).toContain('REAL_OUTPUT');
+        expect(serialized).toContain('between');
+        expect(serialized).not.toContain('Tool execution was interrupted');
+    });
     test('retains real results when imported assistant content interleaves with tool calls', () => {
         const formatter = new VercelMessageFormatter(mockLogger);
         const history: InternalMessage[] = [
@@ -62,8 +96,9 @@ describe('VercelMessageFormatter', () => {
         expect(result.map((message) => message.role)).toEqual([
             'assistant',
             'tool',
-            'tool',
             'assistant',
+            'assistant',
+            'tool',
         ]);
         const serialized = JSON.stringify(result);
         expect(serialized).toContain('result-a');
@@ -204,6 +239,7 @@ describe('VercelMessageFormatter', () => {
         expect(result.map((message) => message.role)).toEqual([
             'assistant',
             'tool',
+            'assistant',
             'tool',
             'user',
         ]);
@@ -246,6 +282,48 @@ describe('VercelMessageFormatter', () => {
             'tool',
         ]);
         expect(JSON.stringify(result)).toContain('native result');
+    });
+    test('does not pull later imported turns ahead of their questions', () => {
+        const formatter = new VercelMessageFormatter(mockLogger);
+        const metadata = { [IMPORTED_TRANSCRIPT_METADATA_KEY]: true };
+        const history: InternalMessage[] = [
+            {
+                role: 'assistant',
+                metadata,
+                content: [],
+                assistantOutput: { status: 'complete' },
+                toolCalls: [
+                    { id: 'a', type: 'function', function: { name: 'first', arguments: '{}' } },
+                ],
+            },
+            { role: 'user', metadata, content: [{ type: 'text', text: 'next question' }] },
+            {
+                role: 'assistant',
+                metadata,
+                content: [],
+                assistantOutput: { status: 'complete' },
+                toolCalls: [
+                    { id: 'b', type: 'function', function: { name: 'second', arguments: '{}' } },
+                ],
+            },
+            {
+                role: 'tool',
+                metadata,
+                name: 'second',
+                toolCallId: 'b',
+                success: true,
+                content: [{ type: 'text', text: 'native-result-b' }],
+            },
+        ];
+        const result = formatter.format(history, { provider: 'xai', model: 'grok-4' }, null);
+        expect(result.map((message) => message.role)).toEqual([
+            'assistant',
+            'tool',
+            'user',
+            'assistant',
+            'tool',
+        ]);
+        expect(JSON.stringify(result)).toContain('native-result-b');
     });
     describe('URL string auto-detection', () => {
         test('should inline markdown file content as text for model messages', () => {
