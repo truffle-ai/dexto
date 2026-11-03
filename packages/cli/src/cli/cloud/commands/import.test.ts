@@ -326,4 +326,128 @@ describe('headless import', () => {
         expect(result.sessions[0].status).toBe('imported');
         expect(result.error.code).toBe('needs_sign_in');
     });
+
+    it('reports a skipped invalid session as a failed dry run', async () => {
+        const chat = {
+            id: 'bad/id',
+            source: 'codex' as const,
+            title: 'Test',
+            cwd: '/tmp/test',
+            gitBranch: null,
+            path: '/tmp/test.jsonl',
+            pullRequests: [],
+            repository: null,
+            startedAt: '2026-01-01T00:00:00Z',
+            updatedAt: '2026-01-01T00:00:00Z',
+            messages: [{ role: 'user' as const, text: 'hello', createdAt: '2026-01-01T00:00:00Z' }],
+        };
+        vi.mocked(findLocalChats)
+            .mockResolvedValueOnce({ chats: [], notices: [] })
+            .mockResolvedValueOnce({ chats: [chat], notices: [] });
+        let output = '';
+        const runtime = {
+            ...nodeCloudRuntime(new AbortController().signal),
+            prompt: null,
+            writeOutput: (text: string) => {
+                output += text;
+            },
+        };
+        const context: CommandContext = {
+            runtime,
+            output: createOutput(runtime, 'json'),
+            invocation: ['import'],
+            overrides: { apiBaseUrl: null, apiKey: null, cloudProject: null, profile: null },
+            connection: async () => {
+                throw new Error('unexpected authentication');
+            },
+            client: async () => {
+                throw new Error('unexpected network');
+            },
+        };
+        const command = importCommands[0];
+        if (!command) throw new Error('missing import command');
+        expect(
+            await command.run(context, {
+                positionals: [],
+                values: { select: 'codex:bad/id', 'dry-run': true },
+            })
+        ).toBe(1);
+        expect(JSON.parse(output).sessions[0].status).toBe('skipped');
+    });
+
+    it('redacts discovered titles and paths before printing them', async () => {
+        const chat = {
+            id: 'one',
+            source: 'codex' as const,
+            title: 'password=supersecretvalue',
+            cwd: '/tmp/token=supersecretvalue',
+            gitBranch: null,
+            path: '/tmp/test.jsonl',
+            pullRequests: [],
+            repository: null,
+            startedAt: '2026-01-01T00:00:00Z',
+            updatedAt: '2026-01-01T00:00:00Z',
+            messages: [{ role: 'user' as const, text: 'hello', createdAt: '2026-01-01T00:00:00Z' }],
+        };
+        vi.mocked(findLocalChats)
+            .mockResolvedValueOnce({ chats: [], notices: [] })
+            .mockResolvedValueOnce({ chats: [chat], notices: [] });
+        let output = '';
+        const runtime = {
+            ...nodeCloudRuntime(new AbortController().signal),
+            prompt: null,
+            writeOutput: (text: string) => {
+                output += text;
+            },
+        };
+        const context: CommandContext = {
+            runtime,
+            output: createOutput(runtime, 'json'),
+            invocation: ['import'],
+            overrides: { apiBaseUrl: null, apiKey: null, cloudProject: null, profile: null },
+            connection: async () => {
+                throw new Error('unexpected authentication');
+            },
+            client: async () => {
+                throw new Error('unexpected network');
+            },
+        };
+        const command = importCommands[0];
+        if (!command) throw new Error('missing import command');
+        await command.run(context, { positionals: [], values: {} });
+        expect(output).not.toContain('supersecretvalue');
+        expect(output).toContain('[redacted:assignment]');
+    });
+
+    it('treats selecting all with no sessions as an empty success', async () => {
+        vi.mocked(findLocalChats)
+            .mockResolvedValueOnce({ chats: [], notices: [] })
+            .mockResolvedValueOnce({ chats: [], notices: [] });
+        let output = '';
+        const runtime = {
+            ...nodeCloudRuntime(new AbortController().signal),
+            prompt: null,
+            writeOutput: (text: string) => {
+                output += text;
+            },
+        };
+        const context: CommandContext = {
+            runtime,
+            output: createOutput(runtime, 'json'),
+            invocation: ['import'],
+            overrides: { apiBaseUrl: null, apiKey: null, cloudProject: null, profile: null },
+            connection: async () => {
+                throw new Error('unexpected authentication');
+            },
+            client: async () => {
+                throw new Error('unexpected network');
+            },
+        };
+        const command = importCommands[0];
+        if (!command) throw new Error('missing import command');
+        expect(
+            await command.run(context, { positionals: [], values: { select: 'all', yes: true } })
+        ).toBe(0);
+        expect(JSON.parse(output).sessions).toEqual([]);
+    });
 });

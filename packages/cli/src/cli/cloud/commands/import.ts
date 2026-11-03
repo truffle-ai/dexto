@@ -1,5 +1,5 @@
 import { findLocalChats } from '../../import/local-chats.js';
-import { toImportInput } from '../../import/redaction.js';
+import { redactSecrets, toImportInput } from '../../import/redaction.js';
 import { LOCAL_CHAT_SOURCES, type LocalChat } from '../../import/transcript.js';
 import { CommandFailure, EXIT_CODES } from '../../failure.js';
 import { requireConsent } from '../../interaction.js';
@@ -64,8 +64,8 @@ async function runImport(
         const sessions = chats.map((chat) => ({
             id: key(chat),
             source: chat.source,
-            title: chat.title,
-            cwd: chat.cwd,
+            title: redactSecrets(chat.title).text,
+            cwd: chat.cwd === null ? null : redactSecrets(chat.cwd).text,
             messages: chat.messages.length,
             updatedAt: chat.updatedAt,
         }));
@@ -83,6 +83,10 @@ async function runImport(
                 .split(',')
                 .map((id) => id.trim())
                 .filter(Boolean);
+    if (ids.length === 0 && selection === 'all') {
+        context.output.result({ sessions: [] }, 'No local sessions found.');
+        return 0;
+    }
     if (ids.length === 0 || new Set(ids).size !== ids.length)
         throw new UsageError('Select one or more distinct source:id values, or all.');
     const chosen = ids.map((id) => {
@@ -110,7 +114,7 @@ async function runImport(
             return prepared?.kind === 'ready' ? { ...item, payload: prepared.input } : item;
         });
         context.output.result({ sessions }, JSON.stringify(sessions, null, 2));
-        return 0;
+        return planned.some(({ prepared }) => prepared.kind === 'skipped') ? 1 : 0;
     }
     if (planned.some(({ prepared }) => prepared.kind === 'skipped')) {
         context.output.result({ sessions: preview }, JSON.stringify(preview, null, 2));
