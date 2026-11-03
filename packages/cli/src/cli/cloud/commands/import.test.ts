@@ -4,6 +4,7 @@ import { nodeCloudRuntime } from '../runtime.js';
 import type { CommandContext } from '../command.js';
 import { importCommands } from './import.js';
 import { findLocalChats } from '../../import/local-chats.js';
+import { queryWorkspaceTool } from './workspace.js';
 
 vi.mock('../../import/local-chats.js', () => ({
     findLocalChats: vi.fn(async () => ({ chats: [], notices: [] })),
@@ -209,5 +210,58 @@ describe('headless import', () => {
             })
         ).toBe(0);
         expect(JSON.parse(output).sessions[0].id).toBe('claude-code:claude-1');
+    });
+
+    it('reports partial failures without leaking error details', async () => {
+        const chat = {
+            id: 'one',
+            source: 'codex' as const,
+            title: 'Test',
+            cwd: '/tmp/test',
+            gitBranch: null,
+            path: '/tmp/test.jsonl',
+            pullRequests: [],
+            repository: null,
+            startedAt: '2026-01-01T00:00:00Z',
+            updatedAt: '2026-01-01T00:00:00Z',
+            messages: [{ role: 'user' as const, text: 'hello', createdAt: '2026-01-01T00:00:00Z' }],
+        };
+        vi.mocked(findLocalChats)
+            .mockResolvedValueOnce({ chats: [], notices: [] })
+            .mockResolvedValueOnce({ chats: [chat, { ...chat, id: 'two' }], notices: [] });
+        vi.mocked(queryWorkspaceTool).mockRejectedValueOnce(new Error('sensitive failure detail'));
+        let output = '';
+        const runtime = {
+            ...nodeCloudRuntime(new AbortController().signal),
+            prompt: null,
+            writeOutput: (text: string) => {
+                output += text;
+            },
+        };
+        const context: CommandContext = {
+            runtime,
+            output: createOutput(runtime, 'json'),
+            invocation: ['import'],
+            overrides: { apiBaseUrl: null, apiKey: null, cloudProject: null, profile: null },
+            connection: async () => {
+                throw new Error('unexpected authentication');
+            },
+            client: async () => {
+                throw new Error('unexpected network');
+            },
+        };
+        const command = importCommands[0];
+        if (!command) throw new Error('missing import command');
+        expect(
+            await command.run(context, {
+                positionals: [],
+                values: { select: 'codex:one,codex:two', yes: true },
+            })
+        ).toBe(1);
+        expect(JSON.parse(output).sessions.map((item: { status: string }) => item.status)).toEqual([
+            'failed',
+            'imported',
+        ]);
+        expect(output).not.toContain('sensitive failure detail');
     });
 });
