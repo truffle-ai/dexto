@@ -120,6 +120,27 @@ export async function handleUninstallCliCommand(
                 } else {
                     console.log('ℹ️  CLI binary was not found at expected path.');
                 }
+                // The install scripts (scripts/install.sh, scripts/install.ps1) point the binary at
+                // the package they install here; without it nothing uses that, so --purge isn't needed.
+                if (!validated.purge) {
+                    const installerPackagesPath = path.join(dextoHomePath, 'cli');
+                    try {
+                        const removedPackages = await removeTargets(
+                            [installerPackagesPath],
+                            validated.dryRun
+                        );
+                        if (removedPackages.length > 0) {
+                            console.log(
+                                `🗑️  Removed installed CLI packages: ${installerPackagesPath}`
+                            );
+                        }
+                    } catch (error) {
+                        const message = error instanceof Error ? error.message : String(error);
+                        console.warn(
+                            `⚠️  Could not remove ${installerPackagesPath}: ${message}. Delete it by hand.`
+                        );
+                    }
+                }
             }
         } catch (error) {
             binaryRemovalError = error instanceof Error ? error : new Error(String(error));
