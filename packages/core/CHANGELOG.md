@@ -1,5 +1,12 @@
 # @dexto/core
 
+## 1.14.6
+
+### Patch Changes
+
+- 2e03ad2: Preserve paired tool results in imported transcripts whose parts interleave with other messages. Mark every message in the imported region with `IMPORTED_TRANSCRIPT_METADATA_KEY` so normal turns remain outside that region.
+    - @dexto/llm@1.14.6
+
 ## 1.14.5
 
 ### Patch Changes
