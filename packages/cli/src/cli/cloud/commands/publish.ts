@@ -7,6 +7,8 @@ import { readdir, readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 
 import { z } from 'zod';
+import { AjvJsonSchemaValidator } from '@modelcontextprotocol/sdk/validation/ajv';
+import type { JsonSchemaType } from '@modelcontextprotocol/sdk/validation/types';
 
 import { argument, stringOption, flag, UsageError, YES_OPTION, type Command } from '../command.js';
 import { sendBytes } from '../transfer.js';
@@ -28,12 +30,12 @@ const PreparedSchema = z.object({
     path: z.string(),
     url: z.string(),
 });
-const PublishedSchema = z.object({
-    created: z.boolean(),
-    files: z.number(),
-    url: z.string(),
-    visibility: z.enum(['private', 'unlisted', 'public']),
-});
+type Published = {
+    created: boolean;
+    files: number;
+    url: string;
+    visibility: 'private' | 'unlisted' | 'public';
+};
 
 const publish: Command = {
     arguments: '<path>',
@@ -131,12 +133,23 @@ const publish: Command = {
             uploadPath: prepared.data.path,
             ...agreed,
         });
-        const shown = PublishedSchema.safeParse(published);
-        const files = shown.success ? shown.data.files : count;
-        const publishedVisibility = shown.success ? shown.data.visibility : visibility;
+        const shown =
+            tool.outputSchema === undefined
+                ? null
+                : new AjvJsonSchemaValidator().getValidator<Published>(
+                      tool.outputSchema as JsonSchemaType
+                  )(published);
+        if (shown !== null && !shown.valid)
+            throw new CommandFailure(
+                'failed',
+                'The Site may have published, but Dexto returned an invalid result.',
+                'Check your Sites before retrying.'
+            );
+        const files = shown?.valid ? shown.data.files : count;
+        const publishedVisibility = shown?.valid ? shown.data.visibility : visibility;
         context.output.result(
             published,
-            shown.success
+            shown?.valid
                 ? `${shown.data.created ? 'Published' : 'Updated'} ${name} at ${shown.data.url} (${files} file${files === 1 ? '' : 's'}).${publishedVisibility === 'private' ? ' Open it from Dexto as an organization member.' : ' Anyone with the link can open it.'}`
                 : JSON.stringify(published, null, 2)
         );
