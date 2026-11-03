@@ -13763,7 +13763,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/octet-stream": string;
+                    "application/x-tar": string;
                 };
             };
             /** @description Invalid JSON or request fields. */
