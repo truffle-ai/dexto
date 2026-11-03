@@ -1439,7 +1439,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid API key. */
+            /** @description Missing or invalid authentication. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -1567,7 +1567,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid API key. */
+            /** @description Missing or invalid authentication. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -1888,7 +1888,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid API key. */
+            /** @description Missing or invalid authentication. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -2047,7 +2047,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid API key. */
+            /** @description Missing or invalid authentication. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -2209,7 +2209,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid API key. */
+            /** @description Missing or invalid authentication. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -2355,7 +2355,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid API key. */
+            /** @description Missing or invalid authentication. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -2533,7 +2533,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid API key. */
+            /** @description Missing or invalid authentication. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -2768,7 +2768,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid API key. */
+            /** @description Missing or invalid authentication. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -2931,7 +2931,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid API key. */
+            /** @description Missing or invalid authentication. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -3071,7 +3071,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid API key. */
+            /** @description Missing or invalid authentication. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -3240,7 +3240,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid API key. */
+            /** @description Missing or invalid authentication. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -3371,7 +3371,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid API key. */
+            /** @description Missing or invalid authentication. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -3490,7 +3490,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid API key. */
+            /** @description Missing or invalid authentication. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -3623,7 +3623,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid API key. */
+            /** @description Missing or invalid authentication. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -3756,7 +3756,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid API key. */
+            /** @description Missing or invalid authentication. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -3890,7 +3890,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid API key. */
+            /** @description Missing or invalid authentication. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -4019,7 +4019,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid API key. */
+            /** @description Missing or invalid authentication. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -4146,7 +4146,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid API key. */
+            /** @description Missing or invalid authentication. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -4269,7 +4269,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid API key. */
+            /** @description Missing or invalid authentication. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -4407,7 +4407,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid API key. */
+            /** @description Missing or invalid authentication. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -4594,7 +4594,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid API key. */
+            /** @description Missing or invalid authentication. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -4724,7 +4724,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid API key. */
+            /** @description Missing or invalid authentication. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -4931,7 +4931,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid API key. */
+            /** @description Missing or invalid authentication. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -5322,7 +5322,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid API key. */
+            /** @description Missing or invalid authentication. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -5520,7 +5520,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid API key. */
+            /** @description Missing or invalid authentication. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -5915,7 +5915,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid API key. */
+            /** @description Missing or invalid authentication. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -6113,7 +6113,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid API key. */
+            /** @description Missing or invalid authentication. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -6272,7 +6272,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid API key. */
+            /** @description Missing or invalid authentication. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -6434,7 +6434,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid API key. */
+            /** @description Missing or invalid authentication. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -6581,7 +6581,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid API key. */
+            /** @description Missing or invalid authentication. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -6706,7 +6706,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid API key. */
+            /** @description Missing or invalid authentication. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -6844,7 +6844,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid API key. */
+            /** @description Missing or invalid authentication. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -6998,7 +6998,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid API key. */
+            /** @description Missing or invalid authentication. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -7116,7 +7116,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid API key. */
+            /** @description Missing or invalid authentication. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -7261,7 +7261,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid API key. */
+            /** @description Missing or invalid authentication. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -7407,7 +7407,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid API key. */
+            /** @description Missing or invalid authentication. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -7563,7 +7563,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid API key. */
+            /** @description Missing or invalid authentication. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -7775,7 +7775,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid API key. */
+            /** @description Missing or invalid authentication. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -7909,7 +7909,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid API key. */
+            /** @description Missing or invalid authentication. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -8056,7 +8056,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid API key. */
+            /** @description Missing or invalid authentication. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -8202,7 +8202,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid API key. */
+            /** @description Missing or invalid authentication. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -8358,7 +8358,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid API key. */
+            /** @description Missing or invalid authentication. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -8538,7 +8538,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid API key. */
+            /** @description Missing or invalid authentication. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -8701,7 +8701,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid API key. */
+            /** @description Missing or invalid authentication. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -8837,7 +8837,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid API key. */
+            /** @description Missing or invalid authentication. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -9008,7 +9008,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid API key. */
+            /** @description Missing or invalid authentication. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -9129,7 +9129,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid API key. */
+            /** @description Missing or invalid authentication. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -9267,7 +9267,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid API key. */
+            /** @description Missing or invalid authentication. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -9417,7 +9417,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid API key. */
+            /** @description Missing or invalid authentication. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -9538,7 +9538,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid API key. */
+            /** @description Missing or invalid authentication. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -9652,7 +9652,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid API key. */
+            /** @description Missing or invalid authentication. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -9783,7 +9783,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid API key. */
+            /** @description Missing or invalid authentication. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -9993,7 +9993,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid API key. */
+            /** @description Missing or invalid authentication. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -10281,7 +10281,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid API key. */
+            /** @description Missing or invalid authentication. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -10480,7 +10480,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid API key. */
+            /** @description Missing or invalid authentication. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -10601,7 +10601,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid API key. */
+            /** @description Missing or invalid authentication. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -10874,7 +10874,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid API key. */
+            /** @description Missing or invalid authentication. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -11073,7 +11073,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid API key. */
+            /** @description Missing or invalid authentication. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -11272,7 +11272,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid API key. */
+            /** @description Missing or invalid authentication. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -11413,7 +11413,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid API key. */
+            /** @description Missing or invalid authentication. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -11534,7 +11534,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid API key. */
+            /** @description Missing or invalid authentication. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -11686,7 +11686,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid API key. */
+            /** @description Missing or invalid authentication. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -11833,7 +11833,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid API key. */
+            /** @description Missing or invalid authentication. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -12002,7 +12002,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid API key. */
+            /** @description Missing or invalid authentication. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -12175,7 +12175,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid API key. */
+            /** @description Missing or invalid authentication. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -12335,7 +12335,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid API key. */
+            /** @description Missing or invalid authentication. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -12494,7 +12494,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid API key. */
+            /** @description Missing or invalid authentication. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -12665,7 +12665,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid API key. */
+            /** @description Missing or invalid authentication. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -12815,7 +12815,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid API key. */
+            /** @description Missing or invalid authentication. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -12936,7 +12936,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid API key. */
+            /** @description Missing or invalid authentication. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -13107,7 +13107,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid API key. */
+            /** @description Missing or invalid authentication. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -13240,7 +13240,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid API key. */
+            /** @description Missing or invalid authentication. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -13373,7 +13373,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid API key. */
+            /** @description Missing or invalid authentication. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -13501,7 +13501,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid API key. */
+            /** @description Missing or invalid authentication. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -13607,6 +13607,8 @@ export interface operations {
                      * @enum {string}
                      */
                     visibility?: "private" | "unlisted" | "public";
+                    /** @description The existing private Site's exact title, to confirm making it public. */
+                    confirmPublicName?: string;
                     /** @description The path dexto_upload_prepare returned for purpose site-files. */
                     uploadPath: string;
                 };
@@ -13643,7 +13645,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid API key. */
+            /** @description Missing or invalid authentication. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -13782,7 +13784,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid API key. */
+            /** @description Missing or invalid authentication. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -13943,7 +13945,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid API key. */
+            /** @description Missing or invalid authentication. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -14064,7 +14066,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid API key. */
+            /** @description Missing or invalid authentication. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -14389,7 +14391,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid API key. */
+            /** @description Missing or invalid authentication. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -14559,7 +14561,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid API key. */
+            /** @description Missing or invalid authentication. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -14710,7 +14712,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid API key. */
+            /** @description Missing or invalid authentication. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -14871,7 +14873,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid API key. */
+            /** @description Missing or invalid authentication. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -15095,7 +15097,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid API key. */
+            /** @description Missing or invalid authentication. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -15243,7 +15245,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Missing or invalid API key. */
+            /** @description Missing or invalid authentication. */
             401: {
                 headers: {
                     [name: string]: unknown;

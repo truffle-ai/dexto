@@ -52,6 +52,7 @@ describe('dexto workspace', () => {
     let host: CloudHost;
     let publishResponse: unknown;
     let publishProject: string | null;
+    let publishStatus: number;
 
     beforeEach(async () => {
         dir = path.join(await mkdtemp(path.join(os.tmpdir(), 'dexto-ws-')), 'accounts');
@@ -62,6 +63,7 @@ describe('dexto workspace', () => {
         environment = {};
         uploads = [];
         publishResponse = undefined;
+        publishStatus = 200;
         publishProject = null;
         await dextoAccounts.writeLogin(dir, 'default', {
             kind: 'oauth',
@@ -113,7 +115,8 @@ describe('dexto workspace', () => {
                             site: { id: 'site-1', slug: 'hello', title: 'Hello' },
                             url: 'https://hello.dexto.page',
                             visibility,
-                        }
+                        },
+                        { status: publishStatus }
                     );
                 }
                 if (request.url !== MCP) return Response.json({}, { status: 404 });
@@ -283,24 +286,34 @@ describe('dexto workspace', () => {
         expect(granted).toEqual(['sites:write,cloud:write']);
     });
 
-    it('requires explicit public confirmation even with --yes', async () => {
-        expect(
-            await runCloud(host, [
-                'publish',
-                'anything',
-                '--visibility',
-                'public',
-                '--yes',
-                '--json',
-            ])
-        ).toBe(4);
-        expect(JSON.parse(stderr).error.fix).toContain('--confirm-public');
-        expect(uploads).toHaveLength(0);
-    });
-
-    it('publishes public only with the explicit public confirmation', async () => {
+    it('creates a public Site without an extra confirmation flag', async () => {
         const file = path.join(path.dirname(dir), 'public.html');
         await writeFile(file, '<h1>public</h1>');
+        expect(
+            await runCloud(host, ['publish', file, '--visibility', 'public', '--yes', '--json'])
+        ).toBe(0);
+        expect(calls.at(-1)?.params.arguments).not.toHaveProperty('confirmPublicName');
+        expect(JSON.parse(stdout).visibility).toBe('public');
+    });
+
+    it('reports the exact confirmation needed for an existing private Site', async () => {
+        const file = path.join(path.dirname(dir), 'private.html');
+        await writeFile(file, '<h1>private</h1>');
+        publishStatus = 409;
+        publishResponse = {
+            error: {
+                code: 'needs_confirmation',
+                message: 'Confirm the Site name "Team plan" before making it public.',
+            },
+        };
+        expect(
+            await runCloud(host, ['publish', file, '--visibility', 'public', '--yes', '--json'])
+        ).toBe(4);
+        expect(JSON.parse(stderr).error.message).toContain('--confirm-public');
+        expect(JSON.parse(stderr).error.message).toContain('Team plan');
+        expect(calls.at(-1)?.params.name).toBe('POST /v1/sites/publish');
+        expect(stdout).toBe('');
+        stderr = '';
         expect(
             await runCloud(host, [
                 'publish',
@@ -308,12 +321,35 @@ describe('dexto workspace', () => {
                 '--visibility',
                 'public',
                 '--confirm-public',
+                'Wrong',
+                '--yes',
+                '--json',
+            ])
+        ).toBe(4);
+        expect(calls.at(-1)?.params.arguments).toMatchObject({ confirmPublicName: 'Wrong' });
+        expect(JSON.parse(stderr).error.message).toContain('Team plan');
+        expect(stdout).toBe('');
+    });
+
+    it('sends the explicit Site name to confirm a private-to-public change', async () => {
+        const file = path.join(path.dirname(dir), 'private.html');
+        await writeFile(file, '<h1>private</h1>');
+        expect(
+            await runCloud(host, [
+                'publish',
+                file,
+                '--visibility',
+                'public',
+                '--confirm-public',
+                'Team plan',
                 '--yes',
                 '--json',
             ])
         ).toBe(0);
-        expect(calls.at(-1)?.params.arguments).toMatchObject({ visibility: 'public' });
-        expect(JSON.parse(stdout).visibility).toBe('public');
+        expect(calls.at(-1)?.params.arguments).toMatchObject({
+            visibility: 'public',
+            confirmPublicName: 'Team plan',
+        });
     });
 
     it('requires a Cloud project before uploading', async () => {

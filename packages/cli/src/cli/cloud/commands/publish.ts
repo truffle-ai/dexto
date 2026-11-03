@@ -1,14 +1,14 @@
 // `publish`: puts a page, a document or a folder online as a Site.
 
 import { CommandFailure } from '../../failure.js';
-import { requireConsent, rerunWith } from '../../interaction.js';
+import { requireConsent } from '../../interaction.js';
 
 import { createHash } from 'node:crypto';
 import { readdir, readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 
 import { z } from 'zod';
-import { unwrap, type V1Response } from '@dexto/cloud-client';
+import { CloudApiError, unwrap, type V1Response } from '@dexto/cloud-client';
 
 import {
     argument,
@@ -69,8 +69,9 @@ const publish: Command = {
             valueName: 'VISIBILITY',
         },
         'confirm-public': {
-            description: 'Confirm that anyone can find and open a public Site.',
-            type: 'boolean',
+            description: 'Confirm the exact existing private Site name before making it public.',
+            type: 'string',
+            valueName: 'SITE_NAME',
         },
         ...YES_OPTION,
     },
@@ -84,12 +85,9 @@ const publish: Command = {
         if (!parsedVisibility.success)
             throw new UsageError('--visibility must be private, unlisted, or public.');
         const visibility = parsedVisibility.data;
-        if (visibility === 'public' && !flag(input, 'confirm-public'))
-            throw new CommandFailure(
-                'needs_confirmation',
-                'Public Sites can be found and opened by anyone. Pass --confirm-public after your person agrees.',
-                rerunWith(context, '--confirm-public')
-            );
+        const confirmPublicName = stringOption(input, 'confirm-public');
+        if (confirmPublicName !== undefined && visibility !== 'public')
+            throw new UsageError('--confirm-public requires --visibility public.');
         await requireLoginScopes(context, ['sites:write', 'cloud:write']);
         const connection = await context.connection();
         if (connection.kind !== 'oauth')
@@ -136,6 +134,7 @@ const publish: Command = {
             ...(slug === undefined ? {} : { slug }),
             ...(title === undefined ? {} : { title }),
             ...(visibility === undefined ? {} : { visibility }),
+            ...(confirmPublicName === undefined ? {} : { confirmPublicName }),
         };
         await requireConsent(
             context,
@@ -156,13 +155,24 @@ const publish: Command = {
             throw new CommandFailure('failed', "Dexto didn't say where to upload the files.", null);
         const { headers, method, url } = prepared.data;
         await sendBytes(context, { headers, method, url }, new globalThis.Blob([archive]));
-        const response: unknown = await unwrap(
-            await (
-                await context.client()
-            ).POST('/v1/sites/publish', {
-                body: { ...call, uploadPath: prepared.data.path },
-            })
-        );
+        let response: unknown;
+        try {
+            response = await unwrap(
+                await (
+                    await context.client()
+                ).POST('/v1/sites/publish', {
+                    body: { ...call, uploadPath: prepared.data.path },
+                })
+            );
+        } catch (error) {
+            if (error instanceof CloudApiError && error.code === 'needs_confirmation')
+                throw new CommandFailure(
+                    'needs_confirmation',
+                    `${error.message} Pass --confirm-public <site-name> with that exact name.`,
+                    null
+                );
+            throw error;
+        }
         const parsed = PublishedSchema.safeParse(response);
         if (!parsed.success)
             throw new CommandFailure(
