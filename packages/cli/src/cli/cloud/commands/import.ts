@@ -1,7 +1,7 @@
 import { findLocalChats } from '../../import/local-chats.js';
 import { toImportInput } from '../../import/redaction.js';
 import { LOCAL_CHAT_SOURCES, type LocalChat } from '../../import/transcript.js';
-import { CommandFailure } from '../../failure.js';
+import { CommandFailure, EXIT_CODES } from '../../failure.js';
 import { requireConsent } from '../../interaction.js';
 import {
     flag,
@@ -122,13 +122,39 @@ async function runImport(
         `Upload ${chosen.length} locally redacted chats to Dexto?`
     );
     const results = [];
-    for (const { chat, prepared } of planned) {
+    for (const [index, { chat, prepared }] of planned.entries()) {
         if (prepared.kind !== 'ready') continue;
         try {
             const result = await sendTranscript(context, { kind: 'text', input: prepared.input });
             results.push({ id: key(chat), ...result });
         } catch (error) {
-            if (error instanceof CommandFailure) throw error;
+            if (
+                error instanceof CommandFailure &&
+                (error.kind === 'needs_sign_in' || error.kind === 'needs_permission')
+            ) {
+                if (results.length === 0) throw error;
+                results.push({
+                    id: key(chat),
+                    status: 'failed',
+                    reason: 'Sign-in or permission required.',
+                });
+                for (const remaining of planned.slice(index + 1))
+                    results.push({
+                        id: key(remaining.chat),
+                        status: 'not_attempted',
+                        reason: 'Sign-in or permission required.',
+                    });
+                const report = {
+                    sessions: results,
+                    error: {
+                        code: error.kind,
+                        message: 'Sign-in or permission required.',
+                        ...(error.fix === null ? {} : { fix: error.fix }),
+                    },
+                };
+                context.output.result(report, JSON.stringify(report, null, 2));
+                return EXIT_CODES[error.kind];
+            }
             results.push({ id: key(chat), status: 'failed', reason: 'Import failed.' });
         }
     }

@@ -5,6 +5,7 @@ import type { CommandContext } from '../command.js';
 import { importCommands } from './import.js';
 import { findLocalChats } from '../../import/local-chats.js';
 import { queryWorkspaceTool } from './workspace.js';
+import { CommandFailure } from '../../failure.js';
 
 vi.mock('../../import/local-chats.js', () => ({
     findLocalChats: vi.fn(async () => ({ chats: [], notices: [] })),
@@ -229,7 +230,9 @@ describe('headless import', () => {
         vi.mocked(findLocalChats)
             .mockResolvedValueOnce({ chats: [], notices: [] })
             .mockResolvedValueOnce({ chats: [chat, { ...chat, id: 'two' }], notices: [] });
-        vi.mocked(queryWorkspaceTool).mockRejectedValueOnce(new Error('sensitive failure detail'));
+        vi.mocked(queryWorkspaceTool).mockRejectedValueOnce(
+            new CommandFailure('failed', 'sensitive failure detail', null)
+        );
         let output = '';
         const runtime = {
             ...nodeCloudRuntime(new AbortController().signal),
@@ -263,5 +266,64 @@ describe('headless import', () => {
             'imported',
         ]);
         expect(output).not.toContain('sensitive failure detail');
+    });
+
+    it('preserves completed results if authorization fails partway through', async () => {
+        const chat = {
+            id: 'one',
+            source: 'codex' as const,
+            title: 'Test',
+            cwd: '/tmp/test',
+            gitBranch: null,
+            path: '/tmp/test.jsonl',
+            pullRequests: [],
+            repository: null,
+            startedAt: '2026-01-01T00:00:00Z',
+            updatedAt: '2026-01-01T00:00:00Z',
+            messages: [{ role: 'user' as const, text: 'hello', createdAt: '2026-01-01T00:00:00Z' }],
+        };
+        vi.mocked(findLocalChats)
+            .mockResolvedValueOnce({ chats: [], notices: [] })
+            .mockResolvedValueOnce({ chats: [chat, { ...chat, id: 'two' }], notices: [] });
+        vi.mocked(queryWorkspaceTool)
+            .mockResolvedValueOnce({
+                session: { id: 'created' },
+                status: 'imported',
+                url: 'https://example.test/chat',
+            })
+            .mockRejectedValueOnce(
+                new CommandFailure('needs_sign_in', 'Sign in.', 'dexto login --device')
+            );
+        let output = '';
+        const runtime = {
+            ...nodeCloudRuntime(new AbortController().signal),
+            prompt: null,
+            writeOutput: (text: string) => {
+                output += text;
+            },
+        };
+        const context: CommandContext = {
+            runtime,
+            output: createOutput(runtime, 'json'),
+            invocation: ['import'],
+            overrides: { apiBaseUrl: null, apiKey: null, cloudProject: null, profile: null },
+            connection: async () => {
+                throw new Error('unexpected authentication');
+            },
+            client: async () => {
+                throw new Error('unexpected network');
+            },
+        };
+        const command = importCommands[0];
+        if (!command) throw new Error('missing import command');
+        expect(
+            await command.run(context, {
+                positionals: [],
+                values: { select: 'codex:one,codex:two', yes: true },
+            })
+        ).toBe(3);
+        const result = JSON.parse(output);
+        expect(result.sessions[0].status).toBe('imported');
+        expect(result.error.code).toBe('needs_sign_in');
     });
 });
