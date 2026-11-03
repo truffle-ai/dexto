@@ -903,6 +903,13 @@
     "examples": false
   },
   {
+    "command": "skills sync",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
     "command": "uninstall",
     "json": false,
     "dryRun": true,
