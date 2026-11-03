@@ -16,13 +16,15 @@ import {
 } from '../command.js';
 import {
     findLocalChats,
-    LOCAL_CHAT_SOURCES,
-    toImportInput,
-    type ChatImportInput,
-    type LocalChat,
     type LocalChatQuery,
-    type LocalChatSource,
+    type LocalChatScan,
 } from '../../import/local-chats.js';
+import { toImportInput, type ChatImportInput } from '../../import/redaction.js';
+import {
+    LOCAL_CHAT_SOURCES,
+    type LocalChat,
+    type LocalChatSource,
+} from '../../import/transcript.js';
 import { queryWorkspaceTool } from './workspace.js';
 
 const FIND_OPTIONS = {
@@ -84,14 +86,17 @@ const local: Command = {
     summary:
         'List Claude Code or Codex chats on this machine, newest first, to pick some for chat import.',
     async run(context, input) {
-        const chats = await findLocalChats(context.runtime, localQuery(input));
+        const scan = await findLocalChats(context.runtime, localQuery(input));
+        noteScan(context, scan);
         context.output.list(
             {
-                data: chats.map((chat) => ({
+                data: scan.chats.map((chat) => ({
                     cwd: chat.cwd,
                     id: chat.id,
                     messages: chat.messages.length,
                     path: chat.path,
+                    pullRequests: chat.pullRequests,
+                    repository: chat.repository,
                     source: chat.source,
                     startedAt: chat.startedAt,
                     title: chat.title,
@@ -112,6 +117,8 @@ const local: Command = {
 interface SessionResult {
     readonly chatId?: string;
     readonly id: string;
+    /** How many of the session's oldest messages were left out to fit the import's bounds. */
+    readonly leftOut?: number;
     readonly messages?: number;
     readonly reason?: string;
     readonly redactions?: Readonly<Record<string, number>>;
@@ -143,7 +150,9 @@ const importChats: Command = {
             throw new UsageError(
                 'Name the sessions to import, by the ids chat local lists, or pass --all.'
             );
-        const found = await findLocalChats(context.runtime, query);
+        const scan = await findLocalChats(context.runtime, query);
+        noteScan(context, scan);
+        const found = scan.chats;
         const planned = (
             all ? found : ids.map((id) => found.find((chat) => chat.id === id) ?? id)
         ).map((chat) => plan(chat, query.source));
@@ -222,6 +231,7 @@ function plan(
         input: prepared.input,
         result: {
             id: chat.id,
+            leftOut: prepared.leftOut,
             messages: prepared.input.messages.length,
             redactions: prepared.redactions,
             status: 'ready',
@@ -229,6 +239,11 @@ function plan(
             truncated: prepared.truncated,
         },
     };
+}
+
+/** What the scan found that its chats don't show, such as Codex history it can't read yet. */
+function noteScan(context: CommandContext, scan: LocalChatScan): void {
+    for (const notice of scan.notices) context.output.note(notice.message);
 }
 
 function report(context: CommandContext, sessions: readonly SessionResult[]): void {
@@ -256,6 +271,7 @@ function readyLine(session: SessionResult): string {
         `${session.messages ?? 0} messages`,
         redactions === '' ? 'nothing redacted' : `redacted ${redactions}`,
         session.truncated ? `${session.truncated} cut to size` : '',
+        session.leftOut ? `first ${session.leftOut} left out` : '',
     ]
         .filter((part) => part !== '')
         .join('; ');

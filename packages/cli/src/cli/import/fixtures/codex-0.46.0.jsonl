@@ -1,0 +1,5 @@
+{"timestamp": "2026-08-10T12:00:00.000Z", "type": "session_meta", "payload": {"id": "0198c1aa-1111-7222-8333-444455556666", "timestamp": "2026-08-10T12:00:00.000Z", "cwd": "/Users/dev/Projects/api", "originator": "codex_cli_rs", "cli_version": "0.46.0", "instructions": null, "git": {"commit_hash": "def456", "branch": "main", "repository_url": "https://github.com/acme/api.git"}}}
+{"timestamp": "2026-08-10T12:00:01.000Z", "type": "response_item", "payload": {"type": "message", "role": "user", "content": [{"type": "input_text", "text": "Run the tests."}]}}
+{"timestamp": "2026-08-10T12:00:02.000Z", "type": "response_item", "payload": {"type": "function_call", "name": "shell", "arguments": "{\"command\":[\"pnpm\",\"test\"]}", "call_id": "f1"}}
+{"timestamp": "2026-08-10T12:00:03.000Z", "type": "response_item", "payload": {"type": "function_call_output", "call_id": "f1", "output": "{\"output\":\"ok\",\"metadata\":{\"exit_code\":0}}"}}
+{"timestamp": "2026-08-10T12:00:04.000Z", "type": "response_item", "payload": {"type": "message", "role": "assistant", "content": [{"type": "output_text", "text": "They pass."}]}}
