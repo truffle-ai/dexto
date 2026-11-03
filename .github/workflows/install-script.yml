@@ -1,0 +1,147 @@
+# Checks the scripts served at https://dexto.ai/install and https://dexto.ai/install.ps1
+# (DEXTO-2040): shellcheck and PSScriptAnalyzer, the stubbed-npm suite under each shell `curl | sh`
+# can land in, and a real install from npm on clean Linux containers (as a non-root user), on
+# macOS, and on Windows under both Windows PowerShell and PowerShell 7.
+name: Install script
+
+on:
+  pull_request:
+    branches: [ main, cli-2.0 ]
+    paths:
+      - .github/workflows/install-script.yml
+      - scripts/install.sh
+      - scripts/install.ps1
+      - scripts/install.test.ts
+      - scripts/test-install-e2e.sh
+      - scripts/test-install-e2e.ps1
+      - packages/cli/src/cli/utils/self-management.ts
+      - packages/cli/src/cli/commands/upgrade.ts
+      - packages/cli/src/cli/commands/uninstall.ts
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version or dist-tag the end-to-end jobs install'
+        required: false
+        default: 'next'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: install-script-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  E2E_VERSION: ${{ inputs.version || 'next' }}
+
+jobs:
+  shellcheck:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: shellcheck --version
+      - run: shellcheck --shell=sh scripts/install.sh scripts/test-install-e2e.sh
+
+  suite:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            shell: /bin/sh
+          - runner: ubuntu-24.04
+            shell: /bin/bash
+          - runner: ubuntu-24.04
+            shell: busybox
+          - runner: macos-14
+            shell: /bin/sh
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: corepack enable
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      - name: Point the suite at the shell
+        run: |
+          if [ "${{ matrix.shell }}" = busybox ]; then
+            sudo apt-get update >/dev/null
+            sudo apt-get install -y busybox >/dev/null
+            # An absolute path: some tests run the installer with a PATH that has no busybox on it.
+            printf '#!/bin/sh\nexec %s sh "$@"\n' "$(command -v busybox)" > "${RUNNER_TEMP}/busybox-sh"
+            chmod +x "${RUNNER_TEMP}/busybox-sh"
+            echo "DEXTO_INSTALL_TEST_SHELL=${RUNNER_TEMP}/busybox-sh" >> "${GITHUB_ENV}"
+          else
+            echo "DEXTO_INSTALL_TEST_SHELL=${{ matrix.shell }}" >> "${GITHUB_ENV}"
+          fi
+      - run: pnpm exec vitest run scripts/install.test.ts packages/cli/src/cli/commands/uninstall.test.ts
+
+  e2e-linux:
+    strategy:
+      fail-fast: false
+      matrix:
+        image: [ 'node:20-bookworm-slim', 'node:22-alpine', 'node:24-bookworm-slim' ]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install from npm in a clean ${{ matrix.image }} container
+        run: |
+          docker run --rm --user node -e HOME=/home/node -w /home/node \
+            -v "${PWD}/scripts:/scripts:ro" "${{ matrix.image }}" \
+            sh /scripts/test-install-e2e.sh /scripts/install.sh "${E2E_VERSION}"
+
+  e2e-linux-no-node:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Report node_missing in a container without Node.js
+        run: |
+          docker run --rm -v "${PWD}/scripts:/scripts:ro" debian:bookworm-slim \
+            sh /scripts/test-install-e2e.sh /scripts/install.sh --expect-node-missing
+
+  e2e-macos:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ macos-14, macos-15-intel ]
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install from npm into a fresh home
+        run: |
+          export HOME="${RUNNER_TEMP}/home"
+          mkdir -p "${HOME}"
+          sh scripts/test-install-e2e.sh scripts/install.sh "${E2E_VERSION}"
+
+  psscriptanalyzer:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Lint the PowerShell scripts
+        shell: pwsh
+        run: |
+          Install-Module PSScriptAnalyzer -Force -Scope CurrentUser
+          $findings = 'scripts/install.ps1', 'scripts/test-install-e2e.ps1' |
+            ForEach-Object { Invoke-ScriptAnalyzer -Path $_ -Severity Warning, Error }
+          $findings | Format-Table RuleName, Line, Message -AutoSize -Wrap
+          if ($findings) { exit 1 }
+
+  e2e-windows:
+    strategy:
+      fail-fast: false
+      matrix:
+        shell: [ powershell, pwsh ]
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install from npm with ${{ matrix.shell }}
+        shell: pwsh
+        run: ./scripts/test-install-e2e.ps1 -Installer scripts/install.ps1 -Version $env:E2E_VERSION -Shell ${{ matrix.shell }}
