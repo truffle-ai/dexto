@@ -1,8 +1,10 @@
 // The shape every cloud command shares: its path, arguments, options and handler.
 import { readFile } from 'node:fs/promises';
-import { requireConfirmation } from '../interaction.js';
 
 import type { CloudClient } from '@dexto/cloud-client';
+
+import { CommandFailure } from '../failure.js';
+import { requireConfirmation } from '../interaction.js';
 
 import type { Connection, ConnectionOverrides } from './connection.js';
 import type { Output } from './output.js';
@@ -53,7 +55,6 @@ export class UsageError extends Error {
 
 export { CommandFailure, EXIT_CODES, EXIT_CODE_MEANINGS } from '../failure.js';
 export type { FailureKind } from '../failure.js';
-import { CommandFailure } from '../failure.js';
 
 /** A permission the sign-in lacks: signing in again for `scope` (one, or several comma-separated) fixes it. */
 export class MissingScopeFailure extends CommandFailure {

@@ -1159,30 +1159,16 @@ program
 
 // 14) PARSE & EXECUTE
 // `dexto --help --json`: the commands and exit codes as JSON, for agents.
+// Internal inventory entry point for the repository build check.
 if (process.argv.slice(2).length === 1 && process.argv[2] === '--audit-agent-cli') {
-    const [{ auditCommander, auditCloud }, { cloudCommands }] = await Promise.all([
+    const [{ auditProgram }, { cloudCommands }] = await Promise.all([
         import('./cli/agent-audit.js'),
         import('./cli/cloud/host.js'),
     ]);
-    const cloud = auditCloud(
-        cloudCommands('', async () => {
-            throw new Error('Audit cannot sign in');
-        })
-    );
-    const cloudRoots = new Set(cloud.map((row) => row.command.split(' ')[0]));
-    const local = auditCommander(program).filter((row) => {
-        if (row.command === 'chat local' || row.command === 'chat import') return false;
-        return !cloudRoots.has(row.command);
+    const commands = cloudCommands('', async () => {
+        throw new Error('Audit cannot sign in');
     });
-    process.stdout.write(
-        `${JSON.stringify(
-            [...local, ...cloud].sort((a, b) =>
-                a.command < b.command ? -1 : a.command > b.command ? 1 : 0
-            ),
-            null,
-            2
-        )}\n`
-    );
+    process.stdout.write(`${JSON.stringify(auditProgram(program, commands), null, 2)}\n`);
 } else if (isRootJsonHelp(process.argv.slice(2)))
     process.stdout.write(`${JSON.stringify(rootHelpJson(program), null, 2)}\n`);
 else program.parseAsync(process.argv);

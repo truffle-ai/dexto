@@ -1,8 +1,8 @@
-import { jsonError } from '../output.js';
 // Runs `dexto cloud …` and the other ported cloud commands: global options, help, the agent
 // contract's JSON output and exit codes, and signing in again for a permission a command lacked.
 
 import { parseArgs } from 'node:util';
+import { jsonError } from '../output.js';
 import { CloudApiError, createCloudClient } from '@dexto/cloud-client';
 import {
     CommandFailure,

@@ -12,7 +12,7 @@
     "scripts": {
         "build": "pnpm run build:packages && pnpm run copy-webui-dist && node scripts/check-cli-audit.mjs",
         "build:packages": "turbo run build --filter=\"./packages/*\"",
-        "build:all": "pnpm run build:packages && pnpm run embed-webui",
+        "build:all": "pnpm run build:packages && pnpm run embed-webui && node scripts/check-cli-audit.mjs",
         "build:agent-management": "turbo run build --filter=@dexto/agent-management...",
         "build:analytics": "turbo run build --filter=@dexto/analytics...",
         "build:client-sdk": "turbo run build --filter=@dexto/client-sdk...",

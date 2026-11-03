@@ -42,3 +42,35 @@ it('includes dynamically constructed cloud commands from the registry', async ()
         'cloud agents reject',
     ]);
 });
+
+it('replaces cloud passthroughs including new nested chat commands', async () => {
+    const { auditProgram } = await import('./agent-audit.js');
+    const program = new Command('dexto');
+    program.command('cloud').action(() => {});
+    program
+        .command('chat')
+        .command('new')
+        .action(() => {});
+    const commands = [
+        { path: ['cloud', 'items', 'list'], summary: 'list', run: async () => {} },
+        { path: ['chat', 'new'], summary: 'new', run: async () => {} },
+    ];
+    expect(auditProgram(program, commands).map((row) => row.command)).toEqual([
+        'chat new',
+        'cloud items list',
+    ]);
+});
+
+it('reports declared options without confusing description text for an examples section', () => {
+    const program = new Command('dexto');
+    program
+        .command('write')
+        .description('More examples: see elsewhere')
+        .option('--json')
+        .option('--dry-run')
+        .option('--non-interactive')
+        .action(() => {});
+    expect(auditCommander(program)).toEqual([
+        { command: 'write', json: true, dryRun: true, nonInteractiveFlag: true, examples: false },
+    ]);
+});
