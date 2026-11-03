@@ -15,7 +15,3 @@ export function readBooleanEnv(name: string, defaultValue: boolean): boolean {
     if (FALSE_VALUES.has(normalized)) return false;
     return defaultValue;
 }
-
-export function isBackgroundTasksEnabled(): boolean {
-    return readBooleanEnv('DEXTO_BACKGROUND_TASKS_ENABLED', false);
-}

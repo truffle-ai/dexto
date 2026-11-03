@@ -3,9 +3,6 @@ import type { JSONSchema7Definition } from 'json-schema';
 import type { JSONSchema7Type } from 'json-schema';
 
 export type ToolCallMetadata = Record<string, unknown> & {
-    runInBackground?: boolean;
-    timeoutMs?: number;
-    notifyOnComplete?: boolean;
     callActivity?: {
         running: string;
         completed: string;
@@ -19,18 +16,6 @@ export type ToolCallMetaWrapper = {
 const META_SCHEMA: JSONSchema7 = {
     type: 'object',
     properties: {
-        runInBackground: {
-            type: 'boolean',
-            description: 'Run the tool in background and return a task ID immediately.',
-        },
-        timeoutMs: {
-            type: 'number',
-            description: 'Optional timeout in milliseconds for background tasks.',
-        },
-        notifyOnComplete: {
-            type: 'boolean',
-            description: 'Notify when the background task completes.',
-        },
         callActivity: {
             type: 'object',
             description:

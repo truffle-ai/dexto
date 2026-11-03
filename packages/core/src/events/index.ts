@@ -57,8 +57,6 @@ export const AGENT_EVENT_NAMES = [
     'approval:response',
     'run:invoke',
     'agent:stopped',
-    'tool:background',
-    'tool:background-completed',
 ] as const;
 
 export const FORWARDED_SESSION_EVENT_NAMES = [
@@ -441,34 +439,10 @@ interface AgentOwnEventMapBase {
     };
 
     /**
-     * Fired when a tool is executed in background.
-     * Used by orchestration layer to register the task.
-     */
-    'tool:background': {
-        toolName: string;
-        toolCallId: string;
-        sessionId: string;
-        description?: string;
-        promise: Promise<unknown>;
-        timeoutMs?: number;
-        notifyOnComplete?: boolean;
-    };
-
-    /**
-     * Fired when a background tool has completed registration.
-     */
-    'tool:background-completed': {
-        toolCallId: string;
-        sessionId: string;
-    };
-
-    /**
      * Fired when the agent is fully stopped.
      */
     'agent:stopped': void;
 }
-
-export type ToolBackgroundEvent = AgentEventMap['tool:background'];
 
 /**
  * Session-level events - these occur within individual sessions without session context

@@ -24,7 +24,6 @@
     "@dexto/tools-plan",
     "@dexto/tools-scheduler",
     "@dexto/tools-lifecycle",
-    "@dexto/orchestration",
     "@dexto/tui"
   ]],
   "linked": [],
