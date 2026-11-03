@@ -1,4 +1,4 @@
-// `publish`: puts a page, a document or a folder online as a link anyone with it can open.
+// `publish`: puts a page, a document or a folder online as a Site.
 
 import { createHash } from 'node:crypto';
 import { readdir, readFile, stat } from 'node:fs/promises';
@@ -38,6 +38,7 @@ const PublishedSchema = z.object({
     created: z.boolean(),
     files: z.number(),
     url: z.string(),
+    visibility: z.enum(['private', 'unlisted', 'public']).optional(),
 });
 
 const publish: Command = {
@@ -54,12 +55,19 @@ const publish: Command = {
             type: 'string',
         },
         title: { description: "The page's title (default: the name).", type: 'string' },
+        visibility: {
+            description: 'Who can open the Site: private, unlisted, or public.',
+            type: 'string',
+            valueName: 'VISIBILITY',
+        },
         ...YES_OPTION,
     },
     path: ['publish'],
-    summary:
-        'Publish a file, a folder or a .zip of one as a link anyone with it can open; publishing the same name again updates it.',
+    summary: 'Publish a file, folder or .zip as a Site; publishing the same name again updates it.',
     async run(context, input) {
+        const visibility = stringOption(input, 'visibility');
+        if (visibility !== undefined && !['private', 'unlisted', 'public'].includes(visibility))
+            throw new UsageError('--visibility must be private, unlisted, or public.');
         await requireLoginScopes(context, ['sites:write']);
         const target = path.resolve(argument(input, 0, 'path'));
         const found = await stat(target).catch(() => null);
@@ -99,13 +107,14 @@ const publish: Command = {
             name,
             ...(slug === undefined ? {} : { slug }),
             ...(title === undefined ? {} : { title }),
+            ...(visibility === undefined ? {} : { visibility }),
         };
         const agreed = await agreeToCall(
             context,
             {
                 level: toolCallLevel(tool, call),
                 schema: tool.inputSchema,
-                title: `Publish ${name} as a link anyone with it can open`,
+                title: `Publish ${name}${visibility === undefined ? '' : ` with ${visibility} visibility`}`,
             },
             flag(input, 'yes')
         );
@@ -130,10 +139,13 @@ const publish: Command = {
         });
         const shown = PublishedSchema.safeParse(published);
         const files = shown.success ? shown.data.files : count;
+        const publishedVisibility = shown.success
+            ? (shown.data.visibility ?? visibility)
+            : visibility;
         context.output.result(
             published,
             shown.success
-                ? `${shown.data.created ? 'Published' : 'Updated'} ${name} at ${shown.data.url} (${files} file${files === 1 ? '' : 's'}). Anyone with the link can open it.`
+                ? `${shown.data.created ? 'Published' : 'Updated'} ${name} at ${shown.data.url} (${files} file${files === 1 ? '' : 's'}).${publishedVisibility === 'private' ? ' Only authorized viewers can open it.' : publishedVisibility === undefined ? '' : ' Anyone with the link can open it.'}`
                 : JSON.stringify(published, null, 2)
         );
     },

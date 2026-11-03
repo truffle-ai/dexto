@@ -104,7 +104,12 @@ describe('dexto workspace', () => {
                               path: 'uploads/u1.zip',
                           }
                         : tool === 'dexto_site_publish'
-                          ? { created: true, files: 2, url: 'https://hello.dexto.page' }
+                          ? {
+                                created: true,
+                                files: 2,
+                                url: 'https://hello.dexto.page',
+                                visibility: message.params.arguments?.visibility ?? 'unlisted',
+                            }
                           : { status: 'sent' };
                 const result =
                     message.method === 'tools/list'
@@ -205,6 +210,34 @@ describe('dexto workspace', () => {
 
     it('answers an app it does not have with exit 2', async () => {
         expect(await runCloud(host, ['workspace', 'nope'])).toBe(2);
+    });
+
+    it('rejects invalid visibility before uploading', async () => {
+        expect(
+            await runCloud(host, ['publish', 'anything', '--visibility', 'team', '--yes', '--json'])
+        ).toBe(2);
+        expect(JSON.parse(stderr).error.message).toContain('--visibility');
+        expect(uploads).toHaveLength(0);
+        expect(calls).toHaveLength(0);
+    });
+
+    it('passes private visibility to the Site publish operation', async () => {
+        const file = path.join(path.dirname(dir), 'private.html');
+        await writeFile(file, '<h1>private</h1>');
+        expect(
+            await runCloud(host, ['publish', file, '--visibility', 'private', '--yes', '--json'])
+        ).toBe(0);
+        expect(calls.at(-1)?.params.arguments).toMatchObject({ visibility: 'private' });
+        expect(stdout).not.toContain('Anyone with the link can open it');
+    });
+
+    it('describes a private Site correctly in human output', async () => {
+        const file = path.join(path.dirname(dir), 'private.html');
+        await writeFile(file, '<h1>private</h1>');
+        expect(
+            await runCloud(host, ['publish', file, '--visibility', 'private', '--yes', '--table'])
+        ).toBe(0);
+        expect(stdout).not.toContain('Anyone with the link can open it');
     });
 
     it('publishes a folder as a zip, uploaded where Dexto says, once agreed', async () => {
