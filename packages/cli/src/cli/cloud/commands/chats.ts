@@ -22,7 +22,7 @@ import {
     type LocalChat,
     type LocalChatQuery,
     type LocalChatSource,
-} from '../local-chats.js';
+} from '../../import/local-chats.js';
 import { queryWorkspaceTool } from './workspace.js';
 
 const FIND_OPTIONS = {

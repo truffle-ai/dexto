@@ -3,8 +3,8 @@
 import { readdir, readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 
-import { UsageError } from './command.js';
-import type { CloudRuntime } from './runtime.js';
+import { UsageError } from '../cloud/command.js';
+import type { CloudRuntime } from '../cloud/runtime.js';
 
 export type LocalChatSource = 'claude-code' | 'codex';
 export const LOCAL_CHAT_SOURCES: readonly LocalChatSource[] = ['claude-code', 'codex'];
