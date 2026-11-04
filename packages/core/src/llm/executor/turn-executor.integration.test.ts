@@ -11,6 +11,7 @@ import { MODEL_STREAM_IDLE_TIMEOUT_MS } from './stream-processor.js';
 import { ContextManager } from '../../context/manager.js';
 import { ToolManager } from '../../tools/tool-manager.js';
 import { defineTool } from '../../tools/define-tool.js';
+import type { Tool } from '../../tools/types.js';
 import { SessionEventBus, AgentEventBus } from '../../events/index.js';
 import { ResourceManager } from '../../resources/index.js';
 import { MessageQueueService } from '../../session/message-queue.js';
@@ -2125,7 +2126,7 @@ describe('TurnExecutor Integration Tests', () => {
 
         describe('deferred approvals', () => {
             const approvalStore = () => createInMemorySessionApprovalStore(logger);
-            const siblingTools = () => {
+            const siblingTools = (approvalSibling: Pick<Tool, 'needsApproval'> = {}) => {
                 const executeApproved = vi.fn(async () => 'approved sibling result');
                 const executeReady = vi.fn(async () => 'ready sibling result');
                 const tools = [
@@ -2134,6 +2135,7 @@ describe('TurnExecutor Integration Tests', () => {
                         description: 'Approval sibling',
                         inputSchema: z.object({ value: z.string() }).strict(),
                         execute: executeApproved,
+                        ...approvalSibling,
                     }),
                     defineTool({
                         id: 'ready_sibling',
@@ -2148,11 +2150,11 @@ describe('TurnExecutor Integration Tests', () => {
                 handler: ApprovalHandler,
                 tools: ReturnType<typeof siblingTools>['tools'],
                 approvals: ReturnType<typeof approvalStore>,
-                toolExecutions = stores.getStore('toolExecutions')
+                mode: 'manual' | 'auto-approve' = 'manual'
             ) => {
                 const processApprovals = new ApprovalManager(
                     {
-                        permissions: { mode: 'manual', timeout: 120000 },
+                        permissions: { mode, timeout: 120000 },
                         elicitation: { enabled: false, timeout: 120000 },
                     },
                     logger,
@@ -2167,13 +2169,13 @@ describe('TurnExecutor Integration Tests', () => {
                         allowTool: vi.fn(),
                         disallowTool: vi.fn(),
                     },
-                    'manual',
+                    mode,
                     agentEventBus,
                     { alwaysAllow: [] },
                     tools,
                     logger,
                     createInMemorySessionToolPreferencesStore(logger),
-                    toolExecutions
+                    stores.getStore('toolExecutions')
                 );
                 await processTools.initialize();
                 processTools.setToolExecutionContextFactory((baseContext) => baseContext);
@@ -2272,6 +2274,66 @@ describe('TurnExecutor Integration Tests', () => {
                     [{ type: 'text', text: 'approved sibling result' }],
                     [{ type: 'text', text: 'ready sibling result' }],
                 ]);
+            });
+
+            it('defers and resumes an always-ask approval that auto-approve mode cannot settle', async () => {
+                const approvals = approvalStore();
+                const { executeApproved, executeReady, tools } = siblingTools({
+                    needsApproval: { kind: 'always-ask' },
+                });
+                mockSiblingStep({ value: 'run' });
+                await contextManager.addUserMessage([{ type: 'text', text: 'Use sibling tools' }]);
+
+                const deferringHandler = vi.fn(async (request: ApprovalRequest, context) => {
+                    if (context?.deferrable !== true)
+                        throw new Error('Expected a deferrable request');
+                    throw new ApprovalDeferredError(request.approvalId);
+                });
+                const firstDriver = await (
+                    await startSiblingProcess(deferringHandler, tools, approvals, 'auto-approve')
+                ).createDriver({ mcpManager }, { streaming: true });
+                await firstDriver.runNextModelStep();
+                const deferred = await firstDriver.executeToolCalls();
+                const deferredRequest = deferringHandler.mock.calls[0]?.[0];
+                const savedState = serializeTurnDriverState(firstDriver.checkpoint());
+                firstDriver.dispose();
+
+                expect(deferringHandler).toHaveBeenCalledTimes(1);
+                expect(deferredRequest).toEqual(
+                    expect.objectContaining({
+                        autoApproval: 'disallowed',
+                        metadata: expect.objectContaining({ toolName: 'approval_sibling' }),
+                    })
+                );
+                expect(deferred).toEqual({
+                    kind: 'deferred',
+                    approvalIds: [deferredRequest?.approvalId],
+                });
+                expect(executeApproved).not.toHaveBeenCalled();
+                expect(executeReady).toHaveBeenCalledTimes(1);
+
+                const answeringHandler = vi.fn(async (request: ApprovalRequest) => ({
+                    approvalId: request.approvalId,
+                    status: ApprovalStatus.APPROVED,
+                }));
+                const resumedDriver = await (
+                    await startSiblingProcess(answeringHandler, tools, approvals, 'auto-approve')
+                ).createDriver({ mcpManager }, { streaming: true, state: savedState });
+                try {
+                    expect(await resumedDriver.executeToolCalls()).toEqual({ kind: 'executed' });
+                } finally {
+                    resumedDriver.dispose();
+                }
+
+                expect(answeringHandler).toHaveBeenCalledTimes(1);
+                expect(answeringHandler.mock.calls[0]?.[0]).toEqual(
+                    expect.objectContaining({
+                        approvalId: deferredRequest?.approvalId,
+                        autoApproval: 'disallowed',
+                    })
+                );
+                expect(executeApproved).toHaveBeenCalledTimes(1);
+                expect(executeReady).toHaveBeenCalledTimes(1);
             });
 
             it('does not offer deferral when a sibling starts in the background', async () => {

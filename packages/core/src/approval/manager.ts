@@ -825,7 +825,12 @@ export class ApprovalManager {
         predicate: (request: ApprovalRequest) => boolean,
         responseData?: Record<string, unknown>
     ): number {
-        const count = this.handler?.autoApprovePending?.(predicate, responseData) ?? 0;
+        // A remembered approval never settles a request that asked for a fresh approval.
+        const count =
+            this.handler?.autoApprovePending?.(
+                (request) => request.autoApproval !== 'disallowed' && predicate(request),
+                responseData
+            ) ?? 0;
         if (count > 0) {
             this.logger.info(
                 `Auto-approved ${count} pending request(s) due to remembered approval`

@@ -811,6 +811,39 @@ describe('ApprovalManager', () => {
             // Event-based mode would, but we don't want hanging requests in tests
         });
 
+        it('never lets a remembered approval settle a pending request that asked afresh', () => {
+            const manager = createApprovalManager({
+                permissions: { mode: 'manual', timeout: 120000 },
+                elicitation: { enabled: false, timeout: 120000 },
+            });
+            const pending = [
+                createApprovalRequest({
+                    type: ApprovalType.TOOL_APPROVAL,
+                    sessionId: 'session-1',
+                    metadata: { toolName: 'publish_post', toolCallId: 'call-1', args: {} },
+                }),
+                createApprovalRequest({
+                    type: ApprovalType.TOOL_APPROVAL,
+                    autoApproval: 'disallowed',
+                    sessionId: 'session-1',
+                    metadata: { toolName: 'publish_post', toolCallId: 'call-2', args: {} },
+                }),
+            ];
+            const settled: string[] = [];
+            const handler = Object.assign(vi.fn(), {
+                autoApprovePending: (predicate: (request: (typeof pending)[number]) => boolean) => {
+                    for (const request of pending.filter(predicate)) {
+                        settled.push(request.approvalId);
+                    }
+                    return settled.length;
+                },
+            });
+            manager.setHandler(handler);
+
+            expect(manager.autoApprovePendingRequests(() => true)).toBe(1);
+            expect(settled).toEqual([pending[0]?.approvalId]);
+        });
+
         it('should cancel approvals in both providers', () => {
             const manager = createApprovalManager(
                 {

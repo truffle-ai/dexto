@@ -180,6 +180,10 @@ export interface Tool<TSchema extends ZodTypeAny = ZodTypeAny> {
      * - `false` / `null`: this tool call does not need approval.
      * - `true`: this tool call needs approval without a reusable key.
      * - `string`: this tool call needs approval scoped to an opaque key owned by the tool.
+     * - `{ kind: 'always-ask' }`: this tool call needs a fresh approval from the person, in every
+     *   approval mode. Auto-approve mode, allowed-tool lists, and remembered approvals never
+     *   settle it, and approving it remembers nothing. The request carries
+     *   `autoApproval: 'disallowed'` and is recorded before the call runs, like any approval.
      *
      * Core stores and checks keys opaquely; tool packages decide what keys mean.
      */
@@ -226,7 +230,10 @@ export interface Tool<TSchema extends ZodTypeAny = ZodTypeAny> {
     // Presentation-specific behavior belongs in `tool.presentation`.
 }
 
-export type ToolApprovalDecision = boolean | string | null;
+/** A {@link Tool.needsApproval} decision that asks the person afresh for every call. */
+export type ToolAlwaysAskApproval = { kind: 'always-ask' };
+
+export type ToolApprovalDecision = boolean | string | null | ToolAlwaysAskApproval;
 
 export type ToolNeedsApproval<TSchema extends ZodTypeAny = ZodTypeAny> =
     | ToolApprovalDecision

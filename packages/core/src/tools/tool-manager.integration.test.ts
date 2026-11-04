@@ -6,7 +6,13 @@ import type { McpClient } from '../mcp/types.js';
 import { AgentEventBus } from '../events/index.js';
 import { ApprovalManager } from '../approval/manager.js';
 import { ToolApprovalMetadataSchema } from '../approval/schemas.js';
-import { ApprovalType } from '../approval/types.js';
+import {
+    ApprovalStatus,
+    ApprovalType,
+    type ApprovalRequest,
+    type ApprovalResponse,
+} from '../approval/types.js';
+import { defineTool } from './define-tool.js';
 import type { AllowedToolsProvider } from './approval/allowed-tools-provider/types.js';
 import { createMockLogger } from '../logger/v2/test-utils.js';
 import {
@@ -398,6 +404,151 @@ describe('ToolManager Integration Tests', () => {
             const result = await toolManager.executeTool('mcp--test_tool', {}, 'test-call-id');
 
             expect(result).toEqual(expect.objectContaining({ result: 'approved result' }));
+        });
+    });
+
+    describe('Always-ask approvals', () => {
+        const sessionId = 'session-always-ask';
+
+        function setUp(options: {
+            mode: 'manual' | 'auto-approve';
+            allow: 'none' | 'always-allow' | 'session-allowed';
+        }) {
+            const execute = vi.fn(async (input: { value: string }) => `ran ${input.value}`);
+            const tool = defineTool({
+                id: 'publish_post',
+                description: 'Publish a post',
+                inputSchema: z.object({ value: z.string() }).strict(),
+                needsApproval: (input) =>
+                    input.value === 'draft' ? 'publish_post:draft' : { kind: 'always-ask' },
+                execute,
+            });
+            const approvals = createApprovalManager(
+                {
+                    permissions: { mode: options.mode, timeout: 120_000 },
+                    elicitation: { enabled: false, timeout: 120_000 },
+                },
+                mockLogger
+            );
+            const handler = vi.fn(
+                async (request: ApprovalRequest): Promise<ApprovalResponse> => ({
+                    approvalId: request.approvalId,
+                    status: ApprovalStatus.APPROVED,
+                    data: { rememberChoice: true },
+                })
+            );
+            approvals.setHandler(handler);
+            const allowTool = vi.fn().mockResolvedValue(undefined);
+            const toolManager = createToolManager(
+                mcpManager,
+                approvals,
+                {
+                    isToolAllowed: vi.fn(async () => options.allow === 'session-allowed'),
+                    allowTool,
+                    disallowTool: vi.fn().mockResolvedValue(undefined),
+                },
+                options.mode,
+                mockAgentEventBus,
+                { alwaysAllow: options.allow === 'always-allow' ? ['publish_post'] : [] },
+                [tool],
+                mockLogger
+            );
+            toolManager.setToolExecutionContextFactory((baseContext) => baseContext);
+            const call = (toolCallId: string, value: string) =>
+                toolManager.executeTool('publish_post', { value }, toolCallId, { sessionId });
+            return { allowTool, approvals, call, execute, handler, toolManager };
+        }
+
+        const everyMode = (['manual', 'auto-approve'] as const).flatMap((mode) =>
+            (['none', 'always-allow', 'session-allowed'] as const).map((allow) => ({
+                allow,
+                mode,
+            }))
+        );
+
+        it.each(everyMode)(
+            'asks afresh for every call ($mode mode, allow: $allow) and remembers nothing',
+            async (options) => {
+                const { allowTool, approvals, call, execute, handler } = setUp(options);
+
+                await call('call-1', 'publish');
+                await call('call-2', 'publish');
+
+                expect(handler).toHaveBeenCalledTimes(2);
+                for (const [request] of handler.mock.calls) {
+                    expect(request).toEqual(
+                        expect.objectContaining({
+                            autoApproval: 'disallowed',
+                            type: ApprovalType.TOOL_APPROVAL,
+                        })
+                    );
+                    expect(request.metadata).not.toHaveProperty('approvalKey');
+                }
+                expect(execute).toHaveBeenCalledTimes(2);
+                expect(allowTool).not.toHaveBeenCalled();
+                expect(approvals.getApprovedKeys(sessionId).size).toBe(0);
+            }
+        );
+
+        it('asks afresh after a remembered approval key for the same tool', async () => {
+            const { call, execute, handler, approvals } = setUp({ mode: 'manual', allow: 'none' });
+
+            await call('call-draft', 'draft');
+            await call('call-draft-again', 'draft');
+            expect(handler).toHaveBeenCalledTimes(1);
+            expect(approvals.isApprovalKeySessionApproved('publish_post:draft', sessionId)).toBe(
+                true
+            );
+
+            await call('call-publish', 'publish');
+
+            expect(handler).toHaveBeenCalledTimes(2);
+            expect(handler.mock.calls[1]?.[0]).toEqual(
+                expect.objectContaining({ autoApproval: 'disallowed' })
+            );
+            expect(execute).toHaveBeenCalledTimes(3);
+        });
+
+        it('does not run the call when the person denies it in auto-approve mode', async () => {
+            const { call, execute, handler } = setUp({ mode: 'auto-approve', allow: 'none' });
+            handler.mockImplementationOnce(async (request: ApprovalRequest) => ({
+                approvalId: request.approvalId,
+                status: ApprovalStatus.DENIED,
+                data: { rememberChoice: false },
+            }));
+
+            await expect(call('call-1', 'publish')).rejects.toThrow();
+            expect(execute).not.toHaveBeenCalled();
+        });
+
+        it('records the fresh approval request before the call runs', async () => {
+            const { toolManager, execute } = setUp({ mode: 'auto-approve', allow: 'always-allow' });
+
+            const prepared = await toolManager.prepareToolCall({
+                input: { value: 'publish' },
+                sessionId,
+                toolCallId: 'call-recorded',
+                toolName: 'publish_post',
+            });
+            expect(prepared.kind).toBe('approval-required');
+            if (prepared.kind !== 'approval-required') {
+                throw new Error('Expected an approval-required call');
+            }
+            const identity = { runId: 'run-1', turnId: 'turn-1', modelStepId: 'step-1' };
+            const recorded = await toolManager.recordApprovalRequest(prepared, identity);
+            const again = await toolManager.recordApprovalRequest(prepared, identity);
+
+            expect(recorded.request.autoApproval).toBe('disallowed');
+            expect(again.request.approvalId).toBe(recorded.request.approvalId);
+            expect(execute).not.toHaveBeenCalled();
+        });
+
+        it('describes an always-ask tool as possibly needing approval in auto-approve mode', async () => {
+            const { toolManager } = setUp({ mode: 'auto-approve', allow: 'none' });
+
+            await expect(toolManager.getToolDescriptor('publish_post')).resolves.toEqual(
+                expect.objectContaining({ approval: 'possible' })
+            );
         });
     });
 
