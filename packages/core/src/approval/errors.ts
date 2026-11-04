@@ -41,6 +41,17 @@ export interface ElicitationValidationContext {
 }
 
 /**
+ * Thrown by an approval handler that will answer later, outside this process. Only a request asked
+ * with `deferrable: true` may be deferred; anywhere else it fails the request like any other error.
+ */
+export class ApprovalDeferredError extends Error {
+    constructor(readonly approvalId: string) {
+        super(`Approval ${approvalId} was deferred.`);
+        this.name = 'ApprovalDeferredError';
+    }
+}
+
+/**
  * Error factory for approval system errors
  */
 export class ApprovalError {

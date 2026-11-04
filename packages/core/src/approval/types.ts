@@ -270,6 +270,18 @@ export type ApprovalResponse = z.output<typeof ApprovalResponseSchema>;
 export type ApprovalRequestDetails = z.output<typeof ApprovalRequestDetailsSchema>;
 
 /**
+ * How the asker can take a handler's answer.
+ */
+export interface ApprovalHandlerContext {
+    /**
+     * The request is a model tool call's own approval, asked before the call runs. The handler may
+     * throw `ApprovalDeferredError` instead of answering: the turn driver then ends the batch with
+     * nothing persisted, and a resumed driver asks again. Every other request must be answered.
+     */
+    deferrable: boolean;
+}
+
+/**
  * Handler interface for processing approval requests.
  *
  * This is the core abstraction for approval handling in Dexto. When tool approval
@@ -304,9 +316,10 @@ export interface ApprovalHandler {
     /**
      * Process an approval request
      * @param request The approval request to handle
+     * @param context How the asker can take the answer
      * @returns Promise resolving to the approval response
      */
-    (request: ApprovalRequest): Promise<ApprovalResponse>;
+    (request: ApprovalRequest, context?: ApprovalHandlerContext): Promise<ApprovalResponse>;
 
     /**
      * Cancel a specific pending approval request (optional)
