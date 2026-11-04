@@ -14,6 +14,7 @@ export {
     getModelDirectory,
     getModelStatePath,
     getModelPickerStatePath,
+    getModelReasoningPreferencesPath,
     getModelTempDirectory,
     ensureModelsDirectory,
     ensureModelDirectory,
@@ -67,3 +68,22 @@ export {
     type ModelPickerState,
     type SetFavoriteModelsInput,
 } from './model-picker-state.js';
+
+// Per-model reasoning preferences (CLI state)
+export {
+    MODEL_REASONING_PREFERENCES_VERSION,
+    toModelReasoningPreferenceKey,
+    parseModelReasoningPreferences,
+    loadModelReasoningPreferences,
+    getModelReasoningPreference,
+    rememberModelReasoningPreference,
+    forgetModelReasoningPreference,
+    resolveModelReasoningPreference,
+    type ModelReasoningIdentity,
+    type ModelReasoningOverride,
+    type ModelReasoningPreferenceEntry,
+    type ModelReasoningPreferencesState,
+    type ModelReasoningPreferencesLoadResult,
+    type ResolvedModelReasoningPreference,
+    type StaleModelReasoningSetting,
+} from './model-reasoning-preferences.js';

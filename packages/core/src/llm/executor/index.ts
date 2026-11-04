@@ -10,3 +10,8 @@ export {
     type TurnDriverState,
     type TurnDriverToolCalls,
 } from './turn-executor.js';
+export {
+    buildProviderOptions,
+    getEffectiveReasoningBudgetTokens,
+    type ProviderOptionsConfig,
+} from './provider-options.js';
