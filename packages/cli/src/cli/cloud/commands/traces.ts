@@ -1,20 +1,15 @@
 // `trace list|view` and `span list`: a person's run traces, read from /v1/traces.
 
-import { unwrap, type V1Response } from '@dexto/cloud-client';
+import { unwrap, type paths, type V1Response } from '@dexto/cloud-client';
 
-import {
-    argument,
-    integerOption,
-    stringOption,
-    UsageError,
-    type Command,
-    type CommandInput,
-} from '../command.js';
+import { argument, choiceOption, integerOption, stringOption, type Command } from '../command.js';
 import type { Column } from '../output.js';
 
 type TraceSummary = V1Response<'/v1/traces', 'get'>['data'][number];
 type RunTrace = V1Response<'/v1/traces/{run_id}', 'get'>;
 type Span = RunTrace['spans'][number];
+type TraceQuery = NonNullable<paths['/v1/traces']['get']['parameters']['query']>;
+type SpanQuery = NonNullable<paths['/v1/traces/{run_id}/spans']['get']['parameters']['query']>;
 
 const RUN_STATUSES = [
     'cancelled',
@@ -24,9 +19,13 @@ const RUN_STATUSES = [
     'retrying',
     'running',
     'waiting_approval',
-] as const satisfies readonly TraceSummary['status'][];
-const SPAN_STATUSES = ['completed', 'failed'] as const satisfies readonly Span['status'][];
-const SPAN_SORTS = ['started_at', 'duration'] as const;
+] as const satisfies readonly NonNullable<TraceQuery['status']>[];
+const SPAN_STATUSES = ['completed', 'failed'] as const satisfies readonly NonNullable<
+    SpanQuery['status']
+>[];
+const SPAN_SORTS = ['started_at', 'duration'] as const satisfies readonly NonNullable<
+    SpanQuery['sort']
+>[];
 
 const TRACE_COLUMNS: readonly Column<TraceSummary>[] = [
     { header: 'run', value: (trace) => trace.run_id },
@@ -36,6 +35,7 @@ const TRACE_COLUMNS: readonly Column<TraceSummary>[] = [
     { header: 'duration', value: (trace) => milliseconds(trace.duration_ms) },
     { header: 'last span', value: (trace) => trace.last_span_started_at },
     { header: 'session', value: (trace) => trace.session_id },
+    { header: 'span names', value: (trace) => trace.span_names.join(', ') },
 ];
 
 const SPAN_COLUMNS: readonly Column<Span>[] = [
@@ -66,7 +66,7 @@ const traceList: Command = {
         const limit = integerOption(input, 'limit');
         const period = stringOption(input, 'period');
         const session = stringOption(input, 'session');
-        const status = choice(input, 'status', RUN_STATUSES);
+        const status = choiceOption(input, 'status', RUN_STATUSES);
         const page = await unwrap(
             await (
                 await context.client()
@@ -125,8 +125,8 @@ const spanList: Command = {
         const runId = argument(input, 0, 'run_id');
         const limit = integerOption(input, 'limit');
         const name = stringOption(input, 'name');
-        const sort = choice(input, 'sort', SPAN_SORTS);
-        const status = choice(input, 'status', SPAN_STATUSES);
+        const sort = choiceOption(input, 'sort', SPAN_SORTS);
+        const status = choiceOption(input, 'status', SPAN_STATUSES);
         const page = await unwrap(
             await (
                 await context.client()
@@ -150,24 +150,11 @@ const spanList: Command = {
     },
 };
 
-/** A string option that must be one of `values`, checked before anything is sent. */
-function choice<const T extends string>(
-    input: CommandInput,
-    name: string,
-    values: readonly T[]
-): T | undefined {
-    const value = stringOption(input, name);
-    if (value === undefined) return undefined;
-    const known = values.find((each) => each === value);
-    if (known === undefined) throw new UsageError(`--${name} must be one of ${values.join(', ')}.`);
-    return known;
-}
-
 function milliseconds(value: number): string {
     return `${Math.round(value)}ms`;
 }
 
-/** 1.x's `dexto trace` view: one line per span, by start time, with its error under it. */
+/** 1.x's `dexto trace` view: one line per span, with its error under it. */
 function formatTrace(trace: RunTrace): string {
     const lines = [
         `Run trace ${trace.run_id}`,
@@ -175,10 +162,8 @@ function formatTrace(trace: RunTrace): string {
     ];
     if (trace.spans.length === 0) return [...lines, 'No spans found.'].join('\n');
     lines.push('');
-    const spans = [...trace.spans].sort((left, right) =>
-        left.started_at.localeCompare(right.started_at)
-    );
-    for (const span of spans) {
+    // The API returns spans by start time.
+    for (const span of trace.spans) {
         lines.push(
             `${span.started_at}  ${span.status.padEnd(9)}  ${milliseconds(span.duration_ms).padStart(8)}  ${span.name}`
         );

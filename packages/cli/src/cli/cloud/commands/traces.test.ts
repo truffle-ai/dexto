@@ -185,7 +185,7 @@ describe('trace and span', () => {
         expect(urls).toHaveLength(0);
     });
 
-    it("views a run's trace: its spans in start order, with failures", async () => {
+    it("views a run's trace: a line per span, with failures and the span cap", async () => {
         terminal = true;
         const trace = {
             events: [],
@@ -193,6 +193,7 @@ describe('trace and span', () => {
             object: 'run_trace',
             run_id: RUN_ID,
             spans: [
+                span(),
                 span({
                     error_message: 'model timed out',
                     id: 'span-2',
@@ -201,7 +202,6 @@ describe('trace and span', () => {
                     started_at: '2026-11-04T10:00:02.000Z',
                     status: 'failed',
                 }),
-                span(),
             ],
         };
         reply = () => Response.json(trace);
@@ -269,7 +269,7 @@ describe('trace and span', () => {
         });
     });
 
-    it('says how to sign in for runs:read when the sign-in lacks it', async () => {
+    it('turns a 403 naming runs:read into the sign-in that asks for it', async () => {
         reply = () =>
             Response.json(
                 {
@@ -286,7 +286,7 @@ describe('trace and span', () => {
 
         expect(JSON.parse(stderr).error).toMatchObject({
             code: 'needs_permission',
-            fix: expect.stringContaining('--scope runs:read'),
+            fix: 'dexto login --device --scope runs:read',
         });
     });
 

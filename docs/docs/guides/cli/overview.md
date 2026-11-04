@@ -593,7 +593,7 @@ dexto trace view <run_id>                        # one run's spans in start orde
 dexto span list <run_id> --name llm.stream --sort duration --limit 5
 ```
 
-`trace list` takes `--period` (such as `15m`, `3h` or `7d`, at most `30d`), `--status`, `--session` and `--limit` (at most 100). `span list` takes `--name`, `--status` (`completed` or `failed`), `--sort` (`started_at` or `duration`) and `--limit` (at most 500). They print tables at a terminal and JSON with `--json` or when piped. Reading traces needs the `runs:read` permission: if your sign-in lacks it, the CLI says to sign in again with `dexto login --scope runs:read`.
+`trace list` takes `--period` (such as `15m`, `3h` or `7d`, at most `30d`), `--status`, `--session` and `--limit` (at most 100). `span list` takes `--name`, `--status` (`completed` or `failed`), `--sort` (`started_at` or `duration`) and `--limit` (at most 500). They print tables at a terminal and JSON with `--json` or when piped. Reading traces needs `runs:read`. If your sign-in lacks it, the CLI offers to sign in again for it, or prints `dexto login --scope runs:read`. An API key needs the `runs:read` permission: create one that has it.
 
 ## Your Dexto Workspace
 
