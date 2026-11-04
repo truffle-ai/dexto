@@ -1633,6 +1633,23 @@ describe('TurnExecutor Integration Tests', () => {
             expect(firstCallOptions?.abortSignal).toBeInstanceOf(AbortSignal);
         });
 
+        it('uses the requested reasoning for a prepared model step', async () => {
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
+            const driver = await executor.createDriver({ mcpManager }, { streaming: true });
+            try {
+                await driver.prepareNextModelStep({ reasoning: { variant: 'low' } });
+                expect(driver.checkpoint()).toEqual(
+                    expect.objectContaining({
+                        request: expect.objectContaining({
+                            reasoning: { reasoningVariant: 'low' },
+                        }),
+                    })
+                );
+            } finally {
+                driver.dispose();
+            }
+        });
+
         it('passes provider reasoning options through the model step request', async () => {
             const reasoningExecutor = new TurnExecutor(
                 createMockModel(),
