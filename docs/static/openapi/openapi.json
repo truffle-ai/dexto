@@ -31902,6 +31902,16 @@
           {
             "schema": {
               "type": "string",
+              "description": "Case-insensitive keyword search over content and tags; all whitespace-separated terms must match"
+            },
+            "required": false,
+            "description": "Case-insensitive keyword search over content and tags; all whitespace-separated terms must match",
+            "name": "query",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
               "description": "Maximum number of memories to return"
             },
             "required": false,

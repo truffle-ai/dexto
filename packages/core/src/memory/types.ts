@@ -75,6 +75,11 @@ export interface ListMemoriesOptions {
     source?: MemorySource;
     /** Filter by pinned status */
     pinned?: boolean;
+    /**
+     * Keyword search over content and tags (case-insensitive).
+     * Whitespace-separated terms must all match.
+     */
+    query?: string;
     /** Limit number of results */
     limit?: number;
     /** Skip first N results */
