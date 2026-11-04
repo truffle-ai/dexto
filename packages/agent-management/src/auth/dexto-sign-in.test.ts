@@ -288,6 +288,43 @@ describe('signInWithDevice', () => {
         expect(signedIn.clientId).toBe(DEXTO_CLI_CLIENT_ID);
     });
 
+    it('keeps polling through a dropped connection and a server error, as the code is still valid', async () => {
+        let polls = 0;
+        const server = fakeServer((call) => {
+            if (call.url.endsWith('/device_authorization'))
+                return {
+                    status: 200,
+                    body: {
+                        device_code: 'd',
+                        user_code: 'U',
+                        expires_in: 600,
+                        verification_uri: `${APP}/device`,
+                    },
+                };
+            if (call.url.endsWith('/token')) {
+                polls += 1;
+                if (polls === 1) throw new TypeError('fetch failed');
+                return { status: 200, body: tokenReply };
+            }
+            return undefined;
+        });
+        // A gateway error from the edge comes as HTML, not as an OAuth error.
+        const fetch: typeof globalThis.fetch = async (input, init) =>
+            String(input).endsWith('/token') && polls === 1
+                ? ((polls += 1), new Response('<html>502 Bad Gateway</html>', { status: 502 }))
+                : server.fetch(input, init);
+
+        const signedIn = await signInWithDevice(runtime(fetch), {
+            appUrl: APP,
+            apiBaseUrl: API,
+            organization: null,
+            extraScopes: [],
+        });
+
+        expect(polls).toBe(3);
+        expect(signedIn.clientId).toBe(DEXTO_CLI_CLIENT_ID);
+    });
+
     it('says when the person declined', async () => {
         const server = fakeServer((call) => {
             if (call.url.endsWith('/device_authorization'))

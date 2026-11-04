@@ -220,8 +220,10 @@ export async function signInWithDevice(
                 tokenEndpoint: server.token_endpoint,
             });
         } catch (error) {
+            // A dropped connection or a server error says nothing about the code: poll again.
+            if (error instanceof TypeError) continue;
             if (!(error instanceof OAuthHttpError)) throw error;
-            if (error.code === 'authorization_pending') continue;
+            if (error.status >= 500 || error.code === 'authorization_pending') continue;
             if (error.code === 'slow_down') {
                 intervalSeconds += 5;
                 continue;
@@ -366,15 +368,23 @@ const OAuthErrorSchema = z.object({
 
 async function readJson(response: Response, url: string): Promise<unknown> {
     const text = await response.text();
-    const body: unknown = text.length === 0 ? null : JSON.parse(text);
-    if (response.ok) return body;
-    const reply = OAuthErrorSchema.safeParse(body);
+    if (response.ok) return text.length === 0 ? null : JSON.parse(text);
+    const reply = OAuthErrorSchema.safeParse(parseOrNull(text));
     const code = reply.success ? (reply.data.error ?? null) : null;
     const description =
         (reply.success ? reply.data.error_description : undefined) ??
         code ??
         `HTTP ${response.status}`;
     throw new OAuthHttpError(response.status, code, `${new URL(url).pathname}: ${description}`);
+}
+
+/** An error reply's JSON, or null when it has none, such as a gateway's HTML error page. */
+function parseOrNull(text: string): unknown {
+    try {
+        return JSON.parse(text);
+    } catch {
+        return null;
+    }
 }
 
 async function withTimeout<T>(promise: Promise<T>, ms: number, signal: AbortSignal): Promise<T> {
