@@ -627,5 +627,30 @@
     "author": "CoinGecko",
     "homepage": "https://docs.coingecko.com/docs/mcp-server",
     "matchIds": ["coingecko"]
+  },
+  {
+    "id": "dreamtune",
+    "name": "Dreamtune",
+    "description": "Model requests, tool runs, GPU compute, prompts and request logs. Requires a scoped Dreamtune workspace API key and prepaid credit for paid operations.",
+    "category": "development",
+    "icon": "🔌",
+    "config": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "--package=@dreamtune/sdk@0.1.2", "dreamtune", "mcp"],
+      "env": {
+        "DREAMTUNE_API_KEY": "",
+        "DREAMTUNE_API_ORIGIN": "https://api.dreamtunelabs.com",
+        "DREAMTUNE_REQUEST_TIMEOUT_MS": "120000"
+      },
+      "timeout": 120000
+    },
+    "tags": ["ai", "models", "tools", "gpu", "observability"],
+    "isOfficial": false,
+    "isInstalled": false,
+    "requirements": { "platform": "all", "node": ">=22.20.0" },
+    "author": "Dreamtune",
+    "homepage": "https://docs.dreamtunelabs.com/connect/local-mcp",
+    "matchIds": ["dreamtune", "dreamtune-mcp"]
   }
 ]
