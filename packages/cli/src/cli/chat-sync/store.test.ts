@@ -70,14 +70,32 @@ describe('syncAllowed', () => {
     };
 
     it('turns sync off everywhere, per folder and its subfolders, and per chat', () => {
-        expect(syncAllowed(settings, { id: 'c', cwd: '/work/app' })).toBe(true);
-        expect(syncAllowed(settings, { id: 'c', cwd: null })).toBe(true);
-        expect(syncAllowed(settings, { id: 'c', cwd: '/work/secret-project' })).toBe(false);
-        expect(syncAllowed(settings, { id: 'c', cwd: '/work/secret-project/api' })).toBe(false);
-        expect(syncAllowed(settings, { id: 'c', cwd: '/work/secret-project-2' })).toBe(true);
-        expect(syncAllowed(settings, { id: 'private-chat', cwd: '/work/app' })).toBe(false);
-        expect(syncAllowed({ ...settings, sync: 'off' }, { id: 'c', cwd: '/work/app' })).toBe(
+        expect(syncAllowed(settings, { id: 'c', cwd: '/work/app', parentIds: [] })).toBe(true);
+        expect(syncAllowed(settings, { id: 'c', cwd: null, parentIds: [] })).toBe(true);
+        expect(syncAllowed(settings, { id: 'c', cwd: '/work/secret-project', parentIds: [] })).toBe(
             false
         );
+        expect(
+            syncAllowed(settings, { id: 'c', cwd: '/work/secret-project/api', parentIds: [] })
+        ).toBe(false);
+        expect(
+            syncAllowed(settings, { id: 'c', cwd: '/work/secret-project-2', parentIds: [] })
+        ).toBe(true);
+        expect(syncAllowed(settings, { id: 'private-chat', cwd: '/work/app', parentIds: [] })).toBe(
+            false
+        );
+        expect(
+            syncAllowed(settings, { id: 'fork', cwd: '/work/app', parentIds: ['private-chat'] })
+        ).toBe(false);
+        // A folder whose name starts with `..` is inside its parent.
+        expect(
+            syncAllowed(
+                { ...settings, projectsOff: ['/work'] },
+                { id: 'c', cwd: '/work/..app', parentIds: [] }
+            )
+        ).toBe(false);
+        expect(
+            syncAllowed({ ...settings, sync: 'off' }, { id: 'c', cwd: '/work/app', parentIds: [] })
+        ).toBe(false);
     });
 });

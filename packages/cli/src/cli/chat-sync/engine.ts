@@ -22,6 +22,8 @@ const MAX_TITLE_CHARS = 200;
 const DEFAULT_RETRY_AFTER_MS = 60_000;
 const PAUSE_RECHECK_MS = 5 * 60_000;
 const CHAT_LIMIT_RECHECK_MS = 60 * 60_000;
+/** After the server refused the sign-in: long enough not to ask again and again. */
+const REFUSED_RECHECK_MS = 15 * 60_000;
 const FIRST_FAILURE_WAIT_MS = 30_000;
 const LONGEST_FAILURE_WAIT_MS = 30 * 60_000;
 
@@ -32,7 +34,19 @@ export interface LocalChat {
     readonly cwd: string | null;
     readonly gitBranch: string | null;
     readonly messages: readonly InternalMessage[];
+    /** The chats it was forked from, nearest first: a fork of a private chat is private too. */
+    readonly parentIds: readonly string[];
 }
+
+/** What deleting a chat's cloud copy came to. */
+export type CloudDelete =
+    /** It never synced. */
+    | 'none'
+    | 'deleted'
+    /** Not deleted yet (offline, signed out, or a move is open): it is sent again later. */
+    | 'pending'
+    /** It continues in the cloud: delete it there. */
+    | 'in_cloud';
 
 /** The signed-in person's client, and the account the sync state is kept for. */
 export interface SyncConnection {
@@ -59,9 +73,9 @@ export interface ChatSync {
     /** Sends what the chat holds that its cloud copy doesn't, when it may sync. */
     readonly sync: (chatId: string) => Promise<void>;
     /** The local chat was deleted: delete its cloud copy, on every account it synced to. */
-    readonly deleteLocalChat: (chatId: string) => Promise<void>;
+    readonly deleteLocalChat: (chatId: string) => Promise<CloudDelete>;
     /** Never sync the chat again, and delete its cloud copy. */
-    readonly makePrivate: (chatId: string) => Promise<void>;
+    readonly makePrivate: (chatId: string) => Promise<CloudDelete>;
     /** Lets a private chat sync again, as a new cloud chat. */
     readonly makeShared: (chatId: string) => Promise<void>;
     /** Sends the deletes that failed before, for the signed-in account. */
@@ -77,8 +91,10 @@ export function createChatSync(deps: ChatSyncDeps): ChatSync {
     const running = new Map<string, Promise<void>>();
     /** No request before this time: a 429 or 413 asked to wait. */
     let waitUntil = 0;
-    /** The token lacks chats:sync or stopped working: nothing syncs until the CLI starts again. */
-    let refused = false;
+    /** The token lacks chats:sync or stopped working: nothing syncs until then, or a new sign-in. */
+    let refused: { until: number; account: string } | null = null;
+    /** One write at a time to an account's file: deletes and the chat limit share it. */
+    const accountWrites = new Map<string, Promise<unknown>>();
     /** Per chat, after a failure: the next try, and how many failed in a row. */
     const failures = new Map<string, { retryAt: number; count: number }>();
     const noted = new Set<string>();
@@ -89,17 +105,41 @@ export function createChatSync(deps: ChatSyncDeps): ChatSync {
         deps.note(text);
     };
 
-    const serialized = (chatId: string, work: () => Promise<void>): Promise<void> => {
+    const serialized = <T>(chatId: string, work: () => Promise<T>): Promise<T> => {
         const previous = running.get(chatId) ?? Promise.resolve();
         const next = previous.then(work, work);
-        running.set(chatId, next);
-        return next.finally(() => {
-            if (running.get(chatId) === next) running.delete(chatId);
+        const settled = next.then(
+            () => undefined,
+            () => undefined
+        );
+        running.set(chatId, settled);
+        void settled.finally(() => {
+            if (running.get(chatId) === settled) running.delete(chatId);
         });
+        return next;
+    };
+
+    const withAccount = <T>(account: string, work: () => Promise<T>): Promise<T> => {
+        const previous = accountWrites.get(account) ?? Promise.resolve();
+        const next = previous.then(work, work);
+        accountWrites.set(
+            account,
+            next.then(
+                () => undefined,
+                () => undefined
+            )
+        );
+        return next;
+    };
+
+    /** Whether the settings still let the chat sync: checked before each batch, too. */
+    const mayStillSync = async (chat: LocalChat): Promise<boolean> => {
+        const settings = await deps.store.readSettings();
+        return settings.noticeShownAt !== null && syncAllowed(settings, chat);
     };
 
     async function syncNow(chatId: string): Promise<void> {
-        if (refused || deps.now() < waitUntil) return;
+        if (deps.now() < waitUntil) return;
         const failure = failures.get(chatId);
         if (failure !== undefined && deps.now() < failure.retryAt) return;
 
@@ -109,6 +149,7 @@ export function createChatSync(deps: ChatSyncDeps): ChatSync {
         if (chat === null || !syncAllowed(settings, chat)) return;
         const connection = await deps.connect();
         if (connection === null) return;
+        if (refused?.account === connection.account && deps.now() < refused.until) return;
 
         const saved = await deps.store.readChat(connection.account, chatId);
         if (saved?.status === 'stopped') return;
@@ -129,9 +170,10 @@ export function createChatSync(deps: ChatSyncDeps): ChatSync {
         const messages = toSyncedMessages(chat.messages);
         let batchLimit = MAX_BATCH_MESSAGES;
         while (state.sentCount < messages.length) {
-            // Signing out stops a sync between batches.
+            // Signing out, /sync off and /private stop a sync between batches.
             const current = await deps.connect();
             if (current === null || current.account !== connection.account) return;
+            if (!(await mayStillSync(chat))) return;
             const batch = takeBatch(messages.slice(state.sentCount), batchLimit);
             const body: Body = {
                 from_index: state.nextIndex,
@@ -226,7 +268,7 @@ export function createChatSync(deps: ChatSyncDeps): ChatSync {
                 };
             case 401:
             case 403:
-                refused = true;
+                refused = { until: deps.now() + REFUSED_RECHECK_MS, account };
                 noteOnce(
                     'refused',
                     error.status === 403 && hasScope(error.details, 'chats:sync')
@@ -286,11 +328,12 @@ export function createChatSync(deps: ChatSyncDeps): ChatSync {
                 return { kind: 'rewind', state: { ...state, nextIndex: next, sentCount } };
             }
             case 'synced_chat_limit': {
-                const saved = await deps.store.readAccount(account);
-                await deps.store.writeAccount(account, {
-                    ...saved,
-                    chatLimitUntil: new Date(deps.now() + CHAT_LIMIT_RECHECK_MS).toISOString(),
-                });
+                await withAccount(account, async () =>
+                    deps.store.writeAccount(account, {
+                        ...(await deps.store.readAccount(account)),
+                        chatLimitUntil: new Date(deps.now() + CHAT_LIMIT_RECHECK_MS).toISOString(),
+                    })
+                );
                 noteOnce(
                     'chat_limit',
                     `Dexto Cloud keeps up to ${SYNCED_CHAT_LIMIT.toLocaleString('en-US')} synced chats for you, and you have reached that. New chats stay on this machine only; chats already synced keep syncing. Deleting a synced chat makes room: delete it in Dexto Cloud, or delete the local chat with dexto chat delete.`
@@ -316,27 +359,31 @@ export function createChatSync(deps: ChatSyncDeps): ChatSync {
     }
 
     /** Deletes the account's pending cloud chats; keeps those it could not delete yet. */
-    async function deletePending(connection: SyncConnection): Promise<void> {
-        const account = await deps.store.readAccount(connection.account);
-        const left: string[] = [];
-        let deleted = false;
-        for (const cloudChatId of account.pendingDeletes) {
-            const outcome = await deleteCloudChat(connection.client, cloudChatId);
-            if (outcome === 'deleted') deleted = true;
-            if (outcome === 'retry') left.push(cloudChatId);
-        }
-        await deps.store.writeAccount(connection.account, {
-            ...(await deps.store.readAccount(connection.account)),
-            pendingDeletes: left,
-            // A delete makes room, so new chats may sync again at once.
-            ...(deleted && { chatLimitUntil: null }),
+    function deletePending(connection: SyncConnection): Promise<Map<string, CloudDelete>> {
+        return withAccount(connection.account, async () => {
+            const outcomes = new Map<string, CloudDelete>();
+            const { pendingDeletes } = await deps.store.readAccount(connection.account);
+            for (const cloudChatId of pendingDeletes)
+                outcomes.set(cloudChatId, await deleteCloudChat(connection.client, cloudChatId));
+            const current = await deps.store.readAccount(connection.account);
+            const deleted = [...outcomes.values()].includes('deleted');
+            await deps.store.writeAccount(connection.account, {
+                ...current,
+                // Deletes added while these were sent stay.
+                pendingDeletes: current.pendingDeletes.filter(
+                    (id) => (outcomes.get(id) ?? 'pending') === 'pending'
+                ),
+                // A delete makes room, so new chats may sync again at once.
+                ...(deleted && { chatLimitUntil: null }),
+            });
+            return outcomes;
         });
     }
 
     async function deleteCloudChat(
         client: CloudClient,
         cloudChatId: string
-    ): Promise<'deleted' | 'gone' | 'retry'> {
+    ): Promise<Exclude<CloudDelete, 'none'>> {
         try {
             await unwrap(
                 await client.DELETE('/v1/synced_chats/{chat_id}', {
@@ -345,38 +392,42 @@ export function createChatSync(deps: ChatSyncDeps): ChatSync {
             );
             return 'deleted';
         } catch (error) {
-            if (!(error instanceof CloudApiError)) return 'retry';
-            if (error.status === 404) return 'gone';
-            if (error.code === 'chat_in_cloud') {
-                noteOnce(
-                    `in_cloud:${cloudChatId}`,
-                    'This chat continues in Dexto Cloud, so its copy there was not deleted. Delete it in Dexto Cloud.'
-                );
-                return 'gone';
-            }
+            if (!(error instanceof CloudApiError)) return 'pending';
+            // Already gone, as a delete in Dexto Cloud leaves it.
+            if (error.status === 404) return 'deleted';
+            if (error.code === 'chat_in_cloud') return 'in_cloud';
             // move_in_progress, a rate limit or a server failure: try again later.
-            return 'retry';
+            return 'pending';
         }
     }
 
     /** Moves the chat's cloud copy, on every account it synced to, to that account's deletes. */
-    async function forgetEverywhere(chatId: string): Promise<void> {
+    async function forgetEverywhere(chatId: string): Promise<CloudDelete> {
+        const cloudChatIds: string[] = [];
         for (const account of await deps.store.listAccounts()) {
             const state = await deps.store.readChat(account, chatId);
             if (state === null) continue;
-            if (state.cloudChatId !== null) {
-                const saved = await deps.store.readAccount(account);
-                if (!saved.pendingDeletes.includes(state.cloudChatId))
-                    await deps.store.writeAccount(account, {
-                        ...saved,
-                        pendingDeletes: [...saved.pendingDeletes, state.cloudChatId],
-                    });
+            const cloudChatId = state.cloudChatId;
+            if (cloudChatId !== null) {
+                cloudChatIds.push(cloudChatId);
+                await withAccount(account, async () => {
+                    const saved = await deps.store.readAccount(account);
+                    if (!saved.pendingDeletes.includes(cloudChatId))
+                        await deps.store.writeAccount(account, {
+                            ...saved,
+                            pendingDeletes: [...saved.pendingDeletes, cloudChatId],
+                        });
+                });
             }
             await deps.store.forgetChat(account, chatId);
         }
         failures.delete(chatId);
+        if (cloudChatIds.length === 0) return 'none';
         const connection = await deps.connect();
-        if (connection !== null) await deletePending(connection);
+        const outcomes = connection === null ? new Map() : await deletePending(connection);
+        const results = cloudChatIds.map((id) => outcomes.get(id) ?? 'pending');
+        if (results.includes('in_cloud')) return 'in_cloud';
+        return results.includes('pending') ? 'pending' : 'deleted';
     }
 
     return {
@@ -390,7 +441,7 @@ export function createChatSync(deps: ChatSyncDeps): ChatSync {
                         ...settings,
                         privateChats: [...settings.privateChats, chatId],
                     });
-                await forgetEverywhere(chatId);
+                return await forgetEverywhere(chatId);
             }),
         makeShared: (chatId) =>
             serialized(chatId, async () => {

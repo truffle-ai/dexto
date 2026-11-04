@@ -128,12 +128,69 @@ export function redactSecrets(text: string): string {
 /** File names whose contents never leave the machine, matched on the path's last segment. */
 const SECRET_FILE_NAME =
     /^(?:\.env(?:\..*)?|\.dev\.vars|.*\.(?:pem|key|p12|pfx|jks|keystore|tfstate|tfstate\.backup|tfvars)|id_(?:rsa|dsa|ecdsa|ed25519).*|\.npmrc|\.netrc|\.pgpass|\.pypirc|\.htpasswd|\.git-credentials|\.dockercfg|kubeconfig|credentials.*|service-account.*\.json|secrets?\.(?:json|ya?ml|toml)|token\.txt)$/iu;
-const SECRET_DIRECTORY = /(?:^|[\\/])\.(?:ssh|aws|gnupg|kube|docker)[\\/]/iu;
+// Stricter than the server's, which matches only a path inside one of these folders: the client
+// also counts the folder itself (`cd ~/.kube`), where a command's later words name no secret file.
+const SECRET_DIRECTORY = /(?:^|[\\/])\.(?:ssh|aws|gnupg|kube|docker)(?:[\\/]|$)/iu;
+/** Also client-only: direnv's `.envrc`, which holds the same values as `.env`. */
+const CLIENT_SECRET_FILE_NAME = /^\.envrc$/iu;
+/** Names a glob such as `.env*` or `.e?v` is tested against: a glob that could match one is secret. */
+const SECRET_NAME_SAMPLES = [
+    '.env',
+    '.env.local',
+    '.envrc',
+    '.dev.vars',
+    'id_rsa',
+    'id_ed25519',
+    '.npmrc',
+    '.netrc',
+    '.pgpass',
+    '.pypirc',
+    '.git-credentials',
+    'credentials',
+    'secrets.json',
+    'kubeconfig',
+    'server.pem',
+    'server.key',
+];
 
-/** Whether a path is secret-shaped: its name, in any case, or a secret directory on the way to it. */
+/**
+ * Whether a path is secret-shaped: its name, in any case, a glob that could match such a name,
+ * or a secret directory, itself or on the way to it.
+ */
 export function isSecretPath(path: string): boolean {
     const name = path.split(/[\\/]/u).at(-1) ?? path;
-    return SECRET_FILE_NAME.test(name) || SECRET_DIRECTORY.test(path);
+    if (SECRET_FILE_NAME.test(name) || CLIENT_SECRET_FILE_NAME.test(name)) return true;
+    if (SECRET_DIRECTORY.test(path)) return true;
+    // A glob of wildcards alone (`*`, `.*`) names no file in particular.
+    const literal = name.replaceAll(/[*?]|\[[^\]]*\]?/gu, '');
+    return (
+        /[*?[]/u.test(name) &&
+        literal.length >= 2 &&
+        SECRET_NAME_SAMPLES.some((sample) => globMatches(name, sample))
+    );
+}
+
+/**
+ * The least of a secret-shaped path that still shows it is one: from the secret folder on
+ * (`.ssh/id_ed25519`), else its name (`.env`). The rest, such as the URL around it, stays here.
+ */
+export function secretPathTail(path: string): string {
+    const folder = /(?:^|[\\/])(\.(?:ssh|aws|gnupg|kube|docker)(?:[\\/].*)?)$/iu.exec(path);
+    if (folder?.[1] !== undefined) return folder[1];
+    return path.split(/[\\/]/u).at(-1) ?? path;
+}
+
+function globMatches(glob: string, name: string): boolean {
+    const pattern = glob
+        .replaceAll(/[.+^${}()|\\]/gu, '\\$&')
+        .replaceAll('*', '.*')
+        .replaceAll('?', '.');
+    try {
+        return new RegExp(`^${pattern}$`, 'iu').test(name);
+    } catch {
+        // An unclosed `[`: count it as able to match.
+        return true;
+    }
 }
 
 /** The marker that replaces a tool's input and output for a secret-shaped path, or null for other paths. */

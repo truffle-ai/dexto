@@ -80,7 +80,12 @@ export interface ChatSyncStore {
     readonly writeAccount: (account: string, state: AccountSyncState) => Promise<void>;
     /** Every account that has sync state on this machine. */
     readonly listAccounts: () => Promise<string[]>;
+    /** The folder a chat works in, kept from when sync first saw it; null when not kept yet. */
+    readonly readChatFolder: (chatId: string) => Promise<string | null>;
+    readonly writeChatFolder: (chatId: string, folder: string) => Promise<void>;
 }
+
+const ChatFolderSchema = z.object({ folder: z.string().min(1) }).strict();
 
 /** The store under `dir`, normally `~/.dexto/chat-sync`. */
 export function chatSyncStore(dir: string): ChatSyncStore {
@@ -93,7 +98,15 @@ export function chatSyncStore(dir: string): ChatSyncStore {
         if (!LOCAL_CHAT_ID.test(chatId)) throw new Error(`${chatId} can't name a synced chat.`);
         return path.join(accountDir(account), 'chats', `${chatId}.json`);
     };
+    const folderFile = (chatId: string) => {
+        if (!LOCAL_CHAT_ID.test(chatId)) throw new Error(`${chatId} can't name a synced chat.`);
+        return path.join(dir, 'folders', `${chatId}.json`);
+    };
     return {
+        readChatFolder: async (chatId) =>
+            (await readJson(folderFile(chatId), ChatFolderSchema))?.folder ?? null,
+        writeChatFolder: async (chatId, folder) =>
+            writeJson(dir, folderFile(chatId), ChatFolderSchema.parse({ folder })),
         async readSettings() {
             const saved = await readJson(settingsFile, SettingsSchema);
             if (saved !== null) return saved;
@@ -128,7 +141,12 @@ export function chatSyncStore(dir: string): ChatSyncStore {
             try {
                 const entries = await readdir(dir, { withFileTypes: true });
                 return entries
-                    .filter((entry) => entry.isDirectory() && ACCOUNT_KEY.test(entry.name))
+                    .filter(
+                        (entry) =>
+                            entry.isDirectory() &&
+                            entry.name !== 'folders' &&
+                            ACCOUNT_KEY.test(entry.name)
+                    )
                     .map((entry) => entry.name);
             } catch (error) {
                 if (error instanceof Error && 'code' in error && error.code === 'ENOENT') return [];
@@ -144,19 +162,27 @@ export function chatSyncStore(dir: string): ChatSyncStore {
     };
 }
 
-/** The settings say this chat may sync: sync on, its folder not opted out, the chat not private. */
+/**
+ * The settings say this chat may sync: sync on, its folder not opted out, neither it nor a chat it
+ * was forked from private.
+ */
 export function syncAllowed(
     settings: ChatSyncSettings,
-    chat: { readonly id: string; readonly cwd: string | null }
+    chat: {
+        readonly id: string;
+        readonly cwd: string | null;
+        readonly parentIds: readonly string[];
+    }
 ): boolean {
-    if (settings.sync === 'off' || settings.privateChats.includes(chat.id)) return false;
+    if (settings.sync === 'off') return false;
+    if ([chat.id, ...chat.parentIds].some((id) => settings.privateChats.includes(id))) return false;
     const cwd = chat.cwd;
     return cwd === null || !settings.projectsOff.some((folder) => isInside(cwd, folder));
 }
 
 function isInside(child: string, parent: string): boolean {
     const relative = path.relative(parent, child);
-    return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
+    return relative === '' || (relative.split(path.sep)[0] !== '..' && !path.isAbsolute(relative));
 }
 
 async function readJson<Schema extends z.ZodType>(
@@ -170,8 +196,14 @@ async function readJson<Schema extends z.ZodType>(
         if (error instanceof Error && 'code' in error && error.code === 'ENOENT') return null;
         throw error;
     }
-    const parsed = schema.safeParse(JSON.parse(text));
     // A file another version wrote, or one cut short, starts that state over.
+    let json: unknown;
+    try {
+        json = JSON.parse(text);
+    } catch {
+        return null;
+    }
+    const parsed = schema.safeParse(json);
     return parsed.success ? parsed.data : null;
 }
 

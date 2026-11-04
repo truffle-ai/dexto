@@ -171,9 +171,9 @@ describe('toSyncedMessages', () => {
         const parts = message?.parts.filter((part) => part.type === 'tool') ?? [];
 
         expect(parts.map((part) => part.type === 'tool' && part.path)).toEqual([
-            '/repo/.env',
-            '~/.ssh/id_ed25519',
-            '/repo/config/secrets.yaml',
+            '.env',
+            '.ssh/id_ed25519',
+            'secrets.yaml',
         ]);
         for (const part of parts) {
             if (part.type !== 'tool') continue;
@@ -262,4 +262,116 @@ describe('toSyncedMessages', () => {
             '2026-11-04T10:00:00.000Z',
         ]);
     });
+
+    it('leaves out a secret file a message mentions with @, keeping the rest of the message', () => {
+        const text = [
+            'Why does the app fail?',
+            '--- Content from resource: .env (fs:///repo/.env) ---',
+            'DB_PWD=hunter2',
+            'SESSION_SALT=pepper',
+            '--- End of resource content ---',
+            '',
+            '--- Content from resource: README.md (fs:///repo/README.md) ---',
+            'Run pnpm dev.',
+            '--- End of resource content ---',
+        ].join('\n');
+        const [message] = toSyncedMessages([user(text)]);
+        const sent = JSON.stringify(message);
+
+        expect(sent).not.toMatch(/hunter2|pepper/u);
+        expect(sent).toContain('[excluded: secret file .env]');
+        expect(sent).toContain('Run pnpm dev.');
+        expect(sent).toContain('Why does the app fail?');
+    });
+
+    it("leaves out a background command's later output when the command read a secret file", () => {
+        const calls = [
+            {
+                id: 'c1',
+                name: 'bash_exec',
+                args: { command: 'cat .env', run_in_background: true },
+            },
+            { id: 'c2', name: 'bash_output', args: { process_id: 'proc-7' } },
+        ];
+        const message = toSyncedMessages([
+            assistant(null, calls),
+            tool('c1', 'bash_exec', '{"process_id":"proc-7","status":"running"}'),
+            tool('c2', 'bash_output', 'DB_PWD=hunter2'),
+        ])[0];
+        const later = message?.parts[1];
+
+        expect(later?.type === 'tool' && later.output).toMatch(/^\[excluded: secret file/u);
+        expect(JSON.stringify(message)).not.toContain('hunter2');
+    });
+
+    it('leaves out a diff that shows a secret file', () => {
+        const calls = [{ id: 'c1', name: 'bash_exec', args: { command: 'git log -p -1' } }];
+        const part = toolPart(
+            toSyncedMessages([
+                assistant(null, calls),
+                tool('c1', 'bash_exec', 'diff --git a/.env b/.env\n+++ b/.env\n+DB_PWD=hunter2'),
+            ])
+        );
+
+        expect(part.output).toBe('[excluded: secret file .env]');
+    });
+
+    it('never sends what a search of other chats found', () => {
+        const calls = [{ id: 'c1', name: 'search_history', args: { query: 'deploy' } }];
+        const part = toolPart(
+            toSyncedMessages([
+                assistant(null, calls),
+                tool('c1', 'search_history', 'From a private chat: the launch is on Friday'),
+            ])
+        );
+
+        expect(part.output).not.toContain('launch');
+    });
+
+    it('keeps a message within 64,000 characters as the server renders it, headers and fences included', () => {
+        const calls = Array.from({ length: 16 }, (_, index) => ({
+            id: `c${index}`,
+            name: 'read_file',
+            args: { file_path: `/repo/src/${index}.ts` },
+        }));
+        const [message] = toSyncedMessages([
+            assistant(null, calls),
+            ...calls.map((call) => tool(call.id, call.name, 'q'.repeat(3_960))),
+        ]);
+
+        expect(renderedLength(message?.parts ?? [])).toBeLessThanOrEqual(MAX_MESSAGE_CHARS);
+    });
+
+    it('redacts a secret-shaped path before sending it', () => {
+        const calls = [
+            {
+                id: 'c1',
+                name: 'bash_exec',
+                args: { command: 'curl https://u:hunter2@example.com/.env' },
+            },
+        ];
+        const part = toolPart(
+            toSyncedMessages([assistant(null, calls), tool('c1', 'bash_exec', 'x')])
+        );
+
+        expect(part.path).not.toContain('hunter2');
+    });
 });
+
+/** The server's rendering (`apps/cloud/src/chat-sync/render.ts`), for its length. */
+function renderedLength(parts: ReturnType<typeof toSyncedMessages>[number]['parts']): number {
+    const fenced = (text: string) => {
+        const run = Math.max(0, ...(text.match(/`+/gu) ?? []).map((ticks) => ticks.length));
+        const fence = '`'.repeat(Math.max(3, run + 1));
+        return `${fence}\n${text}\n${fence}`;
+    };
+    return parts
+        .map((part) => {
+            if (part.type === 'text') return part.text;
+            if (part.type === 'attachment')
+                return `[attachment: ${part.name} (${part.mime_type}, ${part.size_bytes} bytes)]`;
+            const call = `**Tool call: ${part.name}**\n${fenced(part.input)}`;
+            return part.output === null ? call : `${call}\n**Output**\n${fenced(part.output)}`;
+        })
+        .join('\n\n').length;
+}

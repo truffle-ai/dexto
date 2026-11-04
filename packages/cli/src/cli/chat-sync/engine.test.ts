@@ -98,7 +98,14 @@ function chat(id: string, count: number, cwd: string | null = '/work/app'): Test
     const messages = Array.from({ length: count }, (_, index) =>
         said(index % 2 === 0 ? 'user' : 'assistant', `message ${index}`)
     );
-    const local: TestChat = { id, cwd, gitBranch: 'main', title: `Chat ${id}`, messages };
+    const local: TestChat = {
+        id,
+        cwd,
+        gitBranch: 'main',
+        title: `Chat ${id}`,
+        messages,
+        parentIds: [],
+    };
     chats.set(id, local);
     return local;
 }
@@ -505,7 +512,7 @@ describe('deleting and making a chat private', () => {
         expect((await store.readAccount(ACCOUNT)).pendingDeletes).toEqual([]);
     });
 
-    it('says where to delete a chat that continues in the cloud', async () => {
+    it('says when a chat that continues in the cloud was not deleted', async () => {
         const server = fakeServer((request) =>
             request.method === 'DELETE' ? refusal(409, 'chat_in_cloud') : synced(request.body)
         );
@@ -513,10 +520,46 @@ describe('deleting and making a chat private', () => {
         chat('s1', 1);
         await sync.sync('s1');
 
-        await sync.deleteLocalChat('s1');
-
-        expect(notes.join('\n')).toMatch(/continues in Dexto Cloud/u);
+        expect(await sync.deleteLocalChat('s1')).toBe('in_cloud');
         expect((await store.readAccount(ACCOUNT)).pendingDeletes).toEqual([]);
+    });
+
+    it('keeps a delete added while other deletes were being sent', async () => {
+        let releaseFirst: () => void = () => undefined;
+        const firstDelete = new Promise<void>((resolve) => {
+            releaseFirst = resolve;
+        });
+        let deletes = 0;
+        const server = fakeServer((request) => {
+            if (request.method !== 'DELETE')
+                return synced(
+                    request.body,
+                    request.body?.local_chat_id === 'a' ? CLOUD_CHAT : OTHER_CLOUD_CHAT
+                );
+            deletes += 1;
+            return deletes === 1
+                ? { status: 200, body: { deleted: true, id: CLOUD_CHAT, object: 'synced_chat' } }
+                : refusal(429, 'rate_limited', undefined, { 'retry-after': '1' });
+        });
+        const slowFetch = server.fetch;
+        server.fetch = async (input, init) => {
+            const request =
+                input instanceof globalThis.Request ? input : new globalThis.Request(input, init);
+            if (request.method === 'DELETE' && deletes === 0) await firstDelete;
+            return slowFetch(request);
+        };
+        const sync = engine(server);
+        chat('a', 1);
+        chat('b', 1);
+        await sync.sync('a');
+        await sync.sync('b');
+
+        const deletingA = sync.deleteLocalChat('a');
+        const deletingB = sync.makePrivate('b');
+        releaseFirst();
+        await Promise.all([deletingA, deletingB]);
+
+        expect((await store.readAccount(ACCOUNT)).pendingDeletes).toEqual([OTHER_CLOUD_CHAT]);
     });
 
     it('deletes after an open move ends', async () => {
@@ -537,5 +580,53 @@ describe('deleting and making a chat private', () => {
         await sync.sendPendingDeletes();
 
         expect((await store.readAccount(ACCOUNT)).pendingDeletes).toEqual([]);
+    });
+
+    it('never syncs a chat forked from a private chat', async () => {
+        const server = fakeServer((request) => synced(request.body));
+        const sync = engine(server);
+        await store.writeSettings({ ...(await store.readSettings()), privateChats: ['parent'] });
+        chats.set('fork', { ...chat('fork', 2), parentIds: ['parent'] });
+
+        await sync.sync('fork');
+
+        expect(server.sent).toEqual([]);
+    });
+});
+
+describe('opting out while a chat syncs', () => {
+    it('stops before the next batch when sync is turned off', async () => {
+        const server = fakeServer((request) => synced(request.body));
+        const answer = server.fetch;
+        // The person turns sync off while the first batch is on its way.
+        server.fetch = async (input, init) => {
+            const response = await answer(input, init);
+            await store.writeSettings({ ...(await store.readSettings()), sync: 'off' });
+            return response;
+        };
+        const sync = engine(server);
+        chat('s1', 450);
+
+        await sync.sync('s1');
+
+        expect(server.posts()).toHaveLength(1);
+    });
+
+    it('asks a refused sign-in again after a while, not on every run', async () => {
+        let refuse = true;
+        const server = fakeServer((request) =>
+            refuse ? refusal(401, 'unauthorized') : synced(request.body)
+        );
+        const sync = engine(server);
+        chat('s1', 1);
+
+        await sync.sync('s1');
+        await sync.sync('s1');
+        expect(server.posts()).toHaveLength(1);
+
+        refuse = false;
+        now += 15 * 60_000;
+        await sync.sync('s1');
+        expect(server.posts()).toHaveLength(2);
     });
 });

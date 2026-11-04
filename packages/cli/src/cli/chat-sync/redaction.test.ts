@@ -7,6 +7,7 @@ import {
     excludeSecretFile,
     redactSecrets,
     excludeSecretFileInCommand,
+    isSecretPath,
 } from './redaction.js';
 
 // Fixtures are assembled at runtime so no literal credential sits in the repository.
@@ -362,5 +363,33 @@ describe('countMarkers', () => {
                 '[redacted:jwt] and [redacted:jwt], [redacted:assignment], [excluded: secret file .env] [excluded: secret file]'
             )
         ).toEqual({ assignment: 1, jwt: 2, secret_file: 2 });
+    });
+});
+
+describe('isSecretPath, stricter on the client than on the server', () => {
+    it('counts a secret folder itself, .envrc, and a glob that could name a secret file', () => {
+        for (const path of [
+            '~/.kube',
+            '.ssh',
+            '/home/x/.aws',
+            '.envrc',
+            '.env*',
+            '.e?v',
+            '*.key',
+            'id_*',
+        ])
+            expect(isSecretPath(path), path).toBe(true);
+    });
+
+    it('leaves wildcards alone and names that only look alike', () => {
+        for (const path of ['*', '.*', '*.ts', 'src/**', '.environment', 'kube', '.sshrc'])
+            expect(isSecretPath(path), path).toBe(false);
+    });
+
+    it('excludes a command that works in a secret folder', () => {
+        expect(excludeSecretFileInCommand('cd ~/.kube && cat config')).toBe(
+            '[excluded: secret file .kube]'
+        );
+        expect(excludeSecretFileInCommand('cat .env*')).toMatch(/^\[excluded: secret file/u);
     });
 });
