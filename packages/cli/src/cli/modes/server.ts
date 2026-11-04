@@ -5,13 +5,6 @@ export async function runServerMode(context: MainModeContext): Promise<void> {
     const { agent, opts, workspaceRoot, derivedAgentId, resolvedPath, getVersionCheckResult } =
         context;
 
-    // Deleting a chat here deletes its synced copy in Dexto Cloud too.
-    const { isDextoAuthEnabled } = await import('@dexto/agent-management');
-    if (isDextoAuthEnabled()) {
-        const { deleteCloudCopiesWithChats } = await import('../chat-sync/node.js');
-        deleteCloudCopiesWithChats(agent);
-    }
-
     const { startHonoApiServer } = await import('../../api/server-hono.js');
 
     const agentCard = agent.config.agentCard ?? {};

@@ -64,7 +64,7 @@ export function createChatSyncHost(deps: ChatSyncHostDeps): ChatSyncHost {
         work.catch((error: unknown) => {
             if (!(error instanceof UnreadableSettingsError) || unreadableNoted) return;
             unreadableNoted = true;
-            void notify(error.message);
+            void notify(error.message).catch(() => undefined);
         });
 
     const engine = createChatSync({

@@ -6,13 +6,6 @@ export async function runWebMode(context: MainModeContext): Promise<void> {
     const { agent, opts, workspaceRoot, derivedAgentId, resolvedPath, getVersionCheckResult } =
         context;
 
-    // Deleting a chat here deletes its synced copy in Dexto Cloud too.
-    const { isDextoAuthEnabled } = await import('@dexto/agent-management');
-    if (isDextoAuthEnabled()) {
-        const { deleteCloudCopiesWithChats } = await import('../chat-sync/node.js');
-        deleteCloudCopiesWithChats(agent);
-    }
-
     const [{ resolveWebRoot }, { startHonoApiServer }, { getWebUIAnalyticsConfig }] =
         await Promise.all([
             import('../../web.js'),
