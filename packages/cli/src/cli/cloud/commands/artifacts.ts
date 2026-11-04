@@ -234,7 +234,7 @@ const share: Command = {
     summary:
         'Change who can open an Artifact: only you, your organization, or anyone with its link.',
     async run(context, input) {
-        await requireLoginScopes(context, ['apps:execute']);
+        await requireLoginScopes(context, ['apps:read', 'apps:execute']);
         const visibility = choice(input, 'visibility', VISIBILITIES);
         if (visibility === undefined) throw new UsageError('--visibility is required.');
         const artifactId = argument(input, 0, 'artifact_id');
