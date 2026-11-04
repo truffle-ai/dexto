@@ -105,6 +105,9 @@ export function createChatSyncHost(deps: ChatSyncHostDeps): ChatSyncHost {
             return { kind: 'off_in_project', folder: optedOutFolder(settings.projectsOff, cwd) };
         const signIn = await deps.signIn();
         if (signIn.kind !== 'ready') return { kind: signIn.kind };
+        const saved =
+            chatId === null ? null : await deps.store.readChat(signIn.connection.account, chatId);
+        if (saved?.status === 'stopped') return { kind: 'stopped', reason: saved.reason };
         const account = await deps.store.readAccount(signIn.connection.account);
         const limitReached =
             account.chatLimitUntil !== null && deps.now() < Date.parse(account.chatLimitUntil);
@@ -116,26 +119,34 @@ export function createChatSyncHost(deps: ChatSyncHostDeps): ChatSyncHost {
         if (args.length === 0) return statusText(await status(chatId));
         if ((setting !== 'on' && setting !== 'off') || rest.length > 0) return USAGE.sync;
         if (scope !== undefined && scope !== 'project') return USAGE.sync;
-        const settings = await deps.store.readSettings();
         const on = setting === 'on';
         let reply: string;
         if (scope === 'project') {
-            // On: every opted-out folder holding this one syncs again, so name them.
-            const holding = settings.projectsOff.filter((folder) => isInside(deps.cwd, folder));
-            await deps.store.writeSettings({
-                ...settings,
-                projectsOff: on
-                    ? settings.projectsOff.filter((folder) => !holding.includes(folder))
-                    : [...new Set([...settings.projectsOff, deps.cwd])],
+            // The chat's own folder: a chat resumed elsewhere keeps the folder it started in.
+            const folder =
+                (chatId === null ? null : (await deps.readChat(chatId))?.cwd) ?? deps.cwd;
+            let holding: string[] = [];
+            const settings = await deps.store.updateSettings((current) => {
+                // On: every opted-out folder holding this one syncs again, so name them.
+                holding = current.projectsOff.filter((off) => isInside(folder, off));
+                return {
+                    ...current,
+                    projectsOff: on
+                        ? current.projectsOff.filter((off) => !holding.includes(off))
+                        : [...new Set([...current.projectsOff, folder])],
+                };
             });
-            const folders = holding.length === 0 ? deps.cwd : holding.join(', ');
+            const folders = holding.length === 0 ? folder : holding.join(', ');
             reply = !on
-                ? REPLIES.projectOff(deps.cwd)
+                ? REPLIES.projectOff(folder)
                 : settings.sync === 'off'
                   ? REPLIES.projectOnStillOff(folders)
                   : REPLIES.projectOn(folders);
         } else {
-            await deps.store.writeSettings({ ...settings, sync: on ? 'on' : 'off' });
+            await deps.store.updateSettings((current) => ({
+                ...current,
+                sync: on ? 'on' : 'off',
+            }));
             if (!on) return REPLIES.syncOff;
             // Turning sync on is the person's own choice: no first-run notice after it.
             await markNoticeShown(deps.store, deps.now());
@@ -144,7 +155,8 @@ export function createChatSyncHost(deps: ChatSyncHostDeps): ChatSyncHost {
                     ? REPLIES.syncOnNeedsLogin
                     : REPLIES.syncOn;
         }
-        if (on && chatId !== null) await engine.sync(chatId);
+        // The setting is saved: the reply doesn't wait for a whole chat to upload.
+        if (on && chatId !== null) void engine.sync(chatId).catch(() => undefined);
         return reply;
     }
 
@@ -153,7 +165,7 @@ export function createChatSyncHost(deps: ChatSyncHostDeps): ChatSyncHost {
         if (chatId === null) return REPLIES.noChat;
         if (args[0] === 'off') {
             await engine.makeShared(chatId);
-            await syncAfterNotice(chatId);
+            void syncAfterNotice(chatId).catch(() => undefined);
             return REPLIES.madeShared;
         }
         return madePrivateReply(await engine.makePrivate(chatId));
@@ -186,9 +198,10 @@ export function createChatSyncHost(deps: ChatSyncHostDeps): ChatSyncHost {
 }
 
 async function markNoticeShown(store: ChatSyncStore, now: number): Promise<void> {
-    const settings = await store.readSettings();
-    if (settings.noticeShownAt === null)
-        await store.writeSettings({ ...settings, noticeShownAt: new Date(now).toISOString() });
+    await store.updateSettings((settings) => ({
+        ...settings,
+        noticeShownAt: settings.noticeShownAt ?? new Date(now).toISOString(),
+    }));
 }
 
 export function madePrivateReply(outcome: CloudDelete): string {

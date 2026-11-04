@@ -49,6 +49,7 @@ async function nodeSignIn(): Promise<SyncSignIn> {
         kind: 'ready',
         connection: {
             account: account.slice(0, 128),
+            signInId: connection.login.savedAt,
             // Synced chats belong to the person, not a Cloud project.
             // The sign-in's own API, never one an environment variable names instead.
             client: createCloudClient({

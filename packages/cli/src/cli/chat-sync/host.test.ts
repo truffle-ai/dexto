@@ -58,7 +58,7 @@ function host(): ChatSyncHost {
         store,
         signIn: async () =>
             signIn === 'ready'
-                ? { kind: 'ready', connection: { client, account: ACCOUNT } }
+                ? { kind: 'ready', connection: { client, account: ACCOUNT, signInId: 'sign-in' } }
                 : { kind: signIn },
         readChat: async (id) => chat(id),
         now: () => Date.parse('2026-11-04T10:00:00.000Z'),
@@ -157,6 +157,8 @@ describe('createChatSyncHost', () => {
         expect(await sync.command('sync', [], 's1')).toMatch(/off for every chat/u);
 
         expect(await sync.command('sync', ['on'], 's1')).toMatch(/Chat sync is on/u);
+        // The reply doesn't wait for the upload it starts.
+        await sync.engine.sync('s1');
         expect(sent.map((request) => request.method)).toEqual(['POST']);
     });
 
@@ -174,6 +176,8 @@ describe('createChatSyncHost', () => {
         expect((await store.readSettings()).projectsOff).toEqual([CWD]);
 
         await sync.command('sync', ['on', 'project'], 's1');
+        // The reply doesn't wait for the upload it starts.
+        await sync.engine.sync('s1');
         expect((await store.readSettings()).projectsOff).toEqual([]);
         expect(sent).toHaveLength(1);
     });
@@ -193,6 +197,8 @@ describe('createChatSyncHost', () => {
         expect(await sync.command('sync', [], 's1')).toMatch(/This chat is private/u);
 
         expect(await sync.command('private', ['off'], 's1')).toMatch(/syncs again/u);
+        // The reply doesn't wait for the upload it starts.
+        await sync.engine.sync('s1');
         expect(sent.at(-1)).toEqual({ method: 'POST', from: 0 });
     });
 

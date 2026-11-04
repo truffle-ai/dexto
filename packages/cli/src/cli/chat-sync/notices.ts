@@ -32,6 +32,10 @@ export type SyncStatus =
     | { readonly kind: 'off_everywhere' }
     | { readonly kind: 'off_in_project'; readonly folder: string }
     | { readonly kind: 'private' }
+    | {
+          readonly kind: 'stopped';
+          readonly reason: 'sync_diverged' | 'chat_full' | 'deleted_in_cloud';
+      }
     | { readonly kind: 'on'; readonly limitReached: boolean };
 
 /** The reply to /sync: where this chat stands, and how to change it. */
@@ -47,6 +51,8 @@ export function statusText(status: SyncStatus): string {
             return `Chat sync is off for chats in ${status.folder}. Turn it on with /sync on project.`;
         case 'private':
             return 'This chat is private: it stays on this machine. Let it sync with /private off.';
+        case 'stopped':
+            return stoppedText(status.reason);
         case 'on':
             return [
                 'This chat syncs to your Dexto Cloud account, where only you can see it.',
@@ -58,6 +64,17 @@ export function statusText(status: SyncStatus): string {
                 '',
                 HOW_TO_TURN_OFF,
             ].join('\n');
+    }
+}
+
+function stoppedText(reason: 'sync_diverged' | 'chat_full' | 'deleted_in_cloud'): string {
+    switch (reason) {
+        case 'sync_diverged':
+            return 'This chat stopped syncing: it no longer matches its copy in Dexto Cloud, which keeps what synced before.';
+        case 'chat_full':
+            return 'This chat stopped syncing: its copy in Dexto Cloud holds as much as a synced chat can. It keeps everything on this machine.';
+        case 'deleted_in_cloud':
+            return 'This chat stopped syncing: its copy was deleted in Dexto Cloud. New chats still sync.';
     }
 }
 
