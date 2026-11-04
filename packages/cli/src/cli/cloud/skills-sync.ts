@@ -15,6 +15,8 @@ import { resolveConnection, type ConnectionOverrides } from './connection.js';
 /** What was synced, by slug, so the next sync downloads only Skills whose files changed. */
 const SYNCED_FILE = '.synced.json';
 const SyncedSchema = z.record(z.string(), z.object({ digest: z.string() }));
+/** Downloads in flight at once: a first sync of a big library must fit the session-start limit. */
+const DOWNLOADS_AT_ONCE = 8;
 /** A slug that is safe as one folder name. */
 const SLUG = /^[a-z0-9][a-z0-9._-]{0,79}$/u;
 
@@ -45,21 +47,32 @@ export async function syncCloudSkills(input: {
         )
     );
 
+    const changed = released.filter((skill) => synced[skill.slug]?.digest !== skill.digest);
     const downloaded: string[] = [];
     const failed: string[] = [];
     let reason = '';
-    for (const skill of released) {
-        if (synced[skill.slug]?.digest === skill.digest) continue;
-        try {
-            await downloadSkill(client, directory, skill);
-        } catch (error) {
-            failed.push(skill.slug);
-            reason ||= error instanceof Error ? error.message : String(error);
-            continue;
+    for (let start = 0; start < changed.length; start += DOWNLOADS_AT_ONCE) {
+        const batch = changed.slice(start, start + DOWNLOADS_AT_ONCE);
+        const results = await Promise.all(
+            batch.map(async (skill) => {
+                try {
+                    await downloadSkill(client, directory, skill);
+                    return { error: null, skill };
+                } catch (error) {
+                    return { error, skill };
+                }
+            })
+        );
+        for (const { error, skill } of results) {
+            if (error !== null) {
+                failed.push(skill.slug);
+                reason ||= error instanceof Error ? error.message : String(error);
+                continue;
+            }
+            synced[skill.slug] = { digest: skill.digest };
+            downloaded.push(skill.slug);
         }
-        synced[skill.slug] = { digest: skill.digest };
         await writeSynced(directory, synced);
-        downloaded.push(skill.slug);
     }
 
     const removed = [...present].filter((slug) => !listed.has(slug));
