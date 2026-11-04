@@ -175,6 +175,8 @@ describe('trace and span', () => {
         expect(stdout).toContain('RUN');
         expect(stdout).toContain(RUN_ID);
         expect(stdout).toContain('4000ms');
+        expect(stdout).toContain('SPAN NAMES');
+        expect(stdout).toContain('llm.stream');
         expect(stderr).toContain(
             'More traces match: narrow --period or raise --limit (at most 100).'
         );

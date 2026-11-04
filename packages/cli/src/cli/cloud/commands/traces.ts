@@ -11,7 +11,17 @@ type Span = RunTrace['spans'][number];
 type TraceQuery = NonNullable<paths['/v1/traces']['get']['parameters']['query']>;
 type SpanQuery = NonNullable<paths['/v1/traces/{run_id}/spans']['get']['parameters']['query']>;
 
-const RUN_STATUSES = [
+/**
+ * Every value the server takes for one query option, and no other: a value added or removed on the
+ * server fails to compile here, so the CLI never refuses what the server accepts.
+ */
+function everyValue<Union extends string>() {
+    return <const List extends readonly Union[]>(
+        list: List & ([Exclude<Union, List[number]>] extends [never] ? unknown : never)
+    ): List => list;
+}
+
+const RUN_STATUSES = everyValue<NonNullable<TraceQuery['status']>>()([
     'cancelled',
     'completed',
     'failed',
@@ -19,13 +29,9 @@ const RUN_STATUSES = [
     'retrying',
     'running',
     'waiting_approval',
-] as const satisfies readonly NonNullable<TraceQuery['status']>[];
-const SPAN_STATUSES = ['completed', 'failed'] as const satisfies readonly NonNullable<
-    SpanQuery['status']
->[];
-const SPAN_SORTS = ['started_at', 'duration'] as const satisfies readonly NonNullable<
-    SpanQuery['sort']
->[];
+]);
+const SPAN_STATUSES = everyValue<NonNullable<SpanQuery['status']>>()(['completed', 'failed']);
+const SPAN_SORTS = everyValue<NonNullable<SpanQuery['sort']>>()(['started_at', 'duration']);
 
 const TRACE_COLUMNS: readonly Column<TraceSummary>[] = [
     { header: 'run', value: (trace) => trace.run_id },
