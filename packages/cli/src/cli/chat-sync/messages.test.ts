@@ -1,3 +1,4 @@
+import { performance } from 'node:perf_hooks';
 import type { AssistantMessage, InternalMessage } from '@dexto/core';
 import { describe, expect, it } from 'vitest';
 import { MAX_MESSAGE_CHARS, MAX_TOOL_CHARS, toSyncedMessages } from './messages.js';
@@ -355,6 +356,33 @@ describe('toSyncedMessages', () => {
         );
 
         expect(part.path).not.toContain('hunter2');
+    });
+
+    it('redacts a key at the start of a very long output, quickly', () => {
+        const output = `${KEY}\n${'line of build output\n'.repeat(100_000)}`;
+        const started = performance.now();
+        const part = toolPart(
+            toSyncedMessages([
+                assistant(null, [{ id: 'c1', name: 'bash_exec', args: { command: 'build' } }]),
+                tool('c1', 'bash_exec', output),
+            ])
+        );
+
+        expect(part.output).not.toContain('sk-');
+        expect(part.output?.length).toBeLessThanOrEqual(MAX_TOOL_CHARS);
+        expect(performance.now() - started).toBeLessThan(1_000);
+    });
+
+    it('never cuts an emoji in half', () => {
+        const text = `${'x'.repeat(MAX_TOOL_CHARS - 7)}😀😀😀😀`;
+        const part = toolPart(
+            toSyncedMessages([
+                assistant(null, [{ id: 'c1', name: 'bash_exec', args: { command: 'echo' } }]),
+                tool('c1', 'bash_exec', text),
+            ])
+        );
+
+        expect(part.output).not.toMatch(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/u);
     });
 });
 

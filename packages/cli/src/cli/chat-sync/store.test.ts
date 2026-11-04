@@ -1,4 +1,4 @@
-import { mkdtemp, readdir, stat, writeFile } from 'node:fs/promises';
+import { mkdtemp, readdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -57,6 +57,35 @@ describe('chatSyncStore', () => {
 
         await expect(store.readChat('a', '../settings')).rejects.toThrow();
         await expect(store.readAccount('../a')).rejects.toThrow();
+    });
+});
+
+describe('settings it cannot read', () => {
+    it('are never replaced, and nothing syncs while they cannot be read', async () => {
+        const { dir, store } = await freshStore();
+        await store.readSettings();
+        await writeFile(path.join(dir, 'settings.json'), '{"sync": "on", "privateChats": [');
+
+        await expect(store.readSettings()).rejects.toThrow(/settings/u);
+        expect(await readFile(path.join(dir, 'settings.json'), 'utf8')).toBe(
+            '{"sync": "on", "privateChats": ['
+        );
+    });
+
+    it('keep what a newer version added', async () => {
+        const { dir, store } = await freshStore();
+        const settings = await store.readSettings();
+        await writeFile(
+            path.join(dir, 'settings.json'),
+            JSON.stringify({ ...settings, addedLater: true })
+        );
+
+        await store.updateSettings((current) => ({ ...current, sync: 'off' }));
+
+        expect(JSON.parse(await readFile(path.join(dir, 'settings.json'), 'utf8'))).toMatchObject({
+            addedLater: true,
+            sync: 'off',
+        });
     });
 });
 

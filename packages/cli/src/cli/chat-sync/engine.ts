@@ -9,7 +9,7 @@
 
 import { CloudApiError, unwrap, type CloudClient, type V1Body } from '@dexto/cloud-client';
 import type { InternalMessage } from '@dexto/core';
-import { toSyncedMessages, type SyncedMessage } from './messages.js';
+import { sliceWhole, toSyncedMessages, type SyncedMessage } from './messages.js';
 import { redactSecrets } from './redaction.js';
 import { syncAllowed, type ChatSyncState, type ChatSyncStore } from './store.js';
 
@@ -53,6 +53,8 @@ export interface SyncConnection {
     readonly client: CloudClient;
     /** The account and organization, as a file name: `<organization id>-<account id>`. */
     readonly account: string;
+    /** Names this sign-in: signing in again gives a new one. */
+    readonly signInId: string;
 }
 
 export interface ChatSyncDeps {
@@ -92,7 +94,7 @@ export function createChatSync(deps: ChatSyncDeps): ChatSync {
     /** No request before this time: a 429 or 413 asked to wait. */
     let waitUntil = 0;
     /** The token lacks chats:sync or stopped working: nothing syncs until then, or a new sign-in. */
-    let refused: { until: number; account: string } | null = null;
+    let refused: { until: number; signInId: string } | null = null;
     /** One write at a time to an account's file: deletes and the chat limit share it. */
     const accountWrites = new Map<string, Promise<unknown>>();
     /** Per chat, after a failure: the next try, and how many failed in a row. */
@@ -149,7 +151,12 @@ export function createChatSync(deps: ChatSyncDeps): ChatSync {
         if (chat === null || !syncAllowed(settings, chat)) return;
         const connection = await deps.connect();
         if (connection === null) return;
-        if (refused?.account === connection.account && deps.now() < refused.until) return;
+        if (
+            refused !== null &&
+            refused.signInId === connection.signInId &&
+            deps.now() < refused.until
+        )
+            return;
 
         const saved = await deps.store.readChat(connection.account, chatId);
         if (saved?.status === 'stopped') return;
@@ -196,13 +203,7 @@ export function createChatSync(deps: ChatSyncDeps): ChatSync {
             try {
                 synced = await unwrap(await connection.client.POST('/v1/synced_chats', { body }));
             } catch (error) {
-                const outcome = await refusedSync(
-                    error,
-                    connection.account,
-                    chat,
-                    state,
-                    batch.length
-                );
+                const outcome = await refusedSync(error, connection, chat, state, batch.length);
                 if (outcome.kind === 'retry_smaller') {
                     batchLimit = outcome.limit;
                     continue;
@@ -216,10 +217,12 @@ export function createChatSync(deps: ChatSyncDeps): ChatSync {
                 return;
             }
             failures.delete(chat.id);
+            // The next batch starts right after this one, even when the cloud chat holds more
+            // (a chat whose state here was lost): those messages are sent again and compared.
             state = {
                 status: 'syncing',
                 cloudChatId: synced.id,
-                nextIndex: synced.next_index,
+                nextIndex: Math.min(synced.next_index, state.nextIndex + batch.length),
                 sentCount: state.sentCount + batch.length,
             };
             await deps.store.writeChat(connection.account, chat.id, state);
@@ -234,7 +237,7 @@ export function createChatSync(deps: ChatSyncDeps): ChatSync {
 
     async function refusedSync(
         error: unknown,
-        account: string,
+        connection: SyncConnection,
         chat: LocalChat,
         state: ActiveState,
         batchSize: number
@@ -268,7 +271,7 @@ export function createChatSync(deps: ChatSyncDeps): ChatSync {
                 };
             case 401:
             case 403:
-                refused = { until: deps.now() + REFUSED_RECHECK_MS, account };
+                refused = { until: deps.now() + REFUSED_RECHECK_MS, signInId: connection.signInId };
                 noteOnce(
                     'refused',
                     error.status === 403 && hasScope(error.details, 'chats:sync')
@@ -277,7 +280,7 @@ export function createChatSync(deps: ChatSyncDeps): ChatSync {
                 );
                 return { kind: 'done', state: null };
             case 409:
-                return conflict(error, account, chat, state);
+                return conflict(error, connection.account, chat, state);
             default:
                 failedFor(chat.id);
                 return { kind: 'done', state: null };
@@ -319,6 +322,16 @@ export function createChatSync(deps: ChatSyncDeps): ChatSync {
                 };
             case 'sync_gap': {
                 const next = nextIndexIn(error.details);
+                // Empty although it synced before: the person deleted it in Dexto Cloud.
+                if (next === 0 && state.cloudChatId !== null)
+                    return {
+                        kind: 'done',
+                        state: {
+                            status: 'stopped',
+                            reason: 'deleted_in_cloud',
+                            cloudChatId: state.cloudChatId,
+                        },
+                    };
                 // The server holds fewer messages than this chat sent: send again from its end.
                 const sentCount = next === null ? -1 : state.sentCount - (state.nextIndex - next);
                 if (next === null || sentCount < 0 || next >= state.nextIndex) {
@@ -356,6 +369,7 @@ export function createChatSync(deps: ChatSyncDeps): ChatSync {
         const count = (failures.get(chatId)?.count ?? 0) + 1;
         const wait = Math.min(FIRST_FAILURE_WAIT_MS * 2 ** (count - 1), LONGEST_FAILURE_WAIT_MS);
         failures.set(chatId, { retryAt: deps.now() + wait, count });
+        deps.schedule(wait, chatId);
     }
 
     /** Deletes the account's pending cloud chats; keeps those it could not delete yet. */
@@ -433,24 +447,20 @@ export function createChatSync(deps: ChatSyncDeps): ChatSync {
     return {
         sync: (chatId) => serialized(chatId, () => syncNow(chatId)),
         deleteLocalChat: (chatId) => serialized(chatId, () => forgetEverywhere(chatId)),
-        makePrivate: (chatId) =>
-            serialized(chatId, async () => {
-                const settings = await deps.store.readSettings();
-                if (!settings.privateChats.includes(chatId))
-                    await deps.store.writeSettings({
-                        ...settings,
-                        privateChats: [...settings.privateChats, chatId],
-                    });
-                return await forgetEverywhere(chatId);
-            }),
-        makeShared: (chatId) =>
-            serialized(chatId, async () => {
-                const settings = await deps.store.readSettings();
-                await deps.store.writeSettings({
-                    ...settings,
-                    privateChats: settings.privateChats.filter((id) => id !== chatId),
-                });
-            }),
+        makePrivate: async (chatId) => {
+            // At once, not after a sync that is running: its next batch sees it and stops.
+            await deps.store.updateSettings((settings) => ({
+                ...settings,
+                privateChats: [...new Set([...settings.privateChats, chatId])],
+            }));
+            return await serialized(chatId, () => forgetEverywhere(chatId));
+        },
+        makeShared: async (chatId) => {
+            await deps.store.updateSettings((settings) => ({
+                ...settings,
+                privateChats: settings.privateChats.filter((id) => id !== chatId),
+            }));
+        },
         sendPendingDeletes: async () => {
             const connection = await deps.connect();
             if (connection !== null) await deletePending(connection);
@@ -482,11 +492,12 @@ function titleOf(chat: LocalChat, messages: readonly SyncedMessage[]): string {
 
 /** A short text field: redacted, without control characters, at most `max` characters. */
 function field(text: string, max: number): string {
-    return redactSecrets(text)
-        .replaceAll(/\p{Cc}/gu, '')
-        .trim()
-        .slice(0, max)
-        .trim();
+    return sliceWhole(
+        redactSecrets(text)
+            .replaceAll(/\p{Cc}/gu, '')
+            .trim(),
+        max
+    ).trim();
 }
 
 /** How a note names a chat. */

@@ -8,7 +8,8 @@ import path from 'node:path';
 import { z } from 'zod';
 
 const SettingsSchema = z
-    .object({
+    // Loose: a newer CLI's fields survive this one's writes.
+    .looseObject({
         /** A random id for this machine; with a chat's id it names one synced chat. */
         machineId: z.uuid(),
         /** When the first-run notice was shown; nothing syncs before it is. */
@@ -19,8 +20,7 @@ const SettingsSchema = z
         projectsOff: z.array(z.string()),
         /** Local chats made private with /private: never synced, on any account. */
         privateChats: z.array(z.string()),
-    })
-    .strict();
+    });
 
 export type ChatSyncSettings = z.output<typeof SettingsSchema>;
 
@@ -48,7 +48,7 @@ const ChatStateSchema = z.discriminatedUnion('status', [
     z
         .object({
             status: z.literal('stopped'),
-            reason: z.enum(['sync_diverged', 'chat_full']),
+            reason: z.enum(['sync_diverged', 'chat_full', 'deleted_in_cloud']),
             cloudChatId: z.uuid().nullable(),
         })
         .strict(),
@@ -73,6 +73,10 @@ const ACCOUNT_KEY = /^[A-Za-z0-9_-]{1,128}$/u;
 export interface ChatSyncStore {
     readonly readSettings: () => Promise<ChatSyncSettings>;
     readonly writeSettings: (settings: ChatSyncSettings) => Promise<void>;
+    /** Changes the settings one change at a time, from the settings as they are now. */
+    readonly updateSettings: (
+        change: (settings: ChatSyncSettings) => ChatSyncSettings
+    ) => Promise<ChatSyncSettings>;
     readonly readChat: (account: string, chatId: string) => Promise<ChatSyncState | null>;
     readonly writeChat: (account: string, chatId: string, state: ChatSyncState) => Promise<void>;
     readonly forgetChat: (account: string, chatId: string) => Promise<void>;
@@ -102,26 +106,49 @@ export function chatSyncStore(dir: string): ChatSyncStore {
         if (!LOCAL_CHAT_ID.test(chatId)) throw new Error(`${chatId} can't name a synced chat.`);
         return path.join(dir, 'folders', `${chatId}.json`);
     };
+    let settingsWrites: Promise<void> = Promise.resolve();
+    async function readSettings(): Promise<ChatSyncSettings> {
+        const text = await readOptional(settingsFile);
+        if (text !== null) {
+            // Never replaced when unreadable: that would forget private chats and opt-outs.
+            const saved = parseJson(text, SettingsSchema);
+            if (saved === null)
+                throw new Error(
+                    `${settingsFile} can't be read, so no chat syncs. Fix or delete it to sync again.`
+                );
+            return saved;
+        }
+        // Saved at once, so the machine keeps one id.
+        const settings: ChatSyncSettings = {
+            machineId: randomUUID(),
+            noticeShownAt: null,
+            sync: 'on',
+            projectsOff: [],
+            privateChats: [],
+        };
+        await writeJson(dir, settingsFile, settings);
+        return settings;
+    }
+
     return {
         readChatFolder: async (chatId) =>
             (await readJson(folderFile(chatId), ChatFolderSchema))?.folder ?? null,
         writeChatFolder: async (chatId, folder) =>
             writeJson(dir, folderFile(chatId), ChatFolderSchema.parse({ folder })),
-        async readSettings() {
-            const saved = await readJson(settingsFile, SettingsSchema);
-            if (saved !== null) return saved;
-            // Saved at once, so the machine keeps one id.
-            const settings: ChatSyncSettings = {
-                machineId: randomUUID(),
-                noticeShownAt: null,
-                sync: 'on',
-                projectsOff: [],
-                privateChats: [],
-            };
-            await writeJson(dir, settingsFile, settings);
-            return settings;
-        },
+        readSettings,
         writeSettings: (settings) => writeJson(dir, settingsFile, SettingsSchema.parse(settings)),
+        updateSettings(change) {
+            const next = settingsWrites.then(async () => {
+                const settings = change(await readSettings());
+                await writeJson(dir, settingsFile, SettingsSchema.parse(settings));
+                return settings;
+            });
+            settingsWrites = next.then(
+                () => undefined,
+                () => undefined
+            );
+            return next;
+        },
         readChat: async (account, chatId) => readJson(chatFile(account, chatId), ChatStateSchema),
         writeChat: async (account, chatId, state) =>
             writeJson(dir, chatFile(account, chatId), ChatStateSchema.parse(state)),
@@ -189,14 +216,24 @@ async function readJson<Schema extends z.ZodType>(
     file: string,
     schema: Schema
 ): Promise<z.output<Schema> | null> {
-    let text: string;
+    const text = await readOptional(file);
+    // A file another version wrote, or one cut short, starts that state over.
+    return text === null ? null : parseJson(text, schema);
+}
+
+async function readOptional(file: string): Promise<string | null> {
     try {
-        text = await readFile(file, 'utf8');
+        return await readFile(file, 'utf8');
     } catch (error) {
         if (error instanceof Error && 'code' in error && error.code === 'ENOENT') return null;
         throw error;
     }
-    // A file another version wrote, or one cut short, starts that state over.
+}
+
+function parseJson<Schema extends z.ZodType>(
+    text: string,
+    schema: Schema
+): z.output<Schema> | null {
     let json: unknown;
     try {
         json = JSON.parse(text);

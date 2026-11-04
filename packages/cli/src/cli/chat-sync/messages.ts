@@ -173,7 +173,7 @@ function toolPart(
     return {
         type: 'tool',
         name,
-        input: cut(redactSecrets(input), MAX_TOOL_CHARS),
+        input: redactThenCut(input, MAX_TOOL_CHARS),
         output:
             rawOutput === null
                 ? null
@@ -193,7 +193,7 @@ function toolOutput(name: string, input: string, output: string): string {
         (listsFiles ? secretPathIn(output) : null) ??
         diffedSecretFile(output);
     const excluded = named === null ? null : excludeSecretFile(named);
-    return excluded ?? cut(redactSecrets(output), MAX_TOOL_CHARS);
+    return excluded ?? redactThenCut(output, MAX_TOOL_CHARS);
 }
 
 /** The first secret-shaped file a diff in the text shows, as `git log -p` or `git show` print. */
@@ -287,7 +287,29 @@ function contentText(content: readonly ContentPart[]): string {
 /** Text already redacted, cut to `max` characters with a note that it was. */
 function cut(text: string, max: number): string {
     if (text.length <= max) return text;
-    return `${text.slice(0, max - CUT_NOTE.length)}${CUT_NOTE}`;
+    return `${sliceWhole(text, max - CUT_NOTE.length)}${CUT_NOTE}`;
+}
+
+/** The first `length` characters, one fewer if the last would split an emoji's surrogate pair. */
+export function sliceWhole(text: string, length: number): string {
+    const end = /[\uD800-\uDBFF]/u.test(text.charAt(length - 1)) ? length - 1 : length;
+    return text.slice(0, end);
+}
+
+/** How much of a long tool text is redacted before it is cut. */
+const REDACTION_WINDOW = 16_000;
+/** Longer than any credential a pattern matches, private keys included. */
+const LONGEST_SECRET = 4_000;
+
+/**
+ * A tool's text redacted, then cut to `max`. Only its start is redacted when that is enough:
+ * whatever the window's end splits lies past the cut.
+ */
+function redactThenCut(text: string, max: number): string {
+    if (text.length <= REDACTION_WINDOW) return cut(redactSecrets(text), max);
+    const start = redactSecrets(text.slice(0, REDACTION_WINDOW));
+    if (start.length - LONGEST_SECRET >= max) return cut(start, max);
+    return cut(redactSecrets(text), max);
 }
 
 /** How long the server renders the part (`apps/cloud/src/chat-sync/render.ts`): headers and fences count. */

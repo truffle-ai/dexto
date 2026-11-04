@@ -88,6 +88,7 @@ let notes: string[];
 let now: number;
 let signedIn: boolean;
 let scheduled: { at: number; chatId: string }[];
+let signInId: string;
 
 /** A local chat whose messages a test adds to. */
 interface TestChat extends LocalChat {
@@ -119,7 +120,7 @@ function engine(server: ReturnType<typeof fakeServer>): ChatSync {
     });
     return createChatSync({
         store,
-        connect: async () => (signedIn ? { client, account: ACCOUNT } : null),
+        connect: async () => (signedIn ? { client, account: ACCOUNT, signInId } : null),
         readChat: async (id) => chats.get(id) ?? null,
         note: (text) => notes.push(text),
         now: () => now,
@@ -137,6 +138,7 @@ beforeEach(async () => {
     now = Date.parse('2026-11-04T10:00:00.000Z');
     signedIn = true;
     scheduled = [];
+    signInId = 'first sign-in';
 });
 
 describe('createChatSync', () => {
@@ -627,6 +629,116 @@ describe('opting out while a chat syncs', () => {
         refuse = false;
         now += 15 * 60_000;
         await sync.sync('s1');
+        expect(server.posts()).toHaveLength(2);
+    });
+
+    it('never sends a message twice when the cloud chat holds more than this machine remembers', async () => {
+        // A server that keeps messages and answers like Dexto's: overlap must match, then append.
+        const stored: string[] = Array.from({ length: 300 }, (_, index) => `message ${index}`);
+        const server = fakeServer((request) => {
+            const body = request.body;
+            if (body === null) return synced(body);
+            body.messages.forEach((message, offset) => {
+                const at = body.from_index + offset;
+                const text = JSON.stringify(Reflect.get(message, 'parts'));
+                if (at < stored.length) return;
+                stored.push(text);
+            });
+            return {
+                status: 200,
+                body: {
+                    id: CLOUD_CHAT,
+                    next_index: stored.length,
+                    object: 'synced_chat',
+                    redactions: {},
+                    status: 'appended',
+                    url: `https://app.dexto.ai/chats/${CLOUD_CHAT}`,
+                },
+            };
+        });
+        chat('s1', 301);
+
+        await engine(server).sync('s1');
+
+        expect(stored).toHaveLength(301);
+    });
+
+    it('makes a chat private at once, even while its first upload is running', async () => {
+        const server = fakeServer((request) =>
+            request.method === 'DELETE'
+                ? { status: 200, body: { deleted: true, id: CLOUD_CHAT, object: 'synced_chat' } }
+                : synced(request.body)
+        );
+        const answer = server.fetch;
+        let makingPrivate: Promise<unknown> | null = null;
+        let sync: ChatSync | null = null;
+        server.fetch = async (input, init) => {
+            const response = await answer(input, init);
+            makingPrivate ??= sync?.makePrivate('s1') ?? null;
+            // The person's /private is saved before the next batch would go.
+            while (!(await store.readSettings()).privateChats.includes('s1'))
+                await new Promise((resolve) => setTimeout(resolve, 1));
+            return response;
+        };
+        sync = engine(server);
+        chat('s1', 450);
+
+        await sync.sync('s1');
+        await makingPrivate;
+
+        expect(server.posts()).toHaveLength(1);
+        expect(server.sent.at(-1)?.method).toBe('DELETE');
+    });
+
+    it('does not bring back a chat deleted in Dexto Cloud', async () => {
+        let deletedInCloud = false;
+        const server = fakeServer((request) =>
+            deletedInCloud && (request.body?.from_index ?? 0) > 0
+                ? refusal(409, 'sync_gap', { next_index: 0 })
+                : synced(request.body)
+        );
+        const sync = engine(server);
+        const local = chat('s1', 2);
+        await sync.sync('s1');
+
+        deletedInCloud = true;
+        local.messages.push(said('user', 'more'));
+        await sync.sync('s1');
+        await sync.sync('s1');
+
+        expect(server.posts().map((request) => request.body?.from_index)).toEqual([0, 2]);
+        expect(await store.readChat(ACCOUNT, 's1')).toMatchObject({
+            status: 'stopped',
+            reason: 'deleted_in_cloud',
+        });
+    });
+
+    it('tries a chat again on its own after a network failure', async () => {
+        const server = fakeServer(() => {
+            throw new TypeError('fetch failed');
+        });
+        chat('s1', 1);
+
+        await engine(server).sync('s1');
+
+        expect(scheduled).toContainEqual({ at: now + 30_000, chatId: 's1' });
+    });
+});
+
+describe('a refused sign-in', () => {
+    it('syncs again at once after signing in anew', async () => {
+        let refuse = true;
+        const server = fakeServer((request) =>
+            refuse ? refusal(401, 'unauthorized') : synced(request.body)
+        );
+        const sync = engine(server);
+        chat('s1', 1);
+        await sync.sync('s1');
+
+        refuse = false;
+        signInId = 'second sign-in';
+        await sync.sync('s1');
+
         expect(server.posts()).toHaveLength(2);
     });
 });
