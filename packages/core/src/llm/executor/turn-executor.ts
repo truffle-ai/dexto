@@ -363,6 +363,7 @@ type ModelStepRequest = {
 type ModelStepRequestState = z.output<typeof ModelStepRequestStateSchema>;
 
 type ModelStepPreparationInput = {
+    reasoning?: LLMReasoningConfig | undefined;
     contributorContext: DynamicContributorContext;
     supportsTools: boolean;
     stepCount: number;
@@ -444,7 +445,9 @@ export type TurnDriverToolCalls =
     | { kind: 'deferred'; approvalIds: string[] };
 
 export type TurnDriver = {
-    prepareNextModelStep(): Promise<TurnDriverPreparedModelStep>;
+    prepareNextModelStep(options?: {
+        reasoning?: LLMReasoningConfig;
+    }): Promise<TurnDriverPreparedModelStep>;
     runNextModelStep(): Promise<TurnDriverModelStep>;
     executeToolCalls(): Promise<TurnDriverToolCalls>;
     decideNextStep(): Promise<TurnDriverNextAction>;
@@ -755,7 +758,7 @@ export class TurnExecutor {
         };
 
         return {
-            prepareNextModelStep: async () => {
+            prepareNextModelStep: async (stepOptions) => {
                 assertCanUseDriver();
                 if (stopped) {
                     throw new Error('Turn driver has already reached a stop decision');
@@ -779,6 +782,7 @@ export class TurnExecutor {
                         () =>
                             this.prepareNextModelRequest({
                                 contributorContext,
+                                reasoning: stepOptions?.reasoning,
                                 supportsTools: turn.supportsTools,
                                 stepCount,
                                 streaming: options.streaming,
@@ -1634,6 +1638,7 @@ export class TurnExecutor {
             }
         }
 
+        const stepReasoning = input.reasoning ?? this.config.reasoning;
         const providerOptions = await recordOperationSpan(
             {
                 name: 'llm.request_setup',
@@ -1647,7 +1652,7 @@ export class TurnExecutor {
                 buildProviderOptions({
                     provider: this.llmContext.provider,
                     model: this.llmContext.model,
-                    reasoning: this.config.reasoning,
+                    reasoning: stepReasoning,
                     ...(this.config.llmRegistry !== undefined && {
                         llmRegistry: this.config.llmRegistry,
                     }),
@@ -1661,13 +1666,13 @@ export class TurnExecutor {
             provider: this.llmContext.provider,
             model: this.llmContext.model,
             requestedReasoning: {
-                variant: this.config.reasoning?.variant,
-                budgetTokens: this.config.reasoning?.budgetTokens,
+                variant: stepReasoning?.variant,
+                budgetTokens: stepReasoning?.budgetTokens,
             },
             providerOptions,
         });
 
-        const reasoningVariant = this.config.reasoning?.variant;
+        const reasoningVariant = stepReasoning?.variant;
         const reasoningBudgetTokens = getEffectiveReasoningBudgetTokens(providerOptions);
         const reasoning =
             reasoningVariant !== undefined || reasoningBudgetTokens !== undefined
