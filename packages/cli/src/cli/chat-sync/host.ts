@@ -9,7 +9,7 @@ import {
     type SyncConnection,
 } from './engine.js';
 import { firstRunNotice, REPLIES, statusText, USAGE, type SyncStatus } from './notices.js';
-import { isInside, syncAllowed, type ChatSyncStore } from './store.js';
+import { isInside, syncAllowed, UnreadableSettingsError, type ChatSyncStore } from './store.js';
 
 /** The scope a sign-in needs to sync chats; asked for at sign-in only while sync is on. */
 export const CHAT_SYNC_SCOPE = 'chats:sync';
@@ -58,6 +58,14 @@ export function createChatSyncHost(deps: ChatSyncHostDeps): ChatSyncHost {
         await shown();
     };
     let noticeQueued = false;
+    let unreadableNoted = false;
+    /** Sync never fails a run; settings it can't read are said once, so the person knows why. */
+    const quietly = (work: Promise<void>): Promise<void> =>
+        work.catch((error: unknown) => {
+            if (!(error instanceof UnreadableSettingsError) || unreadableNoted) return;
+            unreadableNoted = true;
+            void notify(error.message);
+        });
 
     const engine = createChatSync({
         ...deps,
@@ -89,10 +97,7 @@ export function createChatSyncHost(deps: ChatSyncHostDeps): ChatSyncHost {
         await engine.sync(chatId);
     }
 
-    // Sync never fails a run: a failure here is retried after the next one.
-    const unsubscribe = deps.onRunComplete((chatId) =>
-        syncAfterNotice(chatId).catch(() => undefined)
-    );
+    const unsubscribe = deps.onRunComplete((chatId) => quietly(syncAfterNotice(chatId)));
 
     async function status(chatId: string | null): Promise<SyncStatus> {
         const settings = await deps.store.readSettings();
@@ -156,7 +161,7 @@ export function createChatSyncHost(deps: ChatSyncHostDeps): ChatSyncHost {
                     : REPLIES.syncOn;
         }
         // The setting is saved: the reply doesn't wait for a whole chat to upload.
-        if (on && chatId !== null) void engine.sync(chatId).catch(() => undefined);
+        if (on && chatId !== null) void quietly(engine.sync(chatId));
         return reply;
     }
 
@@ -165,22 +170,24 @@ export function createChatSyncHost(deps: ChatSyncHostDeps): ChatSyncHost {
         if (chatId === null) return REPLIES.noChat;
         if (args[0] === 'off') {
             await engine.makeShared(chatId);
-            void syncAfterNotice(chatId).catch(() => undefined);
+            void quietly(syncAfterNotice(chatId));
             return REPLIES.madeShared;
         }
         return madePrivateReply(await engine.makePrivate(chatId));
     }
 
+    async function start(chatId: string | null): Promise<void> {
+        // On the launch that shows the notice, nothing syncs until the next run ends, so the
+        // person can first keep this chat, or this folder, on this machine.
+        const noticeWasShown = (await deps.store.readSettings()).noticeShownAt !== null;
+        await noticeIfDue();
+        await engine.sendPendingDeletes();
+        if (noticeWasShown && chatId !== null) await engine.sync(chatId);
+    }
+
     return {
         engine,
-        async start(chatId) {
-            // On the launch that shows the notice, nothing syncs until the next run ends, so the
-            // person can first keep this chat, or this folder, on this machine.
-            const noticeWasShown = (await deps.store.readSettings()).noticeShownAt !== null;
-            await noticeIfDue();
-            await engine.sendPendingDeletes();
-            if (noticeWasShown && chatId !== null) await engine.sync(chatId);
-        },
+        start: (chatId) => quietly(start(chatId)),
         command: (name, args, chatId) =>
             name === 'sync' ? sync(args, chatId) : privacy(args, chatId),
         onNotice(next) {

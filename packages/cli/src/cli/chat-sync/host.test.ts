@@ -1,4 +1,4 @@
-import { mkdtemp } from 'node:fs/promises';
+import { mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { createCloudClient } from '@dexto/cloud-client';
@@ -14,6 +14,7 @@ const CLOUD_CHAT = '11111111-1111-4111-8111-111111111111';
 const CWD = '/work/app';
 
 let store: ChatSyncStore;
+let dir: string;
 let signIn: SyncSignIn['kind'];
 let sent: { method: string; from: number | null }[];
 let finished: ((chatId: string) => Promise<void>) | null;
@@ -80,7 +81,8 @@ async function runFinished(chatId: string): Promise<void> {
 }
 
 beforeEach(async () => {
-    store = chatSyncStore(path.join(await mkdtemp(path.join(tmpdir(), 'chat-sync-')), 'sync'));
+    dir = path.join(await mkdtemp(path.join(tmpdir(), 'chat-sync-')), 'sync');
+    store = chatSyncStore(dir);
     signIn = 'ready';
     sent = [];
     finished = null;
@@ -243,5 +245,19 @@ describe('createChatSyncHost', () => {
         await runFinished('s2');
         signIn = 'signed_out';
         expect(await sync.command('private', [], 's2')).toMatch(/as soon as the CLI can reach/u);
+    });
+
+    it('says once why nothing syncs when the settings cannot be read', async () => {
+        const sync = host();
+        const notices: string[] = [];
+        sync.onNotice((text) => notices.push(text));
+        await sync.start('s1');
+        await runFinished('s1');
+        await writeFile(path.join(dir, 'settings.json'), '{ not json');
+
+        await runFinished('s1');
+        await runFinished('s1');
+
+        expect(notices.filter((text) => /can't be read/u.test(text))).toHaveLength(1);
     });
 });

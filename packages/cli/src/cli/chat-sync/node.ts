@@ -114,6 +114,21 @@ export async function startNodeChatSync(
     return host;
 }
 
+/**
+ * Deletes a chat's cloud copy whenever the agent deletes the chat, such as from the local web UI.
+ * A delete it can't send now is kept and sent when the CLI next starts signed in.
+ */
+export function deleteCloudCopiesWithChats(
+    agent: {
+        on(event: 'session:deleted', listener: (payload: { sessionId: string }) => void): unknown;
+    },
+    sync: Pick<ChatSync, 'deleteLocalChat'> = nodeChatSync(() => undefined)
+): void {
+    agent.on('session:deleted', ({ sessionId }) => {
+        void sync.deleteLocalChat(sessionId).catch(() => undefined);
+    });
+}
+
 /** Chat sync without a running chat: for deleting a local chat's cloud copy. */
 export function nodeChatSync(note: (text: string) => void): ChatSync {
     return createChatSync({
