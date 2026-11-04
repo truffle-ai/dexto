@@ -279,6 +279,27 @@
     "matchIds": ["parallel-search", "parallel_search", "parallel"]
   },
   {
+    "id": "serply",
+    "name": "Serply",
+    "description": "Google web, news, Scholar, and Maps search plus page scraping",
+    "category": "research",
+    "icon": "🔍",
+    "config": {
+      "type": "http",
+      "url": "https://api.serply.io/mcp",
+      "headers": {
+        "X-Api-Key": ""
+      },
+      "timeout": 30000
+    },
+    "tags": ["search", "web", "research", "news", "scholar"],
+    "isOfficial": true,
+    "isInstalled": false,
+    "author": "Serply",
+    "homepage": "https://serply.io/mcp",
+    "matchIds": ["serply"]
+  },
+  {
     "id": "tavily",
     "name": "Tavily Search",
     "description": "Web search and research using Tavily AI search engine",
