@@ -102,6 +102,7 @@ describe('dexto cloud', () => {
             appUrl: 'https://app.dexto.ai',
             apiBaseUrl: API,
             canOpenBrowser: true,
+            chatSyncOn: async () => false,
             dexto: {
                 signInWithBrowser: async () => signedIn(),
                 signInWithDevice: async () => signedIn(),

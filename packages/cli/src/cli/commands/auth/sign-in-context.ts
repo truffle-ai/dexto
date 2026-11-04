@@ -63,6 +63,10 @@ export async function nodeSignInContext(io: SignInIo = TERMINAL): Promise<SignIn
         note: io.note,
         confirm: io.confirm,
         canOpenBrowser: shouldAttemptBrowserLaunch(),
+        chatSyncOn: async () => {
+            const { nodeChatSyncStore } = await import('../../chat-sync/node.js');
+            return (await nodeChatSyncStore().readSettings()).sync === 'on';
+        },
         dexto: {
             signInWithBrowser: (input) => dextoSignIn.signInWithBrowser(runtime, input),
             signInWithDevice: (input) => dextoSignIn.signInWithDevice(runtime, input),

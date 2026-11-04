@@ -66,6 +66,7 @@ describe('sign-in commands', () => {
     let organization: { id: string; name: string; slug: string };
     let projects: CloudProject[];
     let context: SignInContext;
+    let chatSyncOn: boolean;
 
     beforeEach(async () => {
         dir = path.join(await mkdtemp(path.join(os.tmpdir(), 'dexto-sign-in-')), 'accounts');
@@ -78,6 +79,7 @@ describe('sign-in commands', () => {
         endResult = { status: 'ended' };
         checkedKeys = [];
         keyAccepted = true;
+        chatSyncOn = false;
         organization = ACME;
         projects = [
             { id: 'prj_old', name: 'Old', isDefault: false, archived: true },
@@ -96,6 +98,7 @@ describe('sign-in commands', () => {
             note: (text) => notes.push(text),
             confirm: async () => false,
             canOpenBrowser: true,
+            chatSyncOn: async () => chatSyncOn,
             dexto: {
                 signInWithBrowser: async (input) => {
                     browserInputs.push(input);
@@ -241,6 +244,16 @@ describe('sign-in commands', () => {
                 organization: 'org_acme',
                 extraScopes: ['cloud:read', 'drive:write', 'memories:write'],
             });
+        });
+
+        it('asks for chats:sync only while chat sync is on', async () => {
+            chatSyncOn = true;
+            await login(context, noOptions);
+            expect(browserInputs[0]?.extraScopes).toEqual(['chats:sync']);
+
+            chatSyncOn = false;
+            await login(context, noOptions);
+            expect(browserInputs[1]?.extraScopes).toEqual(['cloud:read']);
         });
 
         it("won't save another organization over a profile --org named", async () => {
