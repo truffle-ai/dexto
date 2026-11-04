@@ -2,6 +2,7 @@ import { isDeepStrictEqual } from 'node:util';
 import type {
     ApprovalAutoApprovalPolicy,
     ApprovalHandler,
+    ApprovalHandlerContext,
     ApprovalRequest,
     ApprovalResponse,
     ApprovalRequestDetails,
@@ -580,15 +581,21 @@ export class ApprovalManager {
         });
     }
 
-    async requestApprovalDecision(request: ApprovalRequest): Promise<ApprovalResponse> {
-        return this.handleApproval(request);
+    async requestApprovalDecision(
+        request: ApprovalRequest,
+        context?: ApprovalHandlerContext
+    ): Promise<ApprovalResponse> {
+        return this.handleApproval(request, context);
     }
 
     /**
      * Handle approval requests (tool approval, elicitation, command approval, directory access, custom)
      * @private
      */
-    private async handleApproval(request: ApprovalRequest): Promise<ApprovalResponse> {
+    private async handleApproval(
+        request: ApprovalRequest,
+        context?: ApprovalHandlerContext
+    ): Promise<ApprovalResponse> {
         const autoApproval =
             request.autoApproval === undefined
                 ? 'allowed'
@@ -600,7 +607,7 @@ export class ApprovalManager {
             this.logger.info(
                 `Elicitation requested, approvalId: ${request.approvalId}, sessionId: ${request.sessionId ?? 'global'}`
             );
-            return handler(request);
+            return handler(request, context);
         }
 
         // Tool/command/directory-access/custom approvals respect the configured mode
@@ -621,7 +628,7 @@ export class ApprovalManager {
         this.logger.info(
             `Manual approval '${request.type}' requested, approvalId: ${request.approvalId}, sessionId: ${request.sessionId ?? 'global'}`
         );
-        return handler(request);
+        return handler(request, context);
     }
 
     /**

@@ -26,6 +26,7 @@ import type {
 } from '../approval/manager.js';
 import { ApprovalStatus, ApprovalType, DenialReason } from '../approval/types.js';
 import type {
+    ApprovalHandlerContext,
     ApprovalRequest,
     ApprovalResponse,
     ApprovalRequestDetails,
@@ -1437,8 +1438,11 @@ export class ToolManager {
         };
     }
 
-    async requestApprovalDecision(recorded: RecordedToolApproval): Promise<ApprovalResponse> {
-        return this.approvalManager.requestApprovalDecision(recorded.request);
+    async requestApprovalDecision(
+        recorded: RecordedToolApproval,
+        context?: ApprovalHandlerContext
+    ): Promise<ApprovalResponse> {
+        return this.approvalManager.requestApprovalDecision(recorded.request, context);
     }
 
     async cancelApprovalRequest(recorded: RecordedToolApproval): Promise<void> {

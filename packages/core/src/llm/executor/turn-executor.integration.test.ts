@@ -18,6 +18,7 @@ import { SystemPromptManager } from '../../systemPrompt/manager.js';
 import { VercelMessageFormatter } from '../formatters/vercel.js';
 import { MCPManager } from '../../mcp/manager.js';
 import { ApprovalManager } from '../../approval/manager.js';
+import { ApprovalDeferredError } from '../../approval/errors.js';
 import { createLogger } from '../../logger/factory.js';
 import { MemoryManager } from '../../memory/index.js';
 import { SystemPromptConfigSchema } from '../../systemPrompt/schemas.js';
@@ -1866,7 +1867,8 @@ describe('TurnExecutor Integration Tests', () => {
                     metadata: expect.objectContaining({
                         toolName: 'needs_approval',
                     }),
-                })
+                }),
+                { deferrable: true }
             );
             expect(executeTool).toHaveBeenCalledWith(
                 { value: 'one' },
@@ -2119,6 +2121,208 @@ describe('TurnExecutor Integration Tests', () => {
                 [{ type: 'text', text: 'approved sibling result' }],
                 [{ type: 'text', text: 'ready sibling result' }],
             ]);
+        });
+
+        it('defers a tool call approval and resumes the batch without running a settled sibling again', async () => {
+            const approvalStore = createInMemorySessionApprovalStore(logger);
+            const toolExecutions = stores.getStore('toolExecutions');
+            const executeApproved = vi.fn(async () => 'approved sibling result');
+            const executeReady = vi.fn(async () => 'ready sibling result');
+            const tools = [
+                defineTool({
+                    id: 'approval_sibling',
+                    description: 'Approval sibling',
+                    inputSchema: z.object({ value: z.string() }).strict(),
+                    execute: executeApproved,
+                }),
+                defineTool({
+                    id: 'ready_sibling',
+                    description: 'Ready sibling',
+                    inputSchema: z.object({ value: z.string() }).strict(),
+                    execute: executeReady,
+                }),
+            ];
+            const startProcess = async (handler: ApprovalHandler) => {
+                const processApprovals = new ApprovalManager(
+                    {
+                        permissions: { mode: 'manual', timeout: 120000 },
+                        elicitation: { enabled: false, timeout: 120000 },
+                    },
+                    logger,
+                    approvalStore
+                );
+                processApprovals.setHandler(handler);
+                const processTools = new ToolManager(
+                    mcpManager,
+                    processApprovals,
+                    {
+                        isToolAllowed: vi.fn(async (toolName) => toolName === 'ready_sibling'),
+                        allowTool: vi.fn(),
+                        disallowTool: vi.fn(),
+                    },
+                    'manual',
+                    agentEventBus,
+                    { alwaysAllow: [] },
+                    tools,
+                    logger,
+                    createInMemorySessionToolPreferencesStore(logger),
+                    toolExecutions
+                );
+                await processTools.initialize();
+                processTools.setToolExecutionContextFactory((baseContext) => baseContext);
+                return new TurnExecutor(
+                    createMockModel(),
+                    processTools,
+                    createContextManagerFromPersistedStore(),
+                    sessionEventBus,
+                    resourceManager,
+                    sessionId,
+                    { maxSteps: 10, maxOutputTokens: 4096, temperature: 0.7 },
+                    llmContext,
+                    logger,
+                    steerQueue,
+                    followUpQueue
+                );
+            };
+
+            vi.mocked(streamText).mockImplementationOnce(
+                () =>
+                    createMockStream({
+                        finishReason: 'tool-calls',
+                        toolCalls: [
+                            {
+                                toolCallId: 'call-approval-first',
+                                toolName: 'approval_sibling',
+                                args: { value: 'wait' },
+                            },
+                            {
+                                toolCallId: 'call-ready-second',
+                                toolName: 'ready_sibling',
+                                args: { value: 'run' },
+                            },
+                        ],
+                    }) as unknown as ReturnType<typeof streamText>
+            );
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Use sibling tools' }]);
+            const deferringHandler = vi.fn(async (request: ApprovalRequest, context) => {
+                if (context?.deferrable !== true) throw new Error('Expected a deferrable request');
+                throw new ApprovalDeferredError(request.approvalId);
+            });
+            const firstDriver = await (
+                await startProcess(deferringHandler)
+            ).createDriver({ mcpManager }, { streaming: true });
+            await firstDriver.runNextModelStep();
+            const deferred = await firstDriver.executeToolCalls();
+            const deferredApprovalId = deferringHandler.mock.calls[0]?.[0].approvalId;
+            const savedState = serializeTurnDriverState(firstDriver.checkpoint());
+            firstDriver.dispose();
+
+            expect(deferred).toEqual({ kind: 'deferred', approvalIds: [deferredApprovalId] });
+            expect(savedState).toEqual(
+                expect.objectContaining({ phase: 'model-step-complete', toolCallsExecuted: false })
+            );
+            expect(executeReady).toHaveBeenCalledTimes(1);
+            expect(executeApproved).not.toHaveBeenCalled();
+            expect(
+                (await contextManager.getHistory()).filter((message) => message.role === 'tool')
+            ).toEqual([]);
+
+            const answeringHandler = vi.fn(async (request: ApprovalRequest) => ({
+                approvalId: request.approvalId,
+                status: ApprovalStatus.APPROVED,
+            }));
+            const resumedDriver = await (
+                await startProcess(answeringHandler)
+            ).createDriver({ mcpManager }, { streaming: true, state: savedState });
+            try {
+                expect(await resumedDriver.executeToolCalls()).toEqual({ kind: 'executed' });
+                expect(await resumedDriver.decideNextStep()).toEqual({
+                    kind: 'continue',
+                    stepCount: 1,
+                });
+            } finally {
+                resumedDriver.dispose();
+            }
+
+            expect(answeringHandler).toHaveBeenCalledTimes(1);
+            expect(answeringHandler.mock.calls[0]?.[0].approvalId).toBe(deferredApprovalId);
+            expect(executeApproved).toHaveBeenCalledTimes(1);
+            expect(executeReady).toHaveBeenCalledTimes(1);
+            const toolMessages = (await contextManager.getHistory()).filter(
+                (message) => message.role === 'tool'
+            );
+            expect(toolMessages.map((message) => message.content)).toEqual([
+                [{ type: 'text', text: 'approved sibling result' }],
+                [{ type: 'text', text: 'ready sibling result' }],
+            ]);
+        });
+
+        it('fails a turn that cannot pause when its approval is deferred', async () => {
+            const deferringApprovals = new ApprovalManager(
+                {
+                    permissions: { mode: 'manual', timeout: 120000 },
+                    elicitation: { enabled: false, timeout: 120000 },
+                },
+                logger,
+                createInMemorySessionApprovalStore(logger)
+            );
+            deferringApprovals.setHandler(async (request) => {
+                throw new ApprovalDeferredError(request.approvalId);
+            });
+            const executeTool = vi.fn(async () => 'ran');
+            const deferringTools = new ToolManager(
+                mcpManager,
+                deferringApprovals,
+                {
+                    isToolAllowed: vi.fn(async () => false),
+                    allowTool: vi.fn(),
+                    disallowTool: vi.fn(),
+                },
+                'manual',
+                agentEventBus,
+                { alwaysAllow: [] },
+                [
+                    defineTool({
+                        id: 'approval_tool',
+                        description: 'Approval tool',
+                        inputSchema: z.object({}).strict(),
+                        execute: executeTool,
+                    }),
+                ],
+                logger,
+                createInMemorySessionToolPreferencesStore(logger),
+                new InMemoryDextoStores().getStore('toolExecutions')
+            );
+            await deferringTools.initialize();
+            deferringTools.setToolExecutionContextFactory((baseContext) => baseContext);
+            vi.mocked(streamText).mockImplementationOnce(
+                () =>
+                    createMockStream({
+                        finishReason: 'tool-calls',
+                        toolCalls: [
+                            { toolCallId: 'call-deferred', toolName: 'approval_tool', args: {} },
+                        ],
+                    }) as unknown as ReturnType<typeof streamText>
+            );
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Use the tool' }]);
+            await expect(
+                new TurnExecutor(
+                    createMockModel(),
+                    deferringTools,
+                    contextManager,
+                    sessionEventBus,
+                    resourceManager,
+                    sessionId,
+                    { maxSteps: 10, maxOutputTokens: 4096, temperature: 0.7 },
+                    llmContext,
+                    logger,
+                    steerQueue,
+                    followUpQueue
+                ).execute({ mcpManager }, true)
+            ).rejects.toThrow('A tool approval was deferred in a turn that cannot pause');
+            expect(executeTool).not.toHaveBeenCalled();
         });
 
         it('auto-approves pending same-tool siblings when the first approval remembers the tool', async () => {

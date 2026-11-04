@@ -3189,7 +3189,8 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                         toolName: 'mcp--file_read',
                         toolCallId: 'call-123',
                     }),
-                })
+                }),
+                undefined
             );
             expect(mockApprovalManager.recordApprovalResponseRecord).toHaveBeenCalledWith(
                 expect.objectContaining({

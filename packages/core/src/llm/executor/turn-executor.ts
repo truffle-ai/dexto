@@ -82,6 +82,7 @@ import {
 } from './model-request-diagnostics.js';
 import type { ApprovalResponse } from '../../approval/types.js';
 import { approvalResponseToDecisionInput } from '../../approval/manager.js';
+import { ApprovalDeferredError } from '../../approval/errors.js';
 import type { LLMExecutionControl } from '../services/types.js';
 import {
     describeContentPartsForAudit,
@@ -421,10 +422,19 @@ export type TurnDriverNextAction =
           finishReason: LLMFinishReason;
       };
 
+/**
+ * `deferred`: an approval handler deferred at least one call's approval. Every other call settled,
+ * nothing was persisted, and the tool calls stay unexecuted: a driver resumed from this state runs
+ * the batch again, completed calls replaying from the tool execution store.
+ */
+export type TurnDriverToolCalls =
+    | { kind: 'executed' }
+    | { kind: 'deferred'; approvalIds: string[] };
+
 export type TurnDriver = {
     prepareNextModelStep(): Promise<TurnDriverPreparedModelStep>;
     runNextModelStep(): Promise<TurnDriverModelStep>;
-    executeToolCalls(): Promise<void>;
+    executeToolCalls(): Promise<TurnDriverToolCalls>;
     decideNextStep(): Promise<TurnDriverNextAction>;
     finish(): Promise<ExecutorResult>;
     fail(error: unknown): Promise<never>;
@@ -581,7 +591,12 @@ export class TurnExecutor {
                 while (!stopped) {
                     const modelStep = await driver.runNextModelStep();
                     if (modelStep.result.finishReason === 'tool-calls') {
-                        await driver.executeToolCalls();
+                        const toolCalls = await driver.executeToolCalls();
+                        if (toolCalls.kind === 'deferred') {
+                            throw new Error(
+                                'A tool approval was deferred in a turn that cannot pause'
+                            );
+                        }
                     }
 
                     const nextStep = await driver.decideNextStep();
@@ -859,28 +874,31 @@ export class TurnExecutor {
                 if (currentToolCallsExecuted) {
                     throw new Error('Tool calls for the current model step have already run');
                 }
-                if (result.finishReason === 'tool-calls') {
-                    toolCallsRunning = true;
-                    currentToolCallsExecuted = true;
-                    try {
-                        await recordOperationSpan(
-                            {
-                                name: 'turn.execute_tool_calls',
-                                componentName: 'TurnExecutor',
-                                attributes: {
-                                    ...this.createTurnStepSpanAttributes(stepCount),
-                                    'tool.count': result.toolCalls.length,
-                                },
+                if (result.finishReason !== 'tool-calls') {
+                    return { kind: 'executed' };
+                }
+                toolCallsRunning = true;
+                currentToolCallsExecuted = true;
+                try {
+                    const toolCalls = await recordOperationSpan(
+                        {
+                            name: 'turn.execute_tool_calls',
+                            componentName: 'TurnExecutor',
+                            attributes: {
+                                ...this.createTurnStepSpanAttributes(stepCount),
+                                'tool.count': result.toolCalls.length,
                             },
-                            () => this.executeModelToolCalls(result.toolCalls),
-                            this.logger
-                        );
-                    } catch (error) {
-                        currentToolCallsExecuted = false;
-                        throw error;
-                    } finally {
-                        toolCallsRunning = false;
-                    }
+                        },
+                        () => this.executeModelToolCalls(result.toolCalls),
+                        this.logger
+                    );
+                    currentToolCallsExecuted = toolCalls.kind === 'executed';
+                    return toolCalls;
+                } catch (error) {
+                    currentToolCallsExecuted = false;
+                    throw error;
+                } finally {
+                    toolCallsRunning = false;
                 }
             },
             decideNextStep: async () => {
@@ -1939,7 +1957,7 @@ export class TurnExecutor {
         }
     }
 
-    private async executeModelToolCalls(toolCalls: ModelToolCall[]): Promise<void> {
+    private async executeModelToolCalls(toolCalls: ModelToolCall[]): Promise<TurnDriverToolCalls> {
         const preparedCalls: PreparedModelToolCall[] = [];
 
         for (const toolCall of toolCalls) {
@@ -1963,7 +1981,9 @@ export class TurnExecutor {
             );
         }
 
-        const executionResults = await Promise.all(
+        // Every call settles before a deferral returns, so none is still running when the host
+        // ends this process; completed calls replay from the tool execution store on resume.
+        const settled = await Promise.allSettled(
             preparedCalls.map((prepared) =>
                 recordOperationSpan(
                     {
@@ -1983,6 +2003,18 @@ export class TurnExecutor {
                 )
             )
         );
+        const deferredApprovalIds = settled.flatMap((outcome) =>
+            outcome.status === 'rejected' && outcome.reason instanceof ApprovalDeferredError
+                ? [outcome.reason.approvalId]
+                : []
+        );
+        if (deferredApprovalIds.length > 0) {
+            return { kind: 'deferred', approvalIds: deferredApprovalIds };
+        }
+        const executionResults = settled.map((outcome) => {
+            if (outcome.status === 'rejected') throw outcome.reason;
+            return outcome.value;
+        });
         const sanitizedResults = await Promise.all(
             toolCalls.map((toolCall, index) => {
                 const executionResult = executionResults[index];
@@ -2018,6 +2050,7 @@ export class TurnExecutor {
                 this.logger
             );
         }
+        return { kind: 'executed' };
     }
 
     private async prepareModelToolCall(toolCall: ModelToolCall): Promise<PreparedModelToolCall> {
@@ -2108,6 +2141,7 @@ export class TurnExecutor {
                 this.resolveModelToolExecutionIdentity(preparedCall.toolCall.toolCallId)
             );
         } catch (error) {
+            if (error instanceof ApprovalDeferredError) throw error;
             return this.failedToolResult(
                 preparedCall.toolCall.toolName,
                 error,
@@ -2194,7 +2228,7 @@ export class TurnExecutor {
         try {
             return await Promise.race([
                 this.toolManager
-                    .requestApprovalDecision(recorded)
+                    .requestApprovalDecision(recorded, { deferrable: true })
                     .then((response): ApprovalWaitResult => ({ kind: 'response', response })),
                 abortPromise,
             ]);
