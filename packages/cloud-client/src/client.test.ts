@@ -85,7 +85,67 @@ describe('createCloudClient', () => {
             message: 'Secret not found.',
             requestId: 'req_1',
             retryable: false,
+            retryAfterSeconds: null,
         });
+    });
+
+    it('carries how long Retry-After asks the caller to wait', async () => {
+        const server = fakeFetch(() =>
+            Response.json(
+                {
+                    error: {
+                        code: 'rate_limited',
+                        message: 'Too many requests.',
+                        requestId: 'req_2',
+                        retryable: true,
+                    },
+                },
+                { status: 429, headers: { 'retry-after': '60' } }
+            )
+        );
+        const client = createCloudClient({
+            apiBaseUrl: 'https://api.dexto.ai',
+            token: 'token',
+            cloudProject: null,
+            fetch: server.fetch,
+        });
+
+        const failure = await unwrap(await client.GET('/v1/secrets')).catch(
+            (error: unknown) => error
+        );
+
+        expect(failure).toMatchObject({ status: 429, retryAfterSeconds: 60 });
+    });
+
+    it('reads an HTTP-date Retry-After as seconds from now, and ignores one it cannot read', async () => {
+        const later = new Date(Date.now() + 120_000).toUTCString();
+        for (const [header, expected] of [
+            [later, 120],
+            ['soon', null],
+            ['-5', null],
+        ] as const) {
+            const server = fakeFetch(() =>
+                Response.json(
+                    { error: { code: 'payload_too_large', message: 'Too large.' } },
+                    { status: 413, headers: { 'retry-after': header } }
+                )
+            );
+            const client = createCloudClient({
+                apiBaseUrl: 'https://api.dexto.ai',
+                token: 'token',
+                cloudProject: null,
+                fetch: server.fetch,
+            });
+
+            const failure = await unwrap(await client.GET('/v1/secrets')).catch(
+                (error: unknown) => error
+            );
+
+            expect(failure).toBeInstanceOf(CloudApiError);
+            const seconds = failure instanceof CloudApiError ? failure.retryAfterSeconds : null;
+            if (expected === null) expect(seconds).toBeNull();
+            else expect(seconds).toBeGreaterThanOrEqual(expected - 2);
+        }
     });
 });
 
