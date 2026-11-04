@@ -35,7 +35,11 @@ async function skillFolders() {
 
 function cloud(
     skills: CloudSkill[],
-    options: { failDownloads?: boolean; failSlugs?: string[] } = {}
+    options: {
+        failDownloads?: boolean;
+        failSlugs?: string[];
+        hang?: { slugs: string[]; until: AbortSignal };
+    } = {}
 ) {
     const fetch = async (request: globalThis.Request) => {
         const url = new URL(request.url);
@@ -58,6 +62,12 @@ function cloud(
         const skill = skills.find((each) => url.pathname === `/v1/skills/${each.id}/bundle`);
         if (skill === undefined) return new Response(null, { status: 404 });
         downloads.push(skill.slug);
+        const hangUntil = options.hang?.slugs.includes(skill.slug) ? options.hang.until : null;
+        if (hangUntil !== null)
+            await new Promise((_, reject) => {
+                if (hangUntil.aborted) reject(hangUntil.reason);
+                hangUntil.addEventListener('abort', () => reject(hangUntil.reason));
+            });
         if (options.failDownloads === true || options.failSlugs?.includes(skill.slug))
             throw new TypeError('fetch failed');
         const files = Object.entries(skill.files).map(([filePath, text]) => ({
@@ -148,6 +158,29 @@ describe('syncCloudSkills', () => {
         await syncCloudSkills({ client: cloud([other, notes('a')]), directory });
         expect(downloads).toEqual(['other']);
         expect((await skillFolders()).sort()).toEqual(['other', 'release-notes']);
+    });
+
+    it('keeps what landed and leaves the rest for later when the start deadline cuts it short', async () => {
+        const slow: CloudSkill = {
+            digest: 'x',
+            files: { 'SKILL.md': '---\nname: slow\n---\nSlow' },
+            id: '00000000-0000-4000-8000-000000000004',
+            slug: 'slow',
+        };
+        const deadline = new AbortController();
+        const client = cloud([notes('a'), slow], {
+            hang: { slugs: ['slow'], until: deadline.signal },
+        });
+        const syncing = syncCloudSkills({ client, deadline: deadline.signal, directory });
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        deadline.abort();
+
+        await expect(syncing).resolves.toMatchObject({ downloaded: ['release-notes'], left: 1 });
+        expect(await skillFolders()).toEqual(['release-notes']);
+
+        downloads = [];
+        await syncCloudSkills({ client: cloud([notes('a'), slow]), directory });
+        expect(downloads).toEqual(['slow']);
     });
 
     it('keeps the last synced Skills when a download fails', async () => {

@@ -22,16 +22,25 @@ const SLUG = /^[a-z0-9][a-z0-9._-]{0,79}$/u;
 
 export interface SyncedSkills {
     readonly downloaded: readonly string[];
+    /** Changed Skills the deadline left for the next sync. */
+    readonly left: number;
     readonly removed: readonly string[];
 }
 
-/** Mirrors the library into `directory`: one folder per released Skill, named by its slug. */
+/**
+ * Mirrors the library into `directory`: one folder per released Skill, named by its slug. When
+ * `deadline` fires, what landed is kept and the rest is left for the next sync, not failed.
+ */
 export async function syncCloudSkills(input: {
     client: CloudClient;
+    deadline?: AbortSignal;
     directory: string;
 }): Promise<SyncedSkills> {
     const { client, directory } = input;
-    const library = await unwrap(await client.GET('/v1/skills'));
+    const deadline = input.deadline ?? null;
+    // Read fresh each time: the deadline fires while downloads are in flight.
+    const cutShort = () => deadline?.aborted === true;
+    const library = await unwrap(await client.GET('/v1/skills', { signal: deadline }));
     const released = library.data.flatMap((skill) =>
         skill.release === null || !SLUG.test(skill.slug)
             ? []
@@ -52,11 +61,12 @@ export async function syncCloudSkills(input: {
     const failed: string[] = [];
     let reason = '';
     for (let start = 0; start < changed.length; start += DOWNLOADS_AT_ONCE) {
+        if (cutShort()) break;
         const batch = changed.slice(start, start + DOWNLOADS_AT_ONCE);
         const results = await Promise.all(
             batch.map(async (skill) => {
                 try {
-                    await downloadSkill(client, directory, skill);
+                    await downloadSkill(client, directory, skill, deadline);
                     return { error: null, skill };
                 } catch (error) {
                     return { error, skill };
@@ -64,6 +74,8 @@ export async function syncCloudSkills(input: {
             })
         );
         for (const { error, skill } of results) {
+            // Cut short by the deadline: not a failure, the next sync downloads it.
+            if (error !== null && cutShort()) continue;
             if (error !== null) {
                 failed.push(skill.slug);
                 reason ||= error instanceof Error ? error.message : String(error);
@@ -80,7 +92,7 @@ export async function syncCloudSkills(input: {
         await rm(path.join(directory, slug), { force: true, recursive: true });
     await writeSynced(directory, synced);
     if (failed.length > 0) throw new Error(`Couldn't download ${failed.join(', ')}: ${reason}`);
-    return { downloaded, removed };
+    return { downloaded, left: changed.length - downloaded.length, removed };
 }
 
 async function writeSynced(directory: string, synced: z.output<typeof SyncedSchema>) {
@@ -91,12 +103,14 @@ async function writeSynced(directory: string, synced: z.output<typeof SyncedSche
 async function downloadSkill(
     client: CloudClient,
     directory: string,
-    skill: { id: string; slug: string }
+    skill: { id: string; slug: string },
+    signal: AbortSignal | null
 ): Promise<void> {
     const bytes = await unwrap(
         await client.GET('/v1/skills/{skill_id}/bundle', {
             params: { path: { skill_id: skill.id } },
             parseAs: 'arrayBuffer',
+            signal,
         })
     );
     const incoming = path.join(directory, `.incoming-${skill.slug}`);
@@ -150,7 +164,7 @@ const START_SYNC_TIMEOUT_MS = 5_000;
  */
 export async function syncCloudSkillsAtStart(): Promise<void> {
     const directory = getStandaloneSkillPaths().cloud;
-    const signal = AbortSignal.timeout(START_SYNC_TIMEOUT_MS);
+    const deadline = AbortSignal.timeout(START_SYNC_TIMEOUT_MS);
     try {
         const connection = await resolveConnection({
             dir: getDextoGlobalPath('accounts'),
@@ -162,15 +176,20 @@ export async function syncCloudSkillsAtStart(): Promise<void> {
             await rm(directory, { force: true, recursive: true });
             return;
         }
-        await syncCloudSkills({
+        const synced = await syncCloudSkills({
             client: createCloudClient({
                 apiBaseUrl: connection.apiBaseUrl,
                 cloudProject: null,
-                fetch: (request, init) => globalThis.fetch(request, { ...init, signal }),
+                fetch: globalThis.fetch,
                 token: connection.token,
             }),
+            deadline,
             directory,
         });
+        if (synced.left > 0)
+            process.stderr.write(
+                `Synced ${synced.downloaded.length} more of your Dexto Skills; ${synced.left} still to sync at your next session, or now with dexto skills sync.\n`
+            );
     } catch (error) {
         const reason = error instanceof Error ? error.message : String(error);
         process.stderr.write(
