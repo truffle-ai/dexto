@@ -35,6 +35,7 @@ export type LLMFinishReason =
 export const AGENT_EVENT_NAMES = [
     'session:reset',
     'session:created',
+    'session:deleted',
     'session:title-updated',
     'session:override-set',
     'session:override-cleared',
@@ -271,6 +272,11 @@ interface AgentOwnEventMapBase {
     'session:created': {
         sessionId: string | null; // null means clear without creating (deferred creation)
         switchTo: boolean; // Whether UI should switch to this session
+    };
+
+    /** Fired once a session and its history are deleted */
+    'session:deleted': {
+        sessionId: string;
     };
 
     /** Fired when a session's human-friendly title is updated */
