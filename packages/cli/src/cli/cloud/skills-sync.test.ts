@@ -33,7 +33,10 @@ async function skillFolders() {
     return (await readdir(directory)).filter((name) => !name.startsWith('.'));
 }
 
-function cloud(skills: CloudSkill[], options: { failDownloads?: boolean } = {}) {
+function cloud(
+    skills: CloudSkill[],
+    options: { failDownloads?: boolean; failSlugs?: string[] } = {}
+) {
     const fetch = async (request: globalThis.Request) => {
         const url = new URL(request.url);
         if (url.pathname === '/v1/skills')
@@ -55,7 +58,8 @@ function cloud(skills: CloudSkill[], options: { failDownloads?: boolean } = {}) 
         const skill = skills.find((each) => url.pathname === `/v1/skills/${each.id}/bundle`);
         if (skill === undefined) return new Response(null, { status: 404 });
         downloads.push(skill.slug);
-        if (options.failDownloads === true) throw new TypeError('fetch failed');
+        if (options.failDownloads === true || options.failSlugs?.includes(skill.slug))
+            throw new TypeError('fetch failed');
         const files = Object.entries(skill.files).map(([filePath, text]) => ({
             bytes: encoder.encode(text),
             executable: false,
@@ -122,6 +126,28 @@ describe('syncCloudSkills', () => {
         expect(await readFile(path.join(directory, 'release-notes', 'SKILL.md'), 'utf8')).toContain(
             'Release b'
         );
+    });
+
+    it('keeps every Skill that downloaded when another fails, and fetches only the failed one next time', async () => {
+        const other: CloudSkill = {
+            digest: 'x',
+            files: { 'SKILL.md': '---\nname: other\n---\nOther' },
+            id: '00000000-0000-4000-8000-000000000003',
+            slug: 'other',
+        };
+
+        await expect(
+            syncCloudSkills({
+                client: cloud([other, notes('a')], { failSlugs: ['other'] }),
+                directory,
+            })
+        ).rejects.toThrow(/other/);
+        expect(await skillFolders()).toEqual(['release-notes']);
+
+        downloads = [];
+        await syncCloudSkills({ client: cloud([other, notes('a')]), directory });
+        expect(downloads).toEqual(['other']);
+        expect((await skillFolders()).sort()).toEqual(['other', 'release-notes']);
     });
 
     it('keeps the last synced Skills when a download fails', async () => {

@@ -36,24 +36,42 @@ export async function syncCloudSkills(input: {
             : [{ digest: skill.release.digest, id: skill.id, slug: skill.slug }]
     );
     await mkdir(directory, { recursive: true });
-    const synced = await readSynced(directory);
     const present = new Set(await skillFolders(directory));
+    const listed = new Set(released.map((skill) => skill.slug));
+    // What is on disk now, so a sync cut short (the session-start timeout) still keeps what landed.
+    const synced = Object.fromEntries(
+        Object.entries(await readSynced(directory)).filter(
+            ([slug]) => present.has(slug) && listed.has(slug)
+        )
+    );
 
     const downloaded: string[] = [];
-    const next: z.output<typeof SyncedSchema> = {};
+    const failed: string[] = [];
+    let reason = '';
     for (const skill of released) {
-        if (synced[skill.slug]?.digest !== skill.digest || !present.has(skill.slug)) {
+        if (synced[skill.slug]?.digest === skill.digest) continue;
+        try {
             await downloadSkill(client, directory, skill);
-            downloaded.push(skill.slug);
+        } catch (error) {
+            failed.push(skill.slug);
+            reason ||= error instanceof Error ? error.message : String(error);
+            continue;
         }
-        next[skill.slug] = { digest: skill.digest };
+        synced[skill.slug] = { digest: skill.digest };
+        await writeSynced(directory, synced);
+        downloaded.push(skill.slug);
     }
 
-    const removed = [...present].filter((slug) => next[slug] === undefined);
+    const removed = [...present].filter((slug) => !listed.has(slug));
     for (const slug of removed)
         await rm(path.join(directory, slug), { force: true, recursive: true });
-    await writeFile(path.join(directory, SYNCED_FILE), `${JSON.stringify(next, null, 2)}\n`);
+    await writeSynced(directory, synced);
+    if (failed.length > 0) throw new Error(`Couldn't download ${failed.join(', ')}: ${reason}`);
     return { downloaded, removed };
+}
+
+async function writeSynced(directory: string, synced: z.output<typeof SyncedSchema>) {
+    await writeFile(path.join(directory, SYNCED_FILE), `${JSON.stringify(synced, null, 2)}\n`);
 }
 
 /** Unpacks next to the old copy, then swaps it in, so a failed download keeps the last one. */
