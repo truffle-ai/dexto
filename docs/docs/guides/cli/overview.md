@@ -581,7 +581,19 @@ dexto cloud api GET /v1/agents     # call any /v1 operation directly
 
 Every cloud command takes `--json` or `--table`, `--api-key <key>`, `--profile <name>` and `--project <id>`. Output is JSON when stdout isn't a terminal, and a failure prints `{"error":{"code","message","fix"}}` on stderr, where `fix` is the command that fixes it. Exit codes: 0 done, 1 failed, 2 usage, 3 needs sign-in or permission, 4 needs `--yes` (pass it only once your person has agreed), 5 not found, 6 waiting on a person (such as an agent run paused at an approval). `dexto login`, `logout`, `whoami`, `accounts`, `models list` and `billing` follow the same contract. A command that needs a permission your sign-in lacks offers, at a terminal, to sign in again for it.
 
-Deploy Sites and Functions with `dexto cloud sites deploy` and `dexto cloud functions deploy`, each packed with the project's own packer. Dexto 1.x's `dexto deploy` (workspace deploys) is gone in 2.0, along with `dexto --cloud-agent`; `dexto trace` and `dexto span` are also gone until a public `/v1` traces endpoint brings them back.
+Deploy Sites and Functions with `dexto cloud sites deploy` and `dexto cloud functions deploy`, each packed with the project's own packer. Dexto 1.x's `dexto deploy` (workspace deploys) is gone in 2.0, along with `dexto --cloud-agent`.
+
+### Run traces
+
+`dexto trace` and `dexto span` read your runs' traces from Dexto's public `/v1/traces` API. Spans are kept 30 days.
+
+```bash
+dexto trace list --period 3h --status failed     # your recent run traces, newest first
+dexto trace view <run_id>                        # one run's spans in start order, with errors
+dexto span list <run_id> --name llm.stream --sort duration --limit 5
+```
+
+`trace list` takes `--period` (such as `15m`, `3h` or `7d`, at most `30d`), `--status`, `--session` and `--limit` (at most 100). `span list` takes `--name`, `--status` (`completed` or `failed`), `--sort` (`started_at` or `duration`) and `--limit` (at most 500). They print tables at a terminal and JSON with `--json` or when piped. Reading traces needs the `runs:read` permission: if your sign-in lacks it, the CLI says to sign in again with `dexto login --scope runs:read`.
 
 ## Your Dexto Workspace
 
