@@ -24,6 +24,8 @@ const PAUSE_RECHECK_MS = 5 * 60_000;
 const CHAT_LIMIT_RECHECK_MS = 60 * 60_000;
 /** After the server refused the sign-in: long enough not to ask again and again. */
 const REFUSED_RECHECK_MS = 15 * 60_000;
+/** A timer can fire a little before the clock reaches its time: try again just after it. */
+const TIMER_SLACK_MS = 50;
 const FIRST_FAILURE_WAIT_MS = 30_000;
 const LONGEST_FAILURE_WAIT_MS = 30 * 60_000;
 
@@ -362,14 +364,14 @@ export function createChatSync(deps: ChatSyncDeps): ChatSync {
     function waitFor(seconds: number | null, chatId: string): void {
         const ms = seconds === null ? DEFAULT_RETRY_AFTER_MS : seconds * 1_000;
         waitUntil = Math.max(waitUntil, deps.now() + ms);
-        deps.schedule(waitUntil - deps.now(), chatId);
+        deps.schedule(waitUntil - deps.now() + TIMER_SLACK_MS, chatId);
     }
 
     function failedFor(chatId: string): void {
         const count = (failures.get(chatId)?.count ?? 0) + 1;
         const wait = Math.min(FIRST_FAILURE_WAIT_MS * 2 ** (count - 1), LONGEST_FAILURE_WAIT_MS);
         failures.set(chatId, { retryAt: deps.now() + wait, count });
-        deps.schedule(wait, chatId);
+        deps.schedule(wait + TIMER_SLACK_MS, chatId);
     }
 
     /** Deletes the account's pending cloud chats; keeps those it could not delete yet. */

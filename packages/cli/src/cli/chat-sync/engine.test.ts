@@ -237,7 +237,7 @@ describe('createChatSync', () => {
         await sync.sync('s1');
         await sync.sync('s2');
         expect(server.posts()).toHaveLength(1);
-        expect(scheduled).toContainEqual({ at: now + 60_000, chatId: 's1' });
+        expect(scheduled).toContainEqual({ at: now + 60_050, chatId: 's1' });
 
         limited = false;
         now += 59_000;
@@ -721,7 +721,7 @@ describe('opting out while a chat syncs', () => {
 
         await engine(server).sync('s1');
 
-        expect(scheduled).toContainEqual({ at: now + 30_000, chatId: 's1' });
+        expect(scheduled).toContainEqual({ at: now + 30_050, chatId: 's1' });
     });
 });
 

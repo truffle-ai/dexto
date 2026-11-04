@@ -24,6 +24,14 @@ const SettingsSchema = z
 
 export type ChatSyncSettings = z.output<typeof SettingsSchema>;
 
+/** The settings file exists but can't be read: nothing syncs until it is fixed or deleted. */
+export class UnreadableSettingsError extends Error {
+    constructor(file: string) {
+        super(`${file} can't be read, so no chat syncs. Fix or delete it to sync again.`);
+        this.name = 'UnreadableSettingsError';
+    }
+}
+
 const Progress = {
     /** The chat in Dexto Cloud, once the first batch created it. */
     cloudChatId: z.uuid().nullable(),
@@ -107,18 +115,30 @@ export function chatSyncStore(dir: string): ChatSyncStore {
         return path.join(dir, 'folders', `${chatId}.json`);
     };
     let settingsWrites: Promise<void> = Promise.resolve();
-    async function readSettings(): Promise<ChatSyncSettings> {
+    /** Runs `work` after the settings changes queued before it, one at a time. */
+    function queued<T>(work: () => Promise<T>): Promise<T> {
+        const next = settingsWrites.then(work);
+        settingsWrites = next.then(
+            () => undefined,
+            () => undefined
+        );
+        return next;
+    }
+
+    /** The saved settings; null when there are none yet. */
+    async function readSaved(): Promise<ChatSyncSettings | null> {
         const text = await readOptional(settingsFile);
-        if (text !== null) {
-            // Never replaced when unreadable: that would forget private chats and opt-outs.
-            const saved = parseJson(text, SettingsSchema);
-            if (saved === null)
-                throw new Error(
-                    `${settingsFile} can't be read, so no chat syncs. Fix or delete it to sync again.`
-                );
-            return saved;
-        }
-        // Saved at once, so the machine keeps one id.
+        if (text === null) return null;
+        // Never replaced when unreadable: that would forget private chats and opt-outs.
+        const saved = parseJson(text, SettingsSchema);
+        if (saved === null) throw new UnreadableSettingsError(settingsFile);
+        return saved;
+    }
+
+    /** The first settings, saved at once so the machine keeps one id. Only from the queue. */
+    async function savedOrCreated(): Promise<ChatSyncSettings> {
+        const saved = await readSaved();
+        if (saved !== null) return saved;
         const settings: ChatSyncSettings = {
             machineId: randomUUID(),
             noticeShownAt: null,
@@ -135,20 +155,14 @@ export function chatSyncStore(dir: string): ChatSyncStore {
             (await readJson(folderFile(chatId), ChatFolderSchema))?.folder ?? null,
         writeChatFolder: async (chatId, folder) =>
             writeJson(dir, folderFile(chatId), ChatFolderSchema.parse({ folder })),
-        readSettings,
+        readSettings: async () => (await readSaved()) ?? (await queued(savedOrCreated)),
         writeSettings: (settings) => writeJson(dir, settingsFile, SettingsSchema.parse(settings)),
-        updateSettings(change) {
-            const next = settingsWrites.then(async () => {
-                const settings = change(await readSettings());
+        updateSettings: (change) =>
+            queued(async () => {
+                const settings = change(await savedOrCreated());
                 await writeJson(dir, settingsFile, SettingsSchema.parse(settings));
                 return settings;
-            });
-            settingsWrites = next.then(
-                () => undefined,
-                () => undefined
-            );
-            return next;
-        },
+            }),
         readChat: async (account, chatId) => readJson(chatFile(account, chatId), ChatStateSchema),
         writeChat: async (account, chatId, state) =>
             writeJson(dir, chatFile(account, chatId), ChatStateSchema.parse(state)),

@@ -12,6 +12,15 @@ async function freshStore() {
 }
 
 describe('chatSyncStore', () => {
+    it('keeps one machine id when two first reads race', async () => {
+        const { store } = await freshStore();
+
+        const [first, second] = await Promise.all([store.readSettings(), store.readSettings()]);
+
+        expect(second.machineId).toBe(first.machineId);
+        expect((await store.readSettings()).machineId).toBe(first.machineId);
+    });
+
     it('starts with sync on, no notice shown, and keeps one machine id', async () => {
         const { store } = await freshStore();
 
