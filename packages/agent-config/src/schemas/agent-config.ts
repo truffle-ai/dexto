@@ -10,8 +10,8 @@ import {
     SystemPromptConfigSchema,
     PermissionsConfigSchema,
     ResourcesConfigSchema,
+    createLLMConfigSchema,
 } from '@dexto/core/config';
-import { createLLMConfigSchema } from '@dexto/core';
 import { StorageSchema } from '@dexto/storage/schemas';
 import { z } from 'zod';
 import { HooksConfigSchema } from './hooks.js';
