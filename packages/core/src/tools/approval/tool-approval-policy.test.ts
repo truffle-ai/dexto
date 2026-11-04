@@ -97,10 +97,59 @@ describe('ToolApprovalPolicy', () => {
                 because: explicitAllow,
                 kind: 'ready',
             });
-            expect(getContext).not.toHaveBeenCalled();
-            expect(needsApproval).not.toHaveBeenCalled();
+            expect(needsApproval).toHaveBeenCalledTimes(1);
         }
     );
+
+    it.each(['session-allowed', 'always-allow', 'allowed-tools'] as const)(
+        'asks afresh when the tool says always-ask, even with an explicit allow (%s)',
+        async (explicitAllow) => {
+            const policy = createPolicy({
+                explicitAllows: { test_tool: explicitAllow },
+                tools: [createTool({ kind: 'always-ask' })],
+            });
+
+            await expect(resolveFor(policy)).resolves.toEqual({ kind: 'always-ask' });
+        }
+    );
+
+    it('asks afresh when the tool says always-ask in auto-approve mode', async () => {
+        const policy = createPolicy({
+            approvalMode: 'auto-approve',
+            tools: [createTool(() => ({ kind: 'always-ask' }))],
+        });
+
+        await expect(resolveFor(policy)).resolves.toEqual({ kind: 'always-ask' });
+    });
+
+    it('asks afresh when an always-ask call follows a remembered approval key', async () => {
+        const policy = createPolicy({
+            approvedKeys: ['scoped-key'],
+            tools: [
+                createTool((input) =>
+                    input.value === 'publish' ? { kind: 'always-ask' } : 'scoped-key'
+                ),
+            ],
+        });
+
+        await expect(resolveFor(policy, { args: { value: 'draft' } })).resolves.toEqual({
+            because: 'session-approved-key',
+            kind: 'ready',
+        });
+        await expect(resolveFor(policy, { args: { value: 'publish' } })).resolves.toEqual({
+            kind: 'always-ask',
+        });
+    });
+
+    it('reads an unrecognized object decision as always-ask', async () => {
+        const policy = createPolicy({
+            approvalMode: 'auto-approve',
+            // @ts-expect-error untyped tool code may return any object
+            tools: [createTool(() => ({ kind: 'sometimes' }))],
+        });
+
+        await expect(resolveFor(policy)).resolves.toEqual({ kind: 'always-ask' });
+    });
 
     it('lets global auto-approve override tool-authored approval', async () => {
         const getContext = vi.fn(() => createContext());
@@ -114,8 +163,7 @@ describe('ToolApprovalPolicy', () => {
             because: 'auto-approve-mode',
             kind: 'ready',
         });
-        expect(getContext).not.toHaveBeenCalled();
-        expect(needsApproval).not.toHaveBeenCalled();
+        expect(needsApproval).toHaveBeenCalledTimes(1);
     });
 
     it('uses tool-authored allow before manual fallback', async () => {

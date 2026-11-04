@@ -3820,6 +3820,13 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     inputSchema: z.object({}).strict(),
                     execute: vi.fn(),
                 }),
+                defineTool({
+                    id: 'always_ask',
+                    description: 'Asks afresh for every call',
+                    inputSchema: z.object({}).strict(),
+                    needsApproval: { kind: 'always-ask' },
+                    execute: vi.fn(),
+                }),
             ];
             const manual = createToolManager(
                 mockMcpManager,
@@ -3846,11 +3853,14 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 expect.objectContaining({ approval: 'never', name: 'always_allowed' }),
                 expect.objectContaining({ approval: 'possible', name: 'argument_dependent' }),
                 expect.objectContaining({ approval: 'possible', name: 'manual_default' }),
+                expect.objectContaining({ approval: 'possible', name: 'always_ask' }),
             ]);
+            // A per-call decision may ask afresh, which auto-approve mode cannot settle.
             await expect(automatic.getToolDescriptors()).resolves.toEqual([
                 expect.objectContaining({ approval: 'never', name: 'always_allowed' }),
-                expect.objectContaining({ approval: 'never', name: 'argument_dependent' }),
+                expect.objectContaining({ approval: 'possible', name: 'argument_dependent' }),
                 expect.objectContaining({ approval: 'never', name: 'manual_default' }),
+                expect.objectContaining({ approval: 'possible', name: 'always_ask' }),
             ]);
         });
 
