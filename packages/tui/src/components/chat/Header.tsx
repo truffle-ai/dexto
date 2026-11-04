@@ -7,7 +7,9 @@ import React from 'react';
 import { Box, Text } from 'ink';
 import type { StartupInfo } from '../../state/types.js';
 import { useTerminalSize } from '../../hooks/useTerminalSize.js';
-import { tone } from '../../signal/index.js';
+import { tone, useCaps, Wordmark } from '../../signal/index.js';
+import { WORDMARK_ART } from '../../signal/wordmark-art.generated.js';
+import { wordmarkTier } from '../../signal/wordmark.js';
 
 interface HeaderProps {
     modelName: string;
@@ -22,6 +24,10 @@ interface HeaderProps {
  */
 export function Header({ modelName, sessionId, hasActiveSession, startupInfo }: HeaderProps) {
     const { columns } = useTerminalSize();
+    const caps = useCaps();
+    const plain = caps.glyphs === 'ascii' || process.env.TERM === 'dumb';
+    const art = WORDMARK_ART[wordmarkTier(caps)].filter((item) => item.cols <= columns - 4).at(-1);
+    const showLogo = caps.tty && !process.env.CI;
 
     return (
         <Box
@@ -32,16 +38,11 @@ export function Header({ modelName, sessionId, hasActiveSession, startupInfo }: 
             flexShrink={0}
             width={columns}
         >
-            <Box marginTop={1}>
-                <Text color={tone('tealDim')}>
-                    {`██████╗ ███████╗██╗  ██╗████████╗ ██████╗
-██╔══██╗██╔════╝╚██╗██╔╝╚══██╔══╝██╔═══██╗
-██║  ██║█████╗   ╚███╔╝    ██║   ██║   ██║
-██║  ██║██╔══╝   ██╔██╗    ██║   ██║   ██║
-██████╔╝███████╗██╔╝ ██╗   ██║   ╚██████╔╝
-╚═════╝ ╚══════╝╚═╝  ╚═╝   ╚═╝    ╚═════╝`}
-                </Text>
-            </Box>
+            {showLogo && (
+                <Box marginTop={1}>
+                    {plain || art === undefined ? <Text>Dexto</Text> : <Wordmark rows={art.rows} />}
+                </Box>
+            )}
 
             {/* Model and Session */}
             <Box marginTop={1} flexDirection="row">
