@@ -1,7 +1,13 @@
 // Runs chat sync beside the interactive CLI: syncs a chat after each run, shows the first-run
 // notice before anything syncs, and answers /sync and /private.
 
-import { createChatSync, type ChatSync, type ChatSyncDeps, type SyncConnection } from './engine.js';
+import {
+    createChatSync,
+    type ChatSync,
+    type ChatSyncDeps,
+    type CloudDelete,
+    type SyncConnection,
+} from './engine.js';
 import { firstRunNotice, REPLIES, statusText, USAGE, type SyncStatus } from './notices.js';
 import { isInside, syncAllowed, type ChatSyncStore } from './store.js';
 
@@ -37,12 +43,21 @@ export interface ChatSyncHost {
 }
 
 export function createChatSyncHost(deps: ChatSyncHostDeps): ChatSyncHost {
-    const waiting: string[] = [];
+    /** Notices the screen hasn't shown yet, each with what to do once it has. */
+    const waiting: { text: string; shown: () => Promise<void> }[] = [];
     let listener: ((text: string) => void) | null = null;
-    const notify = (text: string) => {
-        if (listener === null) waiting.push(text);
-        else listener(text);
+    const notify = async (
+        text: string,
+        shown: () => Promise<void> = async () => undefined
+    ): Promise<void> => {
+        if (listener === null) {
+            waiting.push({ text, shown });
+            return;
+        }
+        listener(text);
+        await shown();
     };
+    let noticeQueued = false;
 
     const engine = createChatSync({
         ...deps,
@@ -50,17 +65,23 @@ export function createChatSyncHost(deps: ChatSyncHostDeps): ChatSyncHost {
             const signIn = await deps.signIn();
             return signIn.kind === 'ready' ? signIn.connection : null;
         },
-        note: notify,
+        note: (text) => void notify(text),
     });
 
-    /** The first-run notice, once, as soon as someone signed in has sync on. */
+    /**
+     * The first-run notice, once, as soon as someone signed in has sync on. It counts as shown
+     * when the screen shows it, and nothing syncs before that.
+     */
     async function noticeIfDue(): Promise<void> {
+        if (noticeQueued) return;
         const settings = await deps.store.readSettings();
         if (settings.noticeShownAt !== null || settings.sync === 'off') return;
         const signIn = await deps.signIn();
         if (signIn.kind === 'signed_out') return;
-        notify(firstRunNotice({ canSync: signIn.kind === 'ready' }));
-        await markNoticeShown(deps.store, deps.now());
+        noticeQueued = true;
+        await notify(firstRunNotice({ canSync: signIn.kind === 'ready' }), () =>
+            markNoticeShown(deps.store, deps.now())
+        );
     }
 
     async function syncAfterNotice(chatId: string): Promise<void> {
@@ -76,12 +97,12 @@ export function createChatSyncHost(deps: ChatSyncHostDeps): ChatSyncHost {
     async function status(chatId: string | null): Promise<SyncStatus> {
         const settings = await deps.store.readSettings();
         if (settings.sync === 'off') return { kind: 'off_everywhere' };
-        if (chatId !== null && settings.privateChats.includes(chatId)) return { kind: 'private' };
-        if (!syncAllowed(settings, { id: chatId ?? '', cwd: deps.cwd }))
-            return {
-                kind: 'off_in_project',
-                folder: optedOutFolder(settings.projectsOff, deps.cwd),
-            };
+        const chat = chatId === null ? null : await deps.readChat(chatId);
+        const ids = chat === null ? [] : [chat.id, ...chat.parentIds];
+        if (ids.some((id) => settings.privateChats.includes(id))) return { kind: 'private' };
+        const cwd = chat?.cwd ?? deps.cwd;
+        if (!syncAllowed(settings, { id: '', cwd, parentIds: [] }))
+            return { kind: 'off_in_project', folder: optedOutFolder(settings.projectsOff, cwd) };
         const signIn = await deps.signIn();
         if (signIn.kind !== 'ready') return { kind: signIn.kind };
         const account = await deps.store.readAccount(signIn.connection.account);
@@ -135,22 +156,27 @@ export function createChatSyncHost(deps: ChatSyncHostDeps): ChatSyncHost {
             await syncAfterNotice(chatId);
             return REPLIES.madeShared;
         }
-        await engine.makePrivate(chatId);
-        return REPLIES.madePrivate;
+        return madePrivateReply(await engine.makePrivate(chatId));
     }
 
     return {
         engine,
         async start(chatId) {
+            // On the launch that shows the notice, nothing syncs until the next run ends, so the
+            // person can first keep this chat, or this folder, on this machine.
+            const noticeWasShown = (await deps.store.readSettings()).noticeShownAt !== null;
             await noticeIfDue();
             await engine.sendPendingDeletes();
-            if (chatId !== null) await engine.sync(chatId);
+            if (noticeWasShown && chatId !== null) await engine.sync(chatId);
         },
         command: (name, args, chatId) =>
             name === 'sync' ? sync(args, chatId) : privacy(args, chatId),
         onNotice(next) {
             listener = next;
-            for (const text of waiting.splice(0)) next(text);
+            for (const { text, shown } of waiting.splice(0)) {
+                next(text);
+                void shown().catch(() => undefined);
+            }
             return () => {
                 if (listener === next) listener = null;
             };
@@ -163,6 +189,19 @@ async function markNoticeShown(store: ChatSyncStore, now: number): Promise<void>
     const settings = await store.readSettings();
     if (settings.noticeShownAt === null)
         await store.writeSettings({ ...settings, noticeShownAt: new Date(now).toISOString() });
+}
+
+export function madePrivateReply(outcome: CloudDelete): string {
+    switch (outcome) {
+        case 'none':
+            return REPLIES.madePrivateNeverSynced;
+        case 'deleted':
+            return REPLIES.madePrivate;
+        case 'pending':
+            return REPLIES.madePrivateDeleteLater;
+        case 'in_cloud':
+            return REPLIES.madePrivateInCloud;
+    }
 }
 
 /** The opted-out folder holding `cwd`, for the reply that names it. */

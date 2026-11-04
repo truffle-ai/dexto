@@ -52,6 +52,7 @@ function host(): ChatSyncHost {
         cwd: CWD,
         gitBranch: null,
         messages,
+        parentIds: [],
     });
     return createChatSyncHost({
         store,
@@ -161,6 +162,7 @@ describe('createChatSyncHost', () => {
 
     it('turns sync off and on for this folder', async () => {
         const sync = host();
+        sync.onNotice(() => undefined);
         await sync.start(null);
 
         expect(await sync.command('sync', ['off', 'project'], 's1')).toBe(
@@ -178,9 +180,13 @@ describe('createChatSyncHost', () => {
 
     it('makes a chat private, deleting its copy, and lets it sync again as a new chat', async () => {
         const sync = host();
+        sync.onNotice(() => undefined);
         await sync.start('s1');
+        await runFinished('s1');
 
-        expect(await sync.command('private', [], 's1')).toMatch(/is private/u);
+        expect(await sync.command('private', [], 's1')).toBe(
+            'This chat is private: it stays on this machine, and its copy in Dexto Cloud is deleted.'
+        );
         expect(sent.map((request) => request.method)).toEqual(['POST', 'DELETE']);
         await runFinished('s1');
         expect(sent).toHaveLength(2);
@@ -197,5 +203,39 @@ describe('createChatSyncHost', () => {
         expect(await sync.command('sync', ['off', 'here'], 's1')).toMatch(/^Usage: \/sync/u);
         expect(await sync.command('private', ['now'], 's1')).toMatch(/^Usage: \/private/u);
         expect(await sync.command('private', [], null)).toMatch(/no chat/u);
+    });
+
+    it('syncs nothing on the launch that shows the notice until a run ends after it', async () => {
+        const sync = host();
+        sync.onNotice(() => undefined);
+        await sync.start('s1');
+        expect(sent).toEqual([]);
+
+        await runFinished('s1');
+        expect(sent).toHaveLength(1);
+    });
+
+    it('counts the notice as shown only once the screen shows it', async () => {
+        const sync = host();
+        await sync.start('s1');
+        await runFinished('s1');
+        expect((await store.readSettings()).noticeShownAt).toBeNull();
+        expect(sent).toEqual([]);
+
+        sync.onNotice(() => undefined);
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        await runFinished('s1');
+        expect((await store.readSettings()).noticeShownAt).not.toBeNull();
+        expect(sent).toHaveLength(1);
+    });
+
+    it("says when a private chat's copy could not be deleted yet, or never synced", async () => {
+        const sync = host();
+        sync.onNotice(() => undefined);
+        expect(await sync.command('private', [], 'never-synced')).toMatch(/had not synced/u);
+
+        await runFinished('s2');
+        signIn = 'signed_out';
+        expect(await sync.command('private', [], 's2')).toMatch(/as soon as the CLI can reach/u);
     });
 });

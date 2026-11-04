@@ -50,8 +50,9 @@ async function nodeSignIn(): Promise<SyncSignIn> {
         connection: {
             account: account.slice(0, 128),
             // Synced chats belong to the person, not a Cloud project.
+            // The sign-in's own API, never one an environment variable names instead.
             client: createCloudClient({
-                apiBaseUrl: connection.apiBaseUrl,
+                apiBaseUrl: connection.login.apiBaseUrl,
                 token: connection.token,
                 cloudProject: null,
             }),
@@ -72,15 +73,25 @@ export async function startNodeChatSync(
     cwd: string
 ): Promise<ChatSyncHost> {
     const gitBranch = await currentGitBranch(cwd);
+    const store = nodeChatSyncStore();
     const readChat = async (chatId: string): Promise<LocalChat | null> => {
         const metadata = await agent.getSessionMetadata(chatId);
         if (metadata === undefined) return null;
+        const parentIds = await forkedFrom(agent, metadata.parentSessionId);
         const messages = await agent.getSessionHistory(chatId, { expandBlobReferences: false });
-        return { id: chatId, title: metadata.title ?? null, cwd, gitBranch, messages };
+        return {
+            id: chatId,
+            title: metadata.title ?? null,
+            cwd: await chatFolder(store, [chatId, ...parentIds], cwd),
+            gitBranch,
+            messages,
+            parentIds,
+        };
     };
     let host: ChatSyncHost | null = null;
     host = createChatSyncHost({
         ...common(),
+        store,
         signIn: nodeSignIn,
         readChat,
         cwd,
@@ -114,6 +125,39 @@ export function nodeChatSync(note: (text: string) => void): ChatSync {
         note,
         schedule: () => undefined,
     });
+}
+
+/** The chats a chat was forked from, nearest first. */
+async function forkedFrom(
+    agent: Pick<DextoAgent, 'getSessionMetadata'>,
+    parentId: string | undefined
+): Promise<string[]> {
+    const ids: string[] = [];
+    let next = parentId;
+    while (next !== undefined && !ids.includes(next) && ids.length < 50) {
+        ids.push(next);
+        next = (await agent.getSessionMetadata(next))?.parentSessionId;
+    }
+    return ids;
+}
+
+/**
+ * The folder a chat works in: the one kept for it (or for the chat it was forked from), else the
+ * folder the CLI runs in, kept from now on. A chat resumed elsewhere keeps its own folder, so its
+ * folder's opt-out still applies.
+ */
+async function chatFolder(
+    store: ChatSyncStore,
+    ids: readonly string[],
+    cwd: string
+): Promise<string> {
+    for (const id of ids) {
+        const folder = await store.readChatFolder(id);
+        if (folder !== null) return folder;
+    }
+    const [chatId] = ids;
+    if (chatId !== undefined) await store.writeChatFolder(chatId, cwd);
+    return cwd;
 }
 
 async function currentGitBranch(cwd: string): Promise<string | null> {

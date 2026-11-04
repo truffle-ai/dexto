@@ -172,17 +172,14 @@ export async function handleSessionDeleteCommand(
         // We just delete the requested session without restrictions
         await agent.deleteSession(sessionId);
         console.log(chalk.green(`✅ Deleted session: ${chalk.bold(sessionId)}`));
-        // Its copy in Dexto Cloud goes too, now or the next time this account syncs.
+        // Its copy in Dexto Cloud goes too, now or the next time this account can reach it.
         const { nodeChatSync } = await import('../chat-sync/node.js');
-        await nodeChatSync((text) => console.log(chalk.yellow(text)))
+        const { deletedCopyText } = await import('../chat-sync/notices.js');
+        const copy = await nodeChatSync(() => undefined)
             .deleteLocalChat(sessionId)
-            .catch((error: unknown) => {
-                console.log(
-                    chalk.yellow(
-                        `Couldn't delete its synced copy in Dexto Cloud (${error instanceof Error ? error.message : String(error)}). Delete it there.`
-                    )
-                );
-            });
+            .catch(() => 'pending' as const);
+        const said = deletedCopyText(copy);
+        if (said !== null) console.log(chalk.yellow(said));
     } catch (error) {
         logger.error(
             `Failed to delete session: ${error instanceof Error ? error.message : String(error)}`,
