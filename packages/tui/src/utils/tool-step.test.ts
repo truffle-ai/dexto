@@ -205,6 +205,20 @@ describe('toolOutput', () => {
         ]);
     });
 
+    it('reads the message out of a stored {"error":…} result', () => {
+        const toolResult = JSON.stringify({ error: 'Command failed: exit 3\n' });
+        expect(toolOutput(tool({ isError: true, toolResult }))).toEqual(['Command failed: exit 3']);
+    });
+
+    it('prefers the failure text from the live event', () => {
+        const message = tool({
+            isError: true,
+            toolResult: '{"error":"cut off',
+            toolFailureText: 'Command failed: exit 3',
+        });
+        expect(toolOutput(message)).toEqual(['Command failed: exit 3']);
+    });
+
     it('stays quiet for a denied or stopped call', () => {
         const cancelled = { isError: true, toolResult: 'Cancelled' };
         expect(toolOutput(tool({ ...cancelled, toolOutcome: 'denied' }))).toEqual([]);

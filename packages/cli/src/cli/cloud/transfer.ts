@@ -1,6 +1,8 @@
 // Sends local bytes to a URL the server handed out for them, outside MCP JSON.
 
-import { CommandFailure, isJsonObject, type CommandContext } from './command.js';
+import { CommandFailure } from '../failure.js';
+
+import { isJsonObject, type CommandContext } from './command.js';
 
 /** Where the bytes go: a short-lived URL, its method and the headers it expects. */
 export interface TransferTarget {

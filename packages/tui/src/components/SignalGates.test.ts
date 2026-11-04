@@ -194,4 +194,39 @@ describe('Signal approval gate', () => {
         const rows = frame.split('\n').filter((line) => line.includes('word'));
         expect(rows.join(' ').match(/word/g)).toHaveLength(20);
     });
+
+    it('names the file an edit approval would change', () => {
+        const metadata = {
+            toolName: 'edit_file',
+            args: {},
+            displayPreview: {
+                type: 'diff',
+                unified: '@@ -1 +1 @@\n-a\n+b',
+                filename: `${process.cwd()}/src/token.ts`,
+                additions: 1,
+                deletions: 1,
+            },
+        };
+        expect(renderFrame(prompt(request({ metadata })), TEXT_ONLY)).toContain(
+            'src/token.ts +1 −1'
+        );
+    });
+
+    it('words a directory approval and keeps a wrapped option under its label', () => {
+        const metadata = {
+            toolName: 'edit_file',
+            args: {},
+            approvalKey: `directory:/tmp/${'long/'.repeat(14)}outside:operation:edit`,
+        };
+        const frame = renderFrame(prompt(request({ metadata })), {
+            columns: 60,
+            terminal: 'no-color',
+        });
+        expect(frame).not.toContain('directory:');
+        expect(frame).not.toContain(':operation:');
+        const label = frame.split('\n').findIndex((line) => line.includes('Allow edits in'));
+        expect(label).toBeGreaterThan(-1);
+        const start = (frame.split('\n')[label] ?? '').indexOf('Allow edits in');
+        expect((frame.split('\n')[label + 1] ?? '').slice(0, start).replace(/[│ ]/g, '')).toBe('');
+    });
 });

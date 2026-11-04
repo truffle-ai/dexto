@@ -8,7 +8,6 @@ import { describe, expect, it } from 'vitest';
 const REPOSITORY_ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
 const FIRST_PARTY_TOOL_ROOTS = [
     'packages/agent-management/src/tool-factories',
-    'packages/orchestration/src/tools',
     'packages/tools-builtins/src',
     'packages/tools-filesystem/src',
     'packages/tools-lifecycle/src',

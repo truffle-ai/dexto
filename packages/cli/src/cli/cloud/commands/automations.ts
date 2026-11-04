@@ -1,5 +1,7 @@
 // `cloud automations`: run the project's agents on a schedule or on a signed webhook.
 
+import { requireConsent } from '../../interaction.js';
+
 import { unwrap, type V1Body, type V1Response } from '@dexto/cloud-client';
 
 import {
@@ -8,7 +10,6 @@ import {
     PAGE_OPTIONS,
     pageQuery,
     readJsonBody,
-    requireConsent,
     stringOption,
     UsageError,
     YES_OPTION,

@@ -1,15 +1,11 @@
 // `workspace <app> <operation>`: the workspace's operations grouped by the app that provides them.
 
+import { shellWord } from '../../interaction.js';
+
 import { randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 
-import {
-    isJsonObject,
-    MissingScopeFailure,
-    shellWord,
-    UsageError,
-    type CommandContext,
-} from '../command.js';
+import { isJsonObject, MissingScopeFailure, UsageError, type CommandContext } from '../command.js';
 import { readAppScopes } from '../app-scopes.js';
 import { attachFiles, fileFieldOf, isLocalFile, type FileField } from './app-files.js';
 import {

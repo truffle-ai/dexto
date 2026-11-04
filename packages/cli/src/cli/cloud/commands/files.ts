@@ -1,5 +1,8 @@
 // `cloud files`: upload, download, share and delete the project's files.
 
+import { CommandFailure } from '../../failure.js';
+import { requireConsent } from '../../interaction.js';
+
 import { createHash } from 'node:crypto';
 import { createReadStream, createWriteStream, openAsBlob } from 'node:fs';
 import { stat } from 'node:fs/promises';
@@ -8,12 +11,10 @@ import { Writable } from 'node:stream';
 import { unwrap, type CloudClient, type V1Response } from '@dexto/cloud-client';
 import {
     argument,
-    CommandFailure,
     flag,
     integerOption,
     PAGE_OPTIONS,
     pageQuery,
-    requireConsent,
     stringOption,
     UsageError,
     YES_OPTION,

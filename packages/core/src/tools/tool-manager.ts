@@ -62,7 +62,6 @@ import {
     wrapToolParametersSchema,
     type ToolCallMetadata,
 } from './tool-call-metadata.js';
-import { isBackgroundTasksEnabled } from '../utils/env.js';
 import type {
     DynamicContributorContext,
     DynamicContributorContextFactory,
@@ -1696,15 +1695,6 @@ export class ToolManager {
         call: ExecutableToolCall,
         invocation: ToolExecutionInvocation | undefined
     ): Promise<ToolExecutionResult | undefined> {
-        const { sessionId } = this.resolveToolExecutionInvocation(invocation);
-        if (
-            isBackgroundTasksEnabled() &&
-            call.meta?.runInBackground === true &&
-            sessionId !== undefined
-        ) {
-            return undefined;
-        }
-
         const identity = this.resolveToolExecutionIdentity(
             invocation ?? {},
             call.toolCallId,
@@ -1880,17 +1870,11 @@ export class ToolManager {
     ): Promise<ToolExecutionResult> {
         const { sessionId, abortSignal, runContext, hostRuntime } =
             this.resolveToolExecutionInvocation(invocation);
-        const durableIdentity = this.resolveToolExecutionIdentity(
+        const executionIdentity = this.resolveToolExecutionIdentity(
             invocation ?? {},
             call.toolCallId,
             call.parentToolCallId
         );
-        const backgroundTasksEnabled = isBackgroundTasksEnabled();
-        const willRunInBackground =
-            backgroundTasksEnabled &&
-            call.meta?.runInBackground === true &&
-            sessionId !== undefined;
-        const executionIdentity = willRunInBackground ? undefined : durableIdentity;
         const executionId =
             executionIdentity === undefined ? undefined : createToolExecutionId(executionIdentity);
         let toolArgs = call.input;
@@ -2003,17 +1987,6 @@ export class ToolManager {
 
             let result: unknown;
 
-            const registerBackgroundTask = (promise: Promise<unknown>, description: string) => {
-                return {
-                    result: {
-                        taskId: call.toolCallId,
-                        status: 'running' as const,
-                        description,
-                    },
-                    promise,
-                };
-            };
-
             if (call.identity.type === 'mcp') {
                 const actualToolName = call.toolName.substring(ToolManager.MCP_TOOL_PREFIX.length);
                 if (actualToolName.length === 0) {
@@ -2032,82 +2005,16 @@ export class ToolManager {
                               sessionId,
                               runContext
                           );
-                if (call.meta?.runInBackground === true && !backgroundTasksEnabled) {
-                    this.logger.debug(
-                        'Background tool execution disabled; running synchronously instead.',
-                        { toolName: call.toolName }
-                    );
-                }
-                if (willRunInBackground) {
-                    const backgroundSessionId = sessionId;
-                    const { result: backgroundResult, promise } = registerBackgroundTask(
-                        executeMcpTool(),
-                        `MCP tool ${actualToolName}`
-                    );
-                    this.agentEventBus.emit('tool:background', {
-                        toolName: call.toolName,
-                        toolCallId: backgroundResult.taskId,
-                        sessionId: backgroundSessionId,
-                        description: backgroundResult.description,
-                        promise,
-                        ...(hostRuntime !== undefined && { hostRuntime }),
-                        ...(call.meta?.timeoutMs !== undefined && {
-                            timeoutMs: call.meta.timeoutMs,
-                        }),
-                        ...(call.meta?.notifyOnComplete !== undefined && {
-                            notifyOnComplete: call.meta.notifyOnComplete,
-                        }),
-                    });
-                    result = backgroundResult;
-                } else {
-                    result = await executeMcpTool();
-                }
+                result = await executeMcpTool();
             } else {
-                if (call.meta?.runInBackground === true && !backgroundTasksEnabled) {
-                    this.logger.debug(
-                        'Background tool execution disabled; running synchronously instead.',
-                        { toolName: call.toolName }
-                    );
-                }
-
-                if (willRunInBackground) {
-                    const backgroundSessionId = sessionId;
-                    const { result: backgroundResult, promise } = registerBackgroundTask(
-                        this.executeLocalTool(call.toolName, toolArgs, {
-                            sessionId: backgroundSessionId,
-                            abortSignal,
-                            executionIdentity,
-                            toolCallId: call.toolCallId,
-                            parentToolCallId: call.parentToolCallId,
-                            runContext,
-                        }),
-                        `Tool ${call.toolName}`
-                    );
-                    this.agentEventBus.emit('tool:background', {
-                        toolName: call.toolName,
-                        toolCallId: backgroundResult.taskId,
-                        sessionId: backgroundSessionId,
-                        description: backgroundResult.description,
-                        promise,
-                        ...(hostRuntime !== undefined && { hostRuntime }),
-                        ...(call.meta?.timeoutMs !== undefined && {
-                            timeoutMs: call.meta.timeoutMs,
-                        }),
-                        ...(call.meta?.notifyOnComplete !== undefined && {
-                            notifyOnComplete: call.meta.notifyOnComplete,
-                        }),
-                    });
-                    result = backgroundResult;
-                } else {
-                    result = await this.executeLocalTool(call.toolName, toolArgs, {
-                        sessionId,
-                        abortSignal,
-                        executionIdentity,
-                        toolCallId: call.toolCallId,
-                        parentToolCallId: call.parentToolCallId,
-                        runContext,
-                    });
-                }
+                result = await this.executeLocalTool(call.toolName, toolArgs, {
+                    sessionId,
+                    abortSignal,
+                    executionIdentity,
+                    toolCallId: call.toolCallId,
+                    parentToolCallId: call.parentToolCallId,
+                    runContext,
+                });
             }
 
             const duration = Date.now() - startTime;

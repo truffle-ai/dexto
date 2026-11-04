@@ -1159,6 +1159,16 @@ program
 
 // 14) PARSE & EXECUTE
 // `dexto --help --json`: the commands and exit codes as JSON, for agents.
-if (isRootJsonHelp(process.argv.slice(2)))
+// Internal inventory entry point for the repository build check.
+if (process.argv.slice(2).length === 1 && process.argv[2] === '--audit-agent-cli') {
+    const [{ auditProgram }, { cloudCommands }] = await Promise.all([
+        import('./cli/agent-audit.js'),
+        import('./cli/cloud/host.js'),
+    ]);
+    const commands = cloudCommands('', async () => {
+        throw new Error('Audit cannot sign in');
+    });
+    process.stdout.write(`${JSON.stringify(auditProgram(program, commands), null, 2)}\n`);
+} else if (isRootJsonHelp(process.argv.slice(2)))
     process.stdout.write(`${JSON.stringify(rootHelpJson(program), null, 2)}\n`);
 else program.parseAsync(process.argv);

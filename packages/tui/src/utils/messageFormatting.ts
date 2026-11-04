@@ -15,30 +15,12 @@ import { isTextPart, isAssistantMessage, isToolMessage } from '@dexto/core';
 import type { Message, ExternalTriggerStyledData } from '../state/types.js';
 import { supportsStartupInfo, type TuiAgentBackend } from '../agent-backend.js';
 
-const HIDDEN_TOOL_NAMES = new Set(['wait_for']);
-
-export function normalizeToolName(toolName: string): string {
-    if (toolName.startsWith('mcp--')) {
-        const trimmed = toolName.substring('mcp--'.length);
-        const parts = trimmed.split('--');
-        return parts.length >= 2 ? parts.slice(1).join('--') : trimmed;
-    }
-    return toolName;
-}
-
-export function shouldHideTool(toolName: string | undefined): boolean {
-    if (!toolName) {
-        return false;
-    }
-
-    return HIDDEN_TOOL_NAMES.has(normalizeToolName(toolName));
-}
-
 const backgroundCompletionRegex =
     /<background-task-completion>[\s\S]*?<\/background-task-completion>/g;
 const stripBackgroundCompletion = (text: string): string =>
     text.replace(backgroundCompletionRegex, '').replace('<background-task-completion>', '').trim();
 
+import { storedBackgroundFailure } from './background-failure.js';
 import { generateMessageId } from './idGenerator.js';
 
 const AUTOMATION_TRIGGER_REGEX =
@@ -333,6 +315,7 @@ export function createErrorMessage(error: Error | string): Message {
         role: 'system',
         content: `Error: ${content}`,
         timestamp: new Date(),
+        systemKind: 'fault',
     };
 }
 
@@ -507,10 +490,6 @@ export function convertHistoryToUIMessages(
 
         // Handle tool messages specially
         if (isToolMessage(msg)) {
-            if (shouldHideTool(msg.name)) {
-                return;
-            }
-
             // Look up the original tool call to get args
             const toolCall = toolCallMap.get(msg.toolCallId);
 
@@ -558,6 +537,7 @@ export function convertHistoryToUIMessages(
                 toolStatus: 'finished',
                 toolResult: resultPreview,
                 isError: msg.success === false,
+                ...storedBackgroundFailure(msg.name, extractTextContent(msg.content)),
                 // Store content parts for potential rich rendering
                 toolContent: msg.content,
                 // Restore structured display data for rich rendering (diffs, shell output, etc.)

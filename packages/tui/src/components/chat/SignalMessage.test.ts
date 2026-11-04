@@ -2,7 +2,12 @@ import { createElement } from 'react';
 import { describe, expect, it } from 'vitest';
 import { renderFrame } from '../../signal/harness.js';
 import type { Message } from '../../state/types.js';
-import { SignalAgentMessage, SignalToolMessage, SignalUserMessage } from './SignalMessage.js';
+import {
+    SignalAgentMessage,
+    SignalNote,
+    SignalToolMessage,
+    SignalUserMessage,
+} from './SignalMessage.js';
 
 function message(overrides: Partial<Message>): Message {
     return {
@@ -94,5 +99,30 @@ describe('Signal transcript', () => {
         // A row wider than the terminal would be clipped and lose text.
         expect(lines.join('').match(/x/g)).toHaveLength(200);
         for (const line of lines) expect(line.trimEnd().length).toBeLessThanOrEqual(80);
+    });
+
+    it('draws an error as a fault block with what to try next', () => {
+        const fault = createElement(SignalNote, {
+            message: message({
+                role: 'system',
+                systemKind: 'fault',
+                content: 'Error: Rate limited\n\n💡 Switch model',
+            }),
+        });
+        const lines = renderFrame(fault, TEXT_ONLY).split('\n').slice(1);
+        expect(lines[0]).toBe('      ▌ FAULT Rate limited');
+        expect(lines[1]).toBe('      ▌ next Switch model');
+    });
+
+    it('marks where the user stopped the run, and keeps other notes quiet', () => {
+        const stopped = createElement(SignalNote, {
+            message: message({ role: 'system', systemKind: 'stopped', content: 'x' }),
+        });
+        expect(renderFrame(stopped, TEXT_ONLY)).toMatch(/■ STOPPED by you at .* type what to do/);
+
+        const note = createElement(SignalNote, {
+            message: message({ role: 'system', content: 'Model switched' }),
+        });
+        expect(renderFrame(note, TEXT_ONLY)).toBe('        · Model switched');
     });
 });

@@ -1,5 +1,7 @@
 // `drive put`: uploads local files and folder trees to Drive, versioning same-named files.
 
+import { CommandFailure } from '../../failure.js';
+
 import { randomUUID } from 'node:crypto';
 import { openAsBlob } from 'node:fs';
 import { lstat, readdir, stat } from 'node:fs/promises';
@@ -8,7 +10,6 @@ import path from 'node:path';
 import { z } from 'zod';
 
 import {
-    CommandFailure,
     isJsonObject,
     stringOption,
     UsageError,

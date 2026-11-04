@@ -7,7 +7,10 @@ import type { Step, StepState } from '../signal/index.js';
 
 export type { Step };
 import type { Message } from '../state/types.js';
+import { backgroundFailure } from './background-failure.js';
 import { formatDuration, formatToolHeader, makeRelativePath } from './messageFormatting.js';
+
+export { backgroundFailure };
 
 const VERB_CELLS = 7;
 const OUTPUT_LINES = 5;
@@ -122,25 +125,6 @@ function stepDetail(message: Message, state: StepState): string | null {
     return message.toolDisplayData === undefined ? null : displayDetail(message.toolDisplayData);
 }
 
-/**
- * A background command's failure, read back by `bash_output`. Reading it succeeds as a tool call,
- * so its outcome is only in the result.
- */
-export function backgroundFailure(toolName: string, rawResult: unknown): Partial<Message> {
-    if (toolName !== 'bash_output' || typeof rawResult !== 'object' || rawResult === null) {
-        return {};
-    }
-    const { status, stderr, stdout, exit_code: exitCode } = rawResult as Record<string, unknown>;
-    if (status !== 'failed') return {};
-    const output = [stderr, stdout].find(
-        (text): text is string => typeof text === 'string' && text.trim().length > 0
-    );
-    return {
-        toolOutcome: 'failed',
-        toolFailureText: output ?? `exit ${String(exitCode ?? 'unknown')}`,
-    };
-}
-
 export function toolStep(message: Message): Step {
     const toolName = message.toolName ?? '';
     const state = stepState(message);
@@ -155,6 +139,19 @@ export function toolStep(message: Message): Step {
     };
 }
 
+/** A failed call's stored result is often {"error":"…"}: a person reads the message inside. */
+function readableFailure(text: string): string {
+    try {
+        const parsed: unknown = JSON.parse(text);
+        if (typeof parsed === 'object' && parsed !== null && 'error' in parsed) {
+            return typeof parsed.error === 'string' ? parsed.error : text;
+        }
+    } catch {
+        // Not JSON: it is already the message.
+    }
+    return text;
+}
+
 /** The lines under a failed call's row: why it failed. A call that worked stays one row. */
 export function toolOutput(message: Message): string[] {
     if (stepState(message) !== 'fail') return [];
@@ -164,7 +161,7 @@ export function toolOutput(message: Message): string[] {
             ? message.toolFailureText
             : display?.type === 'shell'
               ? display.stderr?.trim() || display.stdout?.trim() || ''
-              : (message.toolResult ?? '');
+              : readableFailure(message.toolResult ?? '');
     return text
         .split('\n')
         .filter((line) => line.trim().length > 0)

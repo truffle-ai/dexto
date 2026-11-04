@@ -1,7 +1,9 @@
 // `dexto login`, `logout`, `whoami` and `accounts`: signing in to Dexto and the saved profiles.
 
+import { CommandFailure } from '../../failure.js';
+
 import { dextoAccounts, type dextoCloud, type dextoSignIn } from '@dexto/agent-management';
-import { CommandFailure, UsageError } from '../../cloud/command.js';
+import { UsageError } from '../../cloud/command.js';
 
 type OAuthLogin = dextoAccounts.OAuthLogin;
 type SignedInAs = dextoAccounts.SignedInAs;

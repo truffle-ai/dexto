@@ -32,7 +32,6 @@ import { HistorySearchBar } from '../HistorySearchBar.js';
 import { Footer } from '../Footer.js';
 import { DeckArea } from '../DeckArea.js';
 import { TodoPanel } from '../TodoPanel.js';
-import { BackgroundTasksPanel } from '../BackgroundTasksPanel.js';
 import {
     VirtualizedList,
     SCROLL_TO_ITEM_END,
@@ -368,15 +367,8 @@ export function AlternateBufferCLI({
                                 hasTodos={todos.some((t) => t.status !== 'completed')}
                                 planModeActive={ui.planModeActive}
                                 autoApproveEdits={ui.autoApproveEdits}
-                                backgroundTasksRunning={ui.backgroundTasksRunning}
                             />
                         )}
-
-                        <BackgroundTasksPanel
-                            tasks={ui.backgroundTasks}
-                            isExpanded={ui.backgroundTasksExpanded}
-                            isProcessing={ui.isProcessing}
-                        />
 
                         <TodoPanel
                             todos={todos}

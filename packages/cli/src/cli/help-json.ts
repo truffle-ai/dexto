@@ -1,7 +1,8 @@
 // `dexto --help --json`: the commands and the frozen exit codes, for agents.
 
+import { EXIT_CODE_MEANINGS } from './failure.js';
+
 import type { Command } from 'commander';
-import { EXIT_CODE_MEANINGS } from './cloud/command.js';
 
 /** `--help` (or `-h`) with `--json`, and nothing else. */
 export function isRootJsonHelp(args: readonly string[]): boolean {

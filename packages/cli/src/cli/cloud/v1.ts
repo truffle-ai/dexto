@@ -1,6 +1,7 @@
 // Calls the public /v1 API as the sign-in, for `cloud api` and what the typed client does not cover.
+import { CommandFailure } from '../failure.js';
+
 import {
-    CommandFailure,
     isJsonObject,
     signInCommand,
     UsageError,

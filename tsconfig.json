@@ -33,7 +33,6 @@
     { "path": "./packages/image-local" },
     { "path": "./packages/image-logger-agent" },
     { "path": "./packages/llm" },
-    { "path": "./packages/orchestration" },
     { "path": "./packages/registry" },
     { "path": "./packages/server" },
     { "path": "./packages/storage" },

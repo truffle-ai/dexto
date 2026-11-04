@@ -1,5 +1,8 @@
 // `cloud sites` and `cloud functions`: pack a project with its own packer, deploy, list and delete.
 
+import { CommandFailure } from '../../failure.js';
+import { requireConsent } from '../../interaction.js';
+
 import { access, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -8,10 +11,8 @@ import { z } from 'zod';
 
 import {
     argument,
-    CommandFailure,
     flag,
     MissingScopeFailure,
-    requireConsent,
     stringOption,
     UsageError,
     type Command,
