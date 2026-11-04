@@ -591,6 +591,25 @@
     "matchIds": ["shadcn"]
   },
   {
+    "id": "deed-page",
+    "name": "deed.page",
+    "description": "Publish HTML or a folder of files to a public URL, then update, roll back, or delete it",
+    "category": "development",
+    "icon": "🌐",
+    "config": {
+      "type": "http",
+      "url": "https://deed.page/mcp",
+      "headers": {},
+      "timeout": 30000
+    },
+    "tags": ["hosting", "publish", "static-site", "html"],
+    "isOfficial": true,
+    "isInstalled": false,
+    "author": "deed.page",
+    "homepage": "https://deed.page",
+    "matchIds": ["deed-page", "deed_page", "deedpage"]
+  },
+  {
     "id": "kite-trade",
     "name": "Kite",
     "description": "Zerodha Kite API MCP server",
