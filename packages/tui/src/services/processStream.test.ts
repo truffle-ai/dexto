@@ -666,3 +666,24 @@ describe('processStream (reasoning)', () => {
         );
     });
 });
+
+describe('processStream (stop)', () => {
+    it('clears the stop state when a cancelled run ends its stream', async () => {
+        const { setters, getUi } = createSetters();
+        // What Escape leaves behind; agent.cancel() then ends the iterator without run:complete.
+        setters.setUi((prev) => ({ ...prev, isProcessing: false, isCancelling: true }));
+
+        await processStream(
+            eventStream([{ name: 'llm:thinking', sessionId: 'test-session' }]),
+            setters,
+            {
+                useStreaming: true,
+                autoApproveEditsRef: { current: false },
+                bypassPermissionsRef: { current: false },
+                eventBus: { emit: vi.fn() },
+            }
+        );
+
+        expect(getUi().isCancelling).toBe(false);
+    });
+});
