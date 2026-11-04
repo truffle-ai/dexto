@@ -607,7 +607,7 @@ export class ApprovalManager {
             this.logger.info(
                 `Elicitation requested, approvalId: ${request.approvalId}, sessionId: ${request.sessionId ?? 'global'}`
             );
-            return handler(request, context);
+            return context === undefined ? handler(request) : handler(request, context);
         }
 
         // Tool/command/directory-access/custom approvals respect the configured mode
@@ -628,7 +628,7 @@ export class ApprovalManager {
         this.logger.info(
             `Manual approval '${request.type}' requested, approvalId: ${request.approvalId}, sessionId: ${request.sessionId ?? 'global'}`
         );
-        return handler(request, context);
+        return context === undefined ? handler(request) : handler(request, context);
     }
 
     /**

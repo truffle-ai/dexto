@@ -293,6 +293,18 @@ type PreparedModelToolCall =
           modelVisibleResult: ToolExecutionResult;
       };
 
+/**
+ * A background start keeps no tool execution record, so a batch resumed after a deferral would
+ * start it again. Batches holding one never defer.
+ */
+function startsInBackground(prepared: PreparedModelToolCall): boolean {
+    return (
+        prepared.kind === 'prepared' &&
+        prepared.prepared.kind !== 'terminal' &&
+        prepared.prepared.call.meta?.runInBackground === true
+    );
+}
+
 /** What the approval gate decided for a call, or which check let it run without asking. */
 function approvalGateOf(prepared: PreparedModelToolCall): string {
     if (prepared.kind === 'terminal') return 'terminal';
@@ -1981,6 +1993,7 @@ export class TurnExecutor {
             );
         }
 
+        const deferrable = !preparedCalls.some(startsInBackground);
         // Every call settles before a deferral returns, so none is still running when the host
         // ends this process; completed calls replay from the tool execution store on resume.
         const settled = await Promise.allSettled(
@@ -1998,7 +2011,7 @@ export class TurnExecutor {
                             'tool.success': this.isToolExecutionSuccessful(result),
                         }),
                     },
-                    () => this.executePreparedModelToolCall(prepared),
+                    () => this.executePreparedModelToolCall(prepared, deferrable),
                     this.logger
                 )
             )
@@ -2105,7 +2118,8 @@ export class TurnExecutor {
     }
 
     private async executePreparedModelToolCall(
-        preparedCall: PreparedModelToolCall
+        preparedCall: PreparedModelToolCall,
+        deferrable: boolean
     ): Promise<ToolExecutionResult> {
         try {
             if (preparedCall.kind === 'terminal') {
@@ -2126,7 +2140,7 @@ export class TurnExecutor {
 
             const identity = this.resolveToolApprovalIdentity();
             const recorded = await this.toolManager.recordApprovalRequest(prepared, identity);
-            const approval = await this.requestApprovalDecisionWithAbort(recorded);
+            const approval = await this.requestApprovalDecisionWithAbort(recorded, deferrable);
             if (approval.kind === 'terminal') {
                 return approval.modelVisibleResult;
             }
@@ -2195,7 +2209,8 @@ export class TurnExecutor {
     }
 
     private async requestApprovalDecisionWithAbort(
-        recorded: RecordedToolApproval
+        recorded: RecordedToolApproval,
+        deferrable: boolean
     ): Promise<ApprovalWaitResult> {
         const abortSignal = this.stepAbortController.signal;
         if (abortSignal.aborted) {
@@ -2227,9 +2242,20 @@ export class TurnExecutor {
 
         try {
             return await Promise.race([
-                this.toolManager
-                    .requestApprovalDecision(recorded, { deferrable: true })
-                    .then((response): ApprovalWaitResult => ({ kind: 'response', response })),
+                this.toolManager.requestApprovalDecision(recorded, { deferrable }).then(
+                    (response): ApprovalWaitResult => ({ kind: 'response', response }),
+                    (error: unknown) => {
+                        if (
+                            error instanceof ApprovalDeferredError &&
+                            error.approvalId !== recorded.request.approvalId
+                        ) {
+                            throw new Error(
+                                `Approval ${recorded.request.approvalId} was answered by a deferral of ${error.approvalId}`
+                            );
+                        }
+                        throw error;
+                    }
+                ),
                 abortPromise,
             ]);
         } finally {

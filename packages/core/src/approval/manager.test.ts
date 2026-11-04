@@ -102,8 +102,7 @@ describe('ApprovalManager', () => {
                         toolCallId: 'test-call-id',
                         toolName: 'write_file',
                     },
-                }),
-                undefined
+                })
             );
         });
 
