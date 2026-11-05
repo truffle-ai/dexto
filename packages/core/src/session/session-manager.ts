@@ -11,6 +11,7 @@ import type { ValidatedLLMConfig } from '../llm/schemas.js';
 import type { HookManager } from '../hooks/manager.js';
 import type { ApprovalManager } from '../approval/manager.js';
 import { SessionError } from './errors.js';
+import { DextoRuntimeError, ErrorType } from '../errors/index.js';
 import type { TokenUsage } from '@dexto/llm';
 import { normalizeTokenUsageForAccounting } from '../llm/usage-metadata.js';
 import type { LLMExecutionControl, LanguageModelFactory } from '../llm/services/types.js';
@@ -570,6 +571,8 @@ export class SessionManager {
                 `Failed to initialize session ${id}: ${error instanceof Error ? error.message : String(error)}`
             );
             await this.services.sessionStore.deleteSession({ sessionId: id });
+            // A mistake the person can fix, such as a missing provider key, keeps its own code.
+            if (error instanceof DextoRuntimeError && error.type === ErrorType.USER) throw error;
             const reason = error instanceof Error ? error.message : 'unknown error';
             throw SessionError.initializationFailed(id, reason);
         }

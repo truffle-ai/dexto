@@ -95,6 +95,7 @@ import {
     applyStartupLLMFallback,
     applyUserPreferences,
 } from './config/cli-overrides.js';
+import { CommandFailure } from './cli/failure.js';
 import { registerRunCommand } from './cli/commands/run/register.js';
 import { registerSessionCommand } from './cli/commands/session/register.js';
 import { registerCloudCommand } from './cli/commands/cloud/register.js';
@@ -212,7 +213,7 @@ program
 // 7) `upgrade` SUB-COMMAND
 program
     .command('upgrade [version]')
-    .description('Upgrade Dexto CLI (auto-migrates npm installs to native)')
+    .description('Upgrade dexto, or install a given version')
     .option('--dry-run', 'Print commands without executing them')
     .option('--force', 'Force reinstall during upgrade')
     .action(
@@ -237,7 +238,7 @@ program
 // 8) `uninstall` SUB-COMMAND (CLI self uninstall)
 program
     .command('uninstall')
-    .description('Uninstall the Dexto CLI binary (does not uninstall agents)')
+    .description('Remove dexto from this machine')
     .option('--purge', 'Also remove ~/.dexto completely')
     .option('--dry-run', 'Print actions without deleting files')
     .action(
@@ -283,9 +284,10 @@ async function bootstrapAgentFromGlobalOpts(options: {
         inferredProvider = getProviderFromModel(effectiveModel);
         const apiKey = resolveApiKeyForProvider(inferredProvider);
         if (!apiKey) {
-            const envVar = getPrimaryApiKeyEnvVar(inferredProvider);
-            throw new Error(
-                `Missing API key for provider '${inferredProvider}' - please set $${envVar}`
+            throw new CommandFailure(
+                'needs_sign_in',
+                `Set ${getPrimaryApiKeyEnvVar(inferredProvider)} to use ${effectiveModel}.`,
+                null
             );
         }
 
@@ -318,13 +320,14 @@ async function bootstrapAgentFromGlobalOpts(options: {
     try {
         image = await loadImage(imageName);
     } catch (err) {
+        // `dexto run` reports its own failure, once.
+        if (isHeadlessRun) {
+            throw new Error(`Failed to load image '${imageName}'`, { cause: err });
+        }
         await printFailure(`Failed to load image '${imageName}'`, null, [
             `❌ Failed to load image '${imageName}'`,
             ...(err instanceof Error ? [err.message] : []),
         ]);
-        if (isHeadlessRun) {
-            throw new Error(`Failed to load image '${imageName}'`, { cause: err });
-        }
         safeExit('bootstrap', 1, 'image-load-failed');
     }
 
@@ -410,7 +413,7 @@ registerCloudCommand(program);
 program
     .description(
         'Dexto CLI: your agent harness, local and cloud.\n\n' +
-            'Usage:\n' +
+            'Examples:\n' +
             '  dexto                   Start the interactive chat here\n' +
             '  dexto -p "query"        Start the chat and run the prompt\n' +
             '  dexto -c | -r <id>      Continue the latest chat, or resume one\n' +
@@ -424,6 +427,14 @@ program
         withAnalytics(
             'main',
             async () => {
+                // The chat takes no words: a stray word is a mistyped command, not a prompt.
+                const [stray] = program.args;
+                if (stray !== undefined) {
+                    await printFailure(`Unknown command '${stray}'.`, 'dexto --help', [
+                        `Unknown command '${stray}'. Run: dexto --help`,
+                    ]);
+                    safeExit('main', 2, 'unknown-command');
+                }
                 await ensureDextoSignInsCarriedOver();
                 await syncCloudSkillsOnce();
                 await ensureImageImporterConfigured();

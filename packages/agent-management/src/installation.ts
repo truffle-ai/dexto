@@ -77,7 +77,7 @@ export async function installBundledAgent(
     const agentsDir = getAgentsDir(options);
     const bundledRegistryPath = resolveBundledScript('agents/agent-registry.json');
 
-    logger.info(`Installing agent: ${agentId}`);
+    logger.debug(`Installing agent: ${agentId}`);
 
     // Load bundled registry
     let bundledRegistry: any;

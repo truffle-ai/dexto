@@ -12,7 +12,7 @@ dexto run "summarize this repository"
 echo "summarize this repository" | dexto run
 ```
 
-At a terminal, `dexto run` prints the final reply. When stdout isn't a terminal (a pipe, a file, or an agent reading it), it prints one JSON result instead. `--text`, `--json` and `--stream-json` choose explicitly; pass only one. Startup information, tool activity and diagnostics always go to stderr, and nothing decorative reaches stdout.
+At a terminal, `dexto run` prints the final reply. When stdout isn't a terminal (a pipe, a file, or an agent reading it), it prints one JSON result instead. `--text`, `--json` and `--stream-json` choose explicitly; pass only one. In text mode, startup information and tool activity go to stderr and only the reply reaches stdout. In `--json` and `--stream-json`, stdout carries only JSON and stderr carries only a failure's JSON error.
 
 Exit codes are the same for every `dexto` command: `0` done, `1` failed, `2` usage (such as an empty prompt), `3` needs sign-in or permission, `4` needs confirmation, `5` not found, `6` waiting on a person.
 
@@ -35,7 +35,7 @@ dexto run "summarize this repository" --json > result.json
 }
 ```
 
-`total_tokens` is present when usage is available. A failed result has `status: "failed"` and `error: { "code", "message" }`, where `code` is `usage` or `failed`; the same `{"error": …}` also goes to stderr. A failure before the session starts has no `session_id`. A fatal error after a reply can carry both `content` and `error`, so check `status` and the exit code before treating the result as a success.
+`total_tokens` is present when usage is available. A failed result has `status: "failed"` and `error: { "code", "message", "fix" }`, where `code` is `usage`, `needs_sign_in` (no provider key and no Dexto sign-in; exit 3) or `failed`, and `fix`, when present, is the command that fixes it; the same `{"error": …}` also goes to stderr. A failure before the session starts has no `session_id`. A fatal error after a reply can carry both `content` and `error`, so check `status` and the exit code before treating the result as a success.
 
 ## Streaming events
 

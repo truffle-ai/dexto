@@ -206,6 +206,8 @@ export class GlobalLogger {
         if (this.logToConsole) {
             transports.push(
                 new winston.transports.Console({
+                    // Logs are diagnostics: stdout belongs to the command's output.
+                    stderrLevels: Object.keys(logLevels),
                     format: winston.format.combine(
                         winston.format.timestamp({ format: 'HH:mm:ss' }),
                         maskFormat(),
@@ -262,6 +264,8 @@ export class GlobalLogger {
             this.logToConsole = true;
             transports.push(
                 new winston.transports.Console({
+                    // Logs are diagnostics: stdout belongs to the command's output.
+                    stderrLevels: Object.keys(logLevels),
                     format: winston.format.combine(
                         winston.format.timestamp({ format: 'HH:mm:ss' }),
                         maskFormat(),
