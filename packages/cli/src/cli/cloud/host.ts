@@ -28,6 +28,7 @@ import { resolveConnection } from './connection.js';
 import type { CloudHost, Group } from './run.js';
 import { nodeCloudRuntime } from './runtime.js';
 import { DEXTO_CREDITS_URL } from '../auth/constants.js';
+import { terminalSignInScreen } from '../screens/sign-in.js';
 
 /** Help's areas: what `dexto cloud` builds with. */
 export const CLOUD_GROUPS: Readonly<Record<string, readonly Group[]>> = {
@@ -102,6 +103,7 @@ export function nodeCloudHost(signal: AbortSignal): CloudHost {
                 await signIn({
                     result: (_value, text) => toStderr(text),
                     note: toStderr,
+                    screen: terminalSignInScreen(runtime.writeError, toStderr, false),
                     confirm: async () => false,
                     signal,
                 }),
