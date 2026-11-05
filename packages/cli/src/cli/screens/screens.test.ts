@@ -57,13 +57,13 @@ const LOGIN: dextoAccounts.OAuthLogin = {
 function program(): Command {
     const root = new Command('dexto').option('--model <id>', 'Specify the LLM model to use');
     for (const [name, description] of [
-        ['run', 'Run a single prompt non-interactively (headless mode)'],
+        ['run', 'Run one prompt and print the result'],
         ['chat', "Your chats: this machine's sessions"],
         ['publish', 'Publish a file, folder or .zip as a link anyone with it can open'],
         ['login', 'Sign in to Dexto with your browser or a device code'],
         ['whoami', 'Show who Dexto commands act as'],
         ['logout', 'End the sign-in on the server and forget it here'],
-        ['upgrade', 'Upgrade Dexto CLI (auto-migrates npm installs to native)'],
+        ['upgrade', 'Upgrade dexto, or install a given version'],
     ] as const)
         root.command(name).description(description);
     return root;

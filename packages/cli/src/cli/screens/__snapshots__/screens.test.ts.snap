@@ -85,7 +85,7 @@ exports[`Signal screens on 16-dark > 7 help 1`] = `
 ␛[36m  dexto          ␛[39m␛[90mStart the agent here, in this folder␛[39m
 ␛[36m  dexto -c       ␛[39m␛[90mContinue the most recent chat␛[39m
 ␛[36m  dexto -r <id>  ␛[39m␛[90mResume a chat by id␛[39m
-␛[36m  run            ␛[39m␛[90mRun a single prompt non-interactively (headless mode)␛[39m
+␛[36m  run            ␛[39m␛[90mRun one prompt and print the result␛[39m
 
 ␛[90m  C H A T␛[39m
 ␛[36m  chat           ␛[39m␛[90mYour chats: this machine's sessions␛[39m
@@ -99,7 +99,7 @@ exports[`Signal screens on 16-dark > 7 help 1`] = `
 ␛[36m  logout         ␛[39m␛[90mEnd the sign-in on the server and forget it here␛[39m
 
 ␛[90m  L O C A L␛[39m
-␛[36m  upgrade        ␛[39m␛[90mUpgrade Dexto CLI (auto-migrates npm installs to native)␛[39m
+␛[36m  upgrade        ␛[39m␛[90mUpgrade dexto, or install a given version␛[39m
 
 ␛[90m  O P T I O N S␛[39m
 ␛[36m  --json         ␛[39m␛[90mPrint JSON; the default when stdout isn't a terminal␛[39m
@@ -276,7 +276,7 @@ exports[`Signal screens on 256-dark > 7 help 1`] = `
 ␛[38;5;115m  dexto          ␛[39m␛[38;5;109mStart the agent here, in this folder␛[39m
 ␛[38;5;115m  dexto -c       ␛[39m␛[38;5;109mContinue the most recent chat␛[39m
 ␛[38;5;115m  dexto -r <id>  ␛[39m␛[38;5;109mResume a chat by id␛[39m
-␛[38;5;115m  run            ␛[39m␛[38;5;109mRun a single prompt non-interactively (headless mode)␛[39m
+␛[38;5;115m  run            ␛[39m␛[38;5;109mRun one prompt and print the result␛[39m
 
 ␛[38;5;109m  C H A T␛[39m
 ␛[38;5;115m  chat           ␛[39m␛[38;5;109mYour chats: this machine's sessions␛[39m
@@ -290,7 +290,7 @@ exports[`Signal screens on 256-dark > 7 help 1`] = `
 ␛[38;5;115m  logout         ␛[39m␛[38;5;109mEnd the sign-in on the server and forget it here␛[39m
 
 ␛[38;5;109m  L O C A L␛[39m
-␛[38;5;115m  upgrade        ␛[39m␛[38;5;109mUpgrade Dexto CLI (auto-migrates npm installs to native)␛[39m
+␛[38;5;115m  upgrade        ␛[39m␛[38;5;109mUpgrade dexto, or install a given version␛[39m
 
 ␛[38;5;109m  O P T I O N S␛[39m
 ␛[38;5;115m  --json         ␛[39m␛[38;5;109mPrint JSON; the default when stdout isn't a terminal␛[39m
@@ -463,7 +463,7 @@ exports[`Signal screens on ascii > 7 help 1`] = `
 ␛[36m  dexto          ␛[39m␛[90mStart the agent here, in this folder␛[39m
 ␛[36m  dexto -c       ␛[39m␛[90mContinue the most recent chat␛[39m
 ␛[36m  dexto -r <id>  ␛[39m␛[90mResume a chat by id␛[39m
-␛[36m  run            ␛[39m␛[90mRun a single prompt non-interactively (headless mode)␛[39m
+␛[36m  run            ␛[39m␛[90mRun one prompt and print the result␛[39m
 
 ␛[90m  C H A T␛[39m
 ␛[36m  chat           ␛[39m␛[90mYour chats: this machine's sessions␛[39m
@@ -477,7 +477,7 @@ exports[`Signal screens on ascii > 7 help 1`] = `
 ␛[36m  logout         ␛[39m␛[90mEnd the sign-in on the server and forget it here␛[39m
 
 ␛[90m  L O C A L␛[39m
-␛[36m  upgrade        ␛[39m␛[90mUpgrade Dexto CLI (auto-migrates npm installs to native)␛[39m
+␛[36m  upgrade        ␛[39m␛[90mUpgrade dexto, or install a given version␛[39m
 
 ␛[90m  O P T I O N S␛[39m
 ␛[36m  --json         ␛[39m␛[90mPrint JSON; the default when stdout isn't a terminal␛[39m
@@ -650,7 +650,7 @@ exports[`Signal screens on no-color > 7 help 1`] = `
   dexto          Start the agent here, in this folder
   dexto -c       Continue the most recent chat
   dexto -r <id>  Resume a chat by id
-  run            Run a single prompt non-interactively (headless mode)
+  run            Run one prompt and print the result
 
   C H A T
   chat           Your chats: this machine's sessions
@@ -664,7 +664,7 @@ exports[`Signal screens on no-color > 7 help 1`] = `
   logout         End the sign-in on the server and forget it here
 
   L O C A L
-  upgrade        Upgrade Dexto CLI (auto-migrates npm installs to native)
+  upgrade        Upgrade dexto, or install a given version
 
   O P T I O N S
   --json         Print JSON; the default when stdout isn't a terminal
@@ -834,7 +834,7 @@ exports[`Signal screens on truecolor-dark > 7 help 1`] = `
 ␛[38;2;78;201;176m  dexto          ␛[39m␛[38;2;127;140;138mStart the agent here, in this folder␛[39m
 ␛[38;2;78;201;176m  dexto -c       ␛[39m␛[38;2;127;140;138mContinue the most recent chat␛[39m
 ␛[38;2;78;201;176m  dexto -r <id>  ␛[39m␛[38;2;127;140;138mResume a chat by id␛[39m
-␛[38;2;78;201;176m  run            ␛[39m␛[38;2;127;140;138mRun a single prompt non-interactively (headless mode)␛[39m
+␛[38;2;78;201;176m  run            ␛[39m␛[38;2;127;140;138mRun one prompt and print the result␛[39m
 
 ␛[38;2;127;140;138m  C H A T␛[39m
 ␛[38;2;78;201;176m  chat           ␛[39m␛[38;2;127;140;138mYour chats: this machine's sessions␛[39m
@@ -848,7 +848,7 @@ exports[`Signal screens on truecolor-dark > 7 help 1`] = `
 ␛[38;2;78;201;176m  logout         ␛[39m␛[38;2;127;140;138mEnd the sign-in on the server and forget it here␛[39m
 
 ␛[38;2;127;140;138m  L O C A L␛[39m
-␛[38;2;78;201;176m  upgrade        ␛[39m␛[38;2;127;140;138mUpgrade Dexto CLI (auto-migrates npm installs to native)␛[39m
+␛[38;2;78;201;176m  upgrade        ␛[39m␛[38;2;127;140;138mUpgrade dexto, or install a given version␛[39m
 
 ␛[38;2;127;140;138m  O P T I O N S␛[39m
 ␛[38;2;78;201;176m  --json         ␛[39m␛[38;2;127;140;138mPrint JSON; the default when stdout isn't a terminal␛[39m
@@ -1025,7 +1025,7 @@ exports[`Signal screens on truecolor-light > 7 help 1`] = `
 ␛[38;2;11;122;104m  dexto          ␛[39m␛[38;2;94;106;104mStart the agent here, in this folder␛[39m
 ␛[38;2;11;122;104m  dexto -c       ␛[39m␛[38;2;94;106;104mContinue the most recent chat␛[39m
 ␛[38;2;11;122;104m  dexto -r <id>  ␛[39m␛[38;2;94;106;104mResume a chat by id␛[39m
-␛[38;2;11;122;104m  run            ␛[39m␛[38;2;94;106;104mRun a single prompt non-interactively (headless mode)␛[39m
+␛[38;2;11;122;104m  run            ␛[39m␛[38;2;94;106;104mRun one prompt and print the result␛[39m
 
 ␛[38;2;94;106;104m  C H A T␛[39m
 ␛[38;2;11;122;104m  chat           ␛[39m␛[38;2;94;106;104mYour chats: this machine's sessions␛[39m
@@ -1039,7 +1039,7 @@ exports[`Signal screens on truecolor-light > 7 help 1`] = `
 ␛[38;2;11;122;104m  logout         ␛[39m␛[38;2;94;106;104mEnd the sign-in on the server and forget it here␛[39m
 
 ␛[38;2;94;106;104m  L O C A L␛[39m
-␛[38;2;11;122;104m  upgrade        ␛[39m␛[38;2;94;106;104mUpgrade Dexto CLI (auto-migrates npm installs to native)␛[39m
+␛[38;2;11;122;104m  upgrade        ␛[39m␛[38;2;94;106;104mUpgrade dexto, or install a given version␛[39m
 
 ␛[38;2;94;106;104m  O P T I O N S␛[39m
 ␛[38;2;11;122;104m  --json         ␛[39m␛[38;2;94;106;104mPrint JSON; the default when stdout isn't a terminal␛[39m

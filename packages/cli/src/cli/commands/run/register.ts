@@ -1,5 +1,12 @@
 import { handleHeadlessApproval } from '../../approval/headless-approval-handler.js';
-import { chooseHeadlessOutput, writeHeadlessResult } from './output.js';
+import {
+    chooseHeadlessOutput,
+    describeHeadlessFailure,
+    headlessExitCode,
+    writeHeadlessResult,
+    type HeadlessFailure,
+} from './output.js';
+import { printFault } from '../../screens/fault.js';
 import type { HeadlessRunResult } from './headless.js';
 import { resolveAgentPath } from '@dexto/agent-management';
 import type { DextoAgent } from '@dexto/core';
@@ -13,7 +20,7 @@ export function registerRunCommand({
 }: RuntimeCommandRegisterContext): void {
     program
         .command('run [prompt]')
-        .description('Run a single prompt non-interactively (headless mode)')
+        .description('Run one prompt and print the result')
         .option('-m, --model <model>', 'Specify the LLM model to use for this run')
         .option('--json', 'Print one JSON result (the default when stdout is not a terminal)')
         .option('--stream-json', 'Print JSON events, one per line, ending with one result')
@@ -50,12 +57,12 @@ Exit codes: 0 done, 1 failed, 2 usage, 3 needs sign-in or permission, 4 needs co
                         safeExit('run', 2, 'usage');
                         return;
                     }
+                    const human = format === 'text';
                     let agent: DextoAgent | undefined;
                     let sessionId: string | undefined;
                     let result: HeadlessRunResult = {};
-                    let exitCode = 0;
+                    let failure: HeadlessFailure | null = null;
                     let exitReason = 'ok';
-                    let errorCode: 'usage' | 'failed' = 'failed';
 
                     try {
                         const {
@@ -65,15 +72,15 @@ Exit codes: 0 done, 1 failed, 2 usage, 3 needs sign-in or permission, 4 needs co
                             printHeadlessRunSummary,
                             resolveHeadlessPrompt,
                             writeFinalMessageToStdout,
-                            writeHeadlessError,
                         } = await import('./headless.js');
                         const prompt = await resolveHeadlessPrompt(promptArg);
                         if (prompt.trim().length === 0) {
-                            writeHeadlessError('Prompt cannot be empty.');
-                            result = { fatalError: new Error('Prompt cannot be empty.') };
-                            exitCode = 2;
+                            failure = {
+                                code: 'usage',
+                                message: 'Prompt cannot be empty.',
+                                fix: null,
+                            };
                             exitReason = 'empty-prompt';
-                            errorCode = 'usage';
                         } else {
                             const bootstrapOptions = runOptions.model
                                 ? { mode: 'headless-run' as const, modelOverride: runOptions.model }
@@ -86,59 +93,41 @@ Exit codes: 0 done, 1 failed, 2 usage, 3 needs sign-in or permission, 4 needs co
                                 handleHeadlessApproval(request, approvalAgent, session.id)
                             );
 
-                            const globalOpts = program.opts();
-                            const resolvedAgentPath = await resolveAgentPath(globalOpts.agent);
-
-                            printHeadlessRunSummary({
-                                agent,
-                                sessionId: session.id,
-                                prompt,
-                                agentPath: resolvedAgentPath,
-                                cliVersion,
-                            });
-                            printHeadlessMcpStartup(agent);
-
-                            const runResult = await executeHeadlessRun(
-                                agent,
-                                session.id,
-                                prompt,
-                                format
-                            );
-                            result = runResult;
-
-                            if (runResult.finalMessage !== undefined) {
-                                printHeadlessAssistantResponse(
-                                    runResult.finalMessage,
-                                    runResult.totalTokens
-                                );
-                                if (format === 'text') {
-                                    writeFinalMessageToStdout(runResult.finalMessage);
-                                }
-                            } else {
-                                writeHeadlessError('No final response was produced.');
-                                result = {
-                                    ...runResult,
-                                    fatalError:
-                                        runResult.fatalError ??
-                                        new Error('No final response was produced.'),
-                                };
-                                exitCode = 1;
-                                exitReason = 'no-final-response';
+                            if (human) {
+                                const globalOpts = program.opts();
+                                printHeadlessRunSummary({
+                                    agent,
+                                    sessionId: session.id,
+                                    prompt,
+                                    agentPath: await resolveAgentPath(globalOpts.agent),
+                                    cliVersion,
+                                });
+                                printHeadlessMcpStartup(agent);
                             }
 
-                            if (runResult.fatalError) {
-                                exitCode = 1;
+                            result = await executeHeadlessRun(agent, session.id, prompt, format);
+
+                            if (result.fatalError) {
+                                failure = describeHeadlessFailure(result.fatalError);
                                 exitReason = 'fatal-error';
+                            } else if (result.finalMessage === undefined) {
+                                failure = {
+                                    code: 'failed',
+                                    message: 'No final response was produced.',
+                                    fix: null,
+                                };
+                                exitReason = 'no-final-response';
+                            }
+                            if (human && result.finalMessage !== undefined) {
+                                printHeadlessAssistantResponse(result.totalTokens);
+                                writeFinalMessageToStdout(result.finalMessage);
                             }
                         }
                     } catch (err) {
                         if (err instanceof ExitSignal) throw err;
-                        const errorMessage = err instanceof Error ? err.message : String(err);
-                        result = {
-                            fatalError: err instanceof Error ? err : new Error(errorMessage),
-                        };
-                        process.stderr.write(`dexto run failed: ${errorMessage}\n`);
-                        exitCode = 1;
+                        failure = describeHeadlessFailure(
+                            err instanceof Error ? err : new Error(String(err))
+                        );
                         exitReason = 'error';
                     } finally {
                         if (agent) {
@@ -150,8 +139,14 @@ Exit codes: 0 done, 1 failed, 2 usage, 3 needs sign-in or permission, 4 needs co
                         }
                     }
 
-                    await writeHeadlessResult(format, result, sessionId, errorCode);
-                    safeExit('run', exitCode, exitReason);
+                    if (format !== 'text')
+                        await writeHeadlessResult(format, result, sessionId, failure);
+                    else if (failure !== null)
+                        printFault({ ...failure, details: null }, [
+                            `Error: ${failure.message}`,
+                            ...(failure.fix === null ? [] : [`Run: ${failure.fix}`]),
+                        ]);
+                    safeExit('run', headlessExitCode(failure), exitReason);
                 }
             )
         );

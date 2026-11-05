@@ -1,5 +1,12 @@
-import { ApprovalType, type ApprovalRequest, type StreamingEvent } from '@dexto/core';
+import {
+    ApprovalType,
+    DextoRuntimeError,
+    LLMErrorCode,
+    type ApprovalRequest,
+    type StreamingEvent,
+} from '@dexto/core';
 import { HEADLESS_APPROVAL_MESSAGE } from '../../approval/headless-approval-handler.js';
+import { CommandFailure, EXIT_CODES, type FailureKind } from '../../failure.js';
 import type { HeadlessRunResult } from './headless.js';
 
 /** How `dexto run` prints: the reply as text, one JSON result, or JSON events then the result. */
@@ -66,25 +73,64 @@ export function toHeadlessApprovalRequired(request: ApprovalRequest): HeadlessAp
     }
 }
 
+/** Why a run failed, with its exit code's kind and, where there is one, the command that fixes it. */
+export interface HeadlessFailure {
+    readonly code: FailureKind | 'usage';
+    readonly message: string;
+    readonly fix: string | null;
+}
+
 /**
- * The run's one result, for --json and as --stream-json's last line. An error says its code:
- * `usage` for how it was called, otherwise `failed`. JSON output also puts the error on stderr as
- * the CLI's other commands do.
+ * A missing provider key, with no Dexto sign-in standing in for it, needs sign-in (exit 3) like
+ * the cloud commands; anything else the run didn't expect is `failed`.
+ */
+export function describeHeadlessFailure(error: Error): HeadlessFailure {
+    if (error instanceof CommandFailure)
+        return { code: error.kind, message: error.message, fix: error.fix };
+    if (error instanceof DextoRuntimeError && error.code === LLMErrorCode.API_KEY_MISSING) {
+        const context = error.context;
+        const envVar =
+            typeof context === 'object' &&
+            context !== null &&
+            'envVar' in context &&
+            typeof context.envVar === 'string'
+                ? context.envVar
+                : 'a provider key';
+        return {
+            code: 'needs_sign_in',
+            message: `Sign in to use Dexto models, or set ${envVar}.`,
+            fix: 'dexto login',
+        };
+    }
+    return { code: 'failed', message: error.message, fix: null };
+}
+
+export function headlessExitCode(failure: HeadlessFailure | null): number {
+    return failure === null ? 0 : EXIT_CODES[failure.code];
+}
+
+/**
+ * The run's one result, for --json and as --stream-json's last line. A failure also goes on
+ * stderr as JSON, as the CLI's other commands do; nothing else is written there in these modes.
  */
 export async function writeHeadlessResult(
-    format: HeadlessOutputFormat,
+    format: Exclude<HeadlessOutputFormat, 'text'>,
     result: HeadlessRunResult,
     sessionId: string | undefined,
-    errorCode: 'usage' | 'failed' = 'failed'
+    failure: HeadlessFailure | null
 ): Promise<void> {
-    if (format === 'text') return;
-    const error = result.fatalError
-        ? { code: errorCode, message: result.fatalError.message }
-        : null;
+    const error =
+        failure === null
+            ? null
+            : {
+                  code: failure.code,
+                  message: failure.message,
+                  ...(failure.fix === null ? {} : { fix: failure.fix }),
+              };
     if (error !== null) process.stderr.write(`${JSON.stringify({ error })}\n`);
     await writeJsonLineToStdout({
         type: 'result',
-        status: result.fatalError ? 'failed' : 'completed',
+        status: error === null ? 'completed' : 'failed',
         ...(sessionId !== undefined ? { session_id: sessionId } : {}),
         ...(result.finalMessage !== undefined ? { content: result.finalMessage } : {}),
         ...(result.totalTokens !== undefined ? { total_tokens: result.totalTokens } : {}),

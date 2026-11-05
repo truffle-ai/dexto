@@ -274,8 +274,8 @@ ${ordinaryConfig}    requiresApproval: false
             await expect(access(ordinaryEffectPath)).rejects.toMatchObject({ code: 'ENOENT' });
             expect(denialFeedback).toHaveLength(1);
             expect(denialFeedback[0]).toContain('requires interactive approval');
-            expect(stderr).toContain('[APPROVAL_REQUIRED]');
             if (format === 'text') {
+                expect(stderr).toContain('[APPROVAL_REQUIRED]');
                 expect(stdout.trim()).toBe('ordinary task complete');
                 return;
             }
@@ -299,6 +299,8 @@ ${ordinaryConfig}    requiresApproval: false
                     }),
                 ],
             });
+            // The denial is in the result; stderr stays free for a failure.
+            expect(stderr).not.toContain('[APPROVAL_REQUIRED]');
             if (format === 'json') expect(lines).toHaveLength(1);
             else
                 expect(lines.filter((line) => line.type === 'approval_required')).toEqual([
