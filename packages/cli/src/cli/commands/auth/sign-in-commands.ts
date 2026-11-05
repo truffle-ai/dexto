@@ -1,9 +1,11 @@
 // `dexto login`, `logout`, `whoami` and `accounts`: signing in to Dexto and the saved profiles.
 
-import { CommandFailure } from '../../failure.js';
+import { CommandFailure, NOT_SIGNED_IN } from '../../failure.js';
 
-import { dextoAccounts, type dextoCloud, type dextoSignIn } from '@dexto/agent-management';
+import { dextoAccounts, dextoSignIn, type dextoCloud } from '@dexto/agent-management';
+import { signalOn } from '@dexto/tui/signal-text';
 import { UsageError } from '../../cloud/command.js';
+import { whoamiLines } from '../../screens/whoami.js';
 
 type OAuthLogin = dextoAccounts.OAuthLogin;
 type SignedInAs = dextoAccounts.SignedInAs;
@@ -12,6 +14,7 @@ type CloudProject = dextoCloud.CloudProject;
 type BrowserSignInInput = dextoSignIn.BrowserSignInInput;
 type EndedSignIn = dextoSignIn.EndedSignIn;
 type SignInInput = dextoSignIn.SignInInput;
+type SignInPrompt = dextoSignIn.SignInPrompt;
 
 const {
     DEFAULT_PROFILE,
@@ -39,6 +42,43 @@ export interface DextoSignIn {
     readonly acceptsApiKey: (apiBaseUrl: string, apiKey: string) => Promise<boolean>;
 }
 
+/** Who a sign-in just signed in, for the words that say so. */
+export interface SignedIn {
+    readonly signedInAs: SignedInAs | null;
+    readonly profile: string;
+    readonly cloudProject: string | null;
+    /** True when other commands still use another profile. */
+    readonly notCurrent: boolean;
+}
+
+/** How a sign-in shows itself: what to do, the wait, and the words once signed in. */
+export interface SignInScreen {
+    readonly show: (prompt: SignInPrompt) => void;
+    /** The sign-in ended, signed in or not: stop waiting. */
+    readonly settle: (signedIn: boolean) => void;
+    readonly signedInText: (signedIn: SignedIn) => string;
+}
+
+/** The plain words, as notes: the TUI, JSON output, and everywhere until Signal ships. */
+export function plainSignInScreen(note: (text: string) => void): SignInScreen {
+    return {
+        show: (prompt) => note(dextoSignIn.signInPromptText(prompt)),
+        settle: () => undefined,
+        signedInText: (signedIn) =>
+            [
+                `Signed in${describeSignedInAs(signedIn.signedInAs)}${signedIn.profile === DEFAULT_PROFILE ? '' : ` (profile ${signedIn.profile})`}.`,
+                signedIn.cloudProject === null
+                    ? 'This organization has no Cloud project for Dexto models to bill.'
+                    : `Dexto models bill Cloud project ${signedIn.cloudProject}.`,
+                ...(signedIn.notCurrent
+                    ? [
+                          `Other commands still use another profile: pass --profile ${signedIn.profile}, or run dexto accounts use ${signedIn.profile}.`,
+                      ]
+                    : []),
+            ].join(' '),
+    };
+}
+
 export interface SignInContext {
     /** ~/.dexto/accounts */
     readonly dir: string;
@@ -51,6 +91,7 @@ export interface SignInContext {
     readonly result: (value: unknown, text: string) => void;
     /** Anything else, on stderr. */
     readonly note: (text: string) => void;
+    readonly screen: SignInScreen;
     /** Asks the person; false when there is no one to ask. */
     readonly confirm: (question: string) => Promise<boolean>;
     /** False over SSH or without a display: a loopback redirect can't reach this machine. */
@@ -95,11 +136,19 @@ export async function login(context: SignInContext, options: LoginOptions): Prom
     };
     // A browser elsewhere can't reach this machine's loopback redirect, so use a code instead.
     const device = options.device || (options.browser && !context.canOpenBrowser);
-    if (device && !options.device)
+    // On Signal the device screen itself says there's no browser.
+    if (device && !options.device && !signalOn())
         context.note('No browser here, so sign in with a code on any device.');
-    const signedIn = device
-        ? await context.dexto.signInWithDevice(input)
-        : await context.dexto.signInWithBrowser({ ...input, openBrowser: options.browser });
+    let signedIn: OAuthLogin;
+    try {
+        signedIn = device
+            ? await context.dexto.signInWithDevice(input)
+            : await context.dexto.signInWithBrowser({ ...input, openBrowser: options.browser });
+    } catch (error) {
+        context.screen.settle(false);
+        throw signalOn() ? signInEndedFailure(error, device) : error;
+    }
+    context.screen.settle(true);
 
     // A name made from --org can match another organization's profile: keep that sign-in.
     const savedOrganization = previous?.signedInAs?.organization ?? null;
@@ -133,17 +182,27 @@ export async function login(context: SignInContext, options: LoginOptions): Prom
             cloud_project: withProject.cloudProject,
             scopes: withProject.scopes,
         },
-        [
-            `Signed in${describeSignedInAs(signedIn.signedInAs)}${profile === DEFAULT_PROFILE ? '' : ` (profile ${profile})`}.`,
-            withProject.cloudProject === null
-                ? 'This organization has no Cloud project for Dexto models to bill.'
-                : `Dexto models bill Cloud project ${withProject.cloudProject.name}.`,
-            ...(current
-                ? []
-                : [
-                      `Other commands still use another profile: pass --profile ${profile}, or run dexto accounts use ${profile}.`,
-                  ]),
-        ].join(' ')
+        context.screen.signedInText({
+            signedInAs: signedIn.signedInAs,
+            profile,
+            cloudProject: withProject.cloudProject?.name ?? null,
+            notCurrent: !current,
+        })
+    );
+}
+
+/** A sign-in that ended without signing in, as the Signal fault: what happened, then try again. */
+function signInEndedFailure(error: unknown, device: boolean): unknown {
+    if (!(error instanceof dextoSignIn.SignInEnded)) return error;
+    const again = device ? 'dexto login --device' : 'dexto login';
+    return new CommandFailure(
+        'failed',
+        error.reason === 'declined'
+            ? device
+                ? 'Sign-in declined'
+                : 'Sign-in cancelled in the browser'
+            : "Sign-in didn't finish",
+        again
     );
 }
 
@@ -234,7 +293,7 @@ export async function whoami(
         refresh: context.dexto.refreshSignIn,
     });
     if (credential === null)
-        throw new CommandFailure('needs_sign_in', 'Not signed in.', 'dexto login');
+        throw new CommandFailure('needs_sign_in', NOT_SIGNED_IN, 'dexto login');
     if (credential.kind === 'api_key') {
         const from =
             credential.source === 'flag'
@@ -249,6 +308,20 @@ export async function whoami(
         return;
     }
     const { login: saved } = credential;
+    const text = signalOn()
+        ? whoamiLines(credential.profile, saved).join('\n')
+        : [
+              field('profile', credential.profile),
+              field('account', saved.signedInAs?.account.email ?? 'unknown'),
+              field(
+                  'organization',
+                  saved.signedInAs === null
+                      ? 'unknown'
+                      : `${saved.signedInAs.organization.name} (${saved.signedInAs.organization.slug})`
+              ),
+              field('app', saved.appUrl),
+              field('scopes', saved.scopes.join(' ')),
+          ].join('\n');
     context.result(
         {
             as: 'person',
@@ -259,18 +332,7 @@ export async function whoami(
             cloud_project: saved.cloudProject,
             scopes: saved.scopes,
         },
-        [
-            field('profile', credential.profile),
-            field('account', saved.signedInAs?.account.email ?? 'unknown'),
-            field(
-                'organization',
-                saved.signedInAs === null
-                    ? 'unknown'
-                    : `${saved.signedInAs.organization.name} (${saved.signedInAs.organization.slug})`
-            ),
-            field('app', saved.appUrl),
-            field('scopes', saved.scopes.join(' ')),
-        ].join('\n')
+        text
     );
 }
 
