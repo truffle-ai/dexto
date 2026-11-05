@@ -302,6 +302,7 @@ dexto workspace                            # your apps
 dexto workspace drive                      # what an app does
 dexto workspace drive put ./report.pdf     # upload into Drive
 dexto workspace artifacts create ./plan.html --title Plan --idempotency-key plan-1 --yes
+dexto workspace artifacts list --chat <id> --json
 dexto workspace artifacts get <id> --out ./plan.html
 dexto workspace artifacts share <id> --visibility link-shared --yes
 dexto workspace email send --to a@b.c --yes

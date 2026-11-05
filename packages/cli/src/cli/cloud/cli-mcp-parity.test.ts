@@ -93,7 +93,6 @@ cloud-sites-list
 span-list
 trace-list
 trace-view
-chat-artifacts
 chat-wait-follow
 chat-start-computer-browser`.split('\n')
 );

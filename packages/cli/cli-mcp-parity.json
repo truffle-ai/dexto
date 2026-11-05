@@ -977,23 +977,6 @@
             ]
         },
         {
-            "name": "chat-artifacts",
-            "group": "knownChat",
-            "issue": "DEXTO-2479",
-            "reason": "Chat-scoped artifact list/read is missing.",
-            "commands": [],
-            "closesWhen": [
-                {
-                    "tool": "dexto_chat_artifacts_list",
-                    "inputs": []
-                },
-                {
-                    "tool": "dexto_chat_artifacts_get",
-                    "inputs": []
-                }
-            ]
-        },
-        {
             "name": "chat-wait-follow",
             "group": "knownChat",
             "issue": "DEXTO-2479",
