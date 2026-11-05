@@ -7,7 +7,7 @@ Dexto 2.0 beta; `@latest` selects 1.x. Install once:
 npm install -g dexto@next
 ```
 
-If npm fails with EACCES, don't use sudo; use the [install script](https://dexto.ai/docs/cli/#install-script)
+If npm fails with EACCES, don't use sudo; use the [install script](https://www.dexto.ai/docs/cli/#install-script)
 (installs under `~/.dexto`, no admin).
 
 `dexto login --device` prints a link and code on stderr, then waits for approval. Run it so you
@@ -122,6 +122,8 @@ The coding agent is just one example of what you can build. Create your own agen
 ### Install
 
 ```bash
+npm install -g dexto@next
+
 # Alternative: native installer (no sudo)
 # macOS / Linux / WSL
 curl -fsSL https://dexto.ai/install | sh -s -- --version next

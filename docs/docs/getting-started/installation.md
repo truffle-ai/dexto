@@ -15,7 +15,7 @@ Dexto 2.0 beta; `@latest` selects 1.x. Install once:
 npm install -g dexto@next
 ```
 
-If npm fails with EACCES, don't use sudo; use the [install script](https://dexto.ai/docs/cli/#install-script)
+If npm fails with EACCES, don't use sudo; use the [install script](https://www.dexto.ai/docs/cli/#install-script)
 (installs under `~/.dexto`, no admin).
 
 `dexto login --device` prints a link and code on stderr, then waits for approval. Run it so you
@@ -59,7 +59,7 @@ dexto uninstall --purge
 
 ### PATH Troubleshooting
 
-If you had an older npm global install, `dexto upgrade next` automatically migrates it to native.
+For npm installs, update with `npm install -g dexto@next`. For script installs, use `dexto upgrade next`.
 
 If your shell still resolves the wrong binary:
 
@@ -67,7 +67,7 @@ If your shell still resolves the wrong binary:
 which -a dexto
 ```
 
-Remove stale entries and run `dexto upgrade next` again.
+Remove stale entries, then repeat the update command for your install method.
 
 ## 2. Choose a Model
 

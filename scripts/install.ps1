@@ -5,7 +5,7 @@
 #   & ([scriptblock]::Create((irm https://dexto.ai/install.ps1))) -Version next -Yes
 #
 # The Windows counterpart of scripts/install.sh, with the same contract.
-# Node.js 20 or later works; 22 is recommended. Use npm. It installs the `dexto` npm package into %USERPROFILE%\.dexto\cli\<version>,
+# Needs npm; Node.js 20 or later works, 22 is recommended. It installs the `dexto` npm package into %USERPROFILE%\.dexto\cli\<version>,
 # after checking the downloaded tarball against the registry's sha512 integrity, then writes
 # %USERPROFILE%\.dexto\bin\dexto.cmd (or $env:DEXTO_INSTALL_DIR\dexto.cmd) to run it, adds that
 # directory to the user PATH, and records the install in %USERPROFILE%\.dexto\install.json, which

@@ -23,7 +23,7 @@ Dexto 2.0 beta; `@latest` selects 1.x. Install once:
 npm install -g dexto@next
 ```
 
-If npm fails with EACCES, don't use sudo; use the [install script](https://dexto.ai/docs/cli/#install-script)
+If npm fails with EACCES, don't use sudo; use the [install script](https://www.dexto.ai/docs/cli/#install-script)
 (installs under `~/.dexto`, no admin).
 
 `dexto login --device` prints a link and code on stderr, then waits for approval. Run it so you
@@ -112,7 +112,7 @@ Signed in, every local session also gets the Dexto MCP as a server named `dexto`
 
 ### `upgrade` - Upgrade Dexto CLI
 
-Upgrade the Dexto CLI itself. If an older npm global install is detected, this command migrates to native installer automatically.
+For script installs, upgrade the Dexto CLI with `dexto upgrade next`. For npm installs, use `npm install -g dexto@next`.
 
 ```bash
 # Stay on the 2.0 beta channel
