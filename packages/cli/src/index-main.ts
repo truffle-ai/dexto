@@ -96,7 +96,6 @@ import {
 } from './config/cli-overrides.js';
 import { registerRunCommand } from './cli/commands/run/register.js';
 import { registerSessionCommand } from './cli/commands/session/register.js';
-import { registerSearchCommand } from './cli/commands/search/register.js';
 import { registerCloudCommand } from './cli/commands/cloud/register.js';
 import { isRootJsonHelp, rootHelpJson } from './cli/help-json.js';
 import type { BootstrapAgentMode } from './cli/commands/register-context.js';
@@ -183,7 +182,6 @@ function ensureLlmRegistryAutoUpdateStarted(): void {
 // 1) GLOBAL OPTIONS
 program
     .name('dexto')
-    .description('AI-powered CLI and WebUI for interacting with MCP servers.')
     .version(cliVersion, '-v, --version', 'output the current version')
     .option('-a, --agent <id|path>', 'Agent ID or path to agent config file')
     .option('-p, --prompt <text>', 'Start the interactive CLI and immediately run the prompt')
@@ -203,12 +201,8 @@ program
         'Select auto-approve permissions (alias for --permissions-mode auto-approve)'
     )
     .option('--no-elicitation', 'Disable elicitation (agent cannot prompt user for input)')
-    .option('-c, --continue', 'Continue most recent session (CLI mode)')
-    .option('-r, --resume <sessionId>', 'Resume a session by ID (CLI mode)')
-    .option(
-        '--dev',
-        '[maintainers] Use local ./agents instead of ~/.dexto (for dexto repo development)'
-    )
+    .option('-c, --continue', 'Continue most recent session')
+    .option('-r, --resume <sessionId>', 'Resume a session by ID')
     .enablePositionalOptions();
 
 // 7) `upgrade` SUB-COMMAND
@@ -398,7 +392,7 @@ async function bootstrapAgentFromGlobalOpts(options: {
     return agent;
 }
 
-// 11) Runtime commands (`run`, `session`, `search`, `auth`, `billing`)
+// 11) Runtime commands (`run`, `chat`) and the cloud commands
 const runtimeCommandContext = {
     program,
     cliVersion,
@@ -406,36 +400,20 @@ const runtimeCommandContext = {
 };
 registerRunCommand(runtimeCommandContext);
 registerSessionCommand(runtimeCommandContext);
-registerSearchCommand(runtimeCommandContext);
 registerCloudCommand(program);
 
-// 13) Main dexto CLI - Interactive (CLI) or run in other modes (--mode web/server/mcp)
+// 13) Main dexto CLI - the interactive chat
 program
-    // Main customer facing description
     .description(
-        'Dexto CLI - AI-powered assistant with session management.\n\n' +
-            'Basic Usage:\n' +
-            '  dexto or dexto --mode cli  Start interactive CLI (default)\n' +
-            '  dexto --mode web         Start web UI\n' +
-            '  dexto --prompt "query"   Start interactive CLI and run the prompt\n' +
-            '  dexto run "query"        Run one-off headless task\n\n' +
-            'Session Management Commands:\n' +
-            "  dexto chat list                 List this machine's chats\n" +
-            "  dexto chat history [id]         Show a chat's messages\n" +
-            '  dexto chat delete <id>          Delete a chat\n' +
-            '  dexto search <query>            Search across sessions\n' +
-            '    Options: --session <id>, --role <user|assistant>, --limit <n>\n\n' +
-            'Agent Selection:\n' +
-            '  dexto --agent coding-agent       Use installed agent by name\n' +
-            '  dexto --agent ./my-agent.yml     Use agent from file path\n' +
-            '  dexto -a agents/custom.yml       Short form with relative path\n\n' +
-            'Tool Confirmation:\n' +
-            '  dexto --auto-approve     Auto-approve all tool executions\n\n' +
-            'Ink CLI Modes:\n' +
-            '  dexto --bypass-permissions  Start in bypass permissions mode (skip approval prompts)\n\n' +
-            'Advanced Modes:\n' +
-            '  dexto --mode server      Run as API server\n' +
-            '  dexto --mode mcp         Run as MCP server\n\n' +
+        'Dexto CLI: your agent harness, local and cloud.\n\n' +
+            'Usage:\n' +
+            '  dexto                   Start the interactive chat here\n' +
+            '  dexto -p "query"        Start the chat and run the prompt\n' +
+            '  dexto -c | -r <id>      Continue the latest chat, or resume one\n' +
+            '  dexto -a ./agent.yml    Use an agent file\n' +
+            '  dexto run "query"       Run one headless task\n' +
+            "  dexto chat list         This machine's chats\n" +
+            '  dexto login             Sign in for Dexto models and the cloud commands\n\n' +
             'Docs: https://cli.dexto.ai'
     )
     .action(
@@ -456,11 +434,6 @@ program
 
                 const opts = program.opts();
                 const workspaceRoot = findDextoProjectRoot(process.cwd()) ?? process.cwd();
-
-                // Set dev mode early to use local repo agents instead of ~/.dexto
-                if (opts.dev) {
-                    process.env.DEXTO_DEV_MODE = 'true';
-                }
 
                 const initialPrompt = opts.prompt !== undefined ? String(opts.prompt) : undefined;
 
