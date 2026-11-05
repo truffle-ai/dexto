@@ -3582,7 +3582,7 @@
             "format": "date-time"
           },
           "messages": {
-            "description": "The turns in order: the person's messages and the assistant's, each with when it was said.",
+            "description": "The turns in order: the person's messages and the assistant's, each with when it was said. A `summary` is the agent's compaction summary of every message before it, sent where it was made (Claude Code's `isCompactSummary` line); the chat keeps every message and continues from the latest summary.",
             "items": {
               "additionalProperties": false,
               "properties": {
@@ -3593,6 +3593,7 @@
                 "role": {
                   "enum": [
                     "assistant",
+                    "summary",
                     "user"
                   ],
                   "type": "string"
@@ -7208,6 +7209,32 @@
             "description": "Already redacted instructions that are not in the repository (the user-level ~/.claude/CLAUDE.md or ~/.codex/AGENTS.md, CLAUDE.local.md, an uncommitted CLAUDE.md or AGENTS.md), at most 64 KB, starting with a heading that names the agent, such as `## Imported from Claude Code`. They are added to the Project's Files `AGENTS.md`, once. Committed ones arrive with the repository; leave them out.",
             "type": "string",
             "minLength": 1
+          },
+          "memories": {
+            "description": "The folder's memory notes, already redacted: Claude Code's `~/.claude/projects/<folder>/memory/*.md`, each its file name and text (at most 16 KB; at most 200 notes). Each is the Project's memory for that file name, which the Project's chats recall; importing a note again replaces its text. Leave out the `MEMORY.md` index.",
+            "minItems": 1,
+            "maxItems": 200,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200,
+                  "pattern": "^[^\\x00-\\x1F\\x7F-\\x9F]+$"
+                },
+                "text": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "name",
+                "text"
+              ],
+              "additionalProperties": false
+            }
           },
           "name": {
             "type": "string",
