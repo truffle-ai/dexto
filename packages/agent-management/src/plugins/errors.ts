@@ -127,7 +127,7 @@ export class PluginError {
             ErrorType.USER,
             `Plugin '${pluginName}' not found`,
             { pluginName },
-            'Use `dexto plugin list` to see available plugins'
+            'Use `/plugin` in the interactive CLI to see available plugins'
         );
     }
 
@@ -139,7 +139,7 @@ export class PluginError {
             ErrorType.USER,
             `Plugin '${pluginName}' is not installed`,
             { pluginName },
-            hint || 'Use `dexto plugin list` to see installed plugins'
+            hint || 'Use `/plugin` in the interactive CLI to see installed plugins'
         );
     }
 

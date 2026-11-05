@@ -74,30 +74,14 @@ which -a dexto
 
 Remove stale entries and run `dexto upgrade` again.
 
-## 2. Run Setup
+## 2. Choose a Model
 
-```bash
-dexto
-```
+`dexto` needs a model before the first chat. Either:
 
-This triggers the first-time setup wizard.
+- **Sign in** with `dexto login` to use Dexto models on your organization's credits, or
+- **Set a provider key** in your environment or `~/.dexto/.env`, such as `ANTHROPIC_API_KEY`, `OPENAI_API_KEY` or `GOOGLE_GENERATIVE_AI_API_KEY`.
 
-### Quick Start (Recommended)
-
-1. **Choose setup type** → Select "Get started now"
-2. **Pick provider** → Gemini (free), Groq (fast), or Local
-3. **Get API key** → Browser opens, or paste existing key
-4. **Confirm mode** → Press Enter for Terminal (default)
-
-Done! You're ready to chat.
-
-### Custom Setup
-
-1. **Choose "Choose my own provider"**
-2. **Browse providers** → OpenAI, Anthropic, local models, gateways
-3. **Select model** → Pick from available models
-4. **Configure API key** → Browser, paste, or skip
-5. **Choose default mode** → Terminal, Browser, or API Server
+With neither, `dexto` points you to `dexto login`. Switch models anytime with `/model` in the interactive CLI.
 
 ### Supported Providers
 
@@ -109,50 +93,14 @@ Done! You're ready to chat.
 | **Gateways** | OpenRouter, Glama, LiteLLM, OpenAI-Compatible |
 | **Enterprise** | Google Vertex AI, AWS Bedrock |
 
-### Modes Explained
-
-| Mode | Flag | Description | Best For |
-|------|------|-------------|----------|
-| **Terminal** | `--mode cli` | Interactive CLI in your terminal | Quick tasks, coding |
-| **Browser** | `--mode web` | Web UI at localhost:3000 | Long conversations |
-| **API Server** | `--mode server` | REST API on port 3001 | Integrations, apps |
-
 ## 3. Start Using Dexto
 
-After setup, Dexto launches in your selected default mode.
-
 ```bash
-# Run with your default mode
+# Start the interactive CLI
 dexto
 
-# Override with a specific mode
-dexto --mode cli
-dexto --mode web
-dexto --mode server
-
-# One-shot commands (auto-uses CLI mode)
-dexto "say hello"
-dexto -p "list files in this directory"
-```
-
-## Reconfigure Anytime
-
-```bash
-# Open settings menu
-dexto setup
-
-# Force re-run full setup
-dexto setup --force
-```
-
-### Non-Interactive Setup
-
-For automation or CI environments:
-
-```bash
-dexto setup --provider google --model gemini-2.5-pro
-dexto setup --provider ollama --model llama3.2
-dexto setup --quick-start
+# Run one headless task
+dexto run "say hello"
 ```
 
 :::tip CLI reference

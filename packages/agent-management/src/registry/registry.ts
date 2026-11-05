@@ -191,7 +191,7 @@ export class LocalAgentRegistry implements AgentRegistry {
      * @param agentId ID of the agent to install
      */
     async installAgent(agentId: string): Promise<string> {
-        logger.info(`Installing agent: ${agentId}`);
+        logger.debug(`Installing agent: ${agentId}`);
         const registry = this.getRegistry();
         const agentData = registry.agents[agentId];
 
@@ -246,7 +246,7 @@ export class LocalAgentRegistry implements AgentRegistry {
             // Atomic rename
             await fs.rename(tempDir, targetDir);
 
-            logger.info(`✓ Installed agent '${agentId}' to ${targetDir}`);
+            logger.debug(`✓ Installed agent '${agentId}' to ${targetDir}`);
 
             return this.resolveMainConfig(targetDir, agentId);
         } catch (error) {
@@ -465,7 +465,7 @@ export class LocalAgentRegistry implements AgentRegistry {
         // 2. Check if available in registry
         if (this.hasAgent(agentId)) {
             if (autoInstall) {
-                logger.info(`Installing agent '${agentId}' from registry...`);
+                logger.debug(`Installing agent '${agentId}' from registry...`);
                 return await this.installAgent(agentId);
             } else {
                 // Agent is available in registry but auto-install is disabled

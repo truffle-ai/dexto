@@ -98,10 +98,10 @@ describe('image-store', () => {
         }
     });
 
-    it('throws a helpful error when a package image cannot be imported', async () => {
+    it('names the image when a package image cannot be imported', async () => {
         const storeDir = await makeTempDir();
         await expect(importImageModule('@myorg/does-not-exist', storeDir)).rejects.toThrow(
-            /dexto image install/
+            /Failed to import image '@myorg\/does-not-exist'/
         );
     });
 });

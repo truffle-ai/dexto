@@ -10,7 +10,6 @@ on:
       - scripts/build-standalone-binaries.sh
       - scripts/test-standalone-binaries.sh
       - scripts/test-packaged-agent-runtime.mjs
-      - scripts/copy-webui-dist.ts
       - package.json
       - pnpm-lock.yaml
       - packages/**
@@ -57,12 +56,8 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build packages and embed WebUI
+      - name: Build packages
         run: pnpm run build:all
-
-      - name: Verify Windows MCP configuration ACL preservation
-        if: runner.os == 'Windows'
-        run: pnpm exec vitest run packages/cli/src/cli/commands/mcp/standalone.integration.test.ts --maxWorkers=1 --testNamePattern=Windows
 
       - name: Build standalone binary
         run: |

@@ -239,10 +239,10 @@ ${ordinaryConfig}    requiresApproval: false
         if (directory) await rm(directory, { recursive: true, force: true });
     });
 
-    function run(args: string[]) {
+    function run(args: string[], env: Record<string, string> = {}) {
         return execute(
             process.execPath,
-            ['--import', tsx, entrypoint, '--agent', configPath, '--no-auto-install', ...args],
+            ['--import', tsx, entrypoint, '--agent', configPath, ...args],
             {
                 cwd: directory,
                 env: {
@@ -254,6 +254,7 @@ ${ordinaryConfig}    requiresApproval: false
                     DEXTO_FEATURE_AUTH: 'false',
                     DEXTO_DEV_MODE: 'false',
                     DEXTO_LLM_REGISTRY_DISABLE_FETCH: '1',
+                    ...env,
                 },
                 timeout: 20000,
             }
@@ -273,8 +274,8 @@ ${ordinaryConfig}    requiresApproval: false
             await expect(access(ordinaryEffectPath)).rejects.toMatchObject({ code: 'ENOENT' });
             expect(denialFeedback).toHaveLength(1);
             expect(denialFeedback[0]).toContain('requires interactive approval');
-            expect(stderr).toContain('[APPROVAL_REQUIRED]');
             if (format === 'text') {
+                expect(stderr).toContain('[APPROVAL_REQUIRED]');
                 expect(stdout.trim()).toBe('ordinary task complete');
                 return;
             }
@@ -298,6 +299,8 @@ ${ordinaryConfig}    requiresApproval: false
                     }),
                 ],
             });
+            // The denial is in the result; stderr stays free for a failure.
+            expect(stderr).not.toContain('[APPROVAL_REQUIRED]');
             if (format === 'json') expect(lines).toHaveLength(1);
             else
                 expect(lines.filter((line) => line.type === 'approval_required')).toEqual([
@@ -405,7 +408,7 @@ ${ordinaryConfig}    requiresApproval: false
 
     it('writes a structured error when the deployment image cannot load', async () => {
         await expect(
-            run(['--image', '@dexto/nonexistent-audit-image', 'run', 'task', '--json'])
+            run(['run', 'task', '--json'], { DEXTO_IMAGE: '@dexto/nonexistent-audit-image' })
         ).rejects.toMatchObject({ code: 1, stdout: expect.stringContaining('"status":"failed"') });
     }, 30000);
     it.each(['json', 'jsonl'] as const)(

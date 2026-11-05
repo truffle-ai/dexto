@@ -58,9 +58,9 @@ export class ConfigError {
             ConfigErrorCode.NO_PROJECT_DEFAULT,
             ErrorScope.CONFIG,
             ErrorType.USER,
-            `No project agent found and no global preferences configured.\nSet a primaryAgent in a workspace registry under agents/, create a single workspace agent under agents/, or run \`dexto setup\` to configure preferences.`,
+            `No project agent found and no global preferences configured.\nSet a primaryAgent in a workspace registry under agents/, create a single workspace agent under agents/, or pass one with \`dexto -a <path>\`.`,
             { projectPath },
-            'Run `dexto setup` or create a project-specific agent config'
+            'Pass an agent with `dexto -a <path>` or create a project-specific agent config'
         );
     }
 
@@ -80,9 +80,9 @@ export class ConfigError {
             ConfigErrorCode.NO_GLOBAL_PREFERENCES,
             ErrorScope.CONFIG,
             ErrorType.USER,
-            `No global preferences found. Run \`dexto setup\` to get started.`,
+            `No global preferences found. Run \`dexto login\` or set a provider key to get started.`,
             {},
-            'Run `dexto setup` to configure your AI preferences'
+            'Run `dexto login` or set a provider key'
         );
     }
 
@@ -91,9 +91,9 @@ export class ConfigError {
             ConfigErrorCode.SETUP_INCOMPLETE,
             ErrorScope.CONFIG,
             ErrorType.USER,
-            `Global preferences setup is incomplete. Run \`dexto setup\` to complete.`,
+            `Global preferences setup is incomplete. Run \`dexto login\` or set a provider key.`,
             {},
-            'Run `dexto setup` to complete your configuration'
+            'Run `dexto login` or set a provider key'
         );
     }
 

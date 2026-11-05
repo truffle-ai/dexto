@@ -1,7 +1,7 @@
 /**
  * The Signal first run (DEXTO-2041 screen 1): the wordmark, what Dexto is, a preflight of this
- * machine, then the two ways on. The first-run flow has no two-way choice of its own, so the ways
- * on are printed as commands and setup carries on as it does today. Behind DEXTO_PALETTE=signal.
+ * machine, then the two ways on, printed as what to do next. Shown when there is neither a provider
+ * key nor a sign-in to start the chat with. Behind DEXTO_PALETTE=signal.
  */
 import { execFileSync } from 'node:child_process';
 import os from 'node:os';
@@ -61,7 +61,7 @@ function checks(facts: FirstRunFacts): Check[] {
             value: 'read · edit · write · run · search · web · your MCP servers',
         },
         facts.model === null
-            ? { ok: false, name: 'model', value: 'no provider key found · setup picks one' }
+            ? { ok: false, name: 'model', value: 'no provider key found' }
             : {
                   ok: true,
                   name: 'model',
@@ -99,8 +99,8 @@ export function firstRunLines(facts: FirstRunFacts): string[] {
         line([span('dim', letterspaced('preflight'))]),
         ...checks(facts).flatMap((check) => checkLine(check, facts.columns)),
         '',
-        key('1', 'stay local', 'dexto setup'),
-        key('2', 'sign in', 'dexto login'),
+        key('1', 'sign in', 'dexto login'),
+        key('2', 'or a key', 'export ANTHROPIC_API_KEY=…'),
         '',
     ];
 }

@@ -5,8 +5,16 @@ import { type ValidatedLLMConfig } from '../llm/schemas.js';
 import { LLMConfigSchema } from '../llm/schemas.js';
 import { ErrorScope, ErrorType } from '../errors/types.js';
 import { SessionErrorCode } from './error-codes.js';
+import { LLMError } from '../llm/errors.js';
 import { createMockLogger } from '../logger/v2/test-utils.js';
 import type { SessionData } from './session-manager.js';
+
+/** A session whose start fails; only `init` runs before SessionManager gives up on it. */
+function sessionFailingInit(error: Error): ChatSession {
+    const partial: Pick<ChatSession, 'init'> = { init: vi.fn().mockRejectedValue(error) };
+    // The boundary: SessionManager calls nothing but init on a session that fails to start.
+    return partial as unknown as ChatSession;
+}
 
 // Mock dependencies
 vi.mock('./chat-session.js');
@@ -452,6 +460,25 @@ describe('SessionManager', () => {
                 'mock-uuid-123',
                 mockLogger
             );
+        });
+
+        test('keeps a user-fixable error from session start, such as a missing provider key', async () => {
+            const missingKey = LLMError.apiKeyMissing('anthropic', 'ANTHROPIC_API_KEY');
+            MockChatSession.mockImplementationOnce(function () {
+                return sessionFailingInit(missingKey);
+            });
+
+            await expect(sessionManager.createSession()).rejects.toBe(missingKey);
+        });
+
+        test('wraps a system error from session start as a session failure', async () => {
+            MockChatSession.mockImplementationOnce(function () {
+                return sessionFailingInit(new Error('disk full'));
+            });
+
+            await expect(sessionManager.createSession()).rejects.toMatchObject({
+                code: SessionErrorCode.SESSION_INITIALIZATION_FAILED,
+            });
         });
 
         test('should create sessions with custom IDs when provided', async () => {

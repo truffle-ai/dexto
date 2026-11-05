@@ -99,7 +99,9 @@ try {
             maxBuffer: 4 * 1024 * 1024,
         });
     }
-    await cli(['agents', 'install', 'coding-agent']);
+    // 2.0 has no `agents install`: the first use of a bundled agent copies it into the home. With
+    // no model key yet, that first run then fails, which is expected here.
+    await assert.rejects(cli(['--agent', 'coding-agent', 'run', 'Install only', '--json']));
     const agentDirectory = join(home, '.dexto', 'agents', 'coding-agent');
     const config = join(agentDirectory, 'coding-agent.yml');
     await access(config);

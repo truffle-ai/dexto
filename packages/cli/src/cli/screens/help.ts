@@ -39,7 +39,7 @@ export const DOCS_URL = 'https://cli.dexto.ai';
 /** The words a command line starts with; anything not listed goes under More. */
 const ROOT_GROUPS: readonly { readonly title: string; readonly names: readonly string[] }[] = [
     { title: 'start', names: ['run'] },
-    { title: 'chat', names: ['chat', 'search'] },
+    { title: 'chat', names: ['chat'] },
     {
         title: 'cloud',
         names: [

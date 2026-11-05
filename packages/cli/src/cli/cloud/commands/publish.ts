@@ -123,6 +123,9 @@ const publish: Command = {
                 : [{ bytes: await readFile(target), path: path.basename(target) }];
             checkSizes(files);
             archive = zipArchive(files);
+            context.output.note(
+                `Packed ${files.length} file${files.length === 1 ? '' : 's'} into a ${formatBytes(archive.byteLength)} .zip.`
+            );
         }
         if (archive.byteLength > MAX_UPLOAD_BYTES)
             throw new UsageError(
@@ -156,7 +159,9 @@ const publish: Command = {
         if (!prepared.success)
             throw new CommandFailure('failed', "Dexto didn't say where to upload the files.", null);
         const { headers, method, url } = prepared.data;
+        context.output.note(`Uploading ${formatBytes(archive.byteLength)}…`);
         await sendBytes(context, { headers, method, url }, new globalThis.Blob([archive]));
+        context.output.note(`Publishing ${name}…`);
         let response: unknown;
         try {
             response = await unwrap(

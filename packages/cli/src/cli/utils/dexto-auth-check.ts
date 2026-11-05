@@ -19,7 +19,7 @@
  *
  * Instead, we catch this state early and offer clear options:
  * - Log back in to continue using Dexto Nova credits
- * - Run setup to configure a different provider (BYOK)
+ * - Start with `dexto -m <model>` and a provider key to use a different provider (BYOK)
  *
  * @module dexto-auth-check
  */
@@ -31,7 +31,7 @@ import { getEffectiveLLMConfig } from '../../config/effective-llm.js';
 
 export interface DextoAuthCheckResult {
     shouldContinue: boolean;
-    action?: 'login' | 'setup' | 'cancel';
+    action?: 'login' | 'cancel';
 }
 
 /**
@@ -51,8 +51,6 @@ export interface DextoAuthCheckResult {
  * if (!result.shouldContinue) {
  *   if (result.action === 'login') {
  *     await signInForDextoModels();
- *   } else if (result.action === 'setup') {
- *     await handleSetupCommand();
  *   }
  * }
  * ```
@@ -90,7 +88,8 @@ export async function checkDextoAuthState(
             chalk.cyan('  • dexto login') + chalk.dim('  - Log back in to use Dexto Nova credits')
         );
         console.log(
-            chalk.cyan('  • dexto setup') + chalk.dim('  - Configure a different provider (BYOK)')
+            chalk.cyan('  • dexto -m <model>') +
+                chalk.dim('  - Use your own provider key instead (set it in the environment)')
         );
         console.log();
         return { shouldContinue: false, action: 'cancel' };
@@ -99,7 +98,8 @@ export async function checkDextoAuthState(
     // Interactive mode - prompt user
     console.log(chalk.yellow('\n⚠️  Dexto Authentication Required\n'));
     console.log(chalk.dim('You are configured to use Dexto Nova credits (provider: Dexto Nova)'));
-    console.log(chalk.dim('but you are not currently logged in.\n'));
+    console.log(chalk.dim('but you are not currently logged in.'));
+    console.log(chalk.dim('To use your own provider key instead, start with: dexto -m <model>\n'));
 
     const action = await p.select({
         message: 'How would you like to proceed?',
@@ -108,11 +108,6 @@ export async function checkDextoAuthState(
                 value: 'login' as const,
                 label: 'Log in to Dexto',
                 hint: 'Authenticate to use Dexto Nova credits',
-            },
-            {
-                value: 'setup' as const,
-                label: 'Configure a different provider',
-                hint: 'Set up your own API key (BYOK)',
             },
             {
                 value: 'cancel' as const,
