@@ -1,6 +1,7 @@
 // `chat local` and `chat import`: find Claude Code and Codex chats on this machine and import them.
 
 import { requireConsent } from '../../interaction.js';
+import { chatMoveCommands } from './chat-move.js';
 
 import { z } from 'zod';
 
@@ -278,4 +279,4 @@ function readyLine(session: SessionResult): string {
         .join('; ');
 }
 
-export const chatCommands: readonly Command[] = [local, importChats];
+export const chatCommands: readonly Command[] = [local, importChats, ...chatMoveCommands];
