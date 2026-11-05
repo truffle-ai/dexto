@@ -60,6 +60,7 @@ it('refuses a secret-shaped file in history even after it was deleted', async ()
 it('applies a returned patch and preserves a local backup of the handed-off changes', async () => {
     const cwd = await repository();
     await writeFile(path.join(cwd, 'code.txt'), 'local dirty\n');
+    await writeFile(path.join(cwd, '.env.fake'), 'fake local-only content\n');
     const tree = await buildWorkingTree(cwd);
     try {
         await applyReturnedTree(
@@ -79,9 +80,62 @@ it('applies a returned patch and preserves a local backup of the handed-off chan
             }
         );
         expect(await readFile(path.join(cwd, 'code.txt'), 'utf8')).toBe('cloud edit\n');
+        expect(await readFile(path.join(cwd, '.env.fake'), 'utf8')).toBe(
+            'fake local-only content\n'
+        );
         expect((await run('git', ['stash', 'list'], { cwd })).stdout).toContain(
             'dexto hand-off backup'
         );
+    } finally {
+        await tree.cleanup();
+    }
+});
+
+it('refuses local drift before changing the branch or files', async () => {
+    const cwd = await repository();
+    const tree = await buildWorkingTree(cwd);
+    try {
+        await writeFile(path.join(cwd, 'code.txt'), 'new local work\n');
+        await expect(
+            applyReturnedTree(
+                cwd,
+                {
+                    branch: tree.branch,
+                    head: tree.head_commit,
+                    patchHash: describeObject(Buffer.alloc(0)).sha256,
+                },
+                { branch: tree.branch, head: tree.head_commit, bundle: null, patch: null }
+            )
+        ).rejects.toThrow('changed since hand-off');
+        expect(await readFile(path.join(cwd, 'code.txt'), 'utf8')).toBe('new local work\n');
+    } finally {
+        await tree.cleanup();
+    }
+});
+
+it('refuses a secret-shaped returned patch before changing the local checkout', async () => {
+    const cwd = await repository();
+    const tree = await buildWorkingTree(cwd);
+    try {
+        await expect(
+            applyReturnedTree(
+                cwd,
+                {
+                    branch: tree.branch,
+                    head: tree.head_commit,
+                    patchHash: describeObject(Buffer.alloc(0)).sha256,
+                },
+                {
+                    branch: tree.branch,
+                    head: tree.head_commit,
+                    bundle: null,
+                    patch: Buffer.from(
+                        'diff --git a/.env.fake b/.env.fake\nnew file mode 100644\n--- /dev/null\n+++ b/.env.fake\n@@ -0,0 +1 @@\n+fake content\n'
+                    ),
+                }
+            )
+        ).rejects.toThrow('refused path');
+        expect(await readFile(path.join(cwd, 'code.txt'), 'utf8')).toBe('before\n');
     } finally {
         await tree.cleanup();
     }

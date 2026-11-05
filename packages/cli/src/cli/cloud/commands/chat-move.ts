@@ -113,6 +113,7 @@ const move: Command = {
         const id = argument(input, 0, 'local chat id');
         const to = choiceOption(input, 'to', ['cloud', 'local']);
         if (to === undefined) throw new UsageError('--to cloud|local is required.');
+        let chat = await localChat(context, id);
         if (to === 'cloud' && context.openLocalAgent !== undefined) {
             // Flush the last local turn before the server records the transcript return cursor.
             const agent = await context.openLocalAgent();
@@ -123,7 +124,7 @@ const move: Command = {
                 sync.stop();
             }
         }
-        const chat = await localChat(context, id);
+        chat = await localChat(context, id);
         const { transport, cloudId, state, store, account } = chat;
         if (to === 'cloud') {
             if (state.status === 'paused')

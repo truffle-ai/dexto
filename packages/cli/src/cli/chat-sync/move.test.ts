@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest';
 import { createCloudClient } from '@dexto/cloud-client';
-import { moveToCloud } from './move.js';
+import { moveToCloud, downloadMoveObject, describeObject } from './move.js';
 
 it('uploads declared bytes with signed headers before confirming and polling completion', async () => {
     const calls: string[] = [];
@@ -54,4 +54,29 @@ it('uploads declared bytes with signed headers before confirming and polling com
         'POST /v1/synced_chats/chat/moves/m/uploaded',
         'GET /v1/synced_chats/chat/moves/m',
     ]);
+});
+
+it('refuses oversized or corrupted downloads before applying anything', async () => {
+    const transport = {
+        client: createCloudClient({
+            apiBaseUrl: 'https://api.invalid',
+            token: 'fake',
+            cloudProject: null,
+        }),
+        signal: new AbortController().signal,
+        sleep: async () => undefined,
+        fetch: async () => new Response('too long'),
+    };
+    await expect(
+        downloadMoveObject(transport, {
+            url: 'https://download.invalid',
+            ...describeObject(Buffer.from('short')),
+        })
+    ).rejects.toThrow('declared size');
+    await expect(
+        downloadMoveObject(
+            { ...transport, fetch: async () => new Response('wrong') },
+            { url: 'https://download.invalid', ...describeObject(Buffer.from('short')) }
+        )
+    ).rejects.toThrow('checksum');
 });
