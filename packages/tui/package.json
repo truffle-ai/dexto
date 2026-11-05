@@ -13,6 +13,14 @@
         "./tool-step": {
             "types": "./dist/utils/tool-step.d.ts",
             "import": "./dist/utils/tool-step.js"
+        },
+        "./signal-text": {
+            "types": "./dist/signal/text.d.ts",
+            "import": "./dist/signal/text.js"
+        },
+        "./signal-harness": {
+            "types": "./dist/signal/harness.d.ts",
+            "import": "./dist/signal/harness.js"
         }
     },
     "files": [

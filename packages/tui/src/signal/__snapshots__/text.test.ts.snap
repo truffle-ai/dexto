@@ -1,0 +1,77 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`Signal text blocks on 16-dark > cut type 1`] = `
+"▄▀▀▀▀ ▀▀▀ ▄▀▀▀▀ █▄  █    ▀▀▀ █▄  █
+ ▀▀▀▄  █  █  ▀█ █ ▀▄█     █  █ ▀▄█
+▀▀▀▀  ▀▀▀  ▀▀▀▀ ▀   ▀    ▀▀▀ ▀   ▀"
+`;
+
+exports[`Signal text blocks on 16-dark > fault 1`] = `
+"  ␛[31m▌␛[39m ␛[31m␛[1mFAULT   ␛[22m␛[39m␛[1mNot signed in. · unauthorized␛[22m
+  ␛[31m▌␛[39m ␛[90mdetails ␛[39m␛[90m{"scope":"drive:read"}␛[39m
+  ␛[31m▌␛[39m ␛[90mnext    ␛[39m␛[33mdexto login␛[39m"
+`;
+
+exports[`Signal text blocks on 16-dark > notice 1`] = `"  ␛[33m▌␛[39m ␛[33m␛[1mUPDATE  ␛[22m␛[39mdexto 2.2.0 is out · run ␛[36mdexto upgrade␛[39m"`;
+
+exports[`Signal text blocks on 256-dark > cut type 1`] = `
+"␛[38;5;231m▄▀▀▀▀ ▀▀▀ ▄▀▀▀▀ █▄  █    ▀▀▀ █▄  █␛[39m
+␛[38;5;231m ▀▀▀▄  █  █  ▀█ █ ▀▄█     █  █ ▀▄█␛[39m
+␛[38;5;231m▀▀▀▀  ▀▀▀  ▀▀▀▀ ▀   ▀    ▀▀▀ ▀   ▀␛[39m"
+`;
+
+exports[`Signal text blocks on 256-dark > fault 1`] = `
+"␛[38;5;188m  ␛[39m␛[38;5;210m▌␛[39m␛[38;5;188m ␛[39m␛[38;5;210m␛[1mFAULT   ␛[22m␛[39m␛[38;5;231m␛[1mNot signed in. · unauthorized␛[22m␛[39m
+␛[38;5;188m  ␛[39m␛[38;5;131m▌␛[39m␛[38;5;188m ␛[39m␛[38;5;109mdetails ␛[39m␛[38;5;109m{"scope":"drive:read"}␛[39m
+␛[38;5;188m  ␛[39m␛[38;5;131m▌␛[39m␛[38;5;188m ␛[39m␛[38;5;109mnext    ␛[39m␛[38;5;221mdexto login␛[39m"
+`;
+
+exports[`Signal text blocks on 256-dark > notice 1`] = `"␛[38;5;188m  ␛[39m␛[38;5;137m▌␛[39m␛[38;5;188m ␛[39m␛[38;5;221m␛[1mUPDATE  ␛[22m␛[39m␛[38;5;188mdexto 2.2.0 is out · run ␛[39m␛[38;5;115mdexto upgrade␛[39m"`;
+
+exports[`Signal text blocks on ascii > cut type 1`] = `"␛[1mSIGN IN␛[22m"`;
+
+exports[`Signal text blocks on ascii > fault 1`] = `
+"  ␛[31m|␛[39m ␛[31m␛[1mFAULT   ␛[22m␛[39m␛[1mNot signed in. . unauthorized␛[22m
+  ␛[31m|␛[39m ␛[90mdetails ␛[39m␛[90m{"scope":"drive:read"}␛[39m
+  ␛[31m|␛[39m ␛[90mnext    ␛[39m␛[33mdexto login␛[39m"
+`;
+
+exports[`Signal text blocks on ascii > notice 1`] = `"  ␛[33m|␛[39m ␛[33m␛[1mUPDATE  ␛[22m␛[39mdexto 2.2.0 is out . run ␛[36mdexto upgrade␛[39m"`;
+
+exports[`Signal text blocks on no-color > cut type 1`] = `"SIGN IN"`;
+
+exports[`Signal text blocks on no-color > fault 1`] = `
+"  ▌ FAULT   Not signed in. · unauthorized
+  ▌ details {"scope":"drive:read"}
+  ▌ next    dexto login"
+`;
+
+exports[`Signal text blocks on no-color > notice 1`] = `"  ▌ UPDATE  dexto 2.2.0 is out · run dexto upgrade"`;
+
+exports[`Signal text blocks on truecolor-dark > cut type 1`] = `
+"␛[38;2;244;248;247m▄▀▀▀▀ ▀▀▀ ▄▀▀▀▀ █▄  █    ▀▀▀ █▄  █␛[39m
+␛[38;2;244;248;247m ▀▀▀▄  █  █  ▀█ █ ▀▄█     █  █ ▀▄█␛[39m
+␛[38;2;244;248;247m▀▀▀▀  ▀▀▀  ▀▀▀▀ ▀   ▀    ▀▀▀ ▀   ▀␛[39m"
+`;
+
+exports[`Signal text blocks on truecolor-dark > fault 1`] = `
+"␛[38;2;216;224;222m  ␛[39m␛[38;2;255;110;97m▌␛[39m␛[38;2;216;224;222m ␛[39m␛[38;2;255;110;97m␛[1mFAULT   ␛[22m␛[39m␛[38;2;244;248;247m␛[1mNot signed in. · unauthorized␛[22m␛[39m
+␛[38;2;216;224;222m  ␛[39m␛[38;2;154;74;67m▌␛[39m␛[38;2;216;224;222m ␛[39m␛[38;2;127;140;138mdetails ␛[39m␛[38;2;127;140;138m{"scope":"drive:read"}␛[39m
+␛[38;2;216;224;222m  ␛[39m␛[38;2;154;74;67m▌␛[39m␛[38;2;216;224;222m ␛[39m␛[38;2;127;140;138mnext    ␛[39m␛[38;2;244;181;74mdexto login␛[39m"
+`;
+
+exports[`Signal text blocks on truecolor-dark > notice 1`] = `"␛[38;2;216;224;222m  ␛[39m␛[38;2;140;106;46m▌␛[39m␛[38;2;216;224;222m ␛[39m␛[38;2;244;181;74m␛[1mUPDATE  ␛[22m␛[39m␛[38;2;216;224;222mdexto 2.2.0 is out · run ␛[39m␛[38;2;78;201;176mdexto upgrade␛[39m"`;
+
+exports[`Signal text blocks on truecolor-light > cut type 1`] = `
+"␛[38;2;5;8;7m▄▀▀▀▀ ▀▀▀ ▄▀▀▀▀ █▄  █    ▀▀▀ █▄  █␛[39m
+␛[38;2;5;8;7m ▀▀▀▄  █  █  ▀█ █ ▀▄█     █  █ ▀▄█␛[39m
+␛[38;2;5;8;7m▀▀▀▀  ▀▀▀  ▀▀▀▀ ▀   ▀    ▀▀▀ ▀   ▀␛[39m"
+`;
+
+exports[`Signal text blocks on truecolor-light > fault 1`] = `
+"␛[38;2;27;34;33m  ␛[39m␛[38;2;194;40;27m▌␛[39m␛[38;2;27;34;33m ␛[39m␛[38;2;194;40;27m␛[1mFAULT   ␛[22m␛[39m␛[38;2;5;8;7m␛[1mNot signed in. · unauthorized␛[22m␛[39m
+␛[38;2;27;34;33m  ␛[39m␛[38;2;217;139;131m▌␛[39m␛[38;2;27;34;33m ␛[39m␛[38;2;94;106;104mdetails ␛[39m␛[38;2;94;106;104m{"scope":"drive:read"}␛[39m
+␛[38;2;27;34;33m  ␛[39m␛[38;2;217;139;131m▌␛[39m␛[38;2;27;34;33m ␛[39m␛[38;2;94;106;104mnext    ␛[39m␛[38;2;149;90;0mdexto login␛[39m"
+`;
+
+exports[`Signal text blocks on truecolor-light > notice 1`] = `"␛[38;2;27;34;33m  ␛[39m␛[38;2;201;160;97m▌␛[39m␛[38;2;27;34;33m ␛[39m␛[38;2;149;90;0m␛[1mUPDATE  ␛[22m␛[39m␛[38;2;27;34;33mdexto 2.2.0 is out · run ␛[39m␛[38;2;11;122;104mdexto upgrade␛[39m"`;
