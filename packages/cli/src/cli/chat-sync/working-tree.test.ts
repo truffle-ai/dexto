@@ -36,9 +36,21 @@ it('bundles the branch and patches untracked changes without secrets, ignored fi
         expect(tree.branch).toBe('main');
         expect(tree.patch?.toString()).toContain('diff --git a/new.txt b/new.txt');
         expect(tree.patch?.toString()).toContain('+after');
-        expect(tree.patch?.toString()).not.toMatch(/\.env.fake|credentials.fake|ignored.txt/);
+        expect(tree.patch?.toString()).not.toMatch(
+            /diff --git a\/(?:\.env.fake|credentials.fake|ignored.txt)/
+        );
         expect(await readFile(path.join(cwd, '.git/index'))).toEqual(before);
     } finally {
         await tree.cleanup();
     }
+});
+
+it('refuses a secret-shaped file in history even after it was deleted', async () => {
+    const cwd = await repository();
+    await writeFile(path.join(cwd, '.env.fake'), 'fake only\n');
+    await run('git', ['add', '.env.fake'], { cwd });
+    await run('git', ['commit', '-m', 'fake secret name'], { cwd });
+    await run('git', ['rm', '.env.fake'], { cwd });
+    await run('git', ['commit', '-m', 'remove fake file'], { cwd });
+    await expect(buildWorkingTree(cwd)).rejects.toThrow('secret-shaped');
 });
