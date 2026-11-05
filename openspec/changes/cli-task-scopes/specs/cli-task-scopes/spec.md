@@ -20,7 +20,7 @@ Browser and device sign-in SHALL request the existing read scopes plus `cloud:re
 
 ### Requirement: Step-up shows the entire requested grant
 
-Interactive non-JSON recovery SHALL list the exact scope set produced by sign-in discovery before starting authorization: current defaults, retained grants, the missing scopes and chat sync when enabled. Declining SHALL start no authorization request and SHALL NOT retry the command. Headless or JSON commands SHALL exit 3 naming the missing scopes and the explicit login command.
+Interactive non-JSON recovery SHALL list the exact scope set produced by sign-in discovery before starting authorization: current defaults, retained grants, a missing scope and chat sync when enabled. Declining SHALL start no authorization request and SHALL NOT retry the command. Headless or JSON commands SHALL exit 3 naming a missing scope and the explicit login command.
 
 #### Scenario: Direct computer or Loop work needs another scope
 

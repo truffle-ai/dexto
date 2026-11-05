@@ -293,7 +293,7 @@ describe('dexto cloud', () => {
                     },
                 },
                 signInForScope: async (_overrides, extra, confirm) => {
-                    if (confirm !== undefined && !(await confirm(requested))) return false;
+                    if (!(await confirm(requested))) return false;
                     granted.push(extra);
                     return true;
                 },

@@ -81,7 +81,7 @@ dexto accounts remove acme  # log out and forget (asks first, or --yes)
 dexto logout                # end the sign-in on the server and forget it here
 ```
 
-Sign-ins are saved per profile in `~/.dexto/accounts/`, readable only by you. `--profile <name>` or `DEXTO_PROFILE` picks one for a single run, and `DEXTO_API_KEY` takes precedence over any saved sign-in. A first sign-in only reads; `--scope <permission>` asks for more and keeps what was granted before. Sign-ins from the `dexto-cloud` preview CLI are carried over once.
+Sign-ins are saved per profile in `~/.dexto/accounts/`, readable only by you. `--profile <name>` or `DEXTO_PROFILE` picks one for a single run, and `DEXTO_API_KEY` takes precedence over any saved sign-in. A first sign-in reads, and can also change Projects and start chats, which can spend credits; direct computer writes and Loops need `--scope` or a step-up. Sign-ins from the `dexto-cloud` preview CLI are carried over once.
 
 Signed in, every local session also gets the Dexto MCP as a server named `dexto`: your connectors, Drive, Sites and Apps, Loops and memory, beside your own MCP servers. Its tools ask first through the normal approval prompt. If Dexto is unreachable, the session still runs and those tools show as unavailable. A server you name `dexto` yourself takes its place.
 
