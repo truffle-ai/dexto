@@ -12,6 +12,18 @@ export interface TuiSignInOptions {
     onNote: (text: string) => void;
 }
 
+/** Chat sync to Dexto Cloud: the host keeps its state and words. */
+export interface TuiChatSync {
+    /** Runs `/sync [on|off] [project]` or `/private [off]` for the chat, resolving with what to say. */
+    command: (
+        name: 'sync' | 'private',
+        args: readonly string[],
+        sessionId: string | null
+    ) => Promise<string>;
+    /** Calls `listener` with each notice, those sent before it listened first; returns the unsubscribe. */
+    onNotice: (listener: (text: string) => void) => () => void;
+}
+
 export interface TuiRuntimeServices {
     registerGracefulShutdown?: (
         getAgent: () => TuiShutdownHandle,
@@ -36,6 +48,8 @@ export interface TuiRuntimeServices {
     canUseDextoProvider?: () => Promise<boolean>;
     buildDextoBillingUrl?: (options: { creditsUsd: number }) => string;
     openDextoBillingPage?: (options: { url?: string | undefined }) => Promise<void>;
+    /** Absent when the host doesn't sync chats. */
+    chatSync?: TuiChatSync;
 }
 
 let runtimeServices: TuiRuntimeServices = {};

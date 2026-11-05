@@ -220,6 +220,8 @@ export async function runCliMode(context: MainModeContext): Promise<void> {
                 { isUsingDextoCredits },
                 { canUseDextoProvider },
                 { capture },
+                { startNodeChatSync },
+                { isDextoAuthEnabled },
             ] = await Promise.all([
                 import('@dexto/tui'),
                 import('../../utils/graceful-shutdown.js'),
@@ -231,7 +233,14 @@ export async function runCliMode(context: MainModeContext): Promise<void> {
                 import('../../config/effective-llm.js'),
                 import('../utils/dexto-setup.js'),
                 import('../../analytics/index.js'),
+                import('../chat-sync/node.js'),
+                import('@dexto/agent-management'),
             ]);
+
+            // Chats sync to the signed-in person's Dexto Cloud; a failure here never stops a chat.
+            const chatSync = isDextoAuthEnabled()
+                ? await startNodeChatSync(agent, process.cwd()).catch(() => null)
+                : null;
 
             setTuiRuntimeServices({
                 registerGracefulShutdown,
@@ -298,7 +307,11 @@ export async function runCliMode(context: MainModeContext): Promise<void> {
                     );
                     return summary?.balanceUsd ?? null;
                 },
+                ...(chatSync !== null && {
+                    chatSync: { command: chatSync.command, onNotice: chatSync.onNotice },
+                }),
             });
+            void chatSync?.start(cliSessionId).catch(() => undefined);
 
             await startInkCliRefactored(agent, cliSessionId, {
                 updateInfo: cliUpdateInfo ?? undefined,

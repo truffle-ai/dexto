@@ -25,6 +25,7 @@ const owned = vi.hoisted(() => ({
     bridgeSubscriber: {},
     subscriberAgents: new Map<object, DextoAgent>(),
     approvalBridges: new Map<DextoAgent, AbortController>(),
+    deleteCloudCopiesWithChats: vi.fn(),
 }));
 vi.mock('@dexto/server', async () => {
     const { createServer } = await import('node:http');
@@ -76,8 +77,12 @@ vi.mock('@dexto/agent-management', async (importOriginal) => {
         createDextoAgentFromConfig: owned.createAgent,
         getAgentRegistry: () => ({ resolveAgent: owned.resolveAgent }),
         AgentFactory: { listAgents: owned.listAgents },
+        isDextoAuthEnabled: () => true,
     };
 });
+vi.mock('../cli/chat-sync/node.js', () => ({
+    deleteCloudCopiesWithChats: owned.deleteCloudCopiesWithChats,
+}));
 vi.mock('../utils/session-logger-factory.js', () => ({ createFileSessionLoggerFactory: vi.fn() }));
 
 import { initializeHonoApi, startHonoApiServer } from './server-hono.js';
@@ -270,6 +275,40 @@ describe('CLI HTTP host lifecycle', () => {
         await host.stop();
         expect(initial.stop).toHaveBeenCalledTimes(1);
         expect(replacement.stop).toHaveBeenCalledTimes(1);
+    });
+
+    it('deletes synced copies of chats deleted on whichever agent is active, wiring each agent once', async () => {
+        const initial = fakeAgent();
+        const failing = fakeAgent();
+        vi.mocked(failing.agent.setWorkspace).mockRejectedValueOnce(new Error('workspace'));
+        vi.mocked(failing.agent.getWorkspace).mockResolvedValueOnce({
+            id: 'other',
+            path: '/other',
+            createdAt: 0,
+            lastActiveAt: 0,
+        });
+        const replacement = fakeAgent();
+        owned.createAgent
+            .mockResolvedValueOnce(failing.agent)
+            .mockResolvedValueOnce(replacement.agent);
+        const host = await initializeHonoApi(
+            initial.agent,
+            {},
+            0,
+            'initial',
+            'i.yml',
+            '/workspace'
+        );
+        resources.push(host);
+
+        await expect(host.switchAgentByPath('failing.yml')).rejects.toThrow('workspace');
+        await host.switchAgentByPath('replacement.yml');
+
+        expect(owned.deleteCloudCopiesWithChats.mock.calls).toEqual([
+            [initial.agent],
+            [failing.agent],
+            [replacement.agent],
+        ]);
     });
 
     it('waits for an in-flight agent switch before stopping its resulting agent', async () => {

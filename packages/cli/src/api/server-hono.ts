@@ -10,6 +10,7 @@ import {
     globalPreferencesExist,
     loadGlobalPreferences,
     createDextoAgentFromConfig,
+    isDextoAuthEnabled,
 } from '@dexto/agent-management';
 import { applyUserPreferences } from '../config/cli-overrides.js';
 import { createFileSessionLoggerFactory } from '../utils/session-logger-factory.js';
@@ -31,6 +32,7 @@ import {
 } from '@dexto/server';
 import { registerGracefulShutdown } from '../utils/graceful-shutdown.js';
 import { applyWorkspaceToAgent } from '../utils/workspace.js';
+import { deleteCloudCopiesWithChats } from '../cli/chat-sync/node.js';
 
 const DEFAULT_AGENT_VERSION = '1.0.0';
 
@@ -235,6 +237,8 @@ export async function initializeHonoApi(
     }
 
     try {
+        /** Agents whose deleted chats also delete their synced copies. */
+        const deletingCloudCopies = new WeakSet<DextoAgent>();
         /**
          * Wire services (SSE subscribers) to an agent.
          * Called for agent switching to re-subscribe to the new agent's event bus.
@@ -250,6 +254,13 @@ export async function initializeHonoApi(
             agent.registerSubscriber(webhookSubscriber);
             agent.registerSubscriber(sseSubscriber);
             agent.registerSubscriber(sessionSseSubscriber);
+
+            // Deleting a chat here deletes its synced copy in Dexto Cloud too, for every agent
+            // that becomes active; a rolled-back switch wires the same agent again.
+            if (isDextoAuthEnabled() && !deletingCloudCopies.has(agent)) {
+                deletingCloudCopies.add(agent);
+                deleteCloudCopiesWithChats(agent);
+            }
         }
 
         /**

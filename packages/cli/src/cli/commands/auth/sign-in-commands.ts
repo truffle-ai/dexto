@@ -4,6 +4,7 @@ import { CommandFailure, NOT_SIGNED_IN } from '../../failure.js';
 
 import { dextoAccounts, dextoSignIn, type dextoCloud } from '@dexto/agent-management';
 import { signalOn } from '@dexto/tui/signal-text';
+import { CHAT_SYNC_SCOPE } from '../../chat-sync/host.js';
 import { UsageError } from '../../cloud/command.js';
 import { whoamiLines } from '../../screens/whoami.js';
 
@@ -99,6 +100,8 @@ export interface SignInContext {
     readonly confirm: (question: string) => Promise<boolean>;
     /** False over SSH or without a display: a loopback redirect can't reach this machine. */
     readonly canOpenBrowser: boolean;
+    /** Whether chat sync is on: a sign-in asks for the chats:sync scope only then. */
+    readonly chatSyncOn: () => Promise<boolean>;
     readonly dexto: DextoSignIn;
 }
 
@@ -134,8 +137,14 @@ export async function login(context: SignInContext, options: LoginOptions): Prom
         apiBaseUrl: previous?.apiBaseUrl ?? context.apiBaseUrl,
         // Signing in again starts at the organization the profile was signed in for.
         organization: options.org ?? previous?.signedInAs?.organization.id ?? null,
-        // ...and keeps the permissions granted before.
-        extraScopes: [...(previous?.scopes ?? []), ...options.scopes.flatMap(splitList)],
+        // ...and keeps the permissions granted before, but chats:sync only while sync is on.
+        extraScopes: [
+            ...new Set([
+                ...(previous?.scopes ?? []).filter((scope) => scope !== CHAT_SYNC_SCOPE),
+                ...options.scopes.flatMap(splitList),
+                ...((await context.chatSyncOn()) ? [CHAT_SYNC_SCOPE] : []),
+            ]),
+        ],
     };
     // A browser elsewhere can't reach this machine's loopback redirect, so use a code instead.
     const device = options.device || (options.browser && !context.canOpenBrowser);

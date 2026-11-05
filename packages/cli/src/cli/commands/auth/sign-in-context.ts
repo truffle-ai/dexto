@@ -69,6 +69,14 @@ export async function nodeSignInContext(io: SignInIo = TERMINAL): Promise<SignIn
         screen: io.screen,
         confirm: io.confirm,
         canOpenBrowser: shouldAttemptBrowserLaunch(),
+        chatSyncOn: async () => {
+            const { nodeChatSyncStore } = await import('../../chat-sync/node.js');
+            // Settings it can't read sync nothing, so the sign-in asks for no sync scope.
+            return await nodeChatSyncStore()
+                .readSettings()
+                .then((settings) => settings.sync === 'on')
+                .catch(() => false);
+        },
         dexto: {
             signInWithBrowser: (input) => dextoSignIn.signInWithBrowser(runtime, input),
             signInWithDevice: (input) => dextoSignIn.signInWithDevice(runtime, input),

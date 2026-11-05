@@ -221,7 +221,8 @@ export function syncAllowed(
     return cwd === null || !settings.projectsOff.some((folder) => isInside(cwd, folder));
 }
 
-function isInside(child: string, parent: string): boolean {
+/** Whether `child` is `parent` or a folder inside it. */
+export function isInside(child: string, parent: string): boolean {
     const relative = path.relative(parent, child);
     return relative === '' || (relative.split(path.sep)[0] !== '..' && !path.isAbsolute(relative));
 }
