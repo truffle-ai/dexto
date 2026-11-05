@@ -584,7 +584,19 @@ Every cloud command takes `--json` or `--table`, `--api-key <key>`, `--profile <
 
 Signed in as a person, each session starts by syncing your Dexto Skills library to `~/.dexto/cloud-skills/`, where Skill discovery finds them after your own Skills, so a local Skill of the same name wins. Signed out, or with an API key, that copy is removed. `dexto skills sync` syncs on demand, and `dexto skills push <dir>` adds a local Skill to your library.
 
-Deploy Sites and Functions with `dexto cloud sites deploy` and `dexto cloud functions deploy`, each packed with the project's own packer. Dexto 1.x's `dexto deploy` (workspace deploys) is gone in 2.0, along with `dexto --cloud-agent`; `dexto trace` and `dexto span` are also gone until a public `/v1` traces endpoint brings them back.
+Deploy Sites and Functions with `dexto cloud sites deploy` and `dexto cloud functions deploy`, each packed with the project's own packer. Dexto 1.x's `dexto deploy` (workspace deploys) is gone in 2.0, along with `dexto --cloud-agent`.
+
+### Run traces
+
+`dexto trace` and `dexto span` read your runs' traces from Dexto's public `/v1/traces` API. Spans are kept 30 days.
+
+```bash
+dexto trace list --period 3h --status failed     # your recent run traces, newest first
+dexto trace view <run_id>                        # one run's spans in start order, with errors
+dexto span list <run_id> --name llm.stream --sort duration --limit 5
+```
+
+`trace list` takes `--period` (such as `15m`, `3h` or `7d`, at most `30d`), `--status`, `--session` and `--limit` (at most 100). `span list` takes `--name`, `--status` (`completed` or `failed`), `--sort` (`started_at` or `duration`) and `--limit` (at most 500). They print tables at a terminal and JSON with `--json` or when piped. Reading traces needs `runs:read`. If your sign-in lacks it, the CLI offers to sign in again for it, or prints `dexto login --scope runs:read`. An API key needs the `runs:read` permission: create one that has it.
 
 ## Your Dexto Workspace
 
@@ -594,6 +606,9 @@ Signed in, `dexto workspace` uses your workspace as you, over the Dexto MCP: the
 dexto workspace                            # your apps
 dexto workspace drive                      # what an app does
 dexto workspace drive put ./report.pdf     # upload into Drive
+dexto workspace artifacts create ./plan.html --title Plan --idempotency-key plan-1 --yes
+dexto workspace artifacts get <id> --out ./plan.html
+dexto workspace artifacts share <id> --visibility link-shared --yes
 dexto workspace email send --to a@b.c --yes
 dexto workspace tools --search calendar    # every tool, by MCP name
 dexto workspace call dexto_search --data '{"query":"invoices"}'
@@ -601,6 +616,8 @@ dexto find "share a file"                  # the command for what you want to do
 ```
 
 An operation that acts, approves or spends asks first; pass `--yes` only once your person has agreed (without it, and with no one to ask, the command exits 4 with the command that goes ahead). Workspace tools act as a person, so an API key can't use them. An operation your sign-in can't use yet names the `dexto login --scope` that grants it.
+
+`dexto workspace artifacts` saves HTML files as Artifacts in your library (`list`, `get`, `create`, `replace`, `share`). HTML comes from a file or `-` for stdin, never an argument; `get --out` writes it back to a file. `create --idempotency-key` makes a retry return the first Artifact instead of a copy, `replace` keeps the title, kind, summary, surface and renderer you don't change, and every write takes `--dry-run`.
 
 ## Next Steps
 

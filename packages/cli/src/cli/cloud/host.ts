@@ -6,6 +6,7 @@ import type { Command } from './command.js';
 import { accountCommands, type SignInFor } from './commands/account.js';
 import { agentCommands } from './commands/agents.js';
 import { apiCommands } from './commands/api.js';
+import { artifactCommands } from './commands/artifacts.js';
 import { chatCommands } from './commands/chats.js';
 import { automationCommands } from './commands/automations.js';
 import { dataDeletionCommands } from './commands/data-deletions.js';
@@ -15,6 +16,7 @@ import { findCommands } from './commands/find.js';
 import { profileCommands } from './commands/profile.js';
 import { publishCommands } from './commands/publish.js';
 import { skillCommands } from './commands/skills.js';
+import { traceCommands } from './commands/traces.js';
 import { fileCommands } from './commands/files.js';
 import { modelCommands } from './commands/models.js';
 import { projectCommands, projectsUse } from './commands/projects.js';
@@ -64,10 +66,12 @@ export function cloudCommands(dir: string, signIn: SignInFor): readonly Command[
         ...apiCommands,
         ...workspaceCommands,
         ...driveCommands,
+        ...artifactCommands,
         ...findCommands,
         ...profileCommands,
         ...publishCommands,
         ...skillCommands,
+        ...traceCommands,
         ...chatCommands,
     ];
 }

@@ -1443,6 +1443,10 @@ export async function processStream(
                     break;
             }
         }
+
+        // agent.cancel() ends the iterator without run:complete, so clear the stop that
+        // Escape started here. Only isCancelling: a new run may already be processing.
+        setUi((prev) => (prev.isCancelling ? { ...prev, isCancelling: false } : prev));
     } catch (error) {
         // Handle iterator errors (e.g., aborted)
         if (error instanceof Error && error.name === 'AbortError') {

@@ -1,0 +1,451 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`Signal kit on 16-dark > at 40 columns > ActorRow agent 1`] = `"␛[1m␛[36m▪␛[39m␛[22m Fixed the auth tests."`;
+
+exports[`Signal kit on 16-dark > at 40 columns > ActorRow cloud 1`] = `"␛[1m␛[35m▪␛[39m␛[22m Running on a Dexto computer."`;
+
+exports[`Signal kit on 16-dark > at 40 columns > CutText 1`] = `
+"█   █ ▄▀▀▀▀ ▄▀▀▀▄ ▄▀▀▀▀ ▀▀▀▀▀
+█   █  ▀▀▀▄ █ ▀▀█ █  ▀█ ▀▀▀▀
+ ▀▀▀  ▀▀▀▀  ▀   ▀  ▀▀▀▀ ▀▀▀▀▀"
+`;
+
+exports[`Signal kit on 16-dark > at 40 columns > GateFrame 1`] = `
+"␛[33m╭──────────────────────────────────────╮␛[39m
+␛[33m│␛[39m ␛[1m␛[33mNEEDS YOU · RUN A COMMAND␛[39m␛[22m            ␛[33m│␛[39m
+␛[33m│␛[39m pnpm db:migrate --env staging        ␛[33m│␛[39m
+␛[33m│␛[39m ␛[90m⏎ approve · esc deny␛[39m                 ␛[33m│␛[39m
+␛[33m╰──────────────────────────────────────╯␛[39m"
+`;
+
+exports[`Signal kit on 16-dark > at 40 columns > StepRow cloud 1`] = `"␛[35m◆␛[39m ␛[1m␛[35mEDIT␛[39m␛[22m    packages/tui/src/sig…  ␛[32m+␛[39m… ␛[90m0.4s␛[39m"`;
+
+exports[`Signal kit on 16-dark > at 40 columns > StepRow fail 1`] = `"␛[31m▪␛[39m ␛[1mEDIT␛[22m    packages/tui/src/s… ␛[90m0.4s␛[39m  ␛[1m␛[31mFAIL␛[39m␛[22m"`;
+
+exports[`Signal kit on 16-dark > at 40 columns > StepRow ok 1`] = `"␛[36m▪␛[39m ␛[1mEDIT␛[22m    packages/tui/src/sig…  ␛[32m+␛[39m… ␛[90m0.4s␛[39m"`;
+
+exports[`Signal kit on 16-dark > at 40 columns > StepRow wait 1`] = `"␛[33m▸␛[39m ␛[1mEDIT␛[22m    packages/tui/src… …  ␛[1m␛[33mNEEDS YOU␛[39m␛[22m"`;
+
+exports[`Signal kit on 16-dark > at 40 columns > Wordmark rows=1 1`] = `
+" ␛[36m▗▟▚␛[39m   ▀▀▚▖ ▀▀▀ ▝▚▄▀ ▝▜▛▘▗▛▘▀▙
+  ␛[36m▜▟␛[39m   ▄▄▞▘ ▄▄▄ ▗▞▘▄  ▐▌ ▝▙▖▄▛"
+`;
+
+exports[`Signal kit on 16-dark > at 40 columns > Wordmark rows=4 1`] = `
+"  ␛[36m▗▞▀▄▞█▖␛[39m     ▀▀▀█▄▖  ▝▀▀▀▀▀▘ ▝▜▄ ▗█▀  …
+␛[36m▖▖␛[39m  ␛[36m▜▐▌▟▚␛[39m         ▜█  ▗▄▄▄▄▖    ▜█▛▘   …
+    ␛[36m▐▞▄▚▛␛[39m        ▄█▛           ▄█▘▗▙   …
+     ␛[36m▀▞▘␛[39m      ▀▀▀▀    ▝▀▀▀▀▀  ▝▀   ▀▀  …"
+`;
+
+exports[`Signal kit on 16-dark > at 100 columns > ActorRow agent 1`] = `"␛[1m␛[36m AGENT␛[39m␛[22m  Fixed the auth tests."`;
+
+exports[`Signal kit on 16-dark > at 100 columns > ActorRow cloud 1`] = `"␛[1m␛[35m night…␛[39m␛[22m Running on a Dexto computer."`;
+
+exports[`Signal kit on 16-dark > at 100 columns > CutText 1`] = `
+"█   █ ▄▀▀▀▀ ▄▀▀▀▄ ▄▀▀▀▀ ▀▀▀▀▀
+█   █  ▀▀▀▄ █ ▀▀█ █  ▀█ ▀▀▀▀
+ ▀▀▀  ▀▀▀▀  ▀   ▀  ▀▀▀▀ ▀▀▀▀▀"
+`;
+
+exports[`Signal kit on 16-dark > at 100 columns > GateFrame 1`] = `
+"␛[33m╭──────────────────────────────────────────────────────────────────────────────────────────────────╮␛[39m
+␛[33m│␛[39m ␛[1m␛[33mNEEDS YOU · RUN A COMMAND␛[39m␛[22m                                                                        ␛[33m│␛[39m
+␛[33m│␛[39m pnpm db:migrate --env staging                                                                    ␛[33m│␛[39m
+␛[33m│␛[39m ␛[90m⏎ approve · esc deny␛[39m                                                                             ␛[33m│␛[39m
+␛[33m╰──────────────────────────────────────────────────────────────────────────────────────────────────╯␛[39m"
+`;
+
+exports[`Signal kit on 16-dark > at 100 columns > StepRow cloud 1`] = `"␛[35m◆␛[39m ␛[1m␛[35mEDIT␛[39m␛[22m    packages/tui/src/signal/tone.ts                                                ␛[32m+12␛[90m ␛[31m−3␛[39m ␛[90m0.4s␛[39m"`;
+
+exports[`Signal kit on 16-dark > at 100 columns > StepRow fail 1`] = `"␛[31m▪␛[39m ␛[1mEDIT␛[22m    packages/tui/src/signal/tone.ts                                                 ␛[90m0.4s␛[39m  ␛[1m␛[31mFAIL␛[39m␛[22m"`;
+
+exports[`Signal kit on 16-dark > at 100 columns > StepRow ok 1`] = `"␛[36m▪␛[39m ␛[1mEDIT␛[22m    packages/tui/src/signal/tone.ts                                                ␛[32m+12␛[90m ␛[31m−3␛[39m ␛[90m0.4s␛[39m"`;
+
+exports[`Signal kit on 16-dark > at 100 columns > StepRow wait 1`] = `"␛[33m▸␛[39m ␛[1mEDIT␛[22m    packages/tui/src/signal/tone.ts                                          ␛[32m+12␛[90m ␛[31m−3␛[39m  ␛[1m␛[33mNEEDS YOU␛[39m␛[22m"`;
+
+exports[`Signal kit on 16-dark > at 100 columns > Wordmark rows=1 1`] = `
+" ␛[36m▗▟▚␛[39m   ▀▀▚▖ ▀▀▀ ▝▚▄▀ ▝▜▛▘▗▛▘▀▙
+  ␛[36m▜▟␛[39m   ▄▄▞▘ ▄▄▄ ▗▞▘▄  ▐▌ ▝▙▖▄▛"
+`;
+
+exports[`Signal kit on 16-dark > at 100 columns > Wordmark rows=4 1`] = `
+"  ␛[36m▗▞▀▄▞█▖␛[39m     ▀▀▀█▄▖  ▝▀▀▀▀▀▘ ▝▜▄ ▗█▀  ▀▀▀▀▀▀  ▄█▘ ▜▙▖
+␛[36m▖▖␛[39m  ␛[36m▜▐▌▟▚␛[39m         ▜█  ▗▄▄▄▄▖    ▜█▛▘     ▟▌   ▐█    ▝█
+    ␛[36m▐▞▄▚▛␛[39m        ▄█▛           ▄█▘▗▙     █▌   ▝█▄  ▗▟▛
+     ␛[36m▀▞▘␛[39m      ▀▀▀▀    ▝▀▀▀▀▀  ▝▀   ▀▀    ▝▘     ▀▘ ▀▘"
+`;
+
+exports[`Signal kit on 256-dark > at 40 columns > ActorRow agent 1`] = `"␛[1m␛[38;5;115m▪␛[39m␛[22m Fixed the auth tests."`;
+
+exports[`Signal kit on 256-dark > at 40 columns > ActorRow cloud 1`] = `"␛[1m␛[38;5;183m▪␛[39m␛[22m Running on a Dexto computer."`;
+
+exports[`Signal kit on 256-dark > at 40 columns > CutText 1`] = `
+"␛[38;5;231m█   █ ▄▀▀▀▀ ▄▀▀▀▄ ▄▀▀▀▀ ▀▀▀▀▀␛[39m
+␛[38;5;231m█   █  ▀▀▀▄ █ ▀▀█ █  ▀█ ▀▀▀▀ ␛[39m
+␛[38;5;231m ▀▀▀  ▀▀▀▀  ▀   ▀  ▀▀▀▀ ▀▀▀▀▀␛[39m"
+`;
+
+exports[`Signal kit on 256-dark > at 40 columns > GateFrame 1`] = `
+"␛[38;5;221m╭──────────────────────────────────────╮␛[39m
+␛[38;5;221m│␛[39m ␛[1m␛[38;5;221mNEEDS YOU · RUN A COMMAND␛[39m␛[22m            ␛[38;5;221m│␛[39m
+␛[38;5;221m│␛[39m pnpm db:migrate --env staging        ␛[38;5;221m│␛[39m
+␛[38;5;221m│␛[39m ␛[38;5;109m⏎ approve · esc deny␛[39m                 ␛[38;5;221m│␛[39m
+␛[38;5;221m╰──────────────────────────────────────╯␛[39m"
+`;
+
+exports[`Signal kit on 256-dark > at 40 columns > StepRow cloud 1`] = `"␛[38;5;183m◆␛[39m ␛[1m␛[38;5;183mEDIT␛[39m␛[22m    ␛[38;5;188mpackages/tui/src/sig…␛[39m  ␛[38;5;115m+␛[39m… ␛[38;5;59m0.4s␛[39m"`;
+
+exports[`Signal kit on 256-dark > at 40 columns > StepRow fail 1`] = `"␛[38;5;210m▪␛[39m ␛[1m␛[38;5;231mEDIT␛[39m␛[22m    ␛[38;5;188mpackages/tui/src/s…␛[39m ␛[38;5;59m0.4s␛[39m  ␛[1m␛[38;5;210mFAIL␛[39m␛[22m"`;
+
+exports[`Signal kit on 256-dark > at 40 columns > StepRow ok 1`] = `"␛[38;5;115m▪␛[39m ␛[1m␛[38;5;231mEDIT␛[39m␛[22m    ␛[38;5;188mpackages/tui/src/sig…␛[39m  ␛[38;5;115m+␛[39m… ␛[38;5;59m0.4s␛[39m"`;
+
+exports[`Signal kit on 256-dark > at 40 columns > StepRow wait 1`] = `"␛[38;5;221m▸␛[39m ␛[1m␛[38;5;231mEDIT␛[39m␛[22m    ␛[38;5;188mpackages/tui/src…␛[39m …  ␛[1m␛[38;5;221mNEEDS YOU␛[39m␛[22m"`;
+
+exports[`Signal kit on 256-dark > at 40 columns > Wordmark rows=1 1`] = `
+" ␛[38;5;115m▗▟▚␛[39m   ␛[38;5;231m▀▀▚▖␛[39m ␛[38;5;231m▀▀▀␛[39m ␛[38;5;231m▝▚▄▀␛[39m ␛[38;5;231m▝▜▛▘▗▛▘▀▙␛[39m
+  ␛[38;5;115m▜▟␛[39m   ␛[38;5;231m▄▄▞▘␛[39m ␛[38;5;231m▄▄▄␛[39m ␛[38;5;231m▗▞▘▄␛[39m  ␛[38;5;231m▐▌␛[39m ␛[38;5;231m▝▙▖▄▛␛[39m"
+`;
+
+exports[`Signal kit on 256-dark > at 40 columns > Wordmark rows=4 1`] = `
+"  ␛[38;5;115m▗▞▀▄▞█␛[38;5;66m▖␛[39m     ␛[38;5;231m▀▀▀█▄▖␛[39m  ␛[38;5;231m▝▀▀▀▀▀▘␛[39m ␛[38;5;231m▝▜▄␛[39m ␛[38;5;231m▗█▀␛[39m  …
+␛[38;5;115m▖▖␛[39m  ␛[38;5;115m▜▐▌▟▚␛[39m         ␛[38;5;231m▜█␛[39m  ␛[38;5;231m▗▄▄▄▄▖␛[39m    ␛[38;5;231m▜█▛▘␛[39m   …
+    ␛[38;5;115m▐▞▄▚▛␛[39m        ␛[38;5;231m▄█▛␛[39m           ␛[38;5;231m▄█▘▗▙␛[39m   …
+     ␛[38;5;115m▀▞▘␛[39m      ␛[38;5;231m▀▀▀▀␛[39m    ␛[38;5;231m▝▀▀▀▀▀␛[39m  ␛[38;5;231m▝▀␛[39m   ␛[38;5;231m▀▀␛[39m  …"
+`;
+
+exports[`Signal kit on 256-dark > at 100 columns > ActorRow agent 1`] = `"␛[1m␛[38;5;115m AGENT␛[39m␛[22m  Fixed the auth tests."`;
+
+exports[`Signal kit on 256-dark > at 100 columns > ActorRow cloud 1`] = `"␛[1m␛[38;5;183m night…␛[39m␛[22m Running on a Dexto computer."`;
+
+exports[`Signal kit on 256-dark > at 100 columns > CutText 1`] = `
+"␛[38;5;231m█   █ ▄▀▀▀▀ ▄▀▀▀▄ ▄▀▀▀▀ ▀▀▀▀▀␛[39m
+␛[38;5;231m█   █  ▀▀▀▄ █ ▀▀█ █  ▀█ ▀▀▀▀ ␛[39m
+␛[38;5;231m ▀▀▀  ▀▀▀▀  ▀   ▀  ▀▀▀▀ ▀▀▀▀▀␛[39m"
+`;
+
+exports[`Signal kit on 256-dark > at 100 columns > GateFrame 1`] = `
+"␛[38;5;221m╭──────────────────────────────────────────────────────────────────────────────────────────────────╮␛[39m
+␛[38;5;221m│␛[39m ␛[1m␛[38;5;221mNEEDS YOU · RUN A COMMAND␛[39m␛[22m                                                                        ␛[38;5;221m│␛[39m
+␛[38;5;221m│␛[39m pnpm db:migrate --env staging                                                                    ␛[38;5;221m│␛[39m
+␛[38;5;221m│␛[39m ␛[38;5;109m⏎ approve · esc deny␛[39m                                                                             ␛[38;5;221m│␛[39m
+␛[38;5;221m╰──────────────────────────────────────────────────────────────────────────────────────────────────╯␛[39m"
+`;
+
+exports[`Signal kit on 256-dark > at 100 columns > StepRow cloud 1`] = `"␛[38;5;183m◆␛[39m ␛[1m␛[38;5;183mEDIT␛[39m␛[22m    ␛[38;5;188mpackages/tui/src/signal/tone.ts␛[39m                                                ␛[38;5;115m+12␛[38;5;109m ␛[38;5;217m−3␛[39m ␛[38;5;59m0.4s␛[39m"`;
+
+exports[`Signal kit on 256-dark > at 100 columns > StepRow fail 1`] = `"␛[38;5;210m▪␛[39m ␛[1m␛[38;5;231mEDIT␛[39m␛[22m    ␛[38;5;188mpackages/tui/src/signal/tone.ts␛[39m                                                 ␛[38;5;59m0.4s␛[39m  ␛[1m␛[38;5;210mFAIL␛[39m␛[22m"`;
+
+exports[`Signal kit on 256-dark > at 100 columns > StepRow ok 1`] = `"␛[38;5;115m▪␛[39m ␛[1m␛[38;5;231mEDIT␛[39m␛[22m    ␛[38;5;188mpackages/tui/src/signal/tone.ts␛[39m                                                ␛[38;5;115m+12␛[38;5;109m ␛[38;5;217m−3␛[39m ␛[38;5;59m0.4s␛[39m"`;
+
+exports[`Signal kit on 256-dark > at 100 columns > StepRow wait 1`] = `"␛[38;5;221m▸␛[39m ␛[1m␛[38;5;231mEDIT␛[39m␛[22m    ␛[38;5;188mpackages/tui/src/signal/tone.ts␛[39m                                          ␛[38;5;115m+12␛[38;5;109m ␛[38;5;217m−3␛[39m  ␛[1m␛[38;5;221mNEEDS YOU␛[39m␛[22m"`;
+
+exports[`Signal kit on 256-dark > at 100 columns > Wordmark rows=1 1`] = `
+" ␛[38;5;115m▗▟▚␛[39m   ␛[38;5;231m▀▀▚▖␛[39m ␛[38;5;231m▀▀▀␛[39m ␛[38;5;231m▝▚▄▀␛[39m ␛[38;5;231m▝▜▛▘▗▛▘▀▙␛[39m
+  ␛[38;5;115m▜▟␛[39m   ␛[38;5;231m▄▄▞▘␛[39m ␛[38;5;231m▄▄▄␛[39m ␛[38;5;231m▗▞▘▄␛[39m  ␛[38;5;231m▐▌␛[39m ␛[38;5;231m▝▙▖▄▛␛[39m"
+`;
+
+exports[`Signal kit on 256-dark > at 100 columns > Wordmark rows=4 1`] = `
+"  ␛[38;5;115m▗▞▀▄▞█␛[38;5;66m▖␛[39m     ␛[38;5;231m▀▀▀█▄▖␛[39m  ␛[38;5;231m▝▀▀▀▀▀▘␛[39m ␛[38;5;231m▝▜▄␛[39m ␛[38;5;231m▗█▀␛[39m  ␛[38;5;231m▀▀▀▀▀▀␛[39m  ␛[38;5;231m▄█▘␛[39m ␛[38;5;231m▜▙▖␛[39m
+␛[38;5;115m▖▖␛[39m  ␛[38;5;115m▜▐▌▟▚␛[39m         ␛[38;5;231m▜█␛[39m  ␛[38;5;231m▗▄▄▄▄▖␛[39m    ␛[38;5;231m▜█▛▘␛[39m     ␛[38;5;231m▟▌␛[39m   ␛[38;5;231m▐█␛[39m    ␛[38;5;231m▝█␛[39m
+    ␛[38;5;115m▐▞▄▚▛␛[39m        ␛[38;5;231m▄█▛␛[39m           ␛[38;5;231m▄█▘▗▙␛[39m     ␛[38;5;231m█▌␛[39m   ␛[38;5;231m▝█▄␛[39m  ␛[38;5;231m▗▟▛␛[39m
+     ␛[38;5;115m▀▞▘␛[39m      ␛[38;5;231m▀▀▀▀␛[39m    ␛[38;5;231m▝▀▀▀▀▀␛[39m  ␛[38;5;231m▝▀␛[39m   ␛[38;5;231m▀▀␛[39m    ␛[38;5;231m▝▘␛[39m     ␛[38;5;231m▀▘␛[39m ␛[38;5;231m▀▘␛[39m"
+`;
+
+exports[`Signal kit on ascii > at 40 columns > ActorRow agent 1`] = `"␛[1m␛[36m*␛[39m␛[22m Fixed the auth tests."`;
+
+exports[`Signal kit on ascii > at 40 columns > ActorRow cloud 1`] = `"␛[1m␛[35m*␛[39m␛[22m Running on a Dexto computer."`;
+
+exports[`Signal kit on ascii > at 40 columns > CutText 1`] = `"␛[1mUSAGE␛[22m"`;
+
+exports[`Signal kit on ascii > at 40 columns > GateFrame 1`] = `
+"␛[33m+--------------------------------------+␛[39m
+␛[33m|␛[39m ␛[1m␛[33mNEEDS YOU . RUN A COMMAND␛[39m␛[22m            ␛[33m|␛[39m
+␛[33m|␛[39m pnpm db:migrate --env staging        ␛[33m|␛[39m
+␛[33m|␛[39m ␛[90m< approve . esc deny␛[39m                 ␛[33m|␛[39m
+␛[33m+--------------------------------------+␛[39m"
+`;
+
+exports[`Signal kit on ascii > at 40 columns > StepRow cloud 1`] = `"␛[35m*␛[39m ␛[1m␛[35mEDIT␛[39m␛[22m    packages/tui/src/sig…  ␛[32m+␛[39m… ␛[90m0.4s␛[39m"`;
+
+exports[`Signal kit on ascii > at 40 columns > StepRow fail 1`] = `"␛[31m*␛[39m ␛[1mEDIT␛[22m    packages/tui/src/s… ␛[90m0.4s␛[39m  ␛[1m␛[31mFAIL␛[39m␛[22m"`;
+
+exports[`Signal kit on ascii > at 40 columns > StepRow ok 1`] = `"␛[36m*␛[39m ␛[1mEDIT␛[22m    packages/tui/src/sig…  ␛[32m+␛[39m… ␛[90m0.4s␛[39m"`;
+
+exports[`Signal kit on ascii > at 40 columns > StepRow wait 1`] = `"␛[33m>␛[39m ␛[1mEDIT␛[22m    packages/tui/src… …  ␛[1m␛[33mNEEDS YOU␛[39m␛[22m"`;
+
+exports[`Signal kit on ascii > at 40 columns > Wordmark rows=1 1`] = `
+" ␛[36m.␛[39m ␛[36m_7/[␛[39m   """_  """"  7__F  """" .F''\\.
+␛[36m''␛[39m  ␛[36m\\\\\\␛[39m      #' """'  .#\\.   ][  7.  ][
+    ␛[36m'F'␛[39m   """   """"  "  "'  ''   "'''"
+`;
+
+exports[`Signal kit on ascii > at 40 columns > Wordmark rows=4 1`] = `
+"   ␛[36m._F7_␛[39m      """#_.  '"""""' '7_ .#"  …
+ ␛[36m.""_][#␛[39m          7#  .____.    7#F'   …
+␛[36m"␛[39m   ␛[36m'J\\FJ␛[39m        _#F           _#'.L   …
+    ␛[36m'/\\/'␛[39m     """"    '"""""  '"   ""  …"
+`;
+
+exports[`Signal kit on ascii > at 100 columns > ActorRow agent 1`] = `"␛[1m␛[36m AGENT␛[39m␛[22m  Fixed the auth tests."`;
+
+exports[`Signal kit on ascii > at 100 columns > ActorRow cloud 1`] = `"␛[1m␛[35m night…␛[39m␛[22m Running on a Dexto computer."`;
+
+exports[`Signal kit on ascii > at 100 columns > CutText 1`] = `"␛[1mUSAGE␛[22m"`;
+
+exports[`Signal kit on ascii > at 100 columns > GateFrame 1`] = `
+"␛[33m+--------------------------------------------------------------------------------------------------+␛[39m
+␛[33m|␛[39m ␛[1m␛[33mNEEDS YOU . RUN A COMMAND␛[39m␛[22m                                                                        ␛[33m|␛[39m
+␛[33m|␛[39m pnpm db:migrate --env staging                                                                    ␛[33m|␛[39m
+␛[33m|␛[39m ␛[90m< approve . esc deny␛[39m                                                                             ␛[33m|␛[39m
+␛[33m+--------------------------------------------------------------------------------------------------+␛[39m"
+`;
+
+exports[`Signal kit on ascii > at 100 columns > StepRow cloud 1`] = `"␛[35m*␛[39m ␛[1m␛[35mEDIT␛[39m␛[22m    packages/tui/src/signal/tone.ts                                                ␛[32m+12␛[90m ␛[31m-3␛[39m ␛[90m0.4s␛[39m"`;
+
+exports[`Signal kit on ascii > at 100 columns > StepRow fail 1`] = `"␛[31m*␛[39m ␛[1mEDIT␛[22m    packages/tui/src/signal/tone.ts                                                 ␛[90m0.4s␛[39m  ␛[1m␛[31mFAIL␛[39m␛[22m"`;
+
+exports[`Signal kit on ascii > at 100 columns > StepRow ok 1`] = `"␛[36m*␛[39m ␛[1mEDIT␛[22m    packages/tui/src/signal/tone.ts                                                ␛[32m+12␛[90m ␛[31m-3␛[39m ␛[90m0.4s␛[39m"`;
+
+exports[`Signal kit on ascii > at 100 columns > StepRow wait 1`] = `"␛[33m>␛[39m ␛[1mEDIT␛[22m    packages/tui/src/signal/tone.ts                                          ␛[32m+12␛[90m ␛[31m-3␛[39m  ␛[1m␛[33mNEEDS YOU␛[39m␛[22m"`;
+
+exports[`Signal kit on ascii > at 100 columns > Wordmark rows=1 1`] = `
+" ␛[36m.␛[39m ␛[36m_7/[␛[39m   """_  """"  7__F  """" .F''\\.
+␛[36m''␛[39m  ␛[36m\\\\\\␛[39m      #' """'  .#\\.   ][  7.  ][
+    ␛[36m'F'␛[39m   """   """"  "  "'  ''   "'''"
+`;
+
+exports[`Signal kit on ascii > at 100 columns > Wordmark rows=4 1`] = `
+"   ␛[36m._F7_␛[39m      """#_.  '"""""' '7_ .#"  """"""  _#' 7L.
+ ␛[36m.""_][#␛[39m          7#  .____.    7#F'     J[   ]#    '#
+␛[36m"␛[39m   ␛[36m'J\\FJ␛[39m        _#F           _#'.L     #[   '#_  .JF
+    ␛[36m'/\\/'␛[39m     """"    '"""""  '"   ""    ''     "' "'"
+`;
+
+exports[`Signal kit on no-color > at 40 columns > ActorRow agent 1`] = `"▪ Fixed the auth tests."`;
+
+exports[`Signal kit on no-color > at 40 columns > ActorRow cloud 1`] = `"▪ Running on a Dexto computer."`;
+
+exports[`Signal kit on no-color > at 40 columns > CutText 1`] = `
+"█   █ ▄▀▀▀▀ ▄▀▀▀▄ ▄▀▀▀▀ ▀▀▀▀▀
+█   █  ▀▀▀▄ █ ▀▀█ █  ▀█ ▀▀▀▀
+ ▀▀▀  ▀▀▀▀  ▀   ▀  ▀▀▀▀ ▀▀▀▀▀"
+`;
+
+exports[`Signal kit on no-color > at 40 columns > GateFrame 1`] = `
+"╭──────────────────────────────────────╮
+│ NEEDS YOU · RUN A COMMAND            │
+│ pnpm db:migrate --env staging        │
+│ ⏎ approve · esc deny                 │
+╰──────────────────────────────────────╯"
+`;
+
+exports[`Signal kit on no-color > at 40 columns > StepRow cloud 1`] = `"◆ EDIT    packages/tui/src/sig…  +… 0.4s"`;
+
+exports[`Signal kit on no-color > at 40 columns > StepRow fail 1`] = `"▪ EDIT    packages/tui/src/s… 0.4s  FAIL"`;
+
+exports[`Signal kit on no-color > at 40 columns > StepRow ok 1`] = `"▪ EDIT    packages/tui/src/sig…  +… 0.4s"`;
+
+exports[`Signal kit on no-color > at 40 columns > StepRow wait 1`] = `"▸ EDIT    packages/tui/src… …  NEEDS YOU"`;
+
+exports[`Signal kit on no-color > at 40 columns > Wordmark rows=1 1`] = `
+" ▗▟▚   ▀▀▚▖ ▀▀▀ ▝▚▄▀ ▝▜▛▘▗▛▘▀▙
+  ▜▟   ▄▄▞▘ ▄▄▄ ▗▞▘▄  ▐▌ ▝▙▖▄▛"
+`;
+
+exports[`Signal kit on no-color > at 40 columns > Wordmark rows=4 1`] = `
+"  ▗▞▀▄▞█▖     ▀▀▀█▄▖  ▝▀▀▀▀▀▘ ▝▜▄ ▗█▀  …
+▖▖  ▜▐▌▟▚         ▜█  ▗▄▄▄▄▖    ▜█▛▘   …
+    ▐▞▄▚▛        ▄█▛           ▄█▘▗▙   …
+     ▀▞▘      ▀▀▀▀    ▝▀▀▀▀▀  ▝▀   ▀▀  …"
+`;
+
+exports[`Signal kit on no-color > at 100 columns > ActorRow agent 1`] = `" AGENT  Fixed the auth tests."`;
+
+exports[`Signal kit on no-color > at 100 columns > ActorRow cloud 1`] = `" night… Running on a Dexto computer."`;
+
+exports[`Signal kit on no-color > at 100 columns > CutText 1`] = `
+"█   █ ▄▀▀▀▀ ▄▀▀▀▄ ▄▀▀▀▀ ▀▀▀▀▀
+█   █  ▀▀▀▄ █ ▀▀█ █  ▀█ ▀▀▀▀
+ ▀▀▀  ▀▀▀▀  ▀   ▀  ▀▀▀▀ ▀▀▀▀▀"
+`;
+
+exports[`Signal kit on no-color > at 100 columns > GateFrame 1`] = `
+"╭──────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ NEEDS YOU · RUN A COMMAND                                                                        │
+│ pnpm db:migrate --env staging                                                                    │
+│ ⏎ approve · esc deny                                                                             │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯"
+`;
+
+exports[`Signal kit on no-color > at 100 columns > StepRow cloud 1`] = `"◆ EDIT    packages/tui/src/signal/tone.ts                                                +12 −3 0.4s"`;
+
+exports[`Signal kit on no-color > at 100 columns > StepRow fail 1`] = `"▪ EDIT    packages/tui/src/signal/tone.ts                                                 0.4s  FAIL"`;
+
+exports[`Signal kit on no-color > at 100 columns > StepRow ok 1`] = `"▪ EDIT    packages/tui/src/signal/tone.ts                                                +12 −3 0.4s"`;
+
+exports[`Signal kit on no-color > at 100 columns > StepRow wait 1`] = `"▸ EDIT    packages/tui/src/signal/tone.ts                                          +12 −3  NEEDS YOU"`;
+
+exports[`Signal kit on no-color > at 100 columns > Wordmark rows=1 1`] = `
+" ▗▟▚   ▀▀▚▖ ▀▀▀ ▝▚▄▀ ▝▜▛▘▗▛▘▀▙
+  ▜▟   ▄▄▞▘ ▄▄▄ ▗▞▘▄  ▐▌ ▝▙▖▄▛"
+`;
+
+exports[`Signal kit on no-color > at 100 columns > Wordmark rows=4 1`] = `
+"  ▗▞▀▄▞█▖     ▀▀▀█▄▖  ▝▀▀▀▀▀▘ ▝▜▄ ▗█▀  ▀▀▀▀▀▀  ▄█▘ ▜▙▖
+▖▖  ▜▐▌▟▚         ▜█  ▗▄▄▄▄▖    ▜█▛▘     ▟▌   ▐█    ▝█
+    ▐▞▄▚▛        ▄█▛           ▄█▘▗▙     █▌   ▝█▄  ▗▟▛
+     ▀▞▘      ▀▀▀▀    ▝▀▀▀▀▀  ▝▀   ▀▀    ▝▘     ▀▘ ▀▘"
+`;
+
+exports[`Signal kit on truecolor-dark > at 40 columns > ActorRow agent 1`] = `"␛[1m␛[38;2;78;201;176m▪␛[39m␛[22m Fixed the auth tests."`;
+
+exports[`Signal kit on truecolor-dark > at 40 columns > ActorRow cloud 1`] = `"␛[1m␛[38;2;226;141;240m▪␛[39m␛[22m Running on a Dexto computer."`;
+
+exports[`Signal kit on truecolor-dark > at 40 columns > CutText 1`] = `
+"␛[38;2;244;248;247m█   █ ▄▀▀▀▀ ▄▀▀▀▄ ▄▀▀▀▀ ▀▀▀▀▀␛[39m
+␛[38;2;244;248;247m█   █  ▀▀▀▄ █ ▀▀█ █  ▀█ ▀▀▀▀ ␛[39m
+␛[38;2;244;248;247m ▀▀▀  ▀▀▀▀  ▀   ▀  ▀▀▀▀ ▀▀▀▀▀␛[39m"
+`;
+
+exports[`Signal kit on truecolor-dark > at 40 columns > GateFrame 1`] = `
+"␛[38;2;244;181;74m╭──────────────────────────────────────╮␛[39m
+␛[38;2;244;181;74m│␛[39m ␛[1m␛[38;2;244;181;74mNEEDS YOU · RUN A COMMAND␛[39m␛[22m            ␛[38;2;244;181;74m│␛[39m
+␛[38;2;244;181;74m│␛[39m pnpm db:migrate --env staging        ␛[38;2;244;181;74m│␛[39m
+␛[38;2;244;181;74m│␛[39m ␛[38;2;127;140;138m⏎ approve · esc deny␛[39m                 ␛[38;2;244;181;74m│␛[39m
+␛[38;2;244;181;74m╰──────────────────────────────────────╯␛[39m"
+`;
+
+exports[`Signal kit on truecolor-dark > at 40 columns > StepRow cloud 1`] = `"␛[38;2;226;141;240m◆␛[39m ␛[1m␛[38;2;226;141;240mEDIT␛[39m␛[22m    ␛[38;2;216;224;222mpackages/tui/src/sig…␛[39m  ␛[38;2;127;221;176m+␛[39m… ␛[38;2;59;70;68m0.4s␛[39m"`;
+
+exports[`Signal kit on truecolor-dark > at 40 columns > StepRow fail 1`] = `"␛[38;2;255;110;97m▪␛[39m ␛[1m␛[38;2;244;248;247mEDIT␛[39m␛[22m    ␛[38;2;216;224;222mpackages/tui/src/s…␛[39m ␛[38;2;59;70;68m0.4s␛[39m  ␛[1m␛[38;2;255;110;97mFAIL␛[39m␛[22m"`;
+
+exports[`Signal kit on truecolor-dark > at 40 columns > StepRow ok 1`] = `"␛[38;2;78;201;176m▪␛[39m ␛[1m␛[38;2;244;248;247mEDIT␛[39m␛[22m    ␛[38;2;216;224;222mpackages/tui/src/sig…␛[39m  ␛[38;2;127;221;176m+␛[39m… ␛[38;2;59;70;68m0.4s␛[39m"`;
+
+exports[`Signal kit on truecolor-dark > at 40 columns > StepRow wait 1`] = `"␛[38;2;244;181;74m▸␛[39m ␛[1m␛[38;2;244;248;247mEDIT␛[39m␛[22m    ␛[38;2;216;224;222mpackages/tui/src…␛[39m …  ␛[1m␛[38;2;244;181;74mNEEDS YOU␛[39m␛[22m"`;
+
+exports[`Signal kit on truecolor-dark > at 40 columns > Wordmark rows=1 1`] = `
+" ␛[38;2;78;201;176m▗▟▚␛[39m   ␛[38;2;244;248;247m▀▀▚▖␛[39m ␛[38;2;244;248;247m▀▀▀␛[39m ␛[38;2;244;248;247m▝▚▄▀␛[39m ␛[38;2;244;248;247m▝▜▛▘▗▛▘▀▙␛[39m
+  ␛[38;2;78;201;176m▜▟␛[39m   ␛[38;2;244;248;247m▄▄▞▘␛[39m ␛[38;2;244;248;247m▄▄▄␛[39m ␛[38;2;244;248;247m▗▞▘▄␛[39m  ␛[38;2;244;248;247m▐▌␛[39m ␛[38;2;244;248;247m▝▙▖▄▛␛[39m"
+`;
+
+exports[`Signal kit on truecolor-dark > at 40 columns > Wordmark rows=4 1`] = `
+"  ␛[38;2;78;201;176m▗▞▀▄▞█␛[38;2;47;127;112m▖␛[39m     ␛[38;2;244;248;247m▀▀▀█▄▖␛[39m  ␛[38;2;244;248;247m▝▀▀▀▀▀▘␛[39m ␛[38;2;244;248;247m▝▜▄␛[39m ␛[38;2;244;248;247m▗█▀␛[39m  …
+␛[38;2;78;201;176m▖▖␛[39m  ␛[38;2;78;201;176m▜▐▌▟▚␛[39m         ␛[38;2;244;248;247m▜█␛[39m  ␛[38;2;244;248;247m▗▄▄▄▄▖␛[39m    ␛[38;2;244;248;247m▜█▛▘␛[39m   …
+    ␛[38;2;78;201;176m▐▞▄▚▛␛[39m        ␛[38;2;244;248;247m▄█▛␛[39m           ␛[38;2;244;248;247m▄█▘▗▙␛[39m   …
+     ␛[38;2;78;201;176m▀▞▘␛[39m      ␛[38;2;244;248;247m▀▀▀▀␛[39m    ␛[38;2;244;248;247m▝▀▀▀▀▀␛[39m  ␛[38;2;244;248;247m▝▀␛[39m   ␛[38;2;244;248;247m▀▀␛[39m  …"
+`;
+
+exports[`Signal kit on truecolor-dark > at 100 columns > ActorRow agent 1`] = `"␛[1m␛[38;2;78;201;176m AGENT␛[39m␛[22m  Fixed the auth tests."`;
+
+exports[`Signal kit on truecolor-dark > at 100 columns > ActorRow cloud 1`] = `"␛[1m␛[38;2;226;141;240m night…␛[39m␛[22m Running on a Dexto computer."`;
+
+exports[`Signal kit on truecolor-dark > at 100 columns > CutText 1`] = `
+"␛[38;2;244;248;247m█   █ ▄▀▀▀▀ ▄▀▀▀▄ ▄▀▀▀▀ ▀▀▀▀▀␛[39m
+␛[38;2;244;248;247m█   █  ▀▀▀▄ █ ▀▀█ █  ▀█ ▀▀▀▀ ␛[39m
+␛[38;2;244;248;247m ▀▀▀  ▀▀▀▀  ▀   ▀  ▀▀▀▀ ▀▀▀▀▀␛[39m"
+`;
+
+exports[`Signal kit on truecolor-dark > at 100 columns > GateFrame 1`] = `
+"␛[38;2;244;181;74m╭──────────────────────────────────────────────────────────────────────────────────────────────────╮␛[39m
+␛[38;2;244;181;74m│␛[39m ␛[1m␛[38;2;244;181;74mNEEDS YOU · RUN A COMMAND␛[39m␛[22m                                                                        ␛[38;2;244;181;74m│␛[39m
+␛[38;2;244;181;74m│␛[39m pnpm db:migrate --env staging                                                                    ␛[38;2;244;181;74m│␛[39m
+␛[38;2;244;181;74m│␛[39m ␛[38;2;127;140;138m⏎ approve · esc deny␛[39m                                                                             ␛[38;2;244;181;74m│␛[39m
+␛[38;2;244;181;74m╰──────────────────────────────────────────────────────────────────────────────────────────────────╯␛[39m"
+`;
+
+exports[`Signal kit on truecolor-dark > at 100 columns > StepRow cloud 1`] = `"␛[38;2;226;141;240m◆␛[39m ␛[1m␛[38;2;226;141;240mEDIT␛[39m␛[22m    ␛[38;2;216;224;222mpackages/tui/src/signal/tone.ts␛[39m                                                ␛[38;2;127;221;176m+12␛[38;2;127;140;138m ␛[38;2;255;143;134m−3␛[39m ␛[38;2;59;70;68m0.4s␛[39m"`;
+
+exports[`Signal kit on truecolor-dark > at 100 columns > StepRow fail 1`] = `"␛[38;2;255;110;97m▪␛[39m ␛[1m␛[38;2;244;248;247mEDIT␛[39m␛[22m    ␛[38;2;216;224;222mpackages/tui/src/signal/tone.ts␛[39m                                                 ␛[38;2;59;70;68m0.4s␛[39m  ␛[1m␛[38;2;255;110;97mFAIL␛[39m␛[22m"`;
+
+exports[`Signal kit on truecolor-dark > at 100 columns > StepRow ok 1`] = `"␛[38;2;78;201;176m▪␛[39m ␛[1m␛[38;2;244;248;247mEDIT␛[39m␛[22m    ␛[38;2;216;224;222mpackages/tui/src/signal/tone.ts␛[39m                                                ␛[38;2;127;221;176m+12␛[38;2;127;140;138m ␛[38;2;255;143;134m−3␛[39m ␛[38;2;59;70;68m0.4s␛[39m"`;
+
+exports[`Signal kit on truecolor-dark > at 100 columns > StepRow wait 1`] = `"␛[38;2;244;181;74m▸␛[39m ␛[1m␛[38;2;244;248;247mEDIT␛[39m␛[22m    ␛[38;2;216;224;222mpackages/tui/src/signal/tone.ts␛[39m                                          ␛[38;2;127;221;176m+12␛[38;2;127;140;138m ␛[38;2;255;143;134m−3␛[39m  ␛[1m␛[38;2;244;181;74mNEEDS YOU␛[39m␛[22m"`;
+
+exports[`Signal kit on truecolor-dark > at 100 columns > Wordmark rows=1 1`] = `
+" ␛[38;2;78;201;176m▗▟▚␛[39m   ␛[38;2;244;248;247m▀▀▚▖␛[39m ␛[38;2;244;248;247m▀▀▀␛[39m ␛[38;2;244;248;247m▝▚▄▀␛[39m ␛[38;2;244;248;247m▝▜▛▘▗▛▘▀▙␛[39m
+  ␛[38;2;78;201;176m▜▟␛[39m   ␛[38;2;244;248;247m▄▄▞▘␛[39m ␛[38;2;244;248;247m▄▄▄␛[39m ␛[38;2;244;248;247m▗▞▘▄␛[39m  ␛[38;2;244;248;247m▐▌␛[39m ␛[38;2;244;248;247m▝▙▖▄▛␛[39m"
+`;
+
+exports[`Signal kit on truecolor-dark > at 100 columns > Wordmark rows=4 1`] = `
+"  ␛[38;2;78;201;176m▗▞▀▄▞█␛[38;2;47;127;112m▖␛[39m     ␛[38;2;244;248;247m▀▀▀█▄▖␛[39m  ␛[38;2;244;248;247m▝▀▀▀▀▀▘␛[39m ␛[38;2;244;248;247m▝▜▄␛[39m ␛[38;2;244;248;247m▗█▀␛[39m  ␛[38;2;244;248;247m▀▀▀▀▀▀␛[39m  ␛[38;2;244;248;247m▄█▘␛[39m ␛[38;2;244;248;247m▜▙▖␛[39m
+␛[38;2;78;201;176m▖▖␛[39m  ␛[38;2;78;201;176m▜▐▌▟▚␛[39m         ␛[38;2;244;248;247m▜█␛[39m  ␛[38;2;244;248;247m▗▄▄▄▄▖␛[39m    ␛[38;2;244;248;247m▜█▛▘␛[39m     ␛[38;2;244;248;247m▟▌␛[39m   ␛[38;2;244;248;247m▐█␛[39m    ␛[38;2;244;248;247m▝█␛[39m
+    ␛[38;2;78;201;176m▐▞▄▚▛␛[39m        ␛[38;2;244;248;247m▄█▛␛[39m           ␛[38;2;244;248;247m▄█▘▗▙␛[39m     ␛[38;2;244;248;247m█▌␛[39m   ␛[38;2;244;248;247m▝█▄␛[39m  ␛[38;2;244;248;247m▗▟▛␛[39m
+     ␛[38;2;78;201;176m▀▞▘␛[39m      ␛[38;2;244;248;247m▀▀▀▀␛[39m    ␛[38;2;244;248;247m▝▀▀▀▀▀␛[39m  ␛[38;2;244;248;247m▝▀␛[39m   ␛[38;2;244;248;247m▀▀␛[39m    ␛[38;2;244;248;247m▝▘␛[39m     ␛[38;2;244;248;247m▀▘␛[39m ␛[38;2;244;248;247m▀▘␛[39m"
+`;
+
+exports[`Signal kit on truecolor-light > at 40 columns > ActorRow agent 1`] = `"␛[1m␛[38;2;11;122;104m▪␛[39m␛[22m Fixed the auth tests."`;
+
+exports[`Signal kit on truecolor-light > at 40 columns > ActorRow cloud 1`] = `"␛[1m␛[38;2;158;42;156m▪␛[39m␛[22m Running on a Dexto computer."`;
+
+exports[`Signal kit on truecolor-light > at 40 columns > CutText 1`] = `
+"␛[38;2;5;8;7m█   █ ▄▀▀▀▀ ▄▀▀▀▄ ▄▀▀▀▀ ▀▀▀▀▀␛[39m
+␛[38;2;5;8;7m█   █  ▀▀▀▄ █ ▀▀█ █  ▀█ ▀▀▀▀ ␛[39m
+␛[38;2;5;8;7m ▀▀▀  ▀▀▀▀  ▀   ▀  ▀▀▀▀ ▀▀▀▀▀␛[39m"
+`;
+
+exports[`Signal kit on truecolor-light > at 40 columns > GateFrame 1`] = `
+"␛[38;2;149;90;0m╭──────────────────────────────────────╮␛[39m
+␛[38;2;149;90;0m│␛[39m ␛[1m␛[38;2;149;90;0mNEEDS YOU · RUN A COMMAND␛[39m␛[22m            ␛[38;2;149;90;0m│␛[39m
+␛[38;2;149;90;0m│␛[39m pnpm db:migrate --env staging        ␛[38;2;149;90;0m│␛[39m
+␛[38;2;149;90;0m│␛[39m ␛[38;2;94;106;104m⏎ approve · esc deny␛[39m                 ␛[38;2;149;90;0m│␛[39m
+␛[38;2;149;90;0m╰──────────────────────────────────────╯␛[39m"
+`;
+
+exports[`Signal kit on truecolor-light > at 40 columns > StepRow cloud 1`] = `"␛[38;2;158;42;156m◆␛[39m ␛[1m␛[38;2;158;42;156mEDIT␛[39m␛[22m    ␛[38;2;27;34;33mpackages/tui/src/sig…␛[39m  ␛[38;2;22;121;74m+␛[39m… ␛[38;2;186;196;193m0.4s␛[39m"`;
+
+exports[`Signal kit on truecolor-light > at 40 columns > StepRow fail 1`] = `"␛[38;2;194;40;27m▪␛[39m ␛[1m␛[38;2;5;8;7mEDIT␛[39m␛[22m    ␛[38;2;27;34;33mpackages/tui/src/s…␛[39m ␛[38;2;186;196;193m0.4s␛[39m  ␛[1m␛[38;2;194;40;27mFAIL␛[39m␛[22m"`;
+
+exports[`Signal kit on truecolor-light > at 40 columns > StepRow ok 1`] = `"␛[38;2;11;122;104m▪␛[39m ␛[1m␛[38;2;5;8;7mEDIT␛[39m␛[22m    ␛[38;2;27;34;33mpackages/tui/src/sig…␛[39m  ␛[38;2;22;121;74m+␛[39m… ␛[38;2;186;196;193m0.4s␛[39m"`;
+
+exports[`Signal kit on truecolor-light > at 40 columns > StepRow wait 1`] = `"␛[38;2;149;90;0m▸␛[39m ␛[1m␛[38;2;5;8;7mEDIT␛[39m␛[22m    ␛[38;2;27;34;33mpackages/tui/src…␛[39m …  ␛[1m␛[38;2;149;90;0mNEEDS YOU␛[39m␛[22m"`;
+
+exports[`Signal kit on truecolor-light > at 40 columns > Wordmark rows=1 1`] = `
+" ␛[38;2;11;122;104m▗▟▚␛[39m   ␛[38;2;5;8;7m▀▀▚▖␛[39m ␛[38;2;5;8;7m▀▀▀␛[39m ␛[38;2;5;8;7m▝▚▄▀␛[39m ␛[38;2;5;8;7m▝▜▛▘▗▛▘▀▙␛[39m
+  ␛[38;2;11;122;104m▜▟␛[39m   ␛[38;2;5;8;7m▄▄▞▘␛[39m ␛[38;2;5;8;7m▄▄▄␛[39m ␛[38;2;5;8;7m▗▞▘▄␛[39m  ␛[38;2;5;8;7m▐▌␛[39m ␛[38;2;5;8;7m▝▙▖▄▛␛[39m"
+`;
+
+exports[`Signal kit on truecolor-light > at 40 columns > Wordmark rows=4 1`] = `
+"  ␛[38;2;11;122;104m▗▞▀▄▞█␛[38;2;62;143;128m▖␛[39m     ␛[38;2;5;8;7m▀▀▀█▄▖␛[39m  ␛[38;2;5;8;7m▝▀▀▀▀▀▘␛[39m ␛[38;2;5;8;7m▝▜▄␛[39m ␛[38;2;5;8;7m▗█▀␛[39m  …
+␛[38;2;11;122;104m▖▖␛[39m  ␛[38;2;11;122;104m▜▐▌▟▚␛[39m         ␛[38;2;5;8;7m▜█␛[39m  ␛[38;2;5;8;7m▗▄▄▄▄▖␛[39m    ␛[38;2;5;8;7m▜█▛▘␛[39m   …
+    ␛[38;2;11;122;104m▐▞▄▚▛␛[39m        ␛[38;2;5;8;7m▄█▛␛[39m           ␛[38;2;5;8;7m▄█▘▗▙␛[39m   …
+     ␛[38;2;11;122;104m▀▞▘␛[39m      ␛[38;2;5;8;7m▀▀▀▀␛[39m    ␛[38;2;5;8;7m▝▀▀▀▀▀␛[39m  ␛[38;2;5;8;7m▝▀␛[39m   ␛[38;2;5;8;7m▀▀␛[39m  …"
+`;
+
+exports[`Signal kit on truecolor-light > at 100 columns > ActorRow agent 1`] = `"␛[1m␛[38;2;11;122;104m AGENT␛[39m␛[22m  Fixed the auth tests."`;
+
+exports[`Signal kit on truecolor-light > at 100 columns > ActorRow cloud 1`] = `"␛[1m␛[38;2;158;42;156m night…␛[39m␛[22m Running on a Dexto computer."`;
+
+exports[`Signal kit on truecolor-light > at 100 columns > CutText 1`] = `
+"␛[38;2;5;8;7m█   █ ▄▀▀▀▀ ▄▀▀▀▄ ▄▀▀▀▀ ▀▀▀▀▀␛[39m
+␛[38;2;5;8;7m█   █  ▀▀▀▄ █ ▀▀█ █  ▀█ ▀▀▀▀ ␛[39m
+␛[38;2;5;8;7m ▀▀▀  ▀▀▀▀  ▀   ▀  ▀▀▀▀ ▀▀▀▀▀␛[39m"
+`;
+
+exports[`Signal kit on truecolor-light > at 100 columns > GateFrame 1`] = `
+"␛[38;2;149;90;0m╭──────────────────────────────────────────────────────────────────────────────────────────────────╮␛[39m
+␛[38;2;149;90;0m│␛[39m ␛[1m␛[38;2;149;90;0mNEEDS YOU · RUN A COMMAND␛[39m␛[22m                                                                        ␛[38;2;149;90;0m│␛[39m
+␛[38;2;149;90;0m│␛[39m pnpm db:migrate --env staging                                                                    ␛[38;2;149;90;0m│␛[39m
+␛[38;2;149;90;0m│␛[39m ␛[38;2;94;106;104m⏎ approve · esc deny␛[39m                                                                             ␛[38;2;149;90;0m│␛[39m
+␛[38;2;149;90;0m╰──────────────────────────────────────────────────────────────────────────────────────────────────╯␛[39m"
+`;
+
+exports[`Signal kit on truecolor-light > at 100 columns > StepRow cloud 1`] = `"␛[38;2;158;42;156m◆␛[39m ␛[1m␛[38;2;158;42;156mEDIT␛[39m␛[22m    ␛[38;2;27;34;33mpackages/tui/src/signal/tone.ts␛[39m                                                ␛[38;2;22;121;74m+12␛[38;2;94;106;104m ␛[38;2;180;35;24m−3␛[39m ␛[38;2;186;196;193m0.4s␛[39m"`;
+
+exports[`Signal kit on truecolor-light > at 100 columns > StepRow fail 1`] = `"␛[38;2;194;40;27m▪␛[39m ␛[1m␛[38;2;5;8;7mEDIT␛[39m␛[22m    ␛[38;2;27;34;33mpackages/tui/src/signal/tone.ts␛[39m                                                 ␛[38;2;186;196;193m0.4s␛[39m  ␛[1m␛[38;2;194;40;27mFAIL␛[39m␛[22m"`;
+
+exports[`Signal kit on truecolor-light > at 100 columns > StepRow ok 1`] = `"␛[38;2;11;122;104m▪␛[39m ␛[1m␛[38;2;5;8;7mEDIT␛[39m␛[22m    ␛[38;2;27;34;33mpackages/tui/src/signal/tone.ts␛[39m                                                ␛[38;2;22;121;74m+12␛[38;2;94;106;104m ␛[38;2;180;35;24m−3␛[39m ␛[38;2;186;196;193m0.4s␛[39m"`;
+
+exports[`Signal kit on truecolor-light > at 100 columns > StepRow wait 1`] = `"␛[38;2;149;90;0m▸␛[39m ␛[1m␛[38;2;5;8;7mEDIT␛[39m␛[22m    ␛[38;2;27;34;33mpackages/tui/src/signal/tone.ts␛[39m                                          ␛[38;2;22;121;74m+12␛[38;2;94;106;104m ␛[38;2;180;35;24m−3␛[39m  ␛[1m␛[38;2;149;90;0mNEEDS YOU␛[39m␛[22m"`;
+
+exports[`Signal kit on truecolor-light > at 100 columns > Wordmark rows=1 1`] = `
+" ␛[38;2;11;122;104m▗▟▚␛[39m   ␛[38;2;5;8;7m▀▀▚▖␛[39m ␛[38;2;5;8;7m▀▀▀␛[39m ␛[38;2;5;8;7m▝▚▄▀␛[39m ␛[38;2;5;8;7m▝▜▛▘▗▛▘▀▙␛[39m
+  ␛[38;2;11;122;104m▜▟␛[39m   ␛[38;2;5;8;7m▄▄▞▘␛[39m ␛[38;2;5;8;7m▄▄▄␛[39m ␛[38;2;5;8;7m▗▞▘▄␛[39m  ␛[38;2;5;8;7m▐▌␛[39m ␛[38;2;5;8;7m▝▙▖▄▛␛[39m"
+`;
+
+exports[`Signal kit on truecolor-light > at 100 columns > Wordmark rows=4 1`] = `
+"  ␛[38;2;11;122;104m▗▞▀▄▞█␛[38;2;62;143;128m▖␛[39m     ␛[38;2;5;8;7m▀▀▀█▄▖␛[39m  ␛[38;2;5;8;7m▝▀▀▀▀▀▘␛[39m ␛[38;2;5;8;7m▝▜▄␛[39m ␛[38;2;5;8;7m▗█▀␛[39m  ␛[38;2;5;8;7m▀▀▀▀▀▀␛[39m  ␛[38;2;5;8;7m▄█▘␛[39m ␛[38;2;5;8;7m▜▙▖␛[39m
+␛[38;2;11;122;104m▖▖␛[39m  ␛[38;2;11;122;104m▜▐▌▟▚␛[39m         ␛[38;2;5;8;7m▜█␛[39m  ␛[38;2;5;8;7m▗▄▄▄▄▖␛[39m    ␛[38;2;5;8;7m▜█▛▘␛[39m     ␛[38;2;5;8;7m▟▌␛[39m   ␛[38;2;5;8;7m▐█␛[39m    ␛[38;2;5;8;7m▝█␛[39m
+    ␛[38;2;11;122;104m▐▞▄▚▛␛[39m        ␛[38;2;5;8;7m▄█▛␛[39m           ␛[38;2;5;8;7m▄█▘▗▙␛[39m     ␛[38;2;5;8;7m█▌␛[39m   ␛[38;2;5;8;7m▝█▄␛[39m  ␛[38;2;5;8;7m▗▟▛␛[39m
+     ␛[38;2;11;122;104m▀▞▘␛[39m      ␛[38;2;5;8;7m▀▀▀▀␛[39m    ␛[38;2;5;8;7m▝▀▀▀▀▀␛[39m  ␛[38;2;5;8;7m▝▀␛[39m   ␛[38;2;5;8;7m▀▀␛[39m    ␛[38;2;5;8;7m▝▘␛[39m     ␛[38;2;5;8;7m▀▘␛[39m ␛[38;2;5;8;7m▀▘␛[39m"
+`;
