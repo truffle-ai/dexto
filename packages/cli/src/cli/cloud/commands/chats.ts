@@ -1,6 +1,7 @@
-// `chat local` and `chat import`: find Claude Code and Codex chats on this machine and import them.
+// Discover local chats, import them, and start cloud chats with owned computer and browser choices.
 
 import { requireConsent } from '../../interaction.js';
+import { CommandFailure, type FailureKind } from '../../failure.js';
 
 import { z } from 'zod';
 
@@ -279,6 +280,74 @@ function readyLine(session: SessionResult): string {
         .join('; ');
 }
 
+const ListComputersActionSchema = z.object({
+    tool: z.literal('dexto_chat_computers_list'),
+    arguments: z.object({}).strict(),
+});
+const ListProfilesActionSchema = z.object({
+    tool: z.literal('dexto_chat_browser_profiles_list'),
+    arguments: z.object({}).strict(),
+});
+const ChatStartRefusalSchema = z.discriminatedUnion('outcome', [
+    z.object({
+        outcome: z.enum(['computer_not_found', 'computer_offline']),
+        nextAction: ListComputersActionSchema,
+    }),
+    z.object({
+        outcome: z.enum(['computer_incompatible', 'feature_denied']),
+        nextAction: z.null(),
+    }),
+    z.object({
+        outcome: z.enum(['profile_not_found', 'profile_busy', 'profile_unavailable']),
+        nextAction: ListProfilesActionSchema,
+    }),
+]);
+const StartedChatSchema = z.object({
+    session: z
+        .object({
+            id: z.string(),
+            title: z.string().nullable(),
+            url: z.string(),
+            status: z.string(),
+        })
+        .passthrough(),
+});
+const ChatStartResultSchema = z.union([StartedChatSchema, ChatStartRefusalSchema]);
+const ComputersSchema = z
+    .object({
+        computers: z.array(
+            z
+                .object({
+                    id: z.string(),
+                    name: z.string(),
+                    platform: z.string(),
+                    presence: z.enum(['online', 'offline', 'unknown']),
+                    compatible: z.boolean(),
+                    feature: z.object({ enabled: z.boolean() }).passthrough(),
+                })
+                .passthrough()
+        ),
+    })
+    .passthrough();
+const BrowserProfilesSchema = z
+    .object({
+        profiles: z.array(
+            z.object({ id: z.string(), name: z.string(), available: z.boolean() }).passthrough()
+        ),
+    })
+    .passthrough();
+const LOCATION_MESSAGES: Record<z.output<typeof ChatStartRefusalSchema>['outcome'], string> = {
+    computer_not_found: 'That connected computer was not found.',
+    computer_offline:
+        'That connected computer is offline. Connect it or choose an online computer.',
+    computer_incompatible: 'Update the connected computer runner before using it for a chat.',
+    feature_denied:
+        'Connected computers are not enabled for this account. Ask for access before selecting one.',
+    profile_not_found: 'That browser profile was not found.',
+    profile_busy: 'That browser profile is in use. Choose another or retry after its lease ends.',
+    profile_unavailable: 'That browser profile cannot be used on this hosted computer.',
+};
+
 const start: Command = {
     path: ['chat', 'start'],
     arguments: '<message>',
@@ -312,6 +381,7 @@ const start: Command = {
             description: 'Payment route for the chosen model.',
         },
         title: { type: 'string', valueName: 'TEXT', description: 'Short chat title.' },
+        ...YES_OPTION,
     },
     async run(context, input) {
         const message = argument(input, 0, 'message');
@@ -328,8 +398,48 @@ const start: Command = {
             const value = stringOption(input, flagName);
             if (value !== undefined) args[field] = value;
         }
-        const result = await queryWorkspaceTool(context, 'dexto_chat_start', args);
-        context.output.result(result, JSON.stringify(result));
+        if (args.browserProfileId !== undefined) {
+            await requireConsent(
+                {
+                    invocation: context.invocation,
+                    runtime: { prompt: context.output.json ? null : context.runtime.prompt },
+                },
+                flag(input, 'yes'),
+                'Start hosted compute billed to your account to load this browser profile?'
+            );
+        }
+        const parsed = ChatStartResultSchema.safeParse(
+            await queryWorkspaceTool(context, 'dexto_chat_start', args)
+        );
+        if (!parsed.success)
+            throw new CommandFailure(
+                'failed',
+                "Dexto didn't return a valid chat start result.",
+                null
+            );
+        const result = parsed.data;
+        if ('outcome' in result) {
+            const kind: FailureKind =
+                result.outcome === 'computer_not_found' || result.outcome === 'profile_not_found'
+                    ? 'not_found'
+                    : result.outcome === 'feature_denied'
+                      ? 'needs_permission'
+                      : result.outcome === 'profile_busy' || result.outcome === 'computer_offline'
+                        ? 'waiting_on_person'
+                        : 'failed';
+            const fix =
+                result.nextAction === null
+                    ? null
+                    : result.nextAction.tool === 'dexto_chat_computers_list'
+                      ? 'dexto chat computers'
+                      : 'dexto chat browser-profiles';
+            if (context.output.json) context.output.result(result, '');
+            throw new CommandFailure(kind, LOCATION_MESSAGES[result.outcome], fix);
+        }
+        context.output.result(
+            result,
+            `Started ${result.session.title ?? result.session.id}\n${result.session.url}\nStatus: ${result.session.status}`
+        );
     },
 };
 
@@ -337,8 +447,24 @@ const computers: Command = {
     path: ['chat', 'computers'],
     summary: 'List your connected computers and their presence for chat start --computer.',
     async run(context) {
-        const result = await queryWorkspaceTool(context, 'dexto_chat_computers_list', {});
-        context.output.result(result, JSON.stringify(result));
+        const parsed = ComputersSchema.safeParse(
+            await queryWorkspaceTool(context, 'dexto_chat_computers_list', {})
+        );
+        if (!parsed.success)
+            throw new CommandFailure('failed', "Dexto didn't return a valid computer list.", null);
+        const result = parsed.data;
+        if (context.output.json) context.output.result(result, '');
+        else
+            context.output.list({ data: result.computers }, [
+                { header: 'id', value: (row) => row.id },
+                { header: 'name', value: (row) => row.name },
+                { header: 'presence', value: (row) => row.presence },
+                { header: 'compatible', value: (row) => (row.compatible ? 'yes' : 'no') },
+                {
+                    header: 'feature',
+                    value: (row) => (row.feature.enabled ? 'enabled' : 'disabled'),
+                },
+            ]);
     },
 };
 
@@ -346,8 +472,23 @@ const browserProfiles: Command = {
     path: ['chat', 'browser-profiles'],
     summary: 'List your browser profiles and availability for chat start --browser-profile.',
     async run(context) {
-        const result = await queryWorkspaceTool(context, 'dexto_chat_browser_profiles_list', {});
-        context.output.result(result, JSON.stringify(result));
+        const parsed = BrowserProfilesSchema.safeParse(
+            await queryWorkspaceTool(context, 'dexto_chat_browser_profiles_list', {})
+        );
+        if (!parsed.success)
+            throw new CommandFailure(
+                'failed',
+                "Dexto didn't return a valid browser profile list.",
+                null
+            );
+        const result = parsed.data;
+        if (context.output.json) context.output.result(result, '');
+        else
+            context.output.list({ data: result.profiles }, [
+                { header: 'id', value: (row) => row.id },
+                { header: 'name', value: (row) => row.name },
+                { header: 'available', value: (row) => (row.available ? 'yes' : 'in use') },
+            ]);
     },
 };
 

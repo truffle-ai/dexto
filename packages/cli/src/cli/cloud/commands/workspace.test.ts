@@ -53,6 +53,9 @@ describe('dexto workspace', () => {
     let publishResponse: unknown;
     let publishProject: string | null;
     let publishStatus: number;
+    let chatResponse: unknown;
+    let computersResponse: unknown;
+    let profilesResponse: unknown;
 
     beforeEach(async () => {
         dir = path.join(await mkdtemp(path.join(os.tmpdir(), 'dexto-ws-')), 'accounts');
@@ -63,6 +66,27 @@ describe('dexto workspace', () => {
         environment = {};
         uploads = [];
         publishResponse = undefined;
+        chatResponse = {
+            session: {
+                id: 'chat-1',
+                title: 'A task',
+                url: 'https://app.dexto.ai/chat/chat-1',
+                status: 'running',
+            },
+        };
+        computersResponse = {
+            computers: [
+                {
+                    id: 'computer-1',
+                    name: 'Desk',
+                    platform: 'macos',
+                    presence: 'online',
+                    compatible: true,
+                    feature: { enabled: true, variant: 'standard' },
+                },
+            ],
+        };
+        profilesResponse = { profiles: [{ id: 'profile-1', name: 'Work', available: true }] };
         publishStatus = 200;
         publishProject = null;
         await dextoAccounts.writeLogin(dir, 'default', {
@@ -132,7 +156,13 @@ describe('dexto workspace', () => {
                               headers: {},
                               path: 'uploads/u1.zip',
                           }
-                        : { status: 'sent' };
+                        : tool === 'dexto_chat_start'
+                          ? chatResponse
+                          : tool === 'dexto_chat_computers_list'
+                            ? computersResponse
+                            : tool === 'dexto_chat_browser_profiles_list'
+                              ? profilesResponse
+                              : { status: 'sent' };
                 const result =
                     message.method === 'tools/list'
                         ? { tools: TOOLS }
@@ -186,6 +216,7 @@ describe('dexto workspace', () => {
                 'computer-1',
                 '--browser-profile',
                 'profile-1',
+                '--yes',
                 '--model',
                 'model-1',
                 '--title',
@@ -205,7 +236,7 @@ describe('dexto workspace', () => {
                 },
             },
         });
-        expect(JSON.parse(stdout)).toEqual({ status: 'sent' });
+        expect(JSON.parse(stdout)).toEqual(chatResponse);
     });
 
     it('omits unset chat start choices', async () => {
@@ -226,6 +257,169 @@ describe('dexto workspace', () => {
             params: { name: tool, arguments: {} },
         });
     });
+
+    it.each([
+        {
+            outcome: 'computer_not_found',
+            nextAction: { tool: 'dexto_chat_computers_list', arguments: {} },
+            code: 5,
+            fix: 'dexto chat computers',
+        },
+        {
+            outcome: 'computer_offline',
+            nextAction: { tool: 'dexto_chat_computers_list', arguments: {} },
+            code: 6,
+            fix: 'dexto chat computers',
+        },
+        { outcome: 'computer_incompatible', nextAction: null, code: 1, fix: undefined },
+        { outcome: 'feature_denied', nextAction: null, code: 3, fix: undefined },
+        {
+            outcome: 'profile_not_found',
+            nextAction: { tool: 'dexto_chat_browser_profiles_list', arguments: {} },
+            code: 5,
+            fix: 'dexto chat browser-profiles',
+        },
+        {
+            outcome: 'profile_busy',
+            nextAction: { tool: 'dexto_chat_browser_profiles_list', arguments: {} },
+            code: 6,
+            fix: 'dexto chat browser-profiles',
+        },
+        {
+            outcome: 'profile_unavailable',
+            nextAction: { tool: 'dexto_chat_browser_profiles_list', arguments: {} },
+            code: 1,
+            fix: 'dexto chat browser-profiles',
+        },
+    ])(
+        'returns a non-zero exit for $outcome while preserving its JSON outcome',
+        async ({ outcome, nextAction, code, fix }) => {
+            chatResponse = { outcome, nextAction };
+            expect(
+                await runCloud(host, [
+                    'chat',
+                    'start',
+                    'Hello',
+                    '--computer',
+                    'computer-1',
+                    '--browser-profile',
+                    'profile-1',
+                    '--yes',
+                    '--json',
+                ])
+            ).toBe(code);
+            expect(JSON.parse(stdout)).toEqual(chatResponse);
+            expect(JSON.parse(stderr).error.fix).toBe(fix);
+        }
+    );
+
+    it('prints the next human CLI command for a busy profile', async () => {
+        chatResponse = {
+            outcome: 'profile_busy',
+            nextAction: { tool: 'dexto_chat_browser_profiles_list', arguments: {} },
+        };
+        expect(
+            await runCloud(host, [
+                'chat',
+                'start',
+                'Hello',
+                '--browser-profile',
+                'profile-1',
+                '--yes',
+                '--table',
+            ])
+        ).toBe(6);
+        expect(stdout).toBe('');
+        expect(stderr).toContain('dexto chat browser-profiles');
+        expect(stderr).not.toContain('dexto_chat_browser_profiles_list');
+    });
+
+    it('requires headless billing consent before starting a profile computer', async () => {
+        expect(
+            await runCloud(host, [
+                'chat',
+                'start',
+                'Hello',
+                '--browser-profile',
+                'profile-1',
+                '--json',
+            ])
+        ).toBe(4);
+        expect(calls).toEqual([]);
+        expect(JSON.parse(stderr).error.fix).toContain('--yes');
+    });
+
+    it('asks for billing consent at a terminal', async () => {
+        const prompts: string[] = [];
+        host = {
+            ...host,
+            runtime: {
+                ...host.runtime,
+                stdoutIsTerminal: true,
+                prompt: async (question) => {
+                    prompts.push(question);
+                    return 'yes';
+                },
+            },
+        };
+        expect(
+            await runCloud(host, ['chat', 'start', 'Hello', '--browser-profile', 'profile-1'])
+        ).toBe(0);
+        expect(prompts).toHaveLength(1);
+        expect(prompts[0]).toContain('billed to your account');
+        expect(stdout).toContain('Started A task');
+        expect(stdout).not.toContain('"session"');
+    });
+
+    it('requires --yes under --json even at an interactive terminal', async () => {
+        const prompts: string[] = [];
+        host = {
+            ...host,
+            runtime: {
+                ...host.runtime,
+                stdoutIsTerminal: true,
+                prompt: async (question) => {
+                    prompts.push(question);
+                    return 'yes';
+                },
+            },
+        };
+        expect(
+            await runCloud(host, [
+                'chat',
+                'start',
+                'Hello',
+                '--browser-profile',
+                'profile-1',
+                '--json',
+            ])
+        ).toBe(4);
+        expect(prompts).toEqual([]);
+        expect(calls).toEqual([]);
+    });
+
+    it.each([
+        ['computers', 'Desk'],
+        ['browser-profiles', 'Work'],
+    ])('prints a readable table for chat %s', async (verb, name) => {
+        expect(await runCloud(host, ['chat', verb, '--table'])).toBe(0);
+        expect(stdout).toContain(name);
+        expect(stdout).not.toContain('{');
+    });
+
+    it.each(['start', 'computers', 'browser-profiles'])(
+        'rejects malformed output from chat %s',
+        async (verb) => {
+            chatResponse = { session: { id: 123 } };
+            computersResponse = { computers: [{ id: 123 }] };
+            profilesResponse = { profiles: [{ id: 123 }] };
+            expect(
+                await runCloud(host, ['chat', verb, ...(verb === 'start' ? ['Hello'] : [])])
+            ).toBe(1);
+            expect(stdout).toBe('');
+            expect(JSON.parse(stderr).error.message).toContain("Dexto didn't return a valid");
+        }
+    );
 
     it("lists the workspace's apps, from the tools the Dexto MCP lists", async () => {
         expect(await runCloud(host, ['workspace'])).toBe(0);
