@@ -50,6 +50,39 @@ export interface FrameOptions {
     terminal: TerminalName;
 }
 
+/**
+ * What `draw` returns with this terminal's caps and colour level: for screens drawn as strings
+ * (`signal/text.ts`) rather than Ink. ESC is shown as ␛, like `renderFrame`.
+ */
+export function drawText(terminal: TerminalName, draw: () => readonly string[]): string {
+    const caps = TERMINALS[terminal];
+    const savedCaps = getCaps();
+    const savedLevel = chalk.level;
+    setCaps(caps);
+    chalk.level = CHALK_LEVEL[caps.color];
+    try {
+        return draw().join('\n').replaceAll('\u001B', '␛').replaceAll('\u0007', '␇');
+    } finally {
+        chalk.level = savedLevel;
+        setCaps(savedCaps);
+    }
+}
+
+/** `run` with this terminal's caps and colour level until it settles: for async commands. */
+export async function onTerminal<T>(terminal: TerminalName, run: () => Promise<T>): Promise<T> {
+    const caps = TERMINALS[terminal];
+    const savedCaps = getCaps();
+    const savedLevel = chalk.level;
+    setCaps(caps);
+    chalk.level = CHALK_LEVEL[caps.color];
+    try {
+        return await run();
+    } finally {
+        chalk.level = savedLevel;
+        setCaps(savedCaps);
+    }
+}
+
 /** The settled frame of `element` on the given terminal, without trailing newlines. */
 export function renderFrame(element: ReactElement, { columns, terminal }: FrameOptions): string {
     const caps = TERMINALS[terminal];

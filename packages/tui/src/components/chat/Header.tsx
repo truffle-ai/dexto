@@ -7,7 +7,8 @@ import React from 'react';
 import { Box, Text } from 'ink';
 import type { StartupInfo } from '../../state/types.js';
 import { useTerminalSize } from '../../hooks/useTerminalSize.js';
-import { tone } from '../../signal/index.js';
+import { tone, useCaps } from '../../signal/index.js';
+import { SignalHeader } from './SignalHeader.js';
 
 interface HeaderProps {
     modelName: string;
@@ -22,6 +23,17 @@ interface HeaderProps {
  */
 export function Header({ modelName, sessionId, hasActiveSession, startupInfo }: HeaderProps) {
     const { columns } = useTerminalSize();
+    const signal = useCaps().palette === 'signal';
+    // Signal draws the wordmark from the real logo in place of the block letters.
+    if (signal)
+        return (
+            <SignalHeader
+                modelName={modelName}
+                sessionId={sessionId}
+                hasActiveSession={hasActiveSession}
+                startupInfo={startupInfo}
+            />
+        );
 
     return (
         <Box

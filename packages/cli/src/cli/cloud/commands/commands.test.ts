@@ -186,6 +186,14 @@ describe('cloud secrets, web and data-deletions', () => {
         expect(stdout).toContain('Failed: timeout');
     });
 
+    it('syncs Skills only for a signed-in person, pointing a developer key to dexto login', async () => {
+        const code = await runCloud(host, ['skills', 'sync']);
+
+        expect(code).toBe(3);
+        expect(stderr).toContain('dexto login');
+        expect(requests).toHaveLength(0);
+    });
+
     it('needs --user or --agent to delete data', async () => {
         expect(await runCloud(host, ['cloud', 'data-deletions', 'create', '--yes'])).toBe(2);
         expect(requests).toHaveLength(0);

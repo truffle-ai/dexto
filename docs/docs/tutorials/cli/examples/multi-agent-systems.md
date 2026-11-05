@@ -363,10 +363,10 @@ pm2 start ecosystem.config.js
 
 ```dockerfile
 # Dockerfile
-FROM node:18-alpine
+FROM node:20-alpine
 WORKDIR /app
 COPY package*.json ./
-RUN apk add --no-cache curl bash && curl -fsSL https://dexto.ai/install | bash
+RUN apk add --no-cache curl && curl -fsSL https://dexto.ai/install | sh
 ENV PATH="/root/.local/bin:${PATH}"
 COPY . .
 CMD ["dexto", "--mode", "web", "--port", "3000"]

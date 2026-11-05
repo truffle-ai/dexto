@@ -170,7 +170,8 @@ Signing in is optional: signed out, Dexto runs fully locally with your own model
 dexto login                 # sign in with your browser
 dexto login --device        # approve a code on any device (SSH, no browser)
 dexto login --org acme      # sign in for an organization, saved as profile "acme"
-dexto login --api-key $KEY  # save a Dexto API key, for CI
+echo "$KEY" | dexto login --api-key -  # save a Dexto API key, for CI
+dexto login --api-key       # paste a key when asked, kept out of shell history
 dexto whoami                # who commands act as
 dexto accounts list         # saved sign-ins; * marks the one in use
 dexto accounts use acme     # switch
@@ -580,6 +581,8 @@ dexto cloud api GET /v1/agents     # call any /v1 operation directly
 ```
 
 Every cloud command takes `--json` or `--table`, `--api-key <key>`, `--profile <name>` and `--project <id>`. Output is JSON when stdout isn't a terminal, and a failure prints `{"error":{"code","message","fix"}}` on stderr, where `fix` is the command that fixes it. Exit codes: 0 done, 1 failed, 2 usage, 3 needs sign-in or permission, 4 needs `--yes` (pass it only once your person has agreed), 5 not found, 6 waiting on a person (such as an agent run paused at an approval). `dexto login`, `logout`, `whoami`, `accounts`, `models list` and `billing` follow the same contract. A command that needs a permission your sign-in lacks offers, at a terminal, to sign in again for it.
+
+Signed in as a person, each session starts by syncing your Dexto Skills library to `~/.dexto/cloud-skills/`, where Skill discovery finds them after your own Skills, so a local Skill of the same name wins. Signed out, or with an API key, that copy is removed. `dexto skills sync` syncs on demand, and `dexto skills push <dir>` adds a local Skill to your library.
 
 Deploy Sites and Functions with `dexto cloud sites deploy` and `dexto cloud functions deploy`, each packed with the project's own packer. Dexto 1.x's `dexto deploy` (workspace deploys) is gone in 2.0, along with `dexto --cloud-agent`.
 
