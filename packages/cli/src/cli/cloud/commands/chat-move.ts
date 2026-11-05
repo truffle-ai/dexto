@@ -14,8 +14,12 @@ import {
     type CommandContext,
 } from '../command.js';
 import { nodeChatSyncStore, startNodeChatSync } from '../../chat-sync/node.js';
-import { buildWorkingTree } from '../../chat-sync/working-tree.js';
-import { applyReturnedTree } from '../../chat-sync/return-tree.js';
+import { buildWorkingTree, readLocalTreeCheckpoint } from '../../chat-sync/working-tree.js';
+import {
+    applyReturnedTree,
+    recoverAbandonedReturn,
+    ReturnCheckpointSchema,
+} from '../../chat-sync/return-tree.js';
 import {
     cancelMove,
     describeObject,
@@ -28,22 +32,6 @@ import { resumeTranscript } from '../../chat-sync/resume.js';
 import { toSyncedMessages } from '../../chat-sync/messages.js';
 import { queryWorkspaceTool } from './workspace.js';
 import { chatMoveScreen } from '../../screens/chat-move.js';
-
-const TreeCheckpoint = { branch: z.string(), head: z.string(), patchHash: z.string() };
-const CheckpointSchema = z.discriminatedUnion('phase', [
-    z.object({ ...TreeCheckpoint, phase: z.literal('cloud') }).strict(),
-    z.object({ ...TreeCheckpoint, phase: z.literal('returning'), moveId: z.string() }).strict(),
-    z.object({ ...TreeCheckpoint, phase: z.literal('applied'), moveId: z.string() }).strict(),
-    z
-        .object({
-            ...TreeCheckpoint,
-            phase: z.literal('resumed'),
-            moveId: z.string(),
-            nextIndex: z.number().int().nonnegative(),
-            sentCount: z.number().int().nonnegative(),
-        })
-        .strict(),
-]);
 
 async function localChat(context: CommandContext, id: string) {
     if (!/^[A-Za-z0-9._:-]{1,200}$/u.test(id)) throw new UsageError('Invalid local chat id.');
@@ -90,7 +78,7 @@ async function localChat(context: CommandContext, id: string) {
         sleep: context.runtime.sleep,
     };
     const file = path.join(getDextoGlobalPath('chat-sync'), 'moves', account, `${id}.json`);
-    const save = async (checkpoint: z.output<typeof CheckpointSchema>) => {
+    const save = async (checkpoint: z.output<typeof ReturnCheckpointSchema>) => {
         await mkdir(path.dirname(file), { recursive: true, mode: 0o700 });
         const temporary = `${file}.${randomUUID()}.tmp`;
         await writeFile(temporary, JSON.stringify(checkpoint), { mode: 0o600 });
@@ -232,36 +220,55 @@ const move: Command = {
         }
         if (context.openLocalAgent === undefined)
             throw new Error('Local session runtime is unavailable.');
-        const checkpoint = CheckpointSchema.parse(JSON.parse(await readFile(chat.file, 'utf8')));
-        const baseline = {
+        let checkpoint = ReturnCheckpointSchema.parse(
+            JSON.parse(await readFile(chat.file, 'utf8'))
+        );
+        let baseline = {
             branch: checkpoint.branch,
             head: checkpoint.head,
             patchHash: checkpoint.patchHash,
         };
-        const started =
+        const startReturn = async () =>
+            unwrap(
+                await transport.client.POST('/v1/synced_chats/{chat_id}/moves', {
+                    params: { path: { chat_id: cloudId } },
+                    body: { to: 'local' },
+                    signal: transport.signal,
+                })
+            );
+        let started =
             checkpoint.phase === 'cloud'
-                ? await unwrap(
-                      await transport.client.POST('/v1/synced_chats/{chat_id}/moves', {
-                          params: { path: { chat_id: cloudId } },
-                          body: { to: 'local' },
-                          signal: transport.signal,
-                      })
-                  )
+                ? await startReturn()
                 : await unwrap(
                       await transport.client.GET('/v1/synced_chats/{chat_id}/moves/{move_id}', {
                           params: { path: { chat_id: cloudId, move_id: checkpoint.moveId } },
                           signal: transport.signal,
                       })
                   );
+        if (
+            started.status === 'expired' ||
+            started.status === 'canceled' ||
+            started.status === 'failed'
+        ) {
+            checkpoint = await recoverAbandonedReturn(chat.cwd, checkpoint);
+            baseline = {
+                branch: checkpoint.branch,
+                head: checkpoint.head,
+                patchHash: checkpoint.patchHash,
+            };
+            await chat.save(checkpoint);
+            started = await startReturn();
+        }
         if (checkpoint.phase === 'cloud')
             await chat.save({ ...baseline, phase: 'returning', moveId: started.id });
         if (checkpoint.phase === 'resumed' && started.status === 'completed') {
-            await store.writeChat(account, id, {
-                status: 'syncing',
-                cloudChatId: cloudId,
-                nextIndex: checkpoint.nextIndex,
-                sentCount: checkpoint.sentCount,
-            });
+            if (state.status === 'paused')
+                await store.writeChat(account, id, {
+                    status: 'syncing',
+                    cloudChatId: cloudId,
+                    nextIndex: checkpoint.nextIndex,
+                    sentCount: checkpoint.sentCount,
+                });
             context.output.result(
                 { id, location: 'local' },
                 `◇ Local · ${id} · Resume: dexto -r ${id}`
@@ -293,7 +300,13 @@ const move: Command = {
                     patch,
                 });
                 applied = true;
-                await chat.save({ ...baseline, phase: 'applied', moveId: started.id });
+                checkpoint = {
+                    ...baseline,
+                    phase: 'applied',
+                    moveId: started.id,
+                    appliedTree: await readLocalTreeCheckpoint(chat.cwd),
+                };
+                await chat.save(checkpoint);
             }
             const agent = await context.openLocalAgent();
             const session = await agent.getSession(id);
@@ -314,11 +327,14 @@ const move: Command = {
                     known.add(message.id);
                 },
             });
+            if (checkpoint.phase !== 'applied' && checkpoint.phase !== 'resumed')
+                throw new Error('Expected an applied tree before resuming.');
             const sentCount = toSyncedMessages(await agent.getSessionHistory(id)).length;
             await chat.save({
                 ...baseline,
                 phase: 'resumed',
                 moveId: started.id,
+                appliedTree: checkpoint.appliedTree,
                 nextIndex: transcript.syncFromIndex,
                 sentCount,
             });
