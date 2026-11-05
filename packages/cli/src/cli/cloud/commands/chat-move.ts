@@ -96,7 +96,17 @@ async function localChat(context: CommandContext, id: string) {
         await writeFile(temporary, JSON.stringify(checkpoint), { mode: 0o600 });
         await rename(temporary, file);
     };
-    return { account, store, state, cwd, transport, file, save, cloudId: state.cloudChatId };
+    return {
+        account,
+        signInId: connection.login.savedAt,
+        store,
+        state,
+        cwd,
+        transport,
+        file,
+        save,
+        cloudId: state.cloudChatId,
+    };
 }
 
 const move: Command = {
@@ -118,7 +128,14 @@ const move: Command = {
         if (to === 'cloud' && context.openLocalAgent !== undefined) {
             // Flush the last local turn before the server records the transcript return cursor.
             const agent = await context.openLocalAgent();
-            const sync = await startNodeChatSync(agent, process.cwd());
+            const sync = await startNodeChatSync(agent, chat.cwd, async () => ({
+                kind: 'ready',
+                connection: {
+                    account: chat.account,
+                    signInId: chat.signInId,
+                    client: chat.transport.client,
+                },
+            }));
             try {
                 await sync.engine.sync(id);
             } finally {
@@ -233,6 +250,7 @@ const move: Command = {
             if (session === undefined) throw new Error('The local session no longer exists.');
             const known = new Set((await agent.getSessionHistory(id)).map((message) => message.id));
             const transcript = await resumeTranscript(exported.transcript_from_index, {
+                sourceChatId: cloudId,
                 read: async (from) =>
                     unwrap(
                         await transport.client.GET('/v1/synced_chats/{chat_id}/messages', {

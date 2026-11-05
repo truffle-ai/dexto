@@ -71,7 +71,8 @@ const common = () => ({
 /** Chat sync for the interactive CLI on `agent`, working in `cwd`. */
 export async function startNodeChatSync(
     agent: Pick<DextoAgent, 'on' | 'getSessionHistory' | 'getSessionMetadata'>,
-    cwd: string
+    cwd: string,
+    signIn: () => Promise<SyncSignIn> = nodeSignIn
 ): Promise<ChatSyncHost> {
     const gitBranch = await currentGitBranch(cwd);
     const store = nodeChatSyncStore();
@@ -93,7 +94,7 @@ export async function startNodeChatSync(
     host = createChatSyncHost({
         ...common(),
         store,
-        signIn: nodeSignIn,
+        signIn,
         readChat,
         cwd,
         schedule: (ms, chatId) => {
