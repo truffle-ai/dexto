@@ -3,14 +3,61 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
-import { buildWorkingTree } from './working-tree.js';
-import { describeObject } from './move.js';
+import { z } from 'zod';
+import {
+    gitRepositoryRoot,
+    readLocalTreeCheckpoint,
+    type LocalTreeCheckpoint,
+} from './working-tree.js';
 import { isSecretPath } from './redaction.js';
 
-export interface LocalTreeCheckpoint {
-    readonly branch: string;
-    readonly head: string;
-    readonly patchHash: string;
+const TreeCheckpoint = z
+    .object({ branch: z.string(), head: z.string(), patchHash: z.string() })
+    .strict();
+export const ReturnCheckpointSchema = z.discriminatedUnion('phase', [
+    TreeCheckpoint.extend({ phase: z.literal('cloud') }).strict(),
+    TreeCheckpoint.extend({ phase: z.literal('returning'), moveId: z.string() }).strict(),
+    TreeCheckpoint.extend({
+        phase: z.literal('applied'),
+        moveId: z.string(),
+        appliedTree: TreeCheckpoint,
+    }).strict(),
+    TreeCheckpoint.extend({
+        phase: z.literal('resumed'),
+        moveId: z.string(),
+        appliedTree: TreeCheckpoint,
+        nextIndex: z.number().int().nonnegative(),
+        sentCount: z.number().int().nonnegative(),
+    }).strict(),
+]);
+
+async function assertLocalTreeMatches(cwd: string, expected: LocalTreeCheckpoint): Promise<void> {
+    const current = await readLocalTreeCheckpoint(cwd);
+    if (
+        current.branch !== expected.branch ||
+        current.head !== expected.head ||
+        current.patchHash !== expected.patchHash
+    )
+        throw new Error(
+            'This working tree changed since hand-off. Save those changes before bringing the chat back.'
+        );
+}
+
+/** An abandoned server return is retried from the last tree we actually applied, preserving edits. */
+export async function recoverAbandonedReturn(
+    cwd: string,
+    checkpoint: z.output<typeof ReturnCheckpointSchema>
+): Promise<Extract<z.output<typeof ReturnCheckpointSchema>, { phase: 'cloud' }>> {
+    if (checkpoint.phase === 'applied' || checkpoint.phase === 'resumed') {
+        await assertLocalTreeMatches(cwd, checkpoint.appliedTree);
+        return { ...checkpoint.appliedTree, phase: 'cloud' };
+    }
+    return {
+        branch: checkpoint.branch,
+        head: checkpoint.head,
+        patchHash: checkpoint.patchHash,
+        phase: 'cloud',
+    };
 }
 export interface ReturnedTree {
     readonly branch: string;
@@ -25,26 +72,15 @@ export async function applyReturnedTree(
     baseline: LocalTreeCheckpoint,
     returned: ReturnedTree
 ): Promise<void> {
-    const current = await buildWorkingTree(cwd);
-    try {
-        if (
-            current.branch !== baseline.branch ||
-            current.head_commit !== baseline.head ||
-            describeObject(current.patch ?? Buffer.alloc(0)).sha256 !== baseline.patchHash
-        )
-            throw new Error(
-                'This working tree changed since hand-off. Save those changes before bringing the chat back.'
-            );
-    } finally {
-        await current.cleanup();
-    }
+    await assertLocalTreeMatches(cwd, baseline);
+    const repository = await gitRepositoryRoot(cwd);
     if (returned.branch !== baseline.branch)
         throw new Error('The cloud changed branch. Bring its work back into a separate checkout.');
     if (!/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(returned.head))
         throw new Error('Invalid cloud head commit.');
     const folder = await mkdtemp(path.join(tmpdir(), 'dexto-return-'));
     const checkout = path.join(folder, 'checkout');
-    const git = async (args: string[], directory = cwd): Promise<string> =>
+    const git = async (args: string[], directory = repository): Promise<string> =>
         (await promisify(execFile)('git', args, { cwd: directory, maxBuffer: 64 * 1024 * 1024 }))
             .stdout;
     let added = false;

@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { mkdtemp, readFile, rm, writeFile, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -17,52 +18,59 @@ export interface WorkingTree {
     readonly cleanup: () => Promise<void>;
 }
 
-/** Build using a private index; neither intent-to-add nor exclusions touch the user's staging. */
-export async function buildWorkingTree(cwd: string): Promise<WorkingTree> {
-    const repository = (
-        await exec('git', ['rev-parse', '--show-toplevel'], { cwd })
-    ).stdout.replace(/\r?\n$/u, '');
-    const folder = await mkdtemp(path.join(tmpdir(), 'dexto-move-'));
-    const cleanup = () => rm(folder, { recursive: true, force: true });
-    const git = async (args: string[], env = process.env): Promise<Buffer> => {
-        const { stdout } = await exec('git', args, {
-            cwd: repository,
-            env,
-            encoding: 'buffer',
-            maxBuffer: MAX_BUNDLE + 1,
-        });
-        return stdout;
-    };
+export interface LocalTreeCheckpoint {
+    readonly branch: string;
+    readonly head: string;
+    readonly patchHash: string;
+}
+
+async function git(cwd: string, args: string[], env = process.env): Promise<Buffer> {
+    return (await exec('git', args, { cwd, env, encoding: 'buffer', maxBuffer: MAX_BUNDLE + 1 }))
+        .stdout;
+}
+
+export async function gitRepositoryRoot(cwd: string): Promise<string> {
+    return (await git(cwd, ['rev-parse', '--show-toplevel'])).toString().replace(/\r?\n$/u, '');
+}
+
+async function refuseSecretTree(repository: string, commit: string): Promise<void> {
+    const secret = (await git(repository, ['ls-tree', '-r', '--name-only', '-z', commit]))
+        .toString()
+        .split('\0')
+        .find(isSecretPath);
+    if (secret !== undefined)
+        throw new Error(
+            `The branch history contains a secret-shaped file: ${JSON.stringify(secret)}. Use a clean branch before moving.`
+        );
+}
+
+/** Inspect the complete repository using a private index, without changing the user's staging. */
+async function workingTreeFiles(
+    cwd: string
+): Promise<{ repository: string; branch: string; head_commit: string; patch: Buffer | null }> {
+    const repository = await gitRepositoryRoot(cwd);
+    const folder = await mkdtemp(path.join(tmpdir(), 'dexto-move-index-'));
     try {
-        const branch = (await git(['symbolic-ref', '--short', 'HEAD'])).toString().trim();
-        const head_commit = (await git(['rev-parse', 'HEAD'])).toString().trim();
-        // A full bundle carries history too. Refuse secrets in every reachable commit, including
-        // files deleted before HEAD, rather than uploading them hidden in pack objects.
-        const commits = (await git(['rev-list', head_commit])).toString().trim().split('\n');
-        for (const commit of commits) {
-            const names = (await git(['ls-tree', '-r', '--name-only', '-z', commit]))
-                .toString()
-                .split('\0');
-            const secret = names.find(isSecretPath);
-            if (secret !== undefined)
-                throw new Error(
-                    `The branch history contains a secret-shaped file: ${JSON.stringify(secret)}. Use a clean branch before moving.`
-                );
-        }
+        const branch = (await git(repository, ['symbolic-ref', '--short', 'HEAD']))
+            .toString()
+            .trim();
+        const head_commit = (await git(repository, ['rev-parse', 'HEAD'])).toString().trim();
+        // Refuse tracked secret files before diff can read their contents.
+        await refuseSecretTree(repository, head_commit);
         const env = { ...process.env, GIT_INDEX_FILE: path.join(folder, 'index') };
-        await git(['read-tree', head_commit], env);
+        await git(repository, ['read-tree', head_commit], env);
         const candidates = (
-            await git(['ls-files', '--cached', '--others', '--exclude-standard', '-z'])
+            await git(repository, ['ls-files', '--cached', '--others', '--exclude-standard', '-z'])
         )
             .toString()
             .split('\0')
             .filter(Boolean);
         const safe = candidates.filter((name) => !isSecretPath(name));
-        // Literal NUL pathspecs preserve spaces, newlines and leading dashes.
         const pathspec = path.join(folder, 'paths');
         await writeFile(pathspec, safe.join('\0') + '\0');
         if (safe.length > 0)
             await git(
+                repository,
                 [
                     '--literal-pathspecs',
                     'add',
@@ -73,6 +81,7 @@ export async function buildWorkingTree(cwd: string): Promise<WorkingTree> {
                 env
             );
         const patch = await git(
+            repository,
             [
                 '--literal-pathspecs',
                 'diff',
@@ -87,19 +96,64 @@ export async function buildWorkingTree(cwd: string): Promise<WorkingTree> {
             env
         );
         if (patch.length > MAX_PATCH) throw new Error('The working-tree patch exceeds 32 MiB.');
+        return { repository, branch, head_commit, patch: patch.length === 0 ? null : patch };
+    } finally {
+        await rm(folder, { recursive: true, force: true });
+    }
+}
+
+/** A return checkpoint needs the local tree's identity, never a redundant full-history bundle. */
+export async function readLocalTreeCheckpoint(cwd: string): Promise<LocalTreeCheckpoint> {
+    const tree = await workingTreeFiles(cwd);
+    return {
+        branch: tree.branch,
+        head: tree.head_commit,
+        patchHash: createHash('sha256')
+            .update(tree.patch ?? Buffer.alloc(0))
+            .digest('hex'),
+    };
+}
+
+/** Build a pinned branch bundle plus the non-ignored, non-secret working-tree patch. */
+export async function buildWorkingTree(cwd: string): Promise<WorkingTree> {
+    const tree = await workingTreeFiles(cwd);
+    const { repository, branch, head_commit, patch } = tree;
+    // A full bundle carries deleted history too, so every reachable tree is checked.
+    const commits = (await git(repository, ['rev-list', head_commit]))
+        .toString()
+        .trim()
+        .split('\n');
+    for (const commit of commits) await refuseSecretTree(repository, commit);
+    const folder = await mkdtemp(path.join(tmpdir(), 'dexto-move-bundle-'));
+    const cleanup = () => rm(folder, { recursive: true, force: true });
+    try {
         const bundlePath = path.join(folder, 'tree.bundle');
-        // Pin both exported refs in a private repository. A concurrent local commit must not
-        // make the bundle carry an unscanned tree after the history check above.
         const bare = path.join(folder, 'repository.git');
-        await git(['init', '--bare', bare]);
-        await git(['--git-dir=' + bare, 'fetch', '--no-tags', repository, head_commit]);
-        await git(['--git-dir=' + bare, 'update-ref', `refs/heads/${branch}`, head_commit]);
-        await git(['--git-dir=' + bare, 'symbolic-ref', 'HEAD', `refs/heads/${branch}`]);
-        await git(['--git-dir=' + bare, 'bundle', 'create', bundlePath, 'HEAD', branch]);
+        await git(repository, ['init', '--bare', bare]);
+        await git(repository, ['--git-dir=' + bare, 'fetch', '--no-tags', repository, head_commit]);
+        await git(repository, [
+            '--git-dir=' + bare,
+            'update-ref',
+            `refs/heads/${branch}`,
+            head_commit,
+        ]);
+        await git(repository, [
+            '--git-dir=' + bare,
+            'symbolic-ref',
+            'HEAD',
+            `refs/heads/${branch}`,
+        ]);
+        await git(repository, [
+            '--git-dir=' + bare,
+            'bundle',
+            'create',
+            bundlePath,
+            'HEAD',
+            branch,
+        ]);
         if ((await stat(bundlePath)).size > MAX_BUNDLE)
             throw new Error('The branch bundle exceeds 256 MiB.');
-        const bundle = await readFile(bundlePath);
-        return { branch, head_commit, bundle, patch: patch.length === 0 ? null : patch, cleanup };
+        return { branch, head_commit, patch, bundle: await readFile(bundlePath), cleanup };
     } catch (error) {
         await cleanup();
         throw error;

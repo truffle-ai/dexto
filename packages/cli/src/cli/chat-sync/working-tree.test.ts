@@ -74,6 +74,26 @@ it('moves the whole repository when the chat started in a nested folder', async 
     }
 });
 
+it('applies files outside the saved chat subfolder when returning', async () => {
+    const cwd = await repository();
+    const nested = path.join(cwd, 'packages', 'example');
+    await mkdir(nested, { recursive: true });
+    await writeFile(path.join(nested, '.keep'), 'fake fixture\n');
+    await run('git', ['add', 'packages/example/.keep'], { cwd });
+    await run('git', ['commit', '-m', 'nested fixture'], { cwd });
+    await writeFile(path.join(cwd, 'code.txt'), 'local dirty\n');
+    const baseline = await readLocalTreeCheckpoint(nested);
+    await applyReturnedTree(nested, baseline, {
+        branch: baseline.branch,
+        head: baseline.head,
+        bundle: null,
+        patch: Buffer.from(
+            'diff --git a/code.txt b/code.txt\n--- a/code.txt\n+++ b/code.txt\n@@ -1 +1 @@\n-before\n+cloud root change\n'
+        ),
+    });
+    expect(await readFile(path.join(cwd, 'code.txt'), 'utf8')).toBe('cloud root change\n');
+});
+
 it('applies a returned patch and preserves a local backup of the handed-off changes', async () => {
     const cwd = await repository();
     await writeFile(path.join(cwd, 'code.txt'), 'local dirty\n');
@@ -194,11 +214,32 @@ it('restarts an expired applied or resumed return from the applied tree while pr
     const original = await readLocalTreeCheckpoint(cwd);
     await writeFile(path.join(cwd, 'code.txt'), 'already-applied cloud work\n');
     const appliedTree = await readLocalTreeCheckpoint(cwd);
-    const recovered = await recoverAbandonedReturn(cwd, { ...original, phase: 'applied', moveId: 'expired-move', appliedTree });
+    const recovered = await recoverAbandonedReturn(cwd, {
+        ...original,
+        phase: 'applied',
+        moveId: 'expired-move',
+        appliedTree,
+    });
     expect(recovered).toEqual({ ...appliedTree, phase: 'cloud' });
-    expect(await recoverAbandonedReturn(cwd, { ...original, phase: 'resumed', moveId: 'expired-move', appliedTree, nextIndex: 20, sentCount: 5 })).toEqual(recovered);
+    expect(
+        await recoverAbandonedReturn(cwd, {
+            ...original,
+            phase: 'resumed',
+            moveId: 'expired-move',
+            appliedTree,
+            nextIndex: 20,
+            sentCount: 5,
+        })
+    ).toEqual(recovered);
     expect(await readFile(path.join(cwd, 'code.txt'), 'utf8')).toBe('already-applied cloud work\n');
     await writeFile(path.join(cwd, 'code.txt'), 'new local work after apply\n');
-    await expect(recoverAbandonedReturn(cwd, { ...original, phase: 'applied', moveId: 'expired-move', appliedTree })).rejects.toThrow('changed');
+    await expect(
+        recoverAbandonedReturn(cwd, {
+            ...original,
+            phase: 'applied',
+            moveId: 'expired-move',
+            appliedTree,
+        })
+    ).rejects.toThrow('changed');
     expect(await readFile(path.join(cwd, 'code.txt'), 'utf8')).toBe('new local work after apply\n');
 });
