@@ -7,6 +7,7 @@ type Transcript = V1Response<'/v1/synced_chats/{chat_id}/messages', 'get'>;
 export async function resumeTranscript(
     fromIndex: number,
     deps: {
+        readonly sourceChatId: string;
         readonly read: (from: number) => Promise<Transcript>;
         readonly append: (message: InternalMessage) => Promise<void>;
     }
@@ -31,7 +32,7 @@ export async function resumeTranscript(
                 .join('\n');
             const content: ContentPart[] = [{ type: 'text', text }];
             const base = {
-                id: `cloud:${message.index}`,
+                id: `cloud:${deps.sourceChatId}:${message.index}`,
                 content,
                 timestamp: Date.parse(message.created_at),
             };
