@@ -5,7 +5,8 @@ import { moveToCloud, downloadMoveObject, describeObject } from './move.js';
 it('uploads declared bytes with signed headers before confirming and polling completion', async () => {
     const calls: string[] = [];
     const fetch: typeof globalThis.fetch = async (input, init) => {
-        const request = input instanceof Request ? input : new Request(input, init);
+        const request =
+            input instanceof globalThis.Request ? input : new globalThis.Request(input, init);
         calls.push(`${request.method} ${new URL(request.url).pathname}`);
         if (request.method === 'PUT') {
             expect(request.headers.get('x-test')).toBe('signed');
