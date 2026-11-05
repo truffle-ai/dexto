@@ -77,6 +77,8 @@ import {
     findDextoProjectRoot,
     globalPreferencesExist,
     loadGlobalPreferences,
+    saveGlobalPreferences,
+    createInitialPreferences,
     resolveBundledScript,
     enrichAgentConfig,
     isDextoAuthEnabled,
@@ -519,14 +521,15 @@ program
 
                 // First run (no saved model choice, no --model): a provider key in the environment
                 // or the Dexto sign-in starts the chat; otherwise point the person to `dexto login`.
-                let useDextoModels = false;
-                if (
-                    isDextoAuthEnabled() &&
+                const firstRun =
                     !opts.model &&
                     !(opts.agent && isPath(opts.agent)) &&
-                    !LLM_PROVIDERS.some((provider) => resolveApiKeyForProvider(provider)?.trim()) &&
-                    (await (await import('./cli/utils/setup-utils.js')).requiresSetup())
-                ) {
+                    (await (await import('./cli/utils/setup-utils.js')).requiresSetup());
+                const hasProviderKey = LLM_PROVIDERS.some((provider) =>
+                    resolveApiKeyForProvider(provider)?.trim()
+                );
+                let useDextoModels = false;
+                if (firstRun && isDextoAuthEnabled() && !hasProviderKey) {
                     const { canUseDextoProvider } = await import('./cli/utils/dexto-setup.js');
                     if (!(await canUseDextoProvider())) {
                         await printSignInFirst();
@@ -737,6 +740,20 @@ program
                         mergedConfig.llm.model = FIRST_RUN_DEXTO_MODEL;
                         mergedConfig.llm.apiKey = '$DEXTO_API_KEY';
                         delete mergedConfig.llm.baseURL;
+                    }
+
+                    // 1.x setup saved preferences on the first run, and /model and /sounds update
+                    // that file, so save the model this chat starts on. Only an env-var reference
+                    // to the key is stored, never the key.
+                    if (firstRun && (useDextoModels || hasProviderKey)) {
+                        const apiKey = mergedConfig.llm.apiKey;
+                        await saveGlobalPreferences(
+                            createInitialPreferences({
+                                provider: mergedConfig.llm.provider,
+                                model: mergedConfig.llm.model,
+                                ...(apiKey?.startsWith('$') ? { apiKeyVar: apiKey.slice(1) } : {}),
+                            })
+                        );
                     }
 
                     // Clean up null values from config (can happen from YAML files with explicit nulls)
