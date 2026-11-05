@@ -253,15 +253,11 @@ export async function runCliMode(context: MainModeContext): Promise<void> {
                                 lines.push(text);
                             },
                         };
-                        await runCloud({ ...host, runtime, openLocalAgent: async () => agent }, [
-                            'chat',
-                            'move',
-                            id,
-                            '--to',
-                            to,
-                            '--detach',
-                            '--table',
-                        ]);
+                        const code = await runCloud(
+                            { ...host, runtime, openLocalAgent: async () => agent },
+                            ['chat', 'move', id, '--to', to, '--detach', '--table']
+                        );
+                        if (code !== 0) throw new Error(lines.join('\n'));
                         return lines.join('\n');
                     },
                     assertLocalChat: async (id: string) => {
@@ -270,7 +266,9 @@ export async function runCliMode(context: MainModeContext): Promise<void> {
                             const saved = await store.readChat(account, id);
                             if (saved?.status === 'paused')
                                 throw new Error(
-                                    'This chat is on its cloud computer. Use /local to bring it back, or dexto chat watch to attach.'
+                                    saved.reason === 'move_in_progress'
+                                        ? 'This chat is moving. Use /local to reconcile its location before another local turn.'
+                                        : 'This chat is on its cloud computer. Use /local to bring it back, or dexto chat watch to attach.'
                                 );
                         }
                     },
