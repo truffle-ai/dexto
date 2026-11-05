@@ -824,11 +824,13 @@
         "type": "object",
         "properties": {
           "limit": {
+            "description": "How many artifacts to return, from 1 to 100; 50 when left out.",
             "type": "integer",
             "minimum": 1,
             "maximum": 100
           },
           "cursor": {
+            "description": "The next value of the previous artifacts.list result, to read the following page.",
             "type": "string",
             "minLength": 1,
             "maxLength": 1000
