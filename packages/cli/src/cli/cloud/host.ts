@@ -8,6 +8,7 @@ import { agentCommands } from './commands/agents.js';
 import { apiCommands } from './commands/api.js';
 import { artifactCommands } from './commands/artifacts.js';
 import { chatCommands } from './commands/chats.js';
+import { importCommands } from './commands/import.js';
 import { automationCommands } from './commands/automations.js';
 import { dataDeletionCommands } from './commands/data-deletions.js';
 import { deployCommands } from './commands/deploys.js';
@@ -74,6 +75,7 @@ export function cloudCommands(dir: string, signIn: SignInFor): readonly Command[
         ...skillCommands,
         ...traceCommands,
         ...chatCommands,
+        ...importCommands,
     ];
 }
 
