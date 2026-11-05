@@ -114,6 +114,11 @@ const move: Command = {
     arguments: '<id>',
     summary: 'Move a synced local chat and working tree to cloud or local (beta).',
     options: {
+        'dry-run': {
+            type: 'boolean',
+            description:
+                'Inspect the hand-off plan without syncing, uploading, applying or moving the chat.',
+        },
         to: { type: 'string', valueName: 'cloud|local', description: 'Where the chat continues.' },
         detach: {
             type: 'boolean',
@@ -125,6 +130,51 @@ const move: Command = {
         const to = choiceOption(input, 'to', ['cloud', 'local']);
         if (to === undefined) throw new UsageError('--to cloud|local is required.');
         let chat = await localChat(context, id);
+        if (flag(input, 'dry-run')) {
+            if (to === 'local') {
+                context.output.record({
+                    dryRun: true,
+                    id,
+                    to,
+                    folder: chat.cwd,
+                    steps: [
+                        'export cloud work',
+                        'verify and apply',
+                        'resume transcript',
+                        'complete move',
+                    ],
+                });
+                return;
+            }
+            const tree = await buildWorkingTree(chat.cwd);
+            try {
+                context.output.record({
+                    dryRun: true,
+                    id,
+                    to,
+                    branch: tree.branch,
+                    headCommit: tree.head_commit,
+                    bundle: describeObject(tree.bundle),
+                    patch: tree.patch === null ? null : describeObject(tree.patch),
+                });
+            } finally {
+                await tree.cleanup();
+            }
+            return;
+        }
+        if (
+            to === 'cloud' &&
+            chat.state.status === 'paused' &&
+            chat.state.reason === 'chat_in_cloud'
+        ) {
+            context.output.result(
+                { id, location: 'cloud', alreadyThere: true },
+                chatMoveScreen(id, 'cloud')
+            );
+            if (!flag(input, 'detach') && !context.output.json)
+                await watchChat(context, chat.cloudId);
+            return;
+        }
         if (to === 'cloud' && context.openLocalAgent !== undefined) {
             // Flush the last local turn before the server records the transcript return cursor.
             const agent = await context.openLocalAgent();
