@@ -5,6 +5,9 @@ import { safeExit, ExitSignal } from '../../analytics/wrapper.js';
 import { hasUsableCredentials } from '../../config/cli-overrides.js';
 import type { MainModeContext } from './context.js';
 import { applyWorkspaceToAgent } from '../../utils/workspace.js';
+import { nodeChatSyncStore } from '../chat-sync/node.js';
+import { nodeCloudHost } from '../cloud/host.js';
+import { runCloud } from '../cloud/run.js';
 
 async function getMostRecentSessionId(agent: DextoAgent): Promise<string | null> {
     const sessionIds = await agent.listSessions();
@@ -236,6 +239,41 @@ export async function runCliMode(context: MainModeContext): Promise<void> {
                 },
                 ...(chatSync !== null && {
                     chatSync: { command: chatSync.command, onNotice: chatSync.onNotice },
+                    chatMove: async (to: 'cloud' | 'local', id: string) => {
+                        if (to === 'cloud') await chatSync.engine.sync(id);
+                        const host = nodeCloudHost(new AbortController().signal);
+                        const lines: string[] = [];
+                        const runtime = {
+                            ...host.runtime,
+                            stdoutIsTerminal: true,
+                            writeOutput: (text: string) => {
+                                lines.push(text);
+                            },
+                            writeError: (text: string) => {
+                                lines.push(text);
+                            },
+                        };
+                        await runCloud({ ...host, runtime, openLocalAgent: async () => agent }, [
+                            'chat',
+                            'move',
+                            id,
+                            '--to',
+                            to,
+                            '--detach',
+                            '--table',
+                        ]);
+                        return lines.join('\n');
+                    },
+                    assertLocalChat: async (id: string) => {
+                        const store = nodeChatSyncStore();
+                        for (const account of await store.listAccounts()) {
+                            const saved = await store.readChat(account, id);
+                            if (saved?.status === 'paused')
+                                throw new Error(
+                                    'This chat is on its cloud computer. Use /local to bring it back, or dexto chat watch to attach.'
+                                );
+                        }
+                    },
                 }),
             });
             void chatSync?.start(cliSessionId).catch(() => undefined);

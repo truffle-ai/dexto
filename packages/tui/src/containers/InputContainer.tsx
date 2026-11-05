@@ -7,6 +7,7 @@
  */
 
 import React, { useCallback, useRef, useEffect, useImperativeHandle, forwardRef } from 'react';
+import { assertLocalChat } from '../host/index.js';
 import type { ContentPart, ImagePart, TextPart, QueuedMessage } from '@dexto/core';
 import { getReasoningProfile } from '@dexto/llm';
 import { InputArea, type OverlayTrigger } from '../components/input/InputArea.js';
@@ -787,6 +788,7 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                             }
 
                             // Send through normal streaming flow (matches WebUI pattern)
+                            await assertLocalChat(currentSessionId);
                             const iterator = await agent.stream(
                                 result.messageToSend,
                                 currentSessionId
@@ -940,6 +942,7 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                         });
 
                         // Use streaming API and process events directly
+                        await assertLocalChat(currentSessionId);
                         const iterator = await agent.stream(content, currentSessionId);
                         await processStream(
                             iterator,
