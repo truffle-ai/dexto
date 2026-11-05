@@ -5,7 +5,8 @@ import { CommandFailure, NOT_SIGNED_IN } from '../../failure.js';
 import { dextoAccounts, dextoSignIn, type dextoCloud } from '@dexto/agent-management';
 import { signalOn } from '@dexto/tui/signal-text';
 import { CHAT_SYNC_SCOPE } from '../../chat-sync/host.js';
-import { signInCommand, UsageError } from '../../cloud/command.js';
+import { loginCommand, UsageError } from '../../cloud/command.js';
+import { isSshSession } from '../../auth/ssh.js';
 import { whoamiLines } from '../../screens/whoami.js';
 
 type OAuthLogin = dextoAccounts.OAuthLogin;
@@ -100,6 +101,8 @@ export interface SignInContext {
     readonly confirm: (question: string) => Promise<boolean>;
     /** False over SSH or without a display: a loopback redirect can't reach this machine. */
     readonly canOpenBrowser: boolean;
+    /** Whether stdin is a terminal; independent of browser availability. */
+    readonly interactive: boolean;
     /** Whether chat sync is on: a sign-in asks for the chats:sync scope only then. */
     readonly chatSyncOn: () => Promise<boolean>;
     readonly dexto: DextoSignIn;
@@ -308,13 +311,13 @@ export async function whoami(
         throw new CommandFailure(
             'needs_sign_in',
             NOT_SIGNED_IN,
-            signInCommand(
+            loginCommand(
                 {
                     profile: options.profile,
                     device:
+                        !context.interactive ||
                         !context.canOpenBrowser ||
-                        context.environment.SSH_CONNECTION !== undefined ||
-                        context.environment.SSH_TTY !== undefined,
+                        isSshSession(context.environment),
                 },
                 null
             )

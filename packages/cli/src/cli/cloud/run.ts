@@ -10,7 +10,6 @@ import {
     MissingScopeFailure,
     readValue,
     signInCommand,
-    signsInWithDevice,
     UsageError,
     type Command,
     type CommandContext,
@@ -274,10 +273,7 @@ function contextFor(
         throw new CommandFailure(
             'needs_sign_in',
             'Not signed in. Sign in, or set DEXTO_API_KEY to a developer key from your Cloud project.',
-            signInCommand(
-                { profile: overrides.profile, device: signsInWithDevice(host.runtime) },
-                null
-            )
+            signInCommand({ overrides, runtime: host.runtime }, null)
         );
     };
     return {
@@ -378,13 +374,7 @@ function describeFailure(context: SignInContext, error: unknown): FailureReport 
             return report(
                 'needs_sign_in',
                 error.message,
-                signInCommand(
-                    {
-                        profile: context.overrides.profile,
-                        device: signsInWithDevice(context.runtime),
-                    },
-                    null
-                ),
+                signInCommand(context, null),
                 error.code,
                 error.details
             );

@@ -4,7 +4,6 @@ import { CommandFailure } from '../failure.js';
 import {
     isJsonObject,
     signInCommand,
-    signsInWithDevice,
     UsageError,
     type CommandContext,
     type SignInContext,
@@ -93,14 +92,7 @@ export function v1Failure(context: SignInContext, status: number, text: string):
         // Not JSON: the status says enough.
     }
     if (status === 401)
-        return new CommandFailure(
-            'needs_sign_in',
-            message,
-            signInCommand(
-                { profile: context.overrides.profile, device: signsInWithDevice(context.runtime) },
-                null
-            )
-        );
+        return new CommandFailure('needs_sign_in', message, signInCommand(context, null));
     return new CommandFailure(
         status === 403
             ? 'needs_permission'

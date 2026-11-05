@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 import type { CloudClient } from '@dexto/cloud-client';
 
 import { CommandFailure } from '../failure.js';
+import { isSshSession } from '../auth/ssh.js';
 import { shellWord } from '../interaction.js';
 
 import type { Connection, ConnectionOverrides } from './connection.js';
@@ -58,14 +59,7 @@ export class MissingScopeFailure extends CommandFailure {
     readonly scope: string;
 
     constructor(context: SignInContext, scope: string, message: string) {
-        super(
-            'needs_permission',
-            message,
-            signInCommand(
-                { profile: context.overrides.profile, device: signsInWithDevice(context.runtime) },
-                scope
-            )
-        );
+        super('needs_permission', message, signInCommand(context, scope));
         this.name = 'MissingScopeFailure';
         this.scope = scope;
     }
@@ -201,21 +195,25 @@ export const YES_OPTION = {
  * session, whose loopback redirect a browser on the person's own device can't reach.
  */
 export function signsInWithDevice(runtime: CloudRuntime): boolean {
-    return (
-        runtime.prompt === null ||
-        runtime.environment.SSH_CONNECTION !== undefined ||
-        runtime.environment.SSH_TTY !== undefined
-    );
+    return runtime.prompt === null || isSshSession(runtime.environment);
 }
 
 /** What saying how to sign in again needs: the process, and the profile `--profile` chose. */
 export type SignInContext = Pick<CommandContext, 'overrides' | 'runtime'>;
 
+/** How a cloud command signs in again, using its profile and terminal. */
+export function signInCommand(context: SignInContext, scope: string | null): string {
+    return loginCommand(
+        { profile: context.overrides.profile, device: signsInWithDevice(context.runtime) },
+        scope
+    );
+}
+
 /**
  * How to sign in again, to the same app and profile, with a device code where a browser can't
  * finish it.
  */
-export function signInCommand(
+export function loginCommand(
     input: { readonly profile: string | null; readonly device: boolean },
     scope: string | null
 ): string {

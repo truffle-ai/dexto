@@ -101,6 +101,7 @@ describe('sign-in commands', () => {
             screen: plainSignInScreen((text) => notes.push(text)),
             confirm: async () => false,
             canOpenBrowser: true,
+            interactive: true,
             chatSyncOn: async () => chatSyncOn,
             dexto: {
                 signInWithBrowser: async (input) => {
@@ -190,6 +191,17 @@ describe('sign-in commands', () => {
             await login(context, noOptions);
             const moved = await readLogin(dir, 'default');
             expect(moved?.kind === 'oauth' && moved.cloudProject?.id).toBe('prj_main');
+        });
+
+        it('uses the browser for plain login from a non-interactive desktop shell', async () => {
+            context = { ...context, interactive: false };
+
+            await login(context, noOptions);
+
+            expect(browserInputs).toHaveLength(1);
+            expect(browserInputs[0]?.openBrowser).toBe(true);
+            expect(deviceInputs).toHaveLength(0);
+            expect(notes).toEqual([]);
         });
 
         it('signs in with a device code with --device', async () => {
@@ -348,6 +360,15 @@ describe('sign-in commands', () => {
                 kind: 'needs_sign_in',
                 message: 'Not signed in.',
                 fix: 'dexto login',
+            });
+        });
+
+        it('suggests device sign-in in a non-interactive desktop shell', async () => {
+            context = { ...context, interactive: false };
+
+            await expect(whoami(context, { profile: null, apiKey: null })).rejects.toMatchObject({
+                kind: 'needs_sign_in',
+                fix: 'dexto login --device',
             });
         });
 
