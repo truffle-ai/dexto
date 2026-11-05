@@ -1,3 +1,13 @@
+Dexto 2.0 is the cloud and infrastructure CLI for Dexto agents, chats, computers and Sites.
+
+```bash
+npm i -g dexto@next
+dexto login
+dexto whoami
+```
+
+Requires Node.js 22 or later. After signing in, `dexto whoami` shows your account.
+
 <a href="https://dexto.ai">
   <div align="center">
     <picture>

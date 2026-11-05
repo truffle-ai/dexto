@@ -1,5 +1,27 @@
 {
   "name": "dexto",
+  "description": "Dexto 2.0 is the cloud and infrastructure CLI for Dexto agents, chats, computers and Sites.",
+  "keywords": [
+    "dexto",
+    "ai-agents",
+    "agent",
+    "cli",
+    "mcp",
+    "cloud",
+    "infrastructure",
+    "computer-use",
+    "chat",
+    "sites"
+  ],
+  "homepage": "https://dexto.ai",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/truffle-ai/dexto.git",
+    "directory": "packages/cli"
+  },
+  "bugs": {
+    "url": "https://github.com/truffle-ai/dexto/issues"
+  },
   "version": "1.14.4",
   "type": "module",
   "bin": {
