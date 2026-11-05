@@ -100,7 +100,6 @@ import { registerSearchCommand } from './cli/commands/search/register.js';
 import { registerCloudCommand } from './cli/commands/cloud/register.js';
 import { isRootJsonHelp, rootHelpJson } from './cli/help-json.js';
 import { registerMcpCommand } from './cli/commands/mcp/register.js';
-import { registerPluginCommand } from './cli/commands/plugin/register.js';
 import type { BootstrapAgentMode } from './cli/commands/register-context.js';
 import type { CLIConfigOverrides } from './config/cli-overrides.js';
 import type { UpgradeCommandOptions } from './cli/commands/upgrade.js';
@@ -259,8 +258,6 @@ program
             }
         })
     );
-
-registerPluginCommand({ program });
 
 // Helper to bootstrap a minimal agent for non-interactive commands
 async function bootstrapAgentFromGlobalOpts(options: {

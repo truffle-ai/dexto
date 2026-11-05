@@ -82,7 +82,7 @@ export class MarketplaceError {
             ErrorType.USER,
             `Marketplace '${name}' not found`,
             { name },
-            'Use `dexto plugin marketplace list` to see registered marketplaces'
+            'Use `/plugin` in the interactive CLI to see registered marketplaces'
         );
     }
 
@@ -105,7 +105,7 @@ export class MarketplaceError {
             ErrorType.USER,
             `Marketplace '${name}' not found`,
             { name },
-            'Use `dexto plugin marketplace list` to see registered marketplaces'
+            'Use `/plugin` in the interactive CLI to see registered marketplaces'
         );
     }
 
@@ -139,7 +139,7 @@ export class MarketplaceError {
             ErrorType.USER,
             `Marketplace '${marketplace}' not found`,
             { marketplace },
-            'Use `dexto plugin marketplace list` to see registered marketplaces, or `dexto plugin marketplace add` to register one'
+            'Use `/plugin` in the interactive CLI to see registered marketplaces'
         );
     }
 
@@ -151,7 +151,7 @@ export class MarketplaceError {
             ErrorType.USER,
             `Plugin '${pluginName}' not found${marketplaceInfo}`,
             { pluginName, marketplace },
-            'Use `dexto plugin marketplace` to browse available plugins'
+            'Use `/plugin` in the interactive CLI to browse available plugins'
         );
     }
 
