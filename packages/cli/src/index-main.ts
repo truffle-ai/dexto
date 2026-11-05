@@ -56,7 +56,6 @@ import { logger, startLlmRegistryAutoUpdate, DextoAgent, isPath } from '@dexto/c
 import {
     LLM_PROVIDERS,
     getAllSupportedModels,
-    getDefaultModelForProvider,
     getProviderFromModel,
     type LLMProvider,
 } from '@dexto/llm';
@@ -103,6 +102,9 @@ import type { CLIConfigOverrides } from './config/cli-overrides.js';
 import type { UpgradeCommandOptions } from './cli/commands/upgrade.js';
 import type { UninstallCliCommandOptions } from './cli/commands/uninstall.js';
 import { ensureImageImporterConfigured } from './cli/utils/image-importer.js';
+
+/** What a signed-in first run starts on: the model 1.x setup recommended for Dexto models. */
+const FIRST_RUN_DEXTO_MODEL = 'anthropic/claude-haiku-4.5';
 
 const program = new Command();
 
@@ -729,12 +731,10 @@ program
                         });
                     }
 
-                    // Signed in with no saved model choice: start on Dexto models.
+                    // Signed in with no saved model choice: start on the model 1.x setup recommended.
                     if (useDextoModels) {
-                        const model = getDefaultModelForProvider('dexto-nova');
-                        if (!model) throw new Error('No Dexto model is available');
                         mergedConfig.llm.provider = 'dexto-nova';
-                        mergedConfig.llm.model = model;
+                        mergedConfig.llm.model = FIRST_RUN_DEXTO_MODEL;
                         mergedConfig.llm.apiKey = '$DEXTO_API_KEY';
                         delete mergedConfig.llm.baseURL;
                     }

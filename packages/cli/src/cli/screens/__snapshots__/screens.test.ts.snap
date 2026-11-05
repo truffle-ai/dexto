@@ -515,7 +515,7 @@ Local agent harness. Cloud when you sign in.             ␛[90mdexto 2.0.0 . fi
 ␛[90m. ␛[39mcloud        ␛[90msigned out . local works fully without it␛[39m                    ␛[90mSKIP␛[39m
 
 ␛[1m1␛[22m␛[90m sign in      ␛[39m␛[36mdexto login␛[39m
-␛[1m2␛[22m␛[90m or a key     ␛[39m␛[36mexport ANTHROPIC_API_KEY=…␛[39m
+␛[1m2␛[22m␛[90m or a key     ␛[39m␛[36mexport ANTHROPIC_API_KEY=.␛[39m
 "
 `;
 
@@ -551,7 +551,7 @@ Local agent harness. Cloud when you sign in.                                    
 ␛[90m. ␛[39mcloud        ␛[90msigned out . local works fully without it␛[39m                                                                ␛[90mSKIP␛[39m
 
 ␛[1m1␛[22m␛[90m sign in      ␛[39m␛[36mdexto login␛[39m
-␛[1m2␛[22m␛[90m or a key     ␛[39m␛[36mexport ANTHROPIC_API_KEY=…␛[39m
+␛[1m2␛[22m␛[90m or a key     ␛[39m␛[36mexport ANTHROPIC_API_KEY=.␛[39m
 "
 `;
 
