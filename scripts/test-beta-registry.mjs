@@ -3,6 +3,8 @@ import { createServer } from 'node:http';
 import { createReadStream } from 'node:fs';
 import { basename } from 'node:path';
 import { execFileSync } from 'node:child_process';
+import console from 'node:console';
+import process from 'node:process';
 
 const packages = new Map();
 for (const tarball of process.argv.slice(2)) {

@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { readFileSync } from 'node:fs';
+import console from 'node:console';
 import { SQLiteStore } from '@dexto/storage';
 import { createLogger } from '@dexto/core';
 
