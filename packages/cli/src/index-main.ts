@@ -633,8 +633,9 @@ program
                     // Check if user is configured for Dexto credits but not authenticated
                     // This can happen if user logged out after setting up with Dexto
                     // Now that preferences apply to ALL agents, we check for any agent
-                    // Only run this check when Dexto auth feature is enabled
-                    if (isDextoAuthEnabled()) {
+                    // Only run this check when Dexto auth feature is enabled. An explicit --model
+                    // (with that provider's key in the environment) starts without the sign-in.
+                    if (isDextoAuthEnabled() && !opts.model) {
                         const { checkDextoAuthState } = await import(
                             './cli/utils/dexto-auth-check.js'
                         );
@@ -722,8 +723,10 @@ program
                         hasExplicitApiKeyOverride: Boolean(opts.apiKey),
                     });
 
+                    // An explicit --model wins over the saved model choice.
                     if (
                         hasCompletedSetup &&
+                        !opts.model &&
                         preferences?.llm?.provider &&
                         preferences?.llm?.model
                     ) {
@@ -746,12 +749,17 @@ program
                     // that file, so save the model this chat starts on. Only an env-var reference
                     // to the key is stored, never the key.
                     if (firstRun && (useDextoModels || hasProviderKey)) {
-                        const apiKey = mergedConfig.llm.apiKey;
+                        const { provider, model } = mergedConfig.llm;
+                        const apiKeyVar = useDextoModels
+                            ? 'DEXTO_API_KEY'
+                            : resolveApiKeyForProvider(provider)
+                              ? getPrimaryApiKeyEnvVar(provider)
+                              : undefined;
                         await saveGlobalPreferences(
                             createInitialPreferences({
-                                provider: mergedConfig.llm.provider,
-                                model: mergedConfig.llm.model,
-                                ...(apiKey?.startsWith('$') ? { apiKeyVar: apiKey.slice(1) } : {}),
+                                provider,
+                                model,
+                                ...(apiKeyVar === undefined ? {} : { apiKeyVar }),
                             })
                         );
                     }

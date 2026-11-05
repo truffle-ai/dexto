@@ -19,7 +19,7 @@
  *
  * Instead, we catch this state early and offer clear options:
  * - Log back in to continue using Dexto Nova credits
- * - Set a provider key to use a different provider (BYOK)
+ * - Start with `dexto -m <model>` and a provider key to use a different provider (BYOK)
  *
  * @module dexto-auth-check
  */
@@ -88,8 +88,8 @@ export async function checkDextoAuthState(
             chalk.cyan('  • dexto login') + chalk.dim('  - Log back in to use Dexto Nova credits')
         );
         console.log(
-            chalk.cyan('  • a provider key') +
-                chalk.dim('  - Set one to use a different provider (BYOK)')
+            chalk.cyan('  • dexto -m <model>') +
+                chalk.dim('  - Use your own provider key instead (set it in the environment)')
         );
         console.log();
         return { shouldContinue: false, action: 'cancel' };
@@ -98,7 +98,8 @@ export async function checkDextoAuthState(
     // Interactive mode - prompt user
     console.log(chalk.yellow('\n⚠️  Dexto Authentication Required\n'));
     console.log(chalk.dim('You are configured to use Dexto Nova credits (provider: Dexto Nova)'));
-    console.log(chalk.dim('but you are not currently logged in.\n'));
+    console.log(chalk.dim('but you are not currently logged in.'));
+    console.log(chalk.dim('To use your own provider key instead, start with: dexto -m <model>\n'));
 
     const action = await p.select({
         message: 'How would you like to proceed?',
