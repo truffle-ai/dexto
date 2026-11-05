@@ -59,10 +59,6 @@ jobs:
       - name: Build packages
         run: pnpm run build:all
 
-      - name: Verify Windows MCP configuration ACL preservation
-        if: runner.os == 'Windows'
-        run: pnpm exec vitest run packages/cli/src/cli/commands/mcp/standalone.integration.test.ts --maxWorkers=1 --testNamePattern=Windows
-
       - name: Build standalone binary
         run: |
           scripts/build-standalone-binaries.sh \

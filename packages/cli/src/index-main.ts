@@ -99,7 +99,6 @@ import { registerSessionCommand } from './cli/commands/session/register.js';
 import { registerSearchCommand } from './cli/commands/search/register.js';
 import { registerCloudCommand } from './cli/commands/cloud/register.js';
 import { isRootJsonHelp, rootHelpJson } from './cli/help-json.js';
-import { registerMcpCommand } from './cli/commands/mcp/register.js';
 import type { BootstrapAgentMode } from './cli/commands/register-context.js';
 import type { CLIConfigOverrides } from './config/cli-overrides.js';
 import type { UpgradeCommandOptions } from './cli/commands/upgrade.js';
@@ -409,7 +408,6 @@ registerRunCommand(runtimeCommandContext);
 registerSessionCommand(runtimeCommandContext);
 registerSearchCommand(runtimeCommandContext);
 registerCloudCommand(program);
-registerMcpCommand({ program });
 
 // 13) Main dexto CLI - Interactive (CLI) or run in other modes (--mode web/server/mcp)
 program
