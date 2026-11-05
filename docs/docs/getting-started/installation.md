@@ -6,51 +6,42 @@ sidebar_position: 2
 
 This guide will walk you through installing the Dexto CLI and setting up your environment so you can start running agents.
 
-## Prerequisites
+## Install and check your account
 
-- [Node.js](https://nodejs.org/en/download) >= 20.0.0 with npm.
+Use Node.js 22 with npm (the declared minimum is Node.js 20). `@next` selects the
+Dexto 2.0 beta; `@latest` selects 1.x. Install once:
 
-**Optional:** An LLM API Key (not required for local models)
-- [Get a Gemini Key](https://aistudio.google.com/apikey) (free option available)
-- [Get a Groq Key](https://console.groq.com/keys) (free option available)
-- [Get an OpenAI Key](https://platform.openai.com/api-keys)
-- [Get a Claude Key](https://console.anthropic.com/settings/keys)
-
-## 1. Install Dexto
-
-Install Dexto using the native installer:
-
-```bash
-# macOS / Linux / WSL
-curl -fsSL https://dexto.ai/install | sh
-
-# Windows PowerShell
-irm https://dexto.ai/install.ps1 | iex
+```sh
+npm install -g dexto@next && echo 'Next: dexto login --device'
 ```
 
-The installer needs no admin rights and never prompts. It installs the `latest` release, verified against the npm registry checksum, into `~/.dexto/cli`, and puts `dexto` in `~/.local/bin` (Windows: `%USERPROFILE%\.dexto\bin`, added to your user PATH). Re-running it with the same version changes nothing.
+Then run `dexto login --device`. Show the person its URL and code and wait for them to approve.
+Do not approve sign-in on their behalf. Check the first account result:
 
-To install the Dexto 2.0 beta, or any version or dist-tag, set `DEXTO_VERSION`:
+```sh
+dexto whoami --json
+```
 
-```bash
-curl -fsSL https://dexto.ai/install | DEXTO_VERSION=next sh
+Success is exit 0 with your account identity. Signed-out account commands exit 3 with
+`needs_sign_in`; for a headless machine, run `dexto login --device` and retry. Installation and
+`dexto --version` need no sign-in. Account and workspace requests do; model runs also need a
+configured model or credits. This check starts no model run.
+
+### Alternative: native installer
+
+```sh
+curl -fsSL https://dexto.ai/install | sh -s -- --version next
 ```
 
 ```powershell
 $env:DEXTO_VERSION = 'next'; irm https://dexto.ai/install.ps1 | iex
 ```
 
-The last line of output is one JSON object, `{"installed":{...}}` or `{"error":{...}}`. Exit codes: 0 success, 1 failure, 2 invalid input, 5 version not found. Run `curl -fsSL https://dexto.ai/install | sh -s -- --help` for all options.
-
-### Upgrade
-
-```bash
-# latest
-dexto upgrade
-
-# pinned
-dexto upgrade 1.6.8
-```
+The installer needs Node.js and npm, verifies the registry checksum, and installs without admin
+rights under `~/.dexto/cli`. Add its printed bin directory to PATH (`~/.local/bin` on Unix;
+`%USERPROFILE%\.dexto\bin` on Windows). Then run `dexto login --device` and `dexto whoami --json`.
+The default is `latest` for 1.x upgrades; explicitly select `next` for 2.0.
+Use `dexto upgrade next` to update a script install. Update npm installs with `npm install -g dexto@next`.
 
 ### Uninstall CLI
 
@@ -85,13 +76,13 @@ With neither, `dexto` points you to `dexto login`. Switch models anytime with `/
 
 ### Supported Providers
 
-| Category | Providers |
-|----------|-----------|
-| **Free Cloud** | Google Gemini, Groq |
+| Category               | Providers                                                              |
+| ---------------------- | ---------------------------------------------------------------------- |
+| **Free Cloud**         | Google Gemini, Groq                                                    |
 | **Local (No API key)** | Local Models, Ollama (requires [Ollama](https://ollama.com) installed) |
-| **Cloud** | OpenAI, Anthropic, xAI, Cohere |
-| **Gateways** | OpenRouter, Glama, LiteLLM, OpenAI-Compatible |
-| **Enterprise** | Google Vertex AI, AWS Bedrock |
+| **Cloud**              | OpenAI, Anthropic, xAI, Cohere                                         |
+| **Gateways**           | OpenRouter, Glama, LiteLLM, OpenAI-Compatible                          |
+| **Enterprise**         | Google Vertex AI, AWS Bedrock                                          |
 
 ## 3. Start Using Dexto
 

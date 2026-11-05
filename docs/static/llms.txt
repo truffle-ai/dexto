@@ -75,3 +75,24 @@ Dexto is an AI Agent Runtime that orchestrates intelligent, stateful agents capa
 - [MCPManager SDK](https://cli.dexto.ai/api/sdk/mcp-manager): MCPManager
 - [Events Reference](https://cli.dexto.ai/api/sdk/events): Events Reference
 - [SDK Types](https://cli.dexto.ai/api/sdk/types): SDK Types for TypeScript
+
+## Dexto 2.0 first result
+
+Use Node.js 22 with npm (the declared minimum is Node.js 20). `@next` selects the
+Dexto 2.0 beta; `@latest` selects 1.x. Install once:
+
+```sh
+npm install -g dexto@next && echo 'Next: dexto login --device'
+```
+
+Then run `dexto login --device`. Show the person its URL and code and wait for them to approve.
+Do not approve sign-in on their behalf. Check the first account result:
+
+```sh
+dexto whoami --json
+```
+
+Success is exit 0 with your account identity. Signed-out account commands exit 3 with
+`needs_sign_in`; for a headless machine, run `dexto login --device` and retry. Installation and
+`dexto --version` need no sign-in. Account and workspace requests do; model runs also need a
+configured model or credits. This check starts no model run.

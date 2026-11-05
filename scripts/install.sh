@@ -1,10 +1,10 @@
 #!/bin/sh
 # Installs the Dexto CLI for the current user, without sudo.
 #
-#   curl -fsSL https://dexto.ai/install | sh
+#   curl -fsSL https://dexto.ai/install | sh -s -- --version next
 #   curl -fsSL https://dexto.ai/install | sh -s -- --version 2.0.0
 #
-# It needs Node.js 20 or later with npm. It installs the `dexto` npm package into
+# Use Node.js 22 with npm (minimum 20). It installs the `dexto` npm package into
 # ~/.dexto/cli/<version>, after checking the downloaded tarball against the registry's sha512
 # integrity, then links it as ~/.local/bin/dexto (or $DEXTO_INSTALL_DIR/dexto) and records the
 # install in ~/.dexto/install.json, which `dexto upgrade` and `dexto uninstall` read.
@@ -42,6 +42,10 @@ Environment:
   DEXTO_VERSION            Same as --version
   DEXTO_INSTALL_DIR        Same as --install-dir
   DEXTO_INSTALL_FORCE=1    Same as --force
+
+For Dexto 2.0, select next. The default latest is for 1.x upgrades.
+After install and PATH setup: dexto login --device
+Then check your account: dexto whoami --json
 
 Examples:
   curl -fsSL https://dexto.ai/install | sh

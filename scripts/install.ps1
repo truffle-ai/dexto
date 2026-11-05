@@ -1,11 +1,11 @@
 # Installs the Dexto CLI for the current Windows user, without admin rights.
 #
-#   irm https://dexto.ai/install.ps1 | iex
+#   $env:DEXTO_VERSION = 'next'; irm https://dexto.ai/install.ps1 | iex
 #   $env:DEXTO_VERSION = '2.0.0'; irm https://dexto.ai/install.ps1 | iex
 #   & ([scriptblock]::Create((irm https://dexto.ai/install.ps1))) -Version next -Yes
 #
-# The Windows counterpart of scripts/install.sh, with the same contract. It needs Node.js 20 or
-# later with npm. It installs the `dexto` npm package into %USERPROFILE%\.dexto\cli\<version>,
+# The Windows counterpart of scripts/install.sh, with the same contract.
+# Use Node.js 22 with npm (minimum 20). It installs the `dexto` npm package into %USERPROFILE%\.dexto\cli\<version>,
 # after checking the downloaded tarball against the registry's sha512 integrity, then writes
 # %USERPROFILE%\.dexto\bin\dexto.cmd (or $env:DEXTO_INSTALL_DIR\dexto.cmd) to run it, adds that
 # directory to the user PATH, and records the install in %USERPROFILE%\.dexto\install.json, which
@@ -129,6 +129,10 @@ Environment:
   DEXTO_INSTALL_DIR      Same as -InstallDir
   DEXTO_INSTALL_FORCE=1  Same as -Force
   DEXTO_NO_MODIFY_PATH=1 Same as -NoModifyPath
+
+For Dexto 2.0, set DEXTO_VERSION=next. The default latest is for 1.x upgrades.
+After install and PATH setup: dexto login --device
+Then check your account: dexto whoami --json
 '@ | Write-Output
         return
     }
