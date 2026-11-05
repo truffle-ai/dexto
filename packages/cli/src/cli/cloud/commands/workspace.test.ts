@@ -176,6 +176,57 @@ describe('dexto workspace', () => {
         await rm(path.dirname(dir), { recursive: true, force: true });
     });
 
+    it('starts a chat with the selected computer and browser profile through MCP', async () => {
+        expect(
+            await runCloud(host, [
+                'chat',
+                'start',
+                'Investigate the bug',
+                '--computer',
+                'computer-1',
+                '--browser-profile',
+                'profile-1',
+                '--model',
+                'model-1',
+                '--title',
+                'Bug',
+            ])
+        ).toBe(0);
+        expect(calls).toContainEqual({
+            method: 'tools/call',
+            params: {
+                name: 'dexto_chat_start',
+                arguments: {
+                    message: 'Investigate the bug',
+                    computerId: 'computer-1',
+                    browserProfileId: 'profile-1',
+                    model: 'model-1',
+                    title: 'Bug',
+                },
+            },
+        });
+        expect(JSON.parse(stdout)).toEqual({ status: 'sent' });
+    });
+
+    it('omits unset chat start choices', async () => {
+        expect(await runCloud(host, ['chat', 'start', 'Hello'])).toBe(0);
+        expect(calls).toContainEqual({
+            method: 'tools/call',
+            params: { name: 'dexto_chat_start', arguments: { message: 'Hello' } },
+        });
+    });
+
+    it.each([
+        ['computers', 'dexto_chat_computers_list'],
+        ['browser-profiles', 'dexto_chat_browser_profiles_list'],
+    ])('discovers chat %s through MCP', async (verb, tool) => {
+        expect(await runCloud(host, ['chat', verb])).toBe(0);
+        expect(calls).toContainEqual({
+            method: 'tools/call',
+            params: { name: tool, arguments: {} },
+        });
+    });
+
     it("lists the workspace's apps, from the tools the Dexto MCP lists", async () => {
         expect(await runCloud(host, ['workspace'])).toBe(0);
 

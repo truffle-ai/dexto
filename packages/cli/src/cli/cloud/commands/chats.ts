@@ -5,6 +5,7 @@ import { requireConsent } from '../../interaction.js';
 import { z } from 'zod';
 
 import {
+    argument,
     flag,
     MissingScopeFailure,
     stringOption,
@@ -278,4 +279,82 @@ function readyLine(session: SessionResult): string {
         .join('; ');
 }
 
-export const chatCommands: readonly Command[] = [local, importChats];
+const start: Command = {
+    path: ['chat', 'start'],
+    arguments: '<message>',
+    summary:
+        'Start a cloud chat, optionally attaching your connected computer and choosing a browser profile.',
+    options: {
+        computer: {
+            type: 'string',
+            valueName: 'ID',
+            description: 'An online connected computer from chat computers.',
+        },
+        'browser-profile': {
+            type: 'string',
+            valueName: 'ID',
+            description:
+                'An available browser profile from chat browser-profiles. Starts hosted compute.',
+        },
+        agent: {
+            type: 'string',
+            valueName: 'ID',
+            description: 'Agent profile; omitted uses your Dexto.',
+        },
+        model: {
+            type: 'string',
+            valueName: 'ID',
+            description: 'Model from workspace chat models.',
+        },
+        route: {
+            type: 'string',
+            valueName: 'ROUTE',
+            description: 'Payment route for the chosen model.',
+        },
+        title: { type: 'string', valueName: 'TEXT', description: 'Short chat title.' },
+    },
+    async run(context, input) {
+        const message = argument(input, 0, 'message');
+        const choices = Object.entries({
+            computer: 'computerId',
+            'browser-profile': 'browserProfileId',
+            agent: 'agentId',
+            model: 'model',
+            route: 'route',
+            title: 'title',
+        });
+        const args: Record<string, string> = { message };
+        for (const [flagName, field] of choices) {
+            const value = stringOption(input, flagName);
+            if (value !== undefined) args[field] = value;
+        }
+        const result = await queryWorkspaceTool(context, 'dexto_chat_start', args);
+        context.output.result(result, JSON.stringify(result));
+    },
+};
+
+const computers: Command = {
+    path: ['chat', 'computers'],
+    summary: 'List your connected computers and their presence for chat start --computer.',
+    async run(context) {
+        const result = await queryWorkspaceTool(context, 'dexto_chat_computers_list', {});
+        context.output.result(result, JSON.stringify(result));
+    },
+};
+
+const browserProfiles: Command = {
+    path: ['chat', 'browser-profiles'],
+    summary: 'List your browser profiles and availability for chat start --browser-profile.',
+    async run(context) {
+        const result = await queryWorkspaceTool(context, 'dexto_chat_browser_profiles_list', {});
+        context.output.result(result, JSON.stringify(result));
+    },
+};
+
+export const chatCommands: readonly Command[] = [
+    local,
+    importChats,
+    start,
+    computers,
+    browserProfiles,
+];
