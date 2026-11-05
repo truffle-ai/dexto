@@ -282,7 +282,7 @@ export function checkAgentCompatibility(
         warnings.push(
             `This agent uses ${agentProvider} but you don't have an API key configured for it.`
         );
-        instructions.push(`Run: dexto setup --provider ${agentProvider}`);
+        instructions.push(`Set ${getEnvVarForProvider(agentProvider)} in your environment.`);
     }
 
     // Check if agent uses a different provider than user's default

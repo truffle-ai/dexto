@@ -1,14 +1,8 @@
 // packages/cli/src/cli/utils/provider-setup.ts
 
-import * as p from '@clack/prompts';
 import chalk from 'chalk';
 import open from 'open';
-import {
-    type LLMProvider,
-    LLM_PROVIDERS,
-    LLM_REGISTRY,
-    getDefaultModelForProvider,
-} from '@dexto/llm';
+import { type LLMProvider, LLM_PROVIDERS } from '@dexto/llm';
 import { getPrimaryApiKeyEnvVar } from '@dexto/agent-management';
 
 /**
@@ -40,7 +34,7 @@ interface ProviderOption {
  * not a user-selectable provider. When logged into Dexto, requests are
  * automatically routed through the Dexto gateway.
  */
-export const PROVIDER_REGISTRY: Partial<Record<LLMProvider, ProviderOption>> = {
+const PROVIDER_REGISTRY: Partial<Record<LLMProvider, ProviderOption>> = {
     google: {
         value: 'google',
         label: 'Google Gemini',
@@ -273,32 +267,6 @@ function buildProviderOptions(): Array<{ value: LLMProvider; label: string; hint
 }
 
 /**
- * Interactive provider selection with back option.
- * @returns Selected provider, '_back' if back selected, or null if cancelled
- */
-export async function selectProvider(): Promise<LLMProvider | '_back' | null> {
-    const options = buildProviderOptions();
-
-    const choice = await p.select({
-        message: 'Choose your AI provider',
-        options: [
-            ...options,
-            {
-                value: '_back' as const,
-                label: chalk.gray('← Back'),
-                hint: 'Return to previous menu',
-            },
-        ],
-    });
-
-    if (p.isCancel(choice)) {
-        return null;
-    }
-
-    return choice as LLMProvider | '_back';
-}
-
-/**
  * Get provider display name
  */
 export function getProviderDisplayName(provider: LLMProvider | string): string {
@@ -324,15 +292,6 @@ export function getProviderInfo(provider: LLMProvider): ProviderOption | undefin
  * Legacy PROVIDER_OPTIONS for backwards compatibility with init-app
  */
 export const PROVIDER_OPTIONS = buildProviderOptions();
-
-/**
- * Get API key format hint for a provider
- */
-export function getApiKeyFormatHint(provider: LLMProvider): string | null {
-    const info = PROVIDER_REGISTRY[provider];
-    if (!info?.apiKeyPrefix) return null;
-    return `Key should start with "${info.apiKeyPrefix}"`;
-}
 
 /**
  * Validates API key format for a provider with detailed error messages
@@ -419,30 +378,6 @@ export async function openApiKeyUrl(provider: LLMProvider): Promise<boolean> {
     } catch {
         return false;
     }
-}
-
-/**
- * Check if provider requires a base URL
- */
-export function providerRequiresBaseURL(provider: LLMProvider): boolean {
-    return PROVIDER_REGISTRY[provider]?.requiresBaseURL === true;
-}
-
-/**
- * Get default model for provider, with fallback for custom providers
- */
-export function getDefaultModel(provider: LLMProvider): string {
-    const defaultModel = getDefaultModelForProvider(provider);
-    if (defaultModel) return defaultModel;
-
-    // Fallback for providers without a default (custom providers)
-    const providerInfo = LLM_REGISTRY[provider];
-    if (providerInfo?.models && providerInfo.models.length > 0) {
-        return providerInfo.models[0]!.name;
-    }
-
-    // For providers that accept any model, return empty to prompt user
-    return '';
 }
 
 /**

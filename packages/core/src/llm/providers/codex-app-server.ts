@@ -875,7 +875,7 @@ function enforceAuthMode(authMode: CodexAuthMode, accountState: CodexReadAccount
         if (accountState.requiresOpenaiAuth) {
             throw LLMError.missingConfig(
                 'openai-compatible',
-                'Codex authentication (run `codex login` or re-run `dexto setup` and choose ChatGPT Login)'
+                'Codex authentication (run `codex login`)'
             );
         }
         return;
@@ -888,14 +888,14 @@ function enforceAuthMode(authMode: CodexAuthMode, accountState: CodexReadAccount
     if (authMode === 'chatgpt' && accountState.account.type !== 'chatgpt') {
         throw LLMError.missingConfig(
             'openai-compatible',
-            'a ChatGPT-backed Codex login (run `codex logout` and sign in with ChatGPT, or re-run `dexto setup`)'
+            'a ChatGPT-backed Codex login (run `codex logout` and sign in with ChatGPT)'
         );
     }
 
     if (authMode === 'apikey' && accountState.account.type !== 'apiKey') {
         throw LLMError.missingConfig(
             'openai-compatible',
-            'an API key-backed Codex login (run `codex login --with-api-key` or re-run `dexto setup`)'
+            'an API key-backed Codex login (run `codex login --with-api-key`)'
         );
     }
 }

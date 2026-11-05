@@ -54,7 +54,13 @@ const cliVersion = resolveCliVersion();
 process.env.DEXTO_CLI_VERSION = cliVersion;
 
 import { logger, startLlmRegistryAutoUpdate, DextoAgent, isPath } from '@dexto/core';
-import { getAllSupportedModels, getProviderFromModel, type LLMProvider } from '@dexto/llm';
+import {
+    LLM_PROVIDERS,
+    getAllSupportedModels,
+    getDefaultModelForProvider,
+    getProviderFromModel,
+    type LLMProvider,
+} from '@dexto/llm';
 import {
     applyImageDefaults,
     cleanNullValues,
@@ -102,8 +108,6 @@ import { registerInitCommand } from './cli/commands/init.js';
 import type { BootstrapAgentMode } from './cli/commands/register-context.js';
 import type { CLIConfigOverrides } from './config/cli-overrides.js';
 import type { CreateAppOptions } from './cli/commands/create-app.js';
-import type { CLISetupOptionsInput } from './cli/commands/setup.js';
-import type { ConnectCommandOptions } from './cli/commands/connect.js';
 import type { UpgradeCommandOptions } from './cli/commands/upgrade.js';
 import type { UninstallCliCommandOptions } from './cli/commands/uninstall.js';
 import { ensureImageImporterConfigured } from './cli/utils/image-importer.js';
@@ -121,18 +125,20 @@ async function printFailure(
     printFault({ message, details, fix }, legacy);
 }
 
-/** The Signal first-run screen, before setup, for someone who has never set Dexto up. */
-async function printFirstRun(): Promise<void> {
-    const [{ isFirstTimeUser }, { firstRunLines, readFirstRunFacts }, { describeSignIn }] =
-        await Promise.all([
-            import('./cli/utils/setup-utils.js'),
-            import('./cli/screens/first-run.js'),
-            import('./cli/commands/auth/sign-in-commands.js'),
+/**
+ * Before the first chat with no provider key and no sign-in: the Signal first-run screen, or the
+ * emoji lines it replaces, pointing at `dexto login`.
+ */
+async function printSignInFirst(): Promise<void> {
+    if (process.env.DEXTO_PALETTE !== 'signal') {
+        await printFailure('Sign in or set a provider key to start Dexto.', 'dexto login', [
+            '❌ Sign in or set a provider key to start Dexto.',
+            '💡 Run `dexto login` to use Dexto models, or set a provider key such as ANTHROPIC_API_KEY.',
         ]);
-    if (!isFirstTimeUser()) return;
-    const { nodeSignInContext } = await import('./cli/commands/auth/sign-in-context.js');
-    const signedInAs = await describeSignIn(await nodeSignInContext());
-    const facts = await readFirstRunFacts(cliVersion, signedInAs);
+        return;
+    }
+    const { firstRunLines, readFirstRunFacts } = await import('./cli/screens/first-run.js');
+    const facts = await readFirstRunFacts(cliVersion, null);
     process.stdout.write(`${firstRunLines(facts).join('\n')}\n`);
 }
 
@@ -191,7 +197,6 @@ program
     .option('-s, --strict', 'Require all server connections to succeed')
     .option('--no-verbose', 'Disable verbose output')
     .option('--no-interactive', 'Disable interactive prompts and API key setup')
-    .option('--skip-setup', 'Skip global setup validation (useful for MCP mode, automation)')
     .option('-m, --model <model>', 'Specify the LLM model to use')
     .addOption(
         new Option(
@@ -303,58 +308,6 @@ program
                     `❌ Initialization failed: ${err}`,
                 ]);
                 safeExit('init-app', 1, 'error');
-            }
-        })
-    );
-
-// 5) `setup` SUB-COMMAND
-program
-    .command('setup')
-    .description('Configure global Dexto preferences')
-    .option('--provider <provider>', 'LLM provider (openai, anthropic, google, groq)')
-    .option('--model <model>', 'Model name (uses provider default if not specified)')
-    .option('--default-agent <agent>', 'Default agent name (default: coding-agent)')
-    .option('--no-interactive', 'Skip interactive prompts and API key setup')
-    .option('--force', 'Overwrite existing setup without confirmation')
-    .action(
-        withAnalytics('setup', async (options: CLISetupOptionsInput) => {
-            try {
-                const { handleSetupCommand } = await import('./cli/commands/setup.js');
-                await handleSetupCommand(options);
-                safeExit('setup', 0);
-            } catch (err) {
-                if (err instanceof ExitSignal) throw err;
-                await printFailure(
-                    `dexto setup command failed: ${err}. Check logs in ~/.dexto/logs/dexto.log for more information`,
-                    null,
-                    [
-                        `❌ dexto setup command failed: ${err}. Check logs in ~/.dexto/logs/dexto.log for more information`,
-                    ]
-                );
-                safeExit('setup', 1, 'error');
-            }
-        })
-    );
-
-program
-    .command('connect')
-    .description('Connect a model provider auth method')
-    .option('--provider <provider>', 'Model provider id')
-    .option('--method <method>', 'Auth method id')
-    .option('--action <action>', 'Existing profile action: use, replace, or delete')
-    .option('--no-interactive', 'Require provider and method flags')
-    .action(
-        withAnalytics('connect', async (options: ConnectCommandOptions) => {
-            try {
-                const { handleConnectCommand } = await import('./cli/commands/connect.js');
-                await handleConnectCommand(options);
-                safeExit('connect', 0);
-            } catch (err) {
-                if (err instanceof ExitSignal) throw err;
-                await printFailure(`dexto connect command failed: ${err}`, null, [
-                    `❌ dexto connect command failed: ${err}`,
-                ]);
-                safeExit('connect', 1, 'error');
             }
         })
     );
@@ -721,36 +674,22 @@ program
                 let image: DextoImage;
                 let imageName: string;
 
-                const shouldCheckSetupState =
-                    !opts.skipSetup && !(opts.agent && isPath(opts.agent));
-                let setupRequired = false;
-
-                if (shouldCheckSetupState) {
-                    const { requiresSetup } = await import('./cli/utils/setup-utils.js');
-                    setupRequired = await requiresSetup();
-                }
-
-                const canRunInteractiveSetup = opts.interactive !== false;
-
-                if (setupRequired && !canRunInteractiveSetup) {
-                    await printFailure(
-                        'Setup required before starting in this mode.',
-                        'dexto setup',
-                        [
-                            '❌ Setup required before starting in this mode.',
-                            '💡 Run `dexto setup` first, or use --skip-setup to bypass global setup.',
-                        ]
-                    );
-                    safeExit('main', 1, 'setup-required-non-interactive');
-                }
-
-                const shouldRunSetupBeforeStartup =
-                    setupRequired && canRunInteractiveSetup && !opts.provider && !opts.model;
-
-                if (shouldRunSetupBeforeStartup) {
-                    if (process.env.DEXTO_PALETTE === 'signal') await printFirstRun();
-                    const { handleSetupCommand } = await import('./cli/commands/setup.js');
-                    await handleSetupCommand({ interactive: true, defaultMode: 'cli' });
+                // First run (no saved model choice, no --model): a provider key in the environment
+                // or the Dexto sign-in starts the chat; otherwise point the person to `dexto login`.
+                let useDextoModels = false;
+                if (
+                    isDextoAuthEnabled() &&
+                    !opts.model &&
+                    !(opts.agent && isPath(opts.agent)) &&
+                    !LLM_PROVIDERS.some((provider) => resolveApiKeyForProvider(provider)?.trim()) &&
+                    (await (await import('./cli/utils/setup-utils.js')).requiresSetup())
+                ) {
+                    const { canUseDextoProvider } = await import('./cli/utils/dexto-setup.js');
+                    if (!(await canUseDextoProvider())) {
+                        await printSignInFirst();
+                        safeExit('main', 1, 'sign-in-required');
+                    }
+                    useDextoModels = true;
                 }
 
                 try {
@@ -877,23 +816,14 @@ program
                                 if (!(await canUseDextoProvider())) {
                                     await printFailure(
                                         "Signed in, but Dexto models can't run yet: allow spending credits when asked",
-                                        'dexto setup',
+                                        'dexto login',
                                         [
-                                            "\n❌ Signed in, but Dexto models can't run yet: allow spending credits when asked, or run `dexto setup` to use a different provider.\n",
+                                            "\n❌ Signed in, but Dexto models can't run yet: allow spending credits when asked, or set a provider key to use a different provider.\n",
                                         ]
                                     );
                                     safeExit('main', 1, 'dexto-models-not-ready');
                                 }
                                 // After login, continue with startup (preferences unchanged, now authenticated)
-                            } else if (authCheck.action === 'setup') {
-                                // User wants to configure different provider - run setup
-                                const { handleSetupCommand } = await import(
-                                    './cli/commands/setup.js'
-                                );
-                                await handleSetupCommand({ interactive: true, force: true });
-                                // Reload preferences after setup
-                                preferences = await loadGlobalPreferences();
-                                hasCompletedSetup = preferences.setup.completed;
                             } else {
                                 // User cancelled
                                 safeExit('main', 0, 'dexto-auth-check-cancelled');
@@ -966,6 +896,16 @@ program
                             provider: preferences.llm.provider,
                             model: preferences.llm.model,
                         });
+                    }
+
+                    // Signed in with no saved model choice: start on Dexto models.
+                    if (useDextoModels) {
+                        const model = getDefaultModelForProvider('dexto-nova');
+                        if (!model) throw new Error('No Dexto model is available');
+                        mergedConfig.llm.provider = 'dexto-nova';
+                        mergedConfig.llm.model = model;
+                        mergedConfig.llm.apiKey = '$DEXTO_API_KEY';
+                        delete mergedConfig.llm.baseURL;
                     }
 
                     // Clean up null values from config (can happen from YAML files with explicit nulls)

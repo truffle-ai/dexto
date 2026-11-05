@@ -96,9 +96,10 @@ function preflightCredentials(config: ValidatedAgentConfig): string[] {
     const issues: string[] = [];
     const provider = config.llm.provider;
 
-    // Mirror runtime behavior: config apiKey takes precedence, but env can satisfy missing config
+    // Mirror runtime behavior: config apiKey takes precedence, but env can satisfy missing config.
+    // Dexto models run on the sign-in, which startup has already checked.
     const resolvedApiKey = config.llm.apiKey || resolveApiKeyForProvider(provider);
-    if (requiresApiKey(provider) && !resolvedApiKey?.trim()) {
+    if (provider !== 'dexto-nova' && requiresApiKey(provider) && !resolvedApiKey?.trim()) {
         const envVar = getPrimaryApiKeyEnvVar(provider);
         issues.push(`llm.apiKey: Missing API key for provider '${provider}' – set $${envVar}`);
     }
@@ -130,7 +131,9 @@ function showCredentialWarnings(warnings: string[]): void {
         console.log(chalk.yellow(`  • ${warning}`));
         logger.warn(warning);
     }
-    console.log(chalk.gray('\n💡 Run `dexto setup` to configure credentials.\n'));
+    console.log(
+        chalk.gray('\n💡 Set the provider key, or run `dexto login` to use Dexto models.\n')
+    );
 }
 
 /**
@@ -231,7 +234,6 @@ function showValidationErrors(errors: string[]): void {
 function showNextSteps(): void {
     const prefsPath = getGlobalPreferencesPath();
     console.log(chalk.bold('\nNext steps:'));
-    console.log(`  • Run ${chalk.cyan('dexto setup')} to reconfigure interactively`);
     console.log(`  • Edit ${chalk.cyan(prefsPath)} directly`);
     console.log(`  • Check your environment variables\n`);
 }

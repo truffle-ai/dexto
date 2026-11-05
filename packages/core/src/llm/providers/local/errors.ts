@@ -19,9 +19,9 @@ export const LocalModelError = {
             LocalModelErrorCode.NODE_LLAMA_NOT_INSTALLED,
             SCOPE,
             ErrorType.NOT_FOUND,
-            'node-llama-cpp is not installed. Run `dexto setup` and select "local" provider to install it.',
+            'node-llama-cpp is not installed. Choose a local model with /model in the interactive CLI to install it.',
             {},
-            'Run `dexto setup` and select "local" provider to install local model support'
+            'Choose a local model with /model in the interactive CLI to install local model support'
         );
     },
 
@@ -113,7 +113,7 @@ export const LocalModelError = {
             ErrorType.NOT_FOUND,
             `Model '${modelId}' not found in local model registry`,
             { modelId },
-            'Run `dexto setup` and select "local" to see available models'
+            'Use /model in the interactive CLI to see available local models'
         );
     },
 
@@ -124,7 +124,7 @@ export const LocalModelError = {
             ErrorType.NOT_FOUND,
             `Model '${modelId}' is not downloaded. Download it first.`,
             { modelId },
-            'Run `dexto setup` and select "local" to download models'
+            'Use /model in the interactive CLI to download local models'
         );
     },
 

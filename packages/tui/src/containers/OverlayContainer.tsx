@@ -1552,7 +1552,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                 }
 
                 const warning = outcome.wasUsingDextoCredits
-                    ? '\n\nNext steps:\n• Run `/login` to log back in\n• Or run `dexto setup` to configure a different provider'
+                    ? '\n\nNext steps:\n• Run `/login` to log back in\n• Or set a provider key to use a different provider'
                     : '';
 
                 setMessages((prev) => [
