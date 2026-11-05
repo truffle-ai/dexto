@@ -2,11 +2,10 @@
     "version": 1,
     "catalogSource": "dexto-cloudflare:apps/cloud/src/mcp/__parity__/mcp-tools.txt",
     "cliCatalog": "packages/cli/src/cli/cloud/__parity__/mcp-tools.txt",
-    "maintenance": "Regenerate on the check host with UPDATE_CLI_MCP_PARITY=1 and src/mcp/cli-mcp-parity.test.ts. Vendor the catalog into the CLI and update both inventories in paired PRs. Exceptions only shrink; closure probes must follow the equivalent tool/input contract chosen by the implementation. workspace tools/describe use tools/list, hence their empty tool arrays. workspace call explicitly covers all listed MCP tools.",
+    "maintenance": "Regenerate the MCP catalog on the check host with UPDATE_CLI_MCP_PARITY=1 and src/mcp/cli-mcp-parity.test.ts. Vendor both files into paired PRs. workspace call is passthrough, not coverage. Remove closed exceptions/passthroughOnly entries and their pinned approvals together; never extend those ceilings.",
     "commands": {
         "chat import": ["dexto_chat_import_prepare", "dexto_chat_import"],
         "find": ["dexto_search", "dexto_route_get"],
-        "models list": ["dexto_chat_models"],
         "profile get": ["dexto_profile_get"],
         "profile update": ["dexto_profile_update"],
         "publish": ["dexto_upload_prepare", "dexto_site_deploy", "dexto_site_publish"],
@@ -17,172 +16,7 @@
         "workspace artifacts list": ["dexto_artifacts_list"],
         "workspace artifacts replace": ["dexto_artifacts_replace"],
         "workspace artifacts share": ["dexto_artifacts_share"],
-        "workspace call": [
-            "dexto_agents_list",
-            "dexto_app_data_remove",
-            "dexto_app_deploy",
-            "dexto_app_deployment_verify",
-            "dexto_app_get",
-            "dexto_app_open",
-            "dexto_app_request_access",
-            "dexto_app_runtime",
-            "dexto_application_create",
-            "dexto_application_deploy",
-            "dexto_application_get",
-            "dexto_application_history",
-            "dexto_application_insights",
-            "dexto_application_install",
-            "dexto_application_logs",
-            "dexto_application_operations_list",
-            "dexto_application_plugin_export",
-            "dexto_application_purge",
-            "dexto_application_release_delete",
-            "dexto_application_release_get",
-            "dexto_application_resume",
-            "dexto_application_retire",
-            "dexto_application_rollback",
-            "dexto_application_suspend",
-            "dexto_application_usage",
-            "dexto_application_variables_list",
-            "dexto_applications_list",
-            "dexto_apps_action",
-            "dexto_apps_list",
-            "dexto_apps_uninstalled_list",
-            "dexto_artifacts_create",
-            "dexto_artifacts_get",
-            "dexto_artifacts_list",
-            "dexto_artifacts_replace",
-            "dexto_artifacts_share",
-            "dexto_autobot_chat_start",
-            "dexto_autobot_get",
-            "dexto_autobot_input_submit",
-            "dexto_autobot_publish",
-            "dexto_autobot_save",
-            "dexto_autobot_status",
-            "dexto_autobots_list",
-            "dexto_automation_create",
-            "dexto_automation_delete",
-            "dexto_automation_get",
-            "dexto_automation_recipe_install",
-            "dexto_automation_recipes_list",
-            "dexto_automation_trigger",
-            "dexto_automation_update",
-            "dexto_automations_list",
-            "dexto_capabilities_search",
-            "dexto_capability_call",
-            "dexto_capability_describe",
-            "dexto_channel_get",
-            "dexto_channel_send",
-            "dexto_channels_list",
-            "dexto_chat_cancel",
-            "dexto_chat_computer",
-            "dexto_chat_continue",
-            "dexto_chat_get",
-            "dexto_chat_import",
-            "dexto_chat_import_prepare",
-            "dexto_chat_list",
-            "dexto_chat_models",
-            "dexto_chat_send",
-            "dexto_chat_start",
-            "dexto_contacts_block",
-            "dexto_contacts_connect",
-            "dexto_contacts_invite_link",
-            "dexto_contacts_people_list",
-            "dexto_contacts_people_search",
-            "dexto_contacts_remove",
-            "dexto_contacts_request_answer",
-            "dexto_contacts_requests_list",
-            "dexto_contacts_unblock",
-            "dexto_cos_report",
-            "dexto_credits_balance",
-            "dexto_credits_topup",
-            "dexto_direct_conversation_get",
-            "dexto_direct_conversations_list",
-            "dexto_direct_message_send",
-            "dexto_docs_read",
-            "dexto_docs_search",
-            "dexto_drive",
-            "dexto_feedback_submit",
-            "dexto_function_credential_configure",
-            "dexto_function_deploy",
-            "dexto_function_get",
-            "dexto_function_invoke",
-            "dexto_function_plan",
-            "dexto_function_promote",
-            "dexto_function_secret_delete",
-            "dexto_functions_list",
-            "dexto_gigs_finding",
-            "dexto_gigs_posting",
-            "dexto_gpu_process_get",
-            "dexto_gpu_process_logs",
-            "dexto_gpu_process_start",
-            "dexto_gpu_process_stop",
-            "dexto_gpu_profiles_list",
-            "dexto_gpu_sandbox_delete",
-            "dexto_gpu_sandbox_get",
-            "dexto_gpu_sandbox_provision",
-            "dexto_gpu_sandbox_start",
-            "dexto_gpu_sandbox_stop",
-            "dexto_gpu_sandboxes_list",
-            "dexto_marketplace_get",
-            "dexto_marketplace_install",
-            "dexto_marketplace_preview",
-            "dexto_marketplace_publish",
-            "dexto_marketplace_search",
-            "dexto_marketplace_uninstall",
-            "dexto_marketplace_unpublish",
-            "dexto_mcp_server_import",
-            "dexto_network_send",
-            "dexto_network_thread_get",
-            "dexto_network_thread_mark_read",
-            "dexto_network_threads_list",
-            "dexto_notification_get",
-            "dexto_notifications_list",
-            "dexto_notifications_mark_read",
-            "dexto_open",
-            "dexto_profile_get",
-            "dexto_profile_update",
-            "dexto_project_chat_move",
-            "dexto_project_chat_start",
-            "dexto_project_create",
-            "dexto_project_delete",
-            "dexto_project_get",
-            "dexto_project_import",
-            "dexto_project_update",
-            "dexto_projects_list",
-            "dexto_route_get",
-            "dexto_search",
-            "dexto_share",
-            "dexto_share_access",
-            "dexto_share_received",
-            "dexto_site_collections_list",
-            "dexto_site_delete",
-            "dexto_site_deploy",
-            "dexto_site_get",
-            "dexto_site_promote",
-            "dexto_site_publish",
-            "dexto_site_record_create",
-            "dexto_site_record_delete",
-            "dexto_site_record_get",
-            "dexto_site_record_update",
-            "dexto_site_records_list",
-            "dexto_sites_list",
-            "dexto_skill_bundle_download",
-            "dexto_skill_bundle_import",
-            "dexto_skill_create",
-            "dexto_skill_delete",
-            "dexto_skill_file_get",
-            "dexto_skill_get",
-            "dexto_skill_install",
-            "dexto_skill_publish",
-            "dexto_skill_restore",
-            "dexto_skill_uninstall",
-            "dexto_skill_update",
-            "dexto_skill_validate",
-            "dexto_skill_versions",
-            "dexto_skills_search",
-            "dexto_upload_prepare"
-        ],
+        "workspace call": [],
         "workspace describe": [],
         "workspace drive put": ["dexto_upload_prepare", "dexto_drive"],
         "workspace tools": [],
@@ -229,43 +63,13 @@
             "command": "whoami",
             "reason": "Local sign-in, account selection, or local chat discovery; no hosted operation.",
             "registry": "cloud"
-        },
-        {
-            "command": "chat delete",
-            "registry": "local",
-            "reason": "Local agent/session execution or this CLI installation; no hosted MCP operation is needed."
-        },
-        {
-            "command": "chat history",
-            "registry": "local",
-            "reason": "Local agent/session execution or this CLI installation; no hosted MCP operation is needed."
-        },
-        {
-            "command": "chat list",
-            "registry": "local",
-            "reason": "Local agent/session execution or this CLI installation; no hosted MCP operation is needed."
-        },
-        {
-            "command": "run",
-            "registry": "local",
-            "reason": "Local agent/session execution or this CLI installation; no hosted MCP operation is needed."
-        },
-        {
-            "command": "uninstall",
-            "registry": "local",
-            "reason": "Local agent/session execution or this CLI installation; no hosted MCP operation is needed."
-        },
-        {
-            "command": "upgrade",
-            "registry": "local",
-            "reason": "Local agent/session execution or this CLI installation; no hosted MCP operation is needed."
         }
     ],
     "exceptions": [
         {
             "name": "billing",
             "group": "additionalRemote",
-            "issue": "DEXTO-2479",
+            "issue": "DEXTO-2500",
             "reason": "MCP balance/top-up lacks the CLI billing summary's 30-day spending and recent usage.",
             "commands": ["billing"],
             "closesWhen": [
@@ -278,7 +82,7 @@
         {
             "name": "cloud-fetch",
             "group": "additionalRemote",
-            "issue": "DEXTO-2479",
+            "issue": "DEXTO-2500",
             "reason": "Metered /v1/fetch has no web_fetch capability in the account MCP catalog.",
             "commands": ["cloud fetch"],
             "closesWhen": [
@@ -291,7 +95,7 @@
         {
             "name": "cloud-agents-approve",
             "group": "additionalRemote",
-            "issue": "DEXTO-2479",
+            "issue": "DEXTO-2500",
             "reason": "Hosted agent definitions, sessions, runs and approvals are not the personal chat/AutoBot MCP contract.",
             "commands": ["cloud agents approve"],
             "closesWhen": [
@@ -304,7 +108,7 @@
         {
             "name": "cloud-agents-archive",
             "group": "additionalRemote",
-            "issue": "DEXTO-2479",
+            "issue": "DEXTO-2500",
             "reason": "Hosted agent definitions, sessions, runs and approvals are not the personal chat/AutoBot MCP contract.",
             "commands": ["cloud agents archive"],
             "closesWhen": [
@@ -317,7 +121,7 @@
         {
             "name": "cloud-agents-chat",
             "group": "additionalRemote",
-            "issue": "DEXTO-2479",
+            "issue": "DEXTO-2500",
             "reason": "Hosted agent definitions, sessions, runs and approvals are not the personal chat/AutoBot MCP contract.",
             "commands": ["cloud agents chat"],
             "closesWhen": [
@@ -330,7 +134,7 @@
         {
             "name": "cloud-agents-create",
             "group": "additionalRemote",
-            "issue": "DEXTO-2479",
+            "issue": "DEXTO-2500",
             "reason": "Hosted agent definitions, sessions, runs and approvals are not the personal chat/AutoBot MCP contract.",
             "commands": ["cloud agents create"],
             "closesWhen": [
@@ -343,7 +147,7 @@
         {
             "name": "cloud-agents-reject",
             "group": "additionalRemote",
-            "issue": "DEXTO-2479",
+            "issue": "DEXTO-2500",
             "reason": "Hosted agent definitions, sessions, runs and approvals are not the personal chat/AutoBot MCP contract.",
             "commands": ["cloud agents reject"],
             "closesWhen": [
@@ -356,7 +160,7 @@
         {
             "name": "cloud-agents-get",
             "group": "additionalRemote",
-            "issue": "DEXTO-2479",
+            "issue": "DEXTO-2500",
             "reason": "Hosted agent definitions, sessions, runs and approvals are not the personal chat/AutoBot MCP contract.",
             "commands": ["cloud agents get"],
             "closesWhen": [
@@ -369,7 +173,7 @@
         {
             "name": "cloud-agents-list",
             "group": "additionalRemote",
-            "issue": "DEXTO-2479",
+            "issue": "DEXTO-2500",
             "reason": "Hosted agent definitions, sessions, runs and approvals are not the personal chat/AutoBot MCP contract.",
             "commands": ["cloud agents list"],
             "closesWhen": [
@@ -382,7 +186,7 @@
         {
             "name": "cloud-agents-messages",
             "group": "additionalRemote",
-            "issue": "DEXTO-2479",
+            "issue": "DEXTO-2500",
             "reason": "Hosted agent definitions, sessions, runs and approvals are not the personal chat/AutoBot MCP contract.",
             "commands": ["cloud agents messages"],
             "closesWhen": [
@@ -395,7 +199,7 @@
         {
             "name": "cloud-agents-runs-get",
             "group": "additionalRemote",
-            "issue": "DEXTO-2479",
+            "issue": "DEXTO-2500",
             "reason": "Hosted agent definitions, sessions, runs and approvals are not the personal chat/AutoBot MCP contract.",
             "commands": ["cloud agents runs get"],
             "closesWhen": [
@@ -408,7 +212,7 @@
         {
             "name": "cloud-agents-runs-list",
             "group": "additionalRemote",
-            "issue": "DEXTO-2479",
+            "issue": "DEXTO-2500",
             "reason": "Hosted agent definitions, sessions, runs and approvals are not the personal chat/AutoBot MCP contract.",
             "commands": ["cloud agents runs list"],
             "closesWhen": [
@@ -421,7 +225,7 @@
         {
             "name": "cloud-agents-runs-steps",
             "group": "additionalRemote",
-            "issue": "DEXTO-2479",
+            "issue": "DEXTO-2500",
             "reason": "Hosted agent definitions, sessions, runs and approvals are not the personal chat/AutoBot MCP contract.",
             "commands": ["cloud agents runs steps"],
             "closesWhen": [
@@ -434,7 +238,7 @@
         {
             "name": "cloud-agents-sessions-cancel",
             "group": "additionalRemote",
-            "issue": "DEXTO-2479",
+            "issue": "DEXTO-2500",
             "reason": "Hosted agent definitions, sessions, runs and approvals are not the personal chat/AutoBot MCP contract.",
             "commands": ["cloud agents sessions cancel"],
             "closesWhen": [
@@ -447,7 +251,7 @@
         {
             "name": "cloud-agents-sessions-delete",
             "group": "additionalRemote",
-            "issue": "DEXTO-2479",
+            "issue": "DEXTO-2500",
             "reason": "Hosted agent definitions, sessions, runs and approvals are not the personal chat/AutoBot MCP contract.",
             "commands": ["cloud agents sessions delete"],
             "closesWhen": [
@@ -460,7 +264,7 @@
         {
             "name": "cloud-agents-sessions-get",
             "group": "additionalRemote",
-            "issue": "DEXTO-2479",
+            "issue": "DEXTO-2500",
             "reason": "Hosted agent definitions, sessions, runs and approvals are not the personal chat/AutoBot MCP contract.",
             "commands": ["cloud agents sessions get"],
             "closesWhen": [
@@ -473,7 +277,7 @@
         {
             "name": "cloud-agents-sessions-list",
             "group": "additionalRemote",
-            "issue": "DEXTO-2479",
+            "issue": "DEXTO-2500",
             "reason": "Hosted agent definitions, sessions, runs and approvals are not the personal chat/AutoBot MCP contract.",
             "commands": ["cloud agents sessions list"],
             "closesWhen": [
@@ -486,7 +290,7 @@
         {
             "name": "cloud-agents-update",
             "group": "additionalRemote",
-            "issue": "DEXTO-2479",
+            "issue": "DEXTO-2500",
             "reason": "Hosted agent definitions, sessions, runs and approvals are not the personal chat/AutoBot MCP contract.",
             "commands": ["cloud agents update"],
             "closesWhen": [
@@ -499,7 +303,7 @@
         {
             "name": "cloud-api",
             "group": "additionalRemote",
-            "issue": "DEXTO-2479",
+            "issue": "DEXTO-2500",
             "reason": "Arbitrary project-key /v1 dispatch has no equivalent MCP dispatcher.",
             "commands": ["cloud api"],
             "closesWhen": [
@@ -512,7 +316,7 @@
         {
             "name": "cloud-automations-create",
             "group": "additionalRemote",
-            "issue": "DEXTO-2479",
+            "issue": "DEXTO-2500",
             "reason": "Project-key hosted-agent automations are not the personal Loops MCP contract.",
             "commands": ["cloud automations create"],
             "closesWhen": [
@@ -525,7 +329,7 @@
         {
             "name": "cloud-automations-delete",
             "group": "additionalRemote",
-            "issue": "DEXTO-2479",
+            "issue": "DEXTO-2500",
             "reason": "Project-key hosted-agent automations are not the personal Loops MCP contract.",
             "commands": ["cloud automations delete"],
             "closesWhen": [
@@ -538,7 +342,7 @@
         {
             "name": "cloud-automations-firings",
             "group": "additionalRemote",
-            "issue": "DEXTO-2479",
+            "issue": "DEXTO-2500",
             "reason": "Project-key hosted-agent automations are not the personal Loops MCP contract.",
             "commands": ["cloud automations firings"],
             "closesWhen": [
@@ -551,7 +355,7 @@
         {
             "name": "cloud-automations-get",
             "group": "additionalRemote",
-            "issue": "DEXTO-2479",
+            "issue": "DEXTO-2500",
             "reason": "Project-key hosted-agent automations are not the personal Loops MCP contract.",
             "commands": ["cloud automations get"],
             "closesWhen": [
@@ -564,7 +368,7 @@
         {
             "name": "cloud-automations-list",
             "group": "additionalRemote",
-            "issue": "DEXTO-2479",
+            "issue": "DEXTO-2500",
             "reason": "Project-key hosted-agent automations are not the personal Loops MCP contract.",
             "commands": ["cloud automations list"],
             "closesWhen": [
@@ -577,7 +381,7 @@
         {
             "name": "cloud-automations-pause",
             "group": "additionalRemote",
-            "issue": "DEXTO-2479",
+            "issue": "DEXTO-2500",
             "reason": "Project-key hosted-agent automations are not the personal Loops MCP contract.",
             "commands": ["cloud automations pause"],
             "closesWhen": [
@@ -590,7 +394,7 @@
         {
             "name": "cloud-automations-resume",
             "group": "additionalRemote",
-            "issue": "DEXTO-2479",
+            "issue": "DEXTO-2500",
             "reason": "Project-key hosted-agent automations are not the personal Loops MCP contract.",
             "commands": ["cloud automations resume"],
             "closesWhen": [
@@ -603,7 +407,7 @@
         {
             "name": "cloud-automations-rotate-secret",
             "group": "additionalRemote",
-            "issue": "DEXTO-2479",
+            "issue": "DEXTO-2500",
             "reason": "Project-key hosted-agent automations are not the personal Loops MCP contract.",
             "commands": ["cloud automations rotate-secret"],
             "closesWhen": [
@@ -616,7 +420,7 @@
         {
             "name": "cloud-automations-run",
             "group": "additionalRemote",
-            "issue": "DEXTO-2479",
+            "issue": "DEXTO-2500",
             "reason": "Project-key hosted-agent automations are not the personal Loops MCP contract.",
             "commands": ["cloud automations run"],
             "closesWhen": [
@@ -629,7 +433,7 @@
         {
             "name": "cloud-automations-update",
             "group": "additionalRemote",
-            "issue": "DEXTO-2479",
+            "issue": "DEXTO-2500",
             "reason": "Project-key hosted-agent automations are not the personal Loops MCP contract.",
             "commands": ["cloud automations update"],
             "closesWhen": [
@@ -642,7 +446,7 @@
         {
             "name": "cloud-data-deletions-create",
             "group": "additionalRemote",
-            "issue": "DEXTO-2479",
+            "issue": "DEXTO-2500",
             "reason": "Cloud end-user/agent deletion jobs have no equivalent MCP contract.",
             "commands": ["cloud data-deletions create"],
             "closesWhen": [
@@ -655,7 +459,7 @@
         {
             "name": "cloud-data-deletions-get",
             "group": "additionalRemote",
-            "issue": "DEXTO-2479",
+            "issue": "DEXTO-2500",
             "reason": "Cloud end-user/agent deletion jobs have no equivalent MCP contract.",
             "commands": ["cloud data-deletions get"],
             "closesWhen": [
@@ -668,7 +472,7 @@
         {
             "name": "cloud-data-deletions-list",
             "group": "additionalRemote",
-            "issue": "DEXTO-2479",
+            "issue": "DEXTO-2500",
             "reason": "Cloud end-user/agent deletion jobs have no equivalent MCP contract.",
             "commands": ["cloud data-deletions list"],
             "closesWhen": [
@@ -681,7 +485,7 @@
         {
             "name": "cloud-files-delete",
             "group": "additionalRemote",
-            "issue": "DEXTO-2479",
+            "issue": "DEXTO-2500",
             "reason": "Cloud project files are not the personal Drive/artifact MCP contract.",
             "commands": ["cloud files delete"],
             "closesWhen": [
@@ -694,7 +498,7 @@
         {
             "name": "cloud-files-download",
             "group": "additionalRemote",
-            "issue": "DEXTO-2479",
+            "issue": "DEXTO-2500",
             "reason": "Cloud project files are not the personal Drive/artifact MCP contract.",
             "commands": ["cloud files download"],
             "closesWhen": [
@@ -707,7 +511,7 @@
         {
             "name": "cloud-files-get",
             "group": "additionalRemote",
-            "issue": "DEXTO-2479",
+            "issue": "DEXTO-2500",
             "reason": "Cloud project files are not the personal Drive/artifact MCP contract.",
             "commands": ["cloud files get"],
             "closesWhen": [
@@ -720,7 +524,7 @@
         {
             "name": "cloud-files-list",
             "group": "additionalRemote",
-            "issue": "DEXTO-2479",
+            "issue": "DEXTO-2500",
             "reason": "Cloud project files are not the personal Drive/artifact MCP contract.",
             "commands": ["cloud files list"],
             "closesWhen": [
@@ -733,7 +537,7 @@
         {
             "name": "cloud-files-upload",
             "group": "additionalRemote",
-            "issue": "DEXTO-2479",
+            "issue": "DEXTO-2500",
             "reason": "Cloud project files are not the personal Drive/artifact MCP contract.",
             "commands": ["cloud files upload"],
             "closesWhen": [
@@ -746,7 +550,7 @@
         {
             "name": "cloud-files-url",
             "group": "additionalRemote",
-            "issue": "DEXTO-2479",
+            "issue": "DEXTO-2500",
             "reason": "Cloud project files are not the personal Drive/artifact MCP contract.",
             "commands": ["cloud files url"],
             "closesWhen": [
@@ -759,7 +563,7 @@
         {
             "name": "cloud-functions-deploy",
             "group": "additionalRemote",
-            "issue": "DEXTO-2479",
+            "issue": "DEXTO-2500",
             "reason": "MCP deployment cannot select the Cloud project and all CLI provider options.",
             "commands": ["cloud functions deploy"],
             "closesWhen": [
@@ -772,7 +576,7 @@
         {
             "name": "cloud-functions-list",
             "group": "additionalRemote",
-            "issue": "DEXTO-2479",
+            "issue": "DEXTO-2500",
             "reason": "MCP lists organization resources but cannot target the selected Cloud project.",
             "commands": ["cloud functions list"],
             "closesWhen": [
@@ -785,7 +589,7 @@
         {
             "name": "cloud-models-get",
             "group": "additionalRemote",
-            "issue": "DEXTO-2479",
+            "issue": "DEXTO-2500",
             "reason": "Cloud text/media catalog, execution and run inspection is not fully covered by chat model selection or capability calls.",
             "commands": ["cloud models get"],
             "closesWhen": [
@@ -798,7 +602,7 @@
         {
             "name": "cloud-models-list",
             "group": "additionalRemote",
-            "issue": "DEXTO-2479",
+            "issue": "DEXTO-2500",
             "reason": "Cloud text/media catalog, execution and run inspection is not fully covered by chat model selection or capability calls.",
             "commands": ["cloud models list"],
             "closesWhen": [
@@ -811,7 +615,7 @@
         {
             "name": "cloud-models-run",
             "group": "additionalRemote",
-            "issue": "DEXTO-2479",
+            "issue": "DEXTO-2500",
             "reason": "Cloud text/media catalog, execution and run inspection is not fully covered by chat model selection or capability calls.",
             "commands": ["cloud models run"],
             "closesWhen": [
@@ -824,7 +628,7 @@
         {
             "name": "cloud-models-runs-get",
             "group": "additionalRemote",
-            "issue": "DEXTO-2479",
+            "issue": "DEXTO-2500",
             "reason": "Cloud text/media catalog, execution and run inspection is not fully covered by chat model selection or capability calls.",
             "commands": ["cloud models runs get"],
             "closesWhen": [
@@ -837,7 +641,7 @@
         {
             "name": "cloud-models-runs-list",
             "group": "additionalRemote",
-            "issue": "DEXTO-2479",
+            "issue": "DEXTO-2500",
             "reason": "Cloud text/media catalog, execution and run inspection is not fully covered by chat model selection or capability calls.",
             "commands": ["cloud models runs list"],
             "closesWhen": [
@@ -850,7 +654,7 @@
         {
             "name": "cloud-projects-create",
             "group": "additionalRemote",
-            "issue": "DEXTO-2479",
+            "issue": "DEXTO-2500",
             "reason": "Cloud infrastructure projects are not the chat Projects MCP contract.",
             "commands": ["cloud projects create"],
             "closesWhen": [
@@ -863,7 +667,7 @@
         {
             "name": "cloud-projects-list",
             "group": "additionalRemote",
-            "issue": "DEXTO-2479",
+            "issue": "DEXTO-2500",
             "reason": "Cloud infrastructure projects are not the chat Projects MCP contract.",
             "commands": ["cloud projects list"],
             "closesWhen": [
@@ -876,7 +680,7 @@
         {
             "name": "cloud-sandboxes-cat",
             "group": "additionalRemote",
-            "issue": "DEXTO-2479",
+            "issue": "DEXTO-2500",
             "reason": "Independent Cloud sandbox targeting/lifecycle is not the chat-bound computer MCP contract.",
             "commands": ["cloud sandboxes cat"],
             "closesWhen": [
@@ -889,7 +693,7 @@
         {
             "name": "cloud-sandboxes-create",
             "group": "additionalRemote",
-            "issue": "DEXTO-2479",
+            "issue": "DEXTO-2500",
             "reason": "Independent Cloud sandbox targeting/lifecycle is not the chat-bound computer MCP contract.",
             "commands": ["cloud sandboxes create"],
             "closesWhen": [
@@ -902,7 +706,7 @@
         {
             "name": "cloud-sandboxes-delete",
             "group": "additionalRemote",
-            "issue": "DEXTO-2479",
+            "issue": "DEXTO-2500",
             "reason": "Independent Cloud sandbox targeting/lifecycle is not the chat-bound computer MCP contract.",
             "commands": ["cloud sandboxes delete"],
             "closesWhen": [
@@ -915,7 +719,7 @@
         {
             "name": "cloud-sandboxes-exec",
             "group": "additionalRemote",
-            "issue": "DEXTO-2479",
+            "issue": "DEXTO-2500",
             "reason": "Independent Cloud sandbox targeting/lifecycle is not the chat-bound computer MCP contract.",
             "commands": ["cloud sandboxes exec"],
             "closesWhen": [
@@ -928,7 +732,7 @@
         {
             "name": "cloud-sandboxes-export",
             "group": "additionalRemote",
-            "issue": "DEXTO-2479",
+            "issue": "DEXTO-2500",
             "reason": "Independent Cloud sandbox targeting/lifecycle is not the chat-bound computer MCP contract.",
             "commands": ["cloud sandboxes export"],
             "closesWhen": [
@@ -941,7 +745,7 @@
         {
             "name": "cloud-sandboxes-get",
             "group": "additionalRemote",
-            "issue": "DEXTO-2479",
+            "issue": "DEXTO-2500",
             "reason": "Independent Cloud sandbox targeting/lifecycle is not the chat-bound computer MCP contract.",
             "commands": ["cloud sandboxes get"],
             "closesWhen": [
@@ -954,7 +758,7 @@
         {
             "name": "cloud-sandboxes-import",
             "group": "additionalRemote",
-            "issue": "DEXTO-2479",
+            "issue": "DEXTO-2500",
             "reason": "Independent Cloud sandbox targeting/lifecycle is not the chat-bound computer MCP contract.",
             "commands": ["cloud sandboxes import"],
             "closesWhen": [
@@ -967,7 +771,7 @@
         {
             "name": "cloud-sandboxes-list",
             "group": "additionalRemote",
-            "issue": "DEXTO-2479",
+            "issue": "DEXTO-2500",
             "reason": "Independent Cloud sandbox targeting/lifecycle is not the chat-bound computer MCP contract.",
             "commands": ["cloud sandboxes list"],
             "closesWhen": [
@@ -980,7 +784,7 @@
         {
             "name": "cloud-sandboxes-ls",
             "group": "additionalRemote",
-            "issue": "DEXTO-2479",
+            "issue": "DEXTO-2500",
             "reason": "Independent Cloud sandbox targeting/lifecycle is not the chat-bound computer MCP contract.",
             "commands": ["cloud sandboxes ls"],
             "closesWhen": [
@@ -993,7 +797,7 @@
         {
             "name": "cloud-sandboxes-pause",
             "group": "additionalRemote",
-            "issue": "DEXTO-2479",
+            "issue": "DEXTO-2500",
             "reason": "Independent Cloud sandbox targeting/lifecycle is not the chat-bound computer MCP contract.",
             "commands": ["cloud sandboxes pause"],
             "closesWhen": [
@@ -1006,7 +810,7 @@
         {
             "name": "cloud-sandboxes-rm",
             "group": "additionalRemote",
-            "issue": "DEXTO-2479",
+            "issue": "DEXTO-2500",
             "reason": "Independent Cloud sandbox targeting/lifecycle is not the chat-bound computer MCP contract.",
             "commands": ["cloud sandboxes rm"],
             "closesWhen": [
@@ -1019,7 +823,7 @@
         {
             "name": "cloud-sandboxes-start",
             "group": "additionalRemote",
-            "issue": "DEXTO-2479",
+            "issue": "DEXTO-2500",
             "reason": "Independent Cloud sandbox targeting/lifecycle is not the chat-bound computer MCP contract.",
             "commands": ["cloud sandboxes start"],
             "closesWhen": [
@@ -1032,7 +836,7 @@
         {
             "name": "cloud-sandboxes-write",
             "group": "additionalRemote",
-            "issue": "DEXTO-2479",
+            "issue": "DEXTO-2500",
             "reason": "Independent Cloud sandbox targeting/lifecycle is not the chat-bound computer MCP contract.",
             "commands": ["cloud sandboxes write"],
             "closesWhen": [
@@ -1045,7 +849,7 @@
         {
             "name": "cloud-secrets-create",
             "group": "additionalRemote",
-            "issue": "DEXTO-2479",
+            "issue": "DEXTO-2500",
             "reason": "Project-key secret management has no equivalent project-targetable MCP contract.",
             "commands": ["cloud secrets create"],
             "closesWhen": [
@@ -1058,7 +862,7 @@
         {
             "name": "cloud-secrets-delete",
             "group": "additionalRemote",
-            "issue": "DEXTO-2479",
+            "issue": "DEXTO-2500",
             "reason": "Project-key secret management has no equivalent project-targetable MCP contract.",
             "commands": ["cloud secrets delete"],
             "closesWhen": [
@@ -1071,7 +875,7 @@
         {
             "name": "cloud-secrets-get",
             "group": "additionalRemote",
-            "issue": "DEXTO-2479",
+            "issue": "DEXTO-2500",
             "reason": "Project-key secret management has no equivalent project-targetable MCP contract.",
             "commands": ["cloud secrets get"],
             "closesWhen": [
@@ -1084,7 +888,7 @@
         {
             "name": "cloud-secrets-list",
             "group": "additionalRemote",
-            "issue": "DEXTO-2479",
+            "issue": "DEXTO-2500",
             "reason": "Project-key secret management has no equivalent project-targetable MCP contract.",
             "commands": ["cloud secrets list"],
             "closesWhen": [
@@ -1097,7 +901,7 @@
         {
             "name": "cloud-secrets-update",
             "group": "additionalRemote",
-            "issue": "DEXTO-2479",
+            "issue": "DEXTO-2500",
             "reason": "Project-key secret management has no equivalent project-targetable MCP contract.",
             "commands": ["cloud secrets update"],
             "closesWhen": [
@@ -1110,7 +914,7 @@
         {
             "name": "cloud-sites-deploy",
             "group": "additionalRemote",
-            "issue": "DEXTO-2479",
+            "issue": "DEXTO-2500",
             "reason": "MCP deployment cannot select the Cloud project and all CLI provider options.",
             "commands": ["cloud sites deploy"],
             "closesWhen": [
@@ -1123,7 +927,7 @@
         {
             "name": "cloud-sites-list",
             "group": "additionalRemote",
-            "issue": "DEXTO-2479",
+            "issue": "DEXTO-2500",
             "reason": "MCP lists organization resources but cannot target the selected Cloud project.",
             "commands": ["cloud sites list"],
             "closesWhen": [
@@ -1136,7 +940,7 @@
         {
             "name": "span-list",
             "group": "additionalRemote",
-            "issue": "DEXTO-2479",
+            "issue": "DEXTO-2500",
             "reason": "Operational trace/span inspection has no MCP operation.",
             "commands": ["span list"],
             "closesWhen": [
@@ -1149,7 +953,7 @@
         {
             "name": "trace-list",
             "group": "additionalRemote",
-            "issue": "DEXTO-2479",
+            "issue": "DEXTO-2500",
             "reason": "Operational trace/span inspection has no MCP operation.",
             "commands": ["trace list"],
             "closesWhen": [
@@ -1162,7 +966,7 @@
         {
             "name": "trace-view",
             "group": "additionalRemote",
-            "issue": "DEXTO-2479",
+            "issue": "DEXTO-2500",
             "reason": "Operational trace/span inspection has no MCP operation.",
             "commands": ["trace view"],
             "closesWhen": [
@@ -1237,14 +1041,164 @@
             "group": "knownChat",
             "issue": "DEXTO-2479",
             "reason": "chat_get does not return usage.",
-            "commands": [],
+            "commands": []
+        },
+        {
+            "name": "models-list",
+            "group": "additionalRemote",
+            "issue": "DEXTO-2500",
+            "reason": "GET /v1/models is the curated gateway catalog; chat models are account/plan/connection-filtered and include chat-only routes.",
+            "commands": ["models list"],
             "closesWhen": [
                 {
-                    "tool": "dexto_chat_get_usage",
+                    "tool": "dexto_gateway_models_list",
                     "inputs": []
                 }
             ]
         }
     ],
-    "localOnlyNotes": "The cloud registration guard checks localOnly entries with registry=cloud. registry=local names the separately registered local CLI helpers. Config/preferences and automatic chat synchronization are local workflows, not registered cloud verbs in cli-2.0."
+    "localOnlyNotes": "Only cloud-host registrations are pinned here. Separately registered local run/upgrade/uninstall/chat helpers, local config/preferences and automatic chat synchronization need no MCP coverage and are outside this registration guard.",
+    "passthroughOnly": [
+        "dexto_agents_list",
+        "dexto_app_data_remove",
+        "dexto_app_deploy",
+        "dexto_app_deployment_verify",
+        "dexto_app_get",
+        "dexto_app_open",
+        "dexto_app_request_access",
+        "dexto_app_runtime",
+        "dexto_application_create",
+        "dexto_application_deploy",
+        "dexto_application_get",
+        "dexto_application_history",
+        "dexto_application_insights",
+        "dexto_application_install",
+        "dexto_application_logs",
+        "dexto_application_operations_list",
+        "dexto_application_plugin_export",
+        "dexto_application_purge",
+        "dexto_application_release_delete",
+        "dexto_application_release_get",
+        "dexto_application_resume",
+        "dexto_application_retire",
+        "dexto_application_rollback",
+        "dexto_application_suspend",
+        "dexto_application_usage",
+        "dexto_application_variables_list",
+        "dexto_applications_list",
+        "dexto_apps_list",
+        "dexto_apps_uninstalled_list",
+        "dexto_autobot_chat_start",
+        "dexto_autobot_get",
+        "dexto_autobot_input_submit",
+        "dexto_autobot_publish",
+        "dexto_autobot_save",
+        "dexto_autobot_status",
+        "dexto_autobots_list",
+        "dexto_automation_create",
+        "dexto_automation_delete",
+        "dexto_automation_get",
+        "dexto_automation_recipe_install",
+        "dexto_automation_recipes_list",
+        "dexto_automation_trigger",
+        "dexto_automation_update",
+        "dexto_automations_list",
+        "dexto_capabilities_search",
+        "dexto_channel_get",
+        "dexto_channel_send",
+        "dexto_channels_list",
+        "dexto_chat_cancel",
+        "dexto_chat_computer",
+        "dexto_chat_continue",
+        "dexto_chat_get",
+        "dexto_chat_list",
+        "dexto_chat_models",
+        "dexto_chat_send",
+        "dexto_chat_start",
+        "dexto_contacts_block",
+        "dexto_contacts_connect",
+        "dexto_contacts_invite_link",
+        "dexto_contacts_people_list",
+        "dexto_contacts_people_search",
+        "dexto_contacts_remove",
+        "dexto_contacts_request_answer",
+        "dexto_contacts_requests_list",
+        "dexto_contacts_unblock",
+        "dexto_cos_report",
+        "dexto_credits_balance",
+        "dexto_credits_topup",
+        "dexto_direct_conversation_get",
+        "dexto_direct_conversations_list",
+        "dexto_direct_message_send",
+        "dexto_docs_read",
+        "dexto_docs_search",
+        "dexto_feedback_submit",
+        "dexto_function_credential_configure",
+        "dexto_function_deploy",
+        "dexto_function_get",
+        "dexto_function_invoke",
+        "dexto_function_plan",
+        "dexto_function_promote",
+        "dexto_function_secret_delete",
+        "dexto_functions_list",
+        "dexto_gigs_finding",
+        "dexto_gigs_posting",
+        "dexto_gpu_process_get",
+        "dexto_gpu_process_logs",
+        "dexto_gpu_process_start",
+        "dexto_gpu_process_stop",
+        "dexto_gpu_profiles_list",
+        "dexto_gpu_sandbox_delete",
+        "dexto_gpu_sandbox_get",
+        "dexto_gpu_sandbox_provision",
+        "dexto_gpu_sandbox_start",
+        "dexto_gpu_sandbox_stop",
+        "dexto_gpu_sandboxes_list",
+        "dexto_marketplace_get",
+        "dexto_marketplace_install",
+        "dexto_marketplace_preview",
+        "dexto_marketplace_publish",
+        "dexto_marketplace_search",
+        "dexto_marketplace_uninstall",
+        "dexto_marketplace_unpublish",
+        "dexto_mcp_server_import",
+        "dexto_network_send",
+        "dexto_network_thread_get",
+        "dexto_network_thread_mark_read",
+        "dexto_network_threads_list",
+        "dexto_notification_get",
+        "dexto_notifications_list",
+        "dexto_notifications_mark_read",
+        "dexto_open",
+        "dexto_project_chat_move",
+        "dexto_project_chat_start",
+        "dexto_project_create",
+        "dexto_project_delete",
+        "dexto_project_get",
+        "dexto_project_import",
+        "dexto_project_update",
+        "dexto_projects_list",
+        "dexto_share",
+        "dexto_share_access",
+        "dexto_share_received",
+        "dexto_site_collections_list",
+        "dexto_site_get",
+        "dexto_site_promote",
+        "dexto_site_record_create",
+        "dexto_site_record_delete",
+        "dexto_site_record_get",
+        "dexto_site_record_update",
+        "dexto_site_records_list",
+        "dexto_skill_create",
+        "dexto_skill_delete",
+        "dexto_skill_file_get",
+        "dexto_skill_get",
+        "dexto_skill_install",
+        "dexto_skill_publish",
+        "dexto_skill_restore",
+        "dexto_skill_uninstall",
+        "dexto_skill_update",
+        "dexto_skill_validate",
+        "dexto_skill_versions"
+    ]
 }
