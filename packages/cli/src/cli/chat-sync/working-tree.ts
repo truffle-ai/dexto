@@ -40,9 +40,10 @@ export async function buildWorkingTree(cwd: string): Promise<WorkingTree> {
             const names = (await git(['ls-tree', '-r', '--name-only', '-z', commit]))
                 .toString()
                 .split('\0');
-            if (names.some(isSecretPath))
+            const secret = names.find(isSecretPath);
+            if (secret !== undefined)
                 throw new Error(
-                    'The branch history contains a secret-shaped file. Use a clean branch before moving.'
+                    `The branch history contains a secret-shaped file: ${JSON.stringify(secret)}. Use a clean branch before moving.`
                 );
         }
         const env = { ...process.env, GIT_INDEX_FILE: path.join(folder, 'index') };
