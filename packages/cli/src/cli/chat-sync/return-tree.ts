@@ -31,7 +31,10 @@ export const ReturnCheckpointSchema = z.discriminatedUnion('phase', [
     }).strict(),
 ]);
 
-async function assertLocalTreeMatches(cwd: string, expected: LocalTreeCheckpoint): Promise<void> {
+export async function assertLocalTreeMatches(
+    cwd: string,
+    expected: LocalTreeCheckpoint
+): Promise<void> {
     const current = await readLocalTreeCheckpoint(cwd);
     if (
         current.branch !== expected.branch ||
