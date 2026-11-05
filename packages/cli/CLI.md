@@ -19,6 +19,11 @@ The first start needs a model: a provider key in the environment (such as `ANTHR
 
 ## Removed in 2.0
 
+`dexto login` asks once for reading plus chat, Loop and Project work, which can spend credits.
+Use `--scope SCOPE` for additional permissions; the browser shows the requested access before approval.
+
+New users signing up with Google or GitHub receive a one-time $5 usage credit per verified email.
+
 `dexto` 2.0 is the cloud and infrastructure CLI around the local agent harness. These 1.x local-agent commands are gone:
 
 | 1.x | Use instead |

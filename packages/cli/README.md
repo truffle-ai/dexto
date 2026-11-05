@@ -8,6 +8,8 @@ dexto whoami
 
 `@next` is the Dexto 2.0 beta channel; `dexto@latest` is still 1.x.
 
+New users signing up with Google or GitHub receive a one-time $5 usage credit per verified email.
+
 <a href="https://dexto.ai">
   <div align="center">
     <picture>

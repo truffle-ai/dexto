@@ -1548,7 +1548,7 @@
     - Gateway provider routing requests through Dexto API
     - Supports all OpenRouter models via `supportsAllRegistryModels` flag
     - Curated model list shown during setup (mix of free and SOTA models)
-    - New users receive $5 credits on first login
+    - New users signing up with Google or GitHub receive a one-time $5 usage credit per verified email.
 
     ### Model Registry Enhancements
     - Added `openrouterId` field to map native model names to OpenRouter format
