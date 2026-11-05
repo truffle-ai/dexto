@@ -77,9 +77,6 @@ Present a structured list of recommended documentation updates:
   - **Changes Needed**: Update architecture section
 
 ### Low Priority
-- [ ] **File**: `docs/docs/tutorials/building-triage-system.md`
-  - **Reason**: Updated error handling patterns
-  - **Changes Needed**: Update code examples to use new error types
 
 ### Optional
 - [ ] **File**: `docs/docs/examples-demos/` (new file)

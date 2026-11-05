@@ -9,22 +9,16 @@ Welcome to the Dexto API. This guide will walk you through the essential first s
 
 ## 1. Starting the API Server
 
-Before you can make any API calls, you must start the Dexto server. This single command enables both the REST and SSE streaming APIs.
+Before you can make any API calls, start the Dexto server from your own Node app with `startDextoServer` from `@dexto/server`. This single call enables both the REST and SSE streaming APIs.
 
-Run the following command in your terminal:
+```typescript
+import { startDextoServer } from '@dexto/server';
 
-```bash
-dexto --mode server
+// agent: a DextoAgent built from your agent config (see the Dexto SDK guide)
+const { stop } = await startDextoServer(agent, { port: 3001 });
 ```
 
-By default, the server will run on port `3001`. You should see a confirmation message in your terminal indicating that the server has started successfully.
-
-**Customize the port:**
-```bash
-dexto --mode server --port 8080
-```
-
-This starts the API server on port 8080 instead of the default 3001.
+The `dexto` 2.0 CLI no longer runs a server: `dexto --mode server` was removed.
 
 ## 2. Choosing Your API
 

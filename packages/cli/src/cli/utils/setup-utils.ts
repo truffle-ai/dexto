@@ -152,29 +152,3 @@ export async function requiresSetup(): Promise<boolean> {
     const state = await getSetupState();
     return state.needsSetup;
 }
-
-/**
- * Get appropriate guidance message based on user state
- */
-export async function getSetupGuidanceMessage(): Promise<string> {
-    if (isFirstTimeUser()) {
-        return [
-            "👋 Welcome to Dexto! Let's get you set up...",
-            '',
-            '🚀 Run `dexto setup` to configure your AI preferences',
-            '   • Choose your AI provider (Google Gemini, OpenAI, etc.)',
-            '   • Set up your API keys',
-            '   • Configure your default agent',
-            '',
-            '💡 After setup, you can install agents with: `dexto agents install <agent-name>`',
-        ].join('\n');
-    }
-
-    // Invalid, incomplete, or corrupted preferences
-    return [
-        '⚠️  Your Dexto preferences need attention',
-        '',
-        '🔧 Run `dexto setup` to fix your configuration',
-        '   This will restore your AI provider settings and preferences',
-    ].join('\n');
-}

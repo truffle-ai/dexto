@@ -14,7 +14,7 @@ export class PreferenceError {
             ErrorType.USER,
             `Preferences file not found: ${preferencesPath}`,
             { preferencesPath },
-            'Run `dexto setup` to create preferences'
+            'Run `dexto login` or set a provider key'
         );
     }
 

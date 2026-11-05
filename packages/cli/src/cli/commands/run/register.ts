@@ -87,10 +87,7 @@ Exit codes: 0 done, 1 failed, 2 usage, 3 needs sign-in or permission, 4 needs co
                             );
 
                             const globalOpts = program.opts();
-                            const resolvedAgentPath = await resolveAgentPath(
-                                globalOpts.agent,
-                                globalOpts.autoInstall !== false
-                            );
+                            const resolvedAgentPath = await resolveAgentPath(globalOpts.agent);
 
                             printHeadlessRunSummary({
                                 agent,

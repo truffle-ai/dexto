@@ -68,59 +68,6 @@ export interface PromptEvent {
     model: string;
 }
 
-export interface SetupEvent {
-    provider: string;
-    model: string;
-    hadApiKeyBefore?: boolean;
-    setupMode: 'interactive' | 'non-interactive';
-    setupVariant?: 'quick-start' | 'custom' | 'dexto-nova' | 'codex-chatgpt';
-    defaultMode?: string;
-    hasBaseURL?: boolean;
-    apiKeySkipped?: boolean;
-}
-
-export interface InstallAgentEvent {
-    agent: string;
-    status: 'installed' | 'skipped' | 'failed';
-    force: boolean;
-    reason?: string;
-    error_message?: string;
-}
-
-export interface InstallAggregateEvent {
-    requested: string[];
-    installed: string[];
-    skipped: string[];
-    failed: string[];
-    successCount: number;
-    errorCount: number;
-}
-
-export interface UninstallAgentEvent {
-    agent: string;
-    status: 'uninstalled' | 'failed';
-    force: boolean;
-    error_message?: string;
-}
-
-export interface UninstallAggregateEvent {
-    requested: string[];
-    uninstalled: string[];
-    failed: string[];
-    successCount: number;
-    errorCount: number;
-}
-
-export interface CreateProjectEvent {
-    provider: string;
-    providedKey: boolean;
-}
-
-export interface InitProjectEvent {
-    provider: string;
-    providedKey: boolean;
-}
-
 /**
  * CLI analytics event map extending shared events with CLI-specific events.
  *
@@ -131,13 +78,6 @@ export interface DextoAnalyticsEventMap extends SharedAnalyticsEventMap {
     // CLI-specific events
     dexto_cli_command: CliCommandEvent;
     dexto_prompt: PromptEvent;
-    dexto_setup: SetupEvent;
-    dexto_install_agent: InstallAgentEvent;
-    dexto_install: InstallAggregateEvent;
-    dexto_uninstall_agent: UninstallAgentEvent;
-    dexto_uninstall: UninstallAggregateEvent;
-    dexto_create: CreateProjectEvent;
-    dexto_init: InitProjectEvent;
 }
 
 export type AnalyticsEventName = keyof DextoAnalyticsEventMap;
