@@ -140,3 +140,34 @@ it('refuses a secret-shaped returned patch before changing the local checkout', 
         await tree.cleanup();
     }
 });
+
+it('fetches and fast-forwards returned commits from the incremental cloud bundle', async () => {
+    const cwd = await repository();
+    const tree = await buildWorkingTree(cwd);
+    const cloud = await repository();
+    try {
+        await run('git', ['fetch', cwd, tree.head_commit], { cwd: cloud });
+        await run('git', ['reset', '--hard', tree.head_commit], { cwd: cloud });
+        await writeFile(path.join(cloud, 'code.txt'), 'cloud commit\n');
+        await run('git', ['add', 'code.txt'], { cwd: cloud });
+        await run('git', ['commit', '-m', 'cloud work'], { cwd: cloud });
+        const head = (await run('git', ['rev-parse', 'HEAD'], { cwd: cloud })).stdout.trim();
+        const bundlePath = path.join(cloud, 'return.bundle');
+        await run('git', ['bundle', 'create', bundlePath, 'HEAD', `^${tree.head_commit}`], {
+            cwd: cloud,
+        });
+        await applyReturnedTree(
+            cwd,
+            {
+                branch: tree.branch,
+                head: tree.head_commit,
+                patchHash: describeObject(Buffer.alloc(0)).sha256,
+            },
+            { branch: tree.branch, head, bundle: await readFile(bundlePath), patch: null }
+        );
+        expect((await run('git', ['rev-parse', 'HEAD'], { cwd })).stdout.trim()).toBe(head);
+        expect(await readFile(path.join(cwd, 'code.txt'), 'utf8')).toBe('cloud commit\n');
+    } finally {
+        await tree.cleanup();
+    }
+});
