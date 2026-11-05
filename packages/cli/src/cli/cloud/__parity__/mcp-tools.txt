@@ -820,23 +820,27 @@
     },
     {
       "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
         "type": "object",
-        "additionalProperties": false,
         "properties": {
           "limit": {
             "type": "integer",
             "minimum": 1,
-            "maximum": 100,
-            "description": "How many artifacts to return, from 1 to 100; 50 when left out."
+            "maximum": 100
           },
           "cursor": {
             "type": "string",
             "minLength": 1,
-            "maxLength": 1000,
-            "description": "The next value of the previous artifacts.list result, to read the following page."
+            "maxLength": 1000
+          },
+          "sessionId": {
+            "description": "Only Artifacts produced by this chat ID.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
           }
         },
-        "required": []
+        "additionalProperties": false
       },
       "name": "dexto_artifacts_list"
     },
