@@ -246,7 +246,7 @@ export class LocalAgentRegistry implements AgentRegistry {
             // Atomic rename
             await fs.rename(tempDir, targetDir);
 
-            logger.info(`✓ Installed agent '${agentId}' to ${targetDir}`);
+            logger.debug(`✓ Installed agent '${agentId}' to ${targetDir}`);
 
             return this.resolveMainConfig(targetDir, agentId);
         } catch (error) {

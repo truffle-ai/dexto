@@ -133,7 +133,7 @@ export async function installBundledAgent(
         // Atomic rename
         await fs.rename(tempDir, targetDir);
 
-        logger.info(`✓ Installed agent '${agentId}' to ${targetDir}`);
+        logger.debug(`✓ Installed agent '${agentId}' to ${targetDir}`);
 
         // Add to user registry
         const userRegistryPath = getUserRegistryPath(agentsDir);
