@@ -10,10 +10,7 @@ import { getPrimaryApiKeyEnvVar, resolveApiKeyForProvider } from '@dexto/agent-m
 import { requiresApiKey, requiresBaseURL } from '@dexto/llm';
 import { logger } from '@dexto/core';
 import { getGlobalPreferencesPath } from '@dexto/agent-management';
-import {
-    getBundledSyncTargetForAgentPath,
-    handleSyncAgentsCommand,
-} from '../commands/agents/sync.js';
+import { getBundledSyncTargetForAgentPath, syncBundledAgent } from './bundled-agent-sync.js';
 
 export interface ValidationResult {
     success: boolean;
@@ -191,11 +188,7 @@ async function handleOtherErrors(
         }
 
         try {
-            await handleSyncAgentsCommand({
-                force: true,
-                quiet: false,
-                agentIds: [syncTarget.agentId],
-            });
+            await syncBundledAgent(syncTarget.agentId);
             // Exit after sync - user needs to restart dexto
             p.outro(chalk.gray('Run dexto to start Dexto'));
             process.exit(0);

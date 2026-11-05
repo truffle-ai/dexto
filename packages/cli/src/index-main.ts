@@ -103,7 +103,6 @@ import { isRootJsonHelp, rootHelpJson } from './cli/help-json.js';
 import { registerMcpCommand } from './cli/commands/mcp/register.js';
 import { registerImageCommand } from './cli/commands/image/register.js';
 import { registerPluginCommand } from './cli/commands/plugin/register.js';
-import { registerAgentsCommand } from './cli/commands/agents/register.js';
 import { registerInitCommand } from './cli/commands/init.js';
 import type { BootstrapAgentMode } from './cli/commands/register-context.js';
 import type { CLIConfigOverrides } from './config/cli-overrides.js';
@@ -212,7 +211,6 @@ program
     .option('--no-elicitation', 'Disable elicitation (agent cannot prompt user for input)')
     .option('-c, --continue', 'Continue most recent session (CLI mode)')
     .option('-r, --resume <sessionId>', 'Resume a session by ID (CLI mode)')
-    .option('--no-auto-install', 'Disable automatic installation of missing agents from registry')
     .option(
         '--image <package>',
         'Image package to load (e.g., @dexto/image-local). Overrides config image field.'
@@ -312,8 +310,6 @@ program
         })
     );
 
-registerAgentsCommand({ program });
-
 // 7) `upgrade` SUB-COMMAND
 program
     .command('upgrade [version]')
@@ -361,26 +357,6 @@ program
         })
     );
 
-// 9) `which` SUB-COMMAND
-program
-    .command('which <agent>')
-    .description('Show the path to an agent')
-    .action(
-        withAnalytics('which', async (agent: string) => {
-            try {
-                const { handleWhichCommand } = await import('./cli/commands/which.js');
-                await handleWhichCommand(agent);
-                safeExit('which', 0);
-            } catch (err) {
-                if (err instanceof ExitSignal) throw err;
-                await printFailure(`dexto which command failed: ${err}`, null, [
-                    `❌ dexto which command failed: ${err}`,
-                ]);
-                safeExit('which', 1, 'error');
-            }
-        })
-    );
-
 registerPluginCommand({ program });
 
 // Helper to bootstrap a minimal agent for non-interactive commands
@@ -419,7 +395,7 @@ async function bootstrapAgentFromGlobalOpts(options: {
         inferredApiKey = apiKey;
     }
 
-    const resolvedPath = await resolveAgentPath(globalOpts.agent, globalOpts.autoInstall !== false);
+    const resolvedPath = await resolveAgentPath(globalOpts.agent);
     const workspaceRoot = findDextoProjectRoot(process.cwd()) ?? process.cwd();
     const rawConfig = await loadAgentConfig(resolvedPath);
     const mergedConfig = applyCLIOverrides(rawConfig, {
@@ -695,10 +671,7 @@ program
                 try {
                     // Case 1: File path - skip all validation and setup
                     if (opts.agent && isPath(opts.agent)) {
-                        resolvedPath = await resolveAgentPath(
-                            opts.agent,
-                            opts.autoInstall !== false
-                        );
+                        resolvedPath = await resolveAgentPath(opts.agent);
                     }
                     // Cases 2 & 3: Default agent or registry agent
                     else {
@@ -742,17 +715,14 @@ program
                         // Resolve the configured agent after setup has been established for
                         // interactive startup. This keeps provider selection generic instead of
                         // letting bundled agent defaults decide first-run behavior.
-                        resolvedPath = await resolveAgentPath(
-                            opts.agent,
-                            opts.autoInstall !== false
-                        );
+                        resolvedPath = await resolveAgentPath(opts.agent);
 
                         if (opts.interactive !== false) {
                             const {
                                 getBundledSyncTargetForAgentPath,
                                 shouldPromptForSync,
-                                handleSyncAgentsCommand,
-                            } = await import('./cli/commands/agents/sync.js');
+                                syncBundledAgent,
+                            } = await import('./cli/utils/bundled-agent-sync.js');
                             const syncTarget = getBundledSyncTargetForAgentPath(resolvedPath);
 
                             if (syncTarget && (await shouldPromptForSync(resolvedPath))) {
@@ -762,11 +732,7 @@ program
                                 });
 
                                 if (!p.isCancel(shouldSync) && shouldSync) {
-                                    await handleSyncAgentsCommand({
-                                        force: true,
-                                        quiet: true,
-                                        agentIds: [syncTarget.agentId],
-                                    });
+                                    await syncBundledAgent(syncTarget.agentId);
                                 }
                             }
                         }

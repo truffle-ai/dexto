@@ -242,7 +242,7 @@ ${ordinaryConfig}    requiresApproval: false
     function run(args: string[]) {
         return execute(
             process.execPath,
-            ['--import', tsx, entrypoint, '--agent', configPath, '--no-auto-install', ...args],
+            ['--import', tsx, entrypoint, '--agent', configPath, ...args],
             {
                 cwd: directory,
                 env: {
