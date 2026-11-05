@@ -10,36 +10,21 @@ mkdir -p "$artifacts/t"
 artifacts=$(cd "$artifacts" && pwd)
 echo "Artifacts: $artifacts; head: $(git rev-parse HEAD)"
 export CI=1 COREPACK_ENABLE_DOWNLOAD_PROMPT=0
-# Check closure and ordering before changing manifests or building anything.
-node --input-type=module <<'MANIFEST'
-import assert from 'node:assert/strict';
-import { readFileSync, readdirSync } from 'node:fs';
-const selected = readFileSync('scripts/cli-beta-packages.txt', 'utf8').trim().split('\n').map(line => line.split(':')[0]);
-const packages = readdirSync('packages').map(dir => {
-    const path = `packages/${dir}`;
-    return { path, ...JSON.parse(readFileSync(`${path}/package.json`, 'utf8')) };
-});
-const positions = new Map(selected.map((path, index) => [packages.find(pkg => pkg.path === path).name, index]));
-for (const pkg of packages.filter(pkg => !pkg.private)) {
-    for (const dep of Object.keys({ ...pkg.dependencies, ...pkg.peerDependencies, ...pkg.optionalDependencies })) {
-        if (!positions.has(dep)) continue;
-        assert(positions.has(pkg.name), `Missing dependent ${pkg.name} of ${dep}`);
-        assert(positions.get(dep) < positions.get(pkg.name), `Publish ${dep} before ${pkg.name}`);
-    }
-}
-console.log(`Publish closure and dependency order: ${selected.length} packages PASS`);
-MANIFEST
+node scripts/check-cli-beta-packages.mjs
+git diff --quiet HEAD -- 'packages/*/package.json' || { echo 'Start with clean package manifests.' >&2; exit 1; }
+trap 'git restore --source=HEAD --worktree -- packages/*/package.json' EXIT
 pnpm install --frozen-lockfile > "$artifacts/install.log" 2>&1
-while IFS=: read -r dir version; do
+while IFS=: read -r -u 3 dir version; do
     VERSION="$version-beta.$beta" node -e 'const fs = require("fs"); const path = process.argv[1] + "/package.json"; const pkg = JSON.parse(fs.readFileSync(path, "utf8")); pkg.version = process.env.VERSION; fs.writeFileSync(path, JSON.stringify(pkg, null, 4) + "\n");' "$dir"
-done < scripts/cli-beta-packages.txt
+done 3< scripts/cli-beta-packages.txt
 pnpm run build > "$artifacts/build.log" 2>&1
-while IFS=: read -r dir version; do
+while IFS=: read -r -u 3 dir version; do
     (cd "$dir" && pnpm pack --pack-destination "$artifacts/t") > "$artifacts/pack-${dir##*/}.log" 2>&1
-done < scripts/cli-beta-packages.txt
+done 3< scripts/cli-beta-packages.txt
 cp scripts/test-beta-{registry,runtime}.mjs "$artifacts/t/"
 cat > "$artifacts/t/check.sh" <<'CHECK'
 set -euo pipefail
+beta=${1:?beta}
 echo "Node $(node -v), npm $(npm -v)"
 for tool in python python3 gcc g++ make; do
     if command -v "$tool"; then echo "Unexpected build tool: $tool"; exit 1; fi
@@ -65,7 +50,7 @@ check_cli() {
     cp /t/test-beta-runtime.mjs "$tree/beta-install-check.mjs"
     node "$tree/beta-install-check.mjs"
     # No stale beta-closure package or stable core/storage may appear anywhere in the tree.
-    node - "$tree" <<'NODE'
+    node - "$tree" "$beta" <<'NODE'
 const fs = require('fs');
 const path = require('path');
 function scan(dir) {
@@ -75,7 +60,7 @@ function scan(dir) {
         const file = path.join(child, 'package.json');
         if (fs.existsSync(file)) {
             const pkg = JSON.parse(fs.readFileSync(file));
-            if (pkg.name?.startsWith('@dexto/') && !['@dexto/llm', '@dexto/registry', '@dexto/client-sdk'].includes(pkg.name) && !pkg.version.includes('-beta.')) {
+            if (pkg.name?.startsWith('@dexto/') && !['@dexto/llm', '@dexto/registry', '@dexto/client-sdk'].includes(pkg.name) && !pkg.version.endsWith(`-beta.${process.argv[3]}`)) {
                 throw new Error(`Stale workspace dependency: ${pkg.name}@${pkg.version}`);
             }
         }
@@ -103,7 +88,7 @@ CHECK
 failed=0
 for image in node:20-bookworm-slim node:22-bookworm-slim node:24-bookworm-slim; do
     rc=0
-    docker run --rm -v "$artifacts/t:/t:ro" "$image" bash /t/check.sh > "$artifacts/${image//:/-}.log" 2>&1 || rc=$?
+    docker run --rm -v "$artifacts/t:/t:ro" "$image" bash /t/check.sh "$beta" > "$artifacts/${image//:/-}.log" 2>&1 || rc=$?
     cat "$artifacts/${image//:/-}.log"
     echo "RESULT $image rc=$rc" | tee -a "$artifacts/summary.log"
     if [ "$rc" -ne 0 ]; then failed=1; fi
