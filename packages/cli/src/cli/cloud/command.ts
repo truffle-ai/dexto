@@ -36,6 +36,8 @@ export interface CommandInput {
 }
 
 export interface CommandContext {
+    /** Available to local chat commands registered by the CLI runtime. */
+    readonly openLocalAgent?: () => Promise<import('@dexto/core').DextoAgent>;
     /** The /v1 client for the resolved credential; fails with how to sign in when there is none. */
     client(): Promise<CloudClient>;
     connection(): Promise<Connection>;

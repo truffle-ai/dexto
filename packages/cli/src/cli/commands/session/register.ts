@@ -88,6 +88,8 @@ export function registerSessionCommand({
         start: 'Start a cloud chat on your chosen connected computer and browser profile',
         computers: 'List your connected computers for a cloud chat',
         'browser-profiles': 'List your browser profiles for a cloud chat',
+        move: 'Move a synced chat and its working tree to cloud or local',
+        watch: 'Stay attached to a chat on its cloud computer',
     }))
         chatCommand
             .command(word)
@@ -103,11 +105,27 @@ export function registerSessionCommand({
                         import('../../cloud/run.js'),
                         import('../../cloud/host.js'),
                     ]);
-                    const code = await runCloud(nodeCloudHost(new AbortController().signal), [
-                        'chat',
-                        word,
-                        ...args,
-                    ]);
+                    const controller = new AbortController();
+                    const stop = () => controller.abort();
+                    process.once('SIGINT', stop);
+                    let agent: Awaited<ReturnType<typeof bootstrapAgentFromGlobalOpts>> | null =
+                        null;
+                    const host = {
+                        ...nodeCloudHost(controller.signal),
+                        openLocalAgent: async () => {
+                            agent ??= await bootstrapAgentFromGlobalOpts({
+                                mode: 'non-interactive',
+                            });
+                            return agent;
+                        },
+                    };
+                    let code: number;
+                    try {
+                        code = await runCloud(host, ['chat', word, ...args]);
+                    } finally {
+                        process.removeListener('SIGINT', stop);
+                        if (agent !== null) await agent.stop();
+                    }
                     safeExit(`chat ${word}`, code);
                 })();
             });
