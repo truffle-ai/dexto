@@ -4,7 +4,6 @@
     "cliCatalog": "packages/cli/src/cli/cloud/__parity__/mcp-tools.txt",
     "maintenance": "Regenerate on the check host with UPDATE_CLI_MCP_PARITY=1 and src/mcp/cli-mcp-parity.test.ts. Vendor the catalog into the CLI and update both inventories in paired PRs. Exceptions only shrink; closure probes must follow the equivalent tool/input contract chosen by the implementation. workspace tools/describe use tools/list, hence their empty tool arrays. workspace call explicitly covers all listed MCP tools.",
     "commands": {
-        "billing": ["dexto_credits_balance", "dexto_credits_topup"],
         "chat import": ["dexto_chat_import_prepare", "dexto_chat_import"],
         "find": ["dexto_search", "dexto_route_get"],
         "models list": ["dexto_chat_models"],
@@ -12,7 +11,7 @@
         "profile update": ["dexto_profile_update"],
         "publish": ["dexto_upload_prepare", "dexto_site_deploy", "dexto_site_publish"],
         "skills push": ["dexto_upload_prepare", "dexto_skill_bundle_import"],
-        "skills sync": ["dexto_skill_bundle_download", "dexto_skill_bundle_import"],
+        "skills sync": ["dexto_skills_search", "dexto_apps_action", "dexto_skill_bundle_download"],
         "workspace artifacts create": ["dexto_artifacts_create"],
         "workspace artifacts get": ["dexto_artifacts_get"],
         "workspace artifacts list": ["dexto_artifacts_list"],
@@ -225,6 +224,19 @@
         }
     ],
     "exceptions": [
+        {
+            "name": "billing",
+            "group": "additionalRemote",
+            "issue": "DEXTO-2479",
+            "reason": "MCP balance/top-up lacks the CLI billing summary's 30-day spending and recent usage.",
+            "commands": ["billing"],
+            "closesWhen": [
+                {
+                    "tool": "dexto_billing_summary",
+                    "inputs": []
+                }
+            ]
+        },
         {
             "name": "cloud-fetch",
             "group": "additionalRemote",

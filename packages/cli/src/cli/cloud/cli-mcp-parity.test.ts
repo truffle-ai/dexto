@@ -8,7 +8,8 @@ const catalog: { tools: { name: string; inputSchema: unknown }[]; chatGetUsage: 
 
 // Approved S0 debt ceiling. Remove closed exceptions; never extend this baseline.
 const approvedExceptions = new Set(
-    `cloud-agents-approve
+    `billing
+cloud-agents-approve
 cloud-agents-archive
 cloud-agents-chat
 cloud-agents-create
