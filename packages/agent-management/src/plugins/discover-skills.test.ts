@@ -214,6 +214,7 @@ describe('getSkillSearchPaths', () => {
             '/test/project/.dexto/skills',
             '/home/user/.agents/skills',
             '/home/user/.dexto/skills',
+            '/home/user/.dexto/cloud-skills',
         ]);
     });
 
@@ -224,6 +225,7 @@ describe('getSkillSearchPaths', () => {
             '/other/project/.dexto/skills',
             '/home/user/.agents/skills',
             '/home/user/.dexto/skills',
+            '/home/user/.dexto/cloud-skills',
         ]);
     });
 });

@@ -3,7 +3,7 @@
 import { createServer } from 'node:http';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { openBrowserUrl } from './browser-launch.js';
-import type { dextoSignIn } from '@dexto/agent-management';
+import { dextoSignIn } from '@dexto/agent-management';
 
 type RedirectListener = dextoSignIn.RedirectListener;
 type SignInRuntime = dextoSignIn.SignInRuntime;
@@ -52,7 +52,7 @@ export function nodeSignInRuntime(signal: AbortSignal): SignInRuntime {
     return {
         fetch: globalThis.fetch,
         signal,
-        note: (text) => process.stderr.write(`${text}\n`),
+        prompt: (prompt) => process.stderr.write(`${dextoSignIn.signInPromptText(prompt)}\n`),
         openBrowser: async (url) => {
             try {
                 await openBrowserUrl(url);

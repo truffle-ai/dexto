@@ -2,9 +2,11 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { dextoAccounts, type dextoCloud, type dextoSignIn } from '@dexto/agent-management';
+import { dextoAccounts, dextoSignIn, type dextoCloud } from '@dexto/agent-management';
+import { onTerminal } from '@dexto/tui/signal-harness';
 import {
     type SignInContext,
+    plainSignInScreen,
     describeSignIn,
     listAccounts,
     login,
@@ -66,6 +68,7 @@ describe('sign-in commands', () => {
     let organization: { id: string; name: string; slug: string };
     let projects: CloudProject[];
     let context: SignInContext;
+    let chatSyncOn: boolean;
 
     beforeEach(async () => {
         dir = path.join(await mkdtemp(path.join(os.tmpdir(), 'dexto-sign-in-')), 'accounts');
@@ -78,6 +81,7 @@ describe('sign-in commands', () => {
         endResult = { status: 'ended' };
         checkedKeys = [];
         keyAccepted = true;
+        chatSyncOn = false;
         organization = ACME;
         projects = [
             { id: 'prj_old', name: 'Old', isDefault: false, archived: true },
@@ -94,8 +98,10 @@ describe('sign-in commands', () => {
                 printed.push(text);
             },
             note: (text) => notes.push(text),
+            screen: plainSignInScreen((text) => notes.push(text)),
             confirm: async () => false,
             canOpenBrowser: true,
+            chatSyncOn: async () => chatSyncOn,
             dexto: {
                 signInWithBrowser: async (input) => {
                     browserInputs.push(input);
@@ -241,6 +247,16 @@ describe('sign-in commands', () => {
                 organization: 'org_acme',
                 extraScopes: ['cloud:read', 'drive:write', 'memories:write'],
             });
+        });
+
+        it('asks for chats:sync only while chat sync is on', async () => {
+            chatSyncOn = true;
+            await login(context, noOptions);
+            expect(browserInputs[0]?.extraScopes).toEqual(['chats:sync']);
+
+            chatSyncOn = false;
+            await login(context, noOptions);
+            expect(browserInputs[1]?.extraScopes).toEqual(['cloud:read']);
         });
 
         it("won't save another organization over a profile --org named", async () => {
@@ -434,5 +450,97 @@ describe('sign-in commands', () => {
                 scopes: ['cloud:read'],
             },
         ]);
+    });
+
+    describe('on Signal', () => {
+        const withSignal = <T>(run: () => Promise<T>) => onTerminal('no-color', run);
+
+        it('shows whoami as one labelled row each, and keeps the JSON as it was', async () => {
+            await writeLogin(
+                dir,
+                'work',
+                signedIn(ACME, { cloudProject: { id: 'prj_main', name: 'Main' } })
+            );
+            await writeCurrentProfile(dir, 'work');
+
+            const lines: string[] = [];
+            await withSignal(async () => {
+                await whoami(context, { profile: null, apiKey: null });
+                lines.push(...printed);
+            });
+
+            expect(lines.join('\n')).toBe(
+                [
+                    '◆ Signed in as Ada  ada@example.com',
+                    '  org       Acme (acme)',
+                    '  project   Main',
+                    '  access    cloud:read',
+                    '  profile   work',
+                    `  app       ${APP}`,
+                    '',
+                    '  switch: dexto login --profile <name> · sign out: dexto logout',
+                ].join('\n')
+            );
+            expect(values[0]).toMatchObject({ as: 'person', profile: 'work' });
+        });
+
+        const signalScreen = () => ({
+            ...plainSignInScreen(() => undefined),
+            look: 'signal' as const,
+        });
+
+        it('keeps the plain words for the TUI and JSON, whose screen is plain', async () => {
+            context = {
+                ...context,
+                canOpenBrowser: false,
+                dexto: {
+                    ...context.dexto,
+                    signInWithDevice: async () => {
+                        throw new dextoSignIn.SignInEnded('declined', 'Sign-in was declined.');
+                    },
+                },
+            };
+            await expect(withSignal(() => login(context, noOptions))).rejects.toThrow(
+                'Sign-in was declined.'
+            );
+            expect(notes).toEqual(['No browser here, so sign in with a code on any device.']);
+        });
+
+        it('says what to run when the browser sign-in was declined', async () => {
+            context = {
+                ...context,
+                screen: signalScreen(),
+                dexto: {
+                    ...context.dexto,
+                    signInWithBrowser: async () => {
+                        throw new dextoSignIn.SignInEnded('declined', 'Sign-in was declined.');
+                    },
+                },
+            };
+            await expect(withSignal(() => login(context, noOptions))).rejects.toMatchObject({
+                kind: 'failed',
+                message: 'Sign-in cancelled in the browser',
+                fix: 'dexto login',
+            });
+        });
+
+        it("says the sign-in didn't finish when it timed out", async () => {
+            context = {
+                ...context,
+                screen: signalScreen(),
+                dexto: {
+                    ...context.dexto,
+                    signInWithDevice: async () => {
+                        throw new dextoSignIn.SignInEnded('timed_out', 'Sign-in timed out.');
+                    },
+                },
+            };
+            await expect(
+                withSignal(() => login(context, { ...noOptions, device: true }))
+            ).rejects.toMatchObject({
+                message: "Sign-in didn't finish",
+                fix: 'dexto login --device',
+            });
+        });
     });
 });

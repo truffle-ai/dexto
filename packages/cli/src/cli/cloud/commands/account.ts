@@ -14,19 +14,23 @@ import {
     type CommandContext,
 } from '../command.js';
 import type { SignInContext } from '../../commands/auth/sign-in-commands.js';
+import { terminalSignInScreen } from '../../screens/sign-in.js';
 
 /** Builds the sign-in context a command runs in; the host owns where sign-ins live. */
 export type SignInFor = (io: {
     readonly result: SignInContext['result'];
     readonly note: SignInContext['note'];
+    readonly screen: SignInContext['screen'];
     readonly confirm: SignInContext['confirm'];
     readonly signal: AbortSignal;
 }) => Promise<SignInContext>;
 
 function signInIo(context: CommandContext) {
+    const note = (text: string) => context.output.note(text);
     return {
         result: (value: unknown, text: string) => context.output.result(value, text),
-        note: (text: string) => context.output.note(text),
+        note,
+        screen: terminalSignInScreen(context.runtime.writeError, note, context.output.json),
         confirm: (question: string) => confirm(context, question),
         signal: context.runtime.signal,
     };

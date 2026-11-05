@@ -1163,6 +1163,266 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/skills": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Skills
+         * @description List the Skills in the person's library, leaving out those they turned off. Takes a person's OAuth token with the skills:read scope, besides cloud:read or cloud:write as on every /v1 call, and no Dexto-Cloud-Project header; API keys can't read a person's Skills.
+         */
+        get: operations["listSkills"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/skills/{skill_id}/bundle": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Download a Skill
+         * @description Download the latest release of a Skill in the person's library as a tar archive, with SKILL.md at its root. Takes a person's OAuth token with the skills:read scope, besides cloud:read or cloud:write as on every /v1 call, and no Dexto-Cloud-Project header; API keys can't read a person's Skills.
+         */
+        get: operations["downloadSkillBundle"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/traces": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List run traces
+         * @description List the person's recent run traces, newest first. Spans are kept 30 days. Reads the person's own runs, in organizations they still belong to. Takes a person's OAuth token with the runs:read scope, besides cloud:read or cloud:write as on every /v1 call, which reads in the token's organization; or an API key with the runs:read permission, which reads as its person, in its organization when it is an organization key. No Dexto-Cloud-Project header. A token without runs:read gets 403 naming it in details.scope. 503 when trace storage is unavailable.
+         */
+        get: operations["listRunTraces"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/traces/{run_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get a run trace
+         * @description Read one run's trace: its spans and their events. An unknown run, or another person's, answers 404. Reads the person's own runs, in organizations they still belong to. Takes a person's OAuth token with the runs:read scope, besides cloud:read or cloud:write as on every /v1 call, which reads in the token's organization; or an API key with the runs:read permission, which reads as its person, in its organization when it is an organization key. No Dexto-Cloud-Project header. A token without runs:read gets 403 naming it in details.scope. 503 when trace storage is unavailable.
+         */
+        get: operations["getRunTrace"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/traces/{run_id}/spans": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List run spans
+         * @description List one run's spans, filtered by name and status. Reads the person's own runs, in organizations they still belong to. Takes a person's OAuth token with the runs:read scope, besides cloud:read or cloud:write as on every /v1 call, which reads in the token's organization; or an API key with the runs:read permission, which reads as its person, in its organization when it is an organization key. No Dexto-Cloud-Project header. A token without runs:read gets 403 naming it in details.scope. 503 when trace storage is unavailable.
+         */
+        get: operations["listRunSpans"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/synced_chats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Sync a CLI chat
+         * @description Beta, may change. Copy a local CLI chat's messages into the person's private, read-only chat for it, creating it with the first batch. Send messages in order: a batch may repeat messages the chat holds, which must match after redaction. Dexto Cloud redacts every message again, so one the CLI missed is still stored redacted. 409 sync_gap names next_index when the batch starts past the chat's end; 409 sync_diverged names the index of a message that differs from the stored one, and the CLI stops syncing that chat. 409 chat_in_cloud while the chat continues in the cloud. A request is at most 8 MiB and a chat holds at most 2000 messages and 4000000 characters (413). Each person may hold 1000 synced chats per organization; a new chat over that limit is refused with 409 synced_chat_limit. Existing chats can still sync. Each person may sync 120 times a minute (429). Takes a person's OAuth token from the Dexto CLI with the chats:sync scope; a key can't.
+         */
+        post: operations["syncChat"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/synced_chats/{chat_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete a synced chat
+         * @description Beta, may change. Delete a chat synced from the CLI, with all its messages. Syncing the local chat again creates a new one. 409 chat_in_cloud while the chat continues in the cloud, and 409 move_in_progress, naming the move, while a move is open. Takes a person's OAuth token from the Dexto CLI with the chats:sync scope; a key can't.
+         */
+        delete: operations["deleteSyncedChat"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/synced_chats/{chat_id}/moves": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start moving a synced chat
+         * @description Beta, may change. Start moving a synced chat. To the cloud: move it and its working tree to the chat's own cloud computer. Declare the branch, head commit, and the size and SHA-256 of the git bundle and of the patch of uncommitted changes, then PUT each to its URL and call uploaded. A bundle over 256 MiB or a patch over 32 MiB is refused with 413. 409 move_in_progress names the chat's open move; 409 chat_in_cloud means the chat is already in the cloud; 409 too_many_moves when 3 of the person's chats are already moving to the cloud. To local (`{"to":"local"}`): the chat in the cloud stops taking turns (409 chat_moving) while its computer exports the working tree, within about a minute: the commits after the head the CLI uploaded as a bundle, and the uncommitted changes as a patch without gitignored or secret-shaped files. The move is then ready, with export, or failed with export_failed or computer_unavailable and the chat back in the cloud; 409 chat_busy while a turn runs or messages wait in its queue, and 409 chat_local when the chat is not in the cloud. An open move expires an hour after it starts, and an expired or canceled move back puts the chat in the cloud again. 503 when this environment cannot take uploads.
+         */
+        post: operations["startSyncedChatMove"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/synced_chats/{chat_id}/moves/{move_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get a synced chat move
+         * @description Beta, may change. Read a move's status and failure, with fresh upload URLs while it awaits its upload, and its export with fresh download URLs once a move to local is ready.
+         */
+        get: operations["getSyncedChatMove"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/synced_chats/{chat_id}/moves/{move_id}/uploaded": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Confirm a synced chat move's upload
+         * @description Beta, may change. Tell Dexto Cloud both uploads finished. It checks each object's size and SHA-256 and that the patch changes no secret-shaped file, such as .env or ~/.ssh/*: the move is then importing, or failed with upload_mismatch or secret_path and its uploads deleted. The chat stays local until the import completes: the chat's computer then clones the bundle and applies the patch, refusing a secret-shaped file in the patch or in the head commit's tree, and the move becomes completed (the chat takes turns in the cloud) or failed with secret_path, import_failed, upload_mismatch or computer_unavailable. Poll the move to follow it. 409 move_not_awaiting_upload names the move's status.
+         */
+        post: operations["confirmSyncedChatMoveUpload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/synced_chats/{chat_id}/moves/{move_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel a synced chat move
+         * @description Beta, may change. Abandon an open move: it is canceled, its uploads are deleted and the chat is where it was before the move. A move no longer open is returned unchanged.
+         */
+        post: operations["cancelSyncedChatMove"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/synced_chats/{chat_id}/moves/{move_id}/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Complete a synced chat move
+         * @description Beta, may change. Finish a move back to local once the CLI applied its export: the move is completed and the chat is local again, read-only in Dexto Cloud, and sync resumes at sync_from_index, the index after its last message. 409 move_not_ready names the move's status.
+         */
+        post: operations["completeSyncedChatMove"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/synced_chats/{chat_id}/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List a moving chat's messages
+         * @description Beta, may change. Read the messages of a chat moving back to local from from_index, in the sync message shape, at most 200 messages and 4 MiB of stored messages a page; next_from_index starts the next page. A message over 1 MiB, a tool output over 256 KiB, or tool outputs past 4 MiB a page come back as omitted markers. Only while a move back is open: 409 chat_not_returning otherwise.
+         */
+        get: operations["listSyncedChatMessages"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/sites/publish": {
         parameters: {
             query?: never;
@@ -1261,6 +1521,50 @@ export interface paths {
          * @description Make one of the Site's ready deployments its production release. Needs sites:write.
          */
         post: operations["promoteSiteDeployment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/artifacts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Artifacts
+         * @description List the caller's Artifacts, newest first.
+         */
+        get: operations["listArtifacts"];
+        put?: never;
+        /**
+         * Publish an Artifact
+         * @description Store HTML and share it with the caller's organization. Requires a user credential.
+         */
+        post: operations["publishArtifact"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/artifacts/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Open an Artifact
+         * @description Read a link to the caller's Artifact.
+         */
+        get: operations["getArtifact"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -13730,6 +14034,2062 @@ export interface operations {
             };
         };
     };
+    listSkills: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful response. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: {
+                            description: string;
+                            /** Format: uuid */
+                            id: string;
+                            /** @constant */
+                            object: "skill";
+                            /** @description The latest release; the library holds only Skills that have one. */
+                            release: {
+                                /** @description Changes whenever the Skill's files change; use it as a cache key. */
+                                digest: string;
+                                version: string;
+                            };
+                            slug: string;
+                            /**
+                             * @description A built-in Skill, or a written one.
+                             * @enum {string}
+                             */
+                            source: "platform" | "user";
+                            title: string;
+                            /** @description Whose a written Skill is: the person's own, the organization's, or shared with them. Null for a built-in one. */
+                            visibility: ("organization" | "private" | "shared") | null;
+                        }[];
+                        /** @constant */
+                        has_more: false;
+                        next_after: null;
+                        /** @constant */
+                        object: "list";
+                    };
+                };
+            };
+            /** @description Invalid JSON or request fields. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Missing or invalid API key. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The account has insufficient credits. */
+            402: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The account cannot perform this operation. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The requested resource was not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The request conflicts with existing resource state. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The account exceeded this operation's request rate. */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying. */
+                    "Retry-After"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected Dexto failure. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The upstream model provider failed. */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description A required Dexto service is temporarily unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    downloadSkillBundle: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                skill_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful response. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/x-tar": string;
+                };
+            };
+            /** @description Invalid JSON or request fields. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Missing or invalid API key. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The account has insufficient credits. */
+            402: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The account cannot perform this operation. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The requested resource was not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The request conflicts with existing resource state. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The account exceeded this operation's request rate. */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying. */
+                    "Retry-After"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected Dexto failure. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The upstream model provider failed. */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description A required Dexto service is temporarily unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    listRunTraces: {
+        parameters: {
+            query?: {
+                limit?: number;
+                /** @description Only runs with a span in this recent period, such as 15m, 3h or 7d; at most 30d. */
+                period?: string;
+                /** @description Only runs of this chat. */
+                session_id?: string;
+                status?: "cancelled" | "completed" | "failed" | "queued" | "retrying" | "running" | "waiting_approval";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful response. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: {
+                            /** @description From the first span's start to the last span's end. */
+                            duration_ms: number;
+                            /** @description Spans that failed. */
+                            error_count: number;
+                            event_count: number;
+                            /** Format: date-time */
+                            first_span_started_at: string;
+                            /** Format: date-time */
+                            last_span_started_at: string;
+                            /** @constant */
+                            object: "run_trace_summary";
+                            run_id: string;
+                            /** @description The chat the run belongs to. */
+                            session_id: string;
+                            span_count: number;
+                            /** @description Each span name in the run, once, sorted. */
+                            span_names: string[];
+                            /** @description The run's status: cancelled, completed, failed, queued, retrying, running, waiting_approval. New statuses may be added. */
+                            status: string;
+                        }[];
+                        /** @description More matched than `limit` returned. It reads the newest runs first, so old traces past them can be missed: narrow the period or filter. */
+                        has_more: boolean;
+                        next_after: null;
+                        /** @constant */
+                        object: "list";
+                    };
+                };
+            };
+            /** @description Invalid JSON or request fields. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Missing or invalid API key. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The account has insufficient credits. */
+            402: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The account cannot perform this operation. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The requested resource was not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The request conflicts with existing resource state. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The account exceeded this operation's request rate. */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying. */
+                    "Retry-After"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected Dexto failure. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The upstream model provider failed. */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description A required Dexto service is temporarily unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getRunTrace: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful response. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        events: {
+                            attributes: {
+                                [key: string]: components["schemas"]["JsonValue"];
+                            };
+                            id: string;
+                            name: string;
+                            /** @constant */
+                            object: "run_span_event";
+                            /** Format: date-time */
+                            occurred_at: string;
+                            run_id: string;
+                            run_span_id: string;
+                        }[];
+                        /** @description The trace reached its 500-span cap and may hold more; list them with /spans, filtered by name or status. */
+                        has_more: boolean;
+                        /** @constant */
+                        object: "run_trace";
+                        run_id: string;
+                        /** @description At most 500, by start time. */
+                        spans: {
+                            attributes: {
+                                [key: string]: components["schemas"]["JsonValue"];
+                            };
+                            /** @description Milliseconds, with a fraction. */
+                            duration_ms: number;
+                            ended_at: string | null;
+                            error_code: string | null;
+                            error_message: string | null;
+                            /** @description The span's id; run_span_event.run_span_id names it. */
+                            id: string;
+                            name: string;
+                            /** @constant */
+                            object: "run_span";
+                            parent_span_id: string | null;
+                            run_attempt_id: string | null;
+                            run_id: string;
+                            session_id: string | null;
+                            span_id: string;
+                            /** Format: date-time */
+                            started_at: string;
+                            /** @enum {string} */
+                            status: "completed" | "failed";
+                            trace_id: string;
+                        }[];
+                    };
+                };
+            };
+            /** @description Invalid JSON or request fields. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Missing or invalid API key. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The account has insufficient credits. */
+            402: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The account cannot perform this operation. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The requested resource was not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The request conflicts with existing resource state. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The account exceeded this operation's request rate. */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying. */
+                    "Retry-After"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected Dexto failure. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The upstream model provider failed. */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description A required Dexto service is temporarily unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    listRunSpans: {
+        parameters: {
+            query?: {
+                limit?: number;
+                /** @description Only spans with exactly this name. */
+                name?: string;
+                /** @description started_at: by start time. duration: longest first. */
+                sort?: "started_at" | "duration";
+                status?: "completed" | "failed";
+            };
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful response. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: {
+                            attributes: {
+                                [key: string]: components["schemas"]["JsonValue"];
+                            };
+                            /** @description Milliseconds, with a fraction. */
+                            duration_ms: number;
+                            ended_at: string | null;
+                            error_code: string | null;
+                            error_message: string | null;
+                            /** @description The span's id; run_span_event.run_span_id names it. */
+                            id: string;
+                            name: string;
+                            /** @constant */
+                            object: "run_span";
+                            parent_span_id: string | null;
+                            run_attempt_id: string | null;
+                            run_id: string;
+                            session_id: string | null;
+                            span_id: string;
+                            /** Format: date-time */
+                            started_at: string;
+                            /** @enum {string} */
+                            status: "completed" | "failed";
+                            trace_id: string;
+                        }[];
+                        /** @description More matched than `limit` returned. It reads the newest runs first, so old traces past them can be missed: narrow the period or filter. */
+                        has_more: boolean;
+                        next_after: null;
+                        /** @constant */
+                        object: "list";
+                    };
+                };
+            };
+            /** @description Invalid JSON or request fields. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Missing or invalid API key. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The account has insufficient credits. */
+            402: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The account cannot perform this operation. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The requested resource was not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The request conflicts with existing resource state. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The account exceeded this operation's request rate. */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying. */
+                    "Retry-After"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected Dexto failure. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The upstream model provider failed. */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description A required Dexto service is temporarily unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    syncChat: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    cli_version?: string;
+                    cwd?: string;
+                    /** @description The index of the first message sent; messages are numbered from 0. */
+                    from_index: number;
+                    git_branch?: string;
+                    /** @description The chat's id on the machine; with the machine's id it names one synced chat. */
+                    local_chat_id: string;
+                    machine: {
+                        /**
+                         * Format: uuid
+                         * @description A random id the CLI keeps for this machine.
+                         */
+                        id: string;
+                        name: string;
+                    };
+                    /** @description At most 200 consecutive messages from from_index. Only user and assistant messages: no system prompt, injected context or reasoning. */
+                    messages: {
+                        /** Format: date-time */
+                        created_at: string;
+                        index: number;
+                        parts: ({
+                            text: string;
+                            /** @constant */
+                            type: "text";
+                        } | {
+                            /** @description The call's input, cut to 4,000 characters. */
+                            input: string;
+                            name: string;
+                            /** @description The call's output, cut to 4,000 characters; null when it has none. */
+                            output: string | null;
+                            /** @description The file the call read or wrote, when it names one. Dexto Cloud replaces the input and output of a call on a secret-shaped file, such as .env or ~/.ssh/*, with one exclusion marker, and the output of a command that names one. */
+                            path: string | null;
+                            /** @constant */
+                            type: "tool";
+                        } | {
+                            mime_type: string;
+                            name: string;
+                            size_bytes: number;
+                            /** @constant */
+                            type: "attachment";
+                        })[];
+                        /** @enum {string} */
+                        role: "assistant" | "user";
+                    }[];
+                    title: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful response. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /**
+                         * Format: uuid
+                         * @description The chat's id in Dexto Cloud.
+                         */
+                        id: string;
+                        /** @description The index the next batch starts at: the number of messages the chat holds. */
+                        next_index: number;
+                        /** @constant */
+                        object: "synced_chat";
+                        /** @description How many secrets of each kind the chat's stored text has replaced, counted from its markers. */
+                        redactions: {
+                            [key: string]: number;
+                        };
+                        /**
+                         * @description unchanged: every message sent was already in the chat, as sent.
+                         * @enum {string}
+                         */
+                        status: "appended" | "created" | "unchanged";
+                        /**
+                         * Format: uri
+                         * @description The chat in the Dexto dashboard.
+                         */
+                        url: string;
+                    };
+                };
+            };
+            /** @description Invalid JSON or request fields. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Missing or invalid API key. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The account has insufficient credits. */
+            402: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The account cannot perform this operation. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The requested resource was not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The request conflicts with existing resource state. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The account exceeded this operation's request rate. */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying. */
+                    "Retry-After"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected Dexto failure. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The upstream model provider failed. */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description A required Dexto service is temporarily unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    deleteSyncedChat: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                chat_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful response. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @constant */
+                        deleted: true;
+                        /** Format: uuid */
+                        id: string;
+                        /** @constant */
+                        object: "synced_chat";
+                    };
+                };
+            };
+            /** @description Invalid JSON or request fields. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Missing or invalid API key. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The account has insufficient credits. */
+            402: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The account cannot perform this operation. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The requested resource was not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The request conflicts with existing resource state. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The account exceeded this operation's request rate. */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying. */
+                    "Retry-After"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected Dexto failure. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The upstream model provider failed. */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description A required Dexto service is temporarily unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    startSyncedChatMove: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                chat_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @constant */
+                    to: "cloud";
+                    working_tree: {
+                        branch: string;
+                        /** @description `git bundle create - HEAD <branch>`, at most 256 MiB. */
+                        bundle: {
+                            /** @description The object's SHA-256, lowercase hex. */
+                            sha256: string;
+                            size_bytes: number;
+                        };
+                        head_commit: string;
+                        /** @description `git diff --binary HEAD` with untracked, non-ignored files marked intent-to-add, at most 32 MiB; null for a clean tree. */
+                        patch: {
+                            /** @description The object's SHA-256, lowercase hex. */
+                            sha256: string;
+                            size_bytes: number;
+                        } | null;
+                    };
+                } | {
+                    /** @constant */
+                    to: "local";
+                };
+            };
+        };
+        responses: {
+            /** @description Created. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        chat_id: string;
+                        /** Format: date-time */
+                        created_at: string;
+                        /**
+                         * Format: date-time
+                         * @description An open move is expired at this time.
+                         */
+                        expires_at: string;
+                        failure: ("computer_unavailable" | "export_failed" | "import_failed" | "secret_path" | "upload_mismatch") | null;
+                        /** Format: uuid */
+                        id: string;
+                        /** @constant */
+                        object: "synced_chat_move";
+                        /** @enum {string} */
+                        status: "awaiting_upload" | "importing" | "exporting" | "ready" | "completed" | "failed" | "canceled" | "expired";
+                        /** @enum {string} */
+                        to: "cloud" | "local";
+                        /** @description While a move to local is ready: fetch the bundle's HEAD into the branch, apply the patch, read the transcript, then call complete. Otherwise null. */
+                        export: {
+                            /** @description The branch the cloud repository is on. */
+                            branch: string;
+                            /** @description A fresh GET URL per object the export uploaded, valid for 15 minutes. No bundle when the cloud made no commit the CLI lacks; no patch when the tree is clean. */
+                            downloads: {
+                                /** Format: date-time */
+                                expires_at: string;
+                                /** @constant */
+                                method: "GET";
+                                /** @enum {string} */
+                                object: "bundle" | "patch";
+                                /** @description The object's SHA-256, lowercase hex: check it after the download. */
+                                sha256: string;
+                                size_bytes: number;
+                                /** Format: uri */
+                                url: string;
+                            }[];
+                            /** @description The cloud repository's head commit. */
+                            head_commit: string;
+                            /** @description The index of the chat's first message the CLI lacks: read the messages from here. */
+                            transcript_from_index: number;
+                        } | null;
+                        /** @description While awaiting_upload, a fresh PUT URL per declared object, valid for 15 minutes; otherwise empty. */
+                        uploads: {
+                            /** Format: date-time */
+                            expires_at: string;
+                            /** @description Send exactly these headers with the PUT; the URL signs them. */
+                            headers: {
+                                [key: string]: string;
+                            };
+                            /** @constant */
+                            method: "PUT";
+                            /** @enum {string} */
+                            object: "bundle" | "patch";
+                            /** Format: uri */
+                            url: string;
+                        }[];
+                    };
+                };
+            };
+            /** @description Invalid JSON or request fields. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Missing or invalid API key. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The account has insufficient credits. */
+            402: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The account cannot perform this operation. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The requested resource was not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The request conflicts with existing resource state. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The account exceeded this operation's request rate. */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying. */
+                    "Retry-After"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected Dexto failure. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The upstream model provider failed. */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description A required Dexto service is temporarily unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getSyncedChatMove: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                chat_id: string;
+                move_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful response. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        chat_id: string;
+                        /** Format: date-time */
+                        created_at: string;
+                        /**
+                         * Format: date-time
+                         * @description An open move is expired at this time.
+                         */
+                        expires_at: string;
+                        failure: ("computer_unavailable" | "export_failed" | "import_failed" | "secret_path" | "upload_mismatch") | null;
+                        /** Format: uuid */
+                        id: string;
+                        /** @constant */
+                        object: "synced_chat_move";
+                        /** @enum {string} */
+                        status: "awaiting_upload" | "importing" | "exporting" | "ready" | "completed" | "failed" | "canceled" | "expired";
+                        /** @enum {string} */
+                        to: "cloud" | "local";
+                        /** @description While a move to local is ready: fetch the bundle's HEAD into the branch, apply the patch, read the transcript, then call complete. Otherwise null. */
+                        export: {
+                            /** @description The branch the cloud repository is on. */
+                            branch: string;
+                            /** @description A fresh GET URL per object the export uploaded, valid for 15 minutes. No bundle when the cloud made no commit the CLI lacks; no patch when the tree is clean. */
+                            downloads: {
+                                /** Format: date-time */
+                                expires_at: string;
+                                /** @constant */
+                                method: "GET";
+                                /** @enum {string} */
+                                object: "bundle" | "patch";
+                                /** @description The object's SHA-256, lowercase hex: check it after the download. */
+                                sha256: string;
+                                size_bytes: number;
+                                /** Format: uri */
+                                url: string;
+                            }[];
+                            /** @description The cloud repository's head commit. */
+                            head_commit: string;
+                            /** @description The index of the chat's first message the CLI lacks: read the messages from here. */
+                            transcript_from_index: number;
+                        } | null;
+                        /** @description While awaiting_upload, a fresh PUT URL per declared object, valid for 15 minutes; otherwise empty. */
+                        uploads: {
+                            /** Format: date-time */
+                            expires_at: string;
+                            /** @description Send exactly these headers with the PUT; the URL signs them. */
+                            headers: {
+                                [key: string]: string;
+                            };
+                            /** @constant */
+                            method: "PUT";
+                            /** @enum {string} */
+                            object: "bundle" | "patch";
+                            /** Format: uri */
+                            url: string;
+                        }[];
+                    };
+                };
+            };
+            /** @description Invalid JSON or request fields. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Missing or invalid API key. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The account has insufficient credits. */
+            402: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The account cannot perform this operation. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The requested resource was not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The request conflicts with existing resource state. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The account exceeded this operation's request rate. */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying. */
+                    "Retry-After"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected Dexto failure. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The upstream model provider failed. */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description A required Dexto service is temporarily unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    confirmSyncedChatMoveUpload: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                chat_id: string;
+                move_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful response. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        chat_id: string;
+                        /** Format: date-time */
+                        created_at: string;
+                        /**
+                         * Format: date-time
+                         * @description An open move is expired at this time.
+                         */
+                        expires_at: string;
+                        failure: ("computer_unavailable" | "export_failed" | "import_failed" | "secret_path" | "upload_mismatch") | null;
+                        /** Format: uuid */
+                        id: string;
+                        /** @constant */
+                        object: "synced_chat_move";
+                        /** @enum {string} */
+                        status: "awaiting_upload" | "importing" | "exporting" | "ready" | "completed" | "failed" | "canceled" | "expired";
+                        /** @enum {string} */
+                        to: "cloud" | "local";
+                        /** @description While a move to local is ready: fetch the bundle's HEAD into the branch, apply the patch, read the transcript, then call complete. Otherwise null. */
+                        export: {
+                            /** @description The branch the cloud repository is on. */
+                            branch: string;
+                            /** @description A fresh GET URL per object the export uploaded, valid for 15 minutes. No bundle when the cloud made no commit the CLI lacks; no patch when the tree is clean. */
+                            downloads: {
+                                /** Format: date-time */
+                                expires_at: string;
+                                /** @constant */
+                                method: "GET";
+                                /** @enum {string} */
+                                object: "bundle" | "patch";
+                                /** @description The object's SHA-256, lowercase hex: check it after the download. */
+                                sha256: string;
+                                size_bytes: number;
+                                /** Format: uri */
+                                url: string;
+                            }[];
+                            /** @description The cloud repository's head commit. */
+                            head_commit: string;
+                            /** @description The index of the chat's first message the CLI lacks: read the messages from here. */
+                            transcript_from_index: number;
+                        } | null;
+                        /** @description While awaiting_upload, a fresh PUT URL per declared object, valid for 15 minutes; otherwise empty. */
+                        uploads: {
+                            /** Format: date-time */
+                            expires_at: string;
+                            /** @description Send exactly these headers with the PUT; the URL signs them. */
+                            headers: {
+                                [key: string]: string;
+                            };
+                            /** @constant */
+                            method: "PUT";
+                            /** @enum {string} */
+                            object: "bundle" | "patch";
+                            /** Format: uri */
+                            url: string;
+                        }[];
+                    };
+                };
+            };
+            /** @description Invalid JSON or request fields. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Missing or invalid API key. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The account has insufficient credits. */
+            402: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The account cannot perform this operation. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The requested resource was not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The request conflicts with existing resource state. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The account exceeded this operation's request rate. */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying. */
+                    "Retry-After"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected Dexto failure. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The upstream model provider failed. */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description A required Dexto service is temporarily unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    cancelSyncedChatMove: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                chat_id: string;
+                move_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful response. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        chat_id: string;
+                        /** Format: date-time */
+                        created_at: string;
+                        /**
+                         * Format: date-time
+                         * @description An open move is expired at this time.
+                         */
+                        expires_at: string;
+                        failure: ("computer_unavailable" | "export_failed" | "import_failed" | "secret_path" | "upload_mismatch") | null;
+                        /** Format: uuid */
+                        id: string;
+                        /** @constant */
+                        object: "synced_chat_move";
+                        /** @enum {string} */
+                        status: "awaiting_upload" | "importing" | "exporting" | "ready" | "completed" | "failed" | "canceled" | "expired";
+                        /** @enum {string} */
+                        to: "cloud" | "local";
+                        /** @description While a move to local is ready: fetch the bundle's HEAD into the branch, apply the patch, read the transcript, then call complete. Otherwise null. */
+                        export: {
+                            /** @description The branch the cloud repository is on. */
+                            branch: string;
+                            /** @description A fresh GET URL per object the export uploaded, valid for 15 minutes. No bundle when the cloud made no commit the CLI lacks; no patch when the tree is clean. */
+                            downloads: {
+                                /** Format: date-time */
+                                expires_at: string;
+                                /** @constant */
+                                method: "GET";
+                                /** @enum {string} */
+                                object: "bundle" | "patch";
+                                /** @description The object's SHA-256, lowercase hex: check it after the download. */
+                                sha256: string;
+                                size_bytes: number;
+                                /** Format: uri */
+                                url: string;
+                            }[];
+                            /** @description The cloud repository's head commit. */
+                            head_commit: string;
+                            /** @description The index of the chat's first message the CLI lacks: read the messages from here. */
+                            transcript_from_index: number;
+                        } | null;
+                        /** @description While awaiting_upload, a fresh PUT URL per declared object, valid for 15 minutes; otherwise empty. */
+                        uploads: {
+                            /** Format: date-time */
+                            expires_at: string;
+                            /** @description Send exactly these headers with the PUT; the URL signs them. */
+                            headers: {
+                                [key: string]: string;
+                            };
+                            /** @constant */
+                            method: "PUT";
+                            /** @enum {string} */
+                            object: "bundle" | "patch";
+                            /** Format: uri */
+                            url: string;
+                        }[];
+                    };
+                };
+            };
+            /** @description Invalid JSON or request fields. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Missing or invalid API key. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The account has insufficient credits. */
+            402: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The account cannot perform this operation. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The requested resource was not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The request conflicts with existing resource state. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The account exceeded this operation's request rate. */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying. */
+                    "Retry-After"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected Dexto failure. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The upstream model provider failed. */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description A required Dexto service is temporarily unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    completeSyncedChatMove: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                chat_id: string;
+                move_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful response. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        chat_id: string;
+                        /** Format: date-time */
+                        created_at: string;
+                        /**
+                         * Format: date-time
+                         * @description An open move is expired at this time.
+                         */
+                        expires_at: string;
+                        failure: ("computer_unavailable" | "export_failed" | "import_failed" | "secret_path" | "upload_mismatch") | null;
+                        /** Format: uuid */
+                        id: string;
+                        /** @constant */
+                        object: "synced_chat_move";
+                        /** @enum {string} */
+                        status: "awaiting_upload" | "importing" | "exporting" | "ready" | "completed" | "failed" | "canceled" | "expired";
+                        /** @enum {string} */
+                        to: "cloud" | "local";
+                        /** @description While a move to local is ready: fetch the bundle's HEAD into the branch, apply the patch, read the transcript, then call complete. Otherwise null. */
+                        export: {
+                            /** @description The branch the cloud repository is on. */
+                            branch: string;
+                            /** @description A fresh GET URL per object the export uploaded, valid for 15 minutes. No bundle when the cloud made no commit the CLI lacks; no patch when the tree is clean. */
+                            downloads: {
+                                /** Format: date-time */
+                                expires_at: string;
+                                /** @constant */
+                                method: "GET";
+                                /** @enum {string} */
+                                object: "bundle" | "patch";
+                                /** @description The object's SHA-256, lowercase hex: check it after the download. */
+                                sha256: string;
+                                size_bytes: number;
+                                /** Format: uri */
+                                url: string;
+                            }[];
+                            /** @description The cloud repository's head commit. */
+                            head_commit: string;
+                            /** @description The index of the chat's first message the CLI lacks: read the messages from here. */
+                            transcript_from_index: number;
+                        } | null;
+                        /** @description While awaiting_upload, a fresh PUT URL per declared object, valid for 15 minutes; otherwise empty. */
+                        uploads: {
+                            /** Format: date-time */
+                            expires_at: string;
+                            /** @description Send exactly these headers with the PUT; the URL signs them. */
+                            headers: {
+                                [key: string]: string;
+                            };
+                            /** @constant */
+                            method: "PUT";
+                            /** @enum {string} */
+                            object: "bundle" | "patch";
+                            /** Format: uri */
+                            url: string;
+                        }[];
+                    };
+                };
+            };
+            /** @description Invalid JSON or request fields. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Missing or invalid API key. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The account has insufficient credits. */
+            402: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The account cannot perform this operation. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The requested resource was not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The request conflicts with existing resource state. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The account exceeded this operation's request rate. */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying. */
+                    "Retry-After"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected Dexto failure. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The upstream model provider failed. */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description A required Dexto service is temporarily unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    listSyncedChatMessages: {
+        parameters: {
+            query?: {
+                /** @description The index of the first message to read; messages are numbered from 0. */
+                from_index?: number;
+            };
+            header?: never;
+            path: {
+                chat_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful response. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Messages from from_index in the sync message shape, redacted again. A message with nothing to show (a tool result, which comes with its call, a system line, or a host-only summary or reminder) is left out but keeps its index, and a deleted message leaves its index unused. */
+                        messages: {
+                            /** Format: date-time */
+                            created_at: string;
+                            index: number;
+                            parts: ({
+                                text: string;
+                                /** @constant */
+                                type: "text";
+                            } | {
+                                /** @description The call's input, cut to 4,000 characters. */
+                                input: string;
+                                name: string;
+                                /** @description The call's output, cut to 4,000 characters; null when it has none. */
+                                output: string | null;
+                                /** @description The file the call read or wrote, when it names one. Dexto Cloud replaces the input and output of a call on a secret-shaped file, such as .env or ~/.ssh/*, with one exclusion marker, and the output of a command that names one. */
+                                path: string | null;
+                                /** @constant */
+                                type: "tool";
+                            } | {
+                                mime_type: string;
+                                name: string;
+                                size_bytes: number;
+                                /** @constant */
+                                type: "attachment";
+                            })[];
+                            /** @enum {string} */
+                            role: "assistant" | "user";
+                        }[];
+                        /** @description Where the next page starts; null on the last page. */
+                        next_from_index: number | null;
+                        /** @constant */
+                        object: "synced_chat_transcript";
+                        /** @description The index after the chat's last message: where sync resumes once the move completes. */
+                        sync_from_index: number;
+                    };
+                };
+            };
+            /** @description Invalid JSON or request fields. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Missing or invalid API key. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The account has insufficient credits. */
+            402: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The account cannot perform this operation. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The requested resource was not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The request conflicts with existing resource state. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The account exceeded this operation's request rate. */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying. */
+                    "Retry-After"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected Dexto failure. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The upstream model provider failed. */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description A required Dexto service is temporarily unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     listSites: {
         parameters: {
             query?: never;
@@ -14562,6 +16922,385 @@ export interface operations {
                 };
             };
             /** @description Missing or invalid authentication. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The account has insufficient credits. */
+            402: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The account cannot perform this operation. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The requested resource was not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The request conflicts with existing resource state. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The account exceeded this operation's request rate. */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying. */
+                    "Retry-After"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected Dexto failure. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The upstream model provider failed. */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description A required Dexto service is temporarily unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    listArtifacts: {
+        parameters: {
+            query?: {
+                after?: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful response. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: {
+                            id: string;
+                            /** @constant */
+                            object: "artifact";
+                            title: string;
+                            url: string | null;
+                        }[];
+                        /** @constant */
+                        object: "list";
+                        has_more: boolean;
+                        next_after: string | null;
+                    };
+                };
+            };
+            /** @description Invalid JSON or request fields. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Missing or invalid API key. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The account has insufficient credits. */
+            402: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The account cannot perform this operation. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The requested resource was not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The request conflicts with existing resource state. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The account exceeded this operation's request rate. */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying. */
+                    "Retry-After"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected Dexto failure. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The upstream model provider failed. */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description A required Dexto service is temporarily unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    publishArtifact: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    title: string;
+                    html: string;
+                    /** @default  */
+                    summary?: string;
+                    /**
+                     * @default document
+                     * @enum {string}
+                     */
+                    kind?: "document" | "plan" | "mockup" | "prototype" | "slide-deck" | "visualization" | "interactive" | "other";
+                };
+            };
+        };
+        responses: {
+            /** @description Created. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: string;
+                        /** @constant */
+                        object: "artifact";
+                        title: string;
+                        url: string | null;
+                    };
+                };
+            };
+            /** @description Invalid JSON or request fields. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Missing or invalid API key. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The account has insufficient credits. */
+            402: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The account cannot perform this operation. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The requested resource was not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The request conflicts with existing resource state. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The account exceeded this operation's request rate. */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before retrying. */
+                    "Retry-After"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected Dexto failure. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The upstream model provider failed. */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description A required Dexto service is temporarily unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getArtifact: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful response. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: string;
+                        /** @constant */
+                        object: "artifact";
+                        title: string;
+                        url: string | null;
+                    };
+                };
+            };
+            /** @description Invalid JSON or request fields. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Missing or invalid API key. */
             401: {
                 headers: {
                     [name: string]: unknown;

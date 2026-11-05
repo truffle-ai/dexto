@@ -94,6 +94,20 @@ export function integerOption(input: CommandInput, name: string): number | undef
     return parsed;
 }
 
+/** A string option that must be one of `values`, checked before anything is sent. */
+export function choiceOption<const T extends string>(
+    input: CommandInput,
+    name: string,
+    values: readonly T[]
+): T | undefined {
+    const value = stringOption(input, name);
+    if (value === undefined) return undefined;
+    const found = values.find((each) => each === value);
+    if (found === undefined)
+        throw new UsageError(`--${name} must be one of: ${values.join(', ')}.`);
+    return found;
+}
+
 export function argument(input: CommandInput, index: number, name: string): string {
     const value = input.positionals[index];
     if (value === undefined) throw new UsageError(`Missing ${name}.`);
@@ -156,7 +170,7 @@ export function isJsonObject(value: unknown): value is Record<string, unknown> {
 
 /** A value the person types, hidden when secret, or piped on stdin. */
 export async function readValue(
-    context: CommandContext,
+    context: Pick<CommandContext, 'runtime'>,
     question: string,
     secret: boolean
 ): Promise<string> {
