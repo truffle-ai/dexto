@@ -113,17 +113,21 @@ describe('signInWithBrowser', () => {
             return undefined;
         });
         let closed = false;
+        let listenedFor: string | undefined;
         let reply: (params: URLSearchParams) => void = () => undefined;
         const fake = runtime(server.fetch, {
-            listenForRedirect: async () => ({
-                redirectUri: REDIRECT,
-                result: new Promise<URLSearchParams>((done) => {
-                    reply = done;
-                }),
-                close: () => {
-                    closed = true;
-                },
-            }),
+            listenForRedirect: async (appUrl) => {
+                listenedFor = appUrl;
+                return {
+                    redirectUri: REDIRECT,
+                    result: new Promise<URLSearchParams>((done) => {
+                        reply = done;
+                    }),
+                    close: () => {
+                        closed = true;
+                    },
+                };
+            },
             openBrowser: async (url) => {
                 fake.opened.push(url);
                 const authorize = new URL(url);
@@ -160,6 +164,7 @@ describe('signInWithBrowser', () => {
         const token = server.calls.find((call) => call.url === `${APP}/api/oauth/token`);
         expect(token?.body?.get('client_id')).toBe(DEXTO_CLI_CLIENT_ID);
         expect(token?.body?.get('redirect_uri')).toBe(REDIRECT);
+        expect(listenedFor).toBe(APP);
         expect(closed).toBe(true);
         expect(signedIn).toMatchObject({
             kind: 'oauth',
