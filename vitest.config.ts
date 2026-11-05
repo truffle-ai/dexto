@@ -22,6 +22,10 @@ export default defineConfig({
                 replacement: path.resolve(__dirname, 'packages/core/src/index.ts'),
             },
             {
+                find: /^@dexto\/tui\/signal-(text|harness)$/,
+                replacement: path.resolve(__dirname, 'packages/tui/src/signal/$1.ts'),
+            },
+            {
                 find: '@dexto/agent-management',
                 replacement: path.resolve(__dirname, 'packages/agent-management/src/index.ts'),
             },

@@ -120,6 +120,40 @@ export async function handleUninstallCliCommand(
                 } else {
                     console.log('ℹ️  CLI binary was not found at expected path.');
                 }
+                // The install scripts (scripts/install.sh, scripts/install.ps1) point the binary at
+                // the package they install here; without it nothing uses that, so --purge isn't needed.
+                if (!validated.purge) {
+                    const installerPackagesPath = path.join(dextoHomePath, 'cli');
+                    try {
+                        // On Windows this CLI runs from that directory, through a dexto.cmd that
+                        // cmd.exe reads again after node exits, so it goes once this process ends.
+                        if (
+                            process.platform === 'win32' &&
+                            !validated.dryRun &&
+                            (await pathExists(installerPackagesPath))
+                        ) {
+                            await scheduleDeferredWindowsRemoval([installerPackagesPath]);
+                            console.log(
+                                `🗑️  Scheduled ${installerPackagesPath} removal after exit.`
+                            );
+                        } else {
+                            const removedPackages = await removeTargets(
+                                [installerPackagesPath],
+                                validated.dryRun
+                            );
+                            if (removedPackages.length > 0) {
+                                console.log(
+                                    `🗑️  Removed installed CLI packages: ${installerPackagesPath}`
+                                );
+                            }
+                        }
+                    } catch (error) {
+                        const message = error instanceof Error ? error.message : String(error);
+                        console.warn(
+                            `⚠️  Could not remove ${installerPackagesPath}: ${message}. Delete it by hand.`
+                        );
+                    }
+                }
             }
         } catch (error) {
             binaryRemovalError = error instanceof Error ? error : new Error(String(error));
