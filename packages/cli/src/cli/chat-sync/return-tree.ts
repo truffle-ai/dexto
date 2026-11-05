@@ -83,8 +83,24 @@ export async function applyReturnedTree(
             await git(['apply', patchPath], checkout);
         }
         const dirty = (await git(['status', '--porcelain'])).length > 0;
-        if (dirty)
-            await git(['stash', 'push', '--include-untracked', '-m', 'dexto hand-off backup']);
+        if (dirty) {
+            const safe = (
+                await git(['ls-files', '--cached', '--others', '--exclude-standard', '-z'])
+            )
+                .split('\0')
+                .filter((name) => name.length > 0 && !isSecretPath(name));
+            if (safe.length > 0)
+                await git([
+                    '--literal-pathspecs',
+                    'stash',
+                    'push',
+                    '--include-untracked',
+                    '-m',
+                    'dexto hand-off backup',
+                    '--',
+                    ...safe,
+                ]);
+        }
         try {
             await git(['checkout', '--no-overwrite-ignore', '-B', baseline.branch, returned.head]);
             if (returned.patch !== null) await git(['apply', patchPath]);
