@@ -5,6 +5,8 @@ import path from 'node:path';
 import { promisify } from 'node:util';
 import { afterEach, expect, it } from 'vitest';
 import { buildWorkingTree } from './working-tree.js';
+import { applyReturnedTree } from './return-tree.js';
+import { describeObject } from './move.js';
 
 const run = promisify(execFile);
 const folders: string[] = [];
@@ -53,4 +55,34 @@ it('refuses a secret-shaped file in history even after it was deleted', async ()
     await run('git', ['rm', '.env.fake'], { cwd });
     await run('git', ['commit', '-m', 'remove fake file'], { cwd });
     await expect(buildWorkingTree(cwd)).rejects.toThrow('secret-shaped');
+});
+
+it('applies a returned patch and preserves a local backup of the handed-off changes', async () => {
+    const cwd = await repository();
+    await writeFile(path.join(cwd, 'code.txt'), 'local dirty\n');
+    const tree = await buildWorkingTree(cwd);
+    try {
+        await applyReturnedTree(
+            cwd,
+            {
+                branch: tree.branch,
+                head: tree.head_commit,
+                patchHash: describeObject(tree.patch ?? Buffer.alloc(0)).sha256,
+            },
+            {
+                branch: tree.branch,
+                head: tree.head_commit,
+                bundle: null,
+                patch: Buffer.from(
+                    'diff --git a/code.txt b/code.txt\n--- a/code.txt\n+++ b/code.txt\n@@ -1 +1 @@\n-before\n+cloud edit\n'
+                ),
+            }
+        );
+        expect(await readFile(path.join(cwd, 'code.txt'), 'utf8')).toBe('cloud edit\n');
+        expect((await run('git', ['stash', 'list'], { cwd })).stdout).toContain(
+            'dexto hand-off backup'
+        );
+    } finally {
+        await tree.cleanup();
+    }
 });
