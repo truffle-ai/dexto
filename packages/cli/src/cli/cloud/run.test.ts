@@ -102,6 +102,7 @@ describe('dexto cloud', () => {
             appUrl: 'https://app.dexto.ai',
             apiBaseUrl: API,
             canOpenBrowser: true,
+            interactive: false,
             chatSyncOn: async () => false,
             dexto: {
                 signInWithBrowser: async () => signedIn(),
@@ -299,7 +300,11 @@ describe('dexto cloud', () => {
         it('is signed out with exit 3 and the command that signs in', async () => {
             expect(await runCloud(host, ['whoami'])).toBe(3);
             expect(JSON.parse(stderr)).toEqual({
-                error: { code: 'needs_sign_in', message: 'Not signed in.', fix: 'dexto login' },
+                error: {
+                    code: 'needs_sign_in',
+                    message: 'Not signed in.',
+                    fix: 'dexto login --device',
+                },
             });
         });
 
