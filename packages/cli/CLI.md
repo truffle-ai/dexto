@@ -17,12 +17,16 @@ dexto --agent ./my-agent.yml
 
 The first start needs a model: a provider key in the environment (such as `ANTHROPIC_API_KEY`) or `dexto login` for Dexto models. With neither, `dexto` points you to `dexto login`. An explicit agent file or a project-local agent config starts without this check.
 
-## Removed in 2.0
+## Sign-in and credits
 
-`dexto login` asks once for reading plus chat, Loop, Project and computer work, which can spend credits.
-Use `--scope SCOPE` for additional permissions; the browser shows the requested access before approval.
+`dexto login` asks once for reading, Project changes and chat work, which can spend credits.
+Direct computer writes and Loops need a separate step-up. Use `--scope SCOPE` for additional permissions;
+the approval page shows the requested access. Interactive step-ups list the full requested scope set;
+headless or `--json` commands exit 3 with the missing scope and login command.
 
 New users signing up with Google or GitHub receive a one-time $5 usage credit per verified email.
+
+## Removed in 2.0
 
 `dexto` 2.0 is the cloud and infrastructure CLI around the local agent harness. These 1.x local-agent commands are gone:
 

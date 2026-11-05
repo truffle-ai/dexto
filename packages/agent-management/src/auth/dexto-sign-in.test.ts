@@ -110,6 +110,43 @@ function runtime(
     };
 }
 
+describe.each(['browser', 'device'] as const)('step-up before %s authorization', (transport) => {
+    it('shows the discovered union and can stop before creating an authorization request', async () => {
+        const server = fakeServer(() => undefined);
+        const fake = runtime(server.fetch);
+        const declined = new Error('declined');
+        const input = {
+            appUrl: APP,
+            apiBaseUrl: API,
+            organization: null,
+            extraScopes: ['drive:write', 'chats:sync', 'computers:write', 'drive:read'],
+            beforeAuthorize: async (scopes: readonly string[]) => {
+                expect(scopes).toEqual([
+                    'drive:read',
+                    'memory:read',
+                    'cloud:read',
+                    'runs:read',
+                    'artifacts:read',
+                    'sessions:write',
+                    'projects:write',
+                    'drive:write',
+                    'chats:sync',
+                    'computers:write',
+                ]);
+                throw declined;
+            },
+        };
+        await expect(
+            transport === 'browser'
+                ? signInWithBrowser(fake, { ...input, openBrowser: true })
+                : signInWithDevice(fake, input)
+        ).rejects.toBe(declined);
+        expect(server.calls.every((call) => call.method === 'GET')).toBe(true);
+        expect(fake.opened).toEqual([]);
+        expect(fake.prompts).toEqual([]);
+    });
+});
+
 describe('signInWithBrowser', () => {
     it('signs in as dexto-cli with PKCE on a loopback redirect, without registering', async () => {
         let challenge = '';
@@ -152,15 +189,21 @@ describe('signInWithBrowser', () => {
             },
         });
 
+        const requestedScopes: string[] = [];
         const signedIn = await signInWithBrowser(fake, {
             appUrl: APP,
             apiBaseUrl: API,
             organization: 'acme',
             extraScopes: ['drive:write'],
             openBrowser: true,
+            beforeAuthorize: async (scopes) => {
+                expect(fake.opened).toEqual([]);
+                requestedScopes.push(...scopes);
+            },
         });
 
         const authorize = new URL(fake.opened[0] ?? '');
+        expect(requestedScopes.join(' ')).toBe(authorize.searchParams.get('scope'));
         expect(authorize.origin + authorize.pathname).toBe(`${APP}/oauth/authorize`);
         expect(Object.fromEntries(authorize.searchParams)).toMatchObject({
             client_id: DEXTO_CLI_CLIENT_ID,
@@ -168,7 +211,7 @@ describe('signInWithBrowser', () => {
             redirect_uri: REDIRECT,
             resource: `${APP}/mcp`,
             response_type: 'code',
-            scope: 'drive:read memory:read cloud:read runs:read artifacts:read sessions:write automations:write projects:write computers:write drive:write',
+            scope: 'drive:read memory:read cloud:read runs:read artifacts:read sessions:write projects:write drive:write',
             organization: 'acme',
         });
         expect(server.calls.some((call) => call.url.endsWith('/register'))).toBe(false);
@@ -307,7 +350,7 @@ describe('signInWithDevice', () => {
         const start = server.calls.find((call) => call.url.endsWith('/device_authorization'));
         expect(start?.body?.get('client_id')).toBe(DEXTO_CLI_CLIENT_ID);
         expect(start?.body?.get('scope')).toBe(
-            'drive:read memory:read cloud:read runs:read artifacts:read sessions:write automations:write projects:write computers:write'
+            'drive:read memory:read cloud:read runs:read artifacts:read sessions:write projects:write'
         );
         expect(server.calls.some((call) => call.url.endsWith('/register'))).toBe(false);
         const polls = server.calls.filter((call) => call.url === `${APP}/api/oauth/token`);

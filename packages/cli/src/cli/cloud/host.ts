@@ -95,27 +95,37 @@ export function nodeCloudHost(signal: AbortSignal): CloudHost {
                 overrides,
                 refresh: gateway.refresh,
             }),
-        signInForScope: async (overrides, scope) => {
+        signInForScope: async (overrides, scope, confirm) => {
             const { login } = await import('../commands/auth/sign-in-commands.js');
             // The sign-in's own words go to stderr: stdout is the command that runs again.
             const toStderr = (text: string) => runtime.writeError(`${text}\n`);
-            await login(
-                await signIn({
-                    result: (_value, text) => toStderr(text),
-                    note: toStderr,
-                    screen: terminalSignInScreen(runtime.writeError, toStderr, false),
-                    confirm: async () => false,
-                    signal,
-                }),
-                {
-                    profile: overrides.profile,
-                    org: null,
-                    device: false,
-                    browser: true,
-                    scopes: [scope],
-                    apiKey: null,
-                }
-            );
+            // This local error distinguishes declining this prompt from an OAuth/network failure.
+            const declined = new Error('Permission request declined.');
+            try {
+                await login(
+                    await signIn({
+                        result: (_value, text) => toStderr(text),
+                        note: toStderr,
+                        screen: terminalSignInScreen(runtime.writeError, toStderr, false),
+                        confirm: async () => false,
+                        signal,
+                    }),
+                    {
+                        profile: overrides.profile,
+                        org: null,
+                        device: false,
+                        browser: true,
+                        scopes: [scope],
+                        apiKey: null,
+                    },
+                    async (scopes) => {
+                        if (!(await confirm(scopes))) throw declined;
+                    }
+                );
+            } catch (error) {
+                if (error === declined) return false;
+                throw error;
+            }
             return true;
         },
     };
