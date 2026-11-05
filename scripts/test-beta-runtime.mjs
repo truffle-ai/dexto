@@ -1,13 +1,10 @@
 // Resolve from the installed CLI, including npm's nested global dependency layout.
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
-import { pathToFileURL } from 'node:url';
 import { readFileSync } from 'node:fs';
+import { SQLiteStore } from '@dexto/storage';
+import { createLogger } from '@dexto/core';
 
-const cliRequire = createRequire(`${process.argv[2]}/package.json`);
-const storageEntry = cliRequire.resolve('@dexto/storage');
-const { SQLiteStore } = await import(pathToFileURL(storageEntry).href);
-const { createLogger } = await import(pathToFileURL(cliRequire.resolve('@dexto/core')).href);
 const logger = createLogger({ agentId: 'beta-install', config: { level: 'error', transports: [] } });
 const store = new SQLiteStore({ type: 'sqlite', path: '/tmp/beta-install.sqlite' }, logger);
 try {
@@ -17,7 +14,7 @@ try {
 } finally {
     await store.disconnect();
 }
-for (const entry of [storageEntry, cliRequire.resolve('@dexto/core')]) {
+for (const entry of [import.meta.resolve('@dexto/storage'), import.meta.resolve('@dexto/core')]) {
     const require = createRequire(entry);
     const pkg = JSON.parse(readFileSync(require.resolve('better-sqlite3/package.json'), 'utf8'));
     assert.match(pkg.version, /^12\.9\./);

@@ -44,7 +44,8 @@ check_cli() {
     "$cli" whoami --json > /tmp/whoami.out 2>&1 || rc=$?
     cat /tmp/whoami.out
     [ "$rc" -eq 3 ]
-    node /t/test-beta-runtime.mjs "$tree"
+    cp /t/test-beta-runtime.mjs "$tree/beta-install-check.mjs"
+    node "$tree/beta-install-check.mjs"
     # No stale beta-closure package or stable core/storage may appear anywhere in the tree.
     node - "$tree" <<'NODE'
 const fs = require('fs');
