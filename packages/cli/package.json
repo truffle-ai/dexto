@@ -1,6 +1,6 @@
 {
   "name": "dexto",
-  "description": "Dexto 2.0 is the cloud and infrastructure CLI for Dexto agents, chats, computers and Sites.",
+  "description": "Dexto 2.0 CLI: manage your Dexto cloud agents, chats, sandboxes and Sites, and run AI agents in your terminal.",
   "keywords": [
     "dexto",
     "ai-agents",
@@ -9,7 +9,7 @@
     "mcp",
     "cloud",
     "infrastructure",
-    "computer-use",
+    "coding-agent",
     "chat",
     "sites"
   ],

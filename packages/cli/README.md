@@ -1,4 +1,4 @@
-Dexto 2.0 is the cloud and infrastructure CLI for Dexto agents, chats, computers and Sites.
+Dexto 2.0 CLI: manage your Dexto cloud agents, chats, sandboxes and Sites, and run AI agents in your terminal.
 
 ```bash
 npm i -g dexto@next
@@ -6,7 +6,7 @@ dexto login
 dexto whoami
 ```
 
-After signing in, `dexto whoami` shows your account.
+`@next` is the Dexto 2.0 beta channel; `dexto@latest` is still 1.x.
 
 <a href="https://dexto.ai">
   <div align="center">
