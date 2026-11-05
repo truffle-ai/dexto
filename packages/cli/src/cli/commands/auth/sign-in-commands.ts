@@ -5,7 +5,7 @@ import { CommandFailure, NOT_SIGNED_IN } from '../../failure.js';
 import { dextoAccounts, dextoSignIn, type dextoCloud } from '@dexto/agent-management';
 import { signalOn } from '@dexto/tui/signal-text';
 import { CHAT_SYNC_SCOPE } from '../../chat-sync/host.js';
-import { UsageError } from '../../cloud/command.js';
+import { signInCommand, UsageError } from '../../cloud/command.js';
 import { whoamiLines } from '../../screens/whoami.js';
 
 type OAuthLogin = dextoAccounts.OAuthLogin;
@@ -305,7 +305,20 @@ export async function whoami(
         refresh: context.dexto.refreshSignIn,
     });
     if (credential === null)
-        throw new CommandFailure('needs_sign_in', NOT_SIGNED_IN, 'dexto login');
+        throw new CommandFailure(
+            'needs_sign_in',
+            NOT_SIGNED_IN,
+            signInCommand(
+                {
+                    profile: options.profile,
+                    device:
+                        !context.canOpenBrowser ||
+                        context.environment.SSH_CONNECTION !== undefined ||
+                        context.environment.SSH_TTY !== undefined,
+                },
+                null
+            )
+        );
     if (credential.kind === 'api_key') {
         const from =
             credential.source === 'flag'

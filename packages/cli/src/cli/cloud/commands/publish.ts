@@ -15,6 +15,7 @@ import {
     stringOption,
     flag,
     signInCommand,
+    signsInWithDevice,
     UsageError,
     YES_OPTION,
     type Command,
@@ -94,7 +95,13 @@ const publish: Command = {
             throw new CommandFailure(
                 'needs_sign_in',
                 'Publishing files requires a workspace sign-in.',
-                signInCommand(context, null)
+                signInCommand(
+                    {
+                        profile: context.overrides.profile,
+                        device: signsInWithDevice(context.runtime),
+                    },
+                    null
+                )
             );
         if (connection.cloudProject === null)
             throw new CommandFailure(

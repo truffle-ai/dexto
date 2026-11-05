@@ -351,6 +351,24 @@ describe('sign-in commands', () => {
             });
         });
 
+        it('gives a device sign-in fix when no browser can finish it', async () => {
+            context = { ...context, canOpenBrowser: false };
+
+            await expect(whoami(context, { profile: 'work', apiKey: null })).rejects.toMatchObject({
+                kind: 'needs_sign_in',
+                fix: 'dexto login --profile work --device',
+            });
+        });
+
+        it('gives a device sign-in fix over SSH even with a browser available', async () => {
+            context = { ...context, environment: { SSH_TTY: '/dev/pts/1' } };
+
+            await expect(whoami(context, { profile: null, apiKey: null })).rejects.toMatchObject({
+                kind: 'needs_sign_in',
+                fix: 'dexto login --device',
+            });
+        });
+
         it('shows the profile, account, organization and where it came from', async () => {
             await writeLogin(dir, 'work', signedIn(ACME));
             await writeCurrentProfile(dir, 'work');

@@ -13,6 +13,7 @@ import {
     MissingScopeFailure,
     readJsonBody,
     signInCommand,
+    signsInWithDevice,
     stringOption,
     UsageError,
     YES_OPTION,
@@ -273,7 +274,10 @@ async function callMcp(context: CommandContext, method: string, params: unknown)
         throw new CommandFailure(
             'needs_sign_in',
             "Workspace tools act as you, so an API key can't use them. Sign in as yourself.",
-            signInCommand(context, null)
+            signInCommand(
+                { profile: context.overrides.profile, device: signsInWithDevice(context.runtime) },
+                null
+            )
         );
     const response = await context.runtime.fetch(connection.login.resource, {
         body: JSON.stringify({
@@ -294,7 +298,10 @@ async function callMcp(context: CommandContext, method: string, params: unknown)
         throw new CommandFailure(
             'needs_sign_in',
             "Your sign-in can't reach the workspace. Sign in again to grant it.",
-            signInCommand(context, null)
+            signInCommand(
+                { profile: context.overrides.profile, device: signsInWithDevice(context.runtime) },
+                null
+            )
         );
     const text = await response.text();
     if (!response.ok) throw new Error(`The Dexto MCP answered HTTP ${response.status}.`);

@@ -58,7 +58,14 @@ export class MissingScopeFailure extends CommandFailure {
     readonly scope: string;
 
     constructor(context: SignInContext, scope: string, message: string) {
-        super('needs_permission', message, signInCommand(context, scope));
+        super(
+            'needs_permission',
+            message,
+            signInCommand(
+                { profile: context.overrides.profile, device: signsInWithDevice(context.runtime) },
+                scope
+            )
+        );
         this.name = 'MissingScopeFailure';
         this.scope = scope;
     }
@@ -208,13 +215,16 @@ export type SignInContext = Pick<CommandContext, 'overrides' | 'runtime'>;
  * How to sign in again, to the same app and profile, with a device code where a browser can't
  * finish it.
  */
-export function signInCommand(context: SignInContext, scope: string | null): string {
-    const profile = context.overrides.profile;
+export function signInCommand(
+    input: { readonly profile: string | null; readonly device: boolean },
+    scope: string | null
+): string {
+    const profile = input.profile;
     return [
         'dexto',
         'login',
         ...(profile === null ? [] : ['--profile', profile]),
-        ...(signsInWithDevice(context.runtime) ? ['--device'] : []),
+        ...(input.device ? ['--device'] : []),
         ...(scope === null ? [] : ['--scope', scope]),
     ]
         .map(shellWord)
