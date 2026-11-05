@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { promises as fs } from 'fs';
-import { getBundledSyncTargetForAgentPath, shouldPromptForSync } from './sync.js';
+import { getBundledSyncTargetForAgentPath, shouldPromptForSync } from './bundled-agent-sync.js';
 
 // Mock fs module
 vi.mock('fs', async () => {

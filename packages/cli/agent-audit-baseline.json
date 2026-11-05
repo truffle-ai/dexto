@@ -21,34 +21,6 @@
     "examples": false
   },
   {
-    "command": "agents install",
-    "json": false,
-    "dryRun": false,
-    "nonInteractiveFlag": false,
-    "examples": true
-  },
-  {
-    "command": "agents list",
-    "json": false,
-    "dryRun": false,
-    "nonInteractiveFlag": false,
-    "examples": false
-  },
-  {
-    "command": "agents sync",
-    "json": false,
-    "dryRun": false,
-    "nonInteractiveFlag": false,
-    "examples": false
-  },
-  {
-    "command": "agents uninstall",
-    "json": false,
-    "dryRun": false,
-    "nonInteractiveFlag": false,
-    "examples": false
-  },
-  {
     "command": "billing",
     "json": true,
     "dryRun": false,
@@ -574,113 +546,8 @@
     "examples": false
   },
   {
-    "command": "connect",
-    "json": false,
-    "dryRun": false,
-    "nonInteractiveFlag": true,
-    "examples": false
-  },
-  {
-    "command": "create-app",
-    "json": false,
-    "dryRun": false,
-    "nonInteractiveFlag": false,
-    "examples": false
-  },
-  {
-    "command": "create-image",
-    "json": false,
-    "dryRun": false,
-    "nonInteractiveFlag": false,
-    "examples": false
-  },
-  {
     "command": "find",
     "json": true,
-    "dryRun": false,
-    "nonInteractiveFlag": false,
-    "examples": false
-  },
-  {
-    "command": "image create",
-    "json": false,
-    "dryRun": false,
-    "nonInteractiveFlag": false,
-    "examples": false
-  },
-  {
-    "command": "image doctor",
-    "json": false,
-    "dryRun": false,
-    "nonInteractiveFlag": false,
-    "examples": false
-  },
-  {
-    "command": "image install",
-    "json": false,
-    "dryRun": false,
-    "nonInteractiveFlag": false,
-    "examples": true
-  },
-  {
-    "command": "image list",
-    "json": false,
-    "dryRun": false,
-    "nonInteractiveFlag": false,
-    "examples": false
-  },
-  {
-    "command": "image remove",
-    "json": false,
-    "dryRun": false,
-    "nonInteractiveFlag": false,
-    "examples": false
-  },
-  {
-    "command": "image use",
-    "json": false,
-    "dryRun": false,
-    "nonInteractiveFlag": false,
-    "examples": false
-  },
-  {
-    "command": "init",
-    "json": false,
-    "dryRun": false,
-    "nonInteractiveFlag": false,
-    "examples": true
-  },
-  {
-    "command": "init agent",
-    "json": false,
-    "dryRun": false,
-    "nonInteractiveFlag": false,
-    "examples": false
-  },
-  {
-    "command": "init primary",
-    "json": false,
-    "dryRun": false,
-    "nonInteractiveFlag": false,
-    "examples": false
-  },
-  {
-    "command": "init skill",
-    "json": false,
-    "dryRun": false,
-    "nonInteractiveFlag": false,
-    "examples": false
-  },
-  {
-    "command": "init status",
-    "json": false,
-    "dryRun": false,
-    "nonInteractiveFlag": false,
-    "examples": false
-  },
-  {
-    "command": "init-app",
-    "json": false,
     "dryRun": false,
     "nonInteractiveFlag": false,
     "examples": false
@@ -700,155 +567,8 @@
     "examples": false
   },
   {
-    "command": "mcp",
-    "json": false,
-    "dryRun": false,
-    "nonInteractiveFlag": false,
-    "examples": false
-  },
-  {
-    "command": "mcp add",
-    "json": true,
-    "dryRun": false,
-    "nonInteractiveFlag": false,
-    "examples": false
-  },
-  {
-    "command": "mcp call",
-    "json": true,
-    "dryRun": false,
-    "nonInteractiveFlag": false,
-    "examples": false
-  },
-  {
-    "command": "mcp connect",
-    "json": true,
-    "dryRun": false,
-    "nonInteractiveFlag": false,
-    "examples": false
-  },
-  {
-    "command": "mcp get-prompt",
-    "json": true,
-    "dryRun": false,
-    "nonInteractiveFlag": false,
-    "examples": false
-  },
-  {
-    "command": "mcp list",
-    "json": true,
-    "dryRun": false,
-    "nonInteractiveFlag": false,
-    "examples": false
-  },
-  {
-    "command": "mcp prompts",
-    "json": true,
-    "dryRun": false,
-    "nonInteractiveFlag": false,
-    "examples": false
-  },
-  {
-    "command": "mcp read-resource",
-    "json": true,
-    "dryRun": false,
-    "nonInteractiveFlag": false,
-    "examples": false
-  },
-  {
-    "command": "mcp remove",
-    "json": true,
-    "dryRun": false,
-    "nonInteractiveFlag": false,
-    "examples": false
-  },
-  {
-    "command": "mcp resources",
-    "json": true,
-    "dryRun": false,
-    "nonInteractiveFlag": false,
-    "examples": false
-  },
-  {
-    "command": "mcp tools",
-    "json": true,
-    "dryRun": false,
-    "nonInteractiveFlag": false,
-    "examples": false
-  },
-  {
     "command": "models list",
     "json": true,
-    "dryRun": false,
-    "nonInteractiveFlag": false,
-    "examples": false
-  },
-  {
-    "command": "plugin install",
-    "json": false,
-    "dryRun": false,
-    "nonInteractiveFlag": false,
-    "examples": false
-  },
-  {
-    "command": "plugin list",
-    "json": false,
-    "dryRun": false,
-    "nonInteractiveFlag": false,
-    "examples": false
-  },
-  {
-    "command": "plugin marketplace add",
-    "json": false,
-    "dryRun": false,
-    "nonInteractiveFlag": false,
-    "examples": false
-  },
-  {
-    "command": "plugin marketplace install",
-    "json": false,
-    "dryRun": false,
-    "nonInteractiveFlag": false,
-    "examples": false
-  },
-  {
-    "command": "plugin marketplace list",
-    "json": false,
-    "dryRun": false,
-    "nonInteractiveFlag": false,
-    "examples": false
-  },
-  {
-    "command": "plugin marketplace plugins",
-    "json": false,
-    "dryRun": false,
-    "nonInteractiveFlag": false,
-    "examples": false
-  },
-  {
-    "command": "plugin marketplace remove",
-    "json": false,
-    "dryRun": false,
-    "nonInteractiveFlag": false,
-    "examples": false
-  },
-  {
-    "command": "plugin marketplace update",
-    "json": false,
-    "dryRun": false,
-    "nonInteractiveFlag": false,
-    "examples": false
-  },
-  {
-    "command": "plugin uninstall",
-    "json": false,
-    "dryRun": false,
-    "nonInteractiveFlag": false,
-    "examples": false
-  },
-  {
-    "command": "plugin validate",
-    "json": false,
     "dryRun": false,
     "nonInteractiveFlag": false,
     "examples": false
@@ -880,20 +600,6 @@
     "dryRun": false,
     "nonInteractiveFlag": false,
     "examples": true
-  },
-  {
-    "command": "search",
-    "json": false,
-    "dryRun": false,
-    "nonInteractiveFlag": false,
-    "examples": false
-  },
-  {
-    "command": "setup",
-    "json": false,
-    "dryRun": false,
-    "nonInteractiveFlag": true,
-    "examples": false
   },
   {
     "command": "skills push",
@@ -941,13 +647,6 @@
     "command": "upgrade",
     "json": false,
     "dryRun": true,
-    "nonInteractiveFlag": false,
-    "examples": false
-  },
-  {
-    "command": "which",
-    "json": false,
-    "dryRun": false,
     "nonInteractiveFlag": false,
     "examples": false
   },

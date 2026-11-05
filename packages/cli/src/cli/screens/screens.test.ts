@@ -55,7 +55,7 @@ const LOGIN: dextoAccounts.OAuthLogin = {
 };
 
 function program(): Command {
-    const root = new Command('dexto').option('--mode <mode>', 'web | cli | server | mcp');
+    const root = new Command('dexto').option('--model <id>', 'Specify the LLM model to use');
     for (const [name, description] of [
         ['run', 'Run a single prompt non-interactively (headless mode)'],
         ['chat', "Your chats: this machine's sessions"],
@@ -63,7 +63,7 @@ function program(): Command {
         ['login', 'Sign in to Dexto with your browser or a device code'],
         ['whoami', 'Show who Dexto commands act as'],
         ['logout', 'End the sign-in on the server and forget it here'],
-        ['setup', 'Configure global Dexto preferences'],
+        ['upgrade', 'Upgrade Dexto CLI (auto-migrates npm installs to native)'],
     ] as const)
         root.command(name).description(description);
     return root;
@@ -133,10 +133,10 @@ describe('Signal screens', () => {
             expect(drawText('no-color', draw)).not.toContain('␛');
     });
 
-    it('keep the first run to the two ways on, as setup has no choice of its own', () => {
+    it('keep the first run to the two ways on: sign in, or a provider key', () => {
         const out = drawText('no-color', () => firstRunLines(FACTS));
-        expect(out).toContain('1 stay local   dexto setup');
-        expect(out).toContain('2 sign in      dexto login');
+        expect(out).toContain('1 sign in      dexto login');
+        expect(out).toContain('2 or a key     export ANTHROPIC_API_KEY=…');
         expect(out).toMatch(/▪ terminal\s+none · 124×30 · unicode · dark background\s+OK/u);
         expect(out).toMatch(/▫ cloud\s+signed out · local works fully without it\s+SKIP/u);
     });
@@ -144,7 +144,7 @@ describe('Signal screens', () => {
     it("list the root's own options in help, after the ones commands read", () => {
         const out = drawText('no-color', SCREENS['7 help'] ?? (() => []));
         expect(out).toMatch(/--json\s+Print JSON/u);
-        expect(out).toMatch(/--mode <mode>\s+web \| cli \| server \| mcp/u);
+        expect(out).toMatch(/--model <id>\s+Specify the LLM model to use/u);
     });
 
     it('point a usage mistake at help instead of printing it', () => {

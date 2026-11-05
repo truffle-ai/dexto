@@ -53,7 +53,7 @@ Think of it like an operating system for AI agents:
 
 - **Configuration-driven**: Define agents in YAML. Swap models and tools without touching code.
 - **Batteries included**: Session management, tool orchestration, memory, multimodal support, and observability—out of the box.
-- **Run anywhere**: Local, cloud, or hybrid. CLI, Web UI, REST API, Discord, Telegram, or embedded in your app.
+- **Run anywhere**: Local, cloud, or hybrid. CLI, Discord, Telegram, or embedded in your app.
 
 ### What You Can Build
 
@@ -67,7 +67,7 @@ Think of it like an operating system for AI agents:
 
 ## Coding Agent
 
-Dexto ships with a **production-ready coding agent** you can use immediately via the CLI or Web UI.
+Dexto ships with a **production-ready coding agent** you can use immediately via the CLI.
 
 ```bash
 # Launch the coding agent (default)
@@ -86,7 +86,6 @@ dexto --agent coding-agent
 - Work with any of 50+ LLMs (swap models mid-conversation)
 
 **Ready-to-use interfaces:**
-- **Web UI** – Chat interface with file uploads, syntax highlighting, and MCP tool browser
 - **CLI** – Terminal-native with `/commands`, streaming output, and session management
 
 The coding agent is just one example of what you can build. Create your own agents by defining a YAML config—same architecture, your domain.
@@ -116,14 +115,13 @@ Upgrade/uninstall and migration troubleshooting live in docs:
 ### Run
 
 ```bash
-# Start Dexto (launches setup wizard on first run)
+# Start Dexto (first run: `dexto login`, or set a provider key such as ANTHROPIC_API_KEY)
 dexto
 ```
 
 **More options:**
 
 ```bash
-dexto --mode cli                                   # Terminal mode
 dexto -p "create a landing page for a coffee shop" # One-shot task
 dexto --auto-approve "refactor this codebase"      # Skip confirmations
 dexto -m claude-sonnet-4-5-20250929                # Switch models
@@ -134,10 +132,7 @@ dexto --help                                       # Explore all options
 
 ### Manage Settings
 
-```bash
-# Configure defaults like LLM provider/model, API keys, or download local models
-dexto setup
-```
+Switch models with `/model` inside the interactive CLI, or pass `-m <model>`.
 
 Logs are stored in `~/.dexto/logs/`. Use `DEXTO_LOG_LEVEL=debug` for verbose output.
 
@@ -178,7 +173,7 @@ mcpServers:
     args: ['-y', '@anthropics/mcp-server-puppeteer']
 ```
 
-Browse and add servers from the MCP Store in the Web UI or via `/mcp` commands in the CLI.
+Browse and add servers via `/mcp` commands in the CLI.
 
 ### Human-in-the-Loop Controls
 
@@ -207,8 +202,8 @@ dexto -c
 # Resume specific session
 dexto -r session-abc123
 
-# Search across all conversations
-dexto search "database schema"
+# Read a chat's messages
+dexto chat history session-abc123
 ```
 
 ### Multi-Agent Systems
@@ -237,47 +232,10 @@ Sub-agents run ephemerally, auto-cleanup after completion, and forward tool appr
 
 | Mode | Command | Use Case |
 |------|---------|----------|
-| **Web UI** | `dexto` | Chat interface with file uploads (default) |
-| **CLI** | `dexto --mode cli` | Terminal interaction |
-| **Web Server** | `dexto --mode server` | REST & SSE APIs |
-| **MCP Server** | `dexto --mode mcp` | Expose agent as an MCP server over stdio |
+| **CLI** | `dexto` | Interactive chat in the terminal |
+| **Headless** | `dexto run "task"` | One task; JSON when piped |
 
 Platform integrations: [Discord](examples/discord-bot/), [Telegram](examples/telegram-bot/)
-
-<details>
-<summary><strong>Dexto as an MCP Server</strong></summary>
-
-**Transport: `stdio`**
-
-Connect your Dexto agent as an MCP server in Claude Code or Cursor:
-
-```bash
-dexto --mode mcp --auto-approve --no-elicitation                # Default agent
-dexto --mode mcp --agent coding-agent --auto-approve --no-elicitation
-npx dexto --mode mcp --agent coding-agent --auto-approve --no-elicitation
-```
-
-Example MCP config for Claude Code or Cursor:
-
-```json
-{
-  "command": "npx",
-  "args": ["-y", "dexto", "--mode", "mcp", "--agent", "coding-agent", "--auto-approve", "--no-elicitation"]
-}
-```
-
-`--auto-approve` and `--no-elicitation` are required for MCP mode since it runs non-interactively.
-
-**Transport: `http/sse`**
-
-`dexto --mode server` exposes your agent as an MCP server at `/mcp` for remote clients:
-
-```bash
-dexto --mode server --port 3001
-ngrok http 3001  # Optional: expose publicly
-```
-
-</details>
 
 ---
 
@@ -437,12 +395,8 @@ See the [Storage Configuration guide](https://cli.dexto.ai/docs/guides/configuri
 Pre-built agents for common use cases:
 
 ```bash
-# List available agents
-dexto agents list
-
-# Install and run
-dexto agents install coding-agent podcast-agent
 dexto --agent coding-agent
+dexto --agent ./my-agent.yml
 ```
 
 **Available:** Coding, Podcast, Image Editor, Video (Sora), Database, GitHub, Triage (multi-agent), and more.
@@ -527,7 +481,7 @@ dexto -m gemini-2.5-pro
 dexto -m llama-4-scout
 ```
 
-Switch within interactive CLI (`/model`) or Web UI without config changes.
+Switch within interactive CLI (`/model`) without config changes.
 
 See the [Configuration Guide](https://cli.dexto.ai/docs/category/agent-configuration-guide).
 
@@ -558,13 +512,6 @@ dexto --agent podcast-agent
 ```
 <img src="https://github.com/user-attachments/assets/cfd59751-3daa-4ccd-97b2-1b2862c96af1" alt="Podcast Agent Demo" width="600"/>
 
-### Multi-Agent Triage
-Coordinate specialized agents:
-```bash
-dexto --agent triage-agent
-```
-<img src=".github/assets/triage_agent_demo.gif" alt="Triage Agent Demo" width="600">
-
 ### Memory System
 Persistent context that shapes behavior:
 <img src=".github/assets/memory_demo.gif" alt="Memory Demo" width="600">
@@ -590,14 +537,11 @@ Test tools before deploying:
 <summary><strong>CLI Reference</strong></summary>
 
 ```text
-Usage: dexto [options] [command] [prompt...]
+Usage: dexto [options] [command]
 
-Basic Usage:
-  dexto                    Start web UI (default)
-  dexto "query"            Run one-shot query
-  dexto --mode cli         Interactive CLI
-
-Session Management:
+  dexto                    Start the interactive CLI
+  dexto -p "query"         Start the CLI and run the prompt
+  dexto run "query"        Run one headless task
   dexto -c                 Continue last conversation
   dexto -r <id>            Resume specific session
 
@@ -606,16 +550,11 @@ Options:
   -m, --model <model>      LLM model to use
   --auto-approve           Skip tool confirmations
   --no-elicitation         Disable elicitation prompts
-  --mode <mode>            web | cli | server | mcp
-  --port <port>            Server port
 
 Commands:
-  setup                    Configure global preferences
-  deploy                   Deploy current workspace to cloud
-  agents install <agents...>  Install agents from registry
-  agents list              List available agents
-  session list|history     Manage sessions
-  search <query>           Search conversation history
+  login | logout | whoami  Sign in to Dexto
+  chat list|history        Your chats on this machine
+  cloud, workspace, ...    Dexto Cloud and your workspace
 ```
 
 Full reference: `dexto --help`

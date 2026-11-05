@@ -17,7 +17,6 @@
     "@dexto/image-logger-agent": "workspace:*",
     "@dexto/llm": "workspace:*",
     "@dexto/registry": "workspace:*",
-    "@dexto/server": "workspace:*",
     "@dexto/storage": "workspace:*",
     "@dexto/tui": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.32.1",
@@ -35,8 +34,6 @@
     "chalk": "^5.6.0",
     "commander": "^11.1.0",
     "dotenv": "^16.4.7",
-    "fs-extra": "^11.3.0",
-    "hono": "^4.13.13",
     "ioredis": "^5.7.0",
     "minimatch": "^10.2.3",
     "open": "^10.2.0",
@@ -45,7 +42,6 @@
     "tar": "^7.5.22",
     "tsx": "^4.23.15",
     "ws": "^8.22.0",
-    "yaml": "^2.8.3",
     "zod": "^4.3.6"
   },
   "scripts": {

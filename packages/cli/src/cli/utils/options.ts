@@ -20,22 +20,6 @@ export function validateCliOptions(opts: any): void {
             agent: z.string().min(1, 'Agent name or path must not be empty').optional(),
             strict: z.boolean().optional().default(false),
             verbose: z.boolean().optional().default(true),
-            mode: z.enum(['web', 'cli', 'server', 'discord', 'telegram', 'mcp'], {
-                error: () => ({
-                    message:
-                        'Mode must be one of "web", "cli", "server", "discord", "telegram", or "mcp"',
-                }),
-            }),
-            port: z
-                .string()
-                .refine(
-                    (val) => {
-                        const port = parseInt(val, 10);
-                        return !isNaN(port) && port > 0 && port <= 65535;
-                    },
-                    { message: 'Port must be a number between 1 and 65535' }
-                )
-                .optional(),
             permissionsMode: z.enum(['manual', 'auto-approve']).optional(),
             autoApprove: z
                 .boolean()
@@ -64,40 +48,12 @@ export function validateCliOptions(opts: any): void {
 
     // Basic semantic validation
     const cliOptionSchema = cliOptionShape
-        // 1) provider must be one of the supported set if provided
+        // provider must be one of the supported set if provided
         .refine(
             (data) => !data.provider || supportedProviders.includes(data.provider.toLowerCase()),
             {
                 path: ['provider'],
                 message: `Provider must be one of: ${supportedProviders.join(', ')}`,
-            }
-        )
-        // 2) Check for DISCORD_BOT_TOKEN if mode is discord
-        .refine(
-            (data) => {
-                if (data.mode === 'discord') {
-                    return !!process.env.DISCORD_BOT_TOKEN;
-                }
-                return true;
-            },
-            {
-                path: ['mode'],
-                message:
-                    "DISCORD_BOT_TOKEN must be set in environment variables when mode is 'discord'",
-            }
-        )
-        // 3) Check for TELEGRAM_BOT_TOKEN if mode is telegram
-        .refine(
-            (data) => {
-                if (data.mode === 'telegram') {
-                    return !!process.env.TELEGRAM_BOT_TOKEN;
-                }
-                return true;
-            },
-            {
-                path: ['mode'],
-                message:
-                    "TELEGRAM_BOT_TOKEN must be set in environment variables when mode is 'telegram'",
             }
         );
 
@@ -106,8 +62,6 @@ export function validateCliOptions(opts: any): void {
         agent: opts.agent,
         strict: opts.strict,
         verbose: opts.verbose,
-        mode: opts.mode.toLowerCase(),
-        port: opts.port,
         provider: opts.provider,
         model: opts.model,
         interactive: opts.interactive,

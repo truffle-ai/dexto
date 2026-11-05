@@ -563,5 +563,4 @@ agent.on('llm:tool-result', (data) => {
 
 - **[DextoAgent API](/api/sdk/dexto-agent)** - Detailed method documentation
 - **[MCP Guide](/docs/mcp/overview)** - Learn about Model Context Protocol
-- **[Deployment Guide](/docs/guides/deployment)** - Production deployment strategies
 - **[Examples](/examples/intro)** - Complete example applications

@@ -8,10 +8,10 @@ title: 'Interactive Commands'
 Slash commands available during an active chat session.
 
 :::tip CLI vs Interactive
-This page covers **in-session slash commands** (like `/model`, `/mcp`). For terminal commands like `dexto agents install` or `dexto setup`, see [CLI Overview](./overview.md).
+This page covers **in-session slash commands** (like `/model`, `/mcp`). For terminal commands like `dexto run` or `dexto login`, see [CLI Overview](./overview.md).
 :::
 
-Start an interactive session with `dexto` (Web UI) or `dexto --mode cli` (terminal).
+Start an interactive session with `dexto`.
 
 ## General
 

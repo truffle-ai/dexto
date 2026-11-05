@@ -22,7 +22,7 @@ Common issues and how to resolve them.
 
 3. Verify the key has correct permissions on the provider's dashboard
 
-4. Run `dexto setup` to re-enter your API key
+4. Set the key again in your environment or `~/.dexto/.env`
 
 ### Provider not found
 
@@ -31,19 +31,17 @@ Common issues and how to resolve them.
   - `openrouter`, `glama`, `litellm`, `openai-compatible`
   - `local`, `ollama`, `vertex`, `bedrock`
 
-- Run `dexto setup` to see available providers in the interactive menu
-
 ### Local model download fails
 
 1. Check available disk space (models are typically 2-8GB)
 2. Ensure you have a stable internet connection
 3. Try a smaller model variant
-4. Run `dexto setup` and select a different model
+4. Choose a different model with `/model` in the interactive CLI
 
 ### Setup stuck or frozen
 
 - Press `Ctrl+C` to cancel and restart
-- Try running with `--no-interactive` flag: `dexto setup --provider google --model gemini-2.5-pro`
+- Set a provider key such as `GOOGLE_GENERATIVE_AI_API_KEY` in your environment, or run `dexto login`
 
 ## Runtime Issues
 
@@ -52,7 +50,7 @@ Common issues and how to resolve them.
 Your provider requires an API key that isn't set up yet.
 
 **Solutions:**
-1. Run `dexto setup` to configure interactively
+1. Run `dexto login` to use Dexto models
 2. Set the environment variable directly:
    ```bash
    # For Google Gemini
@@ -75,9 +73,7 @@ Your provider requires an API key that isn't set up yet.
 ### Agent not found
 
 1. Check the agent name or path is correct
-2. List installed agents: `dexto agents list --installed`
-3. Install the agent: `dexto agents install <agent-name>`
-4. For custom agents, verify the path exists: `dexto --agent ./path/to/agent.yml`
+2. For custom agents, verify the path exists: `dexto --agent ./path/to/agent.yml`
 
 ### Rate-limiting errors
 
@@ -93,16 +89,11 @@ You've hit the provider's rate limits.
 
 ### How do I change my provider?
 
-Run `dexto setup` to access the settings menu where you can change your provider, model, and default mode.
+Use `/model` in the interactive CLI, `dexto -m <model>`, or set a different provider key. `dexto login` switches to Dexto models.
 
 ### How do I update agents?
 
-After updating Dexto, run:
-```bash
-dexto agents sync
-```
-
-This syncs your installed agents with the latest bundled versions.
+After updating Dexto, the next start offers to sync an installed bundled agent with the version the CLI ships.
 
 ### Where are settings stored?
 
@@ -116,10 +107,7 @@ This syncs your installed agents with the latest bundled versions.
 ### How do I reset everything?
 
 ```bash
-# Reset configuration
-dexto setup --force
-
-# Or delete the config directory
+# Delete the config directory
 rm -rf ~/.dexto
 ```
 
@@ -130,7 +118,7 @@ In interactive mode, run `/model current` or `/config` to see your current confi
 ### Can I use multiple providers?
 
 Yes! You can:
-- Switch providers with `dexto setup`
+- Switch providers with `/model` or a different provider key
 - Use different providers per agent (configure in agent YAML)
 - Override the model for a single session: `dexto -m gpt-5`
 
