@@ -6,7 +6,10 @@ import console from 'node:console';
 import { SQLiteStore } from '@dexto/storage';
 import { createLogger } from '@dexto/core';
 
-const logger = createLogger({ agentId: 'beta-install', config: { level: 'error', transports: [] } });
+const logger = createLogger({
+    agentId: 'beta-install',
+    config: { level: 'error', transports: [] },
+});
 const store = new SQLiteStore({ type: 'sqlite', path: '/tmp/beta-install.sqlite' }, logger);
 try {
     await store.connect();

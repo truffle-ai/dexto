@@ -31,14 +31,16 @@ createServer((req, res) => {
     }
     const { pkg, tarball } = entry;
     res.setHeader('content-type', 'application/json');
-    res.end(JSON.stringify({
-        name,
-        'dist-tags': { next: pkg.version },
-        versions: {
-            [pkg.version]: {
-                ...pkg,
-                dist: { tarball: `http://127.0.0.1:4873/tarballs/${basename(tarball)}` },
+    res.end(
+        JSON.stringify({
+            name,
+            'dist-tags': { next: pkg.version },
+            versions: {
+                [pkg.version]: {
+                    ...pkg,
+                    dist: { tarball: `http://127.0.0.1:4873/tarballs/${basename(tarball)}` },
+                },
             },
-        },
-    }));
+        })
+    );
 }).listen(4873, '127.0.0.1', () => console.log('registry ready'));
