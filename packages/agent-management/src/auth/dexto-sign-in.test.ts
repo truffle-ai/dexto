@@ -168,7 +168,7 @@ describe('signInWithBrowser', () => {
             redirect_uri: REDIRECT,
             resource: `${APP}/mcp`,
             response_type: 'code',
-            scope: 'drive:read memory:read cloud:read sessions:write automations:write projects:write drive:write',
+            scope: 'drive:read memory:read cloud:read runs:read artifacts:read sessions:write automations:write projects:write computers:write drive:write',
             organization: 'acme',
         });
         expect(server.calls.some((call) => call.url.endsWith('/register'))).toBe(false);
@@ -307,7 +307,7 @@ describe('signInWithDevice', () => {
         const start = server.calls.find((call) => call.url.endsWith('/device_authorization'));
         expect(start?.body?.get('client_id')).toBe(DEXTO_CLI_CLIENT_ID);
         expect(start?.body?.get('scope')).toBe(
-            'drive:read memory:read cloud:read sessions:write automations:write projects:write'
+            'drive:read memory:read cloud:read runs:read artifacts:read sessions:write automations:write projects:write computers:write'
         );
         expect(server.calls.some((call) => call.url.endsWith('/register'))).toBe(false);
         const polls = server.calls.filter((call) => call.url === `${APP}/api/oauth/token`);

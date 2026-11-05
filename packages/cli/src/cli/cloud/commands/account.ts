@@ -57,7 +57,7 @@ export function accountCommands(signIn: SignInFor, creditsUrl: string): readonly
             },
             scope: {
                 description:
-                    'Also ask for a permission, such as drive:write; sign-in includes chat, Loop and Project work, which can spend credits.',
+                    'Also ask for a permission, such as drive:write; sign-in includes chat, Loop, Project and computer work, which can spend credits.',
                 multiple: true,
                 type: 'string',
                 valueName: 'SCOPE',

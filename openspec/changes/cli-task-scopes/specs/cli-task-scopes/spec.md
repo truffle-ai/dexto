@@ -2,13 +2,14 @@
 
 ### Requirement: Initial sign-in requests normal task permissions
 
-Browser and device sign-in SHALL request the existing read scopes plus `cloud:read`, `sessions:write`, `automations:write` and `projects:write`, preserving explicitly requested extras without duplicates. Unrelated write scopes SHALL NOT be added automatically. Persisted scopes SHALL come from the token response.
+Browser and device sign-in SHALL request the existing read scopes plus `cloud:read`, `runs:read`, `artifacts:read`, `sessions:write`, `automations:write`, `projects:write` and `computers:write`, preserving explicitly requested extras without duplicates. Unrelated write scopes SHALL NOT be added automatically. Persisted scopes SHALL come from the token response.
 
 #### Scenario: Device login for an agent task
 
 - **WHEN** the CLI starts a device sign-in without extra scopes
-- **THEN** one authorization request includes chat, Loop and Project writes alongside reads
+- **THEN** one authorization request includes chat, Loop, Project and computer writes alongside reads
 - **AND** billing top-up, secret import, approval answering and other writes remain absent
+- **AND** the request includes run-trace and storage-artifact reads even when workspace metadata omits them
 
 #### Scenario: Browser login with an extra scope
 

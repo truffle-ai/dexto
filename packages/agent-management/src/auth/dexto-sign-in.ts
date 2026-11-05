@@ -8,12 +8,15 @@ import { type OAuthLogin, SignedInAsSchema } from './dexto-accounts.js';
 /** Dexto's pre-registered public client for this CLI: no secret, no registration. */
 export const DEXTO_CLI_CLIENT_ID = 'dexto-cli';
 
-/** Ask once for normal chat, Loop and Project work; other writes remain explicit. */
+/** Ask once for normal chat, Loop, Project and computer work; other writes remain explicit. */
 const BASE_TASK_SCOPES = [
     'cloud:read',
+    'runs:read',
+    'artifacts:read',
     'sessions:write',
     'automations:write',
     'projects:write',
+    'computers:write',
 ] as const;
 
 const DEVICE_CODE_GRANT_TYPE = 'urn:ietf:params:oauth:grant-type:device_code';
@@ -91,7 +94,7 @@ export interface SignInInput {
     readonly apiBaseUrl: string;
     /** The organization to sign in for (id, slug or name), where the approval page starts. */
     readonly organization: string | null;
-    /** Additional permissions beyond reading and normal chat, Loop and Project work. */
+    /** Additional permissions beyond reading and normal chat, Loop, Project and computer work. */
     readonly extraScopes: readonly string[];
 }
 
