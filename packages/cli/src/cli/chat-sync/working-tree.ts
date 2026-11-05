@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
@@ -80,7 +80,6 @@ export async function buildWorkingTree(cwd: string): Promise<WorkingTree> {
                 '--dst-prefix=b/',
                 head_commit,
                 '--',
-                ...safe,
             ],
             env
         );
@@ -94,8 +93,9 @@ export async function buildWorkingTree(cwd: string): Promise<WorkingTree> {
         await git(['--git-dir=' + bare, 'update-ref', `refs/heads/${branch}`, head_commit]);
         await git(['--git-dir=' + bare, 'symbolic-ref', 'HEAD', `refs/heads/${branch}`]);
         await git(['--git-dir=' + bare, 'bundle', 'create', bundlePath, 'HEAD', branch]);
+        if ((await stat(bundlePath)).size > MAX_BUNDLE)
+            throw new Error('The branch bundle exceeds 256 MiB.');
         const bundle = await readFile(bundlePath);
-        if (bundle.length > MAX_BUNDLE) throw new Error('The branch bundle exceeds 256 MiB.');
         return { branch, head_commit, bundle, patch: patch.length === 0 ? null : patch, cleanup };
     } catch (error) {
         await cleanup();
