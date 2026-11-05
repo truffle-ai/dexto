@@ -994,19 +994,6 @@
             ]
         },
         {
-            "name": "chat-list-status",
-            "group": "knownChat",
-            "issue": "DEXTO-2479",
-            "reason": "chat_list cannot filter by status.",
-            "commands": [],
-            "closesWhen": [
-                {
-                    "tool": "dexto_chat_list",
-                    "inputs": ["status"]
-                }
-            ]
-        },
-        {
             "name": "chat-wait-follow",
             "group": "knownChat",
             "issue": "DEXTO-2479",
@@ -1035,13 +1022,6 @@
                     "inputs": ["computerId", "browserProfileId"]
                 }
             ]
-        },
-        {
-            "name": "chat-get-usage",
-            "group": "knownChat",
-            "issue": "DEXTO-2479",
-            "reason": "chat_get does not return usage.",
-            "commands": []
         },
         {
             "name": "models-list",

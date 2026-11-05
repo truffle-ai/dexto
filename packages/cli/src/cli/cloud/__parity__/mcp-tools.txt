@@ -3717,6 +3717,17 @@
               "any"
             ]
           },
+          "status": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "running",
+              "retrying",
+              "waiting_approval",
+              "idle"
+            ],
+            "description": "Filter by current chat status before pagination or search limits. idle means no active run, including completed, failed and cancelled runs."
+          },
           "cursor": {
             "description": "Pagination cursor returned by a previous dexto_chat_list response. Omit for the latest sessions. Not used with query.",
             "type": "string"
@@ -9265,5 +9276,5 @@
       "name": "dexto_upload_prepare"
     }
   ],
-  "chatGetUsage": false
+  "chatGetUsage": true
 }

@@ -94,10 +94,8 @@ span-list
 trace-list
 trace-view
 chat-artifacts
-chat-list-status
 chat-wait-follow
-chat-start-computer-browser
-chat-get-usage`.split('\n')
+chat-start-computer-browser`.split('\n')
 );
 
 // Tools with only generic passthrough reachability are debt, not coverage.
