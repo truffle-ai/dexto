@@ -105,8 +105,8 @@ exports[`Signal screens on 16-dark > 7 help 1`] = `
 ␛[36m  --json         ␛[39m␛[90mPrint JSON; the default when stdout isn't a terminal␛[39m
 ␛[36m  --stream-json  ␛[39m␛[90mdexto run: JSON events, one per line␛[39m
 ␛[36m  --profile      ␛[39m␛[90mUse a saved sign-in for one run␛[39m
-␛[36m  -m, --model    ␛[39m␛[90mThe model to use␛[39m
-␛[36m  -a, --agent    ␛[39m␛[90mAn installed agent, or a path to its config␛[39m
+␛[36m  --mode <mode>  ␛[39m␛[90mweb | cli | server | mcp␛[39m
+␛[36m  -h, --help     ␛[39m␛[90mdisplay help for command␛[39m
 
 ␛[90m  help for one command: ␛[39m␛[36mdexto <command> --help␛[39m␛[90m · ␛[39m␛]8;;https://cli.dexto.ai␇␛[35m␛[4mcli.dexto.ai␛[24m␛[39m␛]8;;␇"
 `;
@@ -296,8 +296,8 @@ exports[`Signal screens on 256-dark > 7 help 1`] = `
 ␛[38;5;115m  --json         ␛[39m␛[38;5;109mPrint JSON; the default when stdout isn't a terminal␛[39m
 ␛[38;5;115m  --stream-json  ␛[39m␛[38;5;109mdexto run: JSON events, one per line␛[39m
 ␛[38;5;115m  --profile      ␛[39m␛[38;5;109mUse a saved sign-in for one run␛[39m
-␛[38;5;115m  -m, --model    ␛[39m␛[38;5;109mThe model to use␛[39m
-␛[38;5;115m  -a, --agent    ␛[39m␛[38;5;109mAn installed agent, or a path to its config␛[39m
+␛[38;5;115m  --mode <mode>  ␛[39m␛[38;5;109mweb | cli | server | mcp␛[39m
+␛[38;5;115m  -h, --help     ␛[39m␛[38;5;109mdisplay help for command␛[39m
 
 ␛[38;5;109m  help for one command: ␛[39m␛[38;5;115mdexto <command> --help␛[39m␛[38;5;109m · ␛[39m␛]8;;https://cli.dexto.ai␇␛[38;5;183m␛[4mcli.dexto.ai␛[24m␛[39m␛]8;;␇"
 `;
@@ -483,8 +483,8 @@ exports[`Signal screens on ascii > 7 help 1`] = `
 ␛[36m  --json         ␛[39m␛[90mPrint JSON; the default when stdout isn't a terminal␛[39m
 ␛[36m  --stream-json  ␛[39m␛[90mdexto run: JSON events, one per line␛[39m
 ␛[36m  --profile      ␛[39m␛[90mUse a saved sign-in for one run␛[39m
-␛[36m  -m, --model    ␛[39m␛[90mThe model to use␛[39m
-␛[36m  -a, --agent    ␛[39m␛[90mAn installed agent, or a path to its config␛[39m
+␛[36m  --mode <mode>  ␛[39m␛[90mweb | cli | server | mcp␛[39m
+␛[36m  -h, --help     ␛[39m␛[90mdisplay help for command␛[39m
 
 ␛[90m  help for one command: ␛[39m␛[36mdexto <command> --help␛[39m␛[90m . ␛[39m␛]8;;https://cli.dexto.ai␇␛[35m␛[4mcli.dexto.ai␛[24m␛[39m␛]8;;␇"
 `;
@@ -670,8 +670,8 @@ exports[`Signal screens on no-color > 7 help 1`] = `
   --json         Print JSON; the default when stdout isn't a terminal
   --stream-json  dexto run: JSON events, one per line
   --profile      Use a saved sign-in for one run
-  -m, --model    The model to use
-  -a, --agent    An installed agent, or a path to its config
+  --mode <mode>  web | cli | server | mcp
+  -h, --help     display help for command
 
   help for one command: dexto <command> --help · cli.dexto.ai"
 `;
@@ -854,8 +854,8 @@ exports[`Signal screens on truecolor-dark > 7 help 1`] = `
 ␛[38;2;78;201;176m  --json         ␛[39m␛[38;2;127;140;138mPrint JSON; the default when stdout isn't a terminal␛[39m
 ␛[38;2;78;201;176m  --stream-json  ␛[39m␛[38;2;127;140;138mdexto run: JSON events, one per line␛[39m
 ␛[38;2;78;201;176m  --profile      ␛[39m␛[38;2;127;140;138mUse a saved sign-in for one run␛[39m
-␛[38;2;78;201;176m  -m, --model    ␛[39m␛[38;2;127;140;138mThe model to use␛[39m
-␛[38;2;78;201;176m  -a, --agent    ␛[39m␛[38;2;127;140;138mAn installed agent, or a path to its config␛[39m
+␛[38;2;78;201;176m  --mode <mode>  ␛[39m␛[38;2;127;140;138mweb | cli | server | mcp␛[39m
+␛[38;2;78;201;176m  -h, --help     ␛[39m␛[38;2;127;140;138mdisplay help for command␛[39m
 
 ␛[38;2;127;140;138m  help for one command: ␛[39m␛[38;2;78;201;176mdexto <command> --help␛[39m␛[38;2;127;140;138m · ␛[39m␛]8;;https://cli.dexto.ai␇␛[38;2;226;141;240m␛[4mcli.dexto.ai␛[24m␛[39m␛]8;;␇"
 `;
@@ -1045,8 +1045,8 @@ exports[`Signal screens on truecolor-light > 7 help 1`] = `
 ␛[38;2;11;122;104m  --json         ␛[39m␛[38;2;94;106;104mPrint JSON; the default when stdout isn't a terminal␛[39m
 ␛[38;2;11;122;104m  --stream-json  ␛[39m␛[38;2;94;106;104mdexto run: JSON events, one per line␛[39m
 ␛[38;2;11;122;104m  --profile      ␛[39m␛[38;2;94;106;104mUse a saved sign-in for one run␛[39m
-␛[38;2;11;122;104m  -m, --model    ␛[39m␛[38;2;94;106;104mThe model to use␛[39m
-␛[38;2;11;122;104m  -a, --agent    ␛[39m␛[38;2;94;106;104mAn installed agent, or a path to its config␛[39m
+␛[38;2;11;122;104m  --mode <mode>  ␛[39m␛[38;2;94;106;104mweb | cli | server | mcp␛[39m
+␛[38;2;11;122;104m  -h, --help     ␛[39m␛[38;2;94;106;104mdisplay help for command␛[39m
 
 ␛[38;2;94;106;104m  help for one command: ␛[39m␛[38;2;11;122;104mdexto <command> --help␛[39m␛[38;2;94;106;104m · ␛[39m␛]8;;https://cli.dexto.ai␇␛[38;2;158;42;156m␛[4mcli.dexto.ai␛[24m␛[39m␛]8;;␇"
 `;

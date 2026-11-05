@@ -2,7 +2,7 @@
  * The Signal fault block for a failed command (screen 6): on stderr, what went wrong and the
  * command that fixes it. Behind DEXTO_PALETTE=signal; exit codes and JSON errors are unchanged.
  */
-import { faultLines, line, span, signalOn } from '@dexto/tui/signal-text';
+import { faultLines, forStream, line, span, signalOn } from '@dexto/tui/signal-text';
 import { NOT_SIGNED_IN, type FailureKind } from '../failure.js';
 import { signedOutLines } from './whoami.js';
 
@@ -46,14 +46,22 @@ export function failureLines(failure: Failure, helpCommand: string): string[] {
  * replaces until Signal ships.
  */
 export function printFault(
-    fault: { readonly message: string; readonly fix: string | null },
+    fault: {
+        readonly message: string;
+        readonly details: string | null;
+        readonly fix: string | null;
+    },
     legacy: readonly string[]
 ): void {
     if (!signalOn()) {
         for (const each of legacy) console.error(each);
         return;
     }
-    process.stderr.write(
-        `${faultLines({ message: fault.message, apiCode: null, details: null, fix: fault.fix }).join('\n')}\n`
-    );
+    const lines = faultLines({
+        message: fault.message,
+        apiCode: null,
+        details: fault.details,
+        fix: fault.fix,
+    });
+    process.stderr.write(`${forStream(process.stderr.isTTY === true, lines).join('\n')}\n`);
 }

@@ -23,7 +23,7 @@ import {
     type WorkspaceApp,
 } from './commands/workspace-apps.js';
 import { createOutput, type OutputFormat } from './output.js';
-import { signalOn } from '@dexto/tui/signal-text';
+import { forStream, signalOn } from '@dexto/tui/signal-text';
 import { failureLines } from '../screens/fault.js';
 import { pageHelpLines, type HelpSection } from '../screens/help.js';
 import type { CloudRuntime } from './runtime.js';
@@ -339,7 +339,9 @@ function reportError(context: SignInContext, json: boolean, help: Help, error: u
             })
         );
     } else if (signalOn()) {
-        runtime.writeError(`${failureLines(failure, help.command).join('\n')}\n`);
+        runtime.writeError(
+            `${forStream(process.stderr.isTTY === true, failureLines(failure, help.command)).join('\n')}\n`
+        );
     } else if (failure.code === 'usage') {
         runtime.writeError(`${failure.message}\n\n${help.text}`);
     } else {

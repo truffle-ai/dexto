@@ -65,17 +65,16 @@ const START_ROWS: readonly HelpRow[] = [
     { term: 'dexto -r <id>', description: 'Resume a chat by id' },
 ];
 
-const OPTION_ROWS: readonly HelpRow[] = [
+/** Options the commands read themselves, which Commander doesn't list on the root. */
+const COMMAND_OPTION_ROWS: readonly HelpRow[] = [
     { term: '--json', description: "Print JSON; the default when stdout isn't a terminal" },
     { term: '--stream-json', description: 'dexto run: JSON events, one per line' },
     { term: '--profile', description: 'Use a saved sign-in for one run' },
-    { term: '-m, --model', description: 'The model to use' },
-    { term: '-a, --agent', description: 'An installed agent, or a path to its config' },
 ];
 
 /** `dexto --help`: the real commands, grouped. */
-export function rootHelpLines(program: Command, version: string): string[] {
-    const commands = program.commands.filter((each) => !each.name().startsWith('_'));
+export function rootHelpLines(program: Command, helper: Help, version: string): string[] {
+    const commands = helper.visibleCommands(program).filter((each) => each.name() !== 'help');
     const row = (each: Command): HelpRow => ({
         term: each.name(),
         description: each.description(),
@@ -95,7 +94,16 @@ export function rootHelpLines(program: Command, version: string): string[] {
         title: 'local',
         rows: commands.filter((each) => !grouped.has(each.name())).map(row),
     });
-    sections.push({ title: 'options', rows: OPTION_ROWS });
+    sections.push({
+        title: 'options',
+        rows: [
+            ...COMMAND_OPTION_ROWS,
+            ...helper.visibleOptions(program).map((each) => ({
+                term: helper.optionTerm(each),
+                description: helper.optionDescription(each),
+            })),
+        ],
+    });
     return [
         line([
             strong('hi', 'dexto'),

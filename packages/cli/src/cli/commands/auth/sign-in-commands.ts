@@ -53,6 +53,8 @@ export interface SignedIn {
 
 /** How a sign-in shows itself: what to do, the wait, and the words once signed in. */
 export interface SignInScreen {
+    /** `signal` at a terminal on Signal; `plain` for the TUI, JSON and everywhere else. */
+    readonly look: 'plain' | 'signal';
     readonly show: (prompt: SignInPrompt) => void;
     /** The sign-in ended, signed in or not: stop waiting. */
     readonly settle: (signedIn: boolean) => void;
@@ -62,6 +64,7 @@ export interface SignInScreen {
 /** The plain words, as notes: the TUI, JSON output, and everywhere until Signal ships. */
 export function plainSignInScreen(note: (text: string) => void): SignInScreen {
     return {
+        look: 'plain',
         show: (prompt) => note(dextoSignIn.signInPromptText(prompt)),
         settle: () => undefined,
         signedInText: (signedIn) =>
@@ -137,7 +140,7 @@ export async function login(context: SignInContext, options: LoginOptions): Prom
     // A browser elsewhere can't reach this machine's loopback redirect, so use a code instead.
     const device = options.device || (options.browser && !context.canOpenBrowser);
     // On Signal the device screen itself says there's no browser.
-    if (device && !options.device && !signalOn())
+    if (device && !options.device && context.screen.look === 'plain')
         context.note('No browser here, so sign in with a code on any device.');
     let signedIn: OAuthLogin;
     try {
@@ -146,7 +149,7 @@ export async function login(context: SignInContext, options: LoginOptions): Prom
             : await context.dexto.signInWithBrowser({ ...input, openBrowser: options.browser });
     } catch (error) {
         context.screen.settle(false);
-        throw signalOn() ? signInEndedFailure(error, device) : error;
+        throw context.screen.look === 'signal' ? signInEndedFailure(error, device) : error;
     }
     context.screen.settle(true);
 

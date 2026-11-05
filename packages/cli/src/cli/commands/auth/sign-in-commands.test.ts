@@ -471,9 +471,32 @@ describe('sign-in commands', () => {
             expect(values[0]).toMatchObject({ as: 'person', profile: 'work' });
         });
 
+        const signalScreen = () => ({
+            ...plainSignInScreen(() => undefined),
+            look: 'signal' as const,
+        });
+
+        it('keeps the plain words for the TUI and JSON, whose screen is plain', async () => {
+            context = {
+                ...context,
+                canOpenBrowser: false,
+                dexto: {
+                    ...context.dexto,
+                    signInWithDevice: async () => {
+                        throw new dextoSignIn.SignInEnded('declined', 'Sign-in was declined.');
+                    },
+                },
+            };
+            await expect(withSignal(() => login(context, noOptions))).rejects.toThrow(
+                'Sign-in was declined.'
+            );
+            expect(notes).toEqual(['No browser here, so sign in with a code on any device.']);
+        });
+
         it('says what to run when the browser sign-in was declined', async () => {
             context = {
                 ...context,
+                screen: signalScreen(),
                 dexto: {
                     ...context.dexto,
                     signInWithBrowser: async () => {
@@ -491,6 +514,7 @@ describe('sign-in commands', () => {
         it("says the sign-in didn't finish when it timed out", async () => {
             context = {
                 ...context,
+                screen: signalScreen(),
                 dexto: {
                     ...context.dexto,
                     signInWithDevice: async () => {

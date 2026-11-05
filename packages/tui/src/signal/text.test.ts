@@ -4,6 +4,7 @@ import {
     clock,
     cutRows,
     faultLines,
+    forStream,
     letterspaced,
     line,
     link,
@@ -45,6 +46,14 @@ describe('Signal text', () => {
         expect(drawText('no-color', () => spread(left, right, 25))).toBe(
             'Local agent harness.\ndexto 2.0.0'
         );
+    });
+
+    it('drops escapes for a stream that is not a terminal', () => {
+        const drawn = drawText('truecolor-dark', () => [line([strong('red', 'FAULT')])]);
+        expect(drawn).toContain('␛');
+        const raw = drawn.replaceAll('␛', '\u001B');
+        expect(forStream(false, [raw])).toEqual(['FAULT']);
+        expect(forStream(true, [raw])).toEqual([raw]);
     });
 
     it('falls back to ASCII glyphs', () => {

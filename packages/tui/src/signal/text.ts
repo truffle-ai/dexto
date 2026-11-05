@@ -10,6 +10,7 @@
  * the same words on plain lines.
  */
 import stringWidth from 'string-width';
+import stripAnsi from 'strip-ansi';
 import { getCaps } from './caps.js';
 import { cutLines } from './cut.js';
 import { glyphText } from './glyphs.js';
@@ -69,6 +70,19 @@ function drawSpan(each: Span): string {
     if (each.bold) chalk = chalk.bold;
     if (each.href === null) return chalk(text);
     return `\u001B]8;;${each.href}\u0007${chalk.underline(text)}\u001B]8;;\u0007`;
+}
+
+/** Cells a drawn line takes on screen, escapes left out. */
+export function drawnWidth(text: string): number {
+    return stringWidth(stripAnsi(text));
+}
+
+/**
+ * Lines for a stream other than stdout, where the caps were read: the escapes are dropped when
+ * that stream isn't a terminal (`dexto login 2> log`).
+ */
+export function forStream(isTTY: boolean, lines: readonly string[]): string[] {
+    return isTTY ? [...lines] : lines.map((each) => stripAnsi(each));
 }
 
 /** One line of spans, drawn for this terminal. */

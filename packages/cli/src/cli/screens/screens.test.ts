@@ -55,7 +55,7 @@ const LOGIN: dextoAccounts.OAuthLogin = {
 };
 
 function program(): Command {
-    const root = new Command('dexto');
+    const root = new Command('dexto').option('--mode <mode>', 'web | cli | server | mcp');
     for (const [name, description] of [
         ['run', 'Run a single prompt non-interactively (headless mode)'],
         ['chat', "Your chats: this machine's sessions"],
@@ -112,7 +112,7 @@ const SCREENS: Readonly<Record<string, () => string[]>> = {
             },
             'dexto --help'
         ),
-    '7 help': () => rootHelpLines(program(), '2.0.0'),
+    '7 help': () => rootHelpLines(program(), program().createHelp(), '2.0.0'),
     '7 help, one command': () =>
         pageHelpLines('dexto login [options]', 'Sign in to Dexto with your browser.', [
             {
@@ -139,6 +139,12 @@ describe('Signal screens', () => {
         expect(out).toContain('2 sign in      dexto login');
         expect(out).toMatch(/▪ terminal\s+none · 124×30 · unicode · dark background\s+OK/u);
         expect(out).toMatch(/▫ cloud\s+signed out · local works fully without it\s+SKIP/u);
+    });
+
+    it("list the root's own options in help, after the ones commands read", () => {
+        const out = drawText('no-color', SCREENS['7 help'] ?? (() => []));
+        expect(out).toMatch(/--json\s+Print JSON/u);
+        expect(out).toMatch(/--mode <mode>\s+web \| cli \| server \| mcp/u);
     });
 
     it('point a usage mistake at help instead of printing it', () => {

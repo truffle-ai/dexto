@@ -5,7 +5,7 @@ import os from 'os';
 import path from 'path';
 import chalk from 'chalk';
 import boxen from 'boxen';
-import { getCaps, noticeLines, signalOn, span } from '@dexto/tui/signal-text';
+import { noticeLines, signalOn, span } from '@dexto/tui/signal-text';
 
 /**
  * Version cache stored in ~/.dexto/cache/version-check.json
@@ -277,7 +277,8 @@ export function updateNoticeLines(updateInfo: UpdateInfo): string[] {
 export function displayUpdateNotification(updateInfo: UpdateInfo): void {
     if (signalOn()) {
         // A notice for people at a terminal: never on stdout, never piped.
-        if (getCaps().tty) process.stderr.write(`${updateNoticeLines(updateInfo).join('\n')}\n`);
+        if (process.stderr.isTTY === true)
+            process.stderr.write(`${updateNoticeLines(updateInfo).join('\n')}\n`);
         return;
     }
     const message =

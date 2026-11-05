@@ -6,6 +6,7 @@
 import {
     clock,
     cutRows,
+    drawnWidth,
     line,
     link,
     richOutput,
@@ -172,7 +173,8 @@ export function terminalSignInScreen(
     note: (text: string) => void,
     json: boolean
 ): SignInScreen {
-    if (json || !signalOn()) return plainSignInScreen(note);
+    // These screens go to stderr, so stderr has to be the terminal.
+    if (json || !signalOn() || process.stderr.isTTY !== true) return plainSignInScreen(note);
     return signalSignInScreen(write, process.stderr.columns ?? 80);
 }
 
@@ -189,14 +191,23 @@ export function signalSignInScreen(
 ): SignInScreen {
     let timer: ReturnType<typeof setInterval> | null = null;
     let shown: SignInPrompt | null = null;
+    // Ctrl-C while waiting: end the live line so the shell prompt starts on its own row.
+    const onInterrupt = () => {
+        write(`${CLEAR_LINE}\n`);
+        process.exit(130);
+    };
     return {
+        look: 'signal',
         signedInText: (signedIn) => signedInLines(signedIn, columns).join('\n'),
         show(prompt: SignInPrompt): void {
             shown = prompt;
             const lines =
                 prompt.kind === 'device' ? devicePromptLines(prompt) : browserPromptLines(prompt);
             write(`${lines.join('\n')}\n`);
-            if (!richOutput()) return;
+            // A row that wraps breaks the in-place redraw, so a narrow terminal gets no live line.
+            const widest = Math.max(...lines.map(drawnWidth));
+            if (!richOutput() || widest > columns) return;
+            process.once('SIGINT', onInterrupt);
             const started = now();
             let tick = 0;
             const draw = () =>
@@ -208,6 +219,7 @@ export function signalSignInScreen(
             if (timer === null) return;
             clearInterval(timer);
             timer = null;
+            process.off('SIGINT', onInterrupt);
             write(CLEAR_LINE);
             // The code is 3 rows, then a blank row, then this line: fade it in place.
             if (

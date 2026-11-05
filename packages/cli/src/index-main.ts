@@ -115,10 +115,11 @@ const program = new Command();
 async function printFailure(
     message: string,
     fix: string | null,
-    legacy: readonly string[]
+    legacy: readonly string[],
+    details: string | null = null
 ): Promise<void> {
     const { printFault } = await import('./cli/screens/fault.js');
-    printFault({ message, fix }, legacy);
+    printFault({ message, details, fix }, legacy);
 }
 
 /** The Signal first-run screen, before setup, for someone who has never set Dexto up. */
@@ -141,7 +142,7 @@ if (process.env.DEXTO_PALETTE === 'signal') {
     const { commanderHelpLines, rootHelpLines } = await import('./cli/screens/help.js');
     program.configureHelp({
         formatHelp: (command, helper) =>
-            `${(command === program ? rootHelpLines(program, cliVersion) : commanderHelpLines(command, helper)).join('\n')}\n`,
+            `${(command === program ? rootHelpLines(program, helper, cliVersion) : commanderHelpLines(command, helper)).join('\n')}\n`,
     });
 }
 
@@ -699,10 +700,9 @@ program
                             null,
                             [
                                 `❌ Model '${opts.model}' looks like an OpenRouter-format ID (provider/model).`,
-                            ]
-                        );
-                        console.error(
-                            `   This is ambiguous for --model inference. Please also pass --provider (e.g. --provider dexto-nova or --provider openrouter).`
+                                `   This is ambiguous for --model inference. Please also pass --provider (e.g. --provider dexto-nova or --provider openrouter).`,
+                            ],
+                            'This is ambiguous for --model inference. Please also pass --provider (e.g. --provider dexto-nova or --provider openrouter).'
                         );
                         safeExit('main', 1, 'ambiguous-model');
                     }
@@ -711,10 +711,13 @@ program
                     try {
                         provider = getProviderFromModel(opts.model);
                     } catch (err) {
-                        await printFailure(`${(err as Error).message}`, null, [
-                            `❌ ${(err as Error).message}`,
-                        ]);
-                        console.error(`Supported models: ${getAllSupportedModels().join(', ')}`);
+                        const supported = `Supported models: ${getAllSupportedModels().join(', ')}`;
+                        await printFailure(
+                            `${(err as Error).message}`,
+                            null,
+                            [`❌ ${(err as Error).message}`, supported],
+                            supported
+                        );
                         safeExit('main', 1, 'invalid-model');
                     }
 
@@ -815,19 +818,20 @@ program
 
                                 // Check if agent exists in bundled registry
                                 if (!(opts.agent in bundledRegistry.agents)) {
+                                    const available = Object.keys(bundledRegistry.agents);
+                                    const listed =
+                                        available.length > 0
+                                            ? `Available agents: ${available.join(', ')}`
+                                            : 'No agents available in registry';
                                     await printFailure(
                                         `Agent '${opts.agent}' not found in registry`,
                                         null,
-                                        [`❌ Agent '${opts.agent}' not found in registry`]
+                                        [`❌ Agent '${opts.agent}' not found in registry`],
+                                        listed
                                     );
-
-                                    // Show available agents
-                                    const available = Object.keys(bundledRegistry.agents);
-                                    if (available.length > 0) {
-                                        console.log(`📋 Available agents: ${available.join(', ')}`);
-                                    } else {
-                                        console.log('📋 No agents available in registry');
-                                    }
+                                    // Before Signal the list went to stdout; Signal shows it in the fault.
+                                    if (process.env.DEXTO_PALETTE !== 'signal')
+                                        console.log(`📋 ${listed}`);
                                     safeExit('main', 1, 'agent-not-in-registry');
                                     return;
                                 }
@@ -1131,21 +1135,18 @@ program
                     if (!supportedModes.includes(opts.mode)) {
                         await printFailure(
                             `Manual approval and elicitation are not supported in "${opts.mode}" mode.`,
-                            null,
+                            'dexto --auto-approve',
                             [
                                 `❌ Manual approval and elicitation are not supported in "${opts.mode}" mode.`,
-                            ]
+                                `💡 These features require interactive UI and are only supported in: ${supportedModes.join(
+                                    ', '
+                                )}`,
+                                '💡 Run `dexto --auto-approve` or configure your agent to skip approvals when running non-interactively.',
+                                '   permissions.mode: auto-approve',
+                                '   elicitation.enabled: false',
+                            ],
+                            `Only ${supportedModes.join(', ')} can ask you. Or set permissions.mode: auto-approve and elicitation.enabled: false in the agent.`
                         );
-                        console.error(
-                            `💡 These features require interactive UI and are only supported in: ${supportedModes.join(
-                                ', '
-                            )}`
-                        );
-                        console.error(
-                            '💡 Run `dexto --auto-approve` or configure your agent to skip approvals when running non-interactively.'
-                        );
-                        console.error('   permissions.mode: auto-approve');
-                        console.error('   elicitation.enabled: false');
                         safeExit('main', 1, 'approval-unsupported-mode');
                     }
                 }
