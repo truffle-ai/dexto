@@ -27,6 +27,7 @@ import {
 import { resumeTranscript } from '../../chat-sync/resume.js';
 import { toSyncedMessages } from '../../chat-sync/messages.js';
 import { queryWorkspaceTool } from './workspace.js';
+import { chatMoveScreen } from '../../screens/chat-move.js';
 
 const TreeCheckpoint = { branch: z.string(), head: z.string(), patchHash: z.string() };
 const CheckpointSchema = z.discriminatedUnion('phase', [
@@ -157,7 +158,7 @@ const move: Command = {
             }
             context.output.result(
                 { id, location: 'cloud', attached: !flag(input, 'detach') && !context.output.json },
-                `◆ Cloud · ${id}\n  Detach: Ctrl-C · Return: dexto chat move ${id} --to local`
+                chatMoveScreen(id, 'cloud')
             );
             if (!flag(input, 'detach') && !context.output.json) await watchChat(context, cloudId);
             return;
@@ -272,7 +273,7 @@ const move: Command = {
                     transcriptFromIndex: exported.transcript_from_index,
                     syncFromIndex: transcript.syncFromIndex,
                 },
-                `◇ Local · ${id}\n  Resume: dexto -r ${id}\n  Previous local changes: git stash list (dexto hand-off backup)`
+                chatMoveScreen(id, 'local')
             );
         } catch (error) {
             if (!applied) {
@@ -285,7 +286,10 @@ const move: Command = {
 };
 
 async function watchChat(context: CommandContext, cloudId: string): Promise<void> {
-    let previous = '';
+    const schema = z.object({
+        messages: z.array(z.object({ id: z.string(), role: z.string(), text: z.string() })),
+    });
+    let previous = new Map<string, string>();
     try {
         while (!context.runtime.signal.aborted) {
             const value = await queryWorkspaceTool(context, 'dexto_chat_get', {
@@ -293,11 +297,20 @@ async function watchChat(context: CommandContext, cloudId: string): Promise<void
                 limit: 50,
                 roles: ['user', 'assistant'],
             });
-            const serialized = JSON.stringify(value);
-            if (serialized !== previous) {
-                context.output.record(value);
-                previous = serialized;
+            const page = schema.parse(value);
+            for (const message of page.messages) {
+                const before = previous.get(message.id);
+                if (before === message.text) continue;
+                const delta =
+                    before !== undefined && message.text.startsWith(before)
+                        ? message.text.slice(before.length)
+                        : message.text;
+                context.output.result(
+                    { event: 'message', chatId: cloudId, message, delta },
+                    `  ${message.role} · ${delta}`
+                );
             }
+            previous = new Map(page.messages.map((message) => [message.id, message.text]));
             await context.runtime.sleep(2_000);
         }
     } catch (error) {
