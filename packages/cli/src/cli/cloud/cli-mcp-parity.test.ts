@@ -92,7 +92,9 @@ describe('CLI and MCP capability parity', () => {
         }).map((command) => command.path.join(' '));
         const inventoried = [
             ...Object.keys(inventory.commands),
-            ...inventory.localOnly.map((entry) => entry.command),
+            ...inventory.localOnly
+                .filter((entry) => entry.registry === 'cloud')
+                .map((entry) => entry.command),
             ...inventory.exceptions.flatMap((gap) => gap.commands),
         ];
         expect(new Set(inventoried).size).toBe(inventoried.length);

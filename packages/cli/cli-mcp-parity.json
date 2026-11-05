@@ -192,35 +192,73 @@
     "localOnly": [
         {
             "command": "accounts list",
-            "reason": "Local sign-in, account selection, or local chat discovery; no hosted operation."
+            "reason": "Local sign-in, account selection, or local chat discovery; no hosted operation.",
+            "registry": "cloud"
         },
         {
             "command": "accounts remove",
-            "reason": "Local sign-in, account selection, or local chat discovery; no hosted operation."
+            "reason": "Local sign-in, account selection, or local chat discovery; no hosted operation.",
+            "registry": "cloud"
         },
         {
             "command": "accounts use",
-            "reason": "Local sign-in, account selection, or local chat discovery; no hosted operation."
+            "reason": "Local sign-in, account selection, or local chat discovery; no hosted operation.",
+            "registry": "cloud"
         },
         {
             "command": "chat local",
-            "reason": "Local sign-in, account selection, or local chat discovery; no hosted operation."
+            "reason": "Local sign-in, account selection, or local chat discovery; no hosted operation.",
+            "registry": "cloud"
         },
         {
             "command": "cloud projects use",
-            "reason": "Local sign-in, account selection, or local chat discovery; no hosted operation."
+            "reason": "Local sign-in, account selection, or local chat discovery; no hosted operation.",
+            "registry": "cloud"
         },
         {
             "command": "login",
-            "reason": "Local sign-in, account selection, or local chat discovery; no hosted operation."
+            "reason": "Local sign-in, account selection, or local chat discovery; no hosted operation.",
+            "registry": "cloud"
         },
         {
             "command": "logout",
-            "reason": "Local sign-in, account selection, or local chat discovery; no hosted operation."
+            "reason": "Local sign-in, account selection, or local chat discovery; no hosted operation.",
+            "registry": "cloud"
         },
         {
             "command": "whoami",
-            "reason": "Local sign-in, account selection, or local chat discovery; no hosted operation."
+            "reason": "Local sign-in, account selection, or local chat discovery; no hosted operation.",
+            "registry": "cloud"
+        },
+        {
+            "command": "chat delete",
+            "registry": "local",
+            "reason": "Local agent/session execution or this CLI installation; no hosted MCP operation is needed."
+        },
+        {
+            "command": "chat history",
+            "registry": "local",
+            "reason": "Local agent/session execution or this CLI installation; no hosted MCP operation is needed."
+        },
+        {
+            "command": "chat list",
+            "registry": "local",
+            "reason": "Local agent/session execution or this CLI installation; no hosted MCP operation is needed."
+        },
+        {
+            "command": "run",
+            "registry": "local",
+            "reason": "Local agent/session execution or this CLI installation; no hosted MCP operation is needed."
+        },
+        {
+            "command": "uninstall",
+            "registry": "local",
+            "reason": "Local agent/session execution or this CLI installation; no hosted MCP operation is needed."
+        },
+        {
+            "command": "upgrade",
+            "registry": "local",
+            "reason": "Local agent/session execution or this CLI installation; no hosted MCP operation is needed."
         }
     ],
     "exceptions": [
@@ -1207,5 +1245,6 @@
                 }
             ]
         }
-    ]
+    ],
+    "localOnlyNotes": "The cloud registration guard checks localOnly entries with registry=cloud. registry=local names the separately registered local CLI helpers. Config/preferences and automatic chat synchronization are local workflows, not registered cloud verbs in cli-2.0."
 }
