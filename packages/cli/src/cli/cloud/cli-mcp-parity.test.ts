@@ -247,6 +247,8 @@ const approvedLocalOnly = [
     'accounts remove',
     'accounts use',
     'chat local',
+    'chat move',
+    'chat watch',
     'cloud projects use',
     'login',
     'logout',

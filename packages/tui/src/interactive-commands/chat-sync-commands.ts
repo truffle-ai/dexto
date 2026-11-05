@@ -22,6 +22,23 @@ export const privateCommand: CommandDefinition = {
     handler: async (args, _agent, ctx) => runChatSync('private', args, ctx.sessionId),
 };
 
+export const moveCommands: CommandDefinition[] = ['cloud', 'local'].map((name) => ({
+    name,
+    description:
+        name === 'cloud'
+            ? 'Move this synced chat to its cloud computer'
+            : 'Bring this chat and its work back to this machine',
+    usage: `/${name}`,
+    category: 'General',
+    handler: async (args, _agent, ctx) => {
+        if (args.length > 0) return `Usage: /${name}`;
+        const move = getTuiRuntimeServices().chatMove;
+        if (move === undefined) return 'Chat hand-off is not available here.';
+        if (ctx.sessionId === null) return 'Start a chat before moving it.';
+        return move(name === 'cloud' ? 'cloud' : 'local', ctx.sessionId);
+    },
+}));
+
 async function runChatSync(
     name: 'sync' | 'private',
     args: string[],
@@ -34,6 +51,7 @@ async function runChatSync(
 
 /** False for these commands when the host doesn't sync chats; true for every other command. */
 export function chatSyncAvailable(command: CommandDefinition): boolean {
+    if (moveCommands.includes(command)) return getTuiRuntimeServices().chatMove !== undefined;
     if (command !== syncCommand && command !== privateCommand) return true;
     return getTuiRuntimeServices().chatSync !== undefined;
 }

@@ -25,6 +25,16 @@
     },
     "localOnly": [
         {
+            "command": "chat move",
+            "reason": "Moves this machine's synced session and git working tree; requires local bundle building, patch apply and session resume (DEXTO-2519).",
+            "registry": "cloud"
+        },
+        {
+            "command": "chat watch",
+            "reason": "Attaches this terminal to its locally synced chat; local hand-off view and detach lifecycle (DEXTO-2519).",
+            "registry": "cloud"
+        },
+        {
             "command": "accounts list",
             "reason": "Local sign-in, account selection, or local chat discovery; no hosted operation.",
             "registry": "cloud"
