@@ -16,6 +16,7 @@ import { findCommands } from './commands/find.js';
 import { profileCommands } from './commands/profile.js';
 import { publishCommands } from './commands/publish.js';
 import { skillCommands } from './commands/skills.js';
+import { traceCommands } from './commands/traces.js';
 import { fileCommands } from './commands/files.js';
 import { modelCommands } from './commands/models.js';
 import { projectCommands, projectsUse } from './commands/projects.js';
@@ -27,6 +28,7 @@ import { resolveConnection } from './connection.js';
 import type { CloudHost, Group } from './run.js';
 import { nodeCloudRuntime } from './runtime.js';
 import { DEXTO_CREDITS_URL } from '../auth/constants.js';
+import { terminalSignInScreen } from '../screens/sign-in.js';
 
 /** Help's areas: what `dexto cloud` builds with. */
 export const CLOUD_GROUPS: Readonly<Record<string, readonly Group[]>> = {
@@ -70,6 +72,7 @@ export function cloudCommands(dir: string, signIn: SignInFor): readonly Command[
         ...profileCommands,
         ...publishCommands,
         ...skillCommands,
+        ...traceCommands,
         ...chatCommands,
     ];
 }
@@ -100,6 +103,7 @@ export function nodeCloudHost(signal: AbortSignal): CloudHost {
                 await signIn({
                     result: (_value, text) => toStderr(text),
                     note: toStderr,
+                    screen: terminalSignInScreen(runtime.writeError, toStderr, false),
                     confirm: async () => false,
                     signal,
                 }),
