@@ -40,7 +40,6 @@ describe('runCliMode', () => {
                 elicitation: { enabled: false },
             },
             resolvedPath: '/tmp/dexto-cloud/agent.yml',
-            derivedAgentId: 'coding-agent',
             initialPrompt: undefined,
             getVersionCheckResult: vi.fn().mockResolvedValue(null),
         } as unknown as MainModeContext;

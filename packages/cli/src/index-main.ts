@@ -100,7 +100,6 @@ import { registerPluginCommand } from './cli/commands/plugin/register.js';
 import { registerAgentsCommand } from './cli/commands/agents/register.js';
 import { registerInitCommand } from './cli/commands/init.js';
 import type { BootstrapAgentMode } from './cli/commands/register-context.js';
-import type { MainModeOptions } from './cli/modes/context.js';
 import type { CLIConfigOverrides } from './config/cli-overrides.js';
 import type { CreateAppOptions } from './cli/commands/create-app.js';
 import type { CLISetupOptionsInput } from './cli/commands/setup.js';
@@ -208,12 +207,6 @@ program
     .option('--no-elicitation', 'Disable elicitation (agent cannot prompt user for input)')
     .option('-c, --continue', 'Continue most recent session (CLI mode)')
     .option('-r, --resume <sessionId>', 'Resume a session by ID (CLI mode)')
-    .option(
-        '--mode <mode>',
-        'The application in which dexto should talk to you - web | cli | server | mcp',
-        'cli'
-    )
-    .option('--port <port>', 'port for the server (default: 3000 for web, 3001 for server mode)')
     .option('--no-auto-install', 'Disable automatic installation of missing agents from registry')
     .option(
         '--image <package>',
@@ -648,27 +641,6 @@ program
                     process.env.DEXTO_DEV_MODE = 'true';
                 }
 
-                // ——— LOAD DEFAULT MODE FROM PREFERENCES ———
-                // If --mode was not explicitly provided on CLI, use defaultMode from preferences
-                const modeSource = program.getOptionValueSource('mode');
-                const explicitModeProvided = modeSource === 'cli';
-                if (!explicitModeProvided) {
-                    try {
-                        if (globalPreferencesExist()) {
-                            const preferences = await loadGlobalPreferences();
-                            if (preferences.defaults?.defaultMode) {
-                                opts.mode = preferences.defaults.defaultMode;
-                                logger.debug(`Using default mode from preferences: ${opts.mode}`);
-                            }
-                        }
-                    } catch (error) {
-                        // Silently fall back to hardcoded default if preferences loading fails
-                        logger.debug(
-                            `Failed to load default mode from preferences: ${error instanceof Error ? error.message : String(error)}`
-                        );
-                    }
-                }
-
                 const initialPrompt = opts.prompt !== undefined ? String(opts.prompt) : undefined;
 
                 if (initialPrompt !== undefined && initialPrompt.trim() === '') {
@@ -683,22 +655,11 @@ program
                 // Note: Agent selection must be passed via -a/--agent. We no longer interpret
                 // the first positional argument as an agent name to avoid ambiguity with prompts.
 
-                // ——— FORCE CLI MODE FOR PROMPT/SESSION FLAGS ———
-                // If a prompt or session flag was provided, force CLI mode.
-                const modeForcedByChatFlags = Boolean(
-                    initialPrompt || opts.continue || opts.resume
-                );
-                if (modeForcedByChatFlags && opts.mode !== 'cli') {
-                    console.error(`ℹ️  Forcing CLI mode due to --prompt/--continue/--resume.`);
-                    console.error(`   Original mode: ${opts.mode} → Overridden to: cli`);
-                    opts.mode = 'cli';
-                }
-
                 // The interactive CLI requires a TTY (Ink uses stdin for keypress input).
-                if (opts.mode === 'cli' && !process.stdin.isTTY) {
+                if (!process.stdin.isTTY) {
                     await printFailure('Interactive CLI requires a TTY.', 'dexto run "<prompt>"', [
                         '❌ Interactive CLI requires a TTY.',
-                        '💡 For non-interactive runs, use `dexto run "<prompt>"`, or use --mode server for automation.',
+                        '💡 For non-interactive runs, use `dexto run "<prompt>"`.',
                     ]);
                     safeExit('main', 1, 'no-tty');
                 }
@@ -760,10 +721,6 @@ program
                 let image: DextoImage;
                 let imageName: string;
 
-                // Determine validation mode early - used throughout config loading and agent creation
-                // Use relaxed validation for interactive modes (web/cli) where users can configure later
-                // Use strict validation for non-interactive modes (server/mcp) that need full config upfront
-                let isInteractiveMode = opts.mode === 'web' || opts.mode === 'cli';
                 const shouldCheckSetupState =
                     !opts.skipSetup && !(opts.agent && isPath(opts.agent));
                 let setupRequired = false;
@@ -773,7 +730,7 @@ program
                     setupRequired = await requiresSetup();
                 }
 
-                const canRunInteractiveSetup = isInteractiveMode && opts.interactive !== false;
+                const canRunInteractiveSetup = opts.interactive !== false;
 
                 if (setupRequired && !canRunInteractiveSetup) {
                     await printFailure(
@@ -793,18 +750,7 @@ program
                 if (shouldRunSetupBeforeStartup) {
                     if (process.env.DEXTO_PALETTE === 'signal') await printFirstRun();
                     const { handleSetupCommand } = await import('./cli/commands/setup.js');
-                    await handleSetupCommand({
-                        interactive: true,
-                        defaultMode: opts.mode === 'cli' ? 'cli' : undefined,
-                    });
-
-                    if (!explicitModeProvided && !modeForcedByChatFlags) {
-                        const preferences = await loadGlobalPreferences();
-                        if (preferences.defaults.defaultMode) {
-                            opts.mode = preferences.defaults.defaultMode;
-                        }
-                        isInteractiveMode = opts.mode === 'web' || opts.mode === 'cli';
-                    }
+                    await handleSetupCommand({ interactive: true, defaultMode: 'cli' });
                 }
 
                 try {
@@ -1058,13 +1004,12 @@ program
 
                     // Enrich config with per-agent paths BEFORE validation
                     // Enrichment adds filesystem paths to storage (schema has in-memory defaults)
-                    // Interactive CLI mode: only log to file (console would interfere with chat UI)
-                    const isInteractiveCli = opts.mode === 'cli';
+                    // Interactive CLI: only log to file (console would interfere with chat UI)
                     const enrichedConfig = enrichAgentConfig(
                         configWithImageDefaults,
                         resolvedPath,
                         {
-                            isInteractiveCli,
+                            isInteractiveCli: true,
                             logLevel: 'info', // CLI uses info-level logging for visibility
                             workspaceRoot,
                         }
@@ -1075,14 +1020,13 @@ program
                         await dextoMcp.dextoMcpServer(dextoGateway.defaultDextoGatewayOptions())
                     );
 
-                    // Validate enriched config + preflight credentials.
-                    // - Interactive modes (web/cli): warn and continue when credentials are missing
-                    // - Headless modes (server/mcp): treat missing credentials as errors
+                    // Validate enriched config + preflight credentials; the interactive CLI warns
+                    // and continues when credentials are missing.
                     const validationResult = await validateAgentConfig(
                         enrichedConfig,
                         opts.interactive !== false,
                         {
-                            credentialPolicy: isInteractiveMode ? 'warn' : 'error',
+                            credentialPolicy: 'warn',
                             agentPath: resolvedPath,
                         }
                     );
@@ -1130,45 +1074,9 @@ program
                     safeExit('main', 1, 'config-load-failed');
                 }
 
-                // ——— VALIDATE APPROVAL MODE COMPATIBILITY ———
-                // Check if approval handler is needed (manual mode OR elicitation enabled)
-                const needsHandler =
-                    validatedConfig.permissions.mode === 'manual' ||
-                    validatedConfig.elicitation.enabled;
-
-                if (needsHandler) {
-                    // Only web, server, and interactive CLI support approval handlers
-                    // TODO: Add approval support for other modes:
-                    // - Discord: Could use Discord message buttons/reactions for approval UI
-                    // - Telegram: Could use Telegram inline keyboards for approval prompts
-                    // - MCP: Could implement callback-based approval mechanism in MCP protocol
-                    const supportedModes = ['web', 'server', 'cli'];
-                    if (!supportedModes.includes(opts.mode)) {
-                        await printFailure(
-                            `Manual approval and elicitation are not supported in "${opts.mode}" mode.`,
-                            'dexto --auto-approve',
-                            [
-                                `❌ Manual approval and elicitation are not supported in "${opts.mode}" mode.`,
-                                `💡 These features require interactive UI and are only supported in: ${supportedModes.join(
-                                    ', '
-                                )}`,
-                                '💡 Run `dexto --auto-approve` or configure your agent to skip approvals when running non-interactively.',
-                                '   permissions.mode: auto-approve',
-                                '   elicitation.enabled: false',
-                            ],
-                            `Only ${supportedModes.join(', ')} can ask you. Or set permissions.mode: auto-approve and elicitation.enabled: false in the agent.`
-                        );
-                        safeExit('main', 1, 'approval-unsupported-mode');
-                    }
-                }
-
                 // ——— CREATE AGENT ———
                 let agent: DextoAgent;
-                let derivedAgentId: string;
                 try {
-                    // Set run mode for tool approval provider
-                    process.env.DEXTO_RUN_MODE = opts.mode;
-
                     // Apply --strict flag to all server configs
                     if (opts.strict && validatedConfig.mcpServers) {
                         for (const [_serverName, serverConfig] of Object.entries(
@@ -1181,22 +1089,16 @@ program
 
                     // Config is already enriched and validated - ready for agent creation
                     // DextoAgent will parse/validate again (parse-twice pattern)
-                    // isInteractiveMode is already defined above for validateAgentConfig
                     const { createFileSessionLoggerFactory } = await import(
                         './utils/session-logger-factory.js'
                     );
                     const sessionLoggerFactory = createFileSessionLoggerFactory();
 
-                    // The Dexto MCP authorizes with the sign-in in every mode; other servers' own
-                    // OAuth needs the interactive CLI.
+                    // The Dexto MCP authorizes with the sign-in; other servers use their own OAuth.
                     const mcpAuthProviderFactory = dextoMcp.withDextoMcpAuth(
-                        opts.mode === 'cli'
-                            ? (
-                                  await import('./cli/mcp/oauth-factory.js')
-                              ).createMcpAuthProviderFactory({
-                                  logger,
-                              })
-                            : null,
+                        (await import('./cli/mcp/oauth-factory.js')).createMcpAuthProviderFactory({
+                            logger,
+                        }),
                         dextoGateway.defaultDextoGatewayOptions()
                     );
 
@@ -1217,23 +1119,6 @@ program
                             },
                         })
                     );
-
-                    // Start the agent (initialize async services)
-                    // - web/server modes: initializeHonoApi will set approval handler and start the agent
-                    // - cli mode: handles its own approval setup in the case block
-                    // - other modes: start immediately (no approval support)
-                    if (opts.mode !== 'web' && opts.mode !== 'server' && opts.mode !== 'cli') {
-                        await agent.start();
-                        await (
-                            await import('./utils/workspace.js')
-                        ).applyWorkspaceToAgent(agent, workspaceRoot);
-                    }
-
-                    // Derive a concise agent ID for display purposes (used by API/UI)
-                    // Prefer agentCard.name, otherwise extract from filename
-                    derivedAgentId =
-                        validatedConfig.agentCard?.name ||
-                        path.basename(resolvedPath, path.extname(resolvedPath));
                 } catch (err) {
                     if (err instanceof ExitSignal) throw err;
                     // Ensure config errors are shown to user, not hidden in logs
@@ -1243,24 +1128,27 @@ program
                     safeExit('main', 1, 'config-error');
                 }
 
-                const { dispatchMainMode } = await import('./cli/modes/dispatch.js');
-                const mainModeOpts: MainModeOptions = {
-                    mode: opts.mode,
-                    port: opts.port,
-                    resume: opts.resume,
-                    continue: opts.continue,
-                    bypassPermissions: opts.bypassPermissions,
-                };
-                await dispatchMainMode({
-                    agent,
-                    opts: mainModeOpts,
-                    workspaceRoot,
-                    validatedConfig,
-                    resolvedPath,
-                    derivedAgentId,
-                    initialPrompt,
-                    getVersionCheckResult,
-                });
+                const { runCliMode } = await import('./cli/modes/cli.js');
+                try {
+                    await runCliMode({
+                        agent,
+                        opts: {
+                            resume: opts.resume,
+                            continue: opts.continue,
+                            bypassPermissions: opts.bypassPermissions,
+                        },
+                        workspaceRoot,
+                        validatedConfig,
+                        resolvedPath,
+                        initialPrompt,
+                        getVersionCheckResult,
+                    });
+                } catch (err) {
+                    if (err instanceof ExitSignal) throw err;
+                    const message = err instanceof Error ? err.message : String(err);
+                    console.error(`❌ Failed to start the interactive CLI: ${message}`);
+                    safeExit('main', 1, 'mode-startup-failed');
+                }
             },
             { timeoutMs: 0 }
         )
