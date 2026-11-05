@@ -91,12 +91,14 @@ npm init -y > /dev/null
 npm install --no-audit --no-fund /t/dexto-[0-9]*.tgz > /tmp/local-install.log 2>&1 || { cat /tmp/local-install.log; exit 1; }
 check_cli /app/node_modules/.bin/dexto /app/node_modules/dexto
 echo 'LOCAL PASS (dexto tarball, transitive dependencies, signed-out CLI, storage SQLite read/write)'
-# Global installs use a fresh prefix and npm cache; dependencies live below each global package.
+# Install the CLI as users do. Installing all tarballs as separate globals makes npm link sibling
+# workspace packages outside dexto, where they cannot see its optional peers. The fixture makes
+# every packed beta available without changing tarball dependency declarations.
 export npm_config_cache=/tmp/global-cache
-npm install -g --prefix /prefix --no-audit --no-fund /t/*.tgz > /tmp/global-install.log 2>&1 || { cat /tmp/global-install.log; exit 1; }
+npm install -g --prefix /prefix --no-audit --no-fund dexto@next > /tmp/global-install.log 2>&1 || { cat /tmp/global-install.log; exit 1; }
 cd /tmp
 check_cli /prefix/bin/dexto /prefix/lib/node_modules/dexto
-echo 'GLOBAL PASS (all tarballs, prefix install, signed-out CLI, storage SQLite read/write)'
+echo 'GLOBAL PASS (dexto@next from packed registry, prefix install, signed-out CLI, storage SQLite read/write)'
 CHECK
 failed=0
 for image in node:20-bookworm-slim node:22-bookworm-slim node:24-bookworm-slim; do
