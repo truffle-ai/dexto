@@ -86,7 +86,14 @@ export async function buildWorkingTree(cwd: string): Promise<WorkingTree> {
         );
         if (patch.length > MAX_PATCH) throw new Error('The working-tree patch exceeds 32 MiB.');
         const bundlePath = path.join(folder, 'tree.bundle');
-        await git(['bundle', 'create', bundlePath, head_commit, branch]);
+        // Pin both exported refs in a private repository. A concurrent local commit must not
+        // make the bundle carry an unscanned tree after the history check above.
+        const bare = path.join(folder, 'repository.git');
+        await git(['init', '--bare', bare]);
+        await git(['--git-dir=' + bare, 'fetch', '--no-tags', cwd, head_commit]);
+        await git(['--git-dir=' + bare, 'update-ref', `refs/heads/${branch}`, head_commit]);
+        await git(['--git-dir=' + bare, 'symbolic-ref', 'HEAD', `refs/heads/${branch}`]);
+        await git(['--git-dir=' + bare, 'bundle', 'create', bundlePath, 'HEAD', branch]);
         const bundle = await readFile(bundlePath);
         if (bundle.length > MAX_BUNDLE) throw new Error('The branch bundle exceeds 256 MiB.');
         return { branch, head_commit, bundle, patch: patch.length === 0 ? null : patch, cleanup };
