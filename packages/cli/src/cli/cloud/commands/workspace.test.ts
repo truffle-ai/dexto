@@ -233,5 +233,9 @@ describe('dexto workspace', () => {
         expect(stdout).toContain(
             'Published hello at https://hello.dexto.page (2 files). Anyone with the link can open it.'
         );
+        // Progress goes to stderr, a line per step, so stdout keeps only the result.
+        expect(stderr).toMatch(
+            /Packed 2 files into a \d+ B \.zip\.\nUploading \d+ B…\nPublishing hello…\n$/u
+        );
     });
 });
