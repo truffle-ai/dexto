@@ -100,7 +100,6 @@ import { registerSearchCommand } from './cli/commands/search/register.js';
 import { registerCloudCommand } from './cli/commands/cloud/register.js';
 import { isRootJsonHelp, rootHelpJson } from './cli/help-json.js';
 import { registerMcpCommand } from './cli/commands/mcp/register.js';
-import { registerImageCommand } from './cli/commands/image/register.js';
 import { registerPluginCommand } from './cli/commands/plugin/register.js';
 import type { BootstrapAgentMode } from './cli/commands/register-context.js';
 import type { CLIConfigOverrides } from './config/cli-overrides.js';
@@ -209,16 +208,10 @@ program
     .option('-c, --continue', 'Continue most recent session (CLI mode)')
     .option('-r, --resume <sessionId>', 'Resume a session by ID (CLI mode)')
     .option(
-        '--image <package>',
-        'Image package to load (e.g., @dexto/image-local). Overrides config image field.'
-    )
-    .option(
         '--dev',
         '[maintainers] Use local ./agents instead of ~/.dexto (for dexto repo development)'
     )
     .enablePositionalOptions();
-
-registerImageCommand({ program });
 
 // 7) `upgrade` SUB-COMMAND
 program
@@ -321,9 +314,8 @@ async function bootstrapAgentFromGlobalOpts(options: {
     }
 
     // Load image first to apply defaults and resolve DI services
-    // Priority: CLI flag > Agent config > Environment variable > Default
+    // Priority: Agent config > Environment variable > Default
     const imageName =
-        globalOpts.image || // --image flag
         mergedConfig.image || // image field in agent config
         process.env.DEXTO_IMAGE || // DEXTO_IMAGE env var
         '@dexto/image-local'; // Default for convenience
@@ -332,15 +324,10 @@ async function bootstrapAgentFromGlobalOpts(options: {
     try {
         image = await loadImage(imageName);
     } catch (err) {
-        await printFailure(
-            `Failed to load image '${imageName}'`,
-            `dexto image install ${imageName}`,
-            [
-                `❌ Failed to load image '${imageName}'`,
-                ...(err instanceof Error ? [err.message] : []),
-                `💡 Install it with: dexto image install ${imageName}`,
-            ]
-        );
+        await printFailure(`Failed to load image '${imageName}'`, null, [
+            `❌ Failed to load image '${imageName}'`,
+            ...(err instanceof Error ? [err.message] : []),
+        ]);
         if (isHeadlessRun) {
             throw new Error(`Failed to load image '${imageName}'`, { cause: err });
         }
@@ -789,9 +776,8 @@ program
                     const cleanedConfig = cleanNullValues(mergedConfig);
 
                     // Load image first to apply defaults and resolve DI services
-                    // Priority: CLI flag > Agent config > Environment variable > Default
+                    // Priority: Agent config > Environment variable > Default
                     imageName =
-                        opts.image || // --image flag
                         cleanedConfig.image || // image field in agent config
                         process.env.DEXTO_IMAGE || // DEXTO_IMAGE env var
                         '@dexto/image-local'; // Default for convenience
@@ -801,15 +787,10 @@ program
                         logger.debug(`Loaded image: ${imageName}`);
                     } catch (err) {
                         if (err instanceof Error) logger.debug(`Image load error: ${err.message}`);
-                        await printFailure(
-                            `Failed to load image '${imageName}'`,
-                            `dexto image install ${imageName}`,
-                            [
-                                `❌ Failed to load image '${imageName}'`,
-                                ...(err instanceof Error ? [err.message] : []),
-                                `💡 Install it with: dexto image install ${imageName}`,
-                            ]
-                        );
+                        await printFailure(`Failed to load image '${imageName}'`, null, [
+                            `❌ Failed to load image '${imageName}'`,
+                            ...(err instanceof Error ? [err.message] : []),
+                        ]);
                         safeExit('main', 1, 'image-load-failed');
                     }
 
@@ -864,13 +845,8 @@ program
                     }
 
                     // Validate that if config specifies an image, it matches what was loaded
-                    // Skip this check if user explicitly provided --image flag (intentional override)
                     // Note: Image was already loaded earlier before enrichment
-                    if (
-                        !opts.image &&
-                        validatedConfig.image &&
-                        validatedConfig.image !== imageName
-                    ) {
+                    if (validatedConfig.image && validatedConfig.image !== imageName) {
                         await printFailure(
                             `Config specifies image '${validatedConfig.image}' but '${imageName}' was loaded instead`,
                             null,
