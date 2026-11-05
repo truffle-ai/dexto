@@ -3,7 +3,6 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { Command, Option } from 'commander';
 import * as p from '@clack/prompts';
-import chalk from 'chalk';
 import { withAnalytics, safeExit, ExitSignal } from './analytics/wrapper.js';
 import type { UpdateInfo } from './cli/utils/version-check.js';
 import { handleHeadlessApproval } from './cli/approval/headless-approval-handler.js';
@@ -103,10 +102,8 @@ import { isRootJsonHelp, rootHelpJson } from './cli/help-json.js';
 import { registerMcpCommand } from './cli/commands/mcp/register.js';
 import { registerImageCommand } from './cli/commands/image/register.js';
 import { registerPluginCommand } from './cli/commands/plugin/register.js';
-import { registerInitCommand } from './cli/commands/init.js';
 import type { BootstrapAgentMode } from './cli/commands/register-context.js';
 import type { CLIConfigOverrides } from './config/cli-overrides.js';
-import type { CreateAppOptions } from './cli/commands/create-app.js';
 import type { UpgradeCommandOptions } from './cli/commands/upgrade.js';
 import type { UninstallCliCommandOptions } from './cli/commands/uninstall.js';
 import { ensureImageImporterConfigured } from './cli/utils/image-importer.js';
@@ -221,94 +218,7 @@ program
     )
     .enablePositionalOptions();
 
-// 2) `create-app` SUB-COMMAND
-program
-    .command('create-app [name]')
-    .description('Create a Dexto application (CLI, web, bot, etc.)')
-    .option('--from-image <package>', 'Use existing image (e.g., @dexto/image-local)')
-    .option('--type <type>', 'App type: script, webapp (default: script)')
-    .action(
-        withAnalytics('create-app', async (name?: string, options?: CreateAppOptions) => {
-            try {
-                p.intro(chalk.inverse('Create Dexto App'));
-
-                // Create the app project structure (fully self-contained)
-                const { createDextoProject } = await import('./cli/commands/create-app.js');
-                await createDextoProject(name, options);
-
-                p.outro(chalk.greenBright('Dexto app created successfully!'));
-                safeExit('create-app', 0);
-            } catch (err) {
-                if (err instanceof ExitSignal) throw err;
-                await printFailure(`dexto create-app command failed: ${err}`, null, [
-                    `❌ dexto create-app command failed: ${err}`,
-                ]);
-                safeExit('create-app', 1, 'error');
-            }
-        })
-    );
-
 registerImageCommand({ program });
-registerInitCommand({ program });
-
-// 4) `init-app` SUB-COMMAND
-program
-    .command('init-app')
-    .description('Initialize an existing Typescript app with Dexto')
-    .action(
-        withAnalytics('init-app', async () => {
-            const { checkForFileInCurrentDirectory, FileNotFoundError } = await import(
-                './cli/utils/package-mgmt.js'
-            );
-            try {
-                // pre-condition: check that package.json and tsconfig.json exist in current directory to know that project is valid
-                await checkForFileInCurrentDirectory('package.json');
-                await checkForFileInCurrentDirectory('tsconfig.json');
-
-                // start intro
-                p.intro(chalk.inverse('Dexto Init App'));
-                const { getUserInputToInitDextoApp, initDexto, postInitDexto } = await import(
-                    './cli/commands/init-app.js'
-                );
-                const userInput = await getUserInputToInitDextoApp();
-                try {
-                    const { capture } = await import('./analytics/index.js');
-                    capture('dexto_init', {
-                        provider: userInput.llmProvider,
-                        providedKey: Boolean(userInput.llmApiKey),
-                    });
-                } catch {
-                    // Analytics failures should not block CLI execution.
-                }
-                await initDexto(
-                    userInput.directory,
-                    userInput.createExampleFile,
-                    userInput.llmProvider,
-                    userInput.llmApiKey
-                );
-                p.outro(chalk.greenBright('Dexto app initialized successfully!'));
-
-                // add notes for users to get started with their new initialized Dexto project
-                await postInitDexto(userInput.directory);
-                safeExit('init-app', 0);
-            } catch (err) {
-                if (err instanceof ExitSignal) throw err;
-                // if the package.json or tsconfig.json is not found, we give instructions to create a new project
-                if (err instanceof FileNotFoundError) {
-                    await printFailure(
-                        `${err.message} Run "dexto create-app" to create a new app`,
-                        null,
-                        [`❌ ${err.message} Run "dexto create-app" to create a new app`]
-                    );
-                    safeExit('init-app', 1, 'file-not-found');
-                }
-                await printFailure(`Initialization failed: ${err}`, null, [
-                    `❌ Initialization failed: ${err}`,
-                ]);
-                safeExit('init-app', 1, 'error');
-            }
-        })
-    );
 
 // 7) `upgrade` SUB-COMMAND
 program

@@ -179,94 +179,6 @@ const PROVIDER_REGISTRY: Partial<Record<LLMProvider, ProviderOption>> = {
 };
 
 /**
- * Get providers organized by category
- */
-function getProvidersByCategory(): Record<ProviderCategory, ProviderOption[]> {
-    const categories: Record<ProviderCategory, ProviderOption[]> = {
-        recommended: [],
-        local: [],
-        cloud: [],
-        gateway: [],
-        enterprise: [],
-    };
-
-    for (const provider of LLM_PROVIDERS) {
-        const option = PROVIDER_REGISTRY[provider];
-        if (option) {
-            categories[option.category].push(option);
-        }
-    }
-
-    return categories;
-}
-
-/**
- * Build provider selection options with categories
- */
-function buildProviderOptions(): Array<{ value: LLMProvider; label: string; hint: string }> {
-    const categories = getProvidersByCategory();
-    const options: Array<{ value: LLMProvider; label: string; hint: string }> = [];
-
-    // Recommended (free) providers first
-    if (categories.recommended.length > 0) {
-        for (const p of categories.recommended) {
-            options.push({
-                value: p.value,
-                label: `${chalk.green('●')} ${p.label}`,
-                hint: `${p.hint} ${chalk.green('(free)')}`,
-            });
-        }
-    }
-
-    // Local providers - run AI on your machine
-    if (categories.local.length > 0) {
-        for (const p of categories.local) {
-            options.push({
-                value: p.value,
-                label: `${chalk.cyan('●')} ${p.label}`,
-                hint: `${p.hint} ${chalk.cyan('(local)')}`,
-            });
-        }
-    }
-
-    // Cloud providers
-    if (categories.cloud.length > 0) {
-        for (const p of categories.cloud) {
-            options.push({
-                value: p.value,
-                label: `${chalk.blue('●')} ${p.label}`,
-                hint: p.hint,
-            });
-        }
-    }
-
-    // Gateway providers
-    if (categories.gateway.length > 0) {
-        for (const p of categories.gateway) {
-            const suffix = p.requiresBaseURL ? chalk.gray(' (requires URL)') : '';
-            options.push({
-                value: p.value,
-                label: `${chalk.rgb(255, 165, 0)('●')} ${p.label}`,
-                hint: `${p.hint}${suffix}`,
-            });
-        }
-    }
-
-    // Enterprise providers
-    if (categories.enterprise.length > 0) {
-        for (const p of categories.enterprise) {
-            options.push({
-                value: p.value,
-                label: `${chalk.cyan('●')} ${p.label}`,
-                hint: p.hint,
-            });
-        }
-    }
-
-    return options;
-}
-
-/**
  * Get provider display name
  */
 export function getProviderDisplayName(provider: LLMProvider | string): string {
@@ -287,11 +199,6 @@ function isLLMProvider(value: string): value is LLMProvider {
 export function getProviderInfo(provider: LLMProvider): ProviderOption | undefined {
     return PROVIDER_REGISTRY[provider];
 }
-
-/**
- * Legacy PROVIDER_OPTIONS for backwards compatibility with init-app
- */
-export const PROVIDER_OPTIONS = buildProviderOptions();
 
 /**
  * Validates API key format for a provider with detailed error messages
