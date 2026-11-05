@@ -102,6 +102,7 @@ describe('dexto cloud', () => {
             appUrl: 'https://app.dexto.ai',
             apiBaseUrl: API,
             canOpenBrowser: true,
+            chatSyncOn: async () => false,
             dexto: {
                 signInWithBrowser: async () => signedIn(),
                 signInWithDevice: async () => signedIn(),
@@ -162,6 +163,35 @@ describe('dexto cloud', () => {
         await dextoAccounts.writeLogin(dir, 'default', signedIn());
         await runCloud(host, ['cloud', 'projects', 'list', '--project', 'prj_side']);
         expect(requests[1]?.headers.get('dexto-cloud-project')).toBe('prj_side');
+    });
+
+    it('reads the key from stdin with --api-key -, keeping it out of the command line', async () => {
+        host = { ...host, runtime: { ...host.runtime, readStdin: async () => 'dxt_piped\n' } };
+
+        const code = await runCloud(host, ['cloud', 'projects', 'list', '--api-key', '-']);
+
+        expect(code).toBe(0);
+        expect(requests[0]?.headers.get('authorization')).toBe('Bearer dxt_piped');
+    });
+
+    it('asks for the key, hidden, when --api-key has no value at a terminal', async () => {
+        const asked: { question: string; secret: boolean }[] = [];
+        host = {
+            ...host,
+            runtime: {
+                ...host.runtime,
+                prompt: async (question, options) => {
+                    asked.push({ question, secret: options?.secret === true });
+                    return 'dxt_typed';
+                },
+            },
+        };
+
+        await runCloud(host, ['cloud', 'projects', 'list', '--api-key', '--json']);
+
+        expect(asked).toEqual([{ question: 'Dexto API key: ', secret: true }]);
+        expect(requests[0]?.headers.get('authorization')).toBe('Bearer dxt_typed');
+        expect(JSON.parse(stdout)).toEqual(PROJECTS);
     });
 
     it('needs a sign-in: exit 3 with the command that fixes it', async () => {

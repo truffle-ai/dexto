@@ -1,7 +1,12 @@
-// `skills push`: packs a local Skill folder and creates or updates it in the person's library.
+// `skills push` packs a local Skill folder into the person's library; `skills sync` copies the
+// library to this computer, where local skill discovery finds it.
+
+import { CommandFailure } from '../../failure.js';
 
 import path from 'node:path';
 
+import { getStandaloneSkillPaths } from '@dexto/agent-management';
+import { createCloudClient } from '@dexto/cloud-client';
 import { z } from 'zod';
 
 import {
@@ -13,8 +18,9 @@ import {
     type Command,
     type CommandContext,
 } from '../command.js';
-import { tarArchive } from '../tar.js';
 import { readSkillFolder, skillHeader, titleFromSlug, SLUG } from '../skill-bundle.js';
+import { syncCloudSkills } from '../skills-sync.js';
+import { tarArchive } from '../tar.js';
 import { uploadSkillBundle } from './skill-transport.js';
 import { formatBytes } from './files.js';
 import { agreeToCall, listWorkspaceTools, queryWorkspaceTool, toolCallLevel } from './workspace.js';
@@ -146,4 +152,34 @@ async function ownsSkill(context: CommandContext, slug: string): Promise<boolean
     );
 }
 
-export const skillCommands: readonly Command[] = [push];
+const sync: Command = {
+    path: ['skills', 'sync'],
+    summary:
+        'Copy your Dexto Skills library to this computer, where agents find it after your local Skills',
+    async run(context) {
+        const connection = await context.connection();
+        if (connection.kind !== 'oauth')
+            throw new CommandFailure(
+                'needs_sign_in',
+                'Skills belong to a person, and a developer key acts for a Cloud project.',
+                'dexto login'
+            );
+        const directory = getStandaloneSkillPaths().cloud;
+        const synced = await syncCloudSkills({
+            client: createCloudClient({
+                apiBaseUrl: connection.apiBaseUrl,
+                // The library is the person's, in no Cloud project.
+                cloudProject: null,
+                fetch: context.runtime.fetch,
+                token: connection.token,
+            }),
+            directory,
+        });
+        context.output.result(
+            { directory, ...synced },
+            `Synced your Skills to ${directory}: ${synced.downloaded.length} downloaded, ${synced.removed.length} removed.`
+        );
+    },
+};
+
+export const skillCommands: readonly Command[] = [push, sync];

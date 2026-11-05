@@ -917,6 +917,34 @@
     "examples": false
   },
   {
+    "command": "skills sync",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "span list",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "trace list",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "trace view",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
     "command": "uninstall",
     "json": false,
     "dryRun": true,
@@ -942,6 +970,41 @@
     "json": true,
     "dryRun": false,
     "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "workspace artifacts create",
+    "json": true,
+    "dryRun": true,
+    "nonInteractiveFlag": true,
+    "examples": false
+  },
+  {
+    "command": "workspace artifacts get",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "workspace artifacts list",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "workspace artifacts replace",
+    "json": true,
+    "dryRun": true,
+    "nonInteractiveFlag": true,
+    "examples": false
+  },
+  {
+    "command": "workspace artifacts share",
+    "json": true,
+    "dryRun": true,
+    "nonInteractiveFlag": true,
     "examples": false
   },
   {
