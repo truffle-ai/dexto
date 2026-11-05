@@ -81,3 +81,89 @@ it('refuses oversized or corrupted downloads before applying anything', async ()
         )
     ).rejects.toThrow('checksum');
 });
+
+it('keeps cloud ownership when cancellation discovers that an interrupted import completed', async () => {
+    let canceled = false;
+    const fetch: typeof globalThis.fetch = async (input, init) => {
+        const request =
+            input instanceof globalThis.Request ? input : new globalThis.Request(input, init);
+        const route = new URL(request.url).pathname;
+        if (request.method === 'PUT') return new Response(null);
+        if (request.method === 'GET') throw new Error('final polling response lost');
+        if (route.endsWith('/cancel')) {
+            canceled = true;
+            return Response.json({ id: 'm', status: 'completed' });
+        }
+        if (route.endsWith('/uploaded'))
+            return Response.json({
+                id: 'm',
+                status: 'importing',
+                expires_at: '2099-01-01T00:00:00Z',
+            });
+        return Response.json({
+            id: 'm',
+            status: 'awaiting_upload',
+            uploads: [{ object: 'bundle', url: 'https://upload.invalid/bundle', headers: {} }],
+        });
+    };
+    const client = createCloudClient({
+        apiBaseUrl: 'https://api.invalid',
+        token: 'fake',
+        cloudProject: null,
+        fetch,
+    });
+    await expect(
+        moveToCloud(
+            { client, fetch, signal: new AbortController().signal, sleep: async () => undefined },
+            'chat',
+            {
+                branch: 'main',
+                head_commit: 'a'.repeat(40),
+                bundle: Buffer.from('bundle'),
+                patch: null,
+                cleanup: async () => undefined,
+            }
+        )
+    ).resolves.toBeUndefined();
+    expect(canceled).toBe(true);
+});
+
+it('reports unresolved ownership when both polling and cancellation lose the connection', async () => {
+    const fetch: typeof globalThis.fetch = async (input, init) => {
+        const request =
+            input instanceof globalThis.Request ? input : new globalThis.Request(input, init);
+        const route = new URL(request.url).pathname;
+        if (request.method === 'PUT') return new Response(null);
+        if (request.method === 'GET' || route.endsWith('/cancel')) throw new Error('offline');
+        if (route.endsWith('/uploaded'))
+            return Response.json({
+                id: 'm',
+                status: 'importing',
+                expires_at: '2099-01-01T00:00:00Z',
+            });
+        return Response.json({
+            id: 'm',
+            status: 'awaiting_upload',
+            uploads: [{ object: 'bundle', url: 'https://upload.invalid/bundle', headers: {} }],
+        });
+    };
+    const client = createCloudClient({
+        apiBaseUrl: 'https://api.invalid',
+        token: 'fake',
+        cloudProject: null,
+        fetch,
+    });
+    await expect(
+        moveToCloud(
+            { client, fetch, signal: new AbortController().signal, sleep: async () => undefined },
+            'chat',
+            {
+                branch: 'main',
+                head_commit: 'a'.repeat(40),
+                bundle: Buffer.from('bundle'),
+                patch: null,
+                cleanup: async () => undefined,
+            }
+        )
+    ).rejects.toMatchObject({ ownership: 'unknown' });
+});

@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { unwrap, type CloudClient, type V1Response } from '@dexto/cloud-client';
+import { CloudApiError, unwrap, type CloudClient, type V1Response } from '@dexto/cloud-client';
 import type { WorkingTree } from './working-tree.js';
 
 export type ChatMove = V1Response<'/v1/synced_chats/{chat_id}/moves', 'post'>;
@@ -8,6 +8,16 @@ export interface MoveTransport {
     readonly fetch: typeof globalThis.fetch;
     readonly signal: AbortSignal;
     readonly sleep: (ms: number) => Promise<void>;
+}
+
+export class CloudMoveFailure extends Error {
+    constructor(
+        error: unknown,
+        readonly ownership: 'local' | 'unknown'
+    ) {
+        super(error instanceof Error ? error.message : 'Cloud hand-off failed.', { cause: error });
+        this.name = 'CloudMoveFailure';
+    }
 }
 
 export function describeObject(bytes: Uint8Array): { sha256: string; size_bytes: number } {
@@ -75,9 +85,9 @@ export async function cancelMove(
     transport: MoveTransport,
     chatId: string,
     moveId: string
-): Promise<void> {
+): Promise<ChatMove> {
     // Cleanup must still run when the caller's signal is aborted.
-    await unwrap(
+    return await unwrap(
         await transport.client.POST('/v1/synced_chats/{chat_id}/moves/{move_id}/cancel', {
             params: { path: { chat_id: chatId, move_id: moveId } },
         })
@@ -88,22 +98,28 @@ export async function moveToCloud(
     transport: MoveTransport,
     chatId: string,
     tree: WorkingTree
-): Promise<ChatMove> {
-    const started = await unwrap(
-        await transport.client.POST('/v1/synced_chats/{chat_id}/moves', {
-            params: { path: { chat_id: chatId } },
-            signal: transport.signal,
-            body: {
-                to: 'cloud',
-                working_tree: {
-                    branch: tree.branch,
-                    head_commit: tree.head_commit,
-                    bundle: describeObject(tree.bundle),
-                    patch: tree.patch === null ? null : describeObject(tree.patch),
+): Promise<void> {
+    let started: ChatMove;
+    try {
+        started = await unwrap(
+            await transport.client.POST('/v1/synced_chats/{chat_id}/moves', {
+                params: { path: { chat_id: chatId } },
+                signal: transport.signal,
+                body: {
+                    to: 'cloud',
+                    working_tree: {
+                        branch: tree.branch,
+                        head_commit: tree.head_commit,
+                        bundle: describeObject(tree.bundle),
+                        patch: tree.patch === null ? null : describeObject(tree.patch),
+                    },
                 },
-            },
-        })
-    );
+            })
+        );
+    } catch (error) {
+        if (error instanceof CloudApiError && error.code === 'chat_in_cloud') return;
+        throw error;
+    }
     try {
         for (const upload of started.uploads) {
             const bytes = upload.object === 'bundle' ? tree.bundle : tree.patch;
@@ -123,9 +139,15 @@ export async function moveToCloud(
                 signal: transport.signal,
             })
         );
-        return await waitForMove(transport, chatId, importing);
+        await waitForMove(transport, chatId, importing);
     } catch (error) {
-        await cancelMove(transport, chatId, started.id).catch(() => undefined);
-        throw error;
+        const canceled = await cancelMove(transport, chatId, started.id).catch(() => null);
+        if (canceled?.status === 'completed') return;
+        const local =
+            canceled !== null &&
+            (canceled.status === 'canceled' ||
+                canceled.status === 'failed' ||
+                canceled.status === 'expired');
+        throw new CloudMoveFailure(error, local ? 'local' : 'unknown');
     }
 }

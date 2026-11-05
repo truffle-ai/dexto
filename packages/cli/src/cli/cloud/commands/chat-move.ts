@@ -2,7 +2,7 @@ import { mkdir, readFile, writeFile, rename } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { z } from 'zod';
-import { createCloudClient, unwrap } from '@dexto/cloud-client';
+import { CloudApiError, createCloudClient, unwrap } from '@dexto/cloud-client';
 import { getDextoGlobalPath } from '@dexto/core';
 import { CommandFailure } from '../../failure.js';
 import {
@@ -17,11 +17,14 @@ import { nodeChatSyncStore, startNodeChatSync } from '../../chat-sync/node.js';
 import { buildWorkingTree, readLocalTreeCheckpoint } from '../../chat-sync/working-tree.js';
 import {
     applyReturnedTree,
+    assertLocalTreeMatches,
     recoverAbandonedReturn,
     ReturnCheckpointSchema,
 } from '../../chat-sync/return-tree.js';
 import {
     cancelMove,
+    CloudMoveFailure,
+    type ChatMove,
     describeObject,
     downloadMoveObject,
     moveToCloud,
@@ -183,8 +186,16 @@ const move: Command = {
         chat = await localChat(context, id);
         const { transport, cloudId, state, store, account } = chat;
         if (to === 'cloud') {
-            if (state.status === 'paused')
-                throw new Error('This chat is already moving or on its cloud computer.');
+            if (state.status === 'paused') {
+                const pending = ReturnCheckpointSchema.parse(
+                    JSON.parse(await readFile(chat.file, 'utf8'))
+                );
+                if (pending.phase !== 'cloud')
+                    throw new Error(
+                        'Finish this return with --to local before moving to cloud again.'
+                    );
+                await assertLocalTreeMatches(chat.cwd, pending);
+            }
             if (context.openLocalAgent !== undefined) {
                 const agent = await context.openLocalAgent();
                 const count = toSyncedMessages(await agent.getSessionHistory(id)).length;
@@ -201,7 +212,37 @@ const move: Command = {
                     patchHash: describeObject(tree.patch ?? Buffer.alloc(0)).sha256,
                     phase: 'cloud',
                 });
-                await moveToCloud(transport, cloudId, tree);
+                await store.writeChat(account, id, {
+                    ...state,
+                    status: 'paused',
+                    reason: 'move_in_progress',
+                    since: new Date().toISOString(),
+                });
+                try {
+                    await moveToCloud(transport, cloudId, tree);
+                } catch (error) {
+                    const local =
+                        error instanceof CloudMoveFailure
+                            ? error.ownership === 'local'
+                            : error instanceof CloudApiError &&
+                              error.status < 500 &&
+                              error.code !== 'move_in_progress';
+                    if (local)
+                        await store.writeChat(account, id, {
+                            status: 'syncing',
+                            cloudChatId: cloudId,
+                            nextIndex: state.nextIndex,
+                            sentCount: state.sentCount,
+                        });
+                    const cause = error instanceof CloudMoveFailure ? error.cause : error;
+                    if (!local && !(cause instanceof CloudApiError))
+                        throw new CommandFailure(
+                            'failed',
+                            'The hand-off location is not confirmed; local turns remain paused.',
+                            `dexto chat move ${id} --to local`
+                        );
+                    throw cause;
+                }
                 await store.writeChat(account, id, {
                     ...state,
                     status: 'paused',
@@ -236,15 +277,39 @@ const move: Command = {
                     signal: transport.signal,
                 })
             );
-        let started =
-            checkpoint.phase === 'cloud'
-                ? await startReturn()
-                : await unwrap(
-                      await transport.client.GET('/v1/synced_chats/{chat_id}/moves/{move_id}', {
-                          params: { path: { chat_id: cloudId, move_id: checkpoint.moveId } },
-                          signal: transport.signal,
-                      })
-                  );
+        let started: ChatMove;
+        try {
+            started =
+                checkpoint.phase === 'cloud'
+                    ? await startReturn()
+                    : await unwrap(
+                          await transport.client.GET('/v1/synced_chats/{chat_id}/moves/{move_id}', {
+                              params: { path: { chat_id: cloudId, move_id: checkpoint.moveId } },
+                              signal: transport.signal,
+                          })
+                      );
+        } catch (error) {
+            if (
+                error instanceof CloudApiError &&
+                error.code === 'chat_local' &&
+                checkpoint.phase === 'cloud' &&
+                state.status === 'paused' &&
+                state.reason === 'move_in_progress'
+            ) {
+                await store.writeChat(account, id, {
+                    status: 'syncing',
+                    cloudChatId: cloudId,
+                    nextIndex: state.nextIndex,
+                    sentCount: state.sentCount,
+                });
+                context.output.result(
+                    { id, location: 'local', alreadyThere: true },
+                    chatMoveScreen(id, 'local')
+                );
+                return;
+            }
+            throw error;
+        }
         if (
             started.status === 'expired' ||
             started.status === 'canceled' ||
