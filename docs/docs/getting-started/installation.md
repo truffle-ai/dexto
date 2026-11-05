@@ -8,8 +8,7 @@ This guide will walk you through installing the Dexto CLI and setting up your en
 
 ## Prerequisites
 
-- No runtime dependency is required for native install.
-- [Node.js](https://nodejs.org/en/download) >= 20.0.0 is only required if you build from source.
+- [Node.js](https://nodejs.org/en/download) >= 20.0.0 with npm.
 
 **Optional:** An LLM API Key (not required for local models)
 - [Get a Gemini Key](https://aistudio.google.com/apikey) (free option available)
@@ -23,13 +22,25 @@ Install Dexto using the native installer:
 
 ```bash
 # macOS / Linux / WSL
-curl -fsSL https://dexto.ai/install | bash
+curl -fsSL https://dexto.ai/install | sh
 
 # Windows PowerShell
 irm https://dexto.ai/install.ps1 | iex
 ```
 
-This adds the `dexto` command to your system and writes install metadata to `~/.dexto/install.json`.
+The installer needs no admin rights and never prompts. It installs the `latest` release, verified against the npm registry checksum, into `~/.dexto/cli`, and puts `dexto` in `~/.local/bin` (Windows: `%USERPROFILE%\.dexto\bin`, added to your user PATH). Re-running it with the same version changes nothing.
+
+To install the Dexto 2.0 beta, or any version or dist-tag, set `DEXTO_VERSION`:
+
+```bash
+curl -fsSL https://dexto.ai/install | DEXTO_VERSION=next sh
+```
+
+```powershell
+$env:DEXTO_VERSION = 'next'; irm https://dexto.ai/install.ps1 | iex
+```
+
+The last line of output is one JSON object, `{"installed":{...}}` or `{"error":{...}}`. Exit codes: 0 success, 1 failure, 2 invalid input, 5 version not found. Run `curl -fsSL https://dexto.ai/install | sh -s -- --help` for all options.
 
 ### Upgrade
 
@@ -44,7 +55,7 @@ dexto upgrade 1.6.8
 ### Uninstall CLI
 
 ```bash
-# default: remove CLI binary only
+# default: remove the CLI and keep your settings in ~/.dexto
 dexto uninstall
 
 # remove ~/.dexto too

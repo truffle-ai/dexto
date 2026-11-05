@@ -9,6 +9,7 @@ import { z } from 'zod';
 
 import {
     argument,
+    choiceOption,
     flag,
     integerOption,
     listOption,
@@ -235,7 +236,7 @@ const share: Command = {
         'Change who can open an Artifact: only you, your organization, or anyone with its link.',
     async run(context, input) {
         await requireLoginScopes(context, ['apps:execute']);
-        const visibility = choice(input, 'visibility', VISIBILITIES);
+        const visibility = choiceOption(input, 'visibility', VISIBILITIES);
         if (visibility === undefined) throw new UsageError('--visibility is required.');
         const artifactId = argument(input, 0, 'artifact_id');
         const call = { artifactId, visibility };
@@ -298,9 +299,9 @@ function contentFields(
 ) {
     const tags = listOption(input, 'tag');
     const fields = {
-        kind: choice(input, 'kind', KINDS) ?? defaults.kind,
-        preferredSurface: choice(input, 'surface', SURFACES) ?? defaults.preferredSurface,
-        renderer: choice(input, 'renderer', RENDERERS) ?? defaults.renderer,
+        kind: choiceOption(input, 'kind', KINDS) ?? defaults.kind,
+        preferredSurface: choiceOption(input, 'surface', SURFACES) ?? defaults.preferredSurface,
+        renderer: choiceOption(input, 'renderer', RENDERERS) ?? defaults.renderer,
         summary: stringOption(input, 'summary') ?? defaults.summary,
         title: stringOption(input, 'title') ?? defaults.title,
         ...(tags.length === 0 ? {} : { tags }),
@@ -308,19 +309,6 @@ function contentFields(
     if (fields.renderer === 'reveal' && fields.kind !== 'slide-deck')
         throw new UsageError('--renderer reveal needs --kind slide-deck.');
     return fields;
-}
-
-function choice<const T extends string>(
-    input: CommandInput,
-    name: string,
-    values: readonly T[]
-): T | undefined {
-    const value = stringOption(input, name);
-    if (value === undefined) return undefined;
-    const found = values.find((each) => each === value);
-    if (found === undefined)
-        throw new UsageError(`--${name} must be one of: ${values.join(', ')}.`);
-    return found;
 }
 
 async function requireTool(context: CommandContext, name: string) {

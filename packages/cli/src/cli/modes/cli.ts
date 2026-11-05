@@ -215,7 +215,7 @@ export async function runCliMode(context: MainModeContext): Promise<void> {
                 { applyLayeredEnvironmentLoading },
                 { getProviderDisplayName, isValidApiKeyFormat, getProviderInstructions },
                 { buildDextoBillingUrl, openDextoBillingPage },
-                { describeSignIn, login, logout },
+                { describeSignIn, login, logout, plainSignInScreen },
                 { nodeSignInContext },
                 { isUsingDextoCredits },
                 { canUseDextoProvider },
@@ -257,6 +257,7 @@ export async function runCliMode(context: MainModeContext): Promise<void> {
                             result: () => undefined,
                             confirm: async () => false,
                             note: () => undefined,
+                            screen: plainSignInScreen(() => undefined),
                             signal: new AbortController().signal,
                         })
                     ),
@@ -267,6 +268,7 @@ export async function runCliMode(context: MainModeContext): Promise<void> {
                             result: (_value, text) => printed.push(text),
                             confirm: async () => false,
                             note: onNote,
+                            screen: plainSignInScreen(onNote),
                             signal,
                         }),
                         {
@@ -287,6 +289,7 @@ export async function runCliMode(context: MainModeContext): Promise<void> {
                             result: (_value, text) => said.push(text),
                             confirm: async () => false,
                             note: (text) => said.push(text),
+                            screen: plainSignInScreen((text) => said.push(text)),
                             signal: new AbortController().signal,
                         }),
                         { profile: null }

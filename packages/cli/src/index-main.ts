@@ -111,6 +111,41 @@ import { ensureImageImporterConfigured } from './cli/utils/image-importer.js';
 
 const program = new Command();
 
+/** An early failure: the Signal fault block, or the emoji lines it replaces until Signal ships. */
+async function printFailure(
+    message: string,
+    fix: string | null,
+    legacy: readonly string[],
+    details: string | null = null
+): Promise<void> {
+    const { printFault } = await import('./cli/screens/fault.js');
+    printFault({ message, details, fix }, legacy);
+}
+
+/** The Signal first-run screen, before setup, for someone who has never set Dexto up. */
+async function printFirstRun(): Promise<void> {
+    const [{ isFirstTimeUser }, { firstRunLines, readFirstRunFacts }, { describeSignIn }] =
+        await Promise.all([
+            import('./cli/utils/setup-utils.js'),
+            import('./cli/screens/first-run.js'),
+            import('./cli/commands/auth/sign-in-commands.js'),
+        ]);
+    if (!isFirstTimeUser()) return;
+    const { nodeSignInContext } = await import('./cli/commands/auth/sign-in-context.js');
+    const signedInAs = await describeSignIn(await nodeSignInContext());
+    const facts = await readFirstRunFacts(cliVersion, signedInAs);
+    process.stdout.write(`${firstRunLines(facts).join('\n')}\n`);
+}
+
+// Signal help (DEXTO_PALETTE=signal) for the root and every command added below, which copy it.
+if (process.env.DEXTO_PALETTE === 'signal') {
+    const { commanderHelpLines, rootHelpLines } = await import('./cli/screens/help.js');
+    program.configureHelp({
+        formatHelp: (command, helper) =>
+            `${(command === program ? rootHelpLines(program, helper, cliVersion) : commanderHelpLines(command, helper)).join('\n')}\n`,
+    });
+}
+
 let earlierSignInsCarriedOver = false;
 let versionCheckPromise: Promise<UpdateInfo | null> | null = null;
 let llmRegistryAutoUpdateStarted = false;
@@ -200,7 +235,9 @@ program
                 safeExit('create-app', 0);
             } catch (err) {
                 if (err instanceof ExitSignal) throw err;
-                console.error(`❌ dexto create-app command failed: ${err}`);
+                await printFailure(`dexto create-app command failed: ${err}`, null, [
+                    `❌ dexto create-app command failed: ${err}`,
+                ]);
                 safeExit('create-app', 1, 'error');
             }
         })
@@ -253,10 +290,16 @@ program
                 if (err instanceof ExitSignal) throw err;
                 // if the package.json or tsconfig.json is not found, we give instructions to create a new project
                 if (err instanceof FileNotFoundError) {
-                    console.error(`❌ ${err.message} Run "dexto create-app" to create a new app`);
+                    await printFailure(
+                        `${err.message} Run "dexto create-app" to create a new app`,
+                        null,
+                        [`❌ ${err.message} Run "dexto create-app" to create a new app`]
+                    );
                     safeExit('init-app', 1, 'file-not-found');
                 }
-                console.error(`❌ Initialization failed: ${err}`);
+                await printFailure(`Initialization failed: ${err}`, null, [
+                    `❌ Initialization failed: ${err}`,
+                ]);
                 safeExit('init-app', 1, 'error');
             }
         })
@@ -279,8 +322,12 @@ program
                 safeExit('setup', 0);
             } catch (err) {
                 if (err instanceof ExitSignal) throw err;
-                console.error(
-                    `❌ dexto setup command failed: ${err}. Check logs in ~/.dexto/logs/dexto.log for more information`
+                await printFailure(
+                    `dexto setup command failed: ${err}. Check logs in ~/.dexto/logs/dexto.log for more information`,
+                    null,
+                    [
+                        `❌ dexto setup command failed: ${err}. Check logs in ~/.dexto/logs/dexto.log for more information`,
+                    ]
                 );
                 safeExit('setup', 1, 'error');
             }
@@ -302,7 +349,9 @@ program
                 safeExit('connect', 0);
             } catch (err) {
                 if (err instanceof ExitSignal) throw err;
-                console.error(`❌ dexto connect command failed: ${err}`);
+                await printFailure(`dexto connect command failed: ${err}`, null, [
+                    `❌ dexto connect command failed: ${err}`,
+                ]);
                 safeExit('connect', 1, 'error');
             }
         })
@@ -326,7 +375,9 @@ program
                     safeExit('upgrade', 0);
                 } catch (err) {
                     if (err instanceof ExitSignal) throw err;
-                    console.error(`❌ dexto upgrade command failed: ${err}`);
+                    await printFailure(`dexto upgrade command failed: ${err}`, null, [
+                        `❌ dexto upgrade command failed: ${err}`,
+                    ]);
                     safeExit('upgrade', 1, 'error');
                 }
             }
@@ -347,7 +398,9 @@ program
                 safeExit('uninstall', 0);
             } catch (err) {
                 if (err instanceof ExitSignal) throw err;
-                console.error(`❌ dexto uninstall command failed: ${err}`);
+                await printFailure(`dexto uninstall command failed: ${err}`, null, [
+                    `❌ dexto uninstall command failed: ${err}`,
+                ]);
                 safeExit('uninstall', 1, 'error');
             }
         })
@@ -365,7 +418,9 @@ program
                 safeExit('which', 0);
             } catch (err) {
                 if (err instanceof ExitSignal) throw err;
-                console.error(`❌ dexto which command failed: ${err}`);
+                await printFailure(`dexto which command failed: ${err}`, null, [
+                    `❌ dexto which command failed: ${err}`,
+                ]);
                 safeExit('which', 1, 'error');
             }
         })
@@ -435,11 +490,15 @@ async function bootstrapAgentFromGlobalOpts(options: {
     try {
         image = await loadImage(imageName);
     } catch (err) {
-        console.error(`❌ Failed to load image '${imageName}'`);
-        if (err instanceof Error) {
-            console.error(err.message);
-        }
-        console.error(`💡 Install it with: dexto image install ${imageName}`);
+        await printFailure(
+            `Failed to load image '${imageName}'`,
+            `dexto image install ${imageName}`,
+            [
+                `❌ Failed to load image '${imageName}'`,
+                ...(err instanceof Error ? [err.message] : []),
+                `💡 Install it with: dexto image install ${imageName}`,
+            ]
+        );
         if (isHeadlessRun) {
             throw new Error(`Failed to load image '${imageName}'`, { cause: err });
         }
@@ -602,8 +661,10 @@ program
                 const initialPrompt = opts.prompt !== undefined ? String(opts.prompt) : undefined;
 
                 if (initialPrompt !== undefined && initialPrompt.trim() === '') {
-                    console.error(
-                        '❌ Prompt cannot be empty. Provide a non-empty prompt with -p/--prompt.'
+                    await printFailure(
+                        'Prompt cannot be empty. Provide a non-empty prompt with -p/--prompt.',
+                        null,
+                        ['❌ Prompt cannot be empty. Provide a non-empty prompt with -p/--prompt.']
                     );
                     safeExit('main', 1, 'empty-prompt');
                 }
@@ -624,21 +685,24 @@ program
 
                 // The interactive CLI requires a TTY (Ink uses stdin for keypress input).
                 if (opts.mode === 'cli' && !process.stdin.isTTY) {
-                    console.error('❌ Interactive CLI requires a TTY.');
-                    console.error(
-                        '💡 For non-interactive runs, use `dexto run "<prompt>"`, or use --mode server for automation.'
-                    );
+                    await printFailure('Interactive CLI requires a TTY.', 'dexto run "<prompt>"', [
+                        '❌ Interactive CLI requires a TTY.',
+                        '💡 For non-interactive runs, use `dexto run "<prompt>"`, or use --mode server for automation.',
+                    ]);
                     safeExit('main', 1, 'no-tty');
                 }
 
                 // ——— Infer provider & API key from model ———
                 if (opts.model) {
                     if (opts.model.includes('/')) {
-                        console.error(
-                            `❌ Model '${opts.model}' looks like an OpenRouter-format ID (provider/model).`
-                        );
-                        console.error(
-                            `   This is ambiguous for --model inference. Please also pass --provider (e.g. --provider dexto-nova or --provider openrouter).`
+                        await printFailure(
+                            `Model '${opts.model}' looks like an OpenRouter-format ID (provider/model).`,
+                            null,
+                            [
+                                `❌ Model '${opts.model}' looks like an OpenRouter-format ID (provider/model).`,
+                                `   This is ambiguous for --model inference. Please also pass --provider (e.g. --provider dexto-nova or --provider openrouter).`,
+                            ],
+                            'This is ambiguous for --model inference. Please also pass --provider (e.g. --provider dexto-nova or --provider openrouter).'
                         );
                         safeExit('main', 1, 'ambiguous-model');
                     }
@@ -647,16 +711,25 @@ program
                     try {
                         provider = getProviderFromModel(opts.model);
                     } catch (err) {
-                        console.error(`❌ ${(err as Error).message}`);
-                        console.error(`Supported models: ${getAllSupportedModels().join(', ')}`);
+                        const supported = `Supported models: ${getAllSupportedModels().join(', ')}`;
+                        await printFailure(
+                            `${(err as Error).message}`,
+                            null,
+                            [`❌ ${(err as Error).message}`, supported],
+                            supported
+                        );
                         safeExit('main', 1, 'invalid-model');
                     }
 
                     const apiKey = resolveApiKeyForProvider(provider);
                     if (!apiKey) {
                         const envVar = getPrimaryApiKeyEnvVar(provider);
-                        console.error(
-                            `❌ Missing API key for provider '${provider}' - please set $${envVar}`
+                        await printFailure(
+                            `Missing API key for provider '${provider}' - please set $${envVar}`,
+                            null,
+                            [
+                                `❌ Missing API key for provider '${provider}' - please set $${envVar}`,
+                            ]
                         );
                         safeExit('main', 1, 'missing-api-key');
                     }
@@ -692,9 +765,13 @@ program
                 const canRunInteractiveSetup = isInteractiveMode && opts.interactive !== false;
 
                 if (setupRequired && !canRunInteractiveSetup) {
-                    console.error('❌ Setup required before starting in this mode.');
-                    console.error(
-                        '💡 Run `dexto setup` first, or use --skip-setup to bypass global setup.'
+                    await printFailure(
+                        'Setup required before starting in this mode.',
+                        'dexto setup',
+                        [
+                            '❌ Setup required before starting in this mode.',
+                            '💡 Run `dexto setup` first, or use --skip-setup to bypass global setup.',
+                        ]
                     );
                     safeExit('main', 1, 'setup-required-non-interactive');
                 }
@@ -703,6 +780,7 @@ program
                     setupRequired && canRunInteractiveSetup && !opts.provider && !opts.model;
 
                 if (shouldRunSetupBeforeStartup) {
+                    if (process.env.DEXTO_PALETTE === 'signal') await printFirstRun();
                     const { handleSetupCommand } = await import('./cli/commands/setup.js');
                     await handleSetupCommand({
                         interactive: true,
@@ -740,15 +818,20 @@ program
 
                                 // Check if agent exists in bundled registry
                                 if (!(opts.agent in bundledRegistry.agents)) {
-                                    console.error(`❌ Agent '${opts.agent}' not found in registry`);
-
-                                    // Show available agents
                                     const available = Object.keys(bundledRegistry.agents);
-                                    if (available.length > 0) {
-                                        console.log(`📋 Available agents: ${available.join(', ')}`);
-                                    } else {
-                                        console.log('📋 No agents available in registry');
-                                    }
+                                    const listed =
+                                        available.length > 0
+                                            ? `Available agents: ${available.join(', ')}`
+                                            : 'No agents available in registry';
+                                    await printFailure(
+                                        `Agent '${opts.agent}' not found in registry`,
+                                        null,
+                                        [`❌ Agent '${opts.agent}' not found in registry`],
+                                        listed
+                                    );
+                                    // Before Signal the list went to stdout; Signal shows it in the fault.
+                                    if (process.env.DEXTO_PALETTE !== 'signal')
+                                        console.log(`📋 ${listed}`);
                                     safeExit('main', 1, 'agent-not-in-registry');
                                     return;
                                 }
@@ -835,8 +918,12 @@ program
                                 );
                                 await signInForDextoModels();
                                 if (!(await canUseDextoProvider())) {
-                                    console.error(
-                                        "\n❌ Signed in, but Dexto models can't run yet: allow spending credits when asked, or run `dexto setup` to use a different provider.\n"
+                                    await printFailure(
+                                        "Signed in, but Dexto models can't run yet: allow spending credits when asked",
+                                        'dexto setup',
+                                        [
+                                            "\n❌ Signed in, but Dexto models can't run yet: allow spending credits when asked, or run `dexto setup` to use a different provider.\n",
+                                        ]
                                     );
                                     safeExit('main', 1, 'dexto-models-not-ready');
                                 }
@@ -940,12 +1027,16 @@ program
                         image = await loadImage(imageName);
                         logger.debug(`Loaded image: ${imageName}`);
                     } catch (err) {
-                        console.error(`❌ Failed to load image '${imageName}'`);
-                        if (err instanceof Error) {
-                            console.error(err.message);
-                            logger.debug(`Image load error: ${err.message}`);
-                        }
-                        console.error(`💡 Install it with: dexto image install ${imageName}`);
+                        if (err instanceof Error) logger.debug(`Image load error: ${err.message}`);
+                        await printFailure(
+                            `Failed to load image '${imageName}'`,
+                            `dexto image install ${imageName}`,
+                            [
+                                `❌ Failed to load image '${imageName}'`,
+                                ...(err instanceof Error ? [err.message] : []),
+                                `💡 Install it with: dexto image install ${imageName}`,
+                            ]
+                        );
                         safeExit('main', 1, 'image-load-failed');
                     }
 
@@ -1009,18 +1100,22 @@ program
                         validatedConfig.image &&
                         validatedConfig.image !== imageName
                     ) {
-                        console.error(
-                            `❌ Config specifies image '${validatedConfig.image}' but '${imageName}' was loaded instead`
-                        );
-                        console.error(
-                            `💡 Either remove 'image' from config or ensure it matches the loaded image`
+                        await printFailure(
+                            `Config specifies image '${validatedConfig.image}' but '${imageName}' was loaded instead`,
+                            null,
+                            [
+                                `❌ Config specifies image '${validatedConfig.image}' but '${imageName}' was loaded instead`,
+                                `💡 Either remove 'image' from config or ensure it matches the loaded image`,
+                            ]
                         );
                         safeExit('main', 1, 'image-mismatch');
                     }
                 } catch (err) {
                     if (err instanceof ExitSignal) throw err;
                     // Config loading failed completely
-                    console.error(`❌ Failed to load configuration: ${err}`);
+                    await printFailure(`Failed to load configuration: ${err}`, null, [
+                        `❌ Failed to load configuration: ${err}`,
+                    ]);
                     safeExit('main', 1, 'config-load-failed');
                 }
 
@@ -1038,19 +1133,20 @@ program
                     // - MCP: Could implement callback-based approval mechanism in MCP protocol
                     const supportedModes = ['web', 'server', 'cli'];
                     if (!supportedModes.includes(opts.mode)) {
-                        console.error(
-                            `❌ Manual approval and elicitation are not supported in "${opts.mode}" mode.`
+                        await printFailure(
+                            `Manual approval and elicitation are not supported in "${opts.mode}" mode.`,
+                            'dexto --auto-approve',
+                            [
+                                `❌ Manual approval and elicitation are not supported in "${opts.mode}" mode.`,
+                                `💡 These features require interactive UI and are only supported in: ${supportedModes.join(
+                                    ', '
+                                )}`,
+                                '💡 Run `dexto --auto-approve` or configure your agent to skip approvals when running non-interactively.',
+                                '   permissions.mode: auto-approve',
+                                '   elicitation.enabled: false',
+                            ],
+                            `Only ${supportedModes.join(', ')} can ask you. Or set permissions.mode: auto-approve and elicitation.enabled: false in the agent.`
                         );
-                        console.error(
-                            `💡 These features require interactive UI and are only supported in: ${supportedModes.join(
-                                ', '
-                            )}`
-                        );
-                        console.error(
-                            '💡 Run `dexto --auto-approve` or configure your agent to skip approvals when running non-interactively.'
-                        );
-                        console.error('   permissions.mode: auto-approve');
-                        console.error('   elicitation.enabled: false');
                         safeExit('main', 1, 'approval-unsupported-mode');
                     }
                 }
@@ -1130,7 +1226,9 @@ program
                 } catch (err) {
                     if (err instanceof ExitSignal) throw err;
                     // Ensure config errors are shown to user, not hidden in logs
-                    console.error(`❌ Configuration Error: ${(err as Error).message}`);
+                    await printFailure(`Configuration Error: ${(err as Error).message}`, null, [
+                        `❌ Configuration Error: ${(err as Error).message}`,
+                    ]);
                     safeExit('main', 1, 'config-error');
                 }
 

@@ -2,10 +2,12 @@ import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import {
     DEXTO_CLI_CLIENT_ID,
+    type SignInPrompt,
     type SignInRuntime,
     endSignIn,
     refreshSignIn,
     signInWithBrowser,
+    signInPromptText,
     signInWithDevice,
 } from './dexto-sign-in.js';
 import type { OAuthLogin } from './dexto-accounts.js';
@@ -79,15 +81,24 @@ function metadata(url: string): { status: number; body: unknown } | undefined {
 function runtime(
     fetch: typeof globalThis.fetch,
     overrides: Partial<SignInRuntime> = {}
-): SignInRuntime & { readonly notes: string[]; readonly opened: string[] } {
+): SignInRuntime & {
+    readonly notes: string[];
+    readonly prompts: SignInPrompt[];
+    readonly opened: string[];
+} {
     const notes: string[] = [];
+    const prompts: SignInPrompt[] = [];
     const opened: string[] = [];
     return {
         notes,
+        prompts,
         opened,
         fetch,
         signal: new AbortController().signal,
-        note: (text) => notes.push(text),
+        prompt: (prompt) => {
+            prompts.push(prompt);
+            notes.push(signInPromptText(prompt));
+        },
         openBrowser: async (url) => {
             opened.push(url);
         },
@@ -200,6 +211,9 @@ describe('signInWithBrowser', () => {
         ).rejects.toThrow(/didn't match/);
         expect(fake.opened).toEqual([]);
         expect(fake.notes.join('\n')).toContain(`${APP}/oauth/authorize`);
+        expect(fake.prompts).toEqual([
+            { kind: 'browser', authorizeUrl: expect.stringContaining(`${APP}/oauth/authorize`) },
+        ]);
     });
 
     it('says when the person declined', async () => {
@@ -228,7 +242,23 @@ describe('signInWithBrowser', () => {
                 extraScopes: [],
                 openBrowser: true,
             })
-        ).rejects.toThrow('Sign-in was declined.');
+        ).rejects.toMatchObject({ reason: 'declined', message: 'Sign-in was declined.' });
+    });
+});
+
+describe('signInPromptText', () => {
+    it('words a device code without a complete link as before', () => {
+        expect(
+            signInPromptText({
+                kind: 'device',
+                userCode: 'ABCD-EFGH',
+                verificationUri: `${APP}/auth/device`,
+                verificationUriComplete: null,
+                expiresInSeconds: 600,
+            })
+        ).toBe(
+            `To sign in, open this link on any device and enter ABCD-EFGH:\n${APP}/auth/device\nOnly approve this if you just ran dexto login.`
+        );
     });
 });
 
@@ -285,6 +315,9 @@ describe('signInWithDevice', () => {
         expect(slept).toEqual([5000, 5000, 10000]);
         expect(fake.notes.join('\n')).toContain('ABCD-EFGH');
         expect(fake.notes.join('\n')).toContain('Only approve this if you just ran dexto login');
+        expect(fake.prompts).toEqual([
+            expect.objectContaining({ kind: 'device', userCode: 'ABCD-EFGH' }),
+        ]);
         expect(signedIn.clientId).toBe(DEXTO_CLI_CLIENT_ID);
     });
 
@@ -349,7 +382,7 @@ describe('signInWithDevice', () => {
                 organization: null,
                 extraScopes: [],
             })
-        ).rejects.toThrow('Sign-in was declined.');
+        ).rejects.toMatchObject({ reason: 'declined', message: 'Sign-in was declined.' });
     });
 });
 
