@@ -1,5 +1,5 @@
 import type { V1Response } from '@dexto/cloud-client';
-import type { InternalMessage } from '@dexto/core';
+import type { ContentPart, InternalMessage } from '@dexto/core';
 
 type Transcript = V1Response<'/v1/synced_chats/{chat_id}/messages', 'get'>;
 
@@ -29,12 +29,17 @@ export async function resumeTranscript(
                     }
                 })
                 .join('\n');
-            await deps.append({
+            const content: ContentPart[] = [{ type: 'text', text }];
+            const base = {
                 id: `cloud:${message.index}`,
-                role: message.role,
-                content: [{ type: 'text', text }],
+                content,
                 timestamp: Date.parse(message.created_at),
-            });
+            };
+            await deps.append(
+                message.role === 'assistant'
+                    ? { ...base, role: 'assistant', assistantOutput: { status: 'complete' } }
+                    : { ...base, role: 'user' }
+            );
             appended += 1;
         }
         if (page.next_from_index === null) return { syncFromIndex: page.sync_from_index, appended };

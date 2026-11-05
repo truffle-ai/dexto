@@ -17,6 +17,38 @@ export function describeObject(bytes: Uint8Array): { sha256: string; size_bytes:
     };
 }
 
+/** Enforce the declared bound while reading, before allocating the complete download. */
+export async function downloadMoveObject(
+    transport: MoveTransport,
+    object: { url: string; sha256: string; size_bytes: number }
+): Promise<Buffer> {
+    const response = await transport.fetch(object.url, {
+        signal: transport.signal,
+        redirect: 'error',
+    });
+    if (!response.ok || response.body === null)
+        throw new Error(`Cloud export download failed (${response.status}).`);
+    const reader = response.body.getReader();
+    const chunks: Uint8Array[] = [];
+    let size = 0;
+    try {
+        for (;;) {
+            const chunk = await reader.read();
+            if (chunk.done) break;
+            size += chunk.value.byteLength;
+            if (size > object.size_bytes)
+                throw new Error('Cloud export exceeds its declared size.');
+            chunks.push(chunk.value);
+        }
+    } finally {
+        await reader.cancel();
+    }
+    const bytes = Buffer.concat(chunks);
+    if (size !== object.size_bytes || describeObject(bytes).sha256 !== object.sha256)
+        throw new Error('Cloud export checksum or size mismatch.');
+    return bytes;
+}
+
 export async function waitForMove(
     transport: MoveTransport,
     chatId: string,

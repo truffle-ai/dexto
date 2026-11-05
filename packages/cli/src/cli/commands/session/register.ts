@@ -108,15 +108,16 @@ export function registerSessionCommand({
                     const controller = new AbortController();
                     const stop = () => controller.abort();
                     process.once('SIGINT', stop);
-                    let agent: Awaited<ReturnType<typeof bootstrapAgentFromGlobalOpts>> | null =
-                        null;
+                    const local: {
+                        agent: Awaited<ReturnType<typeof bootstrapAgentFromGlobalOpts>> | null;
+                    } = { agent: null };
                     const host = {
                         ...nodeCloudHost(controller.signal),
                         openLocalAgent: async () => {
-                            agent ??= await bootstrapAgentFromGlobalOpts({
+                            local.agent ??= await bootstrapAgentFromGlobalOpts({
                                 mode: 'non-interactive',
                             });
-                            return agent;
+                            return local.agent;
                         },
                     };
                     let code: number;
@@ -124,7 +125,7 @@ export function registerSessionCommand({
                         code = await runCloud(host, ['chat', word, ...args]);
                     } finally {
                         process.removeListener('SIGINT', stop);
-                        if (agent !== null) await agent.stop();
+                        if (local.agent !== null) await local.agent.stop();
                     }
                     safeExit(`chat ${word}`, code);
                 })();
