@@ -74,7 +74,8 @@ export class SignInEnded extends Error {
 export interface SignInRuntime extends OAuthServerRuntime {
     readonly prompt: (prompt: SignInPrompt) => void;
     readonly openBrowser: (url: string) => Promise<void>;
-    readonly listenForRedirect: () => Promise<RedirectListener>;
+    /** Listens for the redirect; the browser then goes on to `appUrl`'s sign-in result page. */
+    readonly listenForRedirect: (appUrl: string) => Promise<RedirectListener>;
     readonly sleep: (ms: number) => Promise<void>;
 }
 
@@ -160,7 +161,7 @@ export async function signInWithBrowser(
     input: BrowserSignInInput
 ): Promise<OAuthLogin> {
     const { appUrl, resource, scopes, server } = await discover(runtime, input);
-    const redirect = await runtime.listenForRedirect();
+    const redirect = await runtime.listenForRedirect(appUrl);
     try {
         const verifier = randomBytes(32).toString('base64url');
         const state = randomBytes(16).toString('base64url');
