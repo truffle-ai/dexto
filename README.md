@@ -512,13 +512,6 @@ dexto --agent podcast-agent
 ```
 <img src="https://github.com/user-attachments/assets/cfd59751-3daa-4ccd-97b2-1b2862c96af1" alt="Podcast Agent Demo" width="600"/>
 
-### Multi-Agent Triage
-Coordinate specialized agents:
-```bash
-dexto --agent triage-agent
-```
-<img src=".github/assets/triage_agent_demo.gif" alt="Triage Agent Demo" width="600">
-
 ### Memory System
 Persistent context that shapes behavior:
 <img src=".github/assets/memory_demo.gif" alt="Memory Demo" width="600">

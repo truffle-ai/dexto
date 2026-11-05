@@ -143,7 +143,7 @@ dexto --agent <config.yml> "Your task here"
 
 ## What's Next?
 
-- **[Example Agents](./examples/building-triage-system.md)** - Step-by-step tutorials for building real agents
+- **[Example Agents](./examples/multi-agent-systems.md)** - Step-by-step tutorials for building real agents
 - **[MCP Server Registry](../../mcp/overview.md)** - Browse available tools
 - **[Configuration Guide](../../guides/configuring-dexto/overview.md)** - Deep dive into all options
 - **[Dexto Agent SDK](../sdk/index.md)** - Switch to programmatic control when needed

@@ -30,6 +30,7 @@ The first start needs a model: a provider key in the environment (such as `ANTHR
 | `dexto search` | `dexto chat history` |
 | `dexto --mode web` | the Dexto dashboard |
 | `--mode server\|mcp`, `create-app`, `init-app`, `image`, `plugin`, `which` | no CLI replacement; build apps with the `@dexto/core` SDK |
+| `dexto --agent triage-agent` (bundled demo) | removed: it ran its sub-agents with `--mode mcp` |
 
 The rest of `agents`, `init` and `mcp`, plus `create-image`, `--image`, `--no-auto-install`, `--skip-setup`, `--dev` and `--port`, are removed without a replacement.
 

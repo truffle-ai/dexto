@@ -39,7 +39,6 @@ Dexto is an AI Agent Runtime that orchestrates intelligent, stateful agents capa
 
 - [Advanced Patterns and Best Practices](https://cli.dexto.ai/docs/tutorials/advanced-patterns.md): Advanced Patterns and Best Practices
 - [React Chat App using Dexto](https://cli.dexto.ai/docs/tutorials/backend-server.md): React Chat App using Dexto
-- [Customer Support Triage System](https://cli.dexto.ai/docs/tutorials/building-triage-system.md): Customer Support Triage System
 - [Database Agent Tutorial](https://cli.dexto.ai/docs/tutorials/database-agent.md): Database Agent Tutorial
 - [Image Editor Agent](https://cli.dexto.ai/docs/tutorials/image-editor-agent.md): Image Editor Agent
 - [Building Applications](https://cli.dexto.ai/docs/tutorials/index.md): Building Applications
