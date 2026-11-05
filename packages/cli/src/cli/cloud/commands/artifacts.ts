@@ -94,17 +94,22 @@ const DRY_RUN_OPTION = {
 } as const satisfies Record<string, OptionSpec>;
 
 const list: Command = {
-    options: PAGE_OPTIONS,
+    options: {
+        ...PAGE_OPTIONS,
+        chat: { description: 'Only Artifacts produced by this chat id.', type: 'string' },
+    },
     path: ['workspace', 'artifacts', 'list'],
     summary: 'List your saved Artifacts, newest first.',
     async run(context, input) {
         await requireLoginScopes(context, ['apps:read']);
         const after = stringOption(input, 'after');
         const limit = integerOption(input, 'limit');
+        const sessionId = stringOption(input, 'chat');
         const page = ListSchema.parse(
             await queryWorkspaceTool(context, 'dexto_artifacts_list', {
                 ...(after === undefined ? {} : { cursor: after }),
                 ...(limit === undefined ? {} : { limit }),
+                ...(sessionId === undefined ? {} : { sessionId }),
             })
         );
         context.output.list(
