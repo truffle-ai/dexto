@@ -309,8 +309,10 @@ describe('dexto workspace', () => {
         expect(
             await runCloud(host, ['publish', file, '--visibility', 'public', '--yes', '--json'])
         ).toBe(4);
-        expect(JSON.parse(stderr).error.message).toContain('--confirm-public');
-        expect(JSON.parse(stderr).error.message).toContain('Team plan');
+        // Progress notes come first on stderr; the JSON error follows them.
+        const failure = JSON.parse(stderr.slice(stderr.indexOf('{')));
+        expect(failure.error.message).toContain('--confirm-public');
+        expect(failure.error.message).toContain('Team plan');
         expect(calls.at(-1)?.params.name).toBe('POST /v1/sites/publish');
         expect(stdout).toBe('');
         stderr = '';
@@ -327,7 +329,7 @@ describe('dexto workspace', () => {
             ])
         ).toBe(4);
         expect(calls.at(-1)?.params.arguments).toMatchObject({ confirmPublicName: 'Wrong' });
-        expect(JSON.parse(stderr).error.message).toContain('Team plan');
+        expect(JSON.parse(stderr.slice(stderr.indexOf('{'))).error.message).toContain('Team plan');
         expect(stdout).toBe('');
     });
 
@@ -464,6 +466,7 @@ describe('dexto workspace', () => {
 
         expect(await runCloud(host, ['publish', folder])).toBe(4);
         expect(uploads).toHaveLength(0);
+        stderr = '';
 
         const code = await runCloud(host, ['publish', folder, '--yes', '--table']);
 
@@ -483,7 +486,7 @@ describe('dexto workspace', () => {
         );
         // Progress goes to stderr, a line per step, so stdout keeps only the result.
         expect(stderr).toMatch(
-            /Packed 2 files into a \d+ B \.zip\.\nUploading \d+ B…\nPublishing hello…\n$/u
+            /Packed 2 files into a \d+ B \.zip\.\nUploading \d+ B…\nPublishing hello…\nSite visibility: unlisted: anyone with the link can open it\.\n$/u
         );
     });
 });
