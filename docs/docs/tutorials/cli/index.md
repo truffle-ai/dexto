@@ -34,9 +34,6 @@ llm:
 # Interactive CLI mode
 dexto --agent agents/my-agent.yml
 
-# Web UI mode
-dexto --agent agents/my-agent.yml --mode web
-
 # Single task execution
 dexto --agent agents/my-agent.yml "List all TypeScript files in this project"
 ```
@@ -133,11 +130,8 @@ systemPrompt:
 # Basic usage
 dexto --agent <config.yml>
 
-# Modes
-dexto --agent <config.yml> --mode cli      # Interactive terminal (default)
-dexto --agent <config.yml> --mode web      # Web UI + API server
-dexto --agent <config.yml> --mode server   # Headless API server
-dexto --agent <config.yml> --mode mcp      # Run as MCP server
+# One headless task
+dexto --agent <config.yml> run "summarize this repo"
 
 # Options
 dexto --agent <config.yml> --api-port 3001     # Custom API port

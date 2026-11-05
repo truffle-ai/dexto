@@ -14,17 +14,9 @@ Want to add your Agent to this registry? Check out our [Community Contribution G
 ## Quick Start
 
 ```bash
-# List all available agents
-dexto agents list
-
-# Install an agent
-dexto agents install <agent-name>
-
-# Use an installed agent
+# Use a bundled agent; the first use installs it under ~/.dexto/agents
 dexto --agent <agent-name>
 ```
-
-For detailed installation instructions, see the [Installing Custom Agents guide](./installing-custom-agents).
 
 ---
 
@@ -534,21 +526,6 @@ dexto --agent default-agent
 
 ## Installation & Usage
 
-### Installing Agents
-
-```bash
-# Install single agent
-dexto agents install nano-banana-agent
-
-# Install multiple agents
-dexto agents install podcast-agent music-agent coding-agent
-
-# Install all agents
-dexto agents install --all
-```
-
-Installation copies bundled agent files without modifying them with global LLM preferences. The CLI applies your configured LLM preferences when starting an agent, so reinstalling does not change that selection.
-
 ### Using Installed Agents
 
 ```bash
@@ -557,19 +534,6 @@ dexto --agent coding-agent
 
 # Auto-install and use (if not installed)
 dexto -a podcast-agent "Generate a podcast intro"
-```
-
-### Managing Agents
-
-```bash
-# List installed agents
-dexto agents list --installed
-
-# Find agent location
-dexto which nano-banana-agent
-
-# Uninstall agent
-dexto agents uninstall music-agent
 ```
 
 ### Setting Default Agent
@@ -635,10 +599,7 @@ defaults:
 Most agents require API keys for their LLM providers:
 
 ```bash
-# Run setup to configure keys
-dexto setup
-
-# Or add to ~/.dexto/.env
+# Add to ~/.dexto/.env, or run dexto login to use Dexto models
 OPENAI_API_KEY=sk-...
 ANTHROPIC_API_KEY=sk-ant-...
 GOOGLE_GENERATIVE_AI_API_KEY=...
@@ -661,8 +622,6 @@ Pre-installed status is available for high-quality, well-documented agents that 
 
 ## Next Steps
 
-- **Get Started:** Follow the [Install Your First Agent tutorial](../getting-started/install-first-agent-tutorial.mdx)
-- **Install Guide:** Learn more about [installing custom agents](./installing-custom-agents)
 - **Create Your Own:** Build custom agents with the [Configuration Guide](./configuring-dexto/agent-yml.md)
 - **Examples:** Explore [examples and demos](/examples/intro)
 - **Tutorials:** Deep-dive into agent-specific tutorials in the [tutorials section](../tutorials)

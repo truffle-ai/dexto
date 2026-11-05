@@ -9,7 +9,6 @@ Dexto is an AI Agent Runtime that orchestrates intelligent, stateful agents capa
 - [Introduction](https://cli.dexto.ai/docs/getting-started/intro.md): Introduction
 - [Installation](https://cli.dexto.ai/docs/getting-started/installation.md): Installation
 - [Build Your First Agent](https://cli.dexto.ai/docs/getting-started/build-first-agent-tutorial.md): Build Your First Agent
-- [Install Your First Agent](https://cli.dexto.ai/docs/getting-started/install-first-agent-tutorial.md): Install Your First Agent
 
 ### Guides
 
@@ -26,18 +25,12 @@ Dexto is an AI Agent Runtime that orchestrates intelligent, stateful agents capa
 - [Storage Configuration](https://cli.dexto.ai/docs/guides/configuring-dexto/storage.md): Storage Configuration
 - [System Prompt Configuration](https://cli.dexto.ai/docs/guides/configuring-dexto/systemPrompt.md): System Prompt Configuration
 - [Permissions Configuration](https://cli.dexto.ai/docs/guides/configuring-dexto/permissions.md): Permissions Configuration
-- [Deployment Guide](https://cli.dexto.ai/docs/guides/deployment.md): Deployment Guide
-- [Dexto as an MCP Server](https://cli.dexto.ai/docs/guides/dexto-as-mcp-server.md): Dexto Agent as an MCP Server
-- [Using Dexto Agents in Cursor](https://cli.dexto.ai/docs/guides/dexto-in-cursor.md): Using Dexto Agents in Cursor
-- [Using Dexto CLI to group MCP servers together](https://cli.dexto.ai/docs/guides/dexto-group-mcp-servers.md): Using Dexto CLI to group MCP servers together
 - [Dexto SDK Guide](https://cli.dexto.ai/docs/guides/dexto-sdk.md): Dexto SDK Guide
 - [MCP Manager](https://cli.dexto.ai/docs/guides/mcp-manager.md): MCP Manager
-- [Web UI](https://cli.dexto.ai/docs/guides/web-ui.md): Web playground
 
 ### MCP
 
 - [Configure MCP Connections](https://cli.dexto.ai/docs/mcp/connecting-servers.md): Configure MCP Connections
-- [Dexto as an MCP Server](https://cli.dexto.ai/docs/mcp/dexto-as-mcp-server.md): Expose Dexto as an MCP Server
 - [Aggregate Multiple MCP Servers](https://cli.dexto.ai/docs/mcp/grouping-servers.md): Aggregate Multiple MCP Servers
 - [MCP Manager](https://cli.dexto.ai/docs/mcp/mcp-manager.md): MCP Manager
 - [MCP Overview](https://cli.dexto.ai/docs/mcp/overview.md): MCP Overview
