@@ -43,6 +43,8 @@ export class CloudApiError extends Error {
     readonly requestId: string | null;
     readonly retryable: boolean;
     readonly details: unknown;
+    /** How long the response's `Retry-After` asks to wait; null when it names no wait. */
+    readonly retryAfterSeconds: number | null;
 
     constructor(input: {
         status: number;
@@ -51,6 +53,7 @@ export class CloudApiError extends Error {
         requestId: string | null;
         retryable: boolean;
         details: unknown;
+        retryAfterSeconds: number | null;
     }) {
         super(input.message);
         this.name = 'CloudApiError';
@@ -59,6 +62,7 @@ export class CloudApiError extends Error {
         this.requestId = input.requestId;
         this.retryable = input.retryable;
         this.details = input.details;
+        this.retryAfterSeconds = input.retryAfterSeconds;
     }
 }
 
@@ -69,13 +73,14 @@ export async function unwrap<Data>(result: {
     response: Response;
 }): Promise<Data> {
     if (result.error === undefined) {
-        if (result.data === undefined) throw errorFor(result.response.status, null);
+        if (result.data === undefined) throw errorFor(result.response, null);
         return result.data;
     }
-    throw errorFor(result.response.status, result.error);
+    throw errorFor(result.response, result.error);
 }
 
-function errorFor(status: number, body: unknown): CloudApiError {
+function errorFor(response: Response, body: unknown): CloudApiError {
+    const status = response.status;
     const envelope = readEnvelope(body);
     return new CloudApiError({
         status,
@@ -84,7 +89,20 @@ function errorFor(status: number, body: unknown): CloudApiError {
         requestId: envelope?.requestId ?? null,
         retryable: envelope?.retryable ?? status >= 500,
         details: envelope?.details,
+        retryAfterSeconds: retryAfterSeconds(response.headers.get('retry-after')),
     });
+}
+
+/** `Retry-After` as delay-seconds or an HTTP date, in whole seconds from now. */
+function retryAfterSeconds(header: string | null): number | null {
+    if (header === null) return null;
+    const value = header.trim();
+    if (/^\d+$/u.test(value)) return Number(value);
+    // An HTTP date, such as `Wed, 21 Oct 2026 07:28:00 GMT`.
+    if (!/^[A-Za-z]{3}, /u.test(value)) return null;
+    const at = Date.parse(value);
+    if (Number.isNaN(at)) return null;
+    return Math.max(0, Math.ceil((at - Date.now()) / 1000));
 }
 
 function readEnvelope(body: unknown): {

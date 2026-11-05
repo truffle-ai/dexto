@@ -32,8 +32,47 @@ export interface OAuthServerRuntime {
 }
 
 /** What signing in does outside this module, injected so it can be tested. */
+/**
+ * What the person does to finish signing in. The CLI words and styles it; `signInPromptText` is
+ * the plain wording.
+ */
+export type SignInPrompt =
+    | { readonly kind: 'browser'; readonly authorizeUrl: string }
+    | {
+          readonly kind: 'device';
+          readonly userCode: string;
+          readonly verificationUri: string;
+          /** The link with the code already in it, when the server gives one. */
+          readonly verificationUriComplete: string | null;
+          readonly expiresInSeconds: number;
+      };
+
+export function signInPromptText(prompt: SignInPrompt): string {
+    if (prompt.kind === 'browser')
+        return `Sign in to Dexto in your browser. If it doesn't open, visit:\n${prompt.authorizeUrl}`;
+    return [
+        prompt.verificationUriComplete === null
+            ? `To sign in, open this link on any device and enter ${prompt.userCode}:\n${prompt.verificationUri}`
+            : `To sign in, open this link on any device and check it shows ${prompt.userCode}:\n${prompt.verificationUriComplete}`,
+        'Only approve this if you just ran dexto login.',
+    ].join('\n');
+}
+
+/** Why a sign-in ended without signing in, so the CLI can say what to do next. */
+export type SignInEndReason = 'declined' | 'timed_out' | 'cancelled' | 'expired';
+
+export class SignInEnded extends Error {
+    constructor(
+        readonly reason: SignInEndReason,
+        message: string
+    ) {
+        super(message);
+        this.name = 'SignInEnded';
+    }
+}
+
 export interface SignInRuntime extends OAuthServerRuntime {
-    readonly note: (text: string) => void;
+    readonly prompt: (prompt: SignInPrompt) => void;
     readonly openBrowser: (url: string) => Promise<void>;
     readonly listenForRedirect: () => Promise<RedirectListener>;
     readonly sleep: (ms: number) => Promise<void>;
@@ -139,9 +178,7 @@ export async function signInWithBrowser(
         }))
             authorizeUrl.searchParams.set(name, value);
 
-        runtime.note(
-            `Sign in to Dexto in your browser. If it doesn't open, visit:\n${authorizeUrl}`
-        );
+        runtime.prompt({ kind: 'browser', authorizeUrl: authorizeUrl.toString() });
         if (input.openBrowser) await runtime.openBrowser(authorizeUrl.toString());
 
         const params = await withTimeout(redirect.result, LOGIN_TIMEOUT_MS, runtime.signal);
@@ -149,11 +186,9 @@ export async function signInWithBrowser(
             throw new Error("The sign-in reply didn't match this login.");
         const error = params.get('error');
         if (error !== null)
-            throw new Error(
-                error === 'access_denied'
-                    ? 'Sign-in was declined.'
-                    : `Sign-in failed: ${params.get('error_description') ?? error}.`
-            );
+            throw error === 'access_denied'
+                ? new SignInEnded('declined', 'Sign-in was declined.')
+                : new Error(`Sign-in failed: ${params.get('error_description') ?? error}.`);
         const code = params.get('code');
         if (code === null) throw new Error('The sign-in reply had no code.');
 
@@ -191,14 +226,13 @@ export async function signInWithDevice(
             ...(input.organization === null ? {} : { organization: input.organization }),
         })
     );
-    runtime.note(
-        [
-            device.verification_uri_complete === undefined
-                ? `To sign in, open this link on any device and enter ${device.user_code}:\n${device.verification_uri}`
-                : `To sign in, open this link on any device and check it shows ${device.user_code}:\n${device.verification_uri_complete}`,
-            'Only approve this if you just ran dexto login.',
-        ].join('\n')
-    );
+    runtime.prompt({
+        kind: 'device',
+        userCode: device.user_code,
+        verificationUri: device.verification_uri,
+        verificationUriComplete: device.verification_uri_complete ?? null,
+        expiresInSeconds: device.expires_in,
+    });
 
     const deadline = Date.now() + device.expires_in * 1000;
     let intervalSeconds = device.interval ?? 5;
@@ -220,18 +254,21 @@ export async function signInWithDevice(
                 tokenEndpoint: server.token_endpoint,
             });
         } catch (error) {
+            // A dropped connection or a server error says nothing about the code: poll again.
+            if (error instanceof TypeError) continue;
             if (!(error instanceof OAuthHttpError)) throw error;
-            if (error.code === 'authorization_pending') continue;
+            if (error.status >= 500 || error.code === 'authorization_pending') continue;
             if (error.code === 'slow_down') {
                 intervalSeconds += 5;
                 continue;
             }
-            if (error.code === 'access_denied') throw new Error('Sign-in was declined.');
+            if (error.code === 'access_denied')
+                throw new SignInEnded('declined', 'Sign-in was declined.');
             if (error.code !== 'expired_token') throw error;
             break;
         }
     }
-    throw new Error('The sign-in code expired. Run dexto login --device again.');
+    throw new SignInEnded('expired', 'The sign-in code expired. Run dexto login --device again.');
 }
 
 function toLogin(
@@ -366,9 +403,8 @@ const OAuthErrorSchema = z.object({
 
 async function readJson(response: Response, url: string): Promise<unknown> {
     const text = await response.text();
-    const body: unknown = text.length === 0 ? null : JSON.parse(text);
-    if (response.ok) return body;
-    const reply = OAuthErrorSchema.safeParse(body);
+    if (response.ok) return text.length === 0 ? null : JSON.parse(text);
+    const reply = OAuthErrorSchema.safeParse(parseOrNull(text));
     const code = reply.success ? (reply.data.error ?? null) : null;
     const description =
         (reply.success ? reply.data.error_description : undefined) ??
@@ -377,13 +413,26 @@ async function readJson(response: Response, url: string): Promise<unknown> {
     throw new OAuthHttpError(response.status, code, `${new URL(url).pathname}: ${description}`);
 }
 
+/** An error reply's JSON, or null when it has none, such as a gateway's HTML error page. */
+function parseOrNull(text: string): unknown {
+    try {
+        return JSON.parse(text);
+    } catch {
+        return null;
+    }
+}
+
 async function withTimeout<T>(promise: Promise<T>, ms: number, signal: AbortSignal): Promise<T> {
     let timer: ReturnType<typeof setTimeout> | undefined;
     const stop = new Promise<never>((_, reject) => {
-        timer = setTimeout(() => reject(new Error('Sign-in timed out.')), ms);
-        signal.addEventListener('abort', () => reject(new Error('Sign-in was cancelled.')), {
-            once: true,
-        });
+        timer = setTimeout(() => reject(new SignInEnded('timed_out', 'Sign-in timed out.')), ms);
+        signal.addEventListener(
+            'abort',
+            () => reject(new SignInEnded('cancelled', 'Sign-in was cancelled.')),
+            {
+                once: true,
+            }
+        );
     });
     try {
         return await Promise.race([promise, stop]);

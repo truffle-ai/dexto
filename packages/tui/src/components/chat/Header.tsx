@@ -10,6 +10,7 @@ import { useTerminalSize } from '../../hooks/useTerminalSize.js';
 import { tone, useCaps, Wordmark } from '../../signal/index.js';
 import { WORDMARK_ART } from '../../signal/wordmark-art.generated.js';
 import { wordmarkTier } from '../../signal/wordmark.js';
+import { SignalHeader } from './SignalHeader.js';
 
 interface HeaderProps {
     modelName: string;
@@ -25,6 +26,16 @@ interface HeaderProps {
 export function Header({ modelName, sessionId, hasActiveSession, startupInfo }: HeaderProps) {
     const { columns } = useTerminalSize();
     const caps = useCaps();
+    // Signal draws the wordmark from the real logo in place of the block letters.
+    if (caps.palette === 'signal')
+        return (
+            <SignalHeader
+                modelName={modelName}
+                sessionId={sessionId}
+                hasActiveSession={hasActiveSession}
+                startupInfo={startupInfo}
+            />
+        );
     const plain = caps.glyphs === 'ascii' || process.env.TERM === 'dumb';
     const art = WORDMARK_ART[wordmarkTier(caps)].filter((item) => item.cols <= columns - 4).at(-1);
     const showLogo = caps.tty && !process.env.CI;

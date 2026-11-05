@@ -42,3 +42,6 @@ export class CommandFailure extends Error {
         this.kind = kind;
     }
 }
+
+/** whoami's failure when signed out; Signal prints it as a calm note, not a fault. */
+export const NOT_SIGNED_IN = 'Not signed in.';

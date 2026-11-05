@@ -29,6 +29,7 @@ import type { ApprovalRequest } from '../components/ApprovalPrompt.js';
 import { generateMessageId } from '../utils/idGenerator.js';
 import type { TextBuffer } from '../components/shared/text-buffer.js';
 import type { TuiAgentBackend } from '../agent-backend.js';
+import { getTuiRuntimeServices } from '../host/index.js';
 
 interface UseAgentEventsProps {
     agent: TuiAgentBackend;
@@ -93,6 +94,20 @@ export function useAgentEvents({
 
         // Increase listener limit for safety (added more for external trigger events)
         setMaxListeners(25, signal);
+
+        // What chat sync needs the person to know, such as the first-run notice.
+        const stopNotices = getTuiRuntimeServices().chatSync?.onNotice((text) => {
+            setMessages((prev) => [
+                ...prev,
+                {
+                    id: generateMessageId('system'),
+                    role: 'system' as const,
+                    content: text,
+                    timestamp: new Date(),
+                },
+            ]);
+        });
+        if (stopNotices !== undefined) signal.addEventListener('abort', stopNotices);
 
         const syncQueue = (sessionId: string, queue: 'steer' | 'follow-up'): void => {
             const getMessages =

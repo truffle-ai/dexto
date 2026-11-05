@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi, afterEach } from 'vitest';
+import path from 'path';
 
 vi.mock('../utils/self-management.js', () => ({
     detectInstallMethod: vi.fn(),
@@ -86,9 +87,30 @@ describe('uninstall command', () => {
 
         await expect(handleUninstallCliCommand({})).resolves.not.toThrow();
 
+        expect(removePath).toHaveBeenCalledTimes(2);
+        expect(removePath).toHaveBeenCalledWith('/home/test/.local/bin/dexto');
+        expect(removePath).toHaveBeenCalledWith('/home/test/.dexto/cli');
+        expect(scheduleDeferredWindowsRemoval).not.toHaveBeenCalled();
+    });
+
+    it('leaves ~/.dexto/cli alone when the install script never used it', async () => {
+        vi.mocked(pathExists).mockImplementation(
+            async (target) => target !== '/home/test/.dexto/cli'
+        );
+        vi.mocked(detectInstallMethod).mockResolvedValue({
+            method: 'native',
+            source: 'heuristic',
+            metadata: null,
+            installedPath: '/home/test/.local/bin/dexto',
+            installDir: '/home/test/.local/bin',
+            allDetectedPaths: ['/home/test/.local/bin/dexto'],
+            multipleInstallWarning: null,
+        });
+
+        await expect(handleUninstallCliCommand({})).resolves.not.toThrow();
+
         expect(removePath).toHaveBeenCalledTimes(1);
         expect(removePath).toHaveBeenCalledWith('/home/test/.local/bin/dexto');
-        expect(scheduleDeferredWindowsRemoval).not.toHaveBeenCalled();
     });
 
     it('removes ~/.dexto wholesale when --purge is passed', async () => {
@@ -189,5 +211,27 @@ describe('uninstall command', () => {
             '/home/test/.dexto',
         ]);
         expect(removePath).not.toHaveBeenCalled();
+    });
+
+    it('defers removing ~/.dexto/cli on Windows, where the running CLI lives in it', async () => {
+        Object.defineProperty(process, 'platform', { value: 'win32' });
+
+        vi.mocked(detectInstallMethod).mockResolvedValue({
+            method: 'native',
+            source: 'metadata',
+            metadata: null,
+            installedPath: '/home/test/.dexto/bin/dexto.cmd',
+            installDir: '/home/test/.dexto/bin',
+            allDetectedPaths: ['/home/test/.dexto/bin/dexto.cmd'],
+            multipleInstallWarning: null,
+        });
+
+        await expect(handleUninstallCliCommand({})).resolves.not.toThrow();
+
+        expect(removePath).toHaveBeenCalledTimes(1);
+        expect(removePath).toHaveBeenCalledWith('/home/test/.dexto/bin/dexto.cmd');
+        expect(scheduleDeferredWindowsRemoval).toHaveBeenCalledWith([
+            path.join('/home/test/.dexto', 'cli'),
+        ]);
     });
 });

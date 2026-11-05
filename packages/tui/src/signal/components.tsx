@@ -293,7 +293,7 @@ export function actorMarginWidth(columns: number): number {
 
 export interface ActorRowProps {
     actor: ActorKind;
-    /** Overrides the actor's default label (a teammate's name, a cloud agent's name). */
+    /** Overrides the actor's default label (a teammate's name, a cloud agent's name). Six cells show. */
     label?: string;
     children: ReactNode;
 }
@@ -308,7 +308,7 @@ export function ActorRow({ actor, label, children }: ActorRowProps) {
     const head = margin >= 8 ? (label ?? ACTOR_LABEL[actor]) : actor === 'you' ? '›' : '▪';
     return (
         <Box>
-            <Box width={margin} flexShrink={0}>
+            <Box width={margin} flexShrink={0} paddingRight={1}>
                 <Text bold color={tone(role)} wrap="truncate-end">
                     {glyphText(margin >= 8 ? ` ${head}` : head, glyphs)}
                 </Text>

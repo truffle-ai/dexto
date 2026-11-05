@@ -1,0 +1,1132 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`Signal screens on 16-dark > 2 device code, waiting 1`] = `
+"▄▀▀▀▀ ▀▀▀ ▄▀▀▀▀ █▄  █    ▀▀▀ █▄  █    ␛[36m␛[1mdexto login --device␛[22m␛[39m
+ ▀▀▀▄  █  █  ▀█ █ ▀▄█     █  █ ▀▄█    ␛[90mno browser on this machine, so: a code␛[39m
+▀▀▀▀  ▀▀▀  ▀▀▀▀ ▀   ▀    ▀▀▀ ▀   ▀
+
+␛[90mOpen ␛[39m␛]8;;https://app.dexto.ai/auth/device␇␛[35m␛[4mapp.dexto.ai/auth/device␛[24m␛[39m␛]8;;␇␛[90m on any device and enter:␛[39m
+█  ▄▀ ▀▄ ▄▀ ▀▀▀▀█ ▀▀▀▀▄     █   █ ▄▀▀▀▄ ▄▀▀▀▄ ▀▀▀▀▄
+█▀▀▄   ▄▀     ▄▀  █▀▀█  ▀▀▀  ▀▀▀█  ▀▀▀█ █  ▄▀     █
+▀   ▀ ▀   ▀   ▀   ▀   ▀         ▀  ▀▀▀   ▀▀ ▀ ▀▀▀▀ 
+
+␛[35m⠿␛[39m␛[90m waiting for you · expires in 9:41␛[39m"
+`;
+
+exports[`Signal screens on 16-dark > 3 signed in, no project 1`] = `
+"␛[35m◆ ␛[39mapproved in the browser
+
+␛[35m◆ ␛[39m␛[35m␛[1mSigned in as Sam Rivera · Acme␛[22m␛[39m
+␛[90m  profile work · stored in ~/.dexto · your provider keys stay on this machine␛[39m
+␛[33m  This organization has no Cloud project for Dexto models to bill.␛[39m
+␛[90m  Other commands still use another profile: pass ␛[39m␛[36m--profile work␛[39m␛[90m, or run ␛[39m␛[36mdexto accounts use work␛[39m
+
+  Now available:
+  ␛[35m◆ ␛[39mmodels & credits   ␛[35m◆ ␛[39mconnectors   ␛[35m◆ ␛[39mDrive   ␛[35m◆ ␛[39mSkills   ␛[35m◆ ␛[39mmemory
+  ␛[35m◆ ␛[39mSites & Apps   ␛[35m◆ ␛[39mLoops   ␛[35m◆ ␛[39mcloud computers   ␛[35m◆ ␛[39mProjects
+
+␛[90m  next: ␛[39m␛[36mdexto␛[39m␛[90m  ·  chats sync to your dashboard from now on (/private, --no-sync)␛[39m"
+`;
+
+exports[`Signal screens on 16-dark > 4 browser, waiting 1`] = `
+"▄▀▀▀▀ ▀▀▀ ▄▀▀▀▀ █▄  █    ▀▀▀ █▄  █    ␛[36m␛[1mdexto login␛[22m␛[39m
+ ▀▀▀▄  █  █  ▀█ █ ▀▄█     █  █ ▀▄█    ␛[90mopened app.dexto.ai in your browser␛[39m
+▀▀▀▀  ▀▀▀  ▀▀▀▀ ▀   ▀    ▀▀▀ ▀   ▀
+
+␛[90mBrowser didn't open? Use this link:␛[39m
+␛]8;;https://app.dexto.ai/oauth/authorize?client_id=dexto-cli&response_type=code&state=s␇␛[35m␛[4mhttps://app.dexto.ai/oauth/authorize?client_id=dexto-cli&response_type=code&state=s␛[24m␛[39m␛]8;;␇
+
+␛[35m⠿␛[39m␛[90m waiting for you in the browser · 0:06␛[39m"
+`;
+
+exports[`Signal screens on 16-dark > 5 whoami 1`] = `
+"␛[35m◆ ␛[39m␛[35m␛[1mSigned in as Sam Rivera␛[22m␛[39m  sam@acme.co
+␛[90m  org       ␛[39mAcme (acme)
+␛[90m  project   ␛[39mDefault
+␛[90m  access    ␛[39m␛[90mcloud:read drive:read memory:read␛[39m
+␛[90m  profile   ␛[39mdefault
+␛[90m  app       ␛[39m␛]8;;https://app.dexto.ai␇␛[35m␛[4mhttps://app.dexto.ai␛[24m␛[39m␛]8;;␇
+
+␛[90m  switch: ␛[39m␛[36mdexto login --profile <name>␛[39m␛[90m · sign out: ␛[39m␛[36mdexto logout␛[39m"
+`;
+
+exports[`Signal screens on 16-dark > 5 whoami, no project 1`] = `
+"␛[35m◆ ␛[39m␛[35m␛[1mSigned in as Sam Rivera␛[22m␛[39m  sam@acme.co
+␛[90m  org       ␛[39mAcme (acme)
+␛[90m  project   ␛[39m␛[33mnone: Dexto models can't bill␛[39m
+␛[90m  access    ␛[39m␛[90mcloud:read drive:read memory:read␛[39m
+␛[90m  profile   ␛[39mdefault
+␛[90m  app       ␛[39m␛]8;;https://app.dexto.ai␇␛[35m␛[4mhttps://app.dexto.ai␛[24m␛[39m␛]8;;␇
+
+␛[90m  switch: ␛[39m␛[36mdexto login --profile <name>␛[39m␛[90m · sign out: ␛[39m␛[36mdexto logout␛[39m"
+`;
+
+exports[`Signal screens on 16-dark > 5 whoami, signed out 1`] = `
+"␛[36m◇ ␛[39m␛[90mNot signed in · local works fully without it␛[39m
+␛[90m  sign in: ␛[39m␛[36mdexto login␛[39m"
+`;
+
+exports[`Signal screens on 16-dark > 6 fault 1`] = `
+"  ␛[31m▌␛[39m ␛[31m␛[1mFAULT   ␛[22m␛[39m␛[1mThis sign-in cannot write to Drive. · insufficient_scope␛[22m
+  ␛[31m▌␛[39m ␛[90mdetails ␛[39m␛[90m{"scope":"drive:write"}␛[39m
+  ␛[31m▌␛[39m ␛[90mnext    ␛[39m␛[33mdexto login --scope drive:write␛[39m"
+`;
+
+exports[`Signal screens on 16-dark > 6 usage mistake 1`] = `
+"  ␛[31m▌␛[39m ␛[31m␛[1mFAULT   ␛[22m␛[39m␛[1mUnknown command: dexto cloud projcts␛[22m
+
+␛[90m  every command: ␛[39m␛[36mdexto --help␛[39m"
+`;
+
+exports[`Signal screens on 16-dark > 7 help 1`] = `
+"␛[1mdexto␛[22m␛[90m  2.0.0  ␛[39myour agent harness, local and cloud
+
+␛[90m  S T A R T␛[39m
+␛[36m  dexto          ␛[39m␛[90mStart the agent here, in this folder␛[39m
+␛[36m  dexto -c       ␛[39m␛[90mContinue the most recent chat␛[39m
+␛[36m  dexto -r <id>  ␛[39m␛[90mResume a chat by id␛[39m
+␛[36m  run            ␛[39m␛[90mRun a single prompt non-interactively (headless mode)␛[39m
+
+␛[90m  C H A T␛[39m
+␛[36m  chat           ␛[39m␛[90mYour chats: this machine's sessions␛[39m
+
+␛[90m  C L O U D␛[39m
+␛[36m  publish        ␛[39m␛[90mPublish a file, folder or .zip as a link anyone with it can open␛[39m
+
+␛[90m  A C C O U N T␛[39m
+␛[36m  login          ␛[39m␛[90mSign in to Dexto with your browser or a device code␛[39m
+␛[36m  whoami         ␛[39m␛[90mShow who Dexto commands act as␛[39m
+␛[36m  logout         ␛[39m␛[90mEnd the sign-in on the server and forget it here␛[39m
+
+␛[90m  L O C A L␛[39m
+␛[36m  setup          ␛[39m␛[90mConfigure global Dexto preferences␛[39m
+
+␛[90m  O P T I O N S␛[39m
+␛[36m  --json         ␛[39m␛[90mPrint JSON; the default when stdout isn't a terminal␛[39m
+␛[36m  --stream-json  ␛[39m␛[90mdexto run: JSON events, one per line␛[39m
+␛[36m  --profile      ␛[39m␛[90mUse a saved sign-in for one run␛[39m
+␛[36m  --mode <mode>  ␛[39m␛[90mweb | cli | server | mcp␛[39m
+␛[36m  -h, --help     ␛[39m␛[90mdisplay help for command␛[39m
+
+␛[90m  help for one command: ␛[39m␛[36mdexto <command> --help␛[39m␛[90m · ␛[39m␛]8;;https://cli.dexto.ai␇␛[35m␛[4mcli.dexto.ai␛[24m␛[39m␛]8;;␇"
+`;
+
+exports[`Signal screens on 16-dark > 7 help, one command 1`] = `
+"␛[1mdexto login [options]␛[22m
+Sign in to Dexto with your browser.
+
+␛[90m  O P T I O N S␛[39m
+␛[36m  --device    ␛[39m␛[90mApprove a code on any device.␛[39m
+␛[36m  --org ORG   ␛[39m␛[90mSign in for this organization.␛[39m"
+`;
+
+exports[`Signal screens on 16-dark > 8 update 1`] = `"  ␛[33m▌␛[39m ␛[33m␛[1mUPDATE  ␛[22m␛[39mdexto 2.2.0 is out (you have 2.1.0) · run ␛[36mdexto upgrade␛[39m"`;
+
+exports[`Signal screens on 16-dark > at 80 columns > 1 first run 1`] = `
+" ␛[36m▗␛[39m ␛[36m▄▜▞▌␛[39m   ▀▀▀▄  ▀▀▀▀  ▜▄▄▛  ▀▀▀▀ ▗▛▘▝▚▖
+␛[36m▝▘␛[39m  ␛[36m▚▚▚␛[39m      █▘ ▀▀▀▘  ▗█▚▖   ▐▌  ▜▖  ▐▌
+    ␛[36m▝▛▘␛[39m   ▀▀▀   ▀▀▀▀  ▀  ▀▘  ▝▘   ▀▘▝▘
+
+Local agent harness. Cloud when you sign in.             ␛[90mdexto 2.0.0 · first run␛[39m
+
+␛[90mP R E F L I G H T␛[39m
+␛[36m▪ ␛[39mterminal     ␛[90m16 · 80×30 · unicode · dark background␛[39m                         ␛[36mOK␛[39m
+␛[36m▪ ␛[39mworkspace    ␛[90m~/code/acme-api · git main · 3 uncommitted␛[39m                     ␛[36mOK␛[39m
+␛[36m▪ ␛[39mlocal agent  ␛[90mread · edit · write · run · search · web · your MCP servers␛[39m    ␛[36mOK␛[39m
+␛[36m▪ ␛[39mmodel        ␛[90mANTHROPIC_API_KEY found · anthropic/claude-sonnet-4-5␛[39m          ␛[36mOK␛[39m
+␛[90m▫ ␛[39mcloud        ␛[90msigned out · local works fully without it␛[39m                    ␛[90mSKIP␛[39m
+
+␛[1m1␛[22m␛[90m stay local   ␛[39m␛[36mdexto setup␛[39m
+␛[1m2␛[22m␛[90m sign in      ␛[39m␛[36mdexto login␛[39m
+"
+`;
+
+exports[`Signal screens on 16-dark > at 80 columns > 3 signed in 1`] = `
+"␛[35m◆ ␛[39mapproved in the browser
+
+␛[35m◆ ␛[39m␛[35m␛[1mSigned in as Sam Rivera · Acme␛[22m␛[39m
+␛[90m  profile default · stored in ~/.dexto · your provider keys stay on this machine␛[39m
+␛[90m  Dexto models bill Cloud project Default.␛[39m
+
+  Now available:
+  ␛[35m◆ ␛[39mmodels & credits   ␛[35m◆ ␛[39mconnectors   ␛[35m◆ ␛[39mDrive   ␛[35m◆ ␛[39mSkills   ␛[35m◆ ␛[39mmemory
+  ␛[35m◆ ␛[39mSites & Apps   ␛[35m◆ ␛[39mLoops   ␛[35m◆ ␛[39mcloud computers   ␛[35m◆ ␛[39mProjects
+
+␛[90m  next: ␛[39m␛[36mdexto␛[39m␛[90m  ·  chats sync to your dashboard from now on (/private, --no-sync)␛[39m"
+`;
+
+exports[`Signal screens on 16-dark > at 124 columns > 1 first run 1`] = `
+"       ␛[36m▀▀▜▄▖␛[39m        ██████▄▄      ▐█████████▌   ▀██▖    ▟█▛▘  ▐██████████▌    ▄▟█  ▐█▄▖
+  ␛[36m▄␛[39m␛[36m▝██▀▀█▖▝█▖␛[39m            ▝▀██▖                   ▝▜█▙ ▗██▀                  ▗██▀    ▝▜██▖
+␛[36m▗▜▞␛[39m  ␛[36m▝▜▌▐█␛[39m ␛[36m█▘␛[39m              ▐██    ▗▄▄▄▄▄▄▄▄▖       ▀███▛▘         ▐██      ▗██▘       ▜█▙
+␛[36m▘▀␛[39m    ␛[36m▝▌▟▘▐▛▗▌␛[39m             ▐██    ▝▀▀▀▀▀▀▀▀▘       ▄██▀ ▖         ▐██      ▝██▖       ▐█▛
+      ␛[36m▗␛[39m␛[36m▞▘▟▀▄▛▘␛[39m           ▗▄██▘                   ▗▟█▛  ██▄        ▐██       ▀██▄    ▗▟█▛▘
+       ␛[36m▖␛[39m␛[36m▀▄▞▀␛[39m        ██████▀▀      ▐█████████▌   ▟█▛▘    ▜██▖      ▝██         ▀▜█  ▐█▀▀
+
+Local agent harness. Cloud when you sign in.                                                         ␛[90mdexto 2.0.0 · first run␛[39m
+
+␛[90mP R E F L I G H T␛[39m
+␛[36m▪ ␛[39mterminal     ␛[90m16 · 124×30 · unicode · dark background␛[39m                                                                    ␛[36mOK␛[39m
+␛[36m▪ ␛[39mworkspace    ␛[90m~/code/acme-api · git main · 3 uncommitted␛[39m                                                                 ␛[36mOK␛[39m
+␛[36m▪ ␛[39mlocal agent  ␛[90mread · edit · write · run · search · web · your MCP servers␛[39m                                                ␛[36mOK␛[39m
+␛[36m▪ ␛[39mmodel        ␛[90mANTHROPIC_API_KEY found · anthropic/claude-sonnet-4-5␛[39m                                                      ␛[36mOK␛[39m
+␛[90m▫ ␛[39mcloud        ␛[90msigned out · local works fully without it␛[39m                                                                ␛[90mSKIP␛[39m
+
+␛[1m1␛[22m␛[90m stay local   ␛[39m␛[36mdexto setup␛[39m
+␛[1m2␛[22m␛[90m sign in      ␛[39m␛[36mdexto login␛[39m
+"
+`;
+
+exports[`Signal screens on 16-dark > at 124 columns > 3 signed in 1`] = `
+"␛[35m◆ ␛[39mapproved in the browser
+
+␛[35m◆ ␛[39m␛[35m␛[1mSigned in as Sam Rivera · Acme␛[22m␛[39m
+␛[90m  profile default · stored in ~/.dexto · your provider keys stay on this machine␛[39m
+␛[90m  Dexto models bill Cloud project Default.␛[39m
+
+  Now available:
+  ␛[35m◆ ␛[39mmodels & credits   ␛[35m◆ ␛[39mconnectors   ␛[35m◆ ␛[39mDrive   ␛[35m◆ ␛[39mSkills   ␛[35m◆ ␛[39mmemory   ␛[35m◆ ␛[39mSites & Apps   ␛[35m◆ ␛[39mLoops   ␛[35m◆ ␛[39mcloud computers
+  ␛[35m◆ ␛[39mProjects
+
+␛[90m  next: ␛[39m␛[36mdexto␛[39m␛[90m  ·  chats sync to your dashboard from now on (/private, --no-sync)␛[39m"
+`;
+
+exports[`Signal screens on 256-dark > 2 device code, waiting 1`] = `
+"␛[38;5;231m▄▀▀▀▀ ▀▀▀ ▄▀▀▀▀ █▄  █    ▀▀▀ █▄  █␛[39m    ␛[38;5;115m␛[1mdexto login --device␛[22m␛[39m
+␛[38;5;231m ▀▀▀▄  █  █  ▀█ █ ▀▄█     █  █ ▀▄█␛[39m    ␛[38;5;109mno browser on this machine, so: a code␛[39m
+␛[38;5;231m▀▀▀▀  ▀▀▀  ▀▀▀▀ ▀   ▀    ▀▀▀ ▀   ▀␛[39m
+
+␛[38;5;109mOpen ␛[39m␛]8;;https://app.dexto.ai/auth/device␇␛[38;5;183m␛[4mapp.dexto.ai/auth/device␛[24m␛[39m␛]8;;␇␛[38;5;109m on any device and enter:␛[39m
+␛[38;5;231m█  ▄▀ ▀▄ ▄▀ ▀▀▀▀█ ▀▀▀▀▄     █   █ ▄▀▀▀▄ ▄▀▀▀▄ ▀▀▀▀▄␛[39m
+␛[38;5;231m█▀▀▄   ▄▀     ▄▀  █▀▀█  ▀▀▀  ▀▀▀█  ▀▀▀█ █  ▄▀     █␛[39m
+␛[38;5;231m▀   ▀ ▀   ▀   ▀   ▀   ▀         ▀  ▀▀▀   ▀▀ ▀ ▀▀▀▀ ␛[39m
+
+␛[38;5;183m⠿␛[39m␛[38;5;109m waiting for you · expires in 9:41␛[39m"
+`;
+
+exports[`Signal screens on 256-dark > 3 signed in, no project 1`] = `
+"␛[38;5;183m◆ ␛[39m␛[38;5;188mapproved in the browser␛[39m
+
+␛[38;5;183m◆ ␛[39m␛[38;5;183m␛[1mSigned in as Sam Rivera · Acme␛[22m␛[39m
+␛[38;5;109m  profile work · stored in ~/.dexto · your provider keys stay on this machine␛[39m
+␛[38;5;221m  This organization has no Cloud project for Dexto models to bill.␛[39m
+␛[38;5;109m  Other commands still use another profile: pass ␛[39m␛[38;5;115m--profile work␛[39m␛[38;5;109m, or run ␛[39m␛[38;5;115mdexto accounts use work␛[39m
+
+␛[38;5;188m  Now available:␛[39m
+␛[38;5;188m  ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mmodels & credits   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mconnectors   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mDrive   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mSkills   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mmemory   ␛[39m
+␛[38;5;188m  ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mSites & Apps   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mLoops   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mcloud computers   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mProjects   ␛[39m
+
+␛[38;5;109m  next: ␛[39m␛[38;5;115mdexto␛[39m␛[38;5;109m  ·  chats sync to your dashboard from now on (/private, --no-sync)␛[39m"
+`;
+
+exports[`Signal screens on 256-dark > 4 browser, waiting 1`] = `
+"␛[38;5;231m▄▀▀▀▀ ▀▀▀ ▄▀▀▀▀ █▄  █    ▀▀▀ █▄  █␛[39m    ␛[38;5;115m␛[1mdexto login␛[22m␛[39m
+␛[38;5;231m ▀▀▀▄  █  █  ▀█ █ ▀▄█     █  █ ▀▄█␛[39m    ␛[38;5;109mopened app.dexto.ai in your browser␛[39m
+␛[38;5;231m▀▀▀▀  ▀▀▀  ▀▀▀▀ ▀   ▀    ▀▀▀ ▀   ▀␛[39m
+
+␛[38;5;109mBrowser didn't open? Use this link:␛[39m
+␛]8;;https://app.dexto.ai/oauth/authorize?client_id=dexto-cli&response_type=code&state=s␇␛[38;5;183m␛[4mhttps://app.dexto.ai/oauth/authorize?client_id=dexto-cli&response_type=code&state=s␛[24m␛[39m␛]8;;␇
+
+␛[38;5;183m⠿␛[39m␛[38;5;109m waiting for you in the browser · 0:06␛[39m"
+`;
+
+exports[`Signal screens on 256-dark > 5 whoami 1`] = `
+"␛[38;5;183m◆ ␛[39m␛[38;5;183m␛[1mSigned in as Sam Rivera␛[22m␛[39m␛[38;5;188m  sam@acme.co␛[39m
+␛[38;5;109m  org       ␛[39m␛[38;5;188mAcme (acme)␛[39m
+␛[38;5;109m  project   ␛[39m␛[38;5;188mDefault␛[39m
+␛[38;5;109m  access    ␛[39m␛[38;5;109mcloud:read drive:read memory:read␛[39m
+␛[38;5;109m  profile   ␛[39m␛[38;5;188mdefault␛[39m
+␛[38;5;109m  app       ␛[39m␛]8;;https://app.dexto.ai␇␛[38;5;183m␛[4mhttps://app.dexto.ai␛[24m␛[39m␛]8;;␇
+
+␛[38;5;109m  switch: ␛[39m␛[38;5;115mdexto login --profile <name>␛[39m␛[38;5;109m · sign out: ␛[39m␛[38;5;115mdexto logout␛[39m"
+`;
+
+exports[`Signal screens on 256-dark > 5 whoami, no project 1`] = `
+"␛[38;5;183m◆ ␛[39m␛[38;5;183m␛[1mSigned in as Sam Rivera␛[22m␛[39m␛[38;5;188m  sam@acme.co␛[39m
+␛[38;5;109m  org       ␛[39m␛[38;5;188mAcme (acme)␛[39m
+␛[38;5;109m  project   ␛[39m␛[38;5;221mnone: Dexto models can't bill␛[39m
+␛[38;5;109m  access    ␛[39m␛[38;5;109mcloud:read drive:read memory:read␛[39m
+␛[38;5;109m  profile   ␛[39m␛[38;5;188mdefault␛[39m
+␛[38;5;109m  app       ␛[39m␛]8;;https://app.dexto.ai␇␛[38;5;183m␛[4mhttps://app.dexto.ai␛[24m␛[39m␛]8;;␇
+
+␛[38;5;109m  switch: ␛[39m␛[38;5;115mdexto login --profile <name>␛[39m␛[38;5;109m · sign out: ␛[39m␛[38;5;115mdexto logout␛[39m"
+`;
+
+exports[`Signal screens on 256-dark > 5 whoami, signed out 1`] = `
+"␛[38;5;115m◇ ␛[39m␛[38;5;109mNot signed in · local works fully without it␛[39m
+␛[38;5;109m  sign in: ␛[39m␛[38;5;115mdexto login␛[39m"
+`;
+
+exports[`Signal screens on 256-dark > 6 fault 1`] = `
+"␛[38;5;188m  ␛[39m␛[38;5;210m▌␛[39m␛[38;5;188m ␛[39m␛[38;5;210m␛[1mFAULT   ␛[22m␛[39m␛[38;5;231m␛[1mThis sign-in cannot write to Drive. · insufficient_scope␛[22m␛[39m
+␛[38;5;188m  ␛[39m␛[38;5;131m▌␛[39m␛[38;5;188m ␛[39m␛[38;5;109mdetails ␛[39m␛[38;5;109m{"scope":"drive:write"}␛[39m
+␛[38;5;188m  ␛[39m␛[38;5;131m▌␛[39m␛[38;5;188m ␛[39m␛[38;5;109mnext    ␛[39m␛[38;5;221mdexto login --scope drive:write␛[39m"
+`;
+
+exports[`Signal screens on 256-dark > 6 usage mistake 1`] = `
+"␛[38;5;188m  ␛[39m␛[38;5;210m▌␛[39m␛[38;5;188m ␛[39m␛[38;5;210m␛[1mFAULT   ␛[22m␛[39m␛[38;5;231m␛[1mUnknown command: dexto cloud projcts␛[22m␛[39m
+
+␛[38;5;109m  every command: ␛[39m␛[38;5;115mdexto --help␛[39m"
+`;
+
+exports[`Signal screens on 256-dark > 7 help 1`] = `
+"␛[38;5;231m␛[1mdexto␛[22m␛[39m␛[38;5;59m  2.0.0  ␛[39m␛[38;5;188myour agent harness, local and cloud␛[39m
+
+␛[38;5;109m  S T A R T␛[39m
+␛[38;5;115m  dexto          ␛[39m␛[38;5;109mStart the agent here, in this folder␛[39m
+␛[38;5;115m  dexto -c       ␛[39m␛[38;5;109mContinue the most recent chat␛[39m
+␛[38;5;115m  dexto -r <id>  ␛[39m␛[38;5;109mResume a chat by id␛[39m
+␛[38;5;115m  run            ␛[39m␛[38;5;109mRun a single prompt non-interactively (headless mode)␛[39m
+
+␛[38;5;109m  C H A T␛[39m
+␛[38;5;115m  chat           ␛[39m␛[38;5;109mYour chats: this machine's sessions␛[39m
+
+␛[38;5;109m  C L O U D␛[39m
+␛[38;5;115m  publish        ␛[39m␛[38;5;109mPublish a file, folder or .zip as a link anyone with it can open␛[39m
+
+␛[38;5;109m  A C C O U N T␛[39m
+␛[38;5;115m  login          ␛[39m␛[38;5;109mSign in to Dexto with your browser or a device code␛[39m
+␛[38;5;115m  whoami         ␛[39m␛[38;5;109mShow who Dexto commands act as␛[39m
+␛[38;5;115m  logout         ␛[39m␛[38;5;109mEnd the sign-in on the server and forget it here␛[39m
+
+␛[38;5;109m  L O C A L␛[39m
+␛[38;5;115m  setup          ␛[39m␛[38;5;109mConfigure global Dexto preferences␛[39m
+
+␛[38;5;109m  O P T I O N S␛[39m
+␛[38;5;115m  --json         ␛[39m␛[38;5;109mPrint JSON; the default when stdout isn't a terminal␛[39m
+␛[38;5;115m  --stream-json  ␛[39m␛[38;5;109mdexto run: JSON events, one per line␛[39m
+␛[38;5;115m  --profile      ␛[39m␛[38;5;109mUse a saved sign-in for one run␛[39m
+␛[38;5;115m  --mode <mode>  ␛[39m␛[38;5;109mweb | cli | server | mcp␛[39m
+␛[38;5;115m  -h, --help     ␛[39m␛[38;5;109mdisplay help for command␛[39m
+
+␛[38;5;109m  help for one command: ␛[39m␛[38;5;115mdexto <command> --help␛[39m␛[38;5;109m · ␛[39m␛]8;;https://cli.dexto.ai␇␛[38;5;183m␛[4mcli.dexto.ai␛[24m␛[39m␛]8;;␇"
+`;
+
+exports[`Signal screens on 256-dark > 7 help, one command 1`] = `
+"␛[38;5;231m␛[1mdexto login [options]␛[22m␛[39m
+␛[38;5;188mSign in to Dexto with your browser.␛[39m
+
+␛[38;5;109m  O P T I O N S␛[39m
+␛[38;5;115m  --device    ␛[39m␛[38;5;109mApprove a code on any device.␛[39m
+␛[38;5;115m  --org ORG   ␛[39m␛[38;5;109mSign in for this organization.␛[39m"
+`;
+
+exports[`Signal screens on 256-dark > 8 update 1`] = `"␛[38;5;188m  ␛[39m␛[38;5;137m▌␛[39m␛[38;5;188m ␛[39m␛[38;5;221m␛[1mUPDATE  ␛[22m␛[39m␛[38;5;188mdexto 2.2.0 is out (you have 2.1.0) · run ␛[39m␛[38;5;115mdexto upgrade␛[39m"`;
+
+exports[`Signal screens on 256-dark > at 80 columns > 1 first run 1`] = `
+"␛[38;5;188m ␛[39m␛[38;5;66m▗␛[39m␛[38;5;188m ␛[39m␛[38;5;115m▄▜▞▌␛[39m␛[38;5;188m   ␛[39m␛[38;5;231m▀▀▀▄␛[39m␛[38;5;188m  ␛[39m␛[38;5;231m▀▀▀▀␛[39m␛[38;5;188m  ␛[39m␛[38;5;231m▜▄▄▛␛[39m␛[38;5;188m  ␛[39m␛[38;5;231m▀▀▀▀␛[39m␛[38;5;188m ␛[39m␛[38;5;231m▗▛▘▝▚▖␛[39m
+␛[38;5;66m▝▘␛[39m␛[38;5;188m  ␛[39m␛[38;5;115m▚▚▚␛[39m␛[38;5;188m      ␛[39m␛[38;5;231m█▘␛[39m␛[38;5;188m ␛[39m␛[38;5;231m▀▀▀▘␛[39m␛[38;5;188m  ␛[39m␛[38;5;231m▗█▚▖␛[39m␛[38;5;188m   ␛[39m␛[38;5;231m▐▌␛[39m␛[38;5;188m  ␛[39m␛[38;5;231m▜▖␛[39m␛[38;5;188m  ␛[39m␛[38;5;231m▐▌␛[39m
+␛[38;5;188m    ␛[39m␛[38;5;115m▝▛▘␛[39m␛[38;5;188m   ␛[39m␛[38;5;231m▀▀▀␛[39m␛[38;5;188m   ␛[39m␛[38;5;231m▀▀▀▀␛[39m␛[38;5;188m  ␛[39m␛[38;5;231m▀␛[39m␛[38;5;188m  ␛[39m␛[38;5;231m▀▘␛[39m␛[38;5;188m  ␛[39m␛[38;5;231m▝▘␛[39m␛[38;5;188m   ␛[39m␛[38;5;231m▀▘▝▘␛[39m␛[38;5;188m ␛[39m
+
+␛[38;5;188mLocal agent harness. Cloud when you sign in.␛[39m␛[38;5;188m             ␛[39m␛[38;5;59mdexto 2.0.0 · first run␛[39m
+
+␛[38;5;109mP R E F L I G H T␛[39m
+␛[38;5;115m▪ ␛[39m␛[38;5;231mterminal     ␛[39m␛[38;5;109m256 · 80×30 · unicode · dark background␛[39m␛[38;5;188m                        ␛[39m␛[38;5;115mOK␛[39m
+␛[38;5;115m▪ ␛[39m␛[38;5;231mworkspace    ␛[39m␛[38;5;109m~/code/acme-api · git main · 3 uncommitted␛[39m␛[38;5;188m                     ␛[39m␛[38;5;115mOK␛[39m
+␛[38;5;115m▪ ␛[39m␛[38;5;231mlocal agent  ␛[39m␛[38;5;109mread · edit · write · run · search · web · your MCP servers␛[39m␛[38;5;188m    ␛[39m␛[38;5;115mOK␛[39m
+␛[38;5;115m▪ ␛[39m␛[38;5;231mmodel        ␛[39m␛[38;5;109mANTHROPIC_API_KEY found · anthropic/claude-sonnet-4-5␛[39m␛[38;5;188m          ␛[39m␛[38;5;115mOK␛[39m
+␛[38;5;59m▫ ␛[39m␛[38;5;231mcloud        ␛[39m␛[38;5;109msigned out · local works fully without it␛[39m␛[38;5;188m                    ␛[39m␛[38;5;59mSKIP␛[39m
+
+␛[38;5;231m␛[1m1␛[22m␛[39m␛[38;5;109m stay local   ␛[39m␛[38;5;115mdexto setup␛[39m
+␛[38;5;231m␛[1m2␛[22m␛[39m␛[38;5;109m sign in      ␛[39m␛[38;5;115mdexto login␛[39m
+"
+`;
+
+exports[`Signal screens on 256-dark > at 80 columns > 3 signed in 1`] = `
+"␛[38;5;183m◆ ␛[39m␛[38;5;188mapproved in the browser␛[39m
+
+␛[38;5;183m◆ ␛[39m␛[38;5;183m␛[1mSigned in as Sam Rivera · Acme␛[22m␛[39m
+␛[38;5;109m  profile default · stored in ~/.dexto · your provider keys stay on this machine␛[39m
+␛[38;5;109m  Dexto models bill Cloud project Default.␛[39m
+
+␛[38;5;188m  Now available:␛[39m
+␛[38;5;188m  ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mmodels & credits   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mconnectors   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mDrive   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mSkills   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mmemory   ␛[39m
+␛[38;5;188m  ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mSites & Apps   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mLoops   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mcloud computers   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mProjects   ␛[39m
+
+␛[38;5;109m  next: ␛[39m␛[38;5;115mdexto␛[39m␛[38;5;109m  ·  chats sync to your dashboard from now on (/private, --no-sync)␛[39m"
+`;
+
+exports[`Signal screens on 256-dark > at 124 columns > 1 first run 1`] = `
+"␛[38;5;188m       ␛[39m␛[38;5;115m▀▀▜▄▖␛[39m␛[38;5;188m        ␛[39m␛[38;5;231m██████▄▄␛[39m␛[38;5;188m      ␛[39m␛[38;5;231m▐█████████▌␛[39m␛[38;5;188m   ␛[39m␛[38;5;231m▀██▖␛[39m␛[38;5;188m    ␛[39m␛[38;5;231m▟█▛▘␛[39m␛[38;5;188m  ␛[39m␛[38;5;231m▐██████████▌␛[39m␛[38;5;188m    ␛[39m␛[38;5;231m▄▟█␛[39m␛[38;5;188m  ␛[39m␛[38;5;231m▐█▄▖␛[39m␛[38;5;188m  ␛[39m
+␛[38;5;188m  ␛[39m␛[38;5;66m▄␛[39m␛[38;5;115m▝██▀▀█▖▝█▖␛[39m␛[38;5;188m            ␛[39m␛[38;5;231m▝▀██▖␛[39m␛[38;5;188m                   ␛[39m␛[38;5;231m▝▜█▙␛[39m␛[38;5;188m ␛[39m␛[38;5;231m▗██▀␛[39m␛[38;5;188m                  ␛[39m␛[38;5;231m▗██▀␛[39m␛[38;5;188m    ␛[39m␛[38;5;231m▝▜██▖␛[39m
+␛[38;5;115m▗▜▞␛[39m␛[38;5;188m  ␛[39m␛[38;5;115m▝▜▌▐█␛[39m␛[38;5;188m ␛[39m␛[38;5;115m█▘␛[39m␛[38;5;188m              ␛[39m␛[38;5;231m▐██␛[39m␛[38;5;188m    ␛[39m␛[38;5;231m▗▄▄▄▄▄▄▄▄▖␛[39m␛[38;5;188m       ␛[39m␛[38;5;231m▀███▛▘␛[39m␛[38;5;188m         ␛[39m␛[38;5;231m▐██␛[39m␛[38;5;188m      ␛[39m␛[38;5;231m▗██▘␛[39m␛[38;5;188m       ␛[39m␛[38;5;231m▜█▙␛[39m
+␛[38;5;115m▘▀␛[39m␛[38;5;188m    ␛[39m␛[38;5;115m▝▌▟▘▐▛▗▌␛[39m␛[38;5;188m             ␛[39m␛[38;5;231m▐██␛[39m␛[38;5;188m    ␛[39m␛[38;5;231m▝▀▀▀▀▀▀▀▀▘␛[39m␛[38;5;188m       ␛[39m␛[38;5;231m▄██▀␛[39m␛[38;5;188m ␛[39m␛[38;5;231m▖␛[39m␛[38;5;188m         ␛[39m␛[38;5;231m▐██␛[39m␛[38;5;188m      ␛[39m␛[38;5;231m▝██▖␛[39m␛[38;5;188m       ␛[39m␛[38;5;231m▐█▛␛[39m
+␛[38;5;188m      ␛[39m␛[38;5;66m▗␛[39m␛[38;5;115m▞▘▟▀▄▛▘␛[39m␛[38;5;188m           ␛[39m␛[38;5;231m▗▄██▘␛[39m␛[38;5;188m                   ␛[39m␛[38;5;231m▗▟█▛␛[39m␛[38;5;188m  ␛[39m␛[38;5;231m██▄␛[39m␛[38;5;188m        ␛[39m␛[38;5;231m▐██␛[39m␛[38;5;188m       ␛[39m␛[38;5;231m▀██▄␛[39m␛[38;5;188m    ␛[39m␛[38;5;231m▗▟█▛▘␛[39m
+␛[38;5;188m       ␛[39m␛[38;5;66m▖␛[39m␛[38;5;115m▀▄▞▀␛[39m␛[38;5;188m        ␛[39m␛[38;5;231m██████▀▀␛[39m␛[38;5;188m      ␛[39m␛[38;5;231m▐█████████▌␛[39m␛[38;5;188m   ␛[39m␛[38;5;231m▟█▛▘␛[39m␛[38;5;188m    ␛[39m␛[38;5;231m▜██▖␛[39m␛[38;5;188m      ␛[39m␛[38;5;231m▝██␛[39m␛[38;5;188m         ␛[39m␛[38;5;231m▀▜█␛[39m␛[38;5;188m  ␛[39m␛[38;5;231m▐█▀▀␛[39m␛[38;5;188m  ␛[39m
+
+␛[38;5;188mLocal agent harness. Cloud when you sign in.␛[39m␛[38;5;188m                                                         ␛[39m␛[38;5;59mdexto 2.0.0 · first run␛[39m
+
+␛[38;5;109mP R E F L I G H T␛[39m
+␛[38;5;115m▪ ␛[39m␛[38;5;231mterminal     ␛[39m␛[38;5;109m256 · 124×30 · unicode · dark background␛[39m␛[38;5;188m                                                                   ␛[39m␛[38;5;115mOK␛[39m
+␛[38;5;115m▪ ␛[39m␛[38;5;231mworkspace    ␛[39m␛[38;5;109m~/code/acme-api · git main · 3 uncommitted␛[39m␛[38;5;188m                                                                 ␛[39m␛[38;5;115mOK␛[39m
+␛[38;5;115m▪ ␛[39m␛[38;5;231mlocal agent  ␛[39m␛[38;5;109mread · edit · write · run · search · web · your MCP servers␛[39m␛[38;5;188m                                                ␛[39m␛[38;5;115mOK␛[39m
+␛[38;5;115m▪ ␛[39m␛[38;5;231mmodel        ␛[39m␛[38;5;109mANTHROPIC_API_KEY found · anthropic/claude-sonnet-4-5␛[39m␛[38;5;188m                                                      ␛[39m␛[38;5;115mOK␛[39m
+␛[38;5;59m▫ ␛[39m␛[38;5;231mcloud        ␛[39m␛[38;5;109msigned out · local works fully without it␛[39m␛[38;5;188m                                                                ␛[39m␛[38;5;59mSKIP␛[39m
+
+␛[38;5;231m␛[1m1␛[22m␛[39m␛[38;5;109m stay local   ␛[39m␛[38;5;115mdexto setup␛[39m
+␛[38;5;231m␛[1m2␛[22m␛[39m␛[38;5;109m sign in      ␛[39m␛[38;5;115mdexto login␛[39m
+"
+`;
+
+exports[`Signal screens on 256-dark > at 124 columns > 3 signed in 1`] = `
+"␛[38;5;183m◆ ␛[39m␛[38;5;188mapproved in the browser␛[39m
+
+␛[38;5;183m◆ ␛[39m␛[38;5;183m␛[1mSigned in as Sam Rivera · Acme␛[22m␛[39m
+␛[38;5;109m  profile default · stored in ~/.dexto · your provider keys stay on this machine␛[39m
+␛[38;5;109m  Dexto models bill Cloud project Default.␛[39m
+
+␛[38;5;188m  Now available:␛[39m
+␛[38;5;188m  ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mmodels & credits   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mconnectors   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mDrive   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mSkills   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mmemory   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mSites & Apps   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mLoops   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mcloud computers   ␛[39m
+␛[38;5;188m  ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mProjects   ␛[39m
+
+␛[38;5;109m  next: ␛[39m␛[38;5;115mdexto␛[39m␛[38;5;109m  ·  chats sync to your dashboard from now on (/private, --no-sync)␛[39m"
+`;
+
+exports[`Signal screens on ascii > 2 device code, waiting 1`] = `
+"␛[1mSIGN IN␛[22m  ␛[36m␛[1mdexto login --device␛[22m␛[39m
+␛[90mno browser on this machine, so: a code␛[39m
+
+␛[90mOpen ␛[39m␛]8;;https://app.dexto.ai/auth/device␇␛[35m␛[4mapp.dexto.ai/auth/device␛[24m␛[39m␛]8;;␇␛[90m on any device and enter:␛[39m
+␛[1mKX7R-49QD␛[22m
+
+␛[35m'␛[39m␛[90m waiting for you . expires in 9:41␛[39m"
+`;
+
+exports[`Signal screens on ascii > 3 signed in, no project 1`] = `
+"␛[35m* ␛[39mapproved in the browser
+
+␛[35m* ␛[39m␛[35m␛[1mSigned in as Sam Rivera . Acme␛[22m␛[39m
+␛[90m  profile work . stored in ~/.dexto . your provider keys stay on this machine␛[39m
+␛[33m  This organization has no Cloud project for Dexto models to bill.␛[39m
+␛[90m  Other commands still use another profile: pass ␛[39m␛[36m--profile work␛[39m␛[90m, or run ␛[39m␛[36mdexto accounts use work␛[39m
+
+  Now available:
+  ␛[35m* ␛[39mmodels & credits   ␛[35m* ␛[39mconnectors   ␛[35m* ␛[39mDrive   ␛[35m* ␛[39mSkills   ␛[35m* ␛[39mmemory
+  ␛[35m* ␛[39mSites & Apps   ␛[35m* ␛[39mLoops   ␛[35m* ␛[39mcloud computers   ␛[35m* ␛[39mProjects
+
+␛[90m  next: ␛[39m␛[36mdexto␛[39m␛[90m  .  chats sync to your dashboard from now on (/private, --no-sync)␛[39m"
+`;
+
+exports[`Signal screens on ascii > 4 browser, waiting 1`] = `
+"␛[1mSIGN IN␛[22m  ␛[36m␛[1mdexto login␛[22m␛[39m
+␛[90mopened app.dexto.ai in your browser␛[39m
+
+␛[90mBrowser didn't open? Use this link:␛[39m
+␛]8;;https://app.dexto.ai/oauth/authorize?client_id=dexto-cli&response_type=code&state=s␇␛[35m␛[4mhttps://app.dexto.ai/oauth/authorize?client_id=dexto-cli&response_type=code&state=s␛[24m␛[39m␛]8;;␇
+
+␛[35m'␛[39m␛[90m waiting for you in the browser . 0:06␛[39m"
+`;
+
+exports[`Signal screens on ascii > 5 whoami 1`] = `
+"␛[35m* ␛[39m␛[35m␛[1mSigned in as Sam Rivera␛[22m␛[39m  sam@acme.co
+␛[90m  org       ␛[39mAcme (acme)
+␛[90m  project   ␛[39mDefault
+␛[90m  access    ␛[39m␛[90mcloud:read drive:read memory:read␛[39m
+␛[90m  profile   ␛[39mdefault
+␛[90m  app       ␛[39m␛]8;;https://app.dexto.ai␇␛[35m␛[4mhttps://app.dexto.ai␛[24m␛[39m␛]8;;␇
+
+␛[90m  switch: ␛[39m␛[36mdexto login --profile <name>␛[39m␛[90m . sign out: ␛[39m␛[36mdexto logout␛[39m"
+`;
+
+exports[`Signal screens on ascii > 5 whoami, no project 1`] = `
+"␛[35m* ␛[39m␛[35m␛[1mSigned in as Sam Rivera␛[22m␛[39m  sam@acme.co
+␛[90m  org       ␛[39mAcme (acme)
+␛[90m  project   ␛[39m␛[33mnone: Dexto models can't bill␛[39m
+␛[90m  access    ␛[39m␛[90mcloud:read drive:read memory:read␛[39m
+␛[90m  profile   ␛[39mdefault
+␛[90m  app       ␛[39m␛]8;;https://app.dexto.ai␇␛[35m␛[4mhttps://app.dexto.ai␛[24m␛[39m␛]8;;␇
+
+␛[90m  switch: ␛[39m␛[36mdexto login --profile <name>␛[39m␛[90m . sign out: ␛[39m␛[36mdexto logout␛[39m"
+`;
+
+exports[`Signal screens on ascii > 5 whoami, signed out 1`] = `
+"␛[36mo ␛[39m␛[90mNot signed in . local works fully without it␛[39m
+␛[90m  sign in: ␛[39m␛[36mdexto login␛[39m"
+`;
+
+exports[`Signal screens on ascii > 6 fault 1`] = `
+"  ␛[31m|␛[39m ␛[31m␛[1mFAULT   ␛[22m␛[39m␛[1mThis sign-in cannot write to Drive. . insufficient_scope␛[22m
+  ␛[31m|␛[39m ␛[90mdetails ␛[39m␛[90m{"scope":"drive:write"}␛[39m
+  ␛[31m|␛[39m ␛[90mnext    ␛[39m␛[33mdexto login --scope drive:write␛[39m"
+`;
+
+exports[`Signal screens on ascii > 6 usage mistake 1`] = `
+"  ␛[31m|␛[39m ␛[31m␛[1mFAULT   ␛[22m␛[39m␛[1mUnknown command: dexto cloud projcts␛[22m
+
+␛[90m  every command: ␛[39m␛[36mdexto --help␛[39m"
+`;
+
+exports[`Signal screens on ascii > 7 help 1`] = `
+"␛[1mdexto␛[22m␛[90m  2.0.0  ␛[39myour agent harness, local and cloud
+
+␛[90m  S T A R T␛[39m
+␛[36m  dexto          ␛[39m␛[90mStart the agent here, in this folder␛[39m
+␛[36m  dexto -c       ␛[39m␛[90mContinue the most recent chat␛[39m
+␛[36m  dexto -r <id>  ␛[39m␛[90mResume a chat by id␛[39m
+␛[36m  run            ␛[39m␛[90mRun a single prompt non-interactively (headless mode)␛[39m
+
+␛[90m  C H A T␛[39m
+␛[36m  chat           ␛[39m␛[90mYour chats: this machine's sessions␛[39m
+
+␛[90m  C L O U D␛[39m
+␛[36m  publish        ␛[39m␛[90mPublish a file, folder or .zip as a link anyone with it can open␛[39m
+
+␛[90m  A C C O U N T␛[39m
+␛[36m  login          ␛[39m␛[90mSign in to Dexto with your browser or a device code␛[39m
+␛[36m  whoami         ␛[39m␛[90mShow who Dexto commands act as␛[39m
+␛[36m  logout         ␛[39m␛[90mEnd the sign-in on the server and forget it here␛[39m
+
+␛[90m  L O C A L␛[39m
+␛[36m  setup          ␛[39m␛[90mConfigure global Dexto preferences␛[39m
+
+␛[90m  O P T I O N S␛[39m
+␛[36m  --json         ␛[39m␛[90mPrint JSON; the default when stdout isn't a terminal␛[39m
+␛[36m  --stream-json  ␛[39m␛[90mdexto run: JSON events, one per line␛[39m
+␛[36m  --profile      ␛[39m␛[90mUse a saved sign-in for one run␛[39m
+␛[36m  --mode <mode>  ␛[39m␛[90mweb | cli | server | mcp␛[39m
+␛[36m  -h, --help     ␛[39m␛[90mdisplay help for command␛[39m
+
+␛[90m  help for one command: ␛[39m␛[36mdexto <command> --help␛[39m␛[90m . ␛[39m␛]8;;https://cli.dexto.ai␇␛[35m␛[4mcli.dexto.ai␛[24m␛[39m␛]8;;␇"
+`;
+
+exports[`Signal screens on ascii > 7 help, one command 1`] = `
+"␛[1mdexto login [options]␛[22m
+Sign in to Dexto with your browser.
+
+␛[90m  O P T I O N S␛[39m
+␛[36m  --device    ␛[39m␛[90mApprove a code on any device.␛[39m
+␛[36m  --org ORG   ␛[39m␛[90mSign in for this organization.␛[39m"
+`;
+
+exports[`Signal screens on ascii > 8 update 1`] = `"  ␛[33m|␛[39m ␛[33m␛[1mUPDATE  ␛[22m␛[39mdexto 2.2.0 is out (you have 2.1.0) . run ␛[36mdexto upgrade␛[39m"`;
+
+exports[`Signal screens on ascii > at 80 columns > 1 first run 1`] = `
+" ␛[36m.␛[39m ␛[36m_7/[␛[39m   """_  """"  7__F  """" .F''\\.
+␛[36m''␛[39m  ␛[36m\\\\\\␛[39m      #' """'  .#\\.   ][  7.  ][
+    ␛[36m'F'␛[39m   """   """"  "  "'  ''   "'''
+
+Local agent harness. Cloud when you sign in.             ␛[90mdexto 2.0.0 . first run␛[39m
+
+␛[90mP R E F L I G H T␛[39m
+␛[36m* ␛[39mterminal     ␛[90m16 . 80x30 . ascii . dark background␛[39m                           ␛[36mOK␛[39m
+␛[36m* ␛[39mworkspace    ␛[90m~/code/acme-api . git main . 3 uncommitted␛[39m                     ␛[36mOK␛[39m
+␛[36m* ␛[39mlocal agent  ␛[90mread . edit . write . run . search . web . your MCP servers␛[39m    ␛[36mOK␛[39m
+␛[36m* ␛[39mmodel        ␛[90mANTHROPIC_API_KEY found . anthropic/claude-sonnet-4-5␛[39m          ␛[36mOK␛[39m
+␛[90m. ␛[39mcloud        ␛[90msigned out . local works fully without it␛[39m                    ␛[90mSKIP␛[39m
+
+␛[1m1␛[22m␛[90m stay local   ␛[39m␛[36mdexto setup␛[39m
+␛[1m2␛[22m␛[90m sign in      ␛[39m␛[36mdexto login␛[39m
+"
+`;
+
+exports[`Signal screens on ascii > at 80 columns > 3 signed in 1`] = `
+"␛[35m* ␛[39mapproved in the browser
+
+␛[35m* ␛[39m␛[35m␛[1mSigned in as Sam Rivera . Acme␛[22m␛[39m
+␛[90m  profile default . stored in ~/.dexto . your provider keys stay on this machine␛[39m
+␛[90m  Dexto models bill Cloud project Default.␛[39m
+
+  Now available:
+  ␛[35m* ␛[39mmodels & credits   ␛[35m* ␛[39mconnectors   ␛[35m* ␛[39mDrive   ␛[35m* ␛[39mSkills   ␛[35m* ␛[39mmemory
+  ␛[35m* ␛[39mSites & Apps   ␛[35m* ␛[39mLoops   ␛[35m* ␛[39mcloud computers   ␛[35m* ␛[39mProjects
+
+␛[90m  next: ␛[39m␛[36mdexto␛[39m␛[90m  .  chats sync to your dashboard from now on (/private, --no-sync)␛[39m"
+`;
+
+exports[`Signal screens on ascii > at 124 columns > 1 first run 1`] = `
+"       ␛[36m""7_.␛[39m        ######__      ]#########[   "##.    J#F'  ]##########[    _J#  ]#_.
+  ␛[36m.␛[39m␛[36m'␛[39m␛[36m#LF"7_'#[␛[39m            '"##.                   '7#L .##"                  .##"    '7##.
+␛[36m.␛[39m␛[36m//'␛[39m  ␛[36m7L␛[39m ␛[36m#␛[39m ␛[36mJ[␛[39m              ]##    .________.       "###F'         ]##      .##'       7#L
+␛[36m"'␛[39m     ␛[36mF.F.F.#␛[39m             ]##    '""""""""'       _##" .         ]##      '##.       ]#F
+       ␛[36m_"_F.#'␛[39m           ._##'                   .J#F  ##_        ]##       "##_    .J#F'
+       ␛[36m.␛[39m␛[36m".J"␛[39m        ######""      ]#########[   J#F'    7##.      '##         "7#  ]#""
+
+Local agent harness. Cloud when you sign in.                                                         ␛[90mdexto 2.0.0 . first run␛[39m
+
+␛[90mP R E F L I G H T␛[39m
+␛[36m* ␛[39mterminal     ␛[90m16 . 124x30 . ascii . dark background␛[39m                                                                      ␛[36mOK␛[39m
+␛[36m* ␛[39mworkspace    ␛[90m~/code/acme-api . git main . 3 uncommitted␛[39m                                                                 ␛[36mOK␛[39m
+␛[36m* ␛[39mlocal agent  ␛[90mread . edit . write . run . search . web . your MCP servers␛[39m                                                ␛[36mOK␛[39m
+␛[36m* ␛[39mmodel        ␛[90mANTHROPIC_API_KEY found . anthropic/claude-sonnet-4-5␛[39m                                                      ␛[36mOK␛[39m
+␛[90m. ␛[39mcloud        ␛[90msigned out . local works fully without it␛[39m                                                                ␛[90mSKIP␛[39m
+
+␛[1m1␛[22m␛[90m stay local   ␛[39m␛[36mdexto setup␛[39m
+␛[1m2␛[22m␛[90m sign in      ␛[39m␛[36mdexto login␛[39m
+"
+`;
+
+exports[`Signal screens on ascii > at 124 columns > 3 signed in 1`] = `
+"␛[35m* ␛[39mapproved in the browser
+
+␛[35m* ␛[39m␛[35m␛[1mSigned in as Sam Rivera . Acme␛[22m␛[39m
+␛[90m  profile default . stored in ~/.dexto . your provider keys stay on this machine␛[39m
+␛[90m  Dexto models bill Cloud project Default.␛[39m
+
+  Now available:
+  ␛[35m* ␛[39mmodels & credits   ␛[35m* ␛[39mconnectors   ␛[35m* ␛[39mDrive   ␛[35m* ␛[39mSkills   ␛[35m* ␛[39mmemory   ␛[35m* ␛[39mSites & Apps   ␛[35m* ␛[39mLoops   ␛[35m* ␛[39mcloud computers
+  ␛[35m* ␛[39mProjects
+
+␛[90m  next: ␛[39m␛[36mdexto␛[39m␛[90m  .  chats sync to your dashboard from now on (/private, --no-sync)␛[39m"
+`;
+
+exports[`Signal screens on no-color > 2 device code, waiting 1`] = `
+"SIGN IN  dexto login --device
+no browser on this machine, so: a code
+
+Open app.dexto.ai/auth/device on any device and enter:
+KX7R-49QD
+
+⠿ waiting for you · expires in 9:41"
+`;
+
+exports[`Signal screens on no-color > 3 signed in, no project 1`] = `
+"◆ approved in the browser
+
+◆ Signed in as Sam Rivera · Acme
+  profile work · stored in ~/.dexto · your provider keys stay on this machine
+  This organization has no Cloud project for Dexto models to bill.
+  Other commands still use another profile: pass --profile work, or run dexto accounts use work
+
+  Now available:
+  ◆ models & credits   ◆ connectors   ◆ Drive   ◆ Skills   ◆ memory
+  ◆ Sites & Apps   ◆ Loops   ◆ cloud computers   ◆ Projects
+
+  next: dexto  ·  chats sync to your dashboard from now on (/private, --no-sync)"
+`;
+
+exports[`Signal screens on no-color > 4 browser, waiting 1`] = `
+"SIGN IN  dexto login
+opened app.dexto.ai in your browser
+
+Browser didn't open? Use this link:
+https://app.dexto.ai/oauth/authorize?client_id=dexto-cli&response_type=code&state=s
+
+⠿ waiting for you in the browser · 0:06"
+`;
+
+exports[`Signal screens on no-color > 5 whoami 1`] = `
+"◆ Signed in as Sam Rivera  sam@acme.co
+  org       Acme (acme)
+  project   Default
+  access    cloud:read drive:read memory:read
+  profile   default
+  app       https://app.dexto.ai
+
+  switch: dexto login --profile <name> · sign out: dexto logout"
+`;
+
+exports[`Signal screens on no-color > 5 whoami, no project 1`] = `
+"◆ Signed in as Sam Rivera  sam@acme.co
+  org       Acme (acme)
+  project   none: Dexto models can't bill
+  access    cloud:read drive:read memory:read
+  profile   default
+  app       https://app.dexto.ai
+
+  switch: dexto login --profile <name> · sign out: dexto logout"
+`;
+
+exports[`Signal screens on no-color > 5 whoami, signed out 1`] = `
+"◇ Not signed in · local works fully without it
+  sign in: dexto login"
+`;
+
+exports[`Signal screens on no-color > 6 fault 1`] = `
+"  ▌ FAULT   This sign-in cannot write to Drive. · insufficient_scope
+  ▌ details {"scope":"drive:write"}
+  ▌ next    dexto login --scope drive:write"
+`;
+
+exports[`Signal screens on no-color > 6 usage mistake 1`] = `
+"  ▌ FAULT   Unknown command: dexto cloud projcts
+
+  every command: dexto --help"
+`;
+
+exports[`Signal screens on no-color > 7 help 1`] = `
+"dexto  2.0.0  your agent harness, local and cloud
+
+  S T A R T
+  dexto          Start the agent here, in this folder
+  dexto -c       Continue the most recent chat
+  dexto -r <id>  Resume a chat by id
+  run            Run a single prompt non-interactively (headless mode)
+
+  C H A T
+  chat           Your chats: this machine's sessions
+
+  C L O U D
+  publish        Publish a file, folder or .zip as a link anyone with it can open
+
+  A C C O U N T
+  login          Sign in to Dexto with your browser or a device code
+  whoami         Show who Dexto commands act as
+  logout         End the sign-in on the server and forget it here
+
+  L O C A L
+  setup          Configure global Dexto preferences
+
+  O P T I O N S
+  --json         Print JSON; the default when stdout isn't a terminal
+  --stream-json  dexto run: JSON events, one per line
+  --profile      Use a saved sign-in for one run
+  --mode <mode>  web | cli | server | mcp
+  -h, --help     display help for command
+
+  help for one command: dexto <command> --help · cli.dexto.ai"
+`;
+
+exports[`Signal screens on no-color > 7 help, one command 1`] = `
+"dexto login [options]
+Sign in to Dexto with your browser.
+
+  O P T I O N S
+  --device    Approve a code on any device.
+  --org ORG   Sign in for this organization."
+`;
+
+exports[`Signal screens on no-color > 8 update 1`] = `"  ▌ UPDATE  dexto 2.2.0 is out (you have 2.1.0) · run dexto upgrade"`;
+
+exports[`Signal screens on no-color > at 80 columns > 1 first run 1`] = `
+"dexto
+
+Local agent harness. Cloud when you sign in.             dexto 2.0.0 · first run
+
+P R E F L I G H T
+▪ terminal     none · 80×30 · unicode · dark background                       OK
+▪ workspace    ~/code/acme-api · git main · 3 uncommitted                     OK
+▪ local agent  read · edit · write · run · search · web · your MCP servers    OK
+▪ model        ANTHROPIC_API_KEY found · anthropic/claude-sonnet-4-5          OK
+▫ cloud        signed out · local works fully without it                    SKIP
+
+1 stay local   dexto setup
+2 sign in      dexto login
+"
+`;
+
+exports[`Signal screens on no-color > at 80 columns > 3 signed in 1`] = `
+"◆ approved in the browser
+
+◆ Signed in as Sam Rivera · Acme
+  profile default · stored in ~/.dexto · your provider keys stay on this machine
+  Dexto models bill Cloud project Default.
+
+  Now available:
+  ◆ models & credits   ◆ connectors   ◆ Drive   ◆ Skills   ◆ memory
+  ◆ Sites & Apps   ◆ Loops   ◆ cloud computers   ◆ Projects
+
+  next: dexto  ·  chats sync to your dashboard from now on (/private, --no-sync)"
+`;
+
+exports[`Signal screens on no-color > at 124 columns > 1 first run 1`] = `
+"dexto
+
+Local agent harness. Cloud when you sign in.                                                         dexto 2.0.0 · first run
+
+P R E F L I G H T
+▪ terminal     none · 124×30 · unicode · dark background                                                                  OK
+▪ workspace    ~/code/acme-api · git main · 3 uncommitted                                                                 OK
+▪ local agent  read · edit · write · run · search · web · your MCP servers                                                OK
+▪ model        ANTHROPIC_API_KEY found · anthropic/claude-sonnet-4-5                                                      OK
+▫ cloud        signed out · local works fully without it                                                                SKIP
+
+1 stay local   dexto setup
+2 sign in      dexto login
+"
+`;
+
+exports[`Signal screens on no-color > at 124 columns > 3 signed in 1`] = `
+"◆ approved in the browser
+
+◆ Signed in as Sam Rivera · Acme
+  profile default · stored in ~/.dexto · your provider keys stay on this machine
+  Dexto models bill Cloud project Default.
+
+  Now available:
+  ◆ models & credits   ◆ connectors   ◆ Drive   ◆ Skills   ◆ memory   ◆ Sites & Apps   ◆ Loops   ◆ cloud computers
+  ◆ Projects
+
+  next: dexto  ·  chats sync to your dashboard from now on (/private, --no-sync)"
+`;
+
+exports[`Signal screens on truecolor-dark > 2 device code, waiting 1`] = `
+"␛[38;2;244;248;247m▄▀▀▀▀ ▀▀▀ ▄▀▀▀▀ █▄  █    ▀▀▀ █▄  █␛[39m    ␛[38;2;78;201;176m␛[1mdexto login --device␛[22m␛[39m
+␛[38;2;244;248;247m ▀▀▀▄  █  █  ▀█ █ ▀▄█     █  █ ▀▄█␛[39m    ␛[38;2;127;140;138mno browser on this machine, so: a code␛[39m
+␛[38;2;244;248;247m▀▀▀▀  ▀▀▀  ▀▀▀▀ ▀   ▀    ▀▀▀ ▀   ▀␛[39m
+
+␛[38;2;127;140;138mOpen ␛[39m␛]8;;https://app.dexto.ai/auth/device␇␛[38;2;226;141;240m␛[4mapp.dexto.ai/auth/device␛[24m␛[39m␛]8;;␇␛[38;2;127;140;138m on any device and enter:␛[39m
+␛[38;2;244;248;247m█  ▄▀ ▀▄ ▄▀ ▀▀▀▀█ ▀▀▀▀▄     █   █ ▄▀▀▀▄ ▄▀▀▀▄ ▀▀▀▀▄␛[39m
+␛[38;2;244;248;247m█▀▀▄   ▄▀     ▄▀  █▀▀█  ▀▀▀  ▀▀▀█  ▀▀▀█ █  ▄▀     █␛[39m
+␛[38;2;244;248;247m▀   ▀ ▀   ▀   ▀   ▀   ▀         ▀  ▀▀▀   ▀▀ ▀ ▀▀▀▀ ␛[39m
+
+␛[38;2;226;141;240m⠿␛[39m␛[38;2;127;140;138m waiting for you · expires in 9:41␛[39m"
+`;
+
+exports[`Signal screens on truecolor-dark > 3 signed in, no project 1`] = `
+"␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mapproved in the browser␛[39m
+
+␛[38;2;226;141;240m◆ ␛[39m␛[38;2;226;141;240m␛[1mSigned in as Sam Rivera · Acme␛[22m␛[39m
+␛[38;2;127;140;138m  profile work · stored in ~/.dexto · your provider keys stay on this machine␛[39m
+␛[38;2;244;181;74m  This organization has no Cloud project for Dexto models to bill.␛[39m
+␛[38;2;127;140;138m  Other commands still use another profile: pass ␛[39m␛[38;2;78;201;176m--profile work␛[39m␛[38;2;127;140;138m, or run ␛[39m␛[38;2;78;201;176mdexto accounts use work␛[39m
+
+␛[38;2;216;224;222m  Now available:␛[39m
+␛[38;2;216;224;222m  ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mmodels & credits   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mconnectors   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mDrive   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mSkills   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mmemory   ␛[39m
+␛[38;2;216;224;222m  ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mSites & Apps   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mLoops   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mcloud computers   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mProjects   ␛[39m
+
+␛[38;2;127;140;138m  next: ␛[39m␛[38;2;78;201;176mdexto␛[39m␛[38;2;127;140;138m  ·  chats sync to your dashboard from now on (/private, --no-sync)␛[39m"
+`;
+
+exports[`Signal screens on truecolor-dark > 4 browser, waiting 1`] = `
+"␛[38;2;244;248;247m▄▀▀▀▀ ▀▀▀ ▄▀▀▀▀ █▄  █    ▀▀▀ █▄  █␛[39m    ␛[38;2;78;201;176m␛[1mdexto login␛[22m␛[39m
+␛[38;2;244;248;247m ▀▀▀▄  █  █  ▀█ █ ▀▄█     █  █ ▀▄█␛[39m    ␛[38;2;127;140;138mopened app.dexto.ai in your browser␛[39m
+␛[38;2;244;248;247m▀▀▀▀  ▀▀▀  ▀▀▀▀ ▀   ▀    ▀▀▀ ▀   ▀␛[39m
+
+␛[38;2;127;140;138mBrowser didn't open? Use this link:␛[39m
+␛]8;;https://app.dexto.ai/oauth/authorize?client_id=dexto-cli&response_type=code&state=s␇␛[38;2;226;141;240m␛[4mhttps://app.dexto.ai/oauth/authorize?client_id=dexto-cli&response_type=code&state=s␛[24m␛[39m␛]8;;␇
+
+␛[38;2;226;141;240m⠿␛[39m␛[38;2;127;140;138m waiting for you in the browser · 0:06␛[39m"
+`;
+
+exports[`Signal screens on truecolor-dark > 5 whoami 1`] = `
+"␛[38;2;226;141;240m◆ ␛[39m␛[38;2;226;141;240m␛[1mSigned in as Sam Rivera␛[22m␛[39m␛[38;2;216;224;222m  sam@acme.co␛[39m
+␛[38;2;127;140;138m  org       ␛[39m␛[38;2;216;224;222mAcme (acme)␛[39m
+␛[38;2;127;140;138m  project   ␛[39m␛[38;2;216;224;222mDefault␛[39m
+␛[38;2;127;140;138m  access    ␛[39m␛[38;2;127;140;138mcloud:read drive:read memory:read␛[39m
+␛[38;2;127;140;138m  profile   ␛[39m␛[38;2;216;224;222mdefault␛[39m
+␛[38;2;127;140;138m  app       ␛[39m␛]8;;https://app.dexto.ai␇␛[38;2;226;141;240m␛[4mhttps://app.dexto.ai␛[24m␛[39m␛]8;;␇
+
+␛[38;2;127;140;138m  switch: ␛[39m␛[38;2;78;201;176mdexto login --profile <name>␛[39m␛[38;2;127;140;138m · sign out: ␛[39m␛[38;2;78;201;176mdexto logout␛[39m"
+`;
+
+exports[`Signal screens on truecolor-dark > 5 whoami, no project 1`] = `
+"␛[38;2;226;141;240m◆ ␛[39m␛[38;2;226;141;240m␛[1mSigned in as Sam Rivera␛[22m␛[39m␛[38;2;216;224;222m  sam@acme.co␛[39m
+␛[38;2;127;140;138m  org       ␛[39m␛[38;2;216;224;222mAcme (acme)␛[39m
+␛[38;2;127;140;138m  project   ␛[39m␛[38;2;244;181;74mnone: Dexto models can't bill␛[39m
+␛[38;2;127;140;138m  access    ␛[39m␛[38;2;127;140;138mcloud:read drive:read memory:read␛[39m
+␛[38;2;127;140;138m  profile   ␛[39m␛[38;2;216;224;222mdefault␛[39m
+␛[38;2;127;140;138m  app       ␛[39m␛]8;;https://app.dexto.ai␇␛[38;2;226;141;240m␛[4mhttps://app.dexto.ai␛[24m␛[39m␛]8;;␇
+
+␛[38;2;127;140;138m  switch: ␛[39m␛[38;2;78;201;176mdexto login --profile <name>␛[39m␛[38;2;127;140;138m · sign out: ␛[39m␛[38;2;78;201;176mdexto logout␛[39m"
+`;
+
+exports[`Signal screens on truecolor-dark > 5 whoami, signed out 1`] = `
+"␛[38;2;78;201;176m◇ ␛[39m␛[38;2;127;140;138mNot signed in · local works fully without it␛[39m
+␛[38;2;127;140;138m  sign in: ␛[39m␛[38;2;78;201;176mdexto login␛[39m"
+`;
+
+exports[`Signal screens on truecolor-dark > 6 fault 1`] = `
+"␛[38;2;216;224;222m  ␛[39m␛[38;2;255;110;97m▌␛[39m␛[38;2;216;224;222m ␛[39m␛[38;2;255;110;97m␛[1mFAULT   ␛[22m␛[39m␛[38;2;244;248;247m␛[1mThis sign-in cannot write to Drive. · insufficient_scope␛[22m␛[39m
+␛[38;2;216;224;222m  ␛[39m␛[38;2;154;74;67m▌␛[39m␛[38;2;216;224;222m ␛[39m␛[38;2;127;140;138mdetails ␛[39m␛[38;2;127;140;138m{"scope":"drive:write"}␛[39m
+␛[38;2;216;224;222m  ␛[39m␛[38;2;154;74;67m▌␛[39m␛[38;2;216;224;222m ␛[39m␛[38;2;127;140;138mnext    ␛[39m␛[38;2;244;181;74mdexto login --scope drive:write␛[39m"
+`;
+
+exports[`Signal screens on truecolor-dark > 6 usage mistake 1`] = `
+"␛[38;2;216;224;222m  ␛[39m␛[38;2;255;110;97m▌␛[39m␛[38;2;216;224;222m ␛[39m␛[38;2;255;110;97m␛[1mFAULT   ␛[22m␛[39m␛[38;2;244;248;247m␛[1mUnknown command: dexto cloud projcts␛[22m␛[39m
+
+␛[38;2;127;140;138m  every command: ␛[39m␛[38;2;78;201;176mdexto --help␛[39m"
+`;
+
+exports[`Signal screens on truecolor-dark > 7 help 1`] = `
+"␛[38;2;244;248;247m␛[1mdexto␛[22m␛[39m␛[38;2;59;70;68m  2.0.0  ␛[39m␛[38;2;216;224;222myour agent harness, local and cloud␛[39m
+
+␛[38;2;127;140;138m  S T A R T␛[39m
+␛[38;2;78;201;176m  dexto          ␛[39m␛[38;2;127;140;138mStart the agent here, in this folder␛[39m
+␛[38;2;78;201;176m  dexto -c       ␛[39m␛[38;2;127;140;138mContinue the most recent chat␛[39m
+␛[38;2;78;201;176m  dexto -r <id>  ␛[39m␛[38;2;127;140;138mResume a chat by id␛[39m
+␛[38;2;78;201;176m  run            ␛[39m␛[38;2;127;140;138mRun a single prompt non-interactively (headless mode)␛[39m
+
+␛[38;2;127;140;138m  C H A T␛[39m
+␛[38;2;78;201;176m  chat           ␛[39m␛[38;2;127;140;138mYour chats: this machine's sessions␛[39m
+
+␛[38;2;127;140;138m  C L O U D␛[39m
+␛[38;2;78;201;176m  publish        ␛[39m␛[38;2;127;140;138mPublish a file, folder or .zip as a link anyone with it can open␛[39m
+
+␛[38;2;127;140;138m  A C C O U N T␛[39m
+␛[38;2;78;201;176m  login          ␛[39m␛[38;2;127;140;138mSign in to Dexto with your browser or a device code␛[39m
+␛[38;2;78;201;176m  whoami         ␛[39m␛[38;2;127;140;138mShow who Dexto commands act as␛[39m
+␛[38;2;78;201;176m  logout         ␛[39m␛[38;2;127;140;138mEnd the sign-in on the server and forget it here␛[39m
+
+␛[38;2;127;140;138m  L O C A L␛[39m
+␛[38;2;78;201;176m  setup          ␛[39m␛[38;2;127;140;138mConfigure global Dexto preferences␛[39m
+
+␛[38;2;127;140;138m  O P T I O N S␛[39m
+␛[38;2;78;201;176m  --json         ␛[39m␛[38;2;127;140;138mPrint JSON; the default when stdout isn't a terminal␛[39m
+␛[38;2;78;201;176m  --stream-json  ␛[39m␛[38;2;127;140;138mdexto run: JSON events, one per line␛[39m
+␛[38;2;78;201;176m  --profile      ␛[39m␛[38;2;127;140;138mUse a saved sign-in for one run␛[39m
+␛[38;2;78;201;176m  --mode <mode>  ␛[39m␛[38;2;127;140;138mweb | cli | server | mcp␛[39m
+␛[38;2;78;201;176m  -h, --help     ␛[39m␛[38;2;127;140;138mdisplay help for command␛[39m
+
+␛[38;2;127;140;138m  help for one command: ␛[39m␛[38;2;78;201;176mdexto <command> --help␛[39m␛[38;2;127;140;138m · ␛[39m␛]8;;https://cli.dexto.ai␇␛[38;2;226;141;240m␛[4mcli.dexto.ai␛[24m␛[39m␛]8;;␇"
+`;
+
+exports[`Signal screens on truecolor-dark > 7 help, one command 1`] = `
+"␛[38;2;244;248;247m␛[1mdexto login [options]␛[22m␛[39m
+␛[38;2;216;224;222mSign in to Dexto with your browser.␛[39m
+
+␛[38;2;127;140;138m  O P T I O N S␛[39m
+␛[38;2;78;201;176m  --device    ␛[39m␛[38;2;127;140;138mApprove a code on any device.␛[39m
+␛[38;2;78;201;176m  --org ORG   ␛[39m␛[38;2;127;140;138mSign in for this organization.␛[39m"
+`;
+
+exports[`Signal screens on truecolor-dark > 8 update 1`] = `"␛[38;2;216;224;222m  ␛[39m␛[38;2;140;106;46m▌␛[39m␛[38;2;216;224;222m ␛[39m␛[38;2;244;181;74m␛[1mUPDATE  ␛[22m␛[39m␛[38;2;216;224;222mdexto 2.2.0 is out (you have 2.1.0) · run ␛[39m␛[38;2;78;201;176mdexto upgrade␛[39m"`;
+
+exports[`Signal screens on truecolor-dark > at 80 columns > 1 first run 1`] = `
+"␛[38;2;216;224;222m ␛[39m␛[38;2;47;127;112m▗␛[39m␛[38;2;216;224;222m ␛[39m␛[38;2;78;201;176m▄▜▞▌␛[39m␛[38;2;216;224;222m   ␛[39m␛[38;2;244;248;247m▀▀▀▄␛[39m␛[38;2;216;224;222m  ␛[39m␛[38;2;244;248;247m▀▀▀▀␛[39m␛[38;2;216;224;222m  ␛[39m␛[38;2;244;248;247m▜▄▄▛␛[39m␛[38;2;216;224;222m  ␛[39m␛[38;2;244;248;247m▀▀▀▀␛[39m␛[38;2;216;224;222m ␛[39m␛[38;2;244;248;247m▗▛▘▝▚▖␛[39m
+␛[38;2;47;127;112m▝▘␛[39m␛[38;2;216;224;222m  ␛[39m␛[38;2;78;201;176m▚▚▚␛[39m␛[38;2;216;224;222m      ␛[39m␛[38;2;244;248;247m█▘␛[39m␛[38;2;216;224;222m ␛[39m␛[38;2;244;248;247m▀▀▀▘␛[39m␛[38;2;216;224;222m  ␛[39m␛[38;2;244;248;247m▗█▚▖␛[39m␛[38;2;216;224;222m   ␛[39m␛[38;2;244;248;247m▐▌␛[39m␛[38;2;216;224;222m  ␛[39m␛[38;2;244;248;247m▜▖␛[39m␛[38;2;216;224;222m  ␛[39m␛[38;2;244;248;247m▐▌␛[39m
+␛[38;2;216;224;222m    ␛[39m␛[38;2;78;201;176m▝▛▘␛[39m␛[38;2;216;224;222m   ␛[39m␛[38;2;244;248;247m▀▀▀␛[39m␛[38;2;216;224;222m   ␛[39m␛[38;2;244;248;247m▀▀▀▀␛[39m␛[38;2;216;224;222m  ␛[39m␛[38;2;244;248;247m▀␛[39m␛[38;2;216;224;222m  ␛[39m␛[38;2;244;248;247m▀▘␛[39m␛[38;2;216;224;222m  ␛[39m␛[38;2;244;248;247m▝▘␛[39m␛[38;2;216;224;222m   ␛[39m␛[38;2;244;248;247m▀▘▝▘␛[39m␛[38;2;216;224;222m ␛[39m
+
+␛[38;2;216;224;222mLocal agent harness. Cloud when you sign in.␛[39m␛[38;2;216;224;222m             ␛[39m␛[38;2;59;70;68mdexto 2.0.0 · first run␛[39m
+
+␛[38;2;127;140;138mP R E F L I G H T␛[39m
+␛[38;2;78;201;176m▪ ␛[39m␛[38;2;244;248;247mterminal     ␛[39m␛[38;2;127;140;138mtruecolor · 80×30 · unicode · dark background␛[39m␛[38;2;216;224;222m                  ␛[39m␛[38;2;78;201;176mOK␛[39m
+␛[38;2;78;201;176m▪ ␛[39m␛[38;2;244;248;247mworkspace    ␛[39m␛[38;2;127;140;138m~/code/acme-api · git main · 3 uncommitted␛[39m␛[38;2;216;224;222m                     ␛[39m␛[38;2;78;201;176mOK␛[39m
+␛[38;2;78;201;176m▪ ␛[39m␛[38;2;244;248;247mlocal agent  ␛[39m␛[38;2;127;140;138mread · edit · write · run · search · web · your MCP servers␛[39m␛[38;2;216;224;222m    ␛[39m␛[38;2;78;201;176mOK␛[39m
+␛[38;2;78;201;176m▪ ␛[39m␛[38;2;244;248;247mmodel        ␛[39m␛[38;2;127;140;138mANTHROPIC_API_KEY found · anthropic/claude-sonnet-4-5␛[39m␛[38;2;216;224;222m          ␛[39m␛[38;2;78;201;176mOK␛[39m
+␛[38;2;59;70;68m▫ ␛[39m␛[38;2;244;248;247mcloud        ␛[39m␛[38;2;127;140;138msigned out · local works fully without it␛[39m␛[38;2;216;224;222m                    ␛[39m␛[38;2;59;70;68mSKIP␛[39m
+
+␛[38;2;244;248;247m␛[1m1␛[22m␛[39m␛[38;2;127;140;138m stay local   ␛[39m␛[38;2;78;201;176mdexto setup␛[39m
+␛[38;2;244;248;247m␛[1m2␛[22m␛[39m␛[38;2;127;140;138m sign in      ␛[39m␛[38;2;78;201;176mdexto login␛[39m
+"
+`;
+
+exports[`Signal screens on truecolor-dark > at 80 columns > 3 signed in 1`] = `
+"␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mapproved in the browser␛[39m
+
+␛[38;2;226;141;240m◆ ␛[39m␛[38;2;226;141;240m␛[1mSigned in as Sam Rivera · Acme␛[22m␛[39m
+␛[38;2;127;140;138m  profile default · stored in ~/.dexto · your provider keys stay on this machine␛[39m
+␛[38;2;127;140;138m  Dexto models bill Cloud project Default.␛[39m
+
+␛[38;2;216;224;222m  Now available:␛[39m
+␛[38;2;216;224;222m  ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mmodels & credits   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mconnectors   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mDrive   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mSkills   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mmemory   ␛[39m
+␛[38;2;216;224;222m  ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mSites & Apps   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mLoops   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mcloud computers   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mProjects   ␛[39m
+
+␛[38;2;127;140;138m  next: ␛[39m␛[38;2;78;201;176mdexto␛[39m␛[38;2;127;140;138m  ·  chats sync to your dashboard from now on (/private, --no-sync)␛[39m"
+`;
+
+exports[`Signal screens on truecolor-dark > at 124 columns > 1 first run 1`] = `
+"␛[38;2;216;224;222m       ␛[39m␛[38;2;78;201;176m▀▀▜▄▖␛[39m␛[38;2;216;224;222m        ␛[39m␛[38;2;244;248;247m██████▄▄␛[39m␛[38;2;216;224;222m      ␛[39m␛[38;2;244;248;247m▐█████████▌␛[39m␛[38;2;216;224;222m   ␛[39m␛[38;2;244;248;247m▀██▖␛[39m␛[38;2;216;224;222m    ␛[39m␛[38;2;244;248;247m▟█▛▘␛[39m␛[38;2;216;224;222m  ␛[39m␛[38;2;244;248;247m▐██████████▌␛[39m␛[38;2;216;224;222m    ␛[39m␛[38;2;244;248;247m▄▟█␛[39m␛[38;2;216;224;222m  ␛[39m␛[38;2;244;248;247m▐█▄▖␛[39m␛[38;2;216;224;222m  ␛[39m
+␛[38;2;216;224;222m  ␛[39m␛[38;2;47;127;112m▄␛[39m␛[38;2;78;201;176m▝██▀▀█▖▝█▖␛[39m␛[38;2;216;224;222m            ␛[39m␛[38;2;244;248;247m▝▀██▖␛[39m␛[38;2;216;224;222m                   ␛[39m␛[38;2;244;248;247m▝▜█▙␛[39m␛[38;2;216;224;222m ␛[39m␛[38;2;244;248;247m▗██▀␛[39m␛[38;2;216;224;222m                  ␛[39m␛[38;2;244;248;247m▗██▀␛[39m␛[38;2;216;224;222m    ␛[39m␛[38;2;244;248;247m▝▜██▖␛[39m
+␛[38;2;78;201;176m▗▜▞␛[39m␛[38;2;216;224;222m  ␛[39m␛[38;2;78;201;176m▝▜▌▐█␛[39m␛[38;2;216;224;222m ␛[39m␛[38;2;78;201;176m█▘␛[39m␛[38;2;216;224;222m              ␛[39m␛[38;2;244;248;247m▐██␛[39m␛[38;2;216;224;222m    ␛[39m␛[38;2;244;248;247m▗▄▄▄▄▄▄▄▄▖␛[39m␛[38;2;216;224;222m       ␛[39m␛[38;2;244;248;247m▀███▛▘␛[39m␛[38;2;216;224;222m         ␛[39m␛[38;2;244;248;247m▐██␛[39m␛[38;2;216;224;222m      ␛[39m␛[38;2;244;248;247m▗██▘␛[39m␛[38;2;216;224;222m       ␛[39m␛[38;2;244;248;247m▜█▙␛[39m
+␛[38;2;78;201;176m▘▀␛[39m␛[38;2;216;224;222m    ␛[39m␛[38;2;78;201;176m▝▌▟▘▐▛▗▌␛[39m␛[38;2;216;224;222m             ␛[39m␛[38;2;244;248;247m▐██␛[39m␛[38;2;216;224;222m    ␛[39m␛[38;2;244;248;247m▝▀▀▀▀▀▀▀▀▘␛[39m␛[38;2;216;224;222m       ␛[39m␛[38;2;244;248;247m▄██▀␛[39m␛[38;2;216;224;222m ␛[39m␛[38;2;244;248;247m▖␛[39m␛[38;2;216;224;222m         ␛[39m␛[38;2;244;248;247m▐██␛[39m␛[38;2;216;224;222m      ␛[39m␛[38;2;244;248;247m▝██▖␛[39m␛[38;2;216;224;222m       ␛[39m␛[38;2;244;248;247m▐█▛␛[39m
+␛[38;2;216;224;222m      ␛[39m␛[38;2;47;127;112m▗␛[39m␛[38;2;78;201;176m▞▘▟▀▄▛▘␛[39m␛[38;2;216;224;222m           ␛[39m␛[38;2;244;248;247m▗▄██▘␛[39m␛[38;2;216;224;222m                   ␛[39m␛[38;2;244;248;247m▗▟█▛␛[39m␛[38;2;216;224;222m  ␛[39m␛[38;2;244;248;247m██▄␛[39m␛[38;2;216;224;222m        ␛[39m␛[38;2;244;248;247m▐██␛[39m␛[38;2;216;224;222m       ␛[39m␛[38;2;244;248;247m▀██▄␛[39m␛[38;2;216;224;222m    ␛[39m␛[38;2;244;248;247m▗▟█▛▘␛[39m
+␛[38;2;216;224;222m       ␛[39m␛[38;2;47;127;112m▖␛[39m␛[38;2;78;201;176m▀▄▞▀␛[39m␛[38;2;216;224;222m        ␛[39m␛[38;2;244;248;247m██████▀▀␛[39m␛[38;2;216;224;222m      ␛[39m␛[38;2;244;248;247m▐█████████▌␛[39m␛[38;2;216;224;222m   ␛[39m␛[38;2;244;248;247m▟█▛▘␛[39m␛[38;2;216;224;222m    ␛[39m␛[38;2;244;248;247m▜██▖␛[39m␛[38;2;216;224;222m      ␛[39m␛[38;2;244;248;247m▝██␛[39m␛[38;2;216;224;222m         ␛[39m␛[38;2;244;248;247m▀▜█␛[39m␛[38;2;216;224;222m  ␛[39m␛[38;2;244;248;247m▐█▀▀␛[39m␛[38;2;216;224;222m  ␛[39m
+
+␛[38;2;216;224;222mLocal agent harness. Cloud when you sign in.␛[39m␛[38;2;216;224;222m                                                         ␛[39m␛[38;2;59;70;68mdexto 2.0.0 · first run␛[39m
+
+␛[38;2;127;140;138mP R E F L I G H T␛[39m
+␛[38;2;78;201;176m▪ ␛[39m␛[38;2;244;248;247mterminal     ␛[39m␛[38;2;127;140;138mtruecolor · 124×30 · unicode · dark background␛[39m␛[38;2;216;224;222m                                                             ␛[39m␛[38;2;78;201;176mOK␛[39m
+␛[38;2;78;201;176m▪ ␛[39m␛[38;2;244;248;247mworkspace    ␛[39m␛[38;2;127;140;138m~/code/acme-api · git main · 3 uncommitted␛[39m␛[38;2;216;224;222m                                                                 ␛[39m␛[38;2;78;201;176mOK␛[39m
+␛[38;2;78;201;176m▪ ␛[39m␛[38;2;244;248;247mlocal agent  ␛[39m␛[38;2;127;140;138mread · edit · write · run · search · web · your MCP servers␛[39m␛[38;2;216;224;222m                                                ␛[39m␛[38;2;78;201;176mOK␛[39m
+␛[38;2;78;201;176m▪ ␛[39m␛[38;2;244;248;247mmodel        ␛[39m␛[38;2;127;140;138mANTHROPIC_API_KEY found · anthropic/claude-sonnet-4-5␛[39m␛[38;2;216;224;222m                                                      ␛[39m␛[38;2;78;201;176mOK␛[39m
+␛[38;2;59;70;68m▫ ␛[39m␛[38;2;244;248;247mcloud        ␛[39m␛[38;2;127;140;138msigned out · local works fully without it␛[39m␛[38;2;216;224;222m                                                                ␛[39m␛[38;2;59;70;68mSKIP␛[39m
+
+␛[38;2;244;248;247m␛[1m1␛[22m␛[39m␛[38;2;127;140;138m stay local   ␛[39m␛[38;2;78;201;176mdexto setup␛[39m
+␛[38;2;244;248;247m␛[1m2␛[22m␛[39m␛[38;2;127;140;138m sign in      ␛[39m␛[38;2;78;201;176mdexto login␛[39m
+"
+`;
+
+exports[`Signal screens on truecolor-dark > at 124 columns > 3 signed in 1`] = `
+"␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mapproved in the browser␛[39m
+
+␛[38;2;226;141;240m◆ ␛[39m␛[38;2;226;141;240m␛[1mSigned in as Sam Rivera · Acme␛[22m␛[39m
+␛[38;2;127;140;138m  profile default · stored in ~/.dexto · your provider keys stay on this machine␛[39m
+␛[38;2;127;140;138m  Dexto models bill Cloud project Default.␛[39m
+
+␛[38;2;216;224;222m  Now available:␛[39m
+␛[38;2;216;224;222m  ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mmodels & credits   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mconnectors   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mDrive   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mSkills   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mmemory   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mSites & Apps   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mLoops   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mcloud computers   ␛[39m
+␛[38;2;216;224;222m  ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mProjects   ␛[39m
+
+␛[38;2;127;140;138m  next: ␛[39m␛[38;2;78;201;176mdexto␛[39m␛[38;2;127;140;138m  ·  chats sync to your dashboard from now on (/private, --no-sync)␛[39m"
+`;
+
+exports[`Signal screens on truecolor-light > 2 device code, waiting 1`] = `
+"␛[38;2;5;8;7m▄▀▀▀▀ ▀▀▀ ▄▀▀▀▀ █▄  █    ▀▀▀ █▄  █␛[39m    ␛[38;2;11;122;104m␛[1mdexto login --device␛[22m␛[39m
+␛[38;2;5;8;7m ▀▀▀▄  █  █  ▀█ █ ▀▄█     █  █ ▀▄█␛[39m    ␛[38;2;94;106;104mno browser on this machine, so: a code␛[39m
+␛[38;2;5;8;7m▀▀▀▀  ▀▀▀  ▀▀▀▀ ▀   ▀    ▀▀▀ ▀   ▀␛[39m
+
+␛[38;2;94;106;104mOpen ␛[39m␛]8;;https://app.dexto.ai/auth/device␇␛[38;2;158;42;156m␛[4mapp.dexto.ai/auth/device␛[24m␛[39m␛]8;;␇␛[38;2;94;106;104m on any device and enter:␛[39m
+␛[38;2;5;8;7m█  ▄▀ ▀▄ ▄▀ ▀▀▀▀█ ▀▀▀▀▄     █   █ ▄▀▀▀▄ ▄▀▀▀▄ ▀▀▀▀▄␛[39m
+␛[38;2;5;8;7m█▀▀▄   ▄▀     ▄▀  █▀▀█  ▀▀▀  ▀▀▀█  ▀▀▀█ █  ▄▀     █␛[39m
+␛[38;2;5;8;7m▀   ▀ ▀   ▀   ▀   ▀   ▀         ▀  ▀▀▀   ▀▀ ▀ ▀▀▀▀ ␛[39m
+
+␛[38;2;158;42;156m⠿␛[39m␛[38;2;94;106;104m waiting for you · expires in 9:41␛[39m"
+`;
+
+exports[`Signal screens on truecolor-light > 3 signed in, no project 1`] = `
+"␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mapproved in the browser␛[39m
+
+␛[38;2;158;42;156m◆ ␛[39m␛[38;2;158;42;156m␛[1mSigned in as Sam Rivera · Acme␛[22m␛[39m
+␛[38;2;94;106;104m  profile work · stored in ~/.dexto · your provider keys stay on this machine␛[39m
+␛[38;2;149;90;0m  This organization has no Cloud project for Dexto models to bill.␛[39m
+␛[38;2;94;106;104m  Other commands still use another profile: pass ␛[39m␛[38;2;11;122;104m--profile work␛[39m␛[38;2;94;106;104m, or run ␛[39m␛[38;2;11;122;104mdexto accounts use work␛[39m
+
+␛[38;2;27;34;33m  Now available:␛[39m
+␛[38;2;27;34;33m  ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mmodels & credits   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mconnectors   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mDrive   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mSkills   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mmemory   ␛[39m
+␛[38;2;27;34;33m  ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mSites & Apps   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mLoops   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mcloud computers   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mProjects   ␛[39m
+
+␛[38;2;94;106;104m  next: ␛[39m␛[38;2;11;122;104mdexto␛[39m␛[38;2;94;106;104m  ·  chats sync to your dashboard from now on (/private, --no-sync)␛[39m"
+`;
+
+exports[`Signal screens on truecolor-light > 4 browser, waiting 1`] = `
+"␛[38;2;5;8;7m▄▀▀▀▀ ▀▀▀ ▄▀▀▀▀ █▄  █    ▀▀▀ █▄  █␛[39m    ␛[38;2;11;122;104m␛[1mdexto login␛[22m␛[39m
+␛[38;2;5;8;7m ▀▀▀▄  █  █  ▀█ █ ▀▄█     █  █ ▀▄█␛[39m    ␛[38;2;94;106;104mopened app.dexto.ai in your browser␛[39m
+␛[38;2;5;8;7m▀▀▀▀  ▀▀▀  ▀▀▀▀ ▀   ▀    ▀▀▀ ▀   ▀␛[39m
+
+␛[38;2;94;106;104mBrowser didn't open? Use this link:␛[39m
+␛]8;;https://app.dexto.ai/oauth/authorize?client_id=dexto-cli&response_type=code&state=s␇␛[38;2;158;42;156m␛[4mhttps://app.dexto.ai/oauth/authorize?client_id=dexto-cli&response_type=code&state=s␛[24m␛[39m␛]8;;␇
+
+␛[38;2;158;42;156m⠿␛[39m␛[38;2;94;106;104m waiting for you in the browser · 0:06␛[39m"
+`;
+
+exports[`Signal screens on truecolor-light > 5 whoami 1`] = `
+"␛[38;2;158;42;156m◆ ␛[39m␛[38;2;158;42;156m␛[1mSigned in as Sam Rivera␛[22m␛[39m␛[38;2;27;34;33m  sam@acme.co␛[39m
+␛[38;2;94;106;104m  org       ␛[39m␛[38;2;27;34;33mAcme (acme)␛[39m
+␛[38;2;94;106;104m  project   ␛[39m␛[38;2;27;34;33mDefault␛[39m
+␛[38;2;94;106;104m  access    ␛[39m␛[38;2;94;106;104mcloud:read drive:read memory:read␛[39m
+␛[38;2;94;106;104m  profile   ␛[39m␛[38;2;27;34;33mdefault␛[39m
+␛[38;2;94;106;104m  app       ␛[39m␛]8;;https://app.dexto.ai␇␛[38;2;158;42;156m␛[4mhttps://app.dexto.ai␛[24m␛[39m␛]8;;␇
+
+␛[38;2;94;106;104m  switch: ␛[39m␛[38;2;11;122;104mdexto login --profile <name>␛[39m␛[38;2;94;106;104m · sign out: ␛[39m␛[38;2;11;122;104mdexto logout␛[39m"
+`;
+
+exports[`Signal screens on truecolor-light > 5 whoami, no project 1`] = `
+"␛[38;2;158;42;156m◆ ␛[39m␛[38;2;158;42;156m␛[1mSigned in as Sam Rivera␛[22m␛[39m␛[38;2;27;34;33m  sam@acme.co␛[39m
+␛[38;2;94;106;104m  org       ␛[39m␛[38;2;27;34;33mAcme (acme)␛[39m
+␛[38;2;94;106;104m  project   ␛[39m␛[38;2;149;90;0mnone: Dexto models can't bill␛[39m
+␛[38;2;94;106;104m  access    ␛[39m␛[38;2;94;106;104mcloud:read drive:read memory:read␛[39m
+␛[38;2;94;106;104m  profile   ␛[39m␛[38;2;27;34;33mdefault␛[39m
+␛[38;2;94;106;104m  app       ␛[39m␛]8;;https://app.dexto.ai␇␛[38;2;158;42;156m␛[4mhttps://app.dexto.ai␛[24m␛[39m␛]8;;␇
+
+␛[38;2;94;106;104m  switch: ␛[39m␛[38;2;11;122;104mdexto login --profile <name>␛[39m␛[38;2;94;106;104m · sign out: ␛[39m␛[38;2;11;122;104mdexto logout␛[39m"
+`;
+
+exports[`Signal screens on truecolor-light > 5 whoami, signed out 1`] = `
+"␛[38;2;11;122;104m◇ ␛[39m␛[38;2;94;106;104mNot signed in · local works fully without it␛[39m
+␛[38;2;94;106;104m  sign in: ␛[39m␛[38;2;11;122;104mdexto login␛[39m"
+`;
+
+exports[`Signal screens on truecolor-light > 6 fault 1`] = `
+"␛[38;2;27;34;33m  ␛[39m␛[38;2;194;40;27m▌␛[39m␛[38;2;27;34;33m ␛[39m␛[38;2;194;40;27m␛[1mFAULT   ␛[22m␛[39m␛[38;2;5;8;7m␛[1mThis sign-in cannot write to Drive. · insufficient_scope␛[22m␛[39m
+␛[38;2;27;34;33m  ␛[39m␛[38;2;217;139;131m▌␛[39m␛[38;2;27;34;33m ␛[39m␛[38;2;94;106;104mdetails ␛[39m␛[38;2;94;106;104m{"scope":"drive:write"}␛[39m
+␛[38;2;27;34;33m  ␛[39m␛[38;2;217;139;131m▌␛[39m␛[38;2;27;34;33m ␛[39m␛[38;2;94;106;104mnext    ␛[39m␛[38;2;149;90;0mdexto login --scope drive:write␛[39m"
+`;
+
+exports[`Signal screens on truecolor-light > 6 usage mistake 1`] = `
+"␛[38;2;27;34;33m  ␛[39m␛[38;2;194;40;27m▌␛[39m␛[38;2;27;34;33m ␛[39m␛[38;2;194;40;27m␛[1mFAULT   ␛[22m␛[39m␛[38;2;5;8;7m␛[1mUnknown command: dexto cloud projcts␛[22m␛[39m
+
+␛[38;2;94;106;104m  every command: ␛[39m␛[38;2;11;122;104mdexto --help␛[39m"
+`;
+
+exports[`Signal screens on truecolor-light > 7 help 1`] = `
+"␛[38;2;5;8;7m␛[1mdexto␛[22m␛[39m␛[38;2;186;196;193m  2.0.0  ␛[39m␛[38;2;27;34;33myour agent harness, local and cloud␛[39m
+
+␛[38;2;94;106;104m  S T A R T␛[39m
+␛[38;2;11;122;104m  dexto          ␛[39m␛[38;2;94;106;104mStart the agent here, in this folder␛[39m
+␛[38;2;11;122;104m  dexto -c       ␛[39m␛[38;2;94;106;104mContinue the most recent chat␛[39m
+␛[38;2;11;122;104m  dexto -r <id>  ␛[39m␛[38;2;94;106;104mResume a chat by id␛[39m
+␛[38;2;11;122;104m  run            ␛[39m␛[38;2;94;106;104mRun a single prompt non-interactively (headless mode)␛[39m
+
+␛[38;2;94;106;104m  C H A T␛[39m
+␛[38;2;11;122;104m  chat           ␛[39m␛[38;2;94;106;104mYour chats: this machine's sessions␛[39m
+
+␛[38;2;94;106;104m  C L O U D␛[39m
+␛[38;2;11;122;104m  publish        ␛[39m␛[38;2;94;106;104mPublish a file, folder or .zip as a link anyone with it can open␛[39m
+
+␛[38;2;94;106;104m  A C C O U N T␛[39m
+␛[38;2;11;122;104m  login          ␛[39m␛[38;2;94;106;104mSign in to Dexto with your browser or a device code␛[39m
+␛[38;2;11;122;104m  whoami         ␛[39m␛[38;2;94;106;104mShow who Dexto commands act as␛[39m
+␛[38;2;11;122;104m  logout         ␛[39m␛[38;2;94;106;104mEnd the sign-in on the server and forget it here␛[39m
+
+␛[38;2;94;106;104m  L O C A L␛[39m
+␛[38;2;11;122;104m  setup          ␛[39m␛[38;2;94;106;104mConfigure global Dexto preferences␛[39m
+
+␛[38;2;94;106;104m  O P T I O N S␛[39m
+␛[38;2;11;122;104m  --json         ␛[39m␛[38;2;94;106;104mPrint JSON; the default when stdout isn't a terminal␛[39m
+␛[38;2;11;122;104m  --stream-json  ␛[39m␛[38;2;94;106;104mdexto run: JSON events, one per line␛[39m
+␛[38;2;11;122;104m  --profile      ␛[39m␛[38;2;94;106;104mUse a saved sign-in for one run␛[39m
+␛[38;2;11;122;104m  --mode <mode>  ␛[39m␛[38;2;94;106;104mweb | cli | server | mcp␛[39m
+␛[38;2;11;122;104m  -h, --help     ␛[39m␛[38;2;94;106;104mdisplay help for command␛[39m
+
+␛[38;2;94;106;104m  help for one command: ␛[39m␛[38;2;11;122;104mdexto <command> --help␛[39m␛[38;2;94;106;104m · ␛[39m␛]8;;https://cli.dexto.ai␇␛[38;2;158;42;156m␛[4mcli.dexto.ai␛[24m␛[39m␛]8;;␇"
+`;
+
+exports[`Signal screens on truecolor-light > 7 help, one command 1`] = `
+"␛[38;2;5;8;7m␛[1mdexto login [options]␛[22m␛[39m
+␛[38;2;27;34;33mSign in to Dexto with your browser.␛[39m
+
+␛[38;2;94;106;104m  O P T I O N S␛[39m
+␛[38;2;11;122;104m  --device    ␛[39m␛[38;2;94;106;104mApprove a code on any device.␛[39m
+␛[38;2;11;122;104m  --org ORG   ␛[39m␛[38;2;94;106;104mSign in for this organization.␛[39m"
+`;
+
+exports[`Signal screens on truecolor-light > 8 update 1`] = `"␛[38;2;27;34;33m  ␛[39m␛[38;2;201;160;97m▌␛[39m␛[38;2;27;34;33m ␛[39m␛[38;2;149;90;0m␛[1mUPDATE  ␛[22m␛[39m␛[38;2;27;34;33mdexto 2.2.0 is out (you have 2.1.0) · run ␛[39m␛[38;2;11;122;104mdexto upgrade␛[39m"`;
+
+exports[`Signal screens on truecolor-light > at 80 columns > 1 first run 1`] = `
+"␛[38;2;27;34;33m ␛[39m␛[38;2;62;143;128m▗␛[39m␛[38;2;27;34;33m ␛[39m␛[38;2;11;122;104m▄▜▞▌␛[39m␛[38;2;27;34;33m   ␛[39m␛[38;2;5;8;7m▀▀▀▄␛[39m␛[38;2;27;34;33m  ␛[39m␛[38;2;5;8;7m▀▀▀▀␛[39m␛[38;2;27;34;33m  ␛[39m␛[38;2;5;8;7m▜▄▄▛␛[39m␛[38;2;27;34;33m  ␛[39m␛[38;2;5;8;7m▀▀▀▀␛[39m␛[38;2;27;34;33m ␛[39m␛[38;2;5;8;7m▗▛▘▝▚▖␛[39m
+␛[38;2;62;143;128m▝▘␛[39m␛[38;2;27;34;33m  ␛[39m␛[38;2;11;122;104m▚▚▚␛[39m␛[38;2;27;34;33m      ␛[39m␛[38;2;5;8;7m█▘␛[39m␛[38;2;27;34;33m ␛[39m␛[38;2;5;8;7m▀▀▀▘␛[39m␛[38;2;27;34;33m  ␛[39m␛[38;2;5;8;7m▗█▚▖␛[39m␛[38;2;27;34;33m   ␛[39m␛[38;2;5;8;7m▐▌␛[39m␛[38;2;27;34;33m  ␛[39m␛[38;2;5;8;7m▜▖␛[39m␛[38;2;27;34;33m  ␛[39m␛[38;2;5;8;7m▐▌␛[39m
+␛[38;2;27;34;33m    ␛[39m␛[38;2;11;122;104m▝▛▘␛[39m␛[38;2;27;34;33m   ␛[39m␛[38;2;5;8;7m▀▀▀␛[39m␛[38;2;27;34;33m   ␛[39m␛[38;2;5;8;7m▀▀▀▀␛[39m␛[38;2;27;34;33m  ␛[39m␛[38;2;5;8;7m▀␛[39m␛[38;2;27;34;33m  ␛[39m␛[38;2;5;8;7m▀▘␛[39m␛[38;2;27;34;33m  ␛[39m␛[38;2;5;8;7m▝▘␛[39m␛[38;2;27;34;33m   ␛[39m␛[38;2;5;8;7m▀▘▝▘␛[39m␛[38;2;27;34;33m ␛[39m
+
+␛[38;2;27;34;33mLocal agent harness. Cloud when you sign in.␛[39m␛[38;2;27;34;33m             ␛[39m␛[38;2;186;196;193mdexto 2.0.0 · first run␛[39m
+
+␛[38;2;94;106;104mP R E F L I G H T␛[39m
+␛[38;2;11;122;104m▪ ␛[39m␛[38;2;5;8;7mterminal     ␛[39m␛[38;2;94;106;104mtruecolor · 80×30 · unicode · light background␛[39m␛[38;2;27;34;33m                 ␛[39m␛[38;2;11;122;104mOK␛[39m
+␛[38;2;11;122;104m▪ ␛[39m␛[38;2;5;8;7mworkspace    ␛[39m␛[38;2;94;106;104m~/code/acme-api · git main · 3 uncommitted␛[39m␛[38;2;27;34;33m                     ␛[39m␛[38;2;11;122;104mOK␛[39m
+␛[38;2;11;122;104m▪ ␛[39m␛[38;2;5;8;7mlocal agent  ␛[39m␛[38;2;94;106;104mread · edit · write · run · search · web · your MCP servers␛[39m␛[38;2;27;34;33m    ␛[39m␛[38;2;11;122;104mOK␛[39m
+␛[38;2;11;122;104m▪ ␛[39m␛[38;2;5;8;7mmodel        ␛[39m␛[38;2;94;106;104mANTHROPIC_API_KEY found · anthropic/claude-sonnet-4-5␛[39m␛[38;2;27;34;33m          ␛[39m␛[38;2;11;122;104mOK␛[39m
+␛[38;2;186;196;193m▫ ␛[39m␛[38;2;5;8;7mcloud        ␛[39m␛[38;2;94;106;104msigned out · local works fully without it␛[39m␛[38;2;27;34;33m                    ␛[39m␛[38;2;186;196;193mSKIP␛[39m
+
+␛[38;2;5;8;7m␛[1m1␛[22m␛[39m␛[38;2;94;106;104m stay local   ␛[39m␛[38;2;11;122;104mdexto setup␛[39m
+␛[38;2;5;8;7m␛[1m2␛[22m␛[39m␛[38;2;94;106;104m sign in      ␛[39m␛[38;2;11;122;104mdexto login␛[39m
+"
+`;
+
+exports[`Signal screens on truecolor-light > at 80 columns > 3 signed in 1`] = `
+"␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mapproved in the browser␛[39m
+
+␛[38;2;158;42;156m◆ ␛[39m␛[38;2;158;42;156m␛[1mSigned in as Sam Rivera · Acme␛[22m␛[39m
+␛[38;2;94;106;104m  profile default · stored in ~/.dexto · your provider keys stay on this machine␛[39m
+␛[38;2;94;106;104m  Dexto models bill Cloud project Default.␛[39m
+
+␛[38;2;27;34;33m  Now available:␛[39m
+␛[38;2;27;34;33m  ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mmodels & credits   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mconnectors   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mDrive   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mSkills   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mmemory   ␛[39m
+␛[38;2;27;34;33m  ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mSites & Apps   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mLoops   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mcloud computers   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mProjects   ␛[39m
+
+␛[38;2;94;106;104m  next: ␛[39m␛[38;2;11;122;104mdexto␛[39m␛[38;2;94;106;104m  ·  chats sync to your dashboard from now on (/private, --no-sync)␛[39m"
+`;
+
+exports[`Signal screens on truecolor-light > at 124 columns > 1 first run 1`] = `
+"␛[38;2;27;34;33m       ␛[39m␛[38;2;11;122;104m▀▀▜▄▖␛[39m␛[38;2;27;34;33m        ␛[39m␛[38;2;5;8;7m██████▄▄␛[39m␛[38;2;27;34;33m      ␛[39m␛[38;2;5;8;7m▐█████████▌␛[39m␛[38;2;27;34;33m   ␛[39m␛[38;2;5;8;7m▀██▖␛[39m␛[38;2;27;34;33m    ␛[39m␛[38;2;5;8;7m▟█▛▘␛[39m␛[38;2;27;34;33m  ␛[39m␛[38;2;5;8;7m▐██████████▌␛[39m␛[38;2;27;34;33m    ␛[39m␛[38;2;5;8;7m▄▟█␛[39m␛[38;2;27;34;33m  ␛[39m␛[38;2;5;8;7m▐█▄▖␛[39m␛[38;2;27;34;33m  ␛[39m
+␛[38;2;27;34;33m  ␛[39m␛[38;2;62;143;128m▄␛[39m␛[38;2;11;122;104m▝██▀▀█▖▝█▖␛[39m␛[38;2;27;34;33m            ␛[39m␛[38;2;5;8;7m▝▀██▖␛[39m␛[38;2;27;34;33m                   ␛[39m␛[38;2;5;8;7m▝▜█▙␛[39m␛[38;2;27;34;33m ␛[39m␛[38;2;5;8;7m▗██▀␛[39m␛[38;2;27;34;33m                  ␛[39m␛[38;2;5;8;7m▗██▀␛[39m␛[38;2;27;34;33m    ␛[39m␛[38;2;5;8;7m▝▜██▖␛[39m
+␛[38;2;11;122;104m▗▜▞␛[39m␛[38;2;27;34;33m  ␛[39m␛[38;2;11;122;104m▝▜▌▐█␛[39m␛[38;2;27;34;33m ␛[39m␛[38;2;11;122;104m█▘␛[39m␛[38;2;27;34;33m              ␛[39m␛[38;2;5;8;7m▐██␛[39m␛[38;2;27;34;33m    ␛[39m␛[38;2;5;8;7m▗▄▄▄▄▄▄▄▄▖␛[39m␛[38;2;27;34;33m       ␛[39m␛[38;2;5;8;7m▀███▛▘␛[39m␛[38;2;27;34;33m         ␛[39m␛[38;2;5;8;7m▐██␛[39m␛[38;2;27;34;33m      ␛[39m␛[38;2;5;8;7m▗██▘␛[39m␛[38;2;27;34;33m       ␛[39m␛[38;2;5;8;7m▜█▙␛[39m
+␛[38;2;11;122;104m▘▀␛[39m␛[38;2;27;34;33m    ␛[39m␛[38;2;11;122;104m▝▌▟▘▐▛▗▌␛[39m␛[38;2;27;34;33m             ␛[39m␛[38;2;5;8;7m▐██␛[39m␛[38;2;27;34;33m    ␛[39m␛[38;2;5;8;7m▝▀▀▀▀▀▀▀▀▘␛[39m␛[38;2;27;34;33m       ␛[39m␛[38;2;5;8;7m▄██▀␛[39m␛[38;2;27;34;33m ␛[39m␛[38;2;5;8;7m▖␛[39m␛[38;2;27;34;33m         ␛[39m␛[38;2;5;8;7m▐██␛[39m␛[38;2;27;34;33m      ␛[39m␛[38;2;5;8;7m▝██▖␛[39m␛[38;2;27;34;33m       ␛[39m␛[38;2;5;8;7m▐█▛␛[39m
+␛[38;2;27;34;33m      ␛[39m␛[38;2;62;143;128m▗␛[39m␛[38;2;11;122;104m▞▘▟▀▄▛▘␛[39m␛[38;2;27;34;33m           ␛[39m␛[38;2;5;8;7m▗▄██▘␛[39m␛[38;2;27;34;33m                   ␛[39m␛[38;2;5;8;7m▗▟█▛␛[39m␛[38;2;27;34;33m  ␛[39m␛[38;2;5;8;7m██▄␛[39m␛[38;2;27;34;33m        ␛[39m␛[38;2;5;8;7m▐██␛[39m␛[38;2;27;34;33m       ␛[39m␛[38;2;5;8;7m▀██▄␛[39m␛[38;2;27;34;33m    ␛[39m␛[38;2;5;8;7m▗▟█▛▘␛[39m
+␛[38;2;27;34;33m       ␛[39m␛[38;2;62;143;128m▖␛[39m␛[38;2;11;122;104m▀▄▞▀␛[39m␛[38;2;27;34;33m        ␛[39m␛[38;2;5;8;7m██████▀▀␛[39m␛[38;2;27;34;33m      ␛[39m␛[38;2;5;8;7m▐█████████▌␛[39m␛[38;2;27;34;33m   ␛[39m␛[38;2;5;8;7m▟█▛▘␛[39m␛[38;2;27;34;33m    ␛[39m␛[38;2;5;8;7m▜██▖␛[39m␛[38;2;27;34;33m      ␛[39m␛[38;2;5;8;7m▝██␛[39m␛[38;2;27;34;33m         ␛[39m␛[38;2;5;8;7m▀▜█␛[39m␛[38;2;27;34;33m  ␛[39m␛[38;2;5;8;7m▐█▀▀␛[39m␛[38;2;27;34;33m  ␛[39m
+
+␛[38;2;27;34;33mLocal agent harness. Cloud when you sign in.␛[39m␛[38;2;27;34;33m                                                         ␛[39m␛[38;2;186;196;193mdexto 2.0.0 · first run␛[39m
+
+␛[38;2;94;106;104mP R E F L I G H T␛[39m
+␛[38;2;11;122;104m▪ ␛[39m␛[38;2;5;8;7mterminal     ␛[39m␛[38;2;94;106;104mtruecolor · 124×30 · unicode · light background␛[39m␛[38;2;27;34;33m                                                            ␛[39m␛[38;2;11;122;104mOK␛[39m
+␛[38;2;11;122;104m▪ ␛[39m␛[38;2;5;8;7mworkspace    ␛[39m␛[38;2;94;106;104m~/code/acme-api · git main · 3 uncommitted␛[39m␛[38;2;27;34;33m                                                                 ␛[39m␛[38;2;11;122;104mOK␛[39m
+␛[38;2;11;122;104m▪ ␛[39m␛[38;2;5;8;7mlocal agent  ␛[39m␛[38;2;94;106;104mread · edit · write · run · search · web · your MCP servers␛[39m␛[38;2;27;34;33m                                                ␛[39m␛[38;2;11;122;104mOK␛[39m
+␛[38;2;11;122;104m▪ ␛[39m␛[38;2;5;8;7mmodel        ␛[39m␛[38;2;94;106;104mANTHROPIC_API_KEY found · anthropic/claude-sonnet-4-5␛[39m␛[38;2;27;34;33m                                                      ␛[39m␛[38;2;11;122;104mOK␛[39m
+␛[38;2;186;196;193m▫ ␛[39m␛[38;2;5;8;7mcloud        ␛[39m␛[38;2;94;106;104msigned out · local works fully without it␛[39m␛[38;2;27;34;33m                                                                ␛[39m␛[38;2;186;196;193mSKIP␛[39m
+
+␛[38;2;5;8;7m␛[1m1␛[22m␛[39m␛[38;2;94;106;104m stay local   ␛[39m␛[38;2;11;122;104mdexto setup␛[39m
+␛[38;2;5;8;7m␛[1m2␛[22m␛[39m␛[38;2;94;106;104m sign in      ␛[39m␛[38;2;11;122;104mdexto login␛[39m
+"
+`;
+
+exports[`Signal screens on truecolor-light > at 124 columns > 3 signed in 1`] = `
+"␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mapproved in the browser␛[39m
+
+␛[38;2;158;42;156m◆ ␛[39m␛[38;2;158;42;156m␛[1mSigned in as Sam Rivera · Acme␛[22m␛[39m
+␛[38;2;94;106;104m  profile default · stored in ~/.dexto · your provider keys stay on this machine␛[39m
+␛[38;2;94;106;104m  Dexto models bill Cloud project Default.␛[39m
+
+␛[38;2;27;34;33m  Now available:␛[39m
+␛[38;2;27;34;33m  ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mmodels & credits   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mconnectors   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mDrive   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mSkills   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mmemory   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mSites & Apps   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mLoops   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mcloud computers   ␛[39m
+␛[38;2;27;34;33m  ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mProjects   ␛[39m
+
+␛[38;2;94;106;104m  next: ␛[39m␛[38;2;11;122;104mdexto␛[39m␛[38;2;94;106;104m  ·  chats sync to your dashboard from now on (/private, --no-sync)␛[39m"
+`;

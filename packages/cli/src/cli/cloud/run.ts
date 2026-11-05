@@ -8,6 +8,7 @@ import { jsonError } from '../output.js';
 import { CloudApiError, createCloudClient } from '@dexto/cloud-client';
 import {
     MissingScopeFailure,
+    readValue,
     signInCommand,
     UsageError,
     type Command,
@@ -23,6 +24,9 @@ import {
     type WorkspaceApp,
 } from './commands/workspace-apps.js';
 import { createOutput, type OutputFormat } from './output.js';
+import { forStream, signalOn } from '@dexto/tui/signal-text';
+import { failureLines } from '../screens/fault.js';
+import { pageHelpLines, type HelpSection } from '../screens/help.js';
 import type { CloudRuntime } from './runtime.js';
 
 /** One area of commands in help, such as `projects` under `cloud`. */
@@ -52,7 +56,8 @@ export const GLOBAL_OPTIONS: Readonly<Record<string, OptionSpec>> = {
         valueName: 'URL',
     },
     'api-key': {
-        description: 'Use this key instead of DEXTO_API_KEY or the saved sign-in.',
+        description:
+            'Use this key instead of DEXTO_API_KEY or the saved sign-in; pass - to read it from stdin, or no value to be asked.',
         type: 'string',
         valueName: 'KEY',
     },
@@ -95,13 +100,13 @@ async function run(host: CloudHost, argv: readonly string[], mayGrant: boolean):
     const { runtime } = host;
     let globals: Globals;
     try {
-        globals = extractGlobals(argv);
+        globals = await extractGlobals(runtime, argv);
     } catch (error) {
         // The format isn't settled yet: JSON as asked, or when no one reads stdout.
         return reportError(
             { overrides: NO_OVERRIDES, runtime },
             argv.includes('--json') || !runtime.stdoutIsTerminal,
-            groupHelp(host, argv.slice(0, 1)),
+            { text: groupHelp(host, argv.slice(0, 1)), command: 'dexto --help' },
             error
         );
     }
@@ -115,7 +120,7 @@ async function run(host: CloudHost, argv: readonly string[], mayGrant: boolean):
             return reportError(
                 { overrides: globals.overrides, runtime },
                 createOutput(runtime, globals.format).json,
-                groupHelp(host, words.slice(0, 1)),
+                { text: groupHelp(host, words.slice(0, 1)), command: 'dexto --help' },
                 new UsageError(`Unknown command: dexto ${words.join(' ')}`)
             );
         return printHelp(runtime, globals, groupHelp(host, words), groupHelpJson(host, words));
@@ -155,7 +160,12 @@ async function run(host: CloudHost, argv: readonly string[], mayGrant: boolean):
             (await askToGrant(host, globals.overrides, error))
         )
             return await run(host, argv, false);
-        return reportError(signIn, output.json, commandHelp(command), error);
+        return reportError(
+            signIn,
+            output.json,
+            { text: commandHelp(command), command: `dexto ${command.path.join(' ')} --help` },
+            error
+        );
     }
 }
 
@@ -200,7 +210,12 @@ async function runWorkspace(
             (await askToGrant(host, globals.overrides, error))
         )
             return await run(host, argv, false);
-        return reportError(context, output.json, workspaceHelp(host, null), error);
+        return reportError(
+            context,
+            output.json,
+            { text: workspaceHelp(host, null), command: 'dexto workspace --help' },
+            error
+        );
     }
 }
 
@@ -301,11 +316,18 @@ interface FailureReport {
     readonly message: string;
 }
 
+/** Help for where a failure happened: its text, and the command that prints it. */
+interface Help {
+    readonly text: string;
+    readonly command: string;
+}
+
 /**
  * Prints a failure and returns its exit code: JSON on stderr for agents, otherwise a message with
- * the command's usage (for a usage mistake) or the command that fixes it.
+ * the command's usage (for a usage mistake) or the command that fixes it. On Signal, the fault
+ * block, and a usage mistake points at help instead of printing it.
  */
-function reportError(context: SignInContext, json: boolean, help: string, error: unknown): number {
+function reportError(context: SignInContext, json: boolean, help: Help, error: unknown): number {
     const { runtime } = context;
     const failure = describeFailure(context, error);
     if (json) {
@@ -318,8 +340,12 @@ function reportError(context: SignInContext, json: boolean, help: string, error:
                 ...(failure.details === null ? {} : { details: failure.details }),
             })
         );
+    } else if (signalOn()) {
+        runtime.writeError(
+            `${forStream(process.stderr.isTTY === true, failureLines(failure, help.command)).join('\n')}\n`
+        );
     } else if (failure.code === 'usage') {
-        runtime.writeError(`${failure.message}\n\n${help}`);
+        runtime.writeError(`${failure.message}\n\n${help.text}`);
     } else {
         runtime.writeError(
             `Error${failure.apiCode === null ? '' : ` (${failure.apiCode})`}: ${failure.message}\n`
@@ -379,8 +405,12 @@ interface Globals {
     readonly rest: readonly string[];
 }
 
-/** Takes the global options out wherever they appear, before the command's own parsing. */
-function extractGlobals(argv: readonly string[]): Globals {
+/**
+ * Takes the global options out wherever they appear, before the command's own parsing.
+ * `--api-key -` reads the key from stdin, and `--api-key` with no value asks for it, so the key
+ * needn't sit in the shell history.
+ */
+async function extractGlobals(runtime: CloudRuntime, argv: readonly string[]): Promise<Globals> {
     const rest: string[] = [];
     let apiBaseUrl: string | null = null;
     let apiKey: string | null = null;
@@ -407,8 +437,13 @@ function extractGlobals(argv: readonly string[]): Globals {
             const value = inline ?? argv[index + 1];
             // Never take another option as the value, so `--project --api-key KEY` can't leave
             // the key behind as a word that gets printed back.
-            if (value === undefined || (inline === null && value.startsWith('-')))
-                throw new UsageError(`Missing value for ${name}.`);
+            const missing = value === undefined || (inline === null && value.startsWith('-'));
+            if (name === '--api-key' && (missing || value === '-')) {
+                if (value === '-') index += 1;
+                apiKey = await readValue({ runtime }, 'Dexto API key: ', true);
+                continue;
+            }
+            if (missing) throw new UsageError(`Missing value for ${name}.`);
             if (inline === null) index += 1;
             if (name === '--api-key') apiKey = value;
             else {
@@ -487,6 +522,17 @@ function printHelp(runtime: CloudRuntime, globals: Globals, text: string, json: 
 /** A layer's own areas when it has them, otherwise its commands with their usage. */
 function groupHelp(host: CloudHost, words: readonly string[]): string {
     const areas = host.groups[words.join(' ')];
+    if (signalOn()) {
+        const rows =
+            areas?.map((group) => ({ term: group.name, description: group.summary })) ??
+            host.commands
+                .filter((command) => startsWith(command.path, words))
+                .map((command) => ({ term: usage(command), description: command.summary }));
+        return signalPage(`dexto ${words.join(' ')} <command>`, '', [
+            { title: 'commands', rows },
+            ...(areas === undefined ? [] : [optionSection('global options', GLOBAL_OPTIONS)]),
+        ]);
+    }
     if (areas !== undefined) {
         const width = Math.max(...areas.map((group) => group.name.length));
         return [
@@ -530,6 +576,17 @@ function groupHelpJson(host: CloudHost, words: readonly string[]): Record<string
 }
 
 function commandHelp(command: Command): string {
+    if (signalOn())
+        return signalPage(
+            `dexto ${usage(command)}${command.options === undefined ? '' : ' [options]'}`,
+            command.summary,
+            [
+                ...(command.options === undefined
+                    ? []
+                    : [optionSection('options', command.options)]),
+                optionSection('global options', GLOBAL_OPTIONS),
+            ]
+        );
     return [
         `Usage: dexto ${usage(command)}${command.options === undefined ? '' : ' [options]'}`,
         '',
@@ -559,6 +616,22 @@ function usage(command: Command): string {
     return [...command.path, ...(command.arguments === undefined ? [] : [command.arguments])].join(
         ' '
     );
+}
+
+function signalPage(usageLine: string, summary: string, sections: readonly HelpSection[]): string {
+    return `${pageHelpLines(usageLine, summary, sections).join('\n')}\n`;
+}
+
+function optionSection(title: string, options: Readonly<Record<string, OptionSpec>>): HelpSection {
+    return {
+        title,
+        rows: Object.entries(options).map(([name, spec]) => ({
+            term: `${spec.short === undefined ? '' : `-${spec.short}, `}--${name}${
+                spec.type === 'string' ? ` ${spec.valueName ?? 'VALUE'}` : ''
+            }`,
+            description: spec.description,
+        })),
+    };
 }
 
 function optionLines(options: Readonly<Record<string, OptionSpec>>): string[] {

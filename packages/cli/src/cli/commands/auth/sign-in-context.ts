@@ -8,20 +8,25 @@ import { getDextoGlobalPath } from '@dexto/core';
 import { shouldAttemptBrowserLaunch } from '../../auth/browser-launch.js';
 import { DEXTO_PLATFORM_URL, DEXTO_PUBLIC_API_URL } from '../../auth/constants.js';
 import { nodeSignInRuntime } from '../../auth/sign-in-runtime.js';
-import type { SignInContext } from './sign-in-commands.js';
+import { terminalSignInScreen } from '../../screens/sign-in.js';
+import type { SignInContext, SignInScreen } from './sign-in-commands.js';
 
 /** Where results and notes go, and what cancels a sign-in; the terminal's by default. */
 export interface SignInIo {
     readonly result: (value: unknown, text: string) => void;
     readonly note: (text: string) => void;
+    readonly screen: SignInScreen;
     /** Asks the person; false when there is no one to ask. */
     readonly confirm: (question: string) => Promise<boolean>;
     readonly signal: AbortSignal;
 }
 
+const toStderr = (text: string) => process.stderr.write(`${text}\n`);
+
 const TERMINAL: SignInIo = {
     result: (_value, text) => process.stdout.write(`${text}\n`),
-    note: (text) => process.stderr.write(`${text}\n`),
+    note: toStderr,
+    screen: terminalSignInScreen((text) => process.stderr.write(text), toStderr, false),
     confirm: async (question) => {
         if (!process.stdin.isTTY) return false;
         const answer = await p.confirm({ message: question, initialValue: false });
@@ -53,7 +58,7 @@ export async function carryOverEarlierSignIns(): Promise<void> {
 export async function nodeSignInContext(io: SignInIo = TERMINAL): Promise<SignInContext> {
     const dir = getDextoGlobalPath('accounts');
     await carryOverEarlierSignIns();
-    const runtime = { ...nodeSignInRuntime(io.signal), note: io.note };
+    const runtime = { ...nodeSignInRuntime(io.signal), prompt: io.screen.show };
     return {
         dir,
         environment: process.env,
@@ -61,8 +66,17 @@ export async function nodeSignInContext(io: SignInIo = TERMINAL): Promise<SignIn
         apiBaseUrl: DEXTO_PUBLIC_API_URL,
         result: io.result,
         note: io.note,
+        screen: io.screen,
         confirm: io.confirm,
         canOpenBrowser: shouldAttemptBrowserLaunch(),
+        chatSyncOn: async () => {
+            const { nodeChatSyncStore } = await import('../../chat-sync/node.js');
+            // Settings it can't read sync nothing, so the sign-in asks for no sync scope.
+            return await nodeChatSyncStore()
+                .readSettings()
+                .then((settings) => settings.sync === 'on')
+                .catch(() => false);
+        },
         dexto: {
             signInWithBrowser: (input) => dextoSignIn.signInWithBrowser(runtime, input),
             signInWithDevice: (input) => dextoSignIn.signInWithDevice(runtime, input),
