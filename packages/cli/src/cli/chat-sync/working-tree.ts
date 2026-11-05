@@ -19,11 +19,14 @@ export interface WorkingTree {
 
 /** Build using a private index; neither intent-to-add nor exclusions touch the user's staging. */
 export async function buildWorkingTree(cwd: string): Promise<WorkingTree> {
+    const repository = (
+        await exec('git', ['rev-parse', '--show-toplevel'], { cwd })
+    ).stdout.replace(/\r?\n$/u, '');
     const folder = await mkdtemp(path.join(tmpdir(), 'dexto-move-'));
     const cleanup = () => rm(folder, { recursive: true, force: true });
     const git = async (args: string[], env = process.env): Promise<Buffer> => {
         const { stdout } = await exec('git', args, {
-            cwd,
+            cwd: repository,
             env,
             encoding: 'buffer',
             maxBuffer: MAX_BUNDLE + 1,
@@ -89,7 +92,7 @@ export async function buildWorkingTree(cwd: string): Promise<WorkingTree> {
         // make the bundle carry an unscanned tree after the history check above.
         const bare = path.join(folder, 'repository.git');
         await git(['init', '--bare', bare]);
-        await git(['--git-dir=' + bare, 'fetch', '--no-tags', cwd, head_commit]);
+        await git(['--git-dir=' + bare, 'fetch', '--no-tags', repository, head_commit]);
         await git(['--git-dir=' + bare, 'update-ref', `refs/heads/${branch}`, head_commit]);
         await git(['--git-dir=' + bare, 'symbolic-ref', 'HEAD', `refs/heads/${branch}`]);
         await git(['--git-dir=' + bare, 'bundle', 'create', bundlePath, 'HEAD', branch]);

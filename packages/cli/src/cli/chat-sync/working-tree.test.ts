@@ -1,11 +1,11 @@
 import { execFile } from 'node:child_process';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { afterEach, expect, it } from 'vitest';
-import { buildWorkingTree } from './working-tree.js';
-import { applyReturnedTree } from './return-tree.js';
+import { buildWorkingTree, readLocalTreeCheckpoint } from './working-tree.js';
+import { applyReturnedTree, recoverAbandonedReturn } from './return-tree.js';
 import { describeObject } from './move.js';
 
 const run = promisify(execFile);
@@ -55,6 +55,23 @@ it('refuses a secret-shaped file in history even after it was deleted', async ()
     await run('git', ['rm', '.env.fake'], { cwd });
     await run('git', ['commit', '-m', 'remove fake file'], { cwd });
     await expect(buildWorkingTree(cwd)).rejects.toThrow('secret-shaped');
+});
+
+it('moves the whole repository when the chat started in a nested folder', async () => {
+    const cwd = await repository();
+    const nested = path.join(cwd, 'packages', 'example');
+    await mkdir(nested, { recursive: true });
+    await writeFile(path.join(cwd, 'code.txt'), 'root change\n');
+    await writeFile(path.join(nested, 'nested.txt'), 'nested change\n');
+    const tree = await buildWorkingTree(nested);
+    try {
+        expect(tree.patch?.toString()).toContain('diff --git a/code.txt b/code.txt');
+        expect(tree.patch?.toString()).toContain(
+            'diff --git a/packages/example/nested.txt b/packages/example/nested.txt'
+        );
+    } finally {
+        await tree.cleanup();
+    }
 });
 
 it('applies a returned patch and preserves a local backup of the handed-off changes', async () => {
@@ -170,4 +187,18 @@ it('fetches and fast-forwards returned commits from the incremental cloud bundle
     } finally {
         await tree.cleanup();
     }
+});
+
+it('restarts an expired applied or resumed return from the applied tree while protecting new local work', async () => {
+    const cwd = await repository();
+    const original = await readLocalTreeCheckpoint(cwd);
+    await writeFile(path.join(cwd, 'code.txt'), 'already-applied cloud work\n');
+    const appliedTree = await readLocalTreeCheckpoint(cwd);
+    const recovered = await recoverAbandonedReturn(cwd, { ...original, phase: 'applied', moveId: 'expired-move', appliedTree });
+    expect(recovered).toEqual({ ...appliedTree, phase: 'cloud' });
+    expect(await recoverAbandonedReturn(cwd, { ...original, phase: 'resumed', moveId: 'expired-move', appliedTree, nextIndex: 20, sentCount: 5 })).toEqual(recovered);
+    expect(await readFile(path.join(cwd, 'code.txt'), 'utf8')).toBe('already-applied cloud work\n');
+    await writeFile(path.join(cwd, 'code.txt'), 'new local work after apply\n');
+    await expect(recoverAbandonedReturn(cwd, { ...original, phase: 'applied', moveId: 'expired-move', appliedTree })).rejects.toThrow('changed');
+    expect(await readFile(path.join(cwd, 'code.txt'), 'utf8')).toBe('new local work after apply\n');
 });
