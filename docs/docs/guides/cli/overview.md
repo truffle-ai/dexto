@@ -1,29 +1,33 @@
 ---
 sidebar_position: 1
-title: 'Overview'
+title: "Overview"
 ---
 
 # CLI Overview
 
 The Dexto CLI provides two ways to interact with AI agents:
 
-| Mode                 | What It Is                                                                               | How to Use                                    |
-| -------------------- | ---------------------------------------------------------------------------------------- | --------------------------------------------- |
-| **CLI Tool**         | Terminal commands for chats, headless runs, your sign-in, Dexto Cloud and your workspace | `dexto run`, `dexto chat list`, `dexto login` |
-| **Interactive Mode** | Chat session with slash commands for real-time control                                   | `/model switch`, `/mcp add`, `/search`        |
+| Mode | What It Is | How to Use |
+|------|------------|------------|
+| **CLI Tool** | Terminal commands for chats, headless runs, your sign-in, Dexto Cloud and your workspace | `dexto run`, `dexto chat list`, `dexto login` |
+| **Interactive Mode** | Chat session with slash commands for real-time control | `/model switch`, `/mcp add`, `/search` |
 
 This guide covers the **CLI Tool** commands. For slash commands available during chat, see [Interactive Commands](./interactive-commands.md).
 
-## What You Can Do
+## Install
 
-Use Node.js 22 with npm (the declared minimum is Node.js 20). `@next` selects the
+Node.js 20 or later works; 22 is recommended. Use npm. `@next` selects the
 Dexto 2.0 beta; `@latest` selects 1.x. Install once:
 
 ```sh
-npm install -g dexto@next && echo 'Next: dexto login --device'
+npm install -g dexto@next
 ```
 
-Then run `dexto login --device`. Show the person its URL and code and wait for them to approve.
+If npm fails with EACCES, don't use sudo; use the [install script](https://dexto.ai/docs/cli/#install-script)
+(installs under `~/.dexto`, no admin).
+
+`dexto login --device` prints a link and code on stderr, then waits for approval. Run it so you
+can read its output while it waits, and pass both to the person.
 Do not approve sign-in on their behalf. Check the first account result:
 
 ```sh
@@ -34,6 +38,8 @@ Success is exit 0 with your account identity. Signed-out account commands exit 3
 `needs_sign_in`; for a headless machine, run `dexto login --device` and retry. Installation and
 `dexto --version` need no sign-in. Account and workspace requests do; model runs also need a
 configured model or credits. This check starts no model run.
+
+## What You Can Do
 
 - Talk to any LLM in your terminal
 - Run long-lived AI agents with tools, knowledge, and memories
@@ -61,19 +67,19 @@ The first start needs a model: a provider key in the environment (such as `ANTHR
 
 ### Main Command Options
 
-| Flag                                      | Description                                               | Example                           |
-| ----------------------------------------- | --------------------------------------------------------- | --------------------------------- |
-| `-v, --version`                           | Show version                                              | `dexto --version`                 |
-| `-a, --agent <id\|path>`                  | Use agent ID or path to config file                       | `dexto -a nano-banana-agent`      |
-| `-p, --prompt <text>`                     | Start the interactive CLI and run the prompt              | `dexto -p "list files"`           |
-| `-m, --model <model>`                     | Specify LLM model                                         | `dexto -m gpt-5-mini`             |
-| `-c, --continue`                          | Continue most recent conversation                         | `dexto -c`                        |
-| `-r, --resume <sessionId>`                | Resume a specific session by ID                           | `dexto --resume my-session`       |
-| `-s, --strict`                            | Require all MCP servers to connect                        | `dexto --strict`                  |
-| `--no-verbose`                            | Disable verbose output                                    | `dexto --no-verbose`              |
-| `--no-interactive`                        | Disable interactive prompts                               | `dexto --no-interactive`          |
-| `--permissions-mode`                      | Select `manual` or `auto-approve` in TUI or headless mode | `dexto --permissions-mode manual` |
-| `--auto-approve` / `--bypass-permissions` | Select `auto-approve`; mandatory approvals still apply    | `dexto --auto-approve`            |
+| Flag | Description | Example |
+|------|-------------|---------|
+| `-v, --version` | Show version | `dexto --version` |
+| `-a, --agent <id\|path>` | Use agent ID or path to config file | `dexto -a nano-banana-agent` |
+| `-p, --prompt <text>` | Start the interactive CLI and run the prompt | `dexto -p "list files"` |
+| `-m, --model <model>` | Specify LLM model | `dexto -m gpt-5-mini` |
+| `-c, --continue` | Continue most recent conversation | `dexto -c` |
+| `-r, --resume <sessionId>` | Resume a specific session by ID | `dexto --resume my-session` |
+| `-s, --strict` | Require all MCP servers to connect | `dexto --strict` |
+| `--no-verbose` | Disable verbose output | `dexto --no-verbose` |
+| `--no-interactive` | Disable interactive prompts | `dexto --no-interactive` |
+| `--permissions-mode` | Select `manual` or `auto-approve` in TUI or headless mode | `dexto --permissions-mode manual` |
+| `--auto-approve` / `--bypass-permissions` | Select `auto-approve`; mandatory approvals still apply | `dexto --auto-approve` |
 
 **Note:** The `-a, --agent` flag accepts bundled agent IDs and paths to agent config files. See the [Agent Registry](/docs/guides/agent-registry) for available agents.
 
@@ -109,21 +115,17 @@ Signed in, every local session also gets the Dexto MCP as a server named `dexto`
 Upgrade the Dexto CLI itself. If an older npm global install is detected, this command migrates to native installer automatically.
 
 ```bash
-# Upgrade to latest
-dexto upgrade
-
-# Upgrade to a specific version
-dexto upgrade 1.6.8
+# Stay on the 2.0 beta channel
+dexto upgrade next
 ```
 
 **Options:**
-
 - `--dry-run` - Print install/migration commands without executing
 - `--force` - Force reinstall for native install target
 
 ### `uninstall` - Uninstall Dexto CLI
 
-Uninstall the Dexto CLI binary (agent removal is handled by `dexto agents uninstall`).
+Uninstall the Dexto CLI binary:
 
 ```bash
 # Remove CLI binary only (keeps ~/.dexto)
@@ -137,7 +139,6 @@ dexto uninstall --purge
 ```
 
 **Options:**
-
 - `--purge` - Remove `~/.dexto` completely
 - `--dry-run` - Show what would be removed
 

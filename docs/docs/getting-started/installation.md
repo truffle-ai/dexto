@@ -6,16 +6,20 @@ sidebar_position: 2
 
 This guide will walk you through installing the Dexto CLI and setting up your environment so you can start running agents.
 
-## Install and check your account
+## 1. Install and check your account
 
-Use Node.js 22 with npm (the declared minimum is Node.js 20). `@next` selects the
+Node.js 20 or later works; 22 is recommended. Use npm. `@next` selects the
 Dexto 2.0 beta; `@latest` selects 1.x. Install once:
 
 ```sh
-npm install -g dexto@next && echo 'Next: dexto login --device'
+npm install -g dexto@next
 ```
 
-Then run `dexto login --device`. Show the person its URL and code and wait for them to approve.
+If npm fails with EACCES, don't use sudo; use the [install script](https://dexto.ai/docs/cli/#install-script)
+(installs under `~/.dexto`, no admin).
+
+`dexto login --device` prints a link and code on stderr, then waits for approval. Run it so you
+can read its output while it waits, and pass both to the person.
 Do not approve sign-in on their behalf. Check the first account result:
 
 ```sh
@@ -37,7 +41,7 @@ curl -fsSL https://dexto.ai/install | sh -s -- --version next
 $env:DEXTO_VERSION = 'next'; irm https://dexto.ai/install.ps1 | iex
 ```
 
-The installer needs Node.js and npm, verifies the registry checksum, and installs without admin
+Node.js 20 or later works; 22 is recommended. The installer needs npm, verifies the registry checksum, and installs without admin
 rights under `~/.dexto/cli`. Add its printed bin directory to PATH (`~/.local/bin` on Unix;
 `%USERPROFILE%\.dexto\bin` on Windows). Then run `dexto login --device` and `dexto whoami --json`.
 The default is `latest` for 1.x upgrades; explicitly select `next` for 2.0.
@@ -55,7 +59,7 @@ dexto uninstall --purge
 
 ### PATH Troubleshooting
 
-If you had an older npm global install, `dexto upgrade` automatically migrates it to native.
+If you had an older npm global install, `dexto upgrade next` automatically migrates it to native.
 
 If your shell still resolves the wrong binary:
 
@@ -63,7 +67,7 @@ If your shell still resolves the wrong binary:
 which -a dexto
 ```
 
-Remove stale entries and run `dexto upgrade` again.
+Remove stale entries and run `dexto upgrade next` again.
 
 ## 2. Choose a Model
 
@@ -76,13 +80,13 @@ With neither, `dexto` points you to `dexto login`. Switch models anytime with `/
 
 ### Supported Providers
 
-| Category               | Providers                                                              |
-| ---------------------- | ---------------------------------------------------------------------- |
-| **Free Cloud**         | Google Gemini, Groq                                                    |
+| Category | Providers |
+|----------|-----------|
+| **Free Cloud** | Google Gemini, Groq |
 | **Local (No API key)** | Local Models, Ollama (requires [Ollama](https://ollama.com) installed) |
-| **Cloud**              | OpenAI, Anthropic, xAI, Cohere                                         |
-| **Gateways**           | OpenRouter, Glama, LiteLLM, OpenAI-Compatible                          |
-| **Enterprise**         | Google Vertex AI, AWS Bedrock                                          |
+| **Cloud** | OpenAI, Anthropic, xAI, Cohere |
+| **Gateways** | OpenRouter, Glama, LiteLLM, OpenAI-Compatible |
+| **Enterprise** | Google Vertex AI, AWS Bedrock |
 
 ## 3. Start Using Dexto
 

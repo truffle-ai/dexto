@@ -4,14 +4,18 @@ The Dexto CLI provides an interactive terminal interface for conversing with AI 
 
 ## Quick Start
 
-Use Node.js 22 with npm (the declared minimum is Node.js 20). `@next` selects the
+Node.js 20 or later works; 22 is recommended. Use npm. `@next` selects the
 Dexto 2.0 beta; `@latest` selects 1.x. Install once:
 
 ```sh
-npm install -g dexto@next && echo 'Next: dexto login --device'
+npm install -g dexto@next
 ```
 
-Then run `dexto login --device`. Show the person its URL and code and wait for them to approve.
+If npm fails with EACCES, don't use sudo; use the [install script](https://dexto.ai/docs/cli/#install-script)
+(installs under `~/.dexto`, no admin).
+
+`dexto login --device` prints a link and code on stderr, then waits for approval. Run it so you
+can read its output while it waits, and pass both to the person.
 Do not approve sign-in on their behalf. Check the first account result:
 
 ```sh
@@ -40,52 +44,47 @@ The first start needs a model: a provider key in the environment (such as `ANTHR
 
 `dexto` 2.0 is the cloud and infrastructure CLI around the local agent harness. These 1.x local-agent commands are gone:
 
-| 1.x                                                                        | Use instead                                                     |
-| -------------------------------------------------------------------------- | --------------------------------------------------------------- |
-| `dexto setup`, `dexto connect`                                             | `dexto login`, or a provider key in an env var                  |
-| `dexto agents install\|list`                                               | `dexto -a ./agent.yml`; hosted agents with `dexto cloud agents` |
-| `dexto init skill`                                                         | `dexto skills push` / `dexto skills sync`                       |
-| `dexto mcp call\|tools`                                                    | `dexto workspace call` / `dexto workspace tools`                |
-| `dexto search`                                                             | `dexto chat history`                                            |
-| `dexto --mode web`                                                         | the Dexto dashboard                                             |
-| `--mode server\|mcp`, `create-app`, `init-app`, `image`, `plugin`, `which` | no CLI replacement; build apps with the `@dexto/core` SDK       |
-| `dexto --agent triage-agent` (bundled demo)                                | removed: it ran its sub-agents with `--mode mcp`                |
+| 1.x | Use instead |
+| --- | --- |
+| `dexto setup`, `dexto connect` | `dexto login`, or a provider key in an env var |
+| `dexto agents install\|list` | `dexto -a ./agent.yml`; hosted agents with `dexto cloud agents` |
+| `dexto init skill` | `dexto skills push` / `dexto skills sync` |
+| `dexto mcp call\|tools` | `dexto workspace call` / `dexto workspace tools` |
+| `dexto search` | `dexto chat history` |
+| `dexto --mode web` | the Dexto dashboard |
+| `--mode server\|mcp`, `create-app`, `init-app`, `image`, `plugin`, `which` | no CLI replacement; build apps with the `@dexto/core` SDK |
+| `dexto --agent triage-agent` (bundled demo) | removed: it ran its sub-agents with `--mode mcp` |
 
 The rest of `agents`, `init` and `mcp`, plus `create-image`, `--image`, `--no-auto-install`, `--skip-setup`, `--dev` and `--port`, are removed without a replacement.
 
 ## CLI Features
 
 ### Interactive Chat
-
 - **Modern Terminal UI** - Built with Ink for a responsive, chat-optimized interface
 - **Real-time Streaming** - See AI responses as they're generated
 - **Message History** - Scroll through conversation with up/down arrows
 - **Auto-complete** - Slash commands and resource mentions with tab completion
 
 ### Slash Commands
-
 Type `/` to see available commands:
 
 - `/help` - Show available commands
 - `/model` - Switch LLM model (interactive selector)
 - `/session` - Manage chat sessions
-    - `/session list` - List all sessions
-    - `/session switch` - Switch to another session (interactive)
-    - `/session new` - Create new session
-    - `/session delete <id>` - Delete a session
+  - `/session list` - List all sessions
+  - `/session switch` - Switch to another session (interactive)
+  - `/session new` - Create new session
+  - `/session delete <id>` - Delete a session
 - `/clear` - Clear conversation history
 - `/exit` or `/quit` - Exit the CLI
 
 ### Resource References
-
 Use `@` to reference files and resources:
-
 - Type `@` at the start of input or after a space
 - Autocomplete shows available resources from MCP servers
 - Select with arrow keys and Enter
 
 ### Session Management
-
 - **New session**: Each CLI launch starts fresh (first message creates new session)
 - **Resume by ID**: `dexto -r <session-id>` (resume specific session)
 - **Resume interactively**: Use `/resume` or `/session switch` in CLI
@@ -93,7 +92,6 @@ Use `@` to reference files and resources:
 - **Read a chat**: `dexto chat history <session-id>`
 
 ### Model Switching
-
 ```bash
 # Switch model via command
 dexto -m gpt-4o
@@ -103,7 +101,6 @@ dexto -m gpt-4o
 ```
 
 ### Keyboard Shortcuts
-
 - **↑/↓** - Navigate input history
 - **Esc** - Cancel current operation or close overlays
 - **Ctrl+C** - Exit CLI (or cancel if processing)
@@ -113,7 +110,6 @@ dexto -m gpt-4o
 ## Advanced Usage
 
 ### Tool Confirmation
-
 ```bash
 # Auto-approve all tool executions
 dexto --auto-approve
@@ -123,7 +119,6 @@ dexto
 ```
 
 ### Custom Agents
-
 ```bash
 # Use a bundled agent by name
 dexto --agent coding-agent
@@ -133,7 +128,6 @@ dexto --agent ./my-agent.yml
 ```
 
 ### Headless Mode
-
 ```bash
 # One-shot query with output
 dexto -p "list files in current directory"
@@ -150,7 +144,6 @@ cat document.txt | dexto -p "summarize this"
 The CLI is built on a modern, maintainable architecture:
 
 ### Core Components
-
 - **InkCLIRefactored** - Main orchestrator using React Ink
 - **State Management** - Centralized reducer pattern for predictable state
 - **Custom Hooks** - Reusable logic (events, history, shortcuts, overlays)
@@ -158,7 +151,6 @@ The CLI is built on a modern, maintainable architecture:
 - **Base Components** - Reusable UI primitives (selectors, autocomplete)
 
 ### Code Structure
-
 ```text
 packages/cli/src/cli/ink-cli/
 ├── InkCLIRefactored.tsx       # Main component
@@ -177,25 +169,21 @@ packages/cli/src/cli/ink-cli/
 ## Troubleshooting
 
 ### CLI Not Starting
-
 - Ensure terminal supports UTF-8 and ANSI colors
 - Try setting `TERM=xterm-256color`
 - Check that Node.js >= 20.0.0
 
 ### Autocomplete Not Working
-
 - Make sure you're in interactive mode (not headless)
 - Type `/` for commands or `@` for resources
 - Arrow keys to navigate, Tab to load into input, Enter to select
 
 ### Session Not Found
-
 - List sessions: `dexto chat list`
 - Sessions are stored in `~/.dexto/sessions/` (or repo `.dexto/` in dev mode)
 - Use session ID from list output
 
 ### Model Not Available
-
 - Check configured providers in agent config
 - Ensure API keys are set in environment or `.env`
 - Use `/model` to see available models
@@ -203,7 +191,6 @@ packages/cli/src/cli/ink-cli/
 ## Development
 
 ### Dev Mode
-
 ```bash
 # Use repository configs (not global ~/.dexto)
 export DEXTO_DEV_MODE=true
@@ -211,14 +198,12 @@ dexto
 ```
 
 ### Hot Reload
-
 ```bash
 pnpm run build:cli
 dexto
 ```
 
 ### Testing
-
 ```bash
 # Unit tests
 pnpm run test:unit

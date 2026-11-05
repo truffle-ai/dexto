@@ -1,13 +1,17 @@
 Dexto 2.0 CLI: manage your Dexto cloud agents, chats, sandboxes and Sites, and run AI agents in your terminal.
 
-Use Node.js 22 with npm (the declared minimum is Node.js 20). `@next` selects the
+Node.js 20 or later works; 22 is recommended. Use npm. `@next` selects the
 Dexto 2.0 beta; `@latest` selects 1.x. Install once:
 
 ```sh
-npm install -g dexto@next && echo 'Next: dexto login --device'
+npm install -g dexto@next
 ```
 
-Then run `dexto login --device`. Show the person its URL and code and wait for them to approve.
+If npm fails with EACCES, don't use sudo; use the [install script](https://dexto.ai/docs/cli/#install-script)
+(installs under `~/.dexto`, no admin).
+
+`dexto login --device` prints a link and code on stderr, then waits for approval. Run it so you
+can read its output while it waits, and pass both to the person.
 Do not approve sign-in on their behalf. Check the first account result:
 
 ```sh
@@ -63,12 +67,12 @@ Dexto is an **agent harness**—the orchestration layer that turns LLMs into rel
 
 Think of it like an operating system for AI agents:
 
-| Component          | Analogy          | Role                                  |
-| ------------------ | ---------------- | ------------------------------------- |
-| **LLM**            | CPU              | Raw processing power                  |
-| **Context Window** | RAM              | Working memory                        |
-| **Dexto**          | Operating System | Orchestration, state, tools, recovery |
-| **Your Agent**     | Application      | Domain-specific logic and clients     |
+| Component | Analogy | Role |
+|-----------|---------|------|
+| **LLM** | CPU | Raw processing power |
+| **Context Window** | RAM | Working memory |
+| **Dexto** | Operating System | Orchestration, state, tools, recovery |
+| **Your Agent** | Application | Domain-specific logic and clients |
 
 ### Why Dexto?
 
@@ -99,7 +103,6 @@ dexto --agent coding-agent
 ```
 
 **What it can do:**
-
 - Build new apps from scratch
 - Read, write, and refactor code across your entire codebase
 - Execute shell commands and run tests
@@ -108,7 +111,6 @@ dexto --agent coding-agent
 - Work with any of 50+ LLMs (swap models mid-conversation)
 
 **Ready-to-use interfaces:**
-
 - **CLI** – Terminal-native with `/commands`, streaming output, and session management
 
 The coding agent is just one example of what you can build. Create your own agents by defining a YAML config—same architecture, your domain.
@@ -120,7 +122,8 @@ The coding agent is just one example of what you can build. Create your own agen
 ### Install
 
 ```bash
-# macOS / Linux / WSL (native installer, recommended)
+# Alternative: native installer (no sudo)
+# macOS / Linux / WSL
 curl -fsSL https://dexto.ai/install | sh -s -- --version next
 
 # Windows PowerShell
@@ -132,7 +135,6 @@ cd dexto && pnpm install && pnpm install-cli
 ```
 
 Upgrade/uninstall and migration troubleshooting live in docs:
-
 - Installation guide: https://cli.dexto.ai/docs/getting-started/installation
 - CLI command reference: https://cli.dexto.ai/docs/guides/cli/overview
 
@@ -168,15 +170,15 @@ Logs are stored in `~/.dexto/logs/`. Use `DEXTO_LOG_LEVEL=debug` for verbose out
 
 Switch models mid-conversation—no code changes, no restarts.
 
-| Provider       | Models                                                       |
-| -------------- | ------------------------------------------------------------ |
-| **OpenAI**     | gpt-5.2, gpt-5.2-pro, gpt-5.2-codex, o4-mini                 |
-| **Anthropic**  | Claude Sonnet, Opus, Haiku (with extended thinking)          |
-| **Google**     | Gemini 3 Pro, 2.5 Pro/Flash                                  |
-| **Groq**       | Llama 4, Qwen, DeepSeek                                      |
-| **xAI**        | Grok 4, Grok 3                                               |
-| **Local**      | Ollama, GGUF via node-llama-cpp (Llama, Qwen, Mistral, etc.) |
-| **+ Gateways** | OpenRouter, AWS Bedrock, Vertex AI, LiteLLM                  |
+| Provider | Models |
+|----------|--------|
+| **OpenAI** | gpt-5.2, gpt-5.2-pro, gpt-5.2-codex, o4-mini |
+| **Anthropic** | Claude Sonnet, Opus, Haiku (with extended thinking) |
+| **Google** | Gemini 3 Pro, 2.5 Pro/Flash |
+| **Groq** | Llama 4, Qwen, DeepSeek |
+| **xAI** | Grok 4, Grok 3 |
+| **Local** | Ollama, GGUF via node-llama-cpp (Llama, Qwen, Mistral, etc.) |
+| **+ Gateways** | OpenRouter, AWS Bedrock, Vertex AI, LiteLLM |
 
 **Run locally for privacy**: Local models keep data on your machine with automatic GPU detection (Metal, CUDA, Vulkan).
 
@@ -187,14 +189,14 @@ Connect to Model Context Protocol servers—Puppeteer, Linear, ElevenLabs, Firec
 ```yaml
 # agents/my-agent.yml
 mcpServers:
-    filesystem:
-        type: stdio
-        command: npx
-        args: ['-y', '@modelcontextprotocol/server-filesystem', '.']
-    browser:
-        type: stdio
-        command: npx
-        args: ['-y', '@anthropics/mcp-server-puppeteer']
+  filesystem:
+    type: stdio
+    command: npx
+    args: ['-y', '@modelcontextprotocol/server-filesystem', '.']
+  browser:
+    type: stdio
+    command: npx
+    args: ['-y', '@anthropics/mcp-server-puppeteer']
 ```
 
 Browse and add servers via `/mcp` commands in the CLI.
@@ -205,12 +207,12 @@ Fine-grained control over what your agent can do:
 
 ```yaml
 permissions:
-    mode: manual # Require approval for each tool
-    # mode: auto-approve   # Trust mode for local development
-    toolPolicies:
-        alwaysAllow:
-            - mcp--filesystem--read_file
-            - mcp--filesystem--list_directory
+  mode: manual           # Require approval for each tool
+  # mode: auto-approve   # Trust mode for local development
+  toolPolicies:
+    alwaysAllow:
+      - mcp--filesystem--read_file
+      - mcp--filesystem--list_directory
 ```
 
 Agents remember which tools you've approved per session.
@@ -237,14 +239,13 @@ Agents can spawn specialized sub-agents to handle complex subtasks. The coding a
 ```yaml
 # In your agent config
 tools:
-    - type: agent-spawner
-      allowedAgents: ['explore-agent']
-      maxConcurrentAgents: 5
-      defaultTimeout: 300000 # 5 minutes
+  - type: agent-spawner
+    allowedAgents: ["explore-agent"]
+    maxConcurrentAgents: 5
+    defaultTimeout: 300000  # 5 minutes
 ```
 
 **Built-in sub-agents:**
-
 - **explore-agent** – Fast, read-only codebase exploration
 
 Any agent in the [Agent Registry](#agent-registry) can be spawned as a sub-agent—including custom agents you create and register.
@@ -255,10 +256,10 @@ Sub-agents run ephemerally, auto-cleanup after completion, and forward tool appr
 
 ## Run Modes
 
-| Mode         | Command            | Use Case                         |
-| ------------ | ------------------ | -------------------------------- |
-| **CLI**      | `dexto`            | Interactive chat in the terminal |
-| **Headless** | `dexto run "task"` | One task; JSON when piped        |
+| Mode | Command | Use Case |
+|------|---------|----------|
+| **CLI** | `dexto` | Interactive chat in the terminal |
+| **Headless** | `dexto run "task"` | One task; JSON when piped |
 
 Platform integrations: [Discord](examples/discord-bot/), [Telegram](examples/telegram-bot/)
 
@@ -276,7 +277,7 @@ npm install @dexto/core
 import { DextoAgent } from '@dexto/core';
 
 const agent = new DextoAgent({
-    llm: { provider: 'openai', model: 'gpt-5.2', apiKey: process.env.OPENAI_API_KEY },
+  llm: { provider: 'openai', model: 'gpt-5.2', apiKey: process.env.OPENAI_API_KEY }
 });
 await agent.start();
 
@@ -286,17 +287,14 @@ console.log(response.content);
 
 // Streaming
 for await (const event of await agent.stream('Write a story', session.id)) {
-    if (event.name === 'llm:chunk') process.stdout.write(event.content);
+  if (event.name === 'llm:chunk') process.stdout.write(event.content);
 }
 
 // Multimodal
-await agent.generate(
-    [
-        { type: 'text', text: 'Describe this image' },
-        { type: 'image', image: base64Data, mimeType: 'image/png' },
-    ],
-    session.id
-);
+await agent.generate([
+  { type: 'text', text: 'Describe this image' },
+  { type: 'image', image: base64Data, mimeType: 'image/png' }
+], session.id);
 
 // Switch models mid-conversation
 await agent.switchLLM({ model: 'claude-sonnet-4-5-20250929' });
@@ -373,9 +371,9 @@ const manager = new MCPManager();
 
 // Connect to MCP servers
 await manager.connectServer('filesystem', {
-    type: 'stdio',
-    command: 'npx',
-    args: ['-y', '@modelcontextprotocol/server-filesystem', '.'],
+  type: 'stdio',
+  command: 'npx',
+  args: ['-y', '@modelcontextprotocol/server-filesystem', '.']
 });
 
 // Access tools, prompts, and resources
@@ -396,20 +394,19 @@ Configure storage backends for production.
 ```yaml
 # agents/production-agent.yml
 storage:
-    cache:
-        type: redis
-        url: $REDIS_URL
-    database:
-        type: postgres
-        connectionString: $POSTGRES_CONNECTION_STRING
+  cache:
+    type: redis
+    url: $REDIS_URL
+  database:
+    type: postgres
+    connectionString: $POSTGRES_CONNECTION_STRING
 
 sessions:
-    maxSessions: 1000
-    sessionTTL: 86400000 # 24 hours
+  maxSessions: 1000
+  sessionTTL: 86400000  # 24 hours
 ```
 
 **Supported Backends:**
-
 - **Cache**: Redis, In-Memory
 - **Database**: PostgreSQL, SQLite, In-Memory
 
@@ -441,29 +438,29 @@ Dexto treats each configuration as a unique agent allowing you to define and sav
 ```yaml
 # agents/production-agent.yml
 llm:
-    provider: anthropic
-    model: claude-sonnet-4-5-20250929
-    apiKey: $ANTHROPIC_API_KEY
+  provider: anthropic
+  model: claude-sonnet-4-5-20250929
+  apiKey: $ANTHROPIC_API_KEY
 
 mcpServers:
-    filesystem:
-        type: stdio
-        command: npx
-        args: ['-y', '@modelcontextprotocol/server-filesystem', '.']
+  filesystem:
+    type: stdio
+    command: npx
+    args: ['-y', '@modelcontextprotocol/server-filesystem', '.']
 
 systemPrompt: |
-    You are a helpful assistant with filesystem access.
+  You are a helpful assistant with filesystem access.
 
 storage:
-    cache:
-        type: redis
-        url: $REDIS_URL
-    database:
-        type: postgres
-        connectionString: $POSTGRES_CONNECTION_STRING
+  cache:
+    type: redis
+    url: $REDIS_URL
+  database:
+    type: postgres
+    connectionString: $POSTGRES_CONNECTION_STRING
 
 permissions:
-    mode: manual
+  mode: manual
 ```
 
 ### LLM Providers
@@ -472,36 +469,36 @@ Switch between providers instantly—no code changes required.
 
 #### Built-in Providers
 
-| Provider      | Models                                                                      | Setup   |
-| ------------- | --------------------------------------------------------------------------- | ------- |
-| **OpenAI**    | `gpt-5.2`, `gpt-5.2-pro`, `gpt-5.2-codex`, `o4-mini`                        | API key |
+| Provider | Models | Setup |
+|----------|--------|-------|
+| **OpenAI** | `gpt-5.2`, `gpt-5.2-pro`, `gpt-5.2-codex`, `o4-mini` | API key |
 | **Anthropic** | `claude-sonnet-4-5-20250929`, `claude-opus-4-5-20250929`, extended thinking | API key |
-| **Google**    | `gemini-3-pro`, `gemini-2.5-pro`, `gemini-2.5-flash`                        | API key |
-| **Groq**      | `llama-4-scout`, `qwen-qwq`, `deepseek-r1-distill`                          | API key |
-| **xAI**       | `grok-4`, `grok-3`, `grok-3-fast`                                           | API key |
-| **Cohere**    | `command-r-plus`, `command-r`                                               | API key |
+| **Google** | `gemini-3-pro`, `gemini-2.5-pro`, `gemini-2.5-flash` | API key |
+| **Groq** | `llama-4-scout`, `qwen-qwq`, `deepseek-r1-distill` | API key |
+| **xAI** | `grok-4`, `grok-3`, `grok-3-fast` | API key |
+| **Cohere** | `command-r-plus`, `command-r` | API key |
 
 #### Local Models (Privacy-First)
 
-| Provider           | Models                               | Setup                                             |
-| ------------------ | ------------------------------------ | ------------------------------------------------- |
-| **Ollama**         | Llama, Qwen, Mistral, DeepSeek, etc. | Local install                                     |
-| **node-llama-cpp** | Any GGUF model                       | Bundled (auto GPU detection: Metal, CUDA, Vulkan) |
+| Provider | Models | Setup |
+|----------|--------|-------|
+| **Ollama** | Llama, Qwen, Mistral, DeepSeek, etc. | Local install |
+| **node-llama-cpp** | Any GGUF model | Bundled (auto GPU detection: Metal, CUDA, Vulkan) |
 
 #### Cloud Platforms
 
-| Provider             | Models                 | Setup           |
-| -------------------- | ---------------------- | --------------- |
-| **AWS Bedrock**      | Claude, Llama, Mistral | AWS credentials |
-| **Google Vertex AI** | Gemini, Claude         | GCP credentials |
+| Provider | Models | Setup |
+|----------|--------|-------|
+| **AWS Bedrock** | Claude, Llama, Mistral | AWS credentials |
+| **Google Vertex AI** | Gemini, Claude | GCP credentials |
 
 #### Gateway Providers
 
-| Provider       | Access                              | Setup                  |
-| -------------- | ----------------------------------- | ---------------------- |
-| **OpenRouter** | 100+ models from multiple providers | API key                |
-| **LiteLLM**    | Unified API for any provider        | Self-hosted or API key |
-| **Glama**      | Multi-provider gateway              | API key                |
+| Provider | Access | Setup |
+|----------|--------|-------|
+| **OpenRouter** | 100+ models from multiple providers | API key |
+| **LiteLLM** | Unified API for any provider | Self-hosted or API key |
+| **Glama** | Multi-provider gateway | API key |
 
 ```bash
 # Switch models via CLI
@@ -518,53 +515,43 @@ See the [Configuration Guide](https://cli.dexto.ai/docs/category/agent-configura
 
 ## Demos & Examples
 
-|                                   Image Editor                                   |                                 MCP Store                                  |                                    Portable Agents                                    |
-| :------------------------------------------------------------------------------: | :------------------------------------------------------------------------: | :-----------------------------------------------------------------------------------: |
+| Image Editor | MCP Store | Portable Agents |
+|:---:|:---:|:---:|
 | <img src=".github/assets/image_editor_demo.gif" alt="Image Editor" width="280"/> | <img src=".github/assets/mcp_store_demo.gif" alt="MCP Store" width="280"/> | <img src=".github/assets/portable_agent_demo.gif" alt="Portable Agents" width="280"/> |
-|                     Face detection & annotation using OpenCV                     |                            Browse and add MCPs                             |                       Use agents in Cursor, Claude Code via MCP                       |
+| Face detection & annotation using OpenCV | Browse and add MCPs | Use agents in Cursor, Claude Code via MCP|
 
 <details>
 <summary><strong>More Examples</strong></summary>
 
 ### Coding Agent
-
 Build applications from natural language:
-
 ```bash
 dexto --agent coding-agent
 # "Create a snake game and open it in the browser"
 ```
-
 <img src=".github/assets/coding_agent_demo.gif" alt="Coding Agent Demo" width="600"/>
 
 ### Podcast Agent
-
 Generate multi-speaker audio content:
-
 ```bash
 dexto --agent podcast-agent
 ```
-
 <img src="https://github.com/user-attachments/assets/cfd59751-3daa-4ccd-97b2-1b2862c96af1" alt="Podcast Agent Demo" width="600"/>
 
 ### Memory System
-
 Persistent context that shapes behavior:
 <img src=".github/assets/memory_demo.gif" alt="Memory Demo" width="600">
 
 ### Dynamic Forms
-
 Agents generate forms for structured input:
 <img src=".github/assets/user_form_demo.gif" alt="User Form Demo" width="600">
 
 ### Browser Automation
-
 <a href="https://youtu.be/C-Z0aVbl4Ik">
   <img src="https://github.com/user-attachments/assets/3f5be5e2-7a55-4093-a071-8c52f1a83ba3" alt="Amazon Shopping Demo" width="600"/>
 </a>
 
 ### MCP Playground
-
 Test tools before deploying:
 <img src=".github/assets/playground_demo.gif" alt="Playground Demo" width="600">
 

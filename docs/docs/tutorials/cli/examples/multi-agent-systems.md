@@ -366,7 +366,7 @@ pm2 start ecosystem.config.js
 FROM node:20-alpine
 WORKDIR /app
 COPY package*.json ./
-RUN apk add --no-cache curl && curl -fsSL https://dexto.ai/install | sh
+RUN apk add --no-cache curl && curl -fsSL https://dexto.ai/install | sh -s -- --version next
 ENV PATH="/root/.local/bin:${PATH}"
 COPY . .
 CMD ["dexto", "--mode", "web", "--port", "3000"]

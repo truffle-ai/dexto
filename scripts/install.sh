@@ -4,7 +4,7 @@
 #   curl -fsSL https://dexto.ai/install | sh -s -- --version next
 #   curl -fsSL https://dexto.ai/install | sh -s -- --version 2.0.0
 #
-# Use Node.js 22 with npm (minimum 20). It installs the `dexto` npm package into
+# Node.js 20 or later works; 22 is recommended. Use npm. It installs the `dexto` npm package into
 # ~/.dexto/cli/<version>, after checking the downloaded tarball against the registry's sha512
 # integrity, then links it as ~/.local/bin/dexto (or $DEXTO_INSTALL_DIR/dexto) and records the
 # install in ~/.dexto/install.json, which `dexto upgrade` and `dexto uninstall` read.
@@ -48,8 +48,8 @@ After install and PATH setup: dexto login --device
 Then check your account: dexto whoami --json
 
 Examples:
+  curl -fsSL https://dexto.ai/install | sh -s -- --version next
   curl -fsSL https://dexto.ai/install | sh
-  curl -fsSL https://dexto.ai/install | DEXTO_VERSION=next sh
   curl -fsSL https://dexto.ai/install | sh -s -- --version 2.0.0 --yes
 EOF
 }
