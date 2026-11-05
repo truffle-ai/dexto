@@ -3180,6 +3180,15 @@
     },
     {
       "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "name": "dexto_chat_browser_profiles_list"
+    },
+    {
+      "inputSchema": {
         "additionalProperties": false,
         "properties": {
           "sessionId": {
@@ -3466,6 +3475,15 @@
         "type": "object"
       },
       "name": "dexto_chat_computer"
+    },
+    {
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "name": "dexto_chat_computers_list"
     },
     {
       "inputSchema": {
@@ -3804,6 +3822,16 @@
           "agentId": {
             "description": "Optional Dexto agent id. Defaults to the user's Dexto.",
             "type": "string"
+          },
+          "computerId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Optional owned online connected computer from dexto_chat_computers_list, attached in addition to the chat's hosted computer."
+          },
+          "browserProfileId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Optional owned available browser profile from dexto_chat_browser_profiles_list, loaded on the chat's hosted computer before its first turn. Starts billed hosted compute."
           },
           "message": {
             "description": "The first user message for the Dexto session.",
