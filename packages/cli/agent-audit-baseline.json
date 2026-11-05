@@ -63,6 +63,20 @@
     "examples": false
   },
   {
+    "command": "chat move",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
+    "command": "chat watch",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
     "command": "cloud agents approve",
     "json": true,
     "dryRun": false,
