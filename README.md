@@ -6,7 +6,7 @@ dexto login
 dexto whoami
 ```
 
-Requires Node.js 22 or later. After signing in, `dexto whoami` shows your account.
+After signing in, `dexto whoami` shows your account.
 
 <a href="https://dexto.ai">
   <div align="center">
