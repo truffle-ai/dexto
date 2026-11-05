@@ -8,6 +8,7 @@ it('resumes from the export cursor, follows sparse pages, and saves the server s
         read: async (from) => {
             requested.push(from);
             return {
+                object: 'synced_chat_transcript',
                 messages: [
                     {
                         index: from + 1,
