@@ -5,6 +5,7 @@
 
 import { getTuiRuntimeServices } from '../host/index.js';
 import type { CommandDefinition } from './command-parser.js';
+import type { HistoryReloadMarker } from '../services/CommandService.js';
 
 export const syncCommand: CommandDefinition = {
     name: 'sync',
@@ -30,14 +31,22 @@ export const moveCommands: CommandDefinition[] = ['cloud', 'local'].map((name) =
             : 'Bring this chat and its work back to this machine',
     usage: `/${name}`,
     category: 'General',
-    handler: async (args, _agent, ctx) => {
-        if (args.length > 0) return `Usage: /${name}`;
-        const move = getTuiRuntimeServices().chatMove;
-        if (move === undefined) return 'Chat hand-off is not available here.';
-        if (ctx.sessionId === null) return 'Start a chat before moving it.';
-        return move(name === 'cloud' ? 'cloud' : 'local', ctx.sessionId);
-    },
+    handler: async (args, _agent, ctx) =>
+        runChatMove(name === 'cloud' ? 'cloud' : 'local', args, ctx.sessionId),
 }));
+
+export async function runChatMove(
+    to: 'cloud' | 'local',
+    args: readonly string[],
+    sessionId: string | null
+): Promise<string | HistoryReloadMarker> {
+    if (args.length > 0) return `Usage: /${to}`;
+    const move = getTuiRuntimeServices().chatMove;
+    if (move === undefined) return 'Chat hand-off is not available here.';
+    if (sessionId === null) return 'Start a chat before moving it.';
+    const output = await move(to, sessionId);
+    return to === 'local' ? { __reloadHistory: true, sessionId, output } : output;
+}
 
 async function runChatSync(
     name: 'sync' | 'private',
