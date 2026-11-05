@@ -46,7 +46,7 @@
     ]
   },
   "engines": {
-    "node": ">=20.0.0"
+    "node": "22.x"
   },
   "overrides": {
     "webpack-dev-server": ">=5.2.1"
