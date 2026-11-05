@@ -1,0 +1,99 @@
+import { createHash } from 'node:crypto';
+import { unwrap, type CloudClient, type V1Response } from '@dexto/cloud-client';
+import type { WorkingTree } from './working-tree.js';
+
+export type ChatMove = V1Response<'/v1/synced_chats/{chat_id}/moves', 'post'>;
+export interface MoveTransport {
+    readonly client: CloudClient;
+    readonly fetch: typeof globalThis.fetch;
+    readonly signal: AbortSignal;
+    readonly sleep: (ms: number) => Promise<void>;
+}
+
+export function describeObject(bytes: Uint8Array): { sha256: string; size_bytes: number } {
+    return {
+        sha256: createHash('sha256').update(bytes).digest('hex'),
+        size_bytes: bytes.byteLength,
+    };
+}
+
+export async function waitForMove(
+    transport: MoveTransport,
+    chatId: string,
+    started: ChatMove
+): Promise<ChatMove> {
+    let move = started;
+    while (move.status === 'importing' || move.status === 'exporting') {
+        if (Date.now() >= Date.parse(move.expires_at)) throw new Error('The chat move expired.');
+        transport.signal.throwIfAborted();
+        await transport.sleep(2_000);
+        move = await unwrap(
+            await transport.client.GET('/v1/synced_chats/{chat_id}/moves/{move_id}', {
+                params: { path: { chat_id: chatId, move_id: move.id } },
+                signal: transport.signal,
+            })
+        );
+    }
+    if (move.status === 'failed' || move.status === 'canceled' || move.status === 'expired')
+        throw new Error(`Chat move ${move.status}: ${move.failure ?? move.status}.`);
+    return move;
+}
+
+export async function cancelMove(
+    transport: MoveTransport,
+    chatId: string,
+    moveId: string
+): Promise<void> {
+    // Cleanup must still run when the caller's signal is aborted.
+    await unwrap(
+        await transport.client.POST('/v1/synced_chats/{chat_id}/moves/{move_id}/cancel', {
+            params: { path: { chat_id: chatId, move_id: moveId } },
+        })
+    );
+}
+
+export async function moveToCloud(
+    transport: MoveTransport,
+    chatId: string,
+    tree: WorkingTree
+): Promise<ChatMove> {
+    const started = await unwrap(
+        await transport.client.POST('/v1/synced_chats/{chat_id}/moves', {
+            params: { path: { chat_id: chatId } },
+            signal: transport.signal,
+            body: {
+                to: 'cloud',
+                working_tree: {
+                    branch: tree.branch,
+                    head_commit: tree.head_commit,
+                    bundle: describeObject(tree.bundle),
+                    patch: tree.patch === null ? null : describeObject(tree.patch),
+                },
+            },
+        })
+    );
+    try {
+        for (const upload of started.uploads) {
+            const bytes = upload.object === 'bundle' ? tree.bundle : tree.patch;
+            if (bytes === null) throw new Error('The server requested an undeclared patch.');
+            const response = await transport.fetch(upload.url, {
+                method: 'PUT',
+                headers: upload.headers,
+                body: new Uint8Array(bytes),
+                signal: transport.signal,
+                redirect: 'error',
+            });
+            if (!response.ok) throw new Error(`Working-tree upload failed (${response.status}).`);
+        }
+        const importing = await unwrap(
+            await transport.client.POST('/v1/synced_chats/{chat_id}/moves/{move_id}/uploaded', {
+                params: { path: { chat_id: chatId, move_id: started.id } },
+                signal: transport.signal,
+            })
+        );
+        return await waitForMove(transport, chatId, importing);
+    } catch (error) {
+        await cancelMove(transport, chatId, started.id).catch(() => undefined);
+        throw error;
+    }
+}
