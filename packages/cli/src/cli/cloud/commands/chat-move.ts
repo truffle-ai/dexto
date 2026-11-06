@@ -28,6 +28,7 @@ import {
     describeObject,
     downloadMoveObject,
     moveToCloud,
+    startLocalReturn,
     waitForMove,
     type MoveTransport,
 } from '../../chat-sync/move.js';
@@ -269,19 +270,11 @@ const move: Command = {
             head: checkpoint.head,
             patchHash: checkpoint.patchHash,
         };
-        const startReturn = async () =>
-            unwrap(
-                await transport.client.POST('/v1/synced_chats/{chat_id}/moves', {
-                    params: { path: { chat_id: cloudId } },
-                    body: { to: 'local' },
-                    signal: transport.signal,
-                })
-            );
         let started: ChatMove;
         try {
             started =
                 checkpoint.phase === 'cloud'
-                    ? await startReturn()
+                    ? await startLocalReturn(transport, cloudId)
                     : await unwrap(
                           await transport.client.GET('/v1/synced_chats/{chat_id}/moves/{move_id}', {
                               params: { path: { chat_id: cloudId, move_id: checkpoint.moveId } },
@@ -322,7 +315,7 @@ const move: Command = {
                 patchHash: checkpoint.patchHash,
             };
             await chat.save(checkpoint);
-            started = await startReturn();
+            started = await startLocalReturn(transport, cloudId);
         }
         if (checkpoint.phase === 'cloud')
             await chat.save({ ...baseline, phase: 'returning', moveId: started.id });

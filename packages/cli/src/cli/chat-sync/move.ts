@@ -94,6 +94,41 @@ export async function cancelMove(
     );
 }
 
+/** Recover the server's open return when its original start response never reached the CLI. */
+export async function startLocalReturn(
+    transport: MoveTransport,
+    chatId: string
+): Promise<ChatMove> {
+    try {
+        return await unwrap(
+            await transport.client.POST('/v1/synced_chats/{chat_id}/moves', {
+                params: { path: { chat_id: chatId } },
+                body: { to: 'local' },
+                signal: transport.signal,
+            })
+        );
+    } catch (error) {
+        if (
+            !(error instanceof CloudApiError) ||
+            error.code !== 'move_in_progress' ||
+            typeof error.details !== 'object' ||
+            error.details === null ||
+            !('move_id' in error.details) ||
+            typeof error.details.move_id !== 'string'
+        )
+            throw error;
+        const move = await unwrap(
+            await transport.client.GET('/v1/synced_chats/{chat_id}/moves/{move_id}', {
+                params: { path: { chat_id: chatId, move_id: error.details.move_id } },
+                signal: transport.signal,
+            })
+        );
+        if (move.to !== 'local')
+            throw new Error('The move to cloud is still open. Finish it with --to cloud first.');
+        return move;
+    }
+}
+
 export async function moveToCloud(
     transport: MoveTransport,
     chatId: string,
