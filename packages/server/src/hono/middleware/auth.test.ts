@@ -12,6 +12,11 @@ import {
 } from './auth.js';
 import { createNodeServer } from '../node/index.js';
 import { startDextoServer } from '../start-server.js';
+import { createDextoApp } from '../index.js';
+import { ApprovalCoordinator } from '../../approval/approval-coordinator.js';
+import { WebhookEventSubscriber } from '../../events/webhook-subscriber.js';
+import { A2ASseEventSubscriber } from '../../events/a2a-sse-subscriber.js';
+import { SessionSseEventSubscriber } from '../../events/session-sse-subscriber.js';
 
 afterEach(() => {
     vi.unstubAllEnvs();
@@ -71,6 +76,14 @@ describe('createHttpAuthorization', () => {
         expect(authorize('Bearer synthetic-key')).toEqual({ allowed: true });
     });
 
+    it('trims the configured key and treats a whitespace-only key as unset', () => {
+        clearAuthEnv();
+        vi.stubEnv('DEXTO_SERVER_API_KEY', 'synthetic-key\n');
+        expect(createHttpAuthorization()('Bearer synthetic-key')).toEqual({ allowed: true });
+        vi.stubEnv('DEXTO_SERVER_API_KEY', '   ');
+        expect(createHttpAuthorization()(undefined)).toEqual({ allowed: true });
+    });
+
     it('allows requests without a key in development', () => {
         clearAuthEnv();
         expect(createHttpAuthorization()(undefined)).toEqual({ allowed: true });
@@ -111,6 +124,13 @@ describe('createNodeServer bind policy', () => {
         ).toThrow(/DEXTO_SERVER_API_KEY/);
     });
 
+    it('refuses the IPv6 any-address without a key', () => {
+        clearAuthEnv();
+        expect(() =>
+            createNodeServer(new OpenAPIHono(), { getAgent, port: 0, hostname: '::' })
+        ).toThrow(/DEXTO_SERVER_API_KEY/);
+    });
+
     it('refuses DEXTO_SERVER_HOST=0.0.0.0 without a key', () => {
         clearAuthEnv();
         vi.stubEnv('DEXTO_SERVER_HOST', '0.0.0.0');
@@ -127,6 +147,21 @@ describe('createNodeServer bind policy', () => {
             port: 0,
             hostname: '0.0.0.0',
         });
+        expect((await listenAndClose(server)).address).toBe('0.0.0.0');
+    });
+
+    it('carries disableAuth from createDextoApp into the bind policy', async () => {
+        clearAuthEnv();
+        const app = createDextoApp({
+            getAgent: getAgent as never,
+            getAgentCard: () => ({}) as never,
+            approvalCoordinator: new ApprovalCoordinator(),
+            webhookSubscriber: new WebhookEventSubscriber(),
+            sseSubscriber: new A2ASseEventSubscriber(),
+            sessionSseSubscriber: new SessionSseEventSubscriber(),
+            disableAuth: true,
+        });
+        const { server } = createNodeServer(app, { getAgent, port: 0, hostname: '0.0.0.0' });
         expect((await listenAndClose(server)).address).toBe('0.0.0.0');
     });
 

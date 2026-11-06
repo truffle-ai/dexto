@@ -175,7 +175,9 @@ export async function startDextoServer(
     logger.info('Starting agent...');
     await agent.start();
 
-    logger.info(`Server running at http://${hostname}:${resolvedPort}`, null, 'green');
+    const displayHost =
+        hostname.includes(':') && !hostname.startsWith('[') ? `[${hostname}]` : hostname;
+    logger.info(`Server running at http://${displayHost}:${resolvedPort}`, null, 'green');
 
     // Return result with stop function
     return {

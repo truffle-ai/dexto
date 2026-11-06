@@ -1,3 +1,4 @@
+import { timingSafeEqual } from 'node:crypto';
 import type { MiddlewareHandler } from 'hono';
 import { logger } from '@dexto/core';
 
@@ -43,9 +44,22 @@ export function resolveServerHostname(explicit?: string): string {
 }
 
 function configuredApiKey(): string | undefined {
-    const apiKey = process.env.DEXTO_SERVER_API_KEY;
-    return apiKey && apiKey.trim() !== '' ? apiKey : undefined;
+    // Trim so a key read from a mounted secret with a trailing newline still matches.
+    const apiKey = process.env.DEXTO_SERVER_API_KEY?.trim();
+    return apiKey ? apiKey : undefined;
 }
+
+function keysMatch(provided: string, expected: string): boolean {
+    const providedBuffer = Buffer.from(provided);
+    const expectedBuffer = Buffer.from(expected);
+    return (
+        providedBuffer.length === expectedBuffer.length &&
+        timingSafeEqual(providedBuffer, expectedBuffer)
+    );
+}
+
+/** Keys shorter than this still work, but startup warns that they are easy to guess. */
+const MIN_RECOMMENDED_KEY_LENGTH = 16;
 
 /**
  * Refuse to listen on a non-loopback host unless a bearer credential is configured, or the
@@ -55,7 +69,16 @@ export function assertNetworkBindAllowed(
     hostname: string,
     options: { authDisabled?: boolean } = {}
 ): void {
-    if (isLoopbackHost(hostname) || options.authDisabled || configuredApiKey()) {
+    if (isLoopbackHost(hostname) || options.authDisabled) {
+        return;
+    }
+    const apiKey = configuredApiKey();
+    if (apiKey) {
+        if (apiKey.length < MIN_RECOMMENDED_KEY_LENGTH) {
+            logger.warn(
+                `DEXTO_SERVER_API_KEY is shorter than ${MIN_RECOMMENDED_KEY_LENGTH} characters; use a long random key for a network-facing server.`
+            );
+        }
         return;
     }
     throw new Error(
@@ -84,8 +107,8 @@ export function createRequiredBearerAuthorization(
                 body: { error: 'Configuration Error', message: configurationMessage },
             };
         }
-        const providedKey = header?.match(/^Bearer\s+(.+)$/i)?.[1];
-        if (!providedKey || providedKey !== apiKey) {
+        const providedKey = header?.match(/^Bearer\s+(.+)$/i)?.[1]?.trim();
+        if (!providedKey || !keysMatch(providedKey, apiKey)) {
             return {
                 allowed: false,
                 status: 401,

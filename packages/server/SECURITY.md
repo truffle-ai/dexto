@@ -119,10 +119,10 @@ These routes are always accessible:
 ### Local Development (No Auth)
 
 ```bash
-# Start server in development mode
-NODE_ENV=development npm start
+# Leave DEXTO_SERVER_API_KEY unset; the server listens on 127.0.0.1 only
+dexto --mode server --port 3000
 
-# Access from browser without auth
+# Access locally without auth
 curl http://localhost:3000/api/llm/current
 ```
 
@@ -132,8 +132,8 @@ curl http://localhost:3000/api/llm/current
 # Generate secure API key
 export DEXTO_SERVER_API_KEY=$(openssl rand -base64 32)
 
-# Start server in production mode
-NODE_ENV=production npm start
+# Listen on all interfaces (requires the key above)
+NODE_ENV=production dexto --mode server --host 0.0.0.0
 
 # All requests now require authentication
 curl -H "Authorization: Bearer $DEXTO_SERVER_API_KEY" \
