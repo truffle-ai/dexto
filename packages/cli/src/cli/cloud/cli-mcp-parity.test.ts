@@ -288,15 +288,11 @@ describe('CLI and MCP capability parity', () => {
                 .map(([command]) => command)
                 .sort()
         ).toEqual(['workspace call', 'workspace describe', 'workspace tools']);
-        // DEXTO-2511 explicitly ships cloud first; remove this pending entry with its CLI follow-up.
-        expect(inventory.pendingCli).toEqual([
-            {
-                tool: 'dexto_chat_outputs_list',
-                issue: 'DEXTO-2511',
-                reason: 'Cloud slice lands first; workspace chat outputs command follows in dexto.',
-            },
-        ]);
-        const pending = inventory.pendingCli.map((entry) => entry.tool);
+        expect(inventory.commands['chat outputs']).toEqual(['dexto_chat_outputs_list']);
+        const pending = z
+            .array(z.object({ tool: z.string() }))
+            .parse(inventory.pendingCli)
+            .map((entry) => entry.tool);
         expect(
             pending.filter(
                 (tool) => direct.includes(tool) || inventory.passthroughOnly.includes(tool)
