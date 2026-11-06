@@ -89,7 +89,7 @@ async function workingTreeFiles(
         const env = { ...process.env, GIT_INDEX_FILE: path.join(folder, 'index') };
         await handOffGit(repository, ['read-tree', head_commit], env);
         const candidates = (
-            await handOffGit(repository, ['ls-files', '--others', '--exclude-standard', '-z'])
+            await handOffGit(repository, ['ls-files', '--others', '--exclude-standard', '-z'], env)
         )
             .toString()
             .split('\0')

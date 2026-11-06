@@ -359,6 +359,12 @@ it('builds a patch when a staged new file was deleted before hand-off', async ()
     const cwd = await repository();
     await writeFile(path.join(cwd, 'staged.txt'), 'temporary staged work\n');
     await run('git', ['add', 'staged.txt'], { cwd });
+    const staged = await buildWorkingTree(cwd);
+    try {
+        expect(staged.patch?.toString()).toContain('+temporary staged work');
+    } finally {
+        await staged.cleanup();
+    }
     await rm(path.join(cwd, 'staged.txt'));
     const before = await readFile(path.join(cwd, '.git/index'));
     const tree = await buildWorkingTree(cwd);
