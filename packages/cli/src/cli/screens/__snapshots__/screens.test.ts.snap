@@ -17,8 +17,7 @@ exports[`Signal screens on 16-dark > 3 signed in, no project 1`] = `
 "␛[35m◆ ␛[39mapproved in the browser
 
 ␛[35m◆ ␛[39m␛[35m␛[1mSigned in as Sam Rivera · Acme␛[22m␛[39m
-␛[90m  profile work · stored in ~/.dexto␛[39m
-␛[90m  your provider keys stay on this machine␛[39m
+␛[90m  profile work · stored in ~/.dexto · your provider keys stay on this machine␛[39m
 ␛[33m  This organization has no Cloud project for Dexto models to bill.␛[39m
 ␛[90m  Other commands still use another profile: pass ␛[39m␛[36m--profile work␛[39m␛[90m,␛[39m
 ␛[90m  or run ␛[39m␛[36mdexto accounts use work␛[39m
@@ -114,7 +113,21 @@ exports[`Signal screens on 16-dark > at 80 columns > 3 signed in 1`] = `
 "␛[35m◆ ␛[39mapproved in the browser
 
 ␛[35m◆ ␛[39m␛[35m␛[1mSigned in as Sam Rivera · Acme␛[22m␛[39m
-␛[90m  profile default · stored in ~/.dexto␛[39m
+␛[90m  profile default · stored in ~/.dexto · your provider keys stay on this machine␛[39m
+␛[90m  Dexto models bill Cloud project Default.␛[39m
+
+  Now available:
+  ␛[35m◆ ␛[39mmodels & credits   ␛[35m◆ ␛[39mconnectors   ␛[35m◆ ␛[39mDrive   ␛[35m◆ ␛[39mSkills   ␛[35m◆ ␛[39mmemory
+  ␛[35m◆ ␛[39mSites & Apps   ␛[35m◆ ␛[39mLoops   ␛[35m◆ ␛[39mcloud computers   ␛[35m◆ ␛[39mProjects
+
+␛[90m  next: ␛[39m␛[36mdexto␛[39m␛[90m  ·  chats sync to your dashboard from now on (/private, --no-sync)␛[39m"
+`;
+
+exports[`Signal screens on 16-dark > at 80 columns > 3 signed in, longer profile 1`] = `
+"␛[35m◆ ␛[39mapproved in the browser
+
+␛[35m◆ ␛[39m␛[35m␛[1mSigned in as Sam Rivera · Acme␛[22m␛[39m
+␛[90m  profile acme-work · stored in ~/.dexto␛[39m
 ␛[90m  your provider keys stay on this machine␛[39m
 ␛[90m  Dexto models bill Cloud project Default.␛[39m
 
@@ -129,8 +142,7 @@ exports[`Signal screens on 16-dark > at 80 columns > 3 signed in, other profile 
 "␛[35m◆ ␛[39mapproved in the browser
 
 ␛[35m◆ ␛[39m␛[35m␛[1mSigned in as Sam Rivera · Acme␛[22m␛[39m
-␛[90m  profile work · stored in ~/.dexto␛[39m
-␛[90m  your provider keys stay on this machine␛[39m
+␛[90m  profile work · stored in ~/.dexto · your provider keys stay on this machine␛[39m
 ␛[90m  Dexto models bill Cloud project Default.␛[39m
 ␛[90m  Other commands still use another profile: pass ␛[39m␛[36m--profile work␛[39m␛[90m,␛[39m
 ␛[90m  or run ␛[39m␛[36mdexto accounts use work␛[39m
@@ -202,8 +214,21 @@ exports[`Signal screens on 16-dark > at 124 columns > 3 signed in 1`] = `
 "␛[35m◆ ␛[39mapproved in the browser
 
 ␛[35m◆ ␛[39m␛[35m␛[1mSigned in as Sam Rivera · Acme␛[22m␛[39m
-␛[90m  profile default · stored in ~/.dexto␛[39m
-␛[90m  your provider keys stay on this machine␛[39m
+␛[90m  profile default · stored in ~/.dexto · your provider keys stay on this machine␛[39m
+␛[90m  Dexto models bill Cloud project Default.␛[39m
+
+  Now available:
+  ␛[35m◆ ␛[39mmodels & credits   ␛[35m◆ ␛[39mconnectors   ␛[35m◆ ␛[39mDrive   ␛[35m◆ ␛[39mSkills   ␛[35m◆ ␛[39mmemory   ␛[35m◆ ␛[39mSites & Apps   ␛[35m◆ ␛[39mLoops   ␛[35m◆ ␛[39mcloud computers
+  ␛[35m◆ ␛[39mProjects
+
+␛[90m  next: ␛[39m␛[36mdexto␛[39m␛[90m  ·  chats sync to your dashboard from now on (/private, --no-sync)␛[39m"
+`;
+
+exports[`Signal screens on 16-dark > at 124 columns > 3 signed in, longer profile 1`] = `
+"␛[35m◆ ␛[39mapproved in the browser
+
+␛[35m◆ ␛[39m␛[35m␛[1mSigned in as Sam Rivera · Acme␛[22m␛[39m
+␛[90m  profile acme-work · stored in ~/.dexto · your provider keys stay on this machine␛[39m
 ␛[90m  Dexto models bill Cloud project Default.␛[39m
 
   Now available:
@@ -217,8 +242,7 @@ exports[`Signal screens on 16-dark > at 124 columns > 3 signed in, other profile
 "␛[35m◆ ␛[39mapproved in the browser
 
 ␛[35m◆ ␛[39m␛[35m␛[1mSigned in as Sam Rivera · Acme␛[22m␛[39m
-␛[90m  profile work · stored in ~/.dexto␛[39m
-␛[90m  your provider keys stay on this machine␛[39m
+␛[90m  profile work · stored in ~/.dexto · your provider keys stay on this machine␛[39m
 ␛[90m  Dexto models bill Cloud project Default.␛[39m
 ␛[90m  Other commands still use another profile: pass ␛[39m␛[36m--profile work␛[39m␛[90m, or run ␛[39m␛[36mdexto accounts use work␛[39m
 
@@ -279,8 +303,7 @@ exports[`Signal screens on 256-dark > 3 signed in, no project 1`] = `
 "␛[38;5;183m◆ ␛[39m␛[38;5;188mapproved in the browser␛[39m
 
 ␛[38;5;183m◆ ␛[39m␛[38;5;183m␛[1mSigned in as Sam Rivera · Acme␛[22m␛[39m
-␛[38;5;109m  profile work · stored in ~/.dexto␛[39m
-␛[38;5;109m  your provider keys stay on this machine␛[39m
+␛[38;5;109m  profile work · stored in ~/.dexto · your provider keys stay on this machine␛[39m
 ␛[38;5;221m  This organization has no Cloud project for Dexto models to bill.␛[39m
 ␛[38;5;109m  Other commands still use another profile: pass ␛[39m␛[38;5;115m--profile work␛[39m␛[38;5;109m,␛[39m
 ␛[38;5;109m  or run ␛[39m␛[38;5;115mdexto accounts use work␛[39m
@@ -376,7 +399,21 @@ exports[`Signal screens on 256-dark > at 80 columns > 3 signed in 1`] = `
 "␛[38;5;183m◆ ␛[39m␛[38;5;188mapproved in the browser␛[39m
 
 ␛[38;5;183m◆ ␛[39m␛[38;5;183m␛[1mSigned in as Sam Rivera · Acme␛[22m␛[39m
-␛[38;5;109m  profile default · stored in ~/.dexto␛[39m
+␛[38;5;109m  profile default · stored in ~/.dexto · your provider keys stay on this machine␛[39m
+␛[38;5;109m  Dexto models bill Cloud project Default.␛[39m
+
+␛[38;5;188m  Now available:␛[39m
+␛[38;5;188m  ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mmodels & credits   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mconnectors   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mDrive   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mSkills   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mmemory   ␛[39m
+␛[38;5;188m  ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mSites & Apps   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mLoops   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mcloud computers   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mProjects   ␛[39m
+
+␛[38;5;109m  next: ␛[39m␛[38;5;115mdexto␛[39m␛[38;5;109m  ·  chats sync to your dashboard from now on (/private, --no-sync)␛[39m"
+`;
+
+exports[`Signal screens on 256-dark > at 80 columns > 3 signed in, longer profile 1`] = `
+"␛[38;5;183m◆ ␛[39m␛[38;5;188mapproved in the browser␛[39m
+
+␛[38;5;183m◆ ␛[39m␛[38;5;183m␛[1mSigned in as Sam Rivera · Acme␛[22m␛[39m
+␛[38;5;109m  profile acme-work · stored in ~/.dexto␛[39m
 ␛[38;5;109m  your provider keys stay on this machine␛[39m
 ␛[38;5;109m  Dexto models bill Cloud project Default.␛[39m
 
@@ -391,8 +428,7 @@ exports[`Signal screens on 256-dark > at 80 columns > 3 signed in, other profile
 "␛[38;5;183m◆ ␛[39m␛[38;5;188mapproved in the browser␛[39m
 
 ␛[38;5;183m◆ ␛[39m␛[38;5;183m␛[1mSigned in as Sam Rivera · Acme␛[22m␛[39m
-␛[38;5;109m  profile work · stored in ~/.dexto␛[39m
-␛[38;5;109m  your provider keys stay on this machine␛[39m
+␛[38;5;109m  profile work · stored in ~/.dexto · your provider keys stay on this machine␛[39m
 ␛[38;5;109m  Dexto models bill Cloud project Default.␛[39m
 ␛[38;5;109m  Other commands still use another profile: pass ␛[39m␛[38;5;115m--profile work␛[39m␛[38;5;109m,␛[39m
 ␛[38;5;109m  or run ␛[39m␛[38;5;115mdexto accounts use work␛[39m
@@ -464,8 +500,21 @@ exports[`Signal screens on 256-dark > at 124 columns > 3 signed in 1`] = `
 "␛[38;5;183m◆ ␛[39m␛[38;5;188mapproved in the browser␛[39m
 
 ␛[38;5;183m◆ ␛[39m␛[38;5;183m␛[1mSigned in as Sam Rivera · Acme␛[22m␛[39m
-␛[38;5;109m  profile default · stored in ~/.dexto␛[39m
-␛[38;5;109m  your provider keys stay on this machine␛[39m
+␛[38;5;109m  profile default · stored in ~/.dexto · your provider keys stay on this machine␛[39m
+␛[38;5;109m  Dexto models bill Cloud project Default.␛[39m
+
+␛[38;5;188m  Now available:␛[39m
+␛[38;5;188m  ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mmodels & credits   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mconnectors   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mDrive   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mSkills   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mmemory   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mSites & Apps   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mLoops   ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mcloud computers   ␛[39m
+␛[38;5;188m  ␛[39m␛[38;5;183m◆ ␛[39m␛[38;5;188mProjects   ␛[39m
+
+␛[38;5;109m  next: ␛[39m␛[38;5;115mdexto␛[39m␛[38;5;109m  ·  chats sync to your dashboard from now on (/private, --no-sync)␛[39m"
+`;
+
+exports[`Signal screens on 256-dark > at 124 columns > 3 signed in, longer profile 1`] = `
+"␛[38;5;183m◆ ␛[39m␛[38;5;188mapproved in the browser␛[39m
+
+␛[38;5;183m◆ ␛[39m␛[38;5;183m␛[1mSigned in as Sam Rivera · Acme␛[22m␛[39m
+␛[38;5;109m  profile acme-work · stored in ~/.dexto · your provider keys stay on this machine␛[39m
 ␛[38;5;109m  Dexto models bill Cloud project Default.␛[39m
 
 ␛[38;5;188m  Now available:␛[39m
@@ -479,8 +528,7 @@ exports[`Signal screens on 256-dark > at 124 columns > 3 signed in, other profil
 "␛[38;5;183m◆ ␛[39m␛[38;5;188mapproved in the browser␛[39m
 
 ␛[38;5;183m◆ ␛[39m␛[38;5;183m␛[1mSigned in as Sam Rivera · Acme␛[22m␛[39m
-␛[38;5;109m  profile work · stored in ~/.dexto␛[39m
-␛[38;5;109m  your provider keys stay on this machine␛[39m
+␛[38;5;109m  profile work · stored in ~/.dexto · your provider keys stay on this machine␛[39m
 ␛[38;5;109m  Dexto models bill Cloud project Default.␛[39m
 ␛[38;5;109m  Other commands still use another profile: pass ␛[39m␛[38;5;115m--profile work␛[39m␛[38;5;109m, or run ␛[39m␛[38;5;115mdexto accounts use work␛[39m
 
@@ -538,8 +586,7 @@ exports[`Signal screens on ascii > 3 signed in, no project 1`] = `
 "␛[35m* ␛[39mapproved in the browser
 
 ␛[35m* ␛[39m␛[35m␛[1mSigned in as Sam Rivera . Acme␛[22m␛[39m
-␛[90m  profile work . stored in ~/.dexto␛[39m
-␛[90m  your provider keys stay on this machine␛[39m
+␛[90m  profile work . stored in ~/.dexto . your provider keys stay on this machine␛[39m
 ␛[33m  This organization has no Cloud project for Dexto models to bill.␛[39m
 ␛[90m  Other commands still use another profile: pass ␛[39m␛[36m--profile work␛[39m␛[90m,␛[39m
 ␛[90m  or run ␛[39m␛[36mdexto accounts use work␛[39m
@@ -634,7 +681,21 @@ exports[`Signal screens on ascii > at 80 columns > 3 signed in 1`] = `
 "␛[35m* ␛[39mapproved in the browser
 
 ␛[35m* ␛[39m␛[35m␛[1mSigned in as Sam Rivera . Acme␛[22m␛[39m
-␛[90m  profile default . stored in ~/.dexto␛[39m
+␛[90m  profile default . stored in ~/.dexto . your provider keys stay on this machine␛[39m
+␛[90m  Dexto models bill Cloud project Default.␛[39m
+
+  Now available:
+  ␛[35m* ␛[39mmodels & credits   ␛[35m* ␛[39mconnectors   ␛[35m* ␛[39mDrive   ␛[35m* ␛[39mSkills   ␛[35m* ␛[39mmemory
+  ␛[35m* ␛[39mSites & Apps   ␛[35m* ␛[39mLoops   ␛[35m* ␛[39mcloud computers   ␛[35m* ␛[39mProjects
+
+␛[90m  next: ␛[39m␛[36mdexto␛[39m␛[90m  .  chats sync to your dashboard from now on (/private, --no-sync)␛[39m"
+`;
+
+exports[`Signal screens on ascii > at 80 columns > 3 signed in, longer profile 1`] = `
+"␛[35m* ␛[39mapproved in the browser
+
+␛[35m* ␛[39m␛[35m␛[1mSigned in as Sam Rivera . Acme␛[22m␛[39m
+␛[90m  profile acme-work . stored in ~/.dexto␛[39m
 ␛[90m  your provider keys stay on this machine␛[39m
 ␛[90m  Dexto models bill Cloud project Default.␛[39m
 
@@ -649,8 +710,7 @@ exports[`Signal screens on ascii > at 80 columns > 3 signed in, other profile 1`
 "␛[35m* ␛[39mapproved in the browser
 
 ␛[35m* ␛[39m␛[35m␛[1mSigned in as Sam Rivera . Acme␛[22m␛[39m
-␛[90m  profile work . stored in ~/.dexto␛[39m
-␛[90m  your provider keys stay on this machine␛[39m
+␛[90m  profile work . stored in ~/.dexto . your provider keys stay on this machine␛[39m
 ␛[90m  Dexto models bill Cloud project Default.␛[39m
 ␛[90m  Other commands still use another profile: pass ␛[39m␛[36m--profile work␛[39m␛[90m,␛[39m
 ␛[90m  or run ␛[39m␛[36mdexto accounts use work␛[39m
@@ -722,8 +782,21 @@ exports[`Signal screens on ascii > at 124 columns > 3 signed in 1`] = `
 "␛[35m* ␛[39mapproved in the browser
 
 ␛[35m* ␛[39m␛[35m␛[1mSigned in as Sam Rivera . Acme␛[22m␛[39m
-␛[90m  profile default . stored in ~/.dexto␛[39m
-␛[90m  your provider keys stay on this machine␛[39m
+␛[90m  profile default . stored in ~/.dexto . your provider keys stay on this machine␛[39m
+␛[90m  Dexto models bill Cloud project Default.␛[39m
+
+  Now available:
+  ␛[35m* ␛[39mmodels & credits   ␛[35m* ␛[39mconnectors   ␛[35m* ␛[39mDrive   ␛[35m* ␛[39mSkills   ␛[35m* ␛[39mmemory   ␛[35m* ␛[39mSites & Apps   ␛[35m* ␛[39mLoops   ␛[35m* ␛[39mcloud computers
+  ␛[35m* ␛[39mProjects
+
+␛[90m  next: ␛[39m␛[36mdexto␛[39m␛[90m  .  chats sync to your dashboard from now on (/private, --no-sync)␛[39m"
+`;
+
+exports[`Signal screens on ascii > at 124 columns > 3 signed in, longer profile 1`] = `
+"␛[35m* ␛[39mapproved in the browser
+
+␛[35m* ␛[39m␛[35m␛[1mSigned in as Sam Rivera . Acme␛[22m␛[39m
+␛[90m  profile acme-work . stored in ~/.dexto . your provider keys stay on this machine␛[39m
 ␛[90m  Dexto models bill Cloud project Default.␛[39m
 
   Now available:
@@ -737,8 +810,7 @@ exports[`Signal screens on ascii > at 124 columns > 3 signed in, other profile 1
 "␛[35m* ␛[39mapproved in the browser
 
 ␛[35m* ␛[39m␛[35m␛[1mSigned in as Sam Rivera . Acme␛[22m␛[39m
-␛[90m  profile work . stored in ~/.dexto␛[39m
-␛[90m  your provider keys stay on this machine␛[39m
+␛[90m  profile work . stored in ~/.dexto . your provider keys stay on this machine␛[39m
 ␛[90m  Dexto models bill Cloud project Default.␛[39m
 ␛[90m  Other commands still use another profile: pass ␛[39m␛[36m--profile work␛[39m␛[90m, or run ␛[39m␛[36mdexto accounts use work␛[39m
 
@@ -796,8 +868,7 @@ exports[`Signal screens on no-color > 3 signed in, no project 1`] = `
 "◆ approved in the browser
 
 ◆ Signed in as Sam Rivera · Acme
-  profile work · stored in ~/.dexto
-  your provider keys stay on this machine
+  profile work · stored in ~/.dexto · your provider keys stay on this machine
   This organization has no Cloud project for Dexto models to bill.
   Other commands still use another profile: pass --profile work,
   or run dexto accounts use work
@@ -890,7 +961,21 @@ exports[`Signal screens on no-color > at 80 columns > 3 signed in 1`] = `
 "◆ approved in the browser
 
 ◆ Signed in as Sam Rivera · Acme
-  profile default · stored in ~/.dexto
+  profile default · stored in ~/.dexto · your provider keys stay on this machine
+  Dexto models bill Cloud project Default.
+
+  Now available:
+  ◆ models & credits   ◆ connectors   ◆ Drive   ◆ Skills   ◆ memory
+  ◆ Sites & Apps   ◆ Loops   ◆ cloud computers   ◆ Projects
+
+  next: dexto  ·  chats sync to your dashboard from now on (/private, --no-sync)"
+`;
+
+exports[`Signal screens on no-color > at 80 columns > 3 signed in, longer profile 1`] = `
+"◆ approved in the browser
+
+◆ Signed in as Sam Rivera · Acme
+  profile acme-work · stored in ~/.dexto
   your provider keys stay on this machine
   Dexto models bill Cloud project Default.
 
@@ -905,8 +990,7 @@ exports[`Signal screens on no-color > at 80 columns > 3 signed in, other profile
 "◆ approved in the browser
 
 ◆ Signed in as Sam Rivera · Acme
-  profile work · stored in ~/.dexto
-  your provider keys stay on this machine
+  profile work · stored in ~/.dexto · your provider keys stay on this machine
   Dexto models bill Cloud project Default.
   Other commands still use another profile: pass --profile work,
   or run dexto accounts use work
@@ -973,8 +1057,21 @@ exports[`Signal screens on no-color > at 124 columns > 3 signed in 1`] = `
 "◆ approved in the browser
 
 ◆ Signed in as Sam Rivera · Acme
-  profile default · stored in ~/.dexto
-  your provider keys stay on this machine
+  profile default · stored in ~/.dexto · your provider keys stay on this machine
+  Dexto models bill Cloud project Default.
+
+  Now available:
+  ◆ models & credits   ◆ connectors   ◆ Drive   ◆ Skills   ◆ memory   ◆ Sites & Apps   ◆ Loops   ◆ cloud computers
+  ◆ Projects
+
+  next: dexto  ·  chats sync to your dashboard from now on (/private, --no-sync)"
+`;
+
+exports[`Signal screens on no-color > at 124 columns > 3 signed in, longer profile 1`] = `
+"◆ approved in the browser
+
+◆ Signed in as Sam Rivera · Acme
+  profile acme-work · stored in ~/.dexto · your provider keys stay on this machine
   Dexto models bill Cloud project Default.
 
   Now available:
@@ -988,8 +1085,7 @@ exports[`Signal screens on no-color > at 124 columns > 3 signed in, other profil
 "◆ approved in the browser
 
 ◆ Signed in as Sam Rivera · Acme
-  profile work · stored in ~/.dexto
-  your provider keys stay on this machine
+  profile work · stored in ~/.dexto · your provider keys stay on this machine
   Dexto models bill Cloud project Default.
   Other commands still use another profile: pass --profile work, or run dexto accounts use work
 
@@ -1050,8 +1146,7 @@ exports[`Signal screens on truecolor-dark > 3 signed in, no project 1`] = `
 "␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mapproved in the browser␛[39m
 
 ␛[38;2;226;141;240m◆ ␛[39m␛[38;2;226;141;240m␛[1mSigned in as Sam Rivera · Acme␛[22m␛[39m
-␛[38;2;127;140;138m  profile work · stored in ~/.dexto␛[39m
-␛[38;2;127;140;138m  your provider keys stay on this machine␛[39m
+␛[38;2;127;140;138m  profile work · stored in ~/.dexto · your provider keys stay on this machine␛[39m
 ␛[38;2;244;181;74m  This organization has no Cloud project for Dexto models to bill.␛[39m
 ␛[38;2;127;140;138m  Other commands still use another profile: pass ␛[39m␛[38;2;78;201;176m--profile work␛[39m␛[38;2;127;140;138m,␛[39m
 ␛[38;2;127;140;138m  or run ␛[39m␛[38;2;78;201;176mdexto accounts use work␛[39m
@@ -1147,7 +1242,21 @@ exports[`Signal screens on truecolor-dark > at 80 columns > 3 signed in 1`] = `
 "␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mapproved in the browser␛[39m
 
 ␛[38;2;226;141;240m◆ ␛[39m␛[38;2;226;141;240m␛[1mSigned in as Sam Rivera · Acme␛[22m␛[39m
-␛[38;2;127;140;138m  profile default · stored in ~/.dexto␛[39m
+␛[38;2;127;140;138m  profile default · stored in ~/.dexto · your provider keys stay on this machine␛[39m
+␛[38;2;127;140;138m  Dexto models bill Cloud project Default.␛[39m
+
+␛[38;2;216;224;222m  Now available:␛[39m
+␛[38;2;216;224;222m  ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mmodels & credits   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mconnectors   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mDrive   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mSkills   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mmemory   ␛[39m
+␛[38;2;216;224;222m  ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mSites & Apps   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mLoops   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mcloud computers   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mProjects   ␛[39m
+
+␛[38;2;127;140;138m  next: ␛[39m␛[38;2;78;201;176mdexto␛[39m␛[38;2;127;140;138m  ·  chats sync to your dashboard from now on (/private, --no-sync)␛[39m"
+`;
+
+exports[`Signal screens on truecolor-dark > at 80 columns > 3 signed in, longer profile 1`] = `
+"␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mapproved in the browser␛[39m
+
+␛[38;2;226;141;240m◆ ␛[39m␛[38;2;226;141;240m␛[1mSigned in as Sam Rivera · Acme␛[22m␛[39m
+␛[38;2;127;140;138m  profile acme-work · stored in ~/.dexto␛[39m
 ␛[38;2;127;140;138m  your provider keys stay on this machine␛[39m
 ␛[38;2;127;140;138m  Dexto models bill Cloud project Default.␛[39m
 
@@ -1162,8 +1271,7 @@ exports[`Signal screens on truecolor-dark > at 80 columns > 3 signed in, other p
 "␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mapproved in the browser␛[39m
 
 ␛[38;2;226;141;240m◆ ␛[39m␛[38;2;226;141;240m␛[1mSigned in as Sam Rivera · Acme␛[22m␛[39m
-␛[38;2;127;140;138m  profile work · stored in ~/.dexto␛[39m
-␛[38;2;127;140;138m  your provider keys stay on this machine␛[39m
+␛[38;2;127;140;138m  profile work · stored in ~/.dexto · your provider keys stay on this machine␛[39m
 ␛[38;2;127;140;138m  Dexto models bill Cloud project Default.␛[39m
 ␛[38;2;127;140;138m  Other commands still use another profile: pass ␛[39m␛[38;2;78;201;176m--profile work␛[39m␛[38;2;127;140;138m,␛[39m
 ␛[38;2;127;140;138m  or run ␛[39m␛[38;2;78;201;176mdexto accounts use work␛[39m
@@ -1235,8 +1343,21 @@ exports[`Signal screens on truecolor-dark > at 124 columns > 3 signed in 1`] = `
 "␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mapproved in the browser␛[39m
 
 ␛[38;2;226;141;240m◆ ␛[39m␛[38;2;226;141;240m␛[1mSigned in as Sam Rivera · Acme␛[22m␛[39m
-␛[38;2;127;140;138m  profile default · stored in ~/.dexto␛[39m
-␛[38;2;127;140;138m  your provider keys stay on this machine␛[39m
+␛[38;2;127;140;138m  profile default · stored in ~/.dexto · your provider keys stay on this machine␛[39m
+␛[38;2;127;140;138m  Dexto models bill Cloud project Default.␛[39m
+
+␛[38;2;216;224;222m  Now available:␛[39m
+␛[38;2;216;224;222m  ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mmodels & credits   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mconnectors   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mDrive   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mSkills   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mmemory   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mSites & Apps   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mLoops   ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mcloud computers   ␛[39m
+␛[38;2;216;224;222m  ␛[39m␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mProjects   ␛[39m
+
+␛[38;2;127;140;138m  next: ␛[39m␛[38;2;78;201;176mdexto␛[39m␛[38;2;127;140;138m  ·  chats sync to your dashboard from now on (/private, --no-sync)␛[39m"
+`;
+
+exports[`Signal screens on truecolor-dark > at 124 columns > 3 signed in, longer profile 1`] = `
+"␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mapproved in the browser␛[39m
+
+␛[38;2;226;141;240m◆ ␛[39m␛[38;2;226;141;240m␛[1mSigned in as Sam Rivera · Acme␛[22m␛[39m
+␛[38;2;127;140;138m  profile acme-work · stored in ~/.dexto · your provider keys stay on this machine␛[39m
 ␛[38;2;127;140;138m  Dexto models bill Cloud project Default.␛[39m
 
 ␛[38;2;216;224;222m  Now available:␛[39m
@@ -1250,8 +1371,7 @@ exports[`Signal screens on truecolor-dark > at 124 columns > 3 signed in, other 
 "␛[38;2;226;141;240m◆ ␛[39m␛[38;2;216;224;222mapproved in the browser␛[39m
 
 ␛[38;2;226;141;240m◆ ␛[39m␛[38;2;226;141;240m␛[1mSigned in as Sam Rivera · Acme␛[22m␛[39m
-␛[38;2;127;140;138m  profile work · stored in ~/.dexto␛[39m
-␛[38;2;127;140;138m  your provider keys stay on this machine␛[39m
+␛[38;2;127;140;138m  profile work · stored in ~/.dexto · your provider keys stay on this machine␛[39m
 ␛[38;2;127;140;138m  Dexto models bill Cloud project Default.␛[39m
 ␛[38;2;127;140;138m  Other commands still use another profile: pass ␛[39m␛[38;2;78;201;176m--profile work␛[39m␛[38;2;127;140;138m, or run ␛[39m␛[38;2;78;201;176mdexto accounts use work␛[39m
 
@@ -1312,8 +1432,7 @@ exports[`Signal screens on truecolor-light > 3 signed in, no project 1`] = `
 "␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mapproved in the browser␛[39m
 
 ␛[38;2;158;42;156m◆ ␛[39m␛[38;2;158;42;156m␛[1mSigned in as Sam Rivera · Acme␛[22m␛[39m
-␛[38;2;94;106;104m  profile work · stored in ~/.dexto␛[39m
-␛[38;2;94;106;104m  your provider keys stay on this machine␛[39m
+␛[38;2;94;106;104m  profile work · stored in ~/.dexto · your provider keys stay on this machine␛[39m
 ␛[38;2;149;90;0m  This organization has no Cloud project for Dexto models to bill.␛[39m
 ␛[38;2;94;106;104m  Other commands still use another profile: pass ␛[39m␛[38;2;11;122;104m--profile work␛[39m␛[38;2;94;106;104m,␛[39m
 ␛[38;2;94;106;104m  or run ␛[39m␛[38;2;11;122;104mdexto accounts use work␛[39m
@@ -1409,7 +1528,21 @@ exports[`Signal screens on truecolor-light > at 80 columns > 3 signed in 1`] = `
 "␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mapproved in the browser␛[39m
 
 ␛[38;2;158;42;156m◆ ␛[39m␛[38;2;158;42;156m␛[1mSigned in as Sam Rivera · Acme␛[22m␛[39m
-␛[38;2;94;106;104m  profile default · stored in ~/.dexto␛[39m
+␛[38;2;94;106;104m  profile default · stored in ~/.dexto · your provider keys stay on this machine␛[39m
+␛[38;2;94;106;104m  Dexto models bill Cloud project Default.␛[39m
+
+␛[38;2;27;34;33m  Now available:␛[39m
+␛[38;2;27;34;33m  ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mmodels & credits   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mconnectors   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mDrive   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mSkills   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mmemory   ␛[39m
+␛[38;2;27;34;33m  ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mSites & Apps   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mLoops   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mcloud computers   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mProjects   ␛[39m
+
+␛[38;2;94;106;104m  next: ␛[39m␛[38;2;11;122;104mdexto␛[39m␛[38;2;94;106;104m  ·  chats sync to your dashboard from now on (/private, --no-sync)␛[39m"
+`;
+
+exports[`Signal screens on truecolor-light > at 80 columns > 3 signed in, longer profile 1`] = `
+"␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mapproved in the browser␛[39m
+
+␛[38;2;158;42;156m◆ ␛[39m␛[38;2;158;42;156m␛[1mSigned in as Sam Rivera · Acme␛[22m␛[39m
+␛[38;2;94;106;104m  profile acme-work · stored in ~/.dexto␛[39m
 ␛[38;2;94;106;104m  your provider keys stay on this machine␛[39m
 ␛[38;2;94;106;104m  Dexto models bill Cloud project Default.␛[39m
 
@@ -1424,8 +1557,7 @@ exports[`Signal screens on truecolor-light > at 80 columns > 3 signed in, other 
 "␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mapproved in the browser␛[39m
 
 ␛[38;2;158;42;156m◆ ␛[39m␛[38;2;158;42;156m␛[1mSigned in as Sam Rivera · Acme␛[22m␛[39m
-␛[38;2;94;106;104m  profile work · stored in ~/.dexto␛[39m
-␛[38;2;94;106;104m  your provider keys stay on this machine␛[39m
+␛[38;2;94;106;104m  profile work · stored in ~/.dexto · your provider keys stay on this machine␛[39m
 ␛[38;2;94;106;104m  Dexto models bill Cloud project Default.␛[39m
 ␛[38;2;94;106;104m  Other commands still use another profile: pass ␛[39m␛[38;2;11;122;104m--profile work␛[39m␛[38;2;94;106;104m,␛[39m
 ␛[38;2;94;106;104m  or run ␛[39m␛[38;2;11;122;104mdexto accounts use work␛[39m
@@ -1497,8 +1629,21 @@ exports[`Signal screens on truecolor-light > at 124 columns > 3 signed in 1`] = 
 "␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mapproved in the browser␛[39m
 
 ␛[38;2;158;42;156m◆ ␛[39m␛[38;2;158;42;156m␛[1mSigned in as Sam Rivera · Acme␛[22m␛[39m
-␛[38;2;94;106;104m  profile default · stored in ~/.dexto␛[39m
-␛[38;2;94;106;104m  your provider keys stay on this machine␛[39m
+␛[38;2;94;106;104m  profile default · stored in ~/.dexto · your provider keys stay on this machine␛[39m
+␛[38;2;94;106;104m  Dexto models bill Cloud project Default.␛[39m
+
+␛[38;2;27;34;33m  Now available:␛[39m
+␛[38;2;27;34;33m  ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mmodels & credits   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mconnectors   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mDrive   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mSkills   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mmemory   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mSites & Apps   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mLoops   ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mcloud computers   ␛[39m
+␛[38;2;27;34;33m  ␛[39m␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mProjects   ␛[39m
+
+␛[38;2;94;106;104m  next: ␛[39m␛[38;2;11;122;104mdexto␛[39m␛[38;2;94;106;104m  ·  chats sync to your dashboard from now on (/private, --no-sync)␛[39m"
+`;
+
+exports[`Signal screens on truecolor-light > at 124 columns > 3 signed in, longer profile 1`] = `
+"␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mapproved in the browser␛[39m
+
+␛[38;2;158;42;156m◆ ␛[39m␛[38;2;158;42;156m␛[1mSigned in as Sam Rivera · Acme␛[22m␛[39m
+␛[38;2;94;106;104m  profile acme-work · stored in ~/.dexto · your provider keys stay on this machine␛[39m
 ␛[38;2;94;106;104m  Dexto models bill Cloud project Default.␛[39m
 
 ␛[38;2;27;34;33m  Now available:␛[39m
@@ -1512,8 +1657,7 @@ exports[`Signal screens on truecolor-light > at 124 columns > 3 signed in, other
 "␛[38;2;158;42;156m◆ ␛[39m␛[38;2;27;34;33mapproved in the browser␛[39m
 
 ␛[38;2;158;42;156m◆ ␛[39m␛[38;2;158;42;156m␛[1mSigned in as Sam Rivera · Acme␛[22m␛[39m
-␛[38;2;94;106;104m  profile work · stored in ~/.dexto␛[39m
-␛[38;2;94;106;104m  your provider keys stay on this machine␛[39m
+␛[38;2;94;106;104m  profile work · stored in ~/.dexto · your provider keys stay on this machine␛[39m
 ␛[38;2;94;106;104m  Dexto models bill Cloud project Default.␛[39m
 ␛[38;2;94;106;104m  Other commands still use another profile: pass ␛[39m␛[38;2;11;122;104m--profile work␛[39m␛[38;2;94;106;104m, or run ␛[39m␛[38;2;11;122;104mdexto accounts use work␛[39m
 

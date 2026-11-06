@@ -83,6 +83,11 @@ const BY_WIDTH: Readonly<Record<string, (columns: number) => string[]>> = {
             { signedInAs: SAM, profile: 'work', cloudProject: 'Default', notCurrent: true },
             columns
         ),
+    '3 signed in, longer profile': (columns) =>
+        signedInLines(
+            { signedInAs: SAM, profile: 'acme-work', cloudProject: 'Default', notCurrent: false },
+            columns
+        ),
     '7 help': (columns) => rootHelpLines(program(), program().createHelp(), '2.0.0', columns),
 };
 
@@ -163,6 +168,7 @@ describe('Signal screens', () => {
         ['7 help', 60],
         ['7 help', 80],
         ['3 signed in', 80],
+        ['3 signed in, longer profile', 80],
         ['3 signed in, other profile', 80],
     ])('keep every row of %s inside %i columns', (name, columns) => {
         const rows = drawText('no-color', () => BY_WIDTH[name]?.(columns) ?? []).split('\n');
@@ -180,7 +186,7 @@ describe('Signal screens', () => {
         expect(wrapWords('', 10)).toEqual(['']);
     });
 
-    it('put the signed-in profile on two rows, and split the other-profile hint only when narrow', () => {
+    it('split the signed-in profile row and the other-profile hint only when they do not fit', () => {
         const signedIn = {
             signedInAs: SAM,
             profile: 'default',
@@ -188,7 +194,17 @@ describe('Signal screens', () => {
             notCurrent: false,
         };
         expect(drawText('no-color', () => signedInLines(signedIn, 124))).toContain(
-            '  profile default · stored in ~/.dexto\n  your provider keys stay on this machine'
+            '  profile default · stored in ~/.dexto · your provider keys stay on this machine\n'
+        );
+        expect(drawText('no-color', () => signedInLines(signedIn, 80))).toContain(
+            '  profile default · stored in ~/.dexto · your provider keys stay on this machine\n'
+        );
+        const longer = { ...signedIn, profile: 'acme-work' };
+        expect(drawText('no-color', () => signedInLines(longer, 80))).toContain(
+            '  profile acme-work · stored in ~/.dexto\n  your provider keys stay on this machine\n'
+        );
+        expect(drawText('no-color', () => signedInLines(longer, 124))).toContain(
+            '  profile acme-work · stored in ~/.dexto · your provider keys stay on this machine\n'
         );
         const other = { ...signedIn, profile: 'work', notCurrent: true };
         expect(drawText('no-color', () => signedInLines(other, 124))).toContain(

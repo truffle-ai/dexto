@@ -162,9 +162,15 @@ export function signedInLines(signedIn: SignedIn, columns: number): string[] {
         line([span('cloud', '◆ '), span('fg', 'approved in the browser')]),
         '',
         line([span('cloud', '◆ '), strong('cloud', who)]),
-        // Two rows: on one, any profile name longer than `default` overflows 80 columns.
-        line([span('dim', `  profile ${signedIn.profile} · stored in ~/.dexto`)]),
-        line([span('dim', '  your provider keys stay on this machine')]),
+        // One row when it fits; a profile name longer than `default` overflows 80 columns.
+        ...rowOrRows(
+            [
+                [span('dim', `profile ${signedIn.profile} · stored in ~/.dexto`)],
+                [span('dim', 'your provider keys stay on this machine')],
+            ],
+            span('dim', ' · '),
+            columns
+        ),
         signedIn.cloudProject === null
             ? line([
                   span(
