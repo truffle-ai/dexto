@@ -58,6 +58,9 @@ These rules are intended to prevent stack fragmentation and review churn.
   record. Stopping a follow never cancels the remote chat.
 - Bound each in-flight wait/follow read with a client deadline as well as the server wait budget;
   clear its timer and interruption listener when the read ends.
+- Retry only idempotent wait/follow reads after transient HTTP/network failures or a per-read
+  deadline, with bounded backoff honoring Retry-After and the user deadline. Never retry start.
+  Exit 6 when the user deadline expires or the run needs input; Ctrl-C remains exit 130.
 
 ### TUI (`packages/tui`)
 

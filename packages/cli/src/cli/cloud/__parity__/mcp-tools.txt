@@ -3860,7 +3860,7 @@
             "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
           },
           "wait": {
-            "description": "Wait up to 25 seconds for the answer; resume with the returned nextAction if still running.",
+            "description": "Requires sessions:read before admission. Wait up to 25 seconds for answer, artifacts and usage; running or needs_input includes nextAction.",
             "type": "boolean"
           },
           "agentId": {

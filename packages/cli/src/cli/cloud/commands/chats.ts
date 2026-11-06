@@ -4,6 +4,7 @@ import { requireConsent } from '../../interaction.js';
 import { CommandFailure, EXIT_CODES, type FailureKind } from '../../failure.js';
 
 import { z } from 'zod';
+import { CloudApiError } from '@dexto/cloud-client';
 
 import {
     argument,
@@ -350,15 +351,20 @@ const LOCATION_MESSAGES: Record<z.output<typeof ChatStartRefusalSchema>['outcome
 
 const FollowResultSchema = z
     .object({
-        outcome: z.enum(['done', 'failed', 'cancelled', 'running']),
+        outcome: z.enum(['done', 'failed', 'cancelled', 'running', 'needs_input']),
         running: z.boolean(),
         cursor: z.string(),
         hasMore: z.boolean(),
-        session: z.object({ id: z.string() }),
+        session: z.object({ id: z.string(), status: z.string().optional() }),
+        nextAction: z
+            .object({ instruction: z.string().optional() })
+            .passthrough()
+            .nullable()
+            .optional(),
         events: z.array(z.unknown()),
         answer: z.string().nullable(),
         artifacts: z.array(z.unknown()),
-        usage: z.array(z.unknown()),
+        usage: z.record(z.string(), z.unknown()).nullable(),
     })
     .passthrough();
 
@@ -380,6 +386,26 @@ function followDeadline(input: CommandInput): number {
     return Date.now() + seconds * 1000;
 }
 
+function readableChatEvent(event: unknown): string {
+    const summary = z
+        .object({
+            type: z.string().optional(),
+            sequence: z.number().optional(),
+            payload: z.unknown().optional(),
+        })
+        .safeParse(event);
+    if (!summary.success) return 'Chat update';
+    const { type, sequence, payload } = summary.data;
+    const text =
+        typeof payload === 'object' &&
+        payload !== null &&
+        'text' in payload &&
+        typeof payload.text === 'string'
+            ? payload.text
+            : '';
+    return `${sequence === undefined ? '' : `${sequence} · `}${type ?? 'Chat update'}${text === '' ? '' : `: ${text}`}`;
+}
+
 async function followChat(
     context: CommandContext,
     sessionId: string,
@@ -389,6 +415,8 @@ async function followChat(
 ): Promise<number> {
     let tool = firstTool;
     let timedOut = false;
+    let failures = 0;
+    let retryBudgetMs = 30_000;
     try {
         for (;;) {
             context.runtime.signal.throwIfAborted();
@@ -397,14 +425,14 @@ async function followChat(
             const read = new AbortController();
             const onInterrupt = () => read.abort(context.runtime.signal.reason);
             context.runtime.signal.addEventListener('abort', onInterrupt, { once: true });
-            timedOut = false;
+            let readTimedOut = false;
             // Bound stalled reads too, with a small transport grace beyond the server's budget.
             const timer = setTimeout(
                 () => {
-                    timedOut = true;
+                    readTimedOut = true;
                     read.abort();
                 },
-                Math.min(25_000, remainingMs) + 1_500
+                Math.min(remainingMs, waitSeconds * 1000 + 1_500)
             );
             let page: z.output<typeof FollowResultSchema>;
             try {
@@ -415,31 +443,69 @@ async function followChat(
                         { sessionId, ...(cursor === undefined ? {} : { cursor }), waitSeconds }
                     )
                 );
+            } catch (error) {
+                context.runtime.signal.throwIfAborted();
+                if (Date.now() >= deadline) {
+                    timedOut = true;
+                    throw error;
+                }
+                const transient =
+                    error instanceof CloudApiError
+                        ? error.status === 429 || (error.status >= 500 && error.status <= 599)
+                        : error instanceof TypeError ||
+                          (error instanceof Error &&
+                              !(error instanceof CommandFailure) &&
+                              /network|connection|socket|fetch|ECONN|ETIMEDOUT/iu.test(
+                                  error.message
+                              ));
+                if ((!readTimedOut && !transient) || failures >= 3) throw error;
+                const delay = readTimedOut
+                    ? 0
+                    : Math.max(
+                          500 * 2 ** failures,
+                          error instanceof CloudApiError ? (error.retryAfterSeconds ?? 0) * 1000 : 0
+                      );
+                failures++;
+                if (delay >= deadline - Date.now()) {
+                    await context.runtime.sleep(Math.max(0, deadline - Date.now()));
+                    timedOut = true;
+                    throw error;
+                }
+                if (delay > retryBudgetMs) throw error;
+                retryBudgetMs -= delay;
+                await context.runtime.sleep(delay);
+                continue;
             } finally {
                 clearTimeout(timer);
                 context.runtime.signal.removeEventListener('abort', onInterrupt);
             }
+            failures = 0;
+            retryBudgetMs = 30_000;
             tool = 'dexto_chat_follow';
             for (const event of page.events) {
                 if (context.output.json)
                     context.runtime.writeOutput(`${JSON.stringify({ type: 'event', event })}\n`);
-                else context.output.note(JSON.stringify(event));
+                else context.runtime.writeOutput(`${readableChatEvent(event)}\n`);
             }
             cursor = page.cursor;
-            if ((!page.running && !page.hasMore) || Date.now() >= deadline) {
+            if (
+                page.outcome === 'needs_input' ||
+                (!page.running && !page.hasMore) ||
+                Date.now() >= deadline
+            ) {
                 const { events: _events, ...result } = page;
                 if (context.output.json)
                     context.runtime.writeOutput(
-                        `${JSON.stringify({ type: 'final', ...result })}\n`
+                        `${JSON.stringify({ ...result, type: 'final' })}\n`
                     );
                 else
                     context.output.result(
                         result,
-                        `${page.answer ?? ''}\nArtifacts: ${JSON.stringify(page.artifacts)}\nUsage: ${JSON.stringify(page.usage)}\nOutcome: ${page.outcome}\nCursor: ${cursor}`
+                        `${page.answer ?? ''}\nArtifacts: ${JSON.stringify(page.artifacts)}\nUsage: ${JSON.stringify(page.usage)}\nOutcome: ${page.outcome}\n${page.nextAction?.instruction ?? ''}\nCursor: ${cursor}`
                     );
                 return page.outcome === 'failed' || page.outcome === 'cancelled'
                     ? 1
-                    : page.running || page.hasMore
+                    : page.outcome === 'needs_input' || page.running || page.hasMore
                       ? 6
                       : 0;
             }
@@ -456,7 +522,6 @@ async function followChat(
                       null
                   );
         const result = {
-            type: 'final',
             ...(interrupted
                 ? { outcome: 'running', interrupted: true }
                 : timedOut
@@ -471,6 +536,7 @@ async function followChat(
                 tool: 'dexto_chat_follow',
                 arguments: { sessionId, ...(cursor === undefined ? {} : { cursor }) },
             },
+            type: 'final',
         };
         if (context.output.json) context.runtime.writeOutput(`${JSON.stringify(result)}\n`);
         else
@@ -610,6 +676,18 @@ const start: Command = {
                     : result.nextAction.tool === 'dexto_chat_computers_list'
                       ? 'dexto chat computers'
                       : 'dexto chat browser-profiles';
+            if (flag(input, 'wait')) {
+                if (context.output.json)
+                    context.runtime.writeOutput(
+                        `${JSON.stringify({ ...result, type: 'final' })}\n`
+                    );
+                else
+                    context.output.result(
+                        result,
+                        `${LOCATION_MESSAGES[result.outcome]}${fix === null ? '' : `\nNext: ${fix}`}`
+                    );
+                return EXIT_CODES[kind];
+            }
             if (context.output.json) context.output.result(result, '');
             throw new CommandFailure(kind, LOCATION_MESSAGES[result.outcome], fix);
         }

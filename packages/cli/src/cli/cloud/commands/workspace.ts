@@ -4,6 +4,7 @@ import { CommandFailure } from '../../failure.js';
 import { requireConsent, rerunWith } from '../../interaction.js';
 
 import { z } from 'zod';
+import { unwrap } from '@dexto/cloud-client';
 
 import {
     argument,
@@ -296,8 +297,8 @@ async function callMcp(context: CommandContext, method: string, params: unknown)
             "Your sign-in can't reach the workspace. Sign in again to grant it.",
             signInCommand(context, null)
         );
+    if (!response.ok) return unwrap({ response, error: null });
     const text = await response.text();
-    if (!response.ok) throw new Error(`The Dexto MCP answered HTTP ${response.status}.`);
     const message = parseJsonRpc(
         response.headers.get('content-type')?.includes('text/event-stream') === true
             ? lastEventData(text)
