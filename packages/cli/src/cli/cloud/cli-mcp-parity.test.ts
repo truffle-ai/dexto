@@ -4,6 +4,12 @@ import { z } from 'zod';
 import inventory from '../../../cli-mcp-parity.json' with { type: 'json' };
 import { cloudCommands } from './host.js';
 
+it('keeps the vendored parity inventory identical to the CLI inventory', () => {
+    expect(readFileSync(new URL('./__parity__/cli-mcp-parity.json', import.meta.url), 'utf8')).toBe(
+        readFileSync(new URL('../../../cli-mcp-parity.json', import.meta.url), 'utf8')
+    );
+});
+
 const catalog = z
     .object({
         tools: z.array(
@@ -95,7 +101,6 @@ trace-list
 trace-view
 chat-list-status
 chat-wait-follow
-chat-start-computer-browser
 chat-get-usage`.split('\n')
 );
 
@@ -155,7 +160,6 @@ dexto_chat_get
 dexto_chat_list
 dexto_chat_models
 dexto_chat_send
-dexto_chat_start
 dexto_contacts_block
 dexto_contacts_connect
 dexto_contacts_invite_link

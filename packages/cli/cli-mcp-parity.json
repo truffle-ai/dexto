@@ -21,7 +21,10 @@
         "workspace drive put": ["dexto_upload_prepare", "dexto_drive"],
         "workspace tools": [],
         "cloud search": ["dexto_capability_describe", "dexto_capability_call"],
-        "cloud sites delete": ["dexto_sites_list", "dexto_site_delete"]
+        "cloud sites delete": ["dexto_sites_list", "dexto_site_delete"],
+        "chat start": ["dexto_chat_start"],
+        "chat computers": ["dexto_chat_computers_list"],
+        "chat browser-profiles": ["dexto_chat_browser_profiles_list"]
     },
     "localOnly": [
         {
@@ -1017,19 +1020,6 @@
             ]
         },
         {
-            "name": "chat-start-computer-browser",
-            "group": "knownChat",
-            "issue": "DEXTO-2479",
-            "reason": "chat_start cannot select a computer and browser profile.",
-            "commands": [],
-            "closesWhen": [
-                {
-                    "tool": "dexto_chat_start",
-                    "inputs": ["computerId", "browserProfileId"]
-                }
-            ]
-        },
-        {
             "name": "chat-get-usage",
             "group": "knownChat",
             "issue": "DEXTO-2479",
@@ -1107,7 +1097,6 @@
         "dexto_chat_list",
         "dexto_chat_models",
         "dexto_chat_send",
-        "dexto_chat_start",
         "dexto_contacts_block",
         "dexto_contacts_connect",
         "dexto_contacts_invite_link",
