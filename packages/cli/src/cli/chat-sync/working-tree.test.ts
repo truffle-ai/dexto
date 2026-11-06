@@ -354,3 +354,79 @@ it('restarts an expired applied or resumed return from the applied tree while pr
     ).rejects.toThrow('changed');
     expect(await readFile(path.join(cwd, 'code.txt'), 'utf8')).toBe('new local work after apply\n');
 });
+
+it('builds a patch when a staged new file was deleted before hand-off', async () => {
+    const cwd = await repository();
+    await writeFile(path.join(cwd, 'staged.txt'), 'temporary staged work\n');
+    await run('git', ['add', 'staged.txt'], { cwd });
+    await rm(path.join(cwd, 'staged.txt'));
+    const before = await readFile(path.join(cwd, '.git/index'));
+    const tree = await buildWorkingTree(cwd);
+    try {
+        expect(tree.patch).toBeNull();
+        expect(await readFile(path.join(cwd, '.git/index'))).toEqual(before);
+    } finally {
+        await tree.cleanup();
+    }
+});
+
+it('checks the root commit even when user log configuration hides it', async () => {
+    const cwd = await repository();
+    await writeFile(path.join(cwd, '.env.fake'), 'fake root fixture\n');
+    await run('git', ['add', '.env.fake'], { cwd });
+    await run('git', ['commit', '--amend', '--no-edit'], { cwd });
+    await run('git', ['rm', '.env.fake'], { cwd });
+    await run('git', ['commit', '-m', 'remove fake root fixture'], { cwd });
+    await run('git', ['config', 'log.showRoot', 'false'], { cwd });
+    await run('git', ['config', 'log.diffMerges', 'off'], { cwd });
+    await expect(buildWorkingTree(cwd)).rejects.toThrow('.env.fake');
+});
+
+it('recognizes an applied return after a crash before saving its journal', async () => {
+    const cwd = await repository();
+    await writeFile(path.join(cwd, 'code.txt'), 'handed off work\n');
+    const baseline = await readLocalTreeCheckpoint(cwd);
+    const returned = {
+        branch: baseline.branch,
+        head: baseline.head,
+        bundle: null,
+        patch: Buffer.from(
+            'diff --git a/code.txt b/code.txt\n--- a/code.txt\n+++ b/code.txt\n@@ -1 +1 @@\n-before\n+returned work\n'
+        ),
+    };
+    await applyReturnedTree(cwd, baseline, returned);
+    const applied = await readLocalTreeCheckpoint(cwd);
+    const stashes = (await run('git', ['stash', 'list'], { cwd })).stdout;
+    await applyReturnedTree(cwd, baseline, returned);
+    expect(await readLocalTreeCheckpoint(cwd)).toEqual(applied);
+    expect((await run('git', ['stash', 'list'], { cwd })).stdout).toBe(stashes);
+    await writeFile(path.join(cwd, 'code.txt'), 'new work after crash\n');
+    await expect(applyReturnedTree(cwd, baseline, returned)).rejects.toMatchObject({
+        kind: 'invalid_input',
+    });
+});
+
+it('runs real checkout smudge filters while skipping them in the validation worktree', async () => {
+    const cwd = await repository();
+    await writeFile(path.join(cwd, '.gitattributes'), '*.txt filter=lfs\n');
+    await run(
+        'git',
+        [
+            'config',
+            'filter.lfs.smudge',
+            'if [ "$GIT_LFS_SKIP_SMUDGE" = 1 ]; then cat; else sed s/pointer/materialized/g; fi',
+        ],
+        { cwd }
+    );
+    await run('git', ['config', 'filter.lfs.clean', 'sed s/materialized/pointer/g'], { cwd });
+    await run('git', ['add', '.gitattributes'], { cwd });
+    await run('git', ['commit', '-m', 'fake smudge filter'], { cwd });
+    const baseline = await readLocalTreeCheckpoint(cwd);
+    await run('git', ['checkout', '-b', 'cloud-work'], { cwd });
+    await writeFile(path.join(cwd, 'code.txt'), 'pointer\n');
+    await run('git', ['commit', '-am', 'cloud content'], { cwd });
+    const head = (await run('git', ['rev-parse', 'HEAD'], { cwd })).stdout.trim();
+    await run('git', ['checkout', 'main'], { cwd });
+    await applyReturnedTree(cwd, baseline, { branch: 'main', head, bundle: null, patch: null });
+    expect(await readFile(path.join(cwd, 'code.txt'), 'utf8')).toBe('materialized\n');
+});

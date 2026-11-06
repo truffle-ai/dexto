@@ -3,7 +3,7 @@ import { mkdtemp, readFile, rm, writeFile, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { isSecretPath } from './redaction.js';
-import { handOffGit } from './git.js';
+import { handOffGit, handOffDiffOptions } from './git.js';
 import { CommandFailure } from '../failure.js';
 
 const MAX_BUNDLE = 256 * 1024 * 1024;
@@ -45,7 +45,8 @@ export async function refuseSecretHistory(repository: string, revision: string):
     const secret = (
         await handOffGit(repository, [
             'log',
-            '-m',
+            '--root',
+            '--diff-merges=separate',
             '--no-renames',
             '--no-color',
             '--name-only',
@@ -88,13 +89,7 @@ async function workingTreeFiles(
         const env = { ...process.env, GIT_INDEX_FILE: path.join(folder, 'index') };
         await handOffGit(repository, ['read-tree', head_commit], env);
         const candidates = (
-            await handOffGit(repository, [
-                'ls-files',
-                '--cached',
-                '--others',
-                '--exclude-standard',
-                '-z',
-            ])
+            await handOffGit(repository, ['ls-files', '--others', '--exclude-standard', '-z'])
         )
             .toString()
             .split('\0')
@@ -116,20 +111,7 @@ async function workingTreeFiles(
             );
         const patch = await handOffGit(
             repository,
-            [
-                '--literal-pathspecs',
-                'diff',
-                '--submodule=short',
-                '--no-color',
-                '--no-renames',
-                '--binary',
-                '--no-ext-diff',
-                '--no-textconv',
-                '--src-prefix=a/',
-                '--dst-prefix=b/',
-                head_commit,
-                '--',
-            ],
+            ['--literal-pathspecs', 'diff', ...handOffDiffOptions, head_commit, '--'],
             env
         );
         if (patch.length > MAX_PATCH) throw new Error('The working-tree patch exceeds 32 MiB.');
