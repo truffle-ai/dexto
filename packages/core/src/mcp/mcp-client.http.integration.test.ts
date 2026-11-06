@@ -70,6 +70,11 @@ describe('MCP HTTP SDK compatibility', () => {
             });
             const origin = await listen(server);
             const client = new DextoMcpClient(createSilentMockLogger());
+            let customFetchCalls = 0;
+            const customFetch: typeof fetch = (input, init) => {
+                customFetchCalls += 1;
+                return fetch(input, init);
+            };
             try {
                 await client.connect(
                     McpServerConfigSchema.parse({
@@ -77,6 +82,7 @@ describe('MCP HTTP SDK compatibility', () => {
                         url: `${origin}/${endpoint === 'direct' ? 'mcp' : 'redirect'}`,
                         headers: { Authorization: `Bearer ${token}` },
                         timeout: 2000,
+                        fetch: customFetch,
                     }),
                     'fixture'
                 );
@@ -106,6 +112,7 @@ describe('MCP HTTP SDK compatibility', () => {
                 });
                 expect(headers.length).toBeGreaterThanOrEqual(4);
                 expect(headers.every((value) => value === `Bearer ${token}`)).toBe(true);
+                expect(customFetchCalls).toBeGreaterThanOrEqual(4);
             } finally {
                 await client.disconnect();
                 await Promise.all([...peers].map((peer) => peer.close()));
@@ -138,6 +145,7 @@ describe('MCP HTTP SDK compatibility', () => {
                             type,
                             url: `${origin}/mcp`,
                             timeout: 2000,
+                            ...(type === 'http' ? { fetch: globalThis.fetch } : {}),
                         }),
                         'redirect-fixture'
                     )

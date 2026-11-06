@@ -124,7 +124,12 @@ export class DextoMcpClient extends EventEmitter implements McpClient {
             return this.connectViaSSE(sseConfig.url, sseConfig.headers, serverName);
         } else if (config.type === 'http') {
             const httpConfig: ValidatedHttpServerConfig = config;
-            return this.connectViaHttp(httpConfig.url, httpConfig.headers || {}, serverName);
+            return this.connectViaHttp(
+                httpConfig.url,
+                httpConfig.headers || {},
+                serverName,
+                httpConfig.fetch
+            );
         } else {
             // TypeScript exhaustiveness check - should never reach here
             const _exhaustive: never = config;
@@ -293,7 +298,8 @@ export class DextoMcpClient extends EventEmitter implements McpClient {
     private async connectViaHttp(
         url: string,
         headers: Record<string, string> = {},
-        serverAlias?: string
+        serverAlias?: string,
+        customFetch?: typeof fetch
     ): Promise<Client> {
         this.logger.info(`Connecting to HTTP MCP server: ${serverAlias ?? 'http'}`);
         // Ensure required Accept headers are set for Streamable HTTP transport
@@ -314,6 +320,7 @@ export class DextoMcpClient extends EventEmitter implements McpClient {
             : null;
         const httpOptions: ConstructorParameters<typeof StreamableHTTPClientTransport>[1] = {
             requestInit: { headers: mergedHeaders },
+            ...(customFetch === undefined ? {} : { fetch: customFetch }),
         };
         if (this.currentAuthProvider) {
             httpOptions.authProvider = this.currentAuthProvider;

@@ -98,6 +98,7 @@ export const HttpServerConfigSchema = z
             .describe('Whether this server is enabled (disabled servers are not connected)'),
         url: RequiredEnvURL(process.env).describe('URL for the HTTP server'),
         headers: z.record(z.string(), EnvExpandedString()).default({}),
+        fetch: z.custom<typeof fetch>((value) => typeof value === 'function').optional(),
         timeout: z.coerce.number().int().positive().default(30000),
         connectionMode: z.enum(MCP_CONNECTION_MODES).default(DEFAULT_MCP_CONNECTION_MODE),
     })
