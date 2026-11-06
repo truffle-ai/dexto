@@ -1,5 +1,6 @@
 import { promises as fs } from 'fs';
 import * as path from 'path';
+import { randomUUID } from 'node:crypto';
 import { parseDocument, stringify } from 'yaml';
 import { loadAgentConfig } from './loader.js';
 import { enrichAgentConfig } from './config-enrichment.js';
@@ -100,10 +101,7 @@ export async function updateAgentConfigFile(
     // Serialize the Document back to YAML
     const yamlContent = String(doc);
 
-    // Atomic write: write to temp file then rename
-    const tmpPath = `${configPath}.tmp`;
-    await fs.writeFile(tmpPath, yamlContent, 'utf-8');
-    await fs.rename(tmpPath, configPath);
+    await writeFileAtomic(configPath, yamlContent);
 
     // Return the enriched, validated config (ready for agent.reload())
     return parsed.data;
@@ -140,9 +138,19 @@ export async function reloadAgentConfigFromFile(configPath: string): Promise<Age
  * Helper to write file atomically
  */
 async function writeFileAtomic(configPath: string, content: string): Promise<void> {
-    const tmpPath = `${configPath}.tmp`;
-    await fs.writeFile(tmpPath, content, 'utf-8');
-    await fs.rename(tmpPath, configPath);
+    const mode = (await fs.stat(configPath)).mode & 0o600;
+    const tmpPath = `${configPath}.${randomUUID()}.tmp`;
+    const file = await fs.open(tmpPath, 'wx', mode);
+    try {
+        await file.writeFile(content, 'utf-8');
+        await file.chmod(mode);
+        await file.close();
+        await fs.rename(tmpPath, configPath);
+    } catch (error) {
+        await file.close().catch(() => {});
+        await fs.unlink(tmpPath).catch(() => {});
+        throw error;
+    }
 }
 
 // ============================================================================
