@@ -111,15 +111,19 @@ export function registerSessionCommand({
                     const local: {
                         agent: Awaited<ReturnType<typeof bootstrapAgentFromGlobalOpts>> | null;
                     } = { agent: null };
-                    const host = {
-                        ...nodeCloudHost(controller.signal),
-                        openLocalAgent: async () => {
-                            local.agent ??= await bootstrapAgentFromGlobalOpts({
-                                mode: 'non-interactive',
-                            });
-                            return local.agent;
-                        },
-                    };
+                    const cloudHost = nodeCloudHost(controller.signal);
+                    const host =
+                        word === 'move'
+                            ? {
+                                  ...cloudHost,
+                                  openLocalAgent: async () => {
+                                      local.agent ??= await bootstrapAgentFromGlobalOpts({
+                                          mode: 'non-interactive',
+                                      });
+                                      return local.agent;
+                                  },
+                              }
+                            : cloudHost;
                     let code: number;
                     try {
                         code = await runCloud(host, ['chat', word, ...args]);

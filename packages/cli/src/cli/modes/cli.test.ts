@@ -161,9 +161,10 @@ describe('runCliMode', () => {
             typeof services.abortChatMove !== 'function'
         )
             throw new Error('Missing hand-off abort hook');
-        const moving = services.chatMove('cloud', 'chat');
+        const moving = expect(services.chatMove('cloud', 'chat')).rejects.toBeInstanceOf(Error);
         expect(services.abortChatMove()).toBe(true);
-        await expect(moving).rejects.toBeInstanceOf(Error);
+        expect(services.abortChatMove()).toBe(false);
+        await moving;
         expect(services.abortChatMove()).toBe(false);
     }, 20_000);
 });
