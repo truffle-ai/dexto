@@ -34,6 +34,12 @@ vi.mock('../../config/cli-overrides.js', () => ({ hasUsableCredentials: () => tr
 
 afterEach(() => vi.unstubAllEnvs());
 
+function installedServices(): TuiRuntimeServices {
+    const services = captured.services;
+    if (services === null) throw new Error('TUI services were not installed.');
+    return services;
+}
+
 function testContext(): MainModeContext {
     const config = AgentConfigSchema.parse({
         systemPrompt: 'Test',
@@ -119,10 +125,11 @@ describe('runCliMode', () => {
         const context = testContext();
         const stream = vi.spyOn(context.agent, 'stream');
         await runCliMode(context);
-        const guard = captured.services?.assertLocalChat;
+        const services = installedServices();
+        const guard = services.assertLocalChat;
         if (guard === undefined) throw new Error('Missing local ownership guard');
         await expect(guard('cloud-owned-chat')).rejects.toThrow('cloud computer');
-        expect(captured.services?.chatSync).toBeUndefined();
+        expect(services.chatSync).toBeUndefined();
         expect(stream).not.toHaveBeenCalled();
         expect(startSync).not.toHaveBeenCalled();
     }, 20_000);
@@ -146,7 +153,7 @@ describe('runCliMode', () => {
             return 1;
         });
         await runCliMode(testContext());
-        const services = captured.services;
+        const services = installedServices();
         if (
             services === null ||
             services.chatMove === undefined ||

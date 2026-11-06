@@ -1,4 +1,3 @@
-import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -11,6 +10,7 @@ import {
     type LocalTreeCheckpoint,
 } from './working-tree.js';
 import { isSecretPath } from './redaction.js';
+import { handOffGit } from './git.js';
 import { CommandFailure } from '../failure.js';
 
 const TreeCheckpoint = z
@@ -87,41 +87,8 @@ export async function applyReturnedTree(
         throw new Error('Invalid cloud head commit.');
     const folder = await mkdtemp(path.join(tmpdir(), 'dexto-return-'));
     const checkout = path.join(folder, 'checkout');
-    const git = (args: string[], directory = repository): Promise<string> =>
-        new Promise((resolve, reject) => {
-            // Git owns another process group so a terminal SIGINT cannot interrupt rollback.
-            const child = spawn(
-                'git',
-                [
-                    '-c',
-                    'core.hooksPath=/dev/null',
-                    '-c',
-                    'diff.submodule=short',
-                    '-c',
-                    'color.ui=never',
-                    ...args,
-                ],
-                {
-                    cwd: directory,
-                    detached: true,
-                    stdio: ['ignore', 'pipe', 'ignore'],
-                    env: { ...process.env, GIT_NO_REPLACE_OBJECTS: '1', GIT_LFS_SKIP_SMUDGE: '1' },
-                }
-            );
-            let output = '';
-            child.stdout.setEncoding('utf8');
-            child.stdout.on('data', (chunk: string) => {
-                output += chunk;
-                if (output.length > 64 * 1024 * 1024) {
-                    child.kill();
-                    reject(new Error('Git output exceeded the return size limit.'));
-                }
-            });
-            child.once('error', reject);
-            child.once('close', (code) =>
-                code === 0 ? resolve(output) : reject(new Error(`Git ${args[0]} failed (${code}).`))
-            );
-        });
+    const git = async (args: string[], directory = repository): Promise<string> =>
+        (await handOffGit(directory, args)).toString();
     let added = false;
     try {
         if (returned.bundle !== null) {
