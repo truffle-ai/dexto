@@ -39,8 +39,11 @@ function expandTemplateVars(config: unknown, context: TemplateContext): unknown 
             return obj.map(walk);
         }
         if (obj !== null && typeof obj === 'object') {
-            const result: Record<string, unknown> = {};
+            const result: Record<string, unknown> = Object.create(null);
             for (const [key, value] of Object.entries(obj)) {
+                if (key === '__proto__' || key === 'constructor' || key === 'prototype') {
+                    throw new Error(`Forbidden configuration key: ${key}`);
+                }
                 result[key] = walk(value);
             }
             return result;

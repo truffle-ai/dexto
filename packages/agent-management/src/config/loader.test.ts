@@ -250,3 +250,27 @@ tools:
         );
     });
 });
+
+describe('prototype keys', () => {
+    it.each(['__proto__', 'constructor', 'prototype'])(
+        'rejects nested %s keys including inside arrays',
+        async (key) => {
+            await fs.writeFile(
+                tmpFile,
+                `nested:\n  - safe:\n      ${key}:\n        polluted: true\n`
+            );
+            await expect(loadAgentConfig(tmpFile)).rejects.toThrow(
+                `Forbidden configuration key: ${key}`
+            );
+            expect(Object.prototype).not.toHaveProperty('polluted');
+        }
+    );
+
+    it('returns null-prototype records for nested config objects', async () => {
+        await fs.writeFile(tmpFile, 'nested:\n  - safe: value\n');
+        const result = await loadAgentConfig(tmpFile);
+        expect(Object.getPrototypeOf(result)).toBeNull();
+        const nested = (result as unknown as { nested: object[] }).nested;
+        expect(Object.getPrototypeOf(nested[0])).toBeNull();
+    });
+});
