@@ -233,6 +233,7 @@ describe('dexto workspace', () => {
                     browserProfileId: 'profile-1',
                     model: 'model-1',
                     title: 'Bug',
+                    confirm: true,
                 },
             },
         });
@@ -334,20 +335,16 @@ describe('dexto workspace', () => {
         expect(stderr).not.toContain('dexto_chat_browser_profiles_list');
     });
 
-    it('requires headless billing consent before starting a profile computer', async () => {
-        expect(
-            await runCloud(host, [
-                'chat',
-                'start',
-                'Hello',
-                '--browser-profile',
-                'profile-1',
-                '--json',
-            ])
-        ).toBe(4);
-        expect(calls).toEqual([]);
-        expect(JSON.parse(stderr).error.fix).toContain('--yes');
-    });
+    it.each(['--browser-profile', '--computer'])(
+        'requires headless consent for %s',
+        async (choice) => {
+            expect(
+                await runCloud(host, ['chat', 'start', 'Hello', choice, 'profile-1', '--json'])
+            ).toBe(4);
+            expect(calls).toEqual([]);
+            expect(JSON.parse(stderr).error.fix).toContain('--yes');
+        }
+    );
 
     it('asks for billing consent at a terminal', async () => {
         const prompts: string[] = [];

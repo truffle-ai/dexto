@@ -393,20 +393,23 @@ const start: Command = {
             route: 'route',
             title: 'title',
         });
-        const args: Record<string, string> = { message };
+        const args: Record<string, string | boolean> = { message };
         for (const [flagName, field] of choices) {
             const value = stringOption(input, flagName);
             if (value !== undefined) args[field] = value;
         }
-        if (args.browserProfileId !== undefined) {
+        if (args.browserProfileId !== undefined || args.computerId !== undefined) {
             await requireConsent(
                 {
                     invocation: context.invocation,
                     runtime: { prompt: context.output.json ? null : context.runtime.prompt },
                 },
                 flag(input, 'yes'),
-                'Start hosted compute billed to your account to load this browser profile?'
+                args.browserProfileId !== undefined
+                    ? 'Start hosted compute billed to your account to load this browser profile?'
+                    : 'Give this chat access to your connected computer?'
             );
+            args.confirm = true;
         }
         const parsed = ChatStartResultSchema.safeParse(
             await queryWorkspaceTool(context, 'dexto_chat_start', args)

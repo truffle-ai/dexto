@@ -80,7 +80,7 @@
     "command": "chat start",
     "json": true,
     "dryRun": false,
-    "nonInteractiveFlag": false,
+    "nonInteractiveFlag": true,
     "examples": false
   },
   {
