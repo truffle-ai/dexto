@@ -21,6 +21,7 @@ describe('command analytics metadata', () => {
             { timeoutMs: 0 }
         );
         await expect(run()).rejects.toThrow(secret);
+        expect(onCommandEnd).toHaveBeenCalledWith('test', false, { args: { argTypes: [] } });
         expect(JSON.stringify(vi.mocked(onCommandEnd).mock.calls)).not.toContain(secret);
     });
     it('does not include positional values or option values', () => {
