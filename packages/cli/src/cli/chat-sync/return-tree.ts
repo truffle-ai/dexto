@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -10,7 +10,7 @@ import {
     type LocalTreeCheckpoint,
 } from './working-tree.js';
 import { isSecretPath } from './redaction.js';
-import { handOffGit } from './git.js';
+import { handOffGit, handOffDiffOptions } from './git.js';
 import { CommandFailure } from '../failure.js';
 
 const TreeCheckpoint = z
@@ -79,7 +79,6 @@ export async function applyReturnedTree(
     baseline: LocalTreeCheckpoint,
     returned: ReturnedTree
 ): Promise<void> {
-    await assertLocalTreeMatches(cwd, baseline);
     const repository = await gitRepositoryRoot(cwd);
     if (returned.branch !== baseline.branch)
         throw new Error('The cloud changed branch. Bring its work back into a separate checkout.');
@@ -105,7 +104,10 @@ export async function applyReturnedTree(
             );
         });
         await refuseSecretHistory(repository, `${baseline.head}..${returned.head}`);
-        await git(['worktree', 'add', '--detach', checkout, returned.head]);
+        await handOffGit(repository, ['worktree', 'add', '--detach', checkout, returned.head], {
+            ...process.env,
+            GIT_LFS_SKIP_SMUDGE: '1',
+        });
         added = true;
         const patchPath = path.join(folder, 'return.patch');
         if (returned.patch !== null) {
@@ -119,8 +121,24 @@ export async function applyReturnedTree(
                     );
             }
             await git(['apply', '--check', patchPath], checkout);
-            await git(['apply', patchPath], checkout);
+            await git(['apply', '--index', patchPath], checkout);
         }
+        // A crash can occur after Git succeeds but before the phase journal is saved.
+        // Compare canonical diffs, including newly added files, before deciding it is drift.
+        const current = await readLocalTreeCheckpoint(cwd);
+        const expectedPatch = await handOffGit(checkout, [
+            'diff',
+            ...handOffDiffOptions,
+            'HEAD',
+            '--',
+        ]);
+        if (
+            current.branch === returned.branch &&
+            current.head === returned.head &&
+            current.patchHash === createHash('sha256').update(expectedPatch).digest('hex')
+        )
+            return;
+        await assertLocalTreeMatches(cwd, baseline);
         const backupMessage = `dexto hand-off backup ${randomUUID()}`;
         let checkoutAttempted = false;
         try {
