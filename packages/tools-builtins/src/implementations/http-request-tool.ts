@@ -108,6 +108,7 @@ function isPrivateIpv4(ip: string): boolean {
 function isPrivateIpv6(ip: string): boolean {
     const normalized = new URL(`http://[${ip.split('%')[0]}]/`).hostname.slice(1, -1);
     if (normalized === '::' || normalized === '::1') return true;
+    if (normalized.startsWith('64:ff9b:1:')) return true;
     if (/^fe[89ab][0-9a-f]:/.test(normalized)) return true;
     if (normalized.startsWith('fc') || normalized.startsWith('fd')) return true;
     if (normalized.startsWith('::ffff:')) {
@@ -439,13 +440,7 @@ export function createHttpRequestTool(): Tool<typeof HttpRequestInputSchema> {
                     const nextUrl = new URL(location, currentUrl);
                     if (nextUrl.origin !== currentUrl.origin) {
                         for (const key of Object.keys(requestHeaders)) {
-                            if (
-                                ['authorization', 'cookie', 'proxy-authorization'].includes(
-                                    key.toLowerCase()
-                                )
-                            ) {
-                                delete requestHeaders[key];
-                            }
+                            delete requestHeaders[key];
                         }
                     }
                     if (

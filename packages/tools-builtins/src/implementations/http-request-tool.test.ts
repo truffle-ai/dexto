@@ -61,23 +61,26 @@ describe('http_request tool', () => {
         });
     });
 
-    it.each(['[::1]', '[0:0:0:0:0:0:0:1]', '[::ffff:127.0.0.1]', '[::ffff:10.0.0.1]'])(
-        'blocks private IPv6 literal %s before fetching',
-        async (host) => {
-            const fetchSpy = vi.spyOn(globalThis, 'fetch');
-            try {
-                await expect(
-                    createHttpRequestTool().execute(
-                        { url: `http://${host}/`, method: 'GET', timeoutMs: 1000 },
-                        {} as never
-                    )
-                ).rejects.toMatchObject({ code: 'HTTP_REQUEST_UNSAFE_TARGET' });
-                expect(fetchSpy).not.toHaveBeenCalled();
-            } finally {
-                fetchSpy.mockRestore();
-            }
+    it.each([
+        '[::1]',
+        '[0:0:0:0:0:0:0:1]',
+        '[::ffff:127.0.0.1]',
+        '[::ffff:10.0.0.1]',
+        '[64:ff9b:1::a00:1]',
+    ])('blocks private IPv6 literal %s before fetching', async (host) => {
+        const fetchSpy = vi.spyOn(globalThis, 'fetch');
+        try {
+            await expect(
+                createHttpRequestTool().execute(
+                    { url: `http://${host}/`, method: 'GET', timeoutMs: 1000 },
+                    {} as never
+                )
+            ).rejects.toMatchObject({ code: 'HTTP_REQUEST_UNSAFE_TARGET' });
+            expect(fetchSpy).not.toHaveBeenCalled();
+        } finally {
+            fetchSpy.mockRestore();
         }
-    );
+    });
 
     it('blocks a redirect to a private literal before the next request', async () => {
         const fetchSpy = vi
@@ -131,7 +134,11 @@ describe('http_request tool', () => {
                 {
                     url: 'https://example.com/',
                     method: 'GET',
-                    headers: { Authorization: 'secret', Cookie: 'session=value' },
+                    headers: {
+                        Authorization: 'secret',
+                        Cookie: 'session=value',
+                        'X-API-Key': 'secret',
+                    },
                     timeoutMs: 1000,
                 },
                 {} as never
