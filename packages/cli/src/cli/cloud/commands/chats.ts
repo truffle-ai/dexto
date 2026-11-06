@@ -364,7 +364,26 @@ const FollowResultSchema = z
         events: z.array(z.unknown()),
         answer: z.string().nullable(),
         artifacts: z.array(z.unknown()),
-        usage: z.record(z.string(), z.unknown()).nullable(),
+        usage: z
+            .object({
+                billingRoutes: z
+                    .array(
+                        z
+                            .object({
+                                provider: z.string(),
+                                billingMode: z.string(),
+                                authMethodId: z.string().nullable(),
+                                billedPlans: z.array(z.string()),
+                                creditsUsd: z.number(),
+                                allowanceUsd: z.number(),
+                                callsWithoutLedger: z.number(),
+                            })
+                            .passthrough()
+                    )
+                    .optional(),
+            })
+            .passthrough()
+            .nullable(),
     })
     .passthrough();
 
@@ -496,7 +515,7 @@ async function followChat(
                 else
                     context.output.result(
                         result,
-                        `${page.answer ?? ''}\nArtifacts: ${JSON.stringify(page.artifacts)}\nUsage: ${JSON.stringify(page.usage)}\nOutcome: ${page.outcome}\n${page.nextAction?.instruction ?? ''}\nCursor: ${cursor}`
+                        `${page.answer ?? ''}\nArtifacts: ${JSON.stringify(page.artifacts)}\nRecorded billing routes (usage may be incomplete): ${page.usage?.billingRoutes?.length ? JSON.stringify(page.usage.billingRoutes) : 'unknown (no recorded routes)'}\nUsage: ${JSON.stringify(page.usage)}\nOutcome: ${page.outcome}\n${page.nextAction?.instruction ?? ''}\nCursor: ${cursor}`
                     );
                 return page.outcome === 'failed' || page.outcome === 'cancelled'
                     ? 1
@@ -547,7 +566,7 @@ const follow: Command = {
     path: ['chat', 'follow'],
     arguments: '<id>',
     summary:
-        'Follow durable cloud chat events until completion; Ctrl-C stops following without cancelling the chat.',
+        'Follow chat events and recorded run billing routes; Ctrl-C stops following without cancelling the chat.',
     options: {
         ...FOLLOW_OPTIONS,
         cursor: {

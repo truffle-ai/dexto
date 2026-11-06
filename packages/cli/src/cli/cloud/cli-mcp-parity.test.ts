@@ -290,7 +290,17 @@ describe('CLI and MCP capability parity', () => {
                 .map(([command]) => command)
                 .sort()
         ).toEqual(['workspace call', 'workspace describe', 'workspace tools']);
-        expect([...new Set(direct.concat(inventory.passthroughOnly))].sort()).toEqual(
+        expect(inventory.commands['chat outputs']).toEqual(['dexto_chat_outputs_list']);
+        const pending = z
+            .array(z.object({ tool: z.string() }))
+            .parse(inventory.pendingCli)
+            .map((entry) => entry.tool);
+        expect(
+            pending.filter(
+                (tool) => direct.includes(tool) || inventory.passthroughOnly.includes(tool)
+            )
+        ).toEqual([]);
+        expect([...new Set(direct.concat(inventory.passthroughOnly, pending))].sort()).toEqual(
             catalog.tools.map((tool) => tool.name).sort()
         );
     });
