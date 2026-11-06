@@ -408,11 +408,11 @@ describe('subscription connections over MCP', () => {
         ).toBe(true);
         expect(lastResult().nextCommand).toBe('dexto connect claude --session same-chat');
     });
-    it('keeps authorization codes out of suggested reruns on a confirmation refusal', async () => {
+    it('keeps authorization codes out of permission-refusal suggestions', async () => {
         rpcError = {
             code: -32003,
-            message: 'Consent required',
-            data: { kind: 'needs_confirmation', retryable: false, resume: null },
+            message: 'Permission required',
+            data: { kind: 'forbidden', retryable: false, resume: null },
         };
         expect(
             await runCloud(host, [
@@ -423,9 +423,11 @@ describe('subscription connections over MCP', () => {
                 '--code=secret-code',
                 '--json',
             ])
-        ).toBe(4);
+        ).toBe(3);
         expect(stderr).not.toContain('secret-code');
         expect(stderr).not.toContain('--code=');
+        expect(JSON.parse(stderr).error.fix).toBe('dexto connect claude --attempt old --code -');
+        expect(stderr).not.toContain('--yes');
     });
     it('does not consume a piped code during a save-only resume', async () => {
         stdinIsTerminal = false;
@@ -846,5 +848,82 @@ describe('subscription connections over MCP', () => {
             ])
         ).toBe(1);
         expect(JSON.parse(stderr).error.fix).toBe('dexto connect claude --session chat');
+    });
+
+    it.each([
+        { provider: 'openai', status: 'invalid' },
+        { provider: 'anthropic', status: 'needs_reauth' },
+    ])(
+        'routes $provider API-key status recovery to the dashboard',
+        async ({ provider, status }) => {
+            replies = [
+                {
+                    kind: 'model_connection',
+                    name: 'saved-key',
+                    id: 'saved-key',
+                    provider,
+                    authType: 'api_key',
+                    methodId: 'api_key',
+                    label: null,
+                    status,
+                    createdAt: 'now',
+                    updatedAt: 'now',
+                    lastTestedAt: null,
+                    maskedIdentifier: 'masked',
+                    nextAction: null,
+                },
+            ];
+            expect(await runCloud(host, ['connections', 'status', 'saved-key', '--json'])).toBe(1);
+            expect(lastResult()).toMatchObject({
+                nextCommand: null,
+                fix: 'Update it in dashboard Settings > Models',
+            });
+            expect(stdout).not.toContain(`dexto connect ${provider}`);
+        }
+    );
+
+    it.each([
+        { kind: 'not_found', code: -32004, exit: 5 },
+        { kind: 'invalid_arguments', code: -32602, exit: 2 },
+    ])('restarts a $kind Codex wait attempt', async ({ kind, code, exit }) => {
+        rpcError = {
+            code,
+            message: 'Attempt cannot be resumed',
+            data: { kind, retryable: false, resume: null },
+        };
+        expect(await runCloud(host, ['connect', 'codex', '--attempt', 'dead', '--json'])).toBe(
+            exit
+        );
+        expect(JSON.parse(stderr).error.fix).toBe('dexto connect codex');
+        expect(calls).toHaveLength(1);
+    });
+    it('preserves the missing-scope sign-in prompt during Codex wait', async () => {
+        stdoutIsTerminal = true;
+        const grant = vi.fn(async () => false);
+        host = {
+            ...host,
+            runtime: { ...host.runtime, prompt: vi.fn(async () => 'yes') },
+            signInForScope: grant,
+        };
+        rpcError = {
+            code: -32003,
+            message: 'Permission required',
+            data: { kind: 'forbidden', scope: 'models:write', retryable: false, resume: null },
+        };
+        expect(await runCloud(host, ['connect', 'codex', '--attempt', 'pending'])).toBe(3);
+        expect(grant).toHaveBeenCalledWith(expect.anything(), 'models:write');
+    });
+
+    it('restarts Claude when the retained start chat was not found', async () => {
+        rpcError = {
+            code: -32004,
+            message: 'Chat not found',
+            data: { kind: 'not_found', sessionId: 'deleted-chat', retryable: false, resume: null },
+        };
+        expect(await runCloud(host, ['connect', 'claude', '--json'])).toBe(5);
+        expect(JSON.parse(stderr).error.fix).toBe('dexto connect claude');
+        expect(calls).toEqual([
+            { name: 'dexto_connection_start', arguments: { provider: 'claude' } },
+        ]);
     });
 });

@@ -3,6 +3,7 @@ import { CommandFailure, EXIT_CODES } from '../../failure.js';
 import { requireConsent, shellWord } from '../../interaction.js';
 import {
     argument,
+    MissingScopeFailure,
     YES_OPTION,
     flag,
     stringOption,
@@ -131,7 +132,9 @@ const claude: Command = {
                     throw new CommandFailure(
                         error.kind,
                         `${error.message} Session: ${error.data.sessionId}.`,
-                        `dexto connect claude --session ${shellWord(error.data.sessionId)}`
+                        error.kind === 'not_found'
+                            ? 'dexto connect claude'
+                            : `dexto connect claude --session ${shellWord(error.data.sessionId)}`
                     );
                 }
                 if (next.outcome === 'retry') {
@@ -229,15 +232,7 @@ const claude: Command = {
                         ? 'dexto connect claude'
                         : `dexto connect claude --session ${shellWord(sessionId)}`
                     : submitCode(attempt);
-                throw new CommandFailure(
-                    error.kind,
-                    error.message,
-                    error.fix === null
-                        ? fix
-                        : error.kind === 'needs_confirmation'
-                          ? `${error.fix} --code -`
-                          : error.fix
-                );
+                throw new CommandFailure(error.kind, error.message, error.fix ?? fix);
             }
         }
         if (finished.outcome === 'connected') {
@@ -336,12 +331,13 @@ const codex: Command = {
                     })
                 );
             } catch (error) {
-                if (!(error instanceof CommandFailure)) throw error;
-                throw new CommandFailure(
-                    error.kind,
-                    error.message,
-                    error.fix ?? resume('codex', attempt)
-                );
+                if (error instanceof MissingScopeFailure || !(error instanceof CommandFailure))
+                    throw error;
+                const fix =
+                    error.kind === 'not_found' || error.kind === 'invalid_input'
+                        ? 'dexto connect codex'
+                        : resume('codex', attempt);
+                throw new CommandFailure(error.kind, error.message, error.fix ?? fix);
             }
             if (waited.outcome === 'connected') {
                 writeResult(context, waited, 'Codex connected.');
@@ -420,17 +416,25 @@ const status: Command = {
         const row = ConnectionRow.parse(
             await queryWorkspaceTool(context, 'dexto_connection_get', { name })
         );
-        const provider =
-            row.kind === 'model_connection'
-                ? row.provider === 'openai' && row.methodId === 'chatgpt_login'
-                    ? 'codex'
-                    : row.provider
-                : row.name;
-        const nextCommand = `dexto connect ${shellWord(provider)}`;
+        const nextCommand =
+            row.kind === 'claude_home'
+                ? 'dexto connect claude'
+                : row.kind === 'codex_status' ||
+                    (row.authType === 'oauth' &&
+                        row.provider === 'openai' &&
+                        row.methodId === 'chatgpt_login')
+                  ? 'dexto connect codex'
+                  : null;
+        const fix = nextCommand ?? 'Update it in dashboard Settings > Models';
         writeResult(
             context,
-            { ...row, ...(row.status === 'connected' ? {} : { nextCommand }) },
-            `${row.name}: ${row.status}${row.status === 'connected' ? '' : `\nNext: ${nextCommand}`}`
+            {
+                ...row,
+                ...(row.status === 'connected'
+                    ? {}
+                    : { nextCommand, ...(nextCommand === null ? { fix } : {}) }),
+            },
+            `${row.name}: ${row.status}${row.status === 'connected' ? '' : `\nNext: ${fix}`}`
         );
         if (row.kind === 'claude_home' && !row.available) return EXIT_CODES.failed;
         return row.status === 'connected'
