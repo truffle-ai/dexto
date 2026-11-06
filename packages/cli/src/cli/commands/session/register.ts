@@ -5,9 +5,7 @@ export function registerSessionCommand({
     program,
     bootstrapAgentFromGlobalOpts,
 }: RuntimeCommandRegisterContext): void {
-    const chatCommand = program
-        .command('chat')
-        .description("Your chats: this machine's sessions, and other agents' chats into Dexto");
+    const chatCommand = program.command('chat').description('Your local and cloud chats');
 
     chatCommand
         .command('list')
@@ -83,12 +81,14 @@ export function registerSessionCommand({
             })
         );
 
-    // Claude Code and Codex chats on this machine, and importing them into Dexto, run on the
-    // cloud command engine with its own options; analytics records only the command name.
-    for (const [word, description] of [
-        ['local', 'List Claude Code and Codex chats on this machine that Dexto can import'],
-        ['import', 'Import Claude Code or Codex chats into Dexto'],
-    ] as const)
+    // The cloud command engine owns these verbs and their options; analytics records only names.
+    for (const [word, description] of Object.entries({
+        local: 'List Claude Code and Codex chats on this machine that Dexto can import',
+        import: 'Import Claude Code or Codex chats into Dexto',
+        start: 'Start a cloud chat on your chosen connected computer and browser profile',
+        computers: 'List your connected computers for a cloud chat',
+        'browser-profiles': 'List your browser profiles for a cloud chat',
+    }))
         chatCommand
             .command(word)
             .description(description)
