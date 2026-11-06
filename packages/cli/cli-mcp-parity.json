@@ -1120,5 +1120,12 @@
         "dexto_skill_update",
         "dexto_skill_validate",
         "dexto_skill_versions"
+    ],
+    "pendingCli": [
+        {
+            "tool": "dexto_chat_outputs_list",
+            "issue": "DEXTO-2511",
+            "reason": "Cloud slice lands first; workspace chat outputs command follows in dexto."
+        }
     ]
 }
