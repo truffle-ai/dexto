@@ -171,6 +171,7 @@ export async function runCliMode(context: MainModeContext): Promise<void> {
             const chatSync = isDextoAuthEnabled()
                 ? await startNodeChatSync(agent, process.cwd()).catch(() => null)
                 : null;
+            let moveController: AbortController | null = null;
 
             setTuiRuntimeServices({
                 registerGracefulShutdown,
@@ -250,27 +251,47 @@ export async function runCliMode(context: MainModeContext): Promise<void> {
                     }
                 },
                 ...(chatSync !== null && {
+                    abortChatMove: () => {
+                        if (moveController === null) return false;
+                        moveController.abort();
+                        return true;
+                    },
                     chatSync: { command: chatSync.command, onNotice: chatSync.onNotice },
                     chatMove: async (to: 'cloud' | 'local', id: string) => {
-                        if (to === 'cloud') await chatSync.engine.sync(id);
-                        const host = nodeCloudHost(new AbortController().signal);
-                        const lines: string[] = [];
-                        const runtime = {
-                            ...host.runtime,
-                            stdoutIsTerminal: true,
-                            writeOutput: (text: string) => {
-                                lines.push(text);
-                            },
-                            writeError: (text: string) => {
-                                lines.push(text);
-                            },
-                        };
-                        const code = await runCloud(
-                            { ...host, runtime, openLocalAgent: async () => agent },
-                            ['chat', 'move', id, '--to', to, '--detach', '--table']
-                        );
-                        if (code !== 0) throw new Error(lines.join('\n'));
-                        return lines.join('\n');
+                        if (moveController !== null)
+                            throw new Error('Another hand-off is still running.');
+                        const controller = new AbortController();
+                        moveController = controller;
+                        const abort = () => controller.abort();
+                        process.once('SIGINT', abort);
+                        try {
+                            const host = nodeCloudHost(controller.signal);
+                            const lines: string[] = [];
+                            const runtime = {
+                                ...host.runtime,
+                                stdoutIsTerminal: true,
+                                writeOutput: (text: string) => {
+                                    lines.push(text);
+                                },
+                                writeError: (text: string) => {
+                                    lines.push(text);
+                                },
+                            };
+                            const code = await runCloud(
+                                {
+                                    ...host,
+                                    runtime,
+                                    openLocalAgent: async () => agent,
+                                    syncLocalChat: (chatId) => chatSync.engine.sync(chatId),
+                                },
+                                ['chat', 'move', id, '--to', to, '--detach', '--table']
+                            );
+                            if (code !== 0) throw new Error(lines.join('\n'));
+                            return lines.join('\n');
+                        } finally {
+                            process.removeListener('SIGINT', abort);
+                            moveController = null;
+                        }
                     },
                 }),
             });

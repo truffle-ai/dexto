@@ -2,6 +2,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
 import { AgentConfigSchema } from '@dexto/agent-config';
 import { DextoAgent, InMemoryDextoStores, createLogger } from '@dexto/core';
 import type { TuiRuntimeServices } from '@dexto/tui';
+import type { CloudHost } from '../cloud/run.js';
 import type { MainModeContext } from './context.js';
 
 const applyWorkspaceToAgent = vi.fn();
@@ -11,6 +12,11 @@ const captured = vi.hoisted(() => {
     const value: { services: TuiRuntimeServices | null } = { services: null };
     return value;
 });
+const { startSync, runCloudCommand } = vi.hoisted(() => ({
+    startSync: vi.fn(),
+    runCloudCommand: vi.fn(),
+}));
+vi.mock('../cloud/run.js', () => ({ runCloud: runCloudCommand }));
 vi.mock('@dexto/tui', () => ({
     startInkCliRefactored: async () => undefined,
     setTuiRuntimeServices: (services: TuiRuntimeServices) => {
@@ -22,13 +28,41 @@ vi.mock('../chat-sync/node.js', () => ({
         listAccounts: async () => ['account'],
         readChat: async () => ({ status: 'paused', reason: 'chat_in_cloud' }),
     }),
-    startNodeChatSync: () => {
-        throw new Error('auth-disabled chat sync must not start');
-    },
+    startNodeChatSync: startSync,
 }));
 vi.mock('../../config/cli-overrides.js', () => ({ hasUsableCredentials: () => true }));
 
 afterEach(() => vi.unstubAllEnvs());
+
+function testContext(): MainModeContext {
+    const config = AgentConfigSchema.parse({
+        systemPrompt: 'Test',
+        llm: { provider: 'openai', model: 'gpt-5', apiKey: 'fake-test-key' },
+        permissions: { mode: 'auto-approve' },
+        elicitation: { enabled: false },
+    });
+    const agent = new DextoAgent({
+        agentId: 'ownership-test',
+        systemPrompt: 'Test',
+        llm: { provider: 'openai', model: 'gpt-5', apiKey: 'fake-test-key' },
+        permissions: { mode: 'auto-approve' },
+        elicitation: { enabled: false },
+        stores: new InMemoryDextoStores(),
+        logger: createLogger({
+            agentId: 'ownership-test',
+            config: { level: 'error', transports: [{ type: 'silent' }] },
+        }),
+    });
+    return {
+        agent,
+        opts: {},
+        workspaceRoot: '/tmp',
+        validatedConfig: config,
+        resolvedPath: '/tmp/fake.yml',
+        initialPrompt: undefined,
+        getVersionCheckResult: async () => null,
+    };
+}
 
 vi.mock('../../utils/workspace.js', () => ({
     applyWorkspaceToAgent,
@@ -47,6 +81,8 @@ describe('runCliMode', () => {
     beforeEach(() => {
         vi.resetModules();
         applyWorkspaceToAgent.mockReset();
+        startSync.mockReset();
+        runCloudCommand.mockReset();
     });
 
     it('stops the agent when workspace application fails after startup', async () => {
@@ -80,38 +116,47 @@ describe('runCliMode', () => {
         vi.stubEnv('DEXTO_LLM_REGISTRY_DISABLE_FETCH', '1');
         applyWorkspaceToAgent.mockResolvedValue(undefined);
         captured.services = null;
-        const config = AgentConfigSchema.parse({
-            systemPrompt: 'Test',
-            llm: { provider: 'openai', model: 'gpt-5', apiKey: 'fake-test-key' },
-            permissions: { mode: 'auto-approve' },
-            elicitation: { enabled: false },
-        });
-        const agent = new DextoAgent({
-            agentId: 'ownership-test',
-            systemPrompt: 'Test',
-            llm: { provider: 'openai', model: 'gpt-5', apiKey: 'fake-test-key' },
-            permissions: { mode: 'auto-approve' },
-            elicitation: { enabled: false },
-            stores: new InMemoryDextoStores(),
-            logger: createLogger({
-                agentId: 'ownership-test',
-                config: { level: 'error', transports: [{ type: 'silent' }] },
-            }),
-        });
-        const stream = vi.spyOn(agent, 'stream');
-        await runCliMode({
-            agent,
-            opts: {},
-            workspaceRoot: '/tmp',
-            validatedConfig: config,
-            resolvedPath: '/tmp/fake.yml',
-            initialPrompt: undefined,
-            getVersionCheckResult: async () => null,
-        });
+        const context = testContext();
+        const stream = vi.spyOn(context.agent, 'stream');
+        await runCliMode(context);
         const guard = captured.services?.assertLocalChat;
         if (guard === undefined) throw new Error('Missing local ownership guard');
         await expect(guard('cloud-owned-chat')).rejects.toThrow('cloud computer');
         expect(captured.services?.chatSync).toBeUndefined();
         expect(stream).not.toHaveBeenCalled();
+        expect(startSync).not.toHaveBeenCalled();
+    }, 20_000);
+
+    it('aborts an interactive hand-off through the Ctrl-C host hook', async () => {
+        vi.stubEnv('DEXTO_FEATURE_AUTH', 'true');
+        vi.stubEnv('DEXTO_LLM_REGISTRY_DISABLE_FETCH', '1');
+        applyWorkspaceToAgent.mockResolvedValue(undefined);
+        startSync.mockResolvedValue({
+            engine: { sync: async () => undefined },
+            start: async () => undefined,
+            command: async () => '',
+            onNotice: () => () => undefined,
+            stop: () => undefined,
+        });
+        runCloudCommand.mockImplementation(async (host: CloudHost) => {
+            if (!host.runtime.signal.aborted)
+                await new Promise<void>((resolve) =>
+                    host.runtime.signal.addEventListener('abort', () => resolve(), { once: true })
+                );
+            return 1;
+        });
+        await runCliMode(testContext());
+        const services = captured.services;
+        if (
+            services === null ||
+            services.chatMove === undefined ||
+            !('abortChatMove' in services) ||
+            typeof services.abortChatMove !== 'function'
+        )
+            throw new Error('Missing hand-off abort hook');
+        const moving = services.chatMove('cloud', 'chat');
+        expect(services.abortChatMove()).toBe(true);
+        await expect(moving).rejects.toBeInstanceOf(Error);
+        expect(services.abortChatMove()).toBe(false);
     }, 20_000);
 });
