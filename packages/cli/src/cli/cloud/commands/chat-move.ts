@@ -365,6 +365,7 @@ const move: Command = {
                     appliedTree: await readLocalTreeCheckpoint(chat.cwd),
                 };
                 await chat.save(checkpoint);
+                transport.signal.throwIfAborted();
             }
             const agent = await context.openLocalAgent();
             const session = await agent.getSession(id);

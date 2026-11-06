@@ -1,8 +1,8 @@
-import { execFile } from 'node:child_process';
+import { spawn } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { promisify } from 'node:util';
 import { z } from 'zod';
 import {
     gitRepositoryRoot,
@@ -11,6 +11,7 @@ import {
     type LocalTreeCheckpoint,
 } from './working-tree.js';
 import { isSecretPath } from './redaction.js';
+import { CommandFailure } from '../failure.js';
 
 const TreeCheckpoint = z
     .object({ branch: z.string(), head: z.string(), patchHash: z.string() })
@@ -84,9 +85,41 @@ export async function applyReturnedTree(
         throw new Error('Invalid cloud head commit.');
     const folder = await mkdtemp(path.join(tmpdir(), 'dexto-return-'));
     const checkout = path.join(folder, 'checkout');
-    const git = async (args: string[], directory = repository): Promise<string> =>
-        (await promisify(execFile)('git', args, { cwd: directory, maxBuffer: 64 * 1024 * 1024 }))
-            .stdout;
+    const git = (args: string[], directory = repository): Promise<string> =>
+        new Promise((resolve, reject) => {
+            // Git owns another process group so a terminal SIGINT cannot interrupt rollback.
+            const child = spawn(
+                'git',
+                [
+                    '-c',
+                    'core.hooksPath=/dev/null',
+                    '-c',
+                    'diff.submodule=short',
+                    '-c',
+                    'color.ui=never',
+                    ...args,
+                ],
+                {
+                    cwd: directory,
+                    detached: true,
+                    stdio: ['ignore', 'pipe', 'ignore'],
+                    env: { ...process.env, GIT_NO_REPLACE_OBJECTS: '1', GIT_LFS_SKIP_SMUDGE: '1' },
+                }
+            );
+            let output = '';
+            child.stdout.setEncoding('utf8');
+            child.stdout.on('data', (chunk: string) => {
+                output += chunk;
+                if (output.length > 64 * 1024 * 1024) {
+                    child.kill();
+                    reject(new Error('Git output exceeded the return size limit.'));
+                }
+            });
+            child.once('error', reject);
+            child.once('close', (code) =>
+                code === 0 ? resolve(output) : reject(new Error(`Git ${args[0]} failed (${code}).`))
+            );
+        });
     let added = false;
     try {
         if (returned.bundle !== null) {
@@ -113,34 +146,61 @@ export async function applyReturnedTree(
             await git(['apply', '--check', patchPath], checkout);
             await git(['apply', patchPath], checkout);
         }
-        const dirty = (await git(['status', '--porcelain'])).length > 0;
-        if (dirty) {
-            const safe = (
-                await git(['ls-files', '--cached', '--others', '--exclude-standard', '-z'])
-            )
-                .split('\0')
-                .filter((name) => name.length > 0 && !isSecretPath(name));
-            if (safe.length > 0)
-                await git([
-                    '--literal-pathspecs',
-                    'stash',
-                    'push',
-                    '--include-untracked',
-                    '-m',
-                    'dexto hand-off backup',
-                    '--',
-                    ...safe,
-                ]);
-        }
+        const backupMessage = `dexto hand-off backup ${randomUUID()}`;
+        let checkoutAttempted = false;
         try {
+            const dirty = (await git(['status', '--porcelain'])).length > 0;
+            if (dirty) {
+                const candidates = (
+                    await git(['ls-files', '--cached', '--others', '--exclude-standard', '-z'])
+                )
+                    .split('\0')
+                    .filter(Boolean);
+                if (candidates.length > 0) {
+                    // Keep the positive pathspec compact too: Git's stash implementation
+                    // forwards it to child commands, even with --pathspec-from-file.
+                    const pathsToStash = [
+                        '.',
+                        ...candidates
+                            .filter(isSecretPath)
+                            .map((name) => `:(exclude,literal)${name}`),
+                    ];
+                    const paths = path.join(folder, 'stash-paths');
+                    await writeFile(paths, pathsToStash.join('\0') + '\0', { mode: 0o600 });
+                    await git([
+                        'stash',
+                        'push',
+                        '--include-untracked',
+                        '-m',
+                        backupMessage,
+                        '--pathspec-from-file=' + paths,
+                        '--pathspec-file-nul',
+                    ]);
+                }
+            }
+            checkoutAttempted = true;
             await git(['checkout', '--no-overwrite-ignore', '-B', baseline.branch, returned.head]);
             if (returned.patch !== null) await git(['apply', patchPath]);
-        } catch (error) {
-            // The staged checkout already proved the patch. Failures here are local collisions;
-            // leave the backup intact and name the recovery rather than dropping anyone's work.
-            throw new Error(
-                'Could not apply the cloud tree. Your local changes remain in the dexto hand-off backup stash.',
-                { cause: error }
+        } catch {
+            try {
+                const backup = (await git(['stash', 'list', '--format=%gd\t%gs']))
+                    .split('\n')
+                    .find((entry) => entry.endsWith(backupMessage))
+                    ?.split('\t')[0];
+                if (checkoutAttempted || backup !== undefined)
+                    await git(['reset', '--hard', baseline.head]);
+                if (backup !== undefined) await git(['stash', 'pop', '--index', backup]);
+            } catch {
+                throw new CommandFailure(
+                    'failed',
+                    `Cloud work could not be applied or fully restored. Recover your backup named ${backupMessage}.`,
+                    'git stash list'
+                );
+            }
+            throw new CommandFailure(
+                'invalid_input',
+                'Cloud work could not be applied. Your local branch, index and files were restored. Resolve local file collisions and retry.',
+                'git status --ignored'
             );
         }
     } finally {
