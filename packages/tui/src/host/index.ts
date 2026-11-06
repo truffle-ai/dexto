@@ -25,6 +25,10 @@ export interface TuiChatSync {
 }
 
 export interface TuiRuntimeServices {
+    chatMove?: (to: 'cloud' | 'local', sessionId: string) => Promise<string>;
+    /** Returns true when a hand-off was active and cancellation was requested. */
+    abortChatMove?: () => boolean;
+    assertLocalChat?: (sessionId: string) => Promise<void>;
     registerGracefulShutdown?: (
         getAgent: () => TuiShutdownHandle,
         options: { inkMode: boolean }
@@ -53,6 +57,10 @@ export interface TuiRuntimeServices {
 }
 
 let runtimeServices: TuiRuntimeServices = {};
+
+export async function assertLocalChat(sessionId: string): Promise<void> {
+    await runtimeServices.assertLocalChat?.(sessionId);
+}
 
 export function setTuiRuntimeServices(adapter: TuiRuntimeServices): void {
     runtimeServices = { ...adapter };

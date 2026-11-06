@@ -1,6 +1,7 @@
 // Discover local chats, import them, and start cloud chats with owned computer and browser choices.
 
 import { requireConsent } from '../../interaction.js';
+import { chatMoveCommands } from './chat-move.js';
 import { CommandFailure, type FailureKind } from '../../failure.js';
 
 import { z } from 'zod';
@@ -501,4 +502,5 @@ export const chatCommands: readonly Command[] = [
     start,
     computers,
     browserProfiles,
+    ...chatMoveCommands,
 ];

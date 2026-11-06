@@ -85,6 +85,8 @@ export function registerSessionCommand({
     for (const [word, description] of Object.entries({
         local: 'List Claude Code and Codex chats on this machine that Dexto can import',
         import: 'Import Claude Code or Codex chats into Dexto',
+        move: 'Move a synced chat and its working tree to cloud or local',
+        watch: 'Stay attached to a chat on its cloud computer',
         start: 'Start a cloud chat on your chosen connected computer and browser profile',
         computers: 'List your connected computers for a cloud chat',
         'browser-profiles': 'List your browser profiles for a cloud chat',
@@ -103,11 +105,32 @@ export function registerSessionCommand({
                         import('../../cloud/run.js'),
                         import('../../cloud/host.js'),
                     ]);
-                    const code = await runCloud(nodeCloudHost(new AbortController().signal), [
-                        'chat',
-                        word,
-                        ...args,
-                    ]);
+                    const controller = new AbortController();
+                    const stop = () => controller.abort();
+                    process.once('SIGINT', stop);
+                    const local: {
+                        agent: Awaited<ReturnType<typeof bootstrapAgentFromGlobalOpts>> | null;
+                    } = { agent: null };
+                    const cloudHost = nodeCloudHost(controller.signal);
+                    const host =
+                        word === 'move'
+                            ? {
+                                  ...cloudHost,
+                                  openLocalAgent: async () => {
+                                      local.agent ??= await bootstrapAgentFromGlobalOpts({
+                                          mode: 'non-interactive',
+                                      });
+                                      return local.agent;
+                                  },
+                              }
+                            : cloudHost;
+                    let code: number;
+                    try {
+                        code = await runCloud(host, ['chat', word, ...args]);
+                    } finally {
+                        process.removeListener('SIGINT', stop);
+                        if (local.agent !== null) await local.agent.stop();
+                    }
                     safeExit(`chat ${word}`, code);
                 })();
             });

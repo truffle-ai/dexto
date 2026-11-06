@@ -195,6 +195,21 @@ describe('dexto cloud', () => {
         expect(JSON.parse(stdout)).toEqual(PROJECTS);
     });
 
+    it('chat hand-off is signed-out exit 3, prints one JSON error and never opens a local agent', async () => {
+        host = {
+            ...host,
+            openLocalAgent: async () => {
+                throw new Error('must authenticate first');
+            },
+        };
+        expect(
+            await runCloud(host, ['chat', 'move', 'local-chat', '--to', 'cloud', '--json'])
+        ).toBe(3);
+        expect(JSON.parse(stderr).error.code).toBe('needs_sign_in');
+        expect(stdout).toBe('');
+        expect(requests).toHaveLength(0);
+    });
+
     it('needs a sign-in: exit 3 with the command that fixes it', async () => {
         const code = await runCloud(host, ['cloud', 'projects', 'list']);
 

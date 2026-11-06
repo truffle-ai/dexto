@@ -1,5 +1,6 @@
 // `workspace`: the tools an agent uses in your Dexto workspace over MCP, called as you.
 
+import { unwrap } from '@dexto/cloud-client';
 import { CommandFailure } from '../../failure.js';
 import { requireConsent, rerunWith } from '../../interaction.js';
 
@@ -297,7 +298,7 @@ async function callMcp(context: CommandContext, method: string, params: unknown)
             signInCommand(context, null)
         );
     const text = await response.text();
-    if (!response.ok) throw new Error(`The Dexto MCP answered HTTP ${response.status}.`);
+    if (!response.ok) return unwrap({ response, error: null });
     const message = parseJsonRpc(
         response.headers.get('content-type')?.includes('text/event-stream') === true
             ? lastEventData(text)
