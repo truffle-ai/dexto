@@ -29,7 +29,13 @@
         "chat start": ["dexto_chat_start", "dexto_chat_wait"],
         "chat computers": ["dexto_chat_computers_list"],
         "chat browser-profiles": ["dexto_chat_browser_profiles_list"],
-        "chat follow": ["dexto_chat_follow"]
+        "chat follow": ["dexto_chat_follow"],
+        "cloud files delete": ["dexto_cloud_files_list", "dexto_cloud_files_delete"],
+        "cloud files download": ["dexto_cloud_files_list", "dexto_cloud_files_download"],
+        "cloud files get": ["dexto_cloud_files_list", "dexto_cloud_files_get"],
+        "cloud files list": ["dexto_cloud_files_list"],
+        "cloud files upload": ["dexto_cloud_files_upload", "dexto_cloud_files_upload_complete"],
+        "cloud files url": ["dexto_cloud_files_list", "dexto_cloud_files_url"]
     },
     "localOnly": [
         {
@@ -486,84 +492,6 @@
             "closesWhen": [
                 {
                     "tool": "dexto_cloud_data-deletions_list",
-                    "inputs": []
-                }
-            ]
-        },
-        {
-            "name": "cloud-files-delete",
-            "group": "additionalRemote",
-            "issue": "DEXTO-2500",
-            "reason": "Cloud project files are not the personal Drive/artifact MCP contract.",
-            "commands": ["cloud files delete"],
-            "closesWhen": [
-                {
-                    "tool": "dexto_cloud_files_delete",
-                    "inputs": []
-                }
-            ]
-        },
-        {
-            "name": "cloud-files-download",
-            "group": "additionalRemote",
-            "issue": "DEXTO-2500",
-            "reason": "Cloud project files are not the personal Drive/artifact MCP contract.",
-            "commands": ["cloud files download"],
-            "closesWhen": [
-                {
-                    "tool": "dexto_cloud_files_download",
-                    "inputs": []
-                }
-            ]
-        },
-        {
-            "name": "cloud-files-get",
-            "group": "additionalRemote",
-            "issue": "DEXTO-2500",
-            "reason": "Cloud project files are not the personal Drive/artifact MCP contract.",
-            "commands": ["cloud files get"],
-            "closesWhen": [
-                {
-                    "tool": "dexto_cloud_files_get",
-                    "inputs": []
-                }
-            ]
-        },
-        {
-            "name": "cloud-files-list",
-            "group": "additionalRemote",
-            "issue": "DEXTO-2500",
-            "reason": "Cloud project files are not the personal Drive/artifact MCP contract.",
-            "commands": ["cloud files list"],
-            "closesWhen": [
-                {
-                    "tool": "dexto_cloud_files_list",
-                    "inputs": []
-                }
-            ]
-        },
-        {
-            "name": "cloud-files-upload",
-            "group": "additionalRemote",
-            "issue": "DEXTO-2500",
-            "reason": "Cloud project files are not the personal Drive/artifact MCP contract.",
-            "commands": ["cloud files upload"],
-            "closesWhen": [
-                {
-                    "tool": "dexto_cloud_files_upload",
-                    "inputs": []
-                }
-            ]
-        },
-        {
-            "name": "cloud-files-url",
-            "group": "additionalRemote",
-            "issue": "DEXTO-2500",
-            "reason": "Cloud project files are not the personal Drive/artifact MCP contract.",
-            "commands": ["cloud files url"],
-            "closesWhen": [
-                {
-                    "tool": "dexto_cloud_files_url",
                     "inputs": []
                 }
             ]

@@ -3994,6 +3994,254 @@
         "$schema": "http://json-schema.org/draft-07/schema#",
         "type": "object",
         "properties": {
+          "cloudProjectId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The Cloud project to act in: the Cloud project's id, as the CLI's selected project or GET /v1/projects lists it."
+          },
+          "fileId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The file's id, as dexto_cloud_files_list returns it (list with a prefix to find a path)."
+          }
+        },
+        "required": [
+          "cloudProjectId",
+          "fileId"
+        ],
+        "additionalProperties": false
+      },
+      "name": "dexto_cloud_files_delete"
+    },
+    {
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "cloudProjectId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The Cloud project to act in: the Cloud project's id, as the CLI's selected project or GET /v1/projects lists it."
+          },
+          "fileId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The file's id, as dexto_cloud_files_list returns it (list with a prefix to find a path)."
+          }
+        },
+        "required": [
+          "cloudProjectId",
+          "fileId"
+        ],
+        "additionalProperties": false
+      },
+      "name": "dexto_cloud_files_download"
+    },
+    {
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "cloudProjectId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The Cloud project to act in: the Cloud project's id, as the CLI's selected project or GET /v1/projects lists it."
+          },
+          "fileId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The file's id, as dexto_cloud_files_list returns it (list with a prefix to find a path)."
+          }
+        },
+        "required": [
+          "cloudProjectId",
+          "fileId"
+        ],
+        "additionalProperties": false
+      },
+      "name": "dexto_cloud_files_get"
+    },
+    {
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "after": {
+            "description": "The next_after of the previous page.",
+            "type": "string",
+            "minLength": 1
+          },
+          "cloudProjectId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The Cloud project to act in: the Cloud project's id, as the CLI's selected project or GET /v1/projects lists it."
+          },
+          "contains": {
+            "description": "Only paths containing this, ignoring case.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "limit": {
+            "default": 100,
+            "description": "Files per page, 1 to 1000.",
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000
+          },
+          "prefix": {
+            "default": "",
+            "description": "Only paths starting with this, such as reports/.",
+            "type": "string",
+            "maxLength": 1024
+          }
+        },
+        "required": [
+          "cloudProjectId"
+        ],
+        "additionalProperties": false
+      },
+      "name": "dexto_cloud_files_list"
+    },
+    {
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "cloudProjectId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The Cloud project to act in: the Cloud project's id, as the CLI's selected project or GET /v1/projects lists it."
+          },
+          "contentType": {
+            "default": "application/octet-stream",
+            "description": "The file's media type.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+            "description": "Delete the file at this time. Files are kept until deleted when omitted."
+          },
+          "metadata": {
+            "default": {},
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Up to 32 string entries and 4096 bytes; keys are letters, digits, '_', '.' or '-'."
+          },
+          "overwrite": {
+            "default": false,
+            "description": "Replace a file that already has this path.",
+            "type": "boolean"
+          },
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024,
+            "description": "The file's path in the project, such as reports/q3.pdf."
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$",
+            "description": "Lowercase hex SHA-256 of the bytes."
+          },
+          "sizeBytes": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 5368709120,
+            "description": "The file's size in bytes."
+          }
+        },
+        "required": [
+          "cloudProjectId",
+          "path",
+          "sha256",
+          "sizeBytes"
+        ],
+        "additionalProperties": false
+      },
+      "name": "dexto_cloud_files_upload"
+    },
+    {
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "cloudProjectId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The Cloud project to act in: the Cloud project's id, as the CLI's selected project or GET /v1/projects lists it."
+          },
+          "uploadId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The id dexto_cloud_files_upload returned."
+          }
+        },
+        "required": [
+          "cloudProjectId",
+          "uploadId"
+        ],
+        "additionalProperties": false
+      },
+      "name": "dexto_cloud_files_upload_complete"
+    },
+    {
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "cloudProjectId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The Cloud project to act in: the Cloud project's id, as the CLI's selected project or GET /v1/projects lists it."
+          },
+          "expiresIn": {
+            "default": 3600,
+            "description": "Seconds until the URL stops working; at most 86400.",
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 86400
+          },
+          "fileId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The file's id, as dexto_cloud_files_list returns it (list with a prefix to find a path)."
+          }
+        },
+        "required": [
+          "cloudProjectId",
+          "fileId"
+        ],
+        "additionalProperties": false
+      },
+      "name": "dexto_cloud_files_url"
+    },
+    {
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
           "contactId": {
             "type": "string",
             "format": "uuid",
