@@ -107,7 +107,10 @@ export class DextoMcpClient extends EventEmitter implements McpClient {
         return this.currentAuthProvider;
     }
 
-    async connect(config: ValidatedMcpServerConfig, serverName: string): Promise<Client> {
+    async connect(
+        config: ValidatedMcpServerConfig & { fetch?: typeof fetch },
+        serverName: string
+    ): Promise<Client> {
         this.timeout = config.timeout ?? 30000; // Use config timeout or Zod schema default
         if (config.type === 'stdio') {
             const stdioConfig: ValidatedStdioServerConfig = config;
@@ -128,7 +131,7 @@ export class DextoMcpClient extends EventEmitter implements McpClient {
                 httpConfig.url,
                 httpConfig.headers || {},
                 serverName,
-                httpConfig.fetch
+                config.fetch
             );
         } else {
             // TypeScript exhaustiveness check - should never reach here

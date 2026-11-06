@@ -77,13 +77,15 @@ describe('MCP HTTP SDK compatibility', () => {
             };
             try {
                 await client.connect(
-                    McpServerConfigSchema.parse({
-                        type: 'http',
-                        url: `${origin}/${endpoint === 'direct' ? 'mcp' : 'redirect'}`,
-                        headers: { Authorization: `Bearer ${token}` },
-                        timeout: 2000,
+                    {
+                        ...McpServerConfigSchema.parse({
+                            type: 'http',
+                            url: `${origin}/${endpoint === 'direct' ? 'mcp' : 'redirect'}`,
+                            headers: { Authorization: `Bearer ${token}` },
+                            timeout: 2000,
+                        }),
                         fetch: customFetch,
-                    }),
+                    },
                     'fixture'
                 );
                 const sdk = await client.getConnectedClient();
@@ -141,12 +143,14 @@ describe('MCP HTTP SDK compatibility', () => {
             try {
                 await expect(
                     client.connect(
-                        McpServerConfigSchema.parse({
-                            type,
-                            url: `${origin}/mcp`,
-                            timeout: 2000,
+                        {
+                            ...McpServerConfigSchema.parse({
+                                type,
+                                url: `${origin}/mcp`,
+                                timeout: 2000,
+                            }),
                             ...(type === 'http' ? { fetch: globalThis.fetch } : {}),
-                        }),
+                        },
                         'redirect-fixture'
                     )
                 ).rejects.toThrow(/Redirect.*not followed/);
