@@ -1,13 +1,11 @@
-import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { mkdtemp, readFile, rm, writeFile, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { promisify } from 'node:util';
 import { isSecretPath } from './redaction.js';
+import { handOffGit } from './git.js';
 import { CommandFailure } from '../failure.js';
 
-const exec = promisify(execFile);
 const MAX_BUNDLE = 256 * 1024 * 1024;
 const MAX_PATCH = 32 * 1024 * 1024;
 
@@ -25,23 +23,14 @@ export interface LocalTreeCheckpoint {
     readonly patchHash: string;
 }
 
-async function git(cwd: string, args: string[], env = process.env): Promise<Buffer> {
-    return (
-        await exec('git', ['-c', 'diff.submodule=short', '-c', 'color.ui=never', ...args], {
-            cwd,
-            env: { ...env, GIT_NO_REPLACE_OBJECTS: '1' },
-            encoding: 'buffer',
-            maxBuffer: MAX_BUNDLE + 1,
-        })
-    ).stdout;
-}
-
 export async function gitRepositoryRoot(cwd: string): Promise<string> {
-    return (await git(cwd, ['rev-parse', '--show-toplevel'])).toString().replace(/\r?\n$/u, '');
+    return (await handOffGit(cwd, ['rev-parse', '--show-toplevel']))
+        .toString()
+        .replace(/\r?\n$/u, '');
 }
 
 async function refuseSecretTree(repository: string, commit: string): Promise<void> {
-    const secret = (await git(repository, ['ls-tree', '-r', '--name-only', '-z', commit]))
+    const secret = (await handOffGit(repository, ['ls-tree', '-r', '--name-only', '-z', commit]))
         .toString()
         .split('\0')
         .find(isSecretPath);
@@ -54,7 +43,7 @@ async function refuseSecretTree(repository: string, commit: string): Promise<voi
 /** Merge parents and deleted paths matter because a bundle carries reachable history. */
 export async function refuseSecretHistory(repository: string, revision: string): Promise<void> {
     const secret = (
-        await git(repository, [
+        await handOffGit(repository, [
             'log',
             '-m',
             '--no-renames',
@@ -83,7 +72,7 @@ async function workingTreeFiles(
     const folder = await mkdtemp(path.join(tmpdir(), 'dexto-move-index-'));
     try {
         const branch = (
-            await git(repository, ['symbolic-ref', '--short', 'HEAD']).catch(() => {
+            await handOffGit(repository, ['symbolic-ref', '--short', 'HEAD']).catch(() => {
                 throw new CommandFailure(
                     'invalid_input',
                     'Check out a local branch before moving this chat.',
@@ -93,13 +82,19 @@ async function workingTreeFiles(
         )
             .toString()
             .trim();
-        const head_commit = (await git(repository, ['rev-parse', 'HEAD'])).toString().trim();
+        const head_commit = (await handOffGit(repository, ['rev-parse', 'HEAD'])).toString().trim();
         // Refuse tracked secret files before diff can read their contents.
         await refuseSecretTree(repository, head_commit);
         const env = { ...process.env, GIT_INDEX_FILE: path.join(folder, 'index') };
-        await git(repository, ['read-tree', head_commit], env);
+        await handOffGit(repository, ['read-tree', head_commit], env);
         const candidates = (
-            await git(repository, ['ls-files', '--cached', '--others', '--exclude-standard', '-z'])
+            await handOffGit(repository, [
+                'ls-files',
+                '--cached',
+                '--others',
+                '--exclude-standard',
+                '-z',
+            ])
         )
             .toString()
             .split('\0')
@@ -108,7 +103,7 @@ async function workingTreeFiles(
         const pathspec = path.join(folder, 'paths');
         await writeFile(pathspec, safe.join('\0') + '\0');
         if (safe.length > 0)
-            await git(
+            await handOffGit(
                 repository,
                 [
                     '--literal-pathspecs',
@@ -119,7 +114,7 @@ async function workingTreeFiles(
                 ],
                 env
             );
-        const patch = await git(
+        const patch = await handOffGit(
             repository,
             [
                 '--literal-pathspecs',
@@ -167,21 +162,27 @@ export async function buildWorkingTree(cwd: string): Promise<WorkingTree> {
     try {
         const bundlePath = path.join(folder, 'tree.bundle');
         const bare = path.join(folder, 'repository.git');
-        await git(repository, ['init', '--bare', bare]);
-        await git(repository, ['--git-dir=' + bare, 'fetch', '--no-tags', repository, head_commit]);
-        await git(repository, [
+        await handOffGit(repository, ['init', '--bare', bare]);
+        await handOffGit(repository, [
+            '--git-dir=' + bare,
+            'fetch',
+            '--no-tags',
+            repository,
+            head_commit,
+        ]);
+        await handOffGit(repository, [
             '--git-dir=' + bare,
             'update-ref',
             `refs/heads/${branch}`,
             head_commit,
         ]);
-        await git(repository, [
+        await handOffGit(repository, [
             '--git-dir=' + bare,
             'symbolic-ref',
             'HEAD',
             `refs/heads/${branch}`,
         ]);
-        await git(repository, [
+        await handOffGit(repository, [
             '--git-dir=' + bare,
             'bundle',
             'create',
