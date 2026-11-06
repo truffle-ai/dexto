@@ -37,20 +37,28 @@ their own layer.
 
 ### Browser request checks
 
-CORS only controls whether a browser can read a response, so the server also checks requests:
+CORS only controls whether a browser can read a response, so the server also checks requests.
+Browser trust is per origin (scheme, host and port), not per host: a page on another port of
+`localhost` is a different origin and is not trusted.
 
-- **State-changing requests** (`POST`, `PUT`, `PATCH`, `DELETE`) are rejected with `403` when
-  their `Origin` is not loopback, not listed in `DEXTO_ALLOWED_ORIGINS`, and not the server's
-  own origin (matching the request `Host`); `Origin: null` is rejected. They are also rejected
-  when `Sec-Fetch-Site` is `cross-site`, or when they carry none of `Authorization`,
-  `X-Dexto-Request`, or a non-simple `Content-Type` such as `application/json`.
-  `@dexto/client-sdk` sends `X-Dexto-Request: 1` on every request.
+- **Trusted origins** are the server's own origin (the `Origin` host and port equal the
+  request's `Host`, as for the bundled Web UI) and the origins listed in
+  `DEXTO_ALLOWED_ORIGINS` (comma-separated, for example `https://app.example.com`). CORS
+  headers are sent only for `DEXTO_ALLOWED_ORIGINS`.
+- **Any request** (except `OPTIONS`) with an `Origin` that is not trusted is rejected with
+  `403`; `Origin: null` is rejected. Navigations carry no `Origin`, so links to the Web UI work.
+- **State-changing requests** (`POST`, `PUT`, `PATCH`, `DELETE`) are also rejected when
+  `Sec-Fetch-Site` is `same-site` or `cross-site` and the `Origin` is not in
+  `DEXTO_ALLOWED_ORIGINS`, or when they carry none of `Authorization`, `X-Dexto-Request`, or a
+  non-simple `Content-Type` such as `application/json`. `@dexto/client-sdk` sends
+  `X-Dexto-Request: 1` on every request.
 - **Without auth** (no `DEXTO_SERVER_API_KEY`, not `NODE_ENV=production`, no
   `DEXTO_SERVER_REQUIRE_AUTH`, built-in auth not disabled), every request must use a loopback
   `Host` (`localhost`, `127.x.x.x`, `0.0.0.0`, `[::1]`, any port), which blocks DNS rebinding.
   Add other names with `DEXTO_ALLOWED_HOSTS` (comma-separated).
-- Browser pages on any loopback origin are trusted, as they are for CORS. Set
-  `DEXTO_SERVER_API_KEY` if other local web apps should not be able to call the API.
+- A frontend served from another origin (for example a separate dev server) must be listed in
+  `DEXTO_ALLOWED_ORIGINS`, or proxy API calls through its own origin. A proxy that rewrites
+  `Host` must rewrite `Origin` to match, as the Web UI's Vite dev proxy does.
 
 ## Usage
 
