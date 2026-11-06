@@ -263,6 +263,39 @@ describe('dexto cloud', () => {
         expect(stderr).toContain('Run: dexto login');
     });
 
+    it('escapes control, bidi and invisible characters in plain error details', async () => {
+        await dextoAccounts.writeLogin(dir, 'default', signedIn());
+        reply = () =>
+            Response.json(
+                {
+                    error: {
+                        code: 'invalid',
+                        message: 'Bad request.',
+                        details: {
+                            ['fi\u202Eeld']: 'invoice\u202Etxt.exe\u007F\u009B2J\u001B[2J\u200B',
+                            nested: ['\u2066x\u2069'],
+                        },
+                        requestId: 'req_4',
+                        retryable: false,
+                    },
+                },
+                { status: 400 }
+            );
+
+        await runCloud(host, ['cloud', 'projects', 'list', '--table']);
+
+        expect(stderr).not.toMatch(
+            // eslint-disable-next-line no-control-regex
+            /[\u0000-\u0009\u000B-\u001F\u007F-\u009F\u200B\u202E\u2066\u2069]/u
+        );
+        expect(stderr).toContain(
+            '"fi\\u202Eeld": "invoice\\u202Etxt.exe\\u007F\\u009B2J\\u001b[2J\\u200B"'
+        );
+        expect(stderr).toContain('"\\u2066x\\u2069"');
+        // Still pretty-printed: one field per line.
+        expect(stderr).toMatch(/\{\n {2}"fi/u);
+    });
+
     it('maps a missing resource to exit 5', async () => {
         await dextoAccounts.writeLogin(dir, 'default', signedIn());
         reply = () =>

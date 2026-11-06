@@ -24,7 +24,7 @@ import {
     type WorkspaceApp,
 } from './commands/workspace-apps.js';
 import { createOutput, type OutputFormat } from './output.js';
-import { forStream, safeText, signalOn } from '@dexto/tui/signal-text';
+import { forStream, safeJson, safeText, signalOn } from '@dexto/tui/signal-text';
 import { failureLines } from '../screens/fault.js';
 import { pageHelpLines, type HelpSection } from '../screens/help.js';
 import type { CloudRuntime } from './runtime.js';
@@ -350,8 +350,7 @@ function reportError(context: SignInContext, json: boolean, help: Help, error: u
         runtime.writeError(
             `Error${failure.apiCode === null ? '' : ` (${safeText(failure.apiCode)})`}: ${safeText(failure.message)}\n`
         );
-        if (failure.details !== null)
-            runtime.writeError(`${JSON.stringify(failure.details, null, 2)}\n`);
+        if (failure.details !== null) runtime.writeError(`${safeJson(failure.details, 2)}\n`);
         if (failure.fix !== null) runtime.writeError(`Run: ${safeText(failure.fix)}\n`);
     }
     return EXIT_CODES[failure.code];

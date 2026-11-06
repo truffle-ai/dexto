@@ -10,6 +10,7 @@ import {
     link,
     noticeLines,
     safeHref,
+    safeJson,
     safeText,
     span,
     spread,
@@ -33,17 +34,42 @@ describe('Signal text from a server', () => {
         expect(safeText('Acme · ◆ café 日本')).toBe('Acme · ◆ café 日本');
     });
 
-    it('takes out bidi controls, zero-width characters and tag characters', () => {
+    it('takes out bidi controls and invisible characters', () => {
         // An override that makes `exe.txt` read as `txt.exe`, and isolates and marks.
         expect(safeText('invoice\u202Etxt.exe')).toBe('invoicetxt.exe');
         expect(
             safeText('\u202Aa\u202Bb\u202Cc\u202Dd\u2066e\u2067f\u2068g\u2069h\u200Ei\u200Fj')
         ).toBe('abcdefghij');
-        expect(safeText('ac\u200Bme\u200C co\u2060rp\uFEFF')).toBe('acme corp');
-        expect(safeText('hidden\u{E0041}\u{E0042}\u{E007F} tags')).toBe('hidden tags');
+        expect(safeText('ac\u200Bme co\u2060rp\uFEFF')).toBe('acme corp');
+        expect(safeText('hidden\u{E0001}\u{E001F} tag')).toBe('hidden tag');
         expect(safeHref('https://dexto.ai/\u202Eevil')).toBeNull();
-        // The zero-width joiner stays, so emoji sequences keep together.
+    });
+
+    it('keeps the joiners and tag characters that scripts and emoji need', () => {
+        // The zero-width joiner holds an emoji sequence together.
         expect(safeText('family 👩\u200D👩\u200D👧')).toBe('family 👩\u200D👩\u200D👧');
+        // The zero-width non-joiner is part of how Persian spells "mi-khaham" ("I want").
+        expect(safeText('می\u200Cخواهم')).toBe('می\u200Cخواهم');
+        // The flag of Scotland: a black flag, `gbsct` in tag letters, then a cancel tag.
+        const scotland = '\u{1F3F4}\u{E0067}\u{E0062}\u{E0073}\u{E0063}\u{E0074}\u{E007F}';
+        expect(safeText(`Team ${scotland}`)).toBe(`Team ${scotland}`);
+    });
+
+    it('prints JSON with DEL, C1, bidi and invisible characters escaped', () => {
+        const value = {
+            [`k\u202Eey`]: `a${ESC}[2J\u007F${C1_CSI}2J\u202Etxt\u200B`,
+            nested: ['\u2066x\u2069', 'line\none', 'ok \u200C \u200D'],
+        };
+        const out = safeJson(value, 2);
+        expect(out).not.toMatch(
+            // eslint-disable-next-line no-control-regex
+            /[\u0000-\u0009\u000B-\u001F\u007F-\u009F\u200B\u202E\u2066\u2069]/u
+        );
+        expect(out).toContain('"k\\u202Eey": "a\\u001b[2J\\u007F\\u009B2J\\u202Etxt\\u200B"');
+        expect(out.split('\n').length).toBeGreaterThan(3);
+        expect(JSON.parse(out)).toEqual(value);
+        expect(safeJson(undefined, 0)).toBe('undefined');
+        expect(safeJson('\u{E0001}', 0)).toBe('"\\uDB40\\uDC01"');
     });
 
     it.each(TERMINAL_NAMES)('draws no escape of its own from server text on %s', (terminal) => {

@@ -69,11 +69,18 @@ const SPACING_CONTROLS = /[\t\n\r]/gu;
 // eslint-disable-next-line no-control-regex
 const CONTROLS = /[\u0000-\u001F\u007F-\u009F]/gu;
 // Characters that change how text reads without showing: bidi marks, embeddings, overrides and
-// isolates (U+200E/200F, U+202A-202E, U+2066-2069), zero-width space and non-joiner (U+200B,
-// U+200C), word joiner (U+2060), BOM (U+FEFF) and tag characters (U+E0000-E007F). The
-// zero-width joiner (U+200D) stays: emoji sequences need it.
+// isolates (U+200E/200F, U+202A-202E, U+2066-2069), zero-width space (U+200B), word joiner
+// (U+2060), BOM (U+FEFF) and the language tag and unassigned tags (U+E0000-E001F). Some stay:
+// the zero-width joiner (U+200D) holds emoji sequences together, the zero-width non-joiner
+// (U+200C) is part of how Persian, Kurdish, Urdu and Indic scripts are spelled, and tag
+// characters U+E0020-E007F spell subdivision flags (Scotland's is U+1F3F4, `gbsct` in tags,
+// then U+E007F).
 const INVISIBLES =
-    /[\u200B\u200C\u200E\u200F\u202A-\u202E\u2060\u2066-\u2069\uFEFF\u{E0000}-\u{E007F}]/gu;
+    /[\u200B\u200E\u200F\u202A-\u202E\u2060\u2066-\u2069\uFEFF\u{E0000}-\u{E001F}]/gu;
+// What `JSON.stringify` leaves raw that `safeText` takes out: it escapes C0 itself, and the only
+// C0 it writes raw is the newline of its own indent.
+const UNESCAPED_IN_JSON =
+    /[\u007F-\u009F\u200B\u200E\u200F\u202A-\u202E\u2060\u2066-\u2069\uFEFF\u{E0000}-\u{E001F}]/gu;
 
 /**
  * Text with its control characters taken out. Span text can come from a server (a name, an
@@ -83,6 +90,25 @@ const INVISIBLES =
  */
 export function safeText(text: string): string {
     return text.replace(SPACING_CONTROLS, ' ').replace(CONTROLS, '').replace(INVISIBLES, '');
+}
+
+/**
+ * A value as JSON that is safe to print: `JSON.stringify` escapes only C0, so DEL, C1, bidi
+ * controls and invisible characters in a key or a string are written as `\uXXXX` too. Nothing
+ * is dropped and newlines from `space` stay, so the JSON still parses to the same value. `space`
+ * 0 is one line.
+ */
+export function safeJson(value: unknown, space: number): string {
+    // `undefined` and functions have no JSON; print them as `undefined`.
+    const json = JSON.stringify(value, null, space) as string | undefined;
+    if (json === undefined) return 'undefined';
+    return json.replace(UNESCAPED_IN_JSON, (match) =>
+        Array.from(
+            { length: match.length },
+            (_, index) =>
+                `\\u${match.charCodeAt(index).toString(16).toUpperCase().padStart(4, '0')}`
+        ).join('')
+    );
 }
 
 /**

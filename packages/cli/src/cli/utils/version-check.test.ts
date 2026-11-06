@@ -260,5 +260,24 @@ describe('version-check', () => {
                 })
             ).not.toThrow();
         });
+
+        it('prints the fetched version with its control characters taken out', () => {
+            const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+            try {
+                displayUpdateNotification({
+                    current: '1.0.0',
+                    latest: '2.0.0\u001B[2J\u001B]0;pwned\u0007\u009B2J\u202E',
+                    updateCommand: 'dexto upgrade',
+                });
+                const printed = error.mock.calls.map((call) => String(call[0])).join('\n');
+                expect(printed).toContain('2.0.0');
+                expect(printed).not.toContain('\u001B[2J');
+                expect(printed).not.toContain('\u001B]0;');
+                // eslint-disable-next-line no-control-regex
+                expect(printed).not.toMatch(/[\u0007\u009B\u202E]/u);
+            } finally {
+                error.mockRestore();
+            }
+        });
     });
 });
