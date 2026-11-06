@@ -2,7 +2,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { dextoAccounts } from '@dexto/agent-management';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { resolveConnection } from '../connection.js';
 import { cloudCommands, CLOUD_GROUPS } from '../host.js';
 import { runCloud, type CloudHost } from '../run.js';
@@ -20,6 +20,10 @@ describe('subscription connections over MCP', () => {
     let replies: unknown[];
     let rpcError: unknown;
     let stdin: string;
+    let stdinIsTerminal: boolean;
+    let readStdin: () => Promise<string>;
+    let stdoutIsTerminal: boolean;
+    let beforeWait: () => void;
     beforeEach(async () => {
         dir = path.join(await mkdtemp(path.join(os.tmpdir(), 'dexto-connect-')), 'accounts');
         stdout = '';
@@ -28,6 +32,10 @@ describe('subscription connections over MCP', () => {
         replies = [];
         rpcError = null;
         stdin = '';
+        stdinIsTerminal = true;
+        readStdin = async () => stdin;
+        stdoutIsTerminal = false;
+        beforeWait = () => undefined;
         await dextoAccounts.writeLogin(dir, 'default', {
             kind: 'oauth',
             accessToken: 'access-1',
@@ -54,6 +62,7 @@ describe('subscription connections over MCP', () => {
                     return Response.json({ resource: MCP, dexto_app_scopes: {} });
                 const message = await request.json();
                 calls.push(message.params);
+                if (message.params.name === 'dexto_connection_wait') beforeWait();
                 if (rpcError !== null) {
                     const error = rpcError;
                     rpcError = null;
@@ -67,14 +76,20 @@ describe('subscription connections over MCP', () => {
                     result: { content: [], structuredContent: value },
                 });
             },
-            prompt: async () => {
-                throw new Error('Must not prompt');
+            get prompt() {
+                return stdinIsTerminal
+                    ? async () => {
+                          throw new Error('Must not prompt');
+                      }
+                    : null;
             },
-            readStdin: async () => stdin,
+            readStdin: () => readStdin(),
             runProcess: async () => ({ exitCode: 0, output: '' }),
             signal: new AbortController().signal,
             sleep: async () => undefined,
-            stdoutIsTerminal: false,
+            get stdoutIsTerminal() {
+                return stdoutIsTerminal;
+            },
             writeBytes: async () => undefined,
             writeError: (text) => {
                 stderr += text;
@@ -167,7 +182,7 @@ describe('subscription connections over MCP', () => {
             { provider: 'codex', attemptId: 'codex-1', timeoutSeconds: 25 },
             { provider: 'codex', attemptId: 'codex-1', timeoutSeconds: 25 },
         ]);
-        expect(JSON.parse(stdout).outcome).toBe('connected');
+        expect(JSON.parse(stdout.trim().split('\n').at(-1) ?? '').outcome).toBe('connected');
     });
     it('lists typed connection rows and refuses an API-key disconnect verbatim', async () => {
         replies = [
@@ -234,6 +249,7 @@ describe('subscription connections over MCP', () => {
     });
 
     it('reads a Claude code from stdin under --json without prompting', async () => {
+        stdinIsTerminal = false;
         stdin = 'stdin-code\n';
         replies = [
             {
@@ -396,13 +412,14 @@ describe('subscription connections over MCP', () => {
         expect(stderr).not.toContain('secret-code');
         expect(stderr).not.toContain('--code=');
     });
-    it('accepts a piped code when resuming a replacement attempt', async () => {
+    it('does not consume a piped code during a save-only resume', async () => {
+        stdinIsTerminal = false;
         stdin = 'new-code\n';
         replies = [{ outcome: 'connected', name: 'claude', nextAction: null }];
         expect(
             await runCloud(host, ['connect', 'claude', '--attempt', 'replacement', '--json'])
         ).toBe(0);
-        expect(calls[0]?.arguments).toEqual({ attemptId: 'replacement', code: 'new-code' });
+        expect(calls[0]?.arguments).toEqual({ attemptId: 'replacement' });
     });
 
     it('returns disconnected status with a next command, then disconnects with consent', async () => {
@@ -429,4 +446,81 @@ describe('subscription connections over MCP', () => {
             'dexto_connection_disconnect',
         ]);
     });
+
+    it.each([
+        { mode: 'explicit JSON', terminal: true, flags: ['--json'], json: true },
+        { mode: 'redirected stdout', terminal: false, flags: [], json: true },
+        { mode: 'human output', terminal: true, flags: [], json: false },
+    ])('exposes Codex authorization before waiting in $mode', async ({ terminal, flags, json }) => {
+        stdoutIsTerminal = terminal;
+        const started = {
+            outcome: 'started',
+            provider: 'codex',
+            attemptId: 'visible-device',
+            url: 'https://example.test/device',
+            code: 'VISIBLE-CODE',
+            expiresAt: '2026-11-06T10:00:00Z',
+            pollAfterSeconds: 0,
+            nextAction: 'dexto_connection_wait',
+        };
+        replies = [started, { outcome: 'connected', name: 'codex', nextAction: null }];
+        beforeWait = () => {
+            if (json) {
+                expect(stdout.split('\n').filter(Boolean)).toHaveLength(1);
+                expect(JSON.parse(stdout)).toEqual(started);
+                expect(stderr).toBe('');
+            } else {
+                expect(stderr).toContain(started.url);
+                expect(stderr).toContain(started.code);
+            }
+        };
+        expect(await runCloud(host, ['connect', 'codex', '--no-browser', ...flags]), stderr).toBe(
+            0
+        );
+        if (json) {
+            const lines = stdout
+                .trim()
+                .split('\n')
+                .map((line) => JSON.parse(line));
+            expect(lines).toEqual([
+                started,
+                { outcome: 'connected', name: 'codex', nextAction: null },
+            ]);
+        } else expect(stdout).toBe('Codex connected.\n');
+    });
+
+    it.each([true, false])(
+        'does not consume stdin for a save-only resume (stdin TTY: %s)',
+        async (terminal) => {
+            stdinIsTerminal = terminal;
+            readStdin = vi.fn(() => new Promise<string>(() => undefined));
+            replies = [{ outcome: 'connected', name: 'claude', nextAction: null }];
+            expect(
+                await runCloud(host, ['connect', 'claude', '--attempt', 'save-only', '--json'])
+            ).toBe(0);
+            expect(readStdin).not.toHaveBeenCalled();
+            expect(calls).toEqual([
+                { name: 'dexto_connection_finish', arguments: { attemptId: 'save-only' } },
+            ]);
+        },
+        1000
+    );
+    it('returns the code-required outcome at a JSON TTY without reading or prompting', async () => {
+        readStdin = vi.fn(() => new Promise<string>(() => undefined));
+        replies = [
+            {
+                outcome: 'started',
+                provider: 'claude',
+                attemptId: 'needs-code',
+                sessionId: 'chat',
+                url: 'https://example.test',
+                expiresAt: null,
+                nextAction: 'dexto_connection_finish',
+            },
+        ];
+        expect(await runCloud(host, ['connect', 'claude', '--json'])).toBe(6);
+        expect(readStdin).not.toHaveBeenCalled();
+        expect(calls).toHaveLength(1);
+        expect(stderr).toContain('--code <code>');
+    }, 1000);
 });

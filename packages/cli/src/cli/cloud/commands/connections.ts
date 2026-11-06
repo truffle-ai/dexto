@@ -159,7 +159,11 @@ const claude: Command = {
             return 0;
         }
         let code = stringOption(input, 'code')?.trim();
-        if (code === undefined && (context.output.json || context.runtime.prompt === null)) {
+        if (
+            code === undefined &&
+            stringOption(input, 'attempt') === undefined &&
+            context.runtime.prompt === null
+        ) {
             const piped = (await context.runtime.readStdin()).trim();
             if (piped.length > 0) code = piped;
         }
@@ -246,6 +250,7 @@ const codex: Command = {
                 );
                 return 0;
             }
+            if (context.output.json) context.runtime.writeOutput(`${JSON.stringify(started)}\n`);
         }
         if (flag(input, 'no-wait')) {
             const result = {
@@ -267,16 +272,20 @@ const codex: Command = {
                 })
             );
             if (result.outcome === 'connected') {
-                context.output.result(result, 'Codex connected.');
+                if (context.output.json) context.runtime.writeOutput(`${JSON.stringify(result)}\n`);
+                else context.output.result(result, 'Codex connected.');
                 return 0;
             }
             if (result.outcome !== 'timeout' || flag(input, 'no-wait') || tries === 119) {
                 const nextCommand =
                     result.outcome === 'timeout' ? resume('codex', attempt) : 'dexto connect codex';
-                context.output.result(
-                    { ...result, nextCommand },
-                    `${result.outcome}. Next: ${nextCommand}`
-                );
+                if (context.output.json)
+                    context.runtime.writeOutput(`${JSON.stringify({ ...result, nextCommand })}\n`);
+                else
+                    context.output.result(
+                        { ...result, nextCommand },
+                        `${result.outcome}. Next: ${nextCommand}`
+                    );
                 return EXIT_CODES.waiting_on_person;
             }
             await context.runtime.sleep(1000);
