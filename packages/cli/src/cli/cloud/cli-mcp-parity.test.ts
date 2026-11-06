@@ -46,16 +46,7 @@ cloud-agents-sessions-get
 cloud-agents-sessions-list
 cloud-agents-update
 cloud-api
-cloud-automations-create
-cloud-automations-delete
-cloud-automations-firings
-cloud-automations-get
-cloud-automations-list
-cloud-automations-pause
-cloud-automations-resume
 cloud-automations-rotate-secret
-cloud-automations-run
-cloud-automations-update
 cloud-data-deletions-create
 cloud-data-deletions-get
 cloud-data-deletions-list
