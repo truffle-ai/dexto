@@ -35,6 +35,19 @@ The server binds to `127.0.0.1` unless a host is given (`--host`, `DEXTO_SERVER_
 refuses to start. Apps created with `disableAuth: true` are exempt and must enforce auth in
 their own layer.
 
+### Browser request checks
+
+CORS only controls whether a browser can read a response, so the server also checks requests:
+
+- **State-changing requests** (`POST`, `PUT`, `PATCH`, `DELETE`) are rejected with `403` when
+  their `Origin` is not loopback or listed in `DEXTO_ALLOWED_ORIGINS` (`Origin: null` included),
+  when `Sec-Fetch-Site` is `cross-site`, or when they carry none of `Authorization`,
+  `X-Dexto-Request`, or a non-simple `Content-Type` such as `application/json`.
+  `@dexto/client-sdk` sends `X-Dexto-Request: 1` on every request.
+- **Without auth** (no `DEXTO_SERVER_API_KEY`, loopback development), every request must use a
+  loopback `Host` (`localhost`, `127.0.0.1`, `[::1]`, any port), which blocks DNS rebinding.
+  Add other names with `DEXTO_ALLOWED_HOSTS` (comma-separated).
+
 ## Usage
 
 ### Client Authentication

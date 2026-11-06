@@ -1,4 +1,5 @@
 import type { HttpAuthorization } from './middleware/auth.js';
+import type { RequestGuard } from './middleware/request-guard.js';
 import type { Context } from 'hono';
 import type { Hono } from 'hono';
 import type { RouteConfig, RouteConfigToTypedResponse } from '@hono/zod-openapi';
@@ -10,6 +11,7 @@ import type { WebhookEventSubscriber } from '../events/webhook-subscriber.js';
 export type DextoApp = OpenAPIHono & {
     webhookSubscriber?: WebhookEventSubscriber;
     httpAuthorization?: HttpAuthorization;
+    requestGuard?: RequestGuard;
     /** True when the app was created with `disableAuth` (an external auth layer is in front). */
     authDisabled?: boolean;
 };
