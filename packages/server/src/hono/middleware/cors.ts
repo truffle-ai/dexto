@@ -1,5 +1,6 @@
 import { cors } from 'hono/cors';
 import type { MiddlewareHandler } from 'hono';
+import { DEXTO_REQUEST_HEADER, isAllowedRequestOrigin } from './request-guard.js';
 
 /**
  * CORS middleware that allows:
@@ -17,33 +18,10 @@ export function createCorsMiddleware(): MiddlewareHandler {
                 return null;
             }
 
-            try {
-                const originUrl = new URL(origin);
-                const hostname = originUrl.hostname;
-
-                // Always allow localhost/127.0.0.1 on any port for local development
-                if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1') {
-                    return origin;
-                }
-
-                // Check custom allowed origins from environment variable
-                const customOrigins = process.env.DEXTO_ALLOWED_ORIGINS;
-                if (customOrigins) {
-                    const allowedList = customOrigins.split(',').map((o) => o.trim());
-                    if (allowedList.includes(origin)) {
-                        return origin;
-                    }
-                }
-
-                // Origin not allowed
-                return null;
-            } catch {
-                // Invalid URL format, reject
-                return null;
-            }
+            return isAllowedRequestOrigin(origin) ? origin : null;
         },
         allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS', 'HEAD'],
-        allowHeaders: ['Content-Type', 'Authorization'],
+        allowHeaders: ['Content-Type', 'Authorization', DEXTO_REQUEST_HEADER],
         credentials: true,
     });
 }
