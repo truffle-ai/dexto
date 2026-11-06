@@ -95,9 +95,7 @@ cloud-secrets-get
 cloud-secrets-list
 cloud-secrets-update
 cloud-sites-deploy
-cloud-sites-list
-chat-list-status
-chat-get-usage`.split('\n')
+cloud-sites-list`.split('\n')
 );
 
 // Tools with only generic passthrough reachability are debt, not coverage.
