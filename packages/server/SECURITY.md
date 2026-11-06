@@ -40,13 +40,17 @@ their own layer.
 CORS only controls whether a browser can read a response, so the server also checks requests:
 
 - **State-changing requests** (`POST`, `PUT`, `PATCH`, `DELETE`) are rejected with `403` when
-  their `Origin` is not loopback or listed in `DEXTO_ALLOWED_ORIGINS` (`Origin: null` included),
+  their `Origin` is not loopback, not listed in `DEXTO_ALLOWED_ORIGINS`, and not the server's
+  own origin (matching the request `Host`); `Origin: null` is rejected. They are also rejected
   when `Sec-Fetch-Site` is `cross-site`, or when they carry none of `Authorization`,
   `X-Dexto-Request`, or a non-simple `Content-Type` such as `application/json`.
   `@dexto/client-sdk` sends `X-Dexto-Request: 1` on every request.
-- **Without auth** (no `DEXTO_SERVER_API_KEY`, loopback development), every request must use a
-  loopback `Host` (`localhost`, `127.0.0.1`, `[::1]`, any port), which blocks DNS rebinding.
+- **Without auth** (no `DEXTO_SERVER_API_KEY`, not `NODE_ENV=production`, no
+  `DEXTO_SERVER_REQUIRE_AUTH`, built-in auth not disabled), every request must use a loopback
+  `Host` (`localhost`, `127.x.x.x`, `0.0.0.0`, `[::1]`, any port), which blocks DNS rebinding.
   Add other names with `DEXTO_ALLOWED_HOSTS` (comma-separated).
+- Browser pages on any loopback origin are trusted, as they are for CORS. Set
+  `DEXTO_SERVER_API_KEY` if other local web apps should not be able to call the API.
 
 ## Usage
 
