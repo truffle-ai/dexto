@@ -69,33 +69,29 @@ export interface SetupEvent {
 }
 
 export interface InstallAgentEvent {
-    agent: string;
     status: 'installed' | 'skipped' | 'failed';
     force: boolean;
     reason?: string;
-    error_message?: string;
 }
 
 export interface InstallAggregateEvent {
-    requested: string[];
-    installed: string[];
-    skipped: string[];
-    failed: string[];
+    requestedCount: number;
+    installedCount: number;
+    skippedCount: number;
+    failedCount: number;
     successCount: number;
     errorCount: number;
 }
 
 export interface UninstallAgentEvent {
-    agent: string;
     status: 'uninstalled' | 'failed';
     force: boolean;
-    error_message?: string;
 }
 
 export interface UninstallAggregateEvent {
-    requested: string[];
-    uninstalled: string[];
-    failed: string[];
+    requestedCount: number;
+    uninstalledCount: number;
+    failedCount: number;
     successCount: number;
     errorCount: number;
 }
