@@ -69,11 +69,6 @@ cloud-files-url
 cloud-functions-deploy
 cloud-functions-list
 models-list
-cloud-models-get
-cloud-models-list
-cloud-models-run
-cloud-models-runs-get
-cloud-models-runs-list
 cloud-projects-create
 cloud-projects-list
 cloud-sandboxes-cat

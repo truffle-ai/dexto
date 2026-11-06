@@ -25,7 +25,12 @@
         "chat start": ["dexto_chat_start", "dexto_chat_wait"],
         "chat computers": ["dexto_chat_computers_list"],
         "chat browser-profiles": ["dexto_chat_browser_profiles_list"],
-        "chat follow": ["dexto_chat_follow"]
+        "chat follow": ["dexto_chat_follow"],
+        "cloud models list": ["dexto_cloud_models_list"],
+        "cloud models get": ["dexto_cloud_models_get"],
+        "cloud models run": ["dexto_cloud_models_estimate", "dexto_cloud_models_run"],
+        "cloud models runs list": ["dexto_cloud_models_runs_list"],
+        "cloud models runs get": ["dexto_cloud_models_runs_get"]
     },
     "localOnly": [
         {
@@ -587,71 +592,6 @@
                 {
                     "tool": "dexto_functions_list",
                     "inputs": ["cloudProjectId"]
-                }
-            ]
-        },
-        {
-            "name": "cloud-models-get",
-            "group": "additionalRemote",
-            "issue": "DEXTO-2500",
-            "reason": "Cloud text/media catalog, execution and run inspection is not fully covered by chat model selection or capability calls.",
-            "commands": ["cloud models get"],
-            "closesWhen": [
-                {
-                    "tool": "dexto_cloud_models_get",
-                    "inputs": []
-                }
-            ]
-        },
-        {
-            "name": "cloud-models-list",
-            "group": "additionalRemote",
-            "issue": "DEXTO-2500",
-            "reason": "Cloud text/media catalog, execution and run inspection is not fully covered by chat model selection or capability calls.",
-            "commands": ["cloud models list"],
-            "closesWhen": [
-                {
-                    "tool": "dexto_cloud_models_list",
-                    "inputs": []
-                }
-            ]
-        },
-        {
-            "name": "cloud-models-run",
-            "group": "additionalRemote",
-            "issue": "DEXTO-2500",
-            "reason": "Cloud text/media catalog, execution and run inspection is not fully covered by chat model selection or capability calls.",
-            "commands": ["cloud models run"],
-            "closesWhen": [
-                {
-                    "tool": "dexto_cloud_models_run",
-                    "inputs": []
-                }
-            ]
-        },
-        {
-            "name": "cloud-models-runs-get",
-            "group": "additionalRemote",
-            "issue": "DEXTO-2500",
-            "reason": "Cloud text/media catalog, execution and run inspection is not fully covered by chat model selection or capability calls.",
-            "commands": ["cloud models runs get"],
-            "closesWhen": [
-                {
-                    "tool": "dexto_cloud_models_runs_get",
-                    "inputs": []
-                }
-            ]
-        },
-        {
-            "name": "cloud-models-runs-list",
-            "group": "additionalRemote",
-            "issue": "DEXTO-2500",
-            "reason": "Cloud text/media catalog, execution and run inspection is not fully covered by chat model selection or capability calls.",
-            "commands": ["cloud models runs list"],
-            "closesWhen": [
-                {
-                    "tool": "dexto_cloud_models_runs_list",
-                    "inputs": []
                 }
             ]
         },
