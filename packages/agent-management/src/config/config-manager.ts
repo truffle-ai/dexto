@@ -138,7 +138,7 @@ export async function reloadAgentConfigFromFile(configPath: string): Promise<Age
  * Helper to write file atomically
  */
 async function writeFileAtomic(configPath: string, content: string): Promise<void> {
-    const mode = (await fs.stat(configPath)).mode & 0o600;
+    const mode = 0o600;
     const tmpPath = `${configPath}.${randomUUID()}.tmp`;
     const file = await fs.open(tmpPath, 'wx', mode);
     try {

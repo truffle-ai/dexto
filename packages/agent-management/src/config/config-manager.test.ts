@@ -29,13 +29,13 @@ afterEach(async () => {
 });
 
 describe('config rewrite permissions', () => {
-    it.each([0o600, 0o400, 0o644])('restricts rewritten mode %#', async (mode) => {
+    it.each([0o600, 0o400, 0o644])('rewrites mode %# as private owner read/write', async (mode) => {
         await fs.writeFile(tmpFile, 'llm:\n  apiKey: synthetic-secret\n', { mode: 0o600 });
         await fs.chmod(tmpFile, mode);
         const previousUmask = process.umask(0o022);
         try {
             await addPromptToAgentConfig(tmpFile, { type: 'inline', id: 'test', prompt: 'test' });
-            expect((await fs.stat(tmpFile)).mode & 0o777).toBe(mode & 0o600);
+            expect((await fs.stat(tmpFile)).mode & 0o777).toBe(0o600);
             expect(await fs.readFile(tmpFile, 'utf8')).toContain('synthetic-secret');
         } finally {
             process.umask(previousUmask);
