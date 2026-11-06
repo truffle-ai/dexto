@@ -309,3 +309,58 @@ for (const status of [429, 403]) {
         }
     }
 }
+
+it.each([
+    { status: 429, retryAfter: '3', expectedDelay: 3_000 },
+    { status: 503, retryAfter: null, expectedDelay: 2_000 },
+])(
+    'keeps watching after MCP HTTP $status with the server retry delay',
+    async ({ status, retryAfter, expectedDelay }) => {
+        const workspace = await vi.importActual<typeof import('./workspace.js')>('./workspace.js');
+        queryWorkspaceTool.mockImplementation(workspace.queryWorkspaceTool);
+        const h = harness(false);
+        const controller = new AbortController();
+        let calls = 0;
+        const delays: number[] = [];
+        const context = {
+            ...h.context,
+            runtime: {
+                ...h.context.runtime,
+                signal: controller.signal,
+                fetch: async () => {
+                    calls += 1;
+                    if (calls === 1)
+                        return new Response('temporary MCP refusal', {
+                            status,
+                            headers: retryAfter === null ? {} : { 'Retry-After': retryAfter },
+                        });
+                    return Response.json({
+                        jsonrpc: '2.0',
+                        id: 1,
+                        result: {
+                            content: [],
+                            structuredContent: {
+                                messages: [
+                                    { id: 'message', role: 'assistant', text: 'still attached' },
+                                ],
+                            },
+                        },
+                    });
+                },
+                sleep: async (delay: number) => {
+                    delays.push(delay);
+                    if (calls === 2) controller.abort();
+                },
+            },
+        };
+        const watch = chatMoveCommands.find((command) => command.path[1] === 'watch');
+        if (watch === undefined) throw new Error('Missing watch command');
+        await watch.run(context, { positionals: ['local-chat'], values: {} });
+        expect(calls).toBe(2);
+        expect(delays).toEqual([expectedDelay, 2_000]);
+        expect(JSON.parse(h.rawOutput())).toMatchObject({
+            event: 'message',
+            delta: 'still attached',
+        });
+    }
+);
