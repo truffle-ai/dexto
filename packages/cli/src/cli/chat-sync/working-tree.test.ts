@@ -414,17 +414,19 @@ it('recognizes an applied return after a crash before saving its journal', async
 
 it('runs real checkout smudge filters while skipping them in the validation worktree', async () => {
     const cwd = await repository();
-    await writeFile(path.join(cwd, '.gitattributes'), '*.txt filter=lfs\n');
+    await writeFile(path.join(cwd, '.gitattributes'), '*.txt filter=dexto-test-smudge\n');
     await run(
         'git',
         [
             'config',
-            'filter.lfs.smudge',
+            'filter.dexto-test-smudge.smudge',
             'if [ "$GIT_LFS_SKIP_SMUDGE" = 1 ]; then cat; else sed s/pointer/materialized/g; fi',
         ],
         { cwd }
     );
-    await run('git', ['config', 'filter.lfs.clean', 'sed s/materialized/pointer/g'], { cwd });
+    await run('git', ['config', 'filter.dexto-test-smudge.clean', 'sed s/materialized/pointer/g'], {
+        cwd,
+    });
     await run('git', ['add', '.gitattributes'], { cwd });
     await run('git', ['commit', '-m', 'fake smudge filter'], { cwd });
     const baseline = await readLocalTreeCheckpoint(cwd);
@@ -435,4 +437,22 @@ it('runs real checkout smudge filters while skipping them in the validation work
     await run('git', ['checkout', 'main'], { cwd });
     await applyReturnedTree(cwd, baseline, { branch: 'main', head, bundle: null, patch: null });
     expect(await readFile(path.join(cwd, 'code.txt'), 'utf8')).toBe('materialized\n');
+});
+
+it('includes force-staged ignored additions without bundling staged secret-shaped paths', async () => {
+    const cwd = await repository();
+    await writeFile(path.join(cwd, '.gitignore'), 'dist/\n');
+    await mkdir(path.join(cwd, 'dist'));
+    await writeFile(path.join(cwd, 'dist/x'), 'forced addition\n');
+    await writeFile(path.join(cwd, 'dist/.env.fake'), 'fake excluded fixture\n');
+    await run('git', ['add', '-f', 'dist/x', 'dist/.env.fake'], { cwd });
+    const before = await readFile(path.join(cwd, '.git/index'));
+    const tree = await buildWorkingTree(cwd);
+    try {
+        expect(tree.patch?.toString()).toContain('diff --git a/dist/x b/dist/x');
+        expect(tree.patch?.toString()).not.toContain('fake excluded fixture');
+        expect(await readFile(path.join(cwd, '.git/index'))).toEqual(before);
+    } finally {
+        await tree.cleanup();
+    }
 });

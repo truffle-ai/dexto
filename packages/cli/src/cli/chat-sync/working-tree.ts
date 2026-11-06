@@ -94,7 +94,25 @@ async function workingTreeFiles(
             .toString()
             .split('\0')
             .filter(Boolean);
-        const safe = candidates.filter((name) => !isSecretPath(name));
+        const [stagedOutput, deletedOutput] = await Promise.all([
+            handOffGit(repository, [
+                'diff',
+                ...handOffDiffOptions,
+                '--cached',
+                '--name-only',
+                '--diff-filter=A',
+                '-z',
+                head_commit,
+                '--',
+            ]),
+            handOffGit(repository, ['ls-files', '--deleted', '-z']),
+        ]);
+        const deleted = new Set(deletedOutput.toString().split('\0'));
+        const staged = stagedOutput
+            .toString()
+            .split('\0')
+            .filter((name) => name !== '' && !deleted.has(name));
+        const safe = [...new Set([...candidates, ...staged])].filter((name) => !isSecretPath(name));
         const pathspec = path.join(folder, 'paths');
         await writeFile(pathspec, safe.join('\0') + '\0');
         if (safe.length > 0)
@@ -104,6 +122,7 @@ async function workingTreeFiles(
                     '--literal-pathspecs',
                     'add',
                     '-N',
+                    '-f',
                     '--pathspec-from-file=' + pathspec,
                     '--pathspec-file-nul',
                 ],
