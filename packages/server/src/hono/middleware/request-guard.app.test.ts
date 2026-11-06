@@ -68,4 +68,16 @@ describe('createDextoApp guard wiring', () => {
         });
         expect(res.status).toBe(403);
     });
+
+    it('uses the URL host for in-process requests without a Host header', async () => {
+        clearAuthEnv();
+        const app = makeApp();
+        expect(
+            (await app.fetch(new globalThis.Request('http://localhost/openapi.json'))).status
+        ).toBe(200);
+        expect(
+            (await app.fetch(new globalThis.Request('http://rebind.evil.example/openapi.json')))
+                .status
+        ).toBe(403);
+    });
 });
