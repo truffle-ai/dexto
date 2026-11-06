@@ -4,7 +4,12 @@ import { createOutput } from '../output.js';
 import { nodeCloudRuntime } from '../runtime.js';
 import { chatMoveCommands } from './chat-move.js';
 
-const { readChat, writeChat } = vi.hoisted(() => ({ readChat: vi.fn(), writeChat: vi.fn() }));
+const { readChat, writeChat, queryWorkspaceTool } = vi.hoisted(() => ({
+    readChat: vi.fn(),
+    writeChat: vi.fn(),
+    queryWorkspaceTool: vi.fn(),
+}));
+vi.mock('./workspace.js', () => ({ queryWorkspaceTool }));
 
 beforeEach(() => {
     readChat.mockResolvedValue({
@@ -16,6 +21,7 @@ beforeEach(() => {
         since: '2026-11-06T00:00:00Z',
     });
     writeChat.mockReset();
+    queryWorkspaceTool.mockReset();
 });
 
 vi.mock('../../chat-sync/node.js', () => ({
@@ -31,6 +37,9 @@ vi.mock('../../chat-sync/node.js', () => ({
 vi.mock('node:fs/promises', async (original) => ({
     ...(await original<typeof import('node:fs/promises')>()),
     mkdir: vi.fn(),
+    readFile: async () => {
+        throw Object.assign(new Error('missing fixture checkpoint'), { code: 'ENOENT' });
+    },
     writeFile: vi.fn(),
     rename: vi.fn(),
 }));
@@ -96,7 +105,7 @@ function harness(withAgent: boolean) {
             },
         }),
     };
-    return { context, output: () => JSON.parse(output) };
+    return { context, output: () => JSON.parse(output), rawOutput: () => output };
 }
 
 async function run(values: Record<string, string | boolean>): Promise<unknown> {
@@ -112,6 +121,13 @@ it('plans a local return without syncing, opening the agent or mutating the serv
         dryRun: true,
         to: 'local',
         folder: '/fake/working/tree',
+    });
+});
+
+it('explains how to move a chat that has never had a cloud hand-off', async () => {
+    await expect(run({ to: 'local' })).rejects.toMatchObject({
+        kind: 'invalid_input',
+        fix: 'dexto chat move local-chat --to cloud',
     });
 });
 
@@ -181,4 +197,36 @@ it('restores local execution after a confirmed start refusal', async () => {
         nextIndex: 5,
         sentCount: 5,
     });
+});
+
+it('watches through a transient failure and prints changed messages as one-line NDJSON', async () => {
+    const h = harness(false);
+    const controller = new AbortController();
+    queryWorkspaceTool
+        .mockRejectedValueOnce(new TypeError('temporary disconnect'))
+        .mockResolvedValueOnce({ messages: [{ id: 'message', role: 'assistant', text: 'hello' }] })
+        .mockResolvedValueOnce({
+            messages: [{ id: 'message', role: 'assistant', text: 'hello again' }],
+        });
+    const context = {
+        ...h.context,
+        runtime: {
+            ...h.context.runtime,
+            signal: controller.signal,
+            sleep: async () => {
+                if (queryWorkspaceTool.mock.calls.length >= 3) controller.abort();
+            },
+        },
+    };
+    const watch = chatMoveCommands.find((command) => command.path[1] === 'watch');
+    if (watch === undefined) throw new Error('Missing watch command');
+    await watch.run(context, { positionals: ['local-chat'], values: {} });
+    const rows = h
+        .rawOutput()
+        .trim()
+        .split('\n')
+        .map((line) => JSON.parse(line));
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toMatchObject({ event: 'message', delta: 'hello' });
+    expect(rows[1]).toMatchObject({ event: 'message', delta: ' again' });
 });

@@ -43,8 +43,10 @@ export async function assertLocalTreeMatches(
         current.head !== expected.head ||
         current.patchHash !== expected.patchHash
     )
-        throw new Error(
-            'This working tree changed since hand-off. Save those changes before bringing the chat back.'
+        throw new CommandFailure(
+            'invalid_input',
+            'This working tree changed since hand-off. Save those changes before bringing the chat back.',
+            'git status'
         );
 }
 
@@ -128,7 +130,13 @@ export async function applyReturnedTree(
             await git(['bundle', 'verify', bundle]);
             await git(['fetch', '--no-tags', bundle, returned.head]);
         }
-        await git(['merge-base', '--is-ancestor', baseline.head, returned.head]);
+        await git(['merge-base', '--is-ancestor', baseline.head, returned.head]).catch(() => {
+            throw new CommandFailure(
+                'invalid_input',
+                'The cloud history was rewritten. Recover its work into a separate checkout before returning this chat.',
+                'git log --oneline --all'
+            );
+        });
         await refuseSecretHistory(repository, `${baseline.head}..${returned.head}`);
         await git(['worktree', 'add', '--detach', checkout, returned.head]);
         added = true;
