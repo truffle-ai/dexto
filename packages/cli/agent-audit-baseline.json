@@ -49,6 +49,13 @@
     "examples": false
   },
   {
+    "command": "chat follow",
+    "json": true,
+    "dryRun": false,
+    "nonInteractiveFlag": false,
+    "examples": false
+  },
+  {
     "command": "chat history",
     "json": false,
     "dryRun": false,

@@ -51,6 +51,16 @@ These rules are intended to prevent stack fragmentation and review churn.
 
 - Entry point: `packages/cli/src/cli/index.ts`
 - Static commands (e.g., `dexto init`, `dexto setup`): `packages/cli/src/cli/commands/`
+- Cloud commands that start work and then wait must handle wait failures inside that phase.
+  The outer command runner can grant a missing scope and repeat the whole command; after work
+  starts, return a cursor and resume command instead of allowing that retry to start it again.
+- Chat follow JSON output stays NDJSON through read errors and interruption, with one final
+  record. Stopping a follow never cancels the remote chat.
+- Bound each in-flight wait/follow read with a client deadline as well as the server wait budget;
+  clear its timer and interruption listener when the read ends.
+- Retry only idempotent wait/follow reads after transient HTTP/network failures or a per-read
+  deadline, with bounded backoff honoring Retry-After and the user deadline. Never retry start.
+  Exit 6 when the user deadline expires or the run needs input; Ctrl-C remains exit 130.
 
 ### TUI (`packages/tui`)
 

@@ -98,8 +98,7 @@ cloud-sites-deploy
 cloud-sites-list
 span-list
 trace-list
-trace-view
-chat-wait-follow`.split('\n')
+trace-view`.split('\n')
 );
 
 // Tools with only generic passthrough reachability are debt, not coverage.

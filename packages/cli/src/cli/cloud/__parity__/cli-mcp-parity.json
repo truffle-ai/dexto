@@ -22,9 +22,10 @@
         "workspace tools": [],
         "cloud search": ["dexto_capability_describe", "dexto_capability_call"],
         "cloud sites delete": ["dexto_sites_list", "dexto_site_delete"],
-        "chat start": ["dexto_chat_start"],
+        "chat start": ["dexto_chat_start", "dexto_chat_wait"],
         "chat computers": ["dexto_chat_computers_list"],
-        "chat browser-profiles": ["dexto_chat_browser_profiles_list"]
+        "chat browser-profiles": ["dexto_chat_browser_profiles_list"],
+        "chat follow": ["dexto_chat_follow"]
     },
     "localOnly": [
         {
@@ -975,23 +976,6 @@
             "closesWhen": [
                 {
                     "tool": "dexto_trace_view",
-                    "inputs": []
-                }
-            ]
-        },
-        {
-            "name": "chat-wait-follow",
-            "group": "knownChat",
-            "issue": "DEXTO-2479",
-            "reason": "No start-and-wait or follow-from-cursor operation.",
-            "commands": [],
-            "closesWhen": [
-                {
-                    "tool": "dexto_chat_wait",
-                    "inputs": []
-                },
-                {
-                    "tool": "dexto_chat_follow",
                     "inputs": []
                 }
             ]
