@@ -98,7 +98,6 @@ export async function handleUninstallCommand(
             // Per-agent analytics for successful uninstall
             try {
                 capture('dexto_uninstall_agent', {
-                    agent: agentName,
                     status: 'uninstalled',
                     force: validated.force,
                 });
@@ -114,9 +113,7 @@ export async function handleUninstallCommand(
             // Per-agent analytics for failed uninstall
             try {
                 capture('dexto_uninstall_agent', {
-                    agent: agentName,
                     status: 'failed',
-                    error_message: error instanceof Error ? error.message : String(error),
                     force: validated.force,
                 });
             } catch {
@@ -128,9 +125,9 @@ export async function handleUninstallCommand(
     // Emit analytics for both single- and multi-agent cases
     try {
         capture('dexto_uninstall', {
-            requested: agentsToUninstall,
-            uninstalled,
-            failed,
+            requestedCount: agentsToUninstall.length,
+            uninstalledCount: uninstalled.length,
+            failedCount: failed.length,
             successCount,
             errorCount,
         });
