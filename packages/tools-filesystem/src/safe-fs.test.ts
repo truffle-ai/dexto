@@ -10,6 +10,7 @@ import type { Logger } from '@dexto/core';
 import { canonicalizePath, writeFileNoFollow } from './safe-fs.js';
 import { FileSystemService } from './filesystem-service.js';
 import { PathValidator } from './path-validator.js';
+import { createDirectoryApprovalKey, isPathApprovedByDirectoryKey } from './directory-approval.js';
 import type { FileSystemConfig } from './types.js';
 
 const createMockLogger = (): Logger => {
@@ -208,7 +209,7 @@ describeSymlinks('symlink containment', () => {
 
             await expect(
                 writeFileNoFollow(target, 'clobbered', 'utf-8', insideAllowed)
-            ).rejects.toThrow(/changed during write/);
+            ).rejects.toThrow(/changed during/);
             expect(await fs.readFile(path.join(outside, 'victim.txt'), 'utf-8')).toBe('original');
         });
 
@@ -217,6 +218,119 @@ describeSymlinks('symlink containment', () => {
             await fs.writeFile(target, 'a much longer original');
             await writeFileNoFollow(target, 'short', 'utf-8', insideAllowed);
             expect(await fs.readFile(target, 'utf-8')).toBe('short');
+        });
+
+        it('removes a file it created when post-open verification fails', async () => {
+            const target = path.join(allowed, 'new.txt');
+            await expect(writeFileNoFollow(target, 'x', 'utf-8', () => false)).rejects.toThrow(
+                /changed during/
+            );
+            await expect(fs.lstat(target)).rejects.toThrow();
+        });
+
+        it('does not create directories through a swapped parent', async () => {
+            await fs.symlink(outside, path.join(allowed, 'sub'));
+            await expect(
+                writeFileNoFollow(
+                    path.join(allowed, 'sub', 'deeper', 'f.txt'),
+                    'x',
+                    'utf-8',
+                    insideAllowed
+                )
+            ).rejects.toThrow();
+            expect(await listOutside()).toEqual([]);
+        });
+    });
+
+    describe('roots and blocked paths behind symlinks', () => {
+        it('blocks a relative blocked path reached through an alias when the root is behind a symlink', async () => {
+            const realBase = path.join(root, 'real');
+            await fs.mkdir(path.join(realBase, 'proj', '.git'), { recursive: true });
+            await fs.symlink(realBase, path.join(root, 'tmp'));
+            const lexicalRoot = path.join(root, 'tmp', 'proj');
+            await fs.symlink(
+                path.join(realBase, 'proj', '.git'),
+                path.join(realBase, 'proj', 'alias')
+            );
+
+            const validator = new PathValidator(
+                {
+                    ...config([lexicalRoot]),
+                    workingDirectory: lexicalRoot,
+                    blockedPaths: ['.git'],
+                },
+                createMockLogger()
+            );
+            expect((await validator.validatePath('.git/config', 'write')).isValid).toBe(false);
+            expect((await validator.validatePath('alias/config', 'write')).isValid).toBe(false);
+            expect((await validator.validatePath('alias/pre-commit', 'write')).isValid).toBe(false);
+            expect((await validator.validatePath('src/new.ts', 'write')).isValid).toBe(true);
+        });
+
+        it('does not widen allowed paths when a symlink is planted at a root later', async () => {
+            const futureRoot = path.join(root, 'future');
+            const validator = new PathValidator(config([futureRoot]), createMockLogger());
+            expect(
+                (await validator.validatePath(path.join(futureRoot, 'a.txt'), 'write')).isValid
+            ).toBe(true);
+
+            await fs.symlink(outside, futureRoot);
+            const escaped = await validator.validatePath(path.join(outside, 'x.txt'), 'write');
+            expect(escaped.isValid).toBe(false);
+            const throughRoot = await validator.validatePath(
+                path.join(futureRoot, 'x.txt'),
+                'write'
+            );
+            expect(throughRoot.isValid).toBe(false);
+        });
+
+        it('accepts deep new paths (more than 40 levels)', async () => {
+            const deep = path.join(...Array.from({ length: 50 }, (_, i) => `d${i}`), 'f.txt');
+            const validator = new PathValidator(config(), createMockLogger());
+            expect((await validator.validatePath(deep, 'write')).isValid).toBe(true);
+        });
+    });
+
+    describe('delete and rename act on links themselves', () => {
+        it('deletes a dangling symlink that points outside without touching the target', async () => {
+            await fs.symlink(path.join(outside, 'missing.txt'), path.join(allowed, 'dangling'));
+            const service = new FileSystemService(config(), createMockLogger());
+            await service.deletePath('dangling');
+            await expect(fs.lstat(path.join(allowed, 'dangling'))).rejects.toThrow();
+        });
+
+        it('deletes a symlink, not the file it points to', async () => {
+            await fs.writeFile(path.join(allowed, 'target.txt'), 'keep');
+            await fs.symlink(path.join(allowed, 'target.txt'), path.join(allowed, 'link'));
+            const service = new FileSystemService(config(), createMockLogger());
+            await service.deletePath('link');
+            expect(await fs.readFile(path.join(allowed, 'target.txt'), 'utf-8')).toBe('keep');
+        });
+
+        it('refuses to move a file into a directory symlink that points outside', async () => {
+            await fs.writeFile(path.join(allowed, 'f.txt'), 'data');
+            await fs.symlink(outside, path.join(allowed, 'link'));
+            const service = new FileSystemService(config(), createMockLogger());
+            await expect(service.renamePath('f.txt', 'link/f.txt')).rejects.toThrow();
+            expect(await listOutside()).toEqual([]);
+        });
+    });
+
+    describe('directory approval', () => {
+        it('matches files under an approved directory reached through a symlink', async () => {
+            const linkedDir = path.join(root, 'linked-outside');
+            await fs.symlink(outside, linkedDir);
+            const canonicalDir = await canonicalizePath(linkedDir);
+            const approvals = new Map([
+                [createDirectoryApprovalKey(canonicalDir, 'write'), 'session' as const],
+            ]);
+            const validator = new PathValidator(config(), createMockLogger());
+            validator.setDirectoryApprovalChecker((filePath, operation) =>
+                isPathApprovedByDirectoryKey(filePath, approvals, undefined, operation)
+            );
+            const result = await validator.validatePath(path.join(linkedDir, 'new.txt'), 'write');
+            expect(result.isValid).toBe(true);
+            expect(result.normalizedPath).toBe(path.join(outside, 'new.txt'));
         });
     });
 });
