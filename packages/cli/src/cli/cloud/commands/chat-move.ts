@@ -120,7 +120,8 @@ async function readReturnCheckpoint(file: string, id: string) {
 const move: Command = {
     path: ['chat', 'move'],
     arguments: '<id>',
-    summary: 'Move a synced local chat and working tree to cloud or local (beta).',
+    summary:
+        'Move a synced local chat and working tree to cloud or local (beta). Git LFS files move as pointers; LFS objects are not uploaded, so the cloud chat sees pointer files unless the object is on the LFS remote.',
     options: {
         'dry-run': {
             type: 'boolean',
