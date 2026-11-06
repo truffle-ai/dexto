@@ -3800,6 +3800,34 @@
     },
     {
       "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "sessionId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "limit": {
+            "default": 50,
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "cursor": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2048
+          }
+        },
+        "required": [
+          "sessionId"
+        ],
+        "additionalProperties": false
+      },
+      "name": "dexto_chat_outputs_list"
+    },
+    {
+      "inputSchema": {
         "additionalProperties": false,
         "properties": {
           "queue": {
@@ -3854,10 +3882,18 @@
             "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
           },
           "browserProfileId": {
-            "description": "MCP only: an owned available browser profile from dexto_chat_browser_profiles_list. Loaded on the chat's hosted computer before its first turn; starts billed hosted compute.",
-            "type": "string",
-            "format": "uuid",
-            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            "description": "MCP only: an owned available browser profile from dexto_chat_browser_profiles_list, or \"none\" for a browser that keeps no sign-ins and leaves your profiles alone. Set on the chat's hosted computer before its first turn; starts billed hosted compute. Omitted, the chat uses your first profile.",
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              {
+                "type": "string",
+                "const": "none"
+              }
+            ]
           },
           "wait": {
             "description": "Requires sessions:read before admission. Wait up to 25 seconds for answer, artifacts and usage; running or needs_input includes nextAction.",

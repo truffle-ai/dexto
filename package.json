@@ -18,6 +18,7 @@
         "build:client-sdk": "turbo run build --filter=@dexto/client-sdk...",
         "build:clean": "pnpm run clean && pnpm run build",
         "build:check": "pnpm run typecheck && pnpm run build",
+        "check:mcp-catalog": "vitest run packages/cli/src/cli/cloud/cli-mcp-parity.test.ts --maxWorkers=1",
         "build:cli": "turbo run build --filter=dexto...",
         "build:core": "turbo run build --filter=@dexto/core...",
         "build:registry": "turbo run build --filter=@dexto/registry...",
