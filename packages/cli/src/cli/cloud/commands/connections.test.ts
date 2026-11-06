@@ -19,6 +19,8 @@ describe('subscription connections over MCP', () => {
     let calls: { name: string; arguments: unknown }[];
     let replies: unknown[];
     let rpcError: unknown;
+    let rpcErrors: unknown[];
+    const lastResult = () => JSON.parse(stdout.trim().split('\n').at(-1) ?? '');
     let stdin: string;
     let stdinIsTerminal: boolean;
     let readStdin: () => Promise<string>;
@@ -31,6 +33,7 @@ describe('subscription connections over MCP', () => {
         calls = [];
         replies = [];
         rpcError = null;
+        rpcErrors = [];
         stdin = '';
         stdinIsTerminal = true;
         readStdin = async () => stdin;
@@ -63,8 +66,9 @@ describe('subscription connections over MCP', () => {
                 const message = await request.json();
                 calls.push(message.params);
                 if (message.params.name === 'dexto_connection_wait') beforeWait();
-                if (rpcError !== null) {
-                    const error = rpcError;
+                const queuedError = rpcErrors.shift() ?? rpcError;
+                if (queuedError !== null) {
+                    const error = queuedError;
                     rpcError = null;
                     return Response.json({ jsonrpc: '2.0', id: message.id, error });
                 }
@@ -114,6 +118,7 @@ describe('subscription connections over MCP', () => {
         };
     });
     afterEach(async () => {
+        vi.restoreAllMocks();
         await rm(path.dirname(dir), { recursive: true, force: true });
     });
     it('retries Claude start with the same session and never creates another chat', async () => {
@@ -151,7 +156,7 @@ describe('subscription connections over MCP', () => {
             { provider: 'claude', sessionId: 'session-1' },
             { attemptId: 'attempt-1', code: 'auth-code' },
         ]);
-        expect(JSON.parse(stdout)).toEqual({
+        expect(lastResult()).toEqual({
             outcome: 'connected',
             name: 'claude',
             nextAction: null,
@@ -263,7 +268,9 @@ describe('subscription connections over MCP', () => {
             },
             { outcome: 'connected', name: 'claude', nextAction: null },
         ];
-        expect(await runCloud(host, ['connect', 'claude', '--json']), stderr).toBe(0);
+        expect(await runCloud(host, ['connect', 'claude', '--json', '--code', '-']), stderr).toBe(
+            0
+        );
         expect(calls[1]?.arguments).toEqual({ attemptId: 'a1', code: 'stdin-code' });
     });
     it('retries a saved Claude attempt without code or a new start', async () => {
@@ -278,9 +285,9 @@ describe('subscription connections over MCP', () => {
             { outcome: 'expired', attemptId: 'expired', nextAction: 'dexto_connection_start' },
         ];
         expect(await runCloud(host, ['connect', 'codex', '--attempt', 'expired', '--json'])).toBe(
-            6
+            1
         );
-        expect(JSON.parse(stdout).nextCommand).toBe('dexto connect codex');
+        expect(lastResult().nextCommand).toBe('dexto connect codex');
     });
     it('returns the Codex URL and user code without waiting', async () => {
         replies = [
@@ -296,7 +303,7 @@ describe('subscription connections over MCP', () => {
             },
         ];
         expect(await runCloud(host, ['connect', 'codex', '--no-wait', '--json'])).toBe(0);
-        expect(JSON.parse(stdout).code).toBe('USER-CODE');
+        expect(lastResult().code).toBe('USER-CODE');
         expect(calls).toHaveLength(1);
     });
     it('reports a retained chat on hard Claude start refusal', async () => {
@@ -329,11 +336,19 @@ describe('subscription connections over MCP', () => {
         ).toBe(1);
         expect(calls).toHaveLength(1);
         expect(stderr).not.toContain('secret-code');
-        expect(stderr).toContain('--attempt a1');
+        expect(JSON.parse(stderr).error.fix).toBe('dexto connect claude --attempt a1 --code -');
     });
     it('does not prompt for disconnect confirmation under JSON', async () => {
+        replies = [
+            {
+                kind: 'codex_status',
+                name: 'codex',
+                status: 'disconnected',
+                nextAction: 'dexto_connection_start',
+            },
+        ];
         expect(await runCloud(host, ['connections', 'disconnect', 'codex', '--json'])).toBe(4);
-        expect(calls).toHaveLength(0);
+        expect(calls).toEqual([{ name: 'dexto_connection_get', arguments: { name: 'codex' } }]);
     });
     it('uses exit 3 when signed out', async () => {
         await rm(dir, { recursive: true, force: true });
@@ -364,13 +379,13 @@ describe('subscription connections over MCP', () => {
                 '--json',
             ])
         ).toBe(6);
-        expect(JSON.parse(stdout)).toMatchObject({
+        expect(lastResult()).toMatchObject({
             outcome: 'code_rejected',
             attemptId: 'replacement',
             retryable: false,
             resume: null,
         });
-        expect(JSON.parse(stdout).nextCommand).toContain('--attempt replacement');
+        expect(lastResult().nextCommand).toContain('--attempt replacement');
         expect(calls).toHaveLength(1);
     });
     it('bounds Claude warming retries and keeps the session in its next command', async () => {
@@ -391,7 +406,7 @@ describe('subscription connections over MCP', () => {
                         JSON.stringify({ provider: 'claude', sessionId: 'same-chat' })
                 )
         ).toBe(true);
-        expect(JSON.parse(stdout).nextCommand).toBe('dexto connect claude --session same-chat');
+        expect(lastResult().nextCommand).toBe('dexto connect claude --session same-chat');
     });
     it('keeps authorization codes out of suggested reruns on a confirmation refusal', async () => {
         rpcError = {
@@ -432,16 +447,25 @@ describe('subscription connections over MCP', () => {
                 available: true,
                 nextAction: 'dexto_connection_start',
             },
+            {
+                kind: 'claude_home',
+                name: 'claude',
+                provider: 'claude',
+                status: 'disconnected',
+                available: true,
+                nextAction: 'dexto_connection_start',
+            },
             { outcome: 'disconnected', name: 'claude', nextAction: 'dexto_connection_start' },
         ];
         expect(await runCloud(host, ['connections', 'status', 'claude', '--json'])).toBe(6);
-        expect(JSON.parse(stdout).nextCommand).toBe('dexto connect claude');
+        expect(lastResult().nextCommand).toBe('dexto connect claude');
         stdout = '';
         expect(
             await runCloud(host, ['connections', 'disconnect', 'claude', '--yes', '--json'])
         ).toBe(0);
-        expect(JSON.parse(stdout).outcome).toBe('disconnected');
+        expect(lastResult().outcome).toBe('disconnected');
         expect(calls.map((c) => c.name)).toEqual([
+            'dexto_connection_get',
             'dexto_connection_get',
             'dexto_connection_disconnect',
         ]);
@@ -467,7 +491,7 @@ describe('subscription connections over MCP', () => {
         beforeWait = () => {
             if (json) {
                 expect(stdout.split('\n').filter(Boolean)).toHaveLength(1);
-                expect(JSON.parse(stdout)).toEqual(started);
+                expect(lastResult()).toEqual(started);
                 expect(stderr).toBe('');
             } else {
                 expect(stderr).toContain(started.url);
@@ -521,6 +545,306 @@ describe('subscription connections over MCP', () => {
         expect(await runCloud(host, ['connect', 'claude', '--json'])).toBe(6);
         expect(readStdin).not.toHaveBeenCalled();
         expect(calls).toHaveLength(1);
-        expect(stderr).toContain('--code <code>');
+        expect(lastResult().nextCommand).toContain('--code -');
     }, 1000);
+
+    it.each([{ flags: ['--json'] }, { flags: [] }])(
+        'exposes Claude authorization without consuming an open pipe (%j)',
+        async ({ flags }) => {
+            stdinIsTerminal = false;
+            readStdin = vi.fn(() => new Promise<string>(() => undefined));
+            const started = {
+                outcome: 'started',
+                provider: 'claude',
+                attemptId: 'open-pipe',
+                sessionId: 'chat',
+                url: 'https://example.test/claude',
+                expiresAt: null,
+                nextAction: 'dexto_connection_finish',
+            };
+            replies = [started];
+            expect(await runCloud(host, ['connect', 'claude', ...flags]), stderr).toBe(6);
+            expect(readStdin).not.toHaveBeenCalled();
+            const lines = stdout
+                .trim()
+                .split('\n')
+                .map((line) => JSON.parse(line));
+            expect(lines[0]).toEqual(started);
+            expect(lines[1]).toMatchObject({
+                outcome: 'code_required',
+                attemptId: 'open-pipe',
+                sessionId: 'chat',
+                url: started.url,
+                nextCommand: 'dexto connect claude --attempt open-pipe --code -',
+            });
+        },
+        1000
+    );
+
+    it('accepts explicit stdin for an existing attempt without exposing the code', async () => {
+        stdin = 'piped-secret\n';
+        replies = [{ outcome: 'connected', name: 'claude', nextAction: null }];
+        expect(
+            await runCloud(host, [
+                'connect',
+                'claude',
+                '--attempt',
+                'existing',
+                '--code',
+                '-',
+                '--json',
+            ])
+        ).toBe(0);
+        expect(calls[0]?.arguments).toEqual({ attemptId: 'existing', code: 'piped-secret' });
+        expect(stdout + stderr).not.toContain('piped-secret');
+    });
+    it('rejects an option in place of --code without starting authorization', async () => {
+        expect(await runCloud(host, ['connect', 'claude', '--code', '--json'])).toBe(2);
+        expect(calls).toHaveLength(0);
+        expect(JSON.parse(stderr).error.message).toContain('Missing value for --code');
+        expect(stderr.trim().split('\n')).toHaveLength(1);
+    });
+    it('retains a save-only recovery hint after the third retryable save refusal', async () => {
+        rpcErrors = [1, 2, 3].map((n) => ({
+            code: -32004,
+            message: 'Save failed',
+            data: {
+                kind: 'unavailable',
+                retryable: true,
+                resume: {
+                    action: 'save',
+                    tool: 'dexto_connection_finish',
+                    arguments: { attemptId: `hint-${n}` },
+                },
+            },
+        }));
+        expect(
+            await runCloud(host, [
+                'connect',
+                'claude',
+                '--attempt',
+                'original',
+                '--code',
+                'auth-code',
+                '--json',
+            ])
+        ).toBe(1);
+        expect(calls.map((c) => c.arguments)).toEqual([
+            { attemptId: 'original', code: 'auth-code' },
+            { attemptId: 'hint-1' },
+            { attemptId: 'hint-2' },
+        ]);
+        expect(JSON.parse(stderr).error.fix).toBe('dexto connect claude --attempt hint-3');
+        expect(stderr).not.toContain('auth-code');
+    });
+    it('keeps refusal identity when the resume hint has a future shape', async () => {
+        rpcError = {
+            code: -32004,
+            message: 'Unavailable',
+            data: {
+                kind: 'unavailable',
+                sessionId: 'retained-chat',
+                scope: 'models:write',
+                retryable: true,
+                resume: { action: 'future' },
+            },
+        };
+        expect(await runCloud(host, ['connect', 'claude', '--json'])).toBe(3);
+        expect(JSON.parse(stderr).error.fix).toContain('models:write');
+        expect(calls).toHaveLength(1);
+    });
+    it('never echoes the human authorization code and refuses provider API keys', async () => {
+        stdoutIsTerminal = true;
+        host = { ...host, runtime: { ...host.runtime, prompt: async () => 'human-secret' } };
+        replies = [
+            {
+                outcome: 'started',
+                provider: 'claude',
+                attemptId: 'human',
+                sessionId: 'chat',
+                url: 'https://example.test/claude',
+                expiresAt: null,
+                nextAction: 'dexto_connection_finish',
+            },
+            { outcome: 'connected', name: 'claude', nextAction: null },
+        ];
+        expect(await runCloud(host, ['connect', 'claude', '--no-browser'])).toBe(0);
+        expect(calls[1]?.arguments).toEqual({ attemptId: 'human', code: 'human-secret' });
+        expect(stdout + stderr).not.toContain('human-secret');
+        stdout = '';
+        stderr = '';
+        calls = [];
+        expect(
+            await runCloud(host, ['connect', 'claude', '--code', 'sk-ant-test-key', '--json'])
+        ).toBe(2);
+        expect(stdout + stderr).not.toContain('sk-ant-test-key');
+        expect(calls).toHaveLength(0);
+    });
+
+    it('resumes an unavailable Codex wait instead of restarting authorization', async () => {
+        beforeWait = () => {
+            rpcError = {
+                code: -32004,
+                message: 'Provider unavailable',
+                data: { kind: 'unavailable', retryable: true, resume: null },
+            };
+        };
+        expect(
+            await runCloud(host, ['connect', 'codex', '--attempt', 'pending-device', '--json'])
+        ).toBe(1);
+        expect(JSON.parse(stderr).error.fix).toBe('dexto connect codex --attempt pending-device');
+    });
+    it('ends Codex polling at the server expiry deadline', async () => {
+        let now = Date.now();
+        vi.spyOn(Date, 'now').mockImplementation(() => now);
+        replies = [
+            {
+                outcome: 'started',
+                provider: 'codex',
+                attemptId: 'deadline',
+                url: 'https://example.test/device',
+                code: 'CODE',
+                expiresAt: new Date(now + 1000).toISOString(),
+                pollAfterSeconds: 0,
+                nextAction: 'dexto_connection_wait',
+            },
+            { outcome: 'timeout', attemptId: 'deadline', nextAction: 'dexto_connection_wait' },
+        ];
+        beforeWait = () => {
+            now += 1000;
+        };
+        expect(await runCloud(host, ['connect', 'codex', '--json'])).toBe(1);
+        expect(calls).toHaveLength(2);
+        expect(calls[1]?.arguments).toEqual({
+            provider: 'codex',
+            attemptId: 'deadline',
+            timeoutSeconds: 1,
+        });
+        expect(lastResult()).toMatchObject({
+            outcome: 'expired',
+            nextCommand: 'dexto connect codex',
+        });
+        vi.restoreAllMocks();
+    });
+    it('treats unavailable Claude and a connection with no next action as failures', async () => {
+        replies = [
+            {
+                kind: 'claude_home',
+                name: 'claude',
+                provider: 'claude',
+                status: 'disconnected',
+                available: false,
+                nextAction: null,
+            },
+        ];
+        expect(await runCloud(host, ['connections', 'status', 'claude', '--json'])).toBe(1);
+        expect(lastResult().nextCommand).toBe('dexto connect claude');
+        replies = [
+            {
+                kind: 'claude_home',
+                name: 'claude',
+                provider: 'claude',
+                status: 'disconnected',
+                available: true,
+                nextAction: null,
+            },
+        ];
+        expect(await runCloud(host, ['connections', 'status', 'claude', '--json'])).toBe(1);
+        expect(lastResult().nextCommand).toBe('dexto connect claude');
+    });
+    it('refuses API-key disconnects before asking for consent', async () => {
+        replies = [
+            {
+                kind: 'model_connection',
+                name: 'key',
+                id: 'key',
+                provider: 'openai',
+                authType: 'api_key',
+                methodId: 'api_key',
+                label: null,
+                status: 'connected',
+                createdAt: 'now',
+                updatedAt: 'now',
+                lastTestedAt: null,
+                maskedIdentifier: 'masked',
+                nextAction: null,
+            },
+        ];
+        expect(await runCloud(host, ['connections', 'disconnect', 'key', '--json'])).toBe(2);
+        expect(calls).toEqual([{ name: 'dexto_connection_get', arguments: { name: 'key' } }]);
+        expect(JSON.parse(stderr).error.message).toContain('dashboard Settings > Models');
+    });
+
+    it('keeps Claude no-wait suggestions safe and emits compact JSON records', async () => {
+        replies = [
+            {
+                outcome: 'started',
+                provider: 'claude',
+                attemptId: 'safe',
+                sessionId: 'chat',
+                url: 'https://example.test',
+                expiresAt: null,
+                nextAction: 'dexto_connection_finish',
+            },
+        ];
+        expect(await runCloud(host, ['connect', 'claude', '--json', '--no-wait'])).toBe(0);
+        expect(stdout.trim().split('\n')).toHaveLength(1);
+        stdout = '';
+        expect(
+            await runCloud(host, ['connect', 'claude', '--json', '--attempt', 'safe', '--no-wait'])
+        ).toBe(0);
+        expect(lastResult().nextCommand).toBe('dexto connect claude --attempt safe --code -');
+        replies = [{ connections: [] }];
+        stdout = '';
+        expect(await runCloud(host, ['connections', 'list', '--json'])).toBe(0);
+        expect(
+            stdout
+                .trim()
+                .split('\n')
+                .map((line) => JSON.parse(line))
+        ).toEqual([{ connections: [] }]);
+    });
+
+    it('documents explicit stdin and argv exposure in compact JSON help', async () => {
+        expect(await runCloud(host, ['connect', 'claude', '--help', '--json'])).toBe(0);
+        expect(stdout.trim().split('\n')).toHaveLength(1);
+        expect(stdout).toContain('shell history and ps');
+        expect(stdout).toContain('--code -');
+        expect(stdout).not.toContain('on stdin with --json');
+    });
+    it('restarts a dead Claude attempt using its retained chat', async () => {
+        rpcError = {
+            code: -32004,
+            message: 'Attempt expired',
+            data: { kind: 'invalid_state', sessionId: 'chat', retryable: false, resume: null },
+        };
+        expect(
+            await runCloud(host, [
+                'connect',
+                'claude',
+                '--attempt',
+                'dead',
+                '--code',
+                '-',
+                '--json',
+            ])
+        ).toBe(6);
+        // Empty explicit input needs a code before contacting the server.
+        expect(calls).toHaveLength(0);
+        stdout = '';
+        stderr = '';
+        stdin = 'code';
+        expect(
+            await runCloud(host, [
+                'connect',
+                'claude',
+                '--attempt',
+                'dead',
+                '--code',
+                '-',
+                '--json',
+            ])
+        ).toBe(1);
+        expect(JSON.parse(stderr).error.fix).toBe('dexto connect claude --session chat');
+    });
 });
