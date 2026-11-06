@@ -31,7 +31,6 @@ export interface OAuthServerRuntime {
     readonly signal: AbortSignal;
 }
 
-/** What signing in does outside this module, injected so it can be tested. */
 /**
  * What the person does to finish signing in. The CLI words and styles it; `signInPromptText` is
  * the plain wording.
@@ -71,6 +70,7 @@ export class SignInEnded extends Error {
     }
 }
 
+/** What signing in does outside this module, injected so it can be tested. */
 export interface SignInRuntime extends OAuthServerRuntime {
     readonly prompt: (prompt: SignInPrompt) => void;
     readonly openBrowser: (url: string) => Promise<void>;

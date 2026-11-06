@@ -4,7 +4,7 @@ import chalk from 'chalk';
 import { describe, expect, it } from 'vitest';
 import { getCaps } from './caps.js';
 import { TERMINALS, renderFrame } from './harness.js';
-import { useTone } from './tone.js';
+import { useTone } from './hooks.js';
 
 function Teal() {
     const tone = useTone();

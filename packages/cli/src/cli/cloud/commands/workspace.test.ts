@@ -448,7 +448,7 @@ describe('dexto workspace', () => {
         }
     );
 
-    it('expires the user deadline when Retry-After leaves no retry budget', async () => {
+    it('preserves the error when Retry-After exceeds the deadline', async () => {
         let reads = 0;
         const retryHost: CloudHost = {
             ...host,
@@ -460,7 +460,7 @@ describe('dexto workspace', () => {
                     const message = JSON.parse(await request.clone().text());
                     if (message.params?.name === 'dexto_chat_follow') {
                         reads++;
-                        return new Response(null, { status: 429, headers: { 'Retry-After': '2' } });
+                        return new Response(null, { status: 503, headers: { 'Retry-After': '2' } });
                     }
                     return host.runtime.fetch(request);
                 },
@@ -477,13 +477,37 @@ describe('dexto workspace', () => {
                 '0.05',
                 '--json',
             ])
-        ).toBe(6);
+        ).toBe(1);
         expect(reads).toBe(1);
         expect(JSON.parse(stdout.trim().split('\n').at(-1) ?? '{}')).toMatchObject({
             type: 'final',
-            outcome: 'running',
             cursor: 'chat-1:0',
-            timedOut: true,
+            outcome: 'error',
+        });
+    });
+
+    it('does not retry an unrelated TypeError', async () => {
+        let reads = 0;
+        const failingHost: CloudHost = {
+            ...host,
+            runtime: {
+                ...host.runtime,
+                fetch: async (input, init) => {
+                    const request = new globalThis.Request(input, init);
+                    const message = JSON.parse(await request.clone().text());
+                    if (message.params?.name === 'dexto_chat_follow') {
+                        reads++;
+                        throw new TypeError('unexpected value');
+                    }
+                    return host.runtime.fetch(request);
+                },
+            },
+        };
+        expect(await runCloud(failingHost, ['chat', 'follow', 'chat-1', '--json'])).toBe(1);
+        expect(reads).toBe(1);
+        expect(JSON.parse(stdout.trim().split('\n').at(-1) ?? '{}')).toMatchObject({
+            outcome: 'error',
+            error: { message: 'unexpected value' },
         });
     });
 
@@ -887,6 +911,48 @@ describe('dexto workspace', () => {
         expect(JSON.parse(stdout).data.map((tool: { name: string }) => tool.name)).toEqual([
             'dexto_email_send',
         ]);
+    });
+
+    it.each([
+        [
+            'JSON envelope',
+            JSON.stringify({ error: { code: 'service_busy', message: 'Try later' } }),
+            'service_busy',
+            'Try later',
+        ],
+        ['non-JSON body', 'unavailable', 'http_503', 'Dexto answered HTTP 503.'],
+        ['empty body', '', 'http_503', 'Dexto answered HTTP 503.'],
+    ])('preserves workspace HTTP errors from a %s', async (_kind, body, code, message) => {
+        const failingHost: CloudHost = {
+            ...host,
+            runtime: {
+                ...host.runtime,
+                fetch: async (input, init) => {
+                    const request = new globalThis.Request(input, init);
+                    if (request.url === MCP) {
+                        const rpc = JSON.parse(await request.clone().text());
+                        if (rpc.method === 'tools/call')
+                            return new Response(body, {
+                                status: 503,
+                                headers: { 'Retry-After': '2' },
+                            });
+                    }
+                    return host.runtime.fetch(request);
+                },
+            },
+        };
+        expect(
+            await runCloud(failingHost, [
+                'workspace',
+                'call',
+                'dexto_email_send',
+                '--data',
+                '{"to":"a@b.c"}',
+                '--yes',
+                '--json',
+            ])
+        ).toBe(1);
+        expect(JSON.parse(stderr).error).toMatchObject({ api_code: code, message });
     });
 
     it('asks before a call that acts, and passes confirm once agreed', async () => {

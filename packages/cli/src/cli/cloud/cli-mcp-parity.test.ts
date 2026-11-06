@@ -96,9 +96,6 @@ cloud-secrets-list
 cloud-secrets-update
 cloud-sites-deploy
 cloud-sites-list
-span-list
-trace-list
-trace-view
 chat-list-status
 chat-get-usage`.split('\n')
 );
