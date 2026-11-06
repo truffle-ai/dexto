@@ -50,6 +50,30 @@ async function refuseSecretTree(repository: string, commit: string): Promise<voi
         );
 }
 
+/** Merge parents and deleted paths matter because a bundle carries reachable history. */
+export async function refuseSecretHistory(repository: string, revision: string): Promise<void> {
+    const secret = (
+        await git(repository, [
+            'log',
+            '-m',
+            '--no-renames',
+            '--no-color',
+            '--name-only',
+            '--format=',
+            '-z',
+            revision,
+            '--',
+        ])
+    )
+        .toString()
+        .split('\0')
+        .find(isSecretPath);
+    if (secret !== undefined)
+        throw new Error(
+            `The branch history contains a secret-shaped file: ${JSON.stringify(secret)}. Use a clean branch before moving.`
+        );
+}
+
 /** Inspect the complete repository using a private index, without changing the user's staging. */
 async function workingTreeFiles(
     cwd: string
@@ -128,11 +152,7 @@ export async function buildWorkingTree(cwd: string): Promise<WorkingTree> {
     const tree = await workingTreeFiles(cwd);
     const { repository, branch, head_commit, patch } = tree;
     // A full bundle carries deleted history too, so every reachable tree is checked.
-    const commits = (await git(repository, ['rev-list', head_commit]))
-        .toString()
-        .trim()
-        .split('\n');
-    for (const commit of commits) await refuseSecretTree(repository, commit);
+    await refuseSecretHistory(repository, head_commit);
     const folder = await mkdtemp(path.join(tmpdir(), 'dexto-move-bundle-'));
     const cleanup = () => rm(folder, { recursive: true, force: true });
     try {
