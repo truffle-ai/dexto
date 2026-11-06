@@ -367,12 +367,14 @@ const FOLLOW_OPTIONS: Record<string, OptionSpec> = {
         type: 'string',
         valueName: 'SECONDS',
         description:
-            'Stop following after this many seconds (default: 300); exit 6 if still running.',
+            'Stop following after this many seconds; exit 6 if still running. Default: wait until finished.',
     },
 };
 
 function followDeadline(input: CommandInput): number {
-    const seconds = Number(stringOption(input, 'timeout') ?? '300');
+    const timeout = stringOption(input, 'timeout');
+    if (timeout === undefined) return Infinity;
+    const seconds = Number(timeout);
     if (!Number.isFinite(seconds) || seconds < 0)
         throw new UsageError('--timeout must be a nonnegative number of seconds.');
     return Date.now() + seconds * 1000;
