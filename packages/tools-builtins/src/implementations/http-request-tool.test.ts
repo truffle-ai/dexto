@@ -60,4 +60,85 @@ describe('http_request tool', () => {
             code: 'HTTP_REQUEST_UNSAFE_TARGET',
         });
     });
+
+    it.each(['[::1]', '[0:0:0:0:0:0:0:1]', '[::ffff:127.0.0.1]', '[::ffff:10.0.0.1]'])(
+        'blocks private IPv6 literal %s before fetching',
+        async (host) => {
+            const fetchSpy = vi.spyOn(globalThis, 'fetch');
+            try {
+                await expect(
+                    createHttpRequestTool().execute(
+                        { url: `http://${host}/`, method: 'GET', timeoutMs: 1000 },
+                        {} as never
+                    )
+                ).rejects.toMatchObject({ code: 'HTTP_REQUEST_UNSAFE_TARGET' });
+                expect(fetchSpy).not.toHaveBeenCalled();
+            } finally {
+                fetchSpy.mockRestore();
+            }
+        }
+    );
+
+    it('blocks a redirect to a private literal before the next request', async () => {
+        const fetchSpy = vi
+            .spyOn(globalThis, 'fetch')
+            .mockResolvedValue(
+                new Response(null, { status: 302, headers: { location: 'http://[::1]/secret' } })
+            );
+        try {
+            await expect(
+                createHttpRequestTool().execute(
+                    { url: 'https://example.com/', method: 'GET', timeoutMs: 1000 },
+                    {} as never
+                )
+            ).rejects.toMatchObject({ code: 'HTTP_REQUEST_UNSAFE_TARGET' });
+            expect(fetchSpy).toHaveBeenCalledTimes(1);
+            expect(fetchSpy.mock.calls[0]?.[1]).toMatchObject({ redirect: 'manual' });
+        } finally {
+            fetchSpy.mockRestore();
+        }
+    });
+
+    it('follows relative redirects and limits redirect loops', async () => {
+        const fetchSpy = vi
+            .spyOn(globalThis, 'fetch')
+            .mockImplementation(
+                async () => new Response(null, { status: 302, headers: { location: '/next' } })
+            );
+        try {
+            await expect(
+                createHttpRequestTool().execute(
+                    { url: 'https://example.com/', method: 'GET', timeoutMs: 1000 },
+                    {} as never
+                )
+            ).rejects.toMatchObject({ code: 'HTTP_REQUEST_TOO_MANY_REDIRECTS' });
+            expect(fetchSpy).toHaveBeenCalledTimes(21);
+            expect(fetchSpy.mock.calls[1]?.[0]).toBe('https://example.com/next');
+        } finally {
+            fetchSpy.mockRestore();
+        }
+    });
+
+    it('drops credentials when following a cross-origin redirect', async () => {
+        const fetchSpy = vi
+            .spyOn(globalThis, 'fetch')
+            .mockResolvedValueOnce(
+                new Response(null, { status: 302, headers: { location: 'https://other.example/' } })
+            )
+            .mockResolvedValueOnce(new Response('ok'));
+        try {
+            await createHttpRequestTool().execute(
+                {
+                    url: 'https://example.com/',
+                    method: 'GET',
+                    headers: { Authorization: 'secret', Cookie: 'session=value' },
+                    timeoutMs: 1000,
+                },
+                {} as never
+            );
+            expect(fetchSpy.mock.calls[1]?.[1]?.headers).toEqual({});
+        } finally {
+            fetchSpy.mockRestore();
+        }
+    });
 });
