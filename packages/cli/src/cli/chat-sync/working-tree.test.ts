@@ -173,6 +173,43 @@ it('refuses local drift before changing the branch or files', async () => {
     }
 });
 
+it('restores the branch, index and dirty files when real application fails after checkout', async () => {
+    const cwd = await repository();
+    const originalHead = (await run('git', ['rev-parse', 'HEAD'], { cwd })).stdout.trim();
+    await run('git', ['checkout', '-b', 'cloud-work'], { cwd });
+    await writeFile(path.join(cwd, 'code.txt'), 'cloud commit\n');
+    await run('git', ['commit', '-am', 'cloud commit'], { cwd });
+    const cloudHead = (await run('git', ['rev-parse', 'HEAD'], { cwd })).stdout.trim();
+    await run('git', ['checkout', 'main'], { cwd });
+    await writeFile(path.join(cwd, 'code.txt'), 'original staged work\n');
+    await run('git', ['add', 'code.txt'], { cwd });
+    const indexBefore = (await run('git', ['diff', '--cached'], { cwd })).stdout;
+    const excludes = path.join(cwd, '.git', 'global-excludes');
+    await writeFile(excludes, 'collision.txt\n');
+    await run('git', ['config', 'core.excludesFile', excludes], { cwd });
+    await writeFile(path.join(cwd, 'collision.txt'), 'ignored local file\n');
+    const baseline = await readLocalTreeCheckpoint(cwd);
+    const returned = {
+        branch: 'main',
+        head: cloudHead,
+        bundle: null,
+        patch: Buffer.from(
+            'diff --git a/collision.txt b/collision.txt\nnew file mode 100644\n--- /dev/null\n+++ b/collision.txt\n@@ -0,0 +1 @@\n+cloud file\n'
+        ),
+    };
+
+    await expect(applyReturnedTree(cwd, baseline, returned)).rejects.toThrow('restored');
+
+    expect((await run('git', ['rev-parse', 'HEAD'], { cwd })).stdout.trim()).toBe(originalHead);
+    expect(await readFile(path.join(cwd, 'code.txt'), 'utf8')).toBe('original staged work\n');
+    expect((await run('git', ['diff', '--cached'], { cwd })).stdout).toBe(indexBefore);
+    expect(await readFile(path.join(cwd, 'collision.txt'), 'utf8')).toBe('ignored local file\n');
+    expect(await readLocalTreeCheckpoint(cwd)).toEqual(baseline);
+    expect((await run('git', ['stash', 'list'], { cwd })).stdout).not.toContain(
+        'dexto hand-off backup'
+    );
+});
+
 it('refuses a secret-shaped returned patch before changing the local checkout', async () => {
     const cwd = await repository();
     const tree = await buildWorkingTree(cwd);
@@ -200,6 +237,34 @@ it('refuses a secret-shaped returned patch before changing the local checkout', 
         await tree.cleanup();
     }
 });
+
+it('backs up a path list larger than the process argument limit', async () => {
+    const cwd = await repository();
+    const directory = path.join(cwd, ...Array.from({ length: 6 }, () => 'd'.repeat(120)));
+    await mkdir(directory, { recursive: true });
+    for (let batch = 0; batch < 35; batch += 1)
+        await Promise.all(
+            Array.from({ length: 100 }, (_, index) =>
+                writeFile(
+                    path.join(directory, `file-${batch * 100 + index}.txt`),
+                    'fake safe data\n'
+                )
+            )
+        );
+    const baseline = await readLocalTreeCheckpoint(cwd);
+    await applyReturnedTree(cwd, baseline, {
+        branch: baseline.branch,
+        head: baseline.head,
+        bundle: null,
+        patch: Buffer.from(
+            'diff --git a/code.txt b/code.txt\n--- a/code.txt\n+++ b/code.txt\n@@ -1 +1 @@\n-before\n+cloud edit\n'
+        ),
+    });
+    expect(await readFile(path.join(cwd, 'code.txt'), 'utf8')).toBe('cloud edit\n');
+    expect((await run('git', ['stash', 'list'], { cwd })).stdout).toContain(
+        'dexto hand-off backup'
+    );
+}, 60_000);
 
 it('fetches and fast-forwards returned commits from the incremental cloud bundle', async () => {
     const cwd = await repository();

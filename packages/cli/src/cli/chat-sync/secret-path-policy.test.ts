@@ -1,3 +1,4 @@
+/** Exercises the shared secret-path cases and the repository's tracked tree. */
 import { execFileSync } from 'node:child_process';
 import { expect, it } from 'vitest';
 import { isSecretPath } from './redaction.js';
