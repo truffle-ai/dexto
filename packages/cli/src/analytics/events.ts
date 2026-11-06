@@ -20,19 +20,8 @@ export interface BaseEventContext {
 
 export interface CommandArgsMeta {
     argTypes: string[];
-    positionalRaw?: string[];
     positionalCount?: number;
-    optionKeys?: string[];
-    options?: Record<string, SanitizedOptionValue>;
 }
-
-export type SanitizedOptionValue =
-    | string
-    | number
-    | boolean
-    | null
-    | { type: 'array'; length: number }
-    | { type: 'object' };
 
 export type CliCommandPhase = 'start' | 'end' | 'timeout';
 
