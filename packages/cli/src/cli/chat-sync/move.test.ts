@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest';
 import { createCloudClient } from '@dexto/cloud-client';
-import { moveToCloud, downloadMoveObject, describeObject } from './move.js';
+import { moveToCloud, downloadMoveObject, describeObject, startLocalReturn } from './move.js';
 
 it('uploads declared bytes with signed headers before confirming and polling completion', async () => {
     const calls: string[] = [];
@@ -80,6 +80,51 @@ it('refuses oversized or corrupted downloads before applying anything', async ()
             { url: 'https://download.invalid', ...describeObject(Buffer.from('short')) }
         )
     ).rejects.toThrow('checksum');
+});
+
+it('recovers the accepted return after losing its start response', async () => {
+    let accepted = false;
+    const calls: string[] = [];
+    const fetch: typeof globalThis.fetch = async (input, init) => {
+        const request =
+            input instanceof globalThis.Request ? input : new globalThis.Request(input, init);
+        calls.push(`${request.method} ${new URL(request.url).pathname}`);
+        if (request.method === 'POST') {
+            if (!accepted) {
+                accepted = true;
+                throw new Error('start response lost');
+            }
+            return Response.json(
+                {
+                    error: {
+                        code: 'move_in_progress',
+                        message: 'open move',
+                        details: { move_id: 'return' },
+                    },
+                },
+                { status: 409 }
+            );
+        }
+        return Response.json({ id: 'return', to: 'local', status: 'exporting' });
+    };
+    const transport = {
+        client: createCloudClient({
+            apiBaseUrl: 'https://api.invalid',
+            token: 'fake',
+            cloudProject: null,
+            fetch,
+        }),
+        fetch,
+        signal: new AbortController().signal,
+        sleep: async () => undefined,
+    };
+    await expect(startLocalReturn(transport, 'chat')).rejects.toThrow('start response lost');
+    expect(await startLocalReturn(transport, 'chat')).toMatchObject({ id: 'return', to: 'local' });
+    expect(calls).toEqual([
+        'POST /v1/synced_chats/chat/moves',
+        'POST /v1/synced_chats/chat/moves',
+        'GET /v1/synced_chats/chat/moves/return',
+    ]);
 });
 
 it('keeps cloud ownership when cancellation discovers that an interrupted import completed', async () => {
