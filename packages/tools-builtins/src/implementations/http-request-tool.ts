@@ -105,6 +105,7 @@ function isPrivateIpv4(ip: string): boolean {
     return false;
 }
 
+/** Reject local IPv6 and mapped IPv4 addresses that are not safe request targets. */
 function isPrivateIpv6(ip: string): boolean {
     const normalized = new URL(`http://[${ip.split('%')[0]}]/`).hostname.slice(1, -1);
     if (normalized === '::' || normalized === '::1') return true;
@@ -122,6 +123,7 @@ function isPrivateIpv6(ip: string): boolean {
     return false;
 }
 
+/** Check IP literals and DNS results, accepting URL-bracketed IPv6 literals. */
 function isPrivateAddress(ip: string): boolean {
     const address = ip.startsWith('[') && ip.endsWith(']') ? ip.slice(1, -1) : ip;
     const version = isIP(address);
