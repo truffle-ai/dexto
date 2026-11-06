@@ -348,12 +348,111 @@ const LOCATION_MESSAGES: Record<z.output<typeof ChatStartRefusalSchema>['outcome
     profile_unavailable: 'That browser profile cannot be used on this hosted computer.',
 };
 
+const FollowResultSchema = z
+    .object({
+        outcome: z.enum(['done', 'failed', 'cancelled', 'running']),
+        running: z.boolean(),
+        cursor: z.string(),
+        hasMore: z.boolean(),
+        session: z.object({ id: z.string() }),
+        events: z.array(z.unknown()),
+        answer: z.string().nullable(),
+        artifacts: z.array(z.unknown()),
+        usage: z.array(z.unknown()),
+    })
+    .passthrough();
+
+const FOLLOW_OPTIONS: Record<string, OptionSpec> = {
+    timeout: {
+        type: 'string',
+        valueName: 'SECONDS',
+        description:
+            'Stop following after this many seconds (default: 300); exit 6 if still running.',
+    },
+};
+
+function followDeadline(input: CommandInput): number {
+    const seconds = Number(stringOption(input, 'timeout') ?? '300');
+    if (!Number.isFinite(seconds) || seconds < 0)
+        throw new UsageError('--timeout must be a nonnegative number of seconds.');
+    return Date.now() + seconds * 1000;
+}
+
+async function followChat(
+    context: CommandContext,
+    sessionId: string,
+    cursor: string | undefined,
+    deadline: number,
+    initial?: z.output<typeof FollowResultSchema>
+): Promise<number> {
+    let page = initial;
+    for (;;) {
+        context.runtime.signal.throwIfAborted();
+        page ??= FollowResultSchema.parse(
+            await queryWorkspaceTool(context, 'dexto_chat_follow', {
+                sessionId,
+                ...(cursor === undefined ? {} : { cursor }),
+                waitSeconds: Math.min(25, Math.max(0, Math.floor((deadline - Date.now()) / 1000))),
+            })
+        );
+        for (const event of page.events) {
+            if (context.output.json)
+                context.runtime.writeOutput(`${JSON.stringify({ type: 'event', event })}\n`);
+            else context.output.note(JSON.stringify(event));
+        }
+        cursor = page.cursor;
+        if ((!page.running && !page.hasMore) || Date.now() >= deadline) {
+            const { events: _events, ...result } = page;
+            if (context.output.json)
+                context.runtime.writeOutput(`${JSON.stringify({ type: 'final', ...result })}\n`);
+            else
+                context.output.result(
+                    result,
+                    `${page.answer ?? ''}\nArtifacts: ${JSON.stringify(page.artifacts)}\nUsage: ${JSON.stringify(page.usage)}\nOutcome: ${page.outcome}\nCursor: ${cursor}`
+                );
+            return page.outcome === 'failed' || page.outcome === 'cancelled'
+                ? 1
+                : page.running || page.hasMore
+                  ? 6
+                  : 0;
+        }
+        page = undefined;
+    }
+}
+
+const follow: Command = {
+    path: ['chat', 'follow'],
+    arguments: '<id>',
+    summary:
+        'Follow durable cloud chat events until completion; Ctrl-C stops following without cancelling the chat.',
+    options: {
+        ...FOLLOW_OPTIONS,
+        cursor: {
+            type: 'string',
+            valueName: 'CURSOR',
+            description: 'Resume after a cursor returned by chat follow or start --wait.',
+        },
+    },
+    run: (context, input) =>
+        followChat(
+            context,
+            argument(input, 0, 'id'),
+            stringOption(input, 'cursor'),
+            followDeadline(input)
+        ),
+};
+
 const start: Command = {
     path: ['chat', 'start'],
     arguments: '<message>',
     summary:
         'Start a cloud chat, optionally attaching your connected computer and choosing a browser profile.',
     options: {
+        ...FOLLOW_OPTIONS,
+        wait: {
+            type: 'boolean',
+            description: 'Wait for the answer, artifacts and usage; --json prints NDJSON.',
+        },
         computer: {
             type: 'string',
             valueName: 'ID',
@@ -385,6 +484,7 @@ const start: Command = {
     },
     async run(context, input) {
         const message = argument(input, 0, 'message');
+        const deadline = followDeadline(input);
         const choices = Object.entries({
             computer: 'computerId',
             'browser-profile': 'browserProfileId',
@@ -411,9 +511,24 @@ const start: Command = {
             );
             args.confirm = true;
         }
-        const parsed = ChatStartResultSchema.safeParse(
-            await queryWorkspaceTool(context, 'dexto_chat_start', args)
-        );
+        // Start once. Subsequent bounded reads never retry a billable start.
+        const raw = await queryWorkspaceTool(context, 'dexto_chat_start', args);
+        if (flag(input, 'wait')) {
+            const started = StartedChatSchema.safeParse(raw);
+            if (started.success) {
+                const initial = FollowResultSchema.parse(
+                    await queryWorkspaceTool(context, 'dexto_chat_wait', {
+                        sessionId: started.data.session.id,
+                        waitSeconds: Math.min(
+                            25,
+                            Math.max(0, Math.floor((deadline - Date.now()) / 1000))
+                        ),
+                    })
+                );
+                return followChat(context, started.data.session.id, undefined, deadline, initial);
+            }
+        }
+        const parsed = ChatStartResultSchema.safeParse(raw);
         if (!parsed.success)
             throw new CommandFailure(
                 'failed',
@@ -499,6 +614,7 @@ export const chatCommands: readonly Command[] = [
     local,
     importChats,
     start,
+    follow,
     computers,
     browserProfiles,
 ];

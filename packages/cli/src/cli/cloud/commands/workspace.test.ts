@@ -56,6 +56,7 @@ describe('dexto workspace', () => {
     let chatResponse: unknown;
     let computersResponse: unknown;
     let profilesResponse: unknown;
+    let followResponses: unknown[];
 
     beforeEach(async () => {
         dir = path.join(await mkdtemp(path.join(os.tmpdir(), 'dexto-ws-')), 'accounts');
@@ -86,6 +87,7 @@ describe('dexto workspace', () => {
                 },
             ],
         };
+        followResponses = [];
         profilesResponse = { profiles: [{ id: 'profile-1', name: 'Work', available: true }] };
         publishStatus = 200;
         publishProject = null;
@@ -156,13 +158,15 @@ describe('dexto workspace', () => {
                               headers: {},
                               path: 'uploads/u1.zip',
                           }
-                        : tool === 'dexto_chat_start'
-                          ? chatResponse
-                          : tool === 'dexto_chat_computers_list'
-                            ? computersResponse
-                            : tool === 'dexto_chat_browser_profiles_list'
-                              ? profilesResponse
-                              : { status: 'sent' };
+                        : tool === 'dexto_chat_follow' || tool === 'dexto_chat_wait'
+                          ? followResponses.shift()
+                          : tool === 'dexto_chat_start'
+                            ? chatResponse
+                            : tool === 'dexto_chat_computers_list'
+                              ? computersResponse
+                              : tool === 'dexto_chat_browser_profiles_list'
+                                ? profilesResponse
+                                : { status: 'sent' };
                 const result =
                     message.method === 'tools/list'
                         ? { tools: TOOLS }
@@ -200,6 +204,64 @@ describe('dexto workspace', () => {
                 }),
             signInForScope: async () => false,
         };
+    });
+
+    const page = (outcome = 'done', cursor = 'chat-1:1') => ({
+        outcome,
+        running: outcome === 'running',
+        cursor,
+        hasMore: false,
+        session: { id: 'chat-1' },
+        events: [{ id: cursor }],
+        answer: 'Finished answer',
+        artifacts: [{ name: 'report.txt' }],
+        usage: [{ totalChargeUsd: 0.01 }],
+    });
+
+    it('start --wait starts once and prints events and a final NDJSON answer', async () => {
+        followResponses = [page('running'), page('done', 'chat-1:2')];
+        expect(await runCloud(host, ['chat', 'start', 'Hello', '--wait', '--json'])).toBe(0);
+        const lines = stdout
+            .trim()
+            .split('\n')
+            .map((line) => JSON.parse(line));
+        expect(lines.map((line) => line.type)).toEqual(['event', 'event', 'final']);
+        expect(lines.at(-1)).toMatchObject({
+            answer: 'Finished answer',
+            artifacts: [{ name: 'report.txt' }],
+            usage: [{ totalChargeUsd: 0.01 }],
+        });
+        expect(calls.filter((call) => call.params.name === 'dexto_chat_start')).toHaveLength(1);
+        expect(
+            calls.find((call) => call.params.name === 'dexto_chat_follow')?.params.arguments
+        ).toMatchObject({ cursor: 'chat-1:1' });
+    });
+    it('follow resumes at a cursor and exits 6 after timeout without cancelling', async () => {
+        followResponses = [page('running')];
+        expect(
+            await runCloud(host, [
+                'chat',
+                'follow',
+                'chat-1',
+                '--cursor',
+                'chat-1:0',
+                '--timeout',
+                '0',
+                '--json',
+            ])
+        ).toBe(6);
+        expect(
+            calls.find((call) => call.params.name === 'dexto_chat_follow')?.params.arguments
+        ).toMatchObject({ cursor: 'chat-1:0', waitSeconds: 0 });
+        expect(calls.some((call) => call.params.name === 'dexto_chat_cancel')).toBe(false);
+    });
+    it.each(['failed', 'cancelled'])('follow reports %s with a nonzero exit', async (outcome) => {
+        followResponses = [page(outcome)];
+        expect(await runCloud(host, ['chat', 'follow', 'chat-1', '--json'])).toBe(1);
+        expect(JSON.parse(stdout.trim().split('\n').at(-1) ?? '{}')).toMatchObject({
+            type: 'final',
+            outcome,
+        });
     });
 
     afterEach(async () => {
