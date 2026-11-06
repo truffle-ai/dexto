@@ -167,6 +167,7 @@ describe('CLI HTTP host lifecycle', () => {
     });
     it('binds to loopback by default', async () => {
         vi.stubEnv('DEXTO_SERVER_HOST', '');
+        vi.stubEnv('DEXTO_SERVER_API_KEY', '');
         const { agent } = fakeAgent();
         const host = await startHonoApiServer(agent, 0);
         resources.push(host);
