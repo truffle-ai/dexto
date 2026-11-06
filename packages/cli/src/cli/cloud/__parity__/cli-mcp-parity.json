@@ -6,6 +6,11 @@
     "commands": {
         "chat outputs": ["dexto_chat_outputs_list"],
         "chat import": ["dexto_chat_import_prepare", "dexto_chat_import"],
+        "connect claude": ["dexto_connection_start", "dexto_connection_finish"],
+        "connect codex": ["dexto_connection_start", "dexto_connection_wait"],
+        "connections list": ["dexto_connections_list"],
+        "connections status": ["dexto_connection_get"],
+        "connections disconnect": ["dexto_connection_disconnect"],
         "find": ["dexto_search", "dexto_route_get"],
         "profile get": ["dexto_profile_get"],
         "profile update": ["dexto_profile_update"],
