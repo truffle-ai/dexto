@@ -297,7 +297,10 @@ async function callMcp(context: CommandContext, method: string, params: unknown)
             "Your sign-in can't reach the workspace. Sign in again to grant it.",
             signInCommand(context, null)
         );
-    if (!response.ok) return unwrap({ response, error: null });
+    if (!response.ok) {
+        const error: unknown = await response.json().catch(() => null);
+        return unwrap({ response, error });
+    }
     const text = await response.text();
     const message = parseJsonRpc(
         response.headers.get('content-type')?.includes('text/event-stream') === true
