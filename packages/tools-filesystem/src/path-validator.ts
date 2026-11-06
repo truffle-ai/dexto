@@ -5,10 +5,10 @@
  */
 
 import * as path from 'node:path';
-import * as fs from 'node:fs/promises';
 import { FileSystemConfig, PathValidation } from './types.js';
 import type { Logger } from '@dexto/core/logger';
 import { expandHomeShorthand, resolveUserPath } from './path-utils.js';
+import { canonicalizePath } from './safe-fs.js';
 
 /**
  * Callback type for checking if a path is in an approved directory.
@@ -36,6 +36,8 @@ export type DirectoryApprovalChecker = (
 export class PathValidator {
     private config: FileSystemConfig;
     private normalizedAllowedPaths: string[];
+    /** Canonical (symlink-resolved) forms of allowed roots, refreshed on every validation. */
+    private canonicalAllowedPaths: string[] = [];
     private normalizedBlockedPaths: string[];
     private normalizedBlockedExtensions: string[];
     private logger: Logger;
@@ -127,15 +129,12 @@ export class PathValidator {
         try {
             // Handle both absolute and relative paths
             resolvedPath = resolveUserPath(workingDir, filePath);
-            normalizedPath = resolvedPath;
 
-            // Canonicalize to handle symlinks and resolve real paths (async, non-blocking)
-            try {
-                normalizedPath = await fs.realpath(normalizedPath);
-            } catch {
-                // If the path doesn't exist yet (e.g., writes), fallback to the resolved path
-                // Policy checks continue to use normalizedPath
-            }
+            // Canonicalize so policy checks see where the operation will really land. For paths
+            // that do not exist yet this resolves the nearest existing ancestor and any dangling
+            // symlink, so a link inside an allowed root cannot redirect a new file outside it.
+            normalizedPath = await canonicalizePath(resolvedPath);
+            await this.refreshCanonicalAllowedPaths();
         } catch (error) {
             return {
                 isValid: false,
@@ -170,8 +169,9 @@ export class PathValidator {
             };
         }
 
-        // 5. Check if path is blocked
-        const blockedReason = this.isPathBlocked(normalizedPath);
+        // 5. Check if path is blocked (either the canonical target or the path as given)
+        const blockedReason =
+            this.isPathBlocked(normalizedPath) ?? this.isPathBlocked(resolvedPath);
         if (blockedReason) {
             return {
                 isValid: false,
@@ -273,14 +273,7 @@ export class PathValidator {
             return true;
         }
 
-        // Check if path is within any config-allowed path
-        const isInConfigPaths = this.normalizedAllowedPaths.some((allowedPath) => {
-            const relative = path.relative(allowedPath, normalizedPath);
-            // Path is allowed if it doesn't escape the allowed directory
-            return !relative.startsWith('..') && !path.isAbsolute(relative);
-        });
-
-        if (isInConfigPaths) {
+        if (this.isInConfigAllowedPaths(normalizedPath)) {
             return true;
         }
 
@@ -315,14 +308,8 @@ export class PathValidator {
         let normalizedPath: string;
 
         try {
-            normalizedPath = resolveUserPath(workingDir, filePath);
-
-            // Try to resolve symlinks for existing files (async, non-blocking)
-            try {
-                normalizedPath = await fs.realpath(normalizedPath);
-            } catch {
-                // Path doesn't exist yet, use resolved path
-            }
+            normalizedPath = await canonicalizePath(resolveUserPath(workingDir, filePath));
+            await this.refreshCanonicalAllowedPaths();
         } catch {
             // Failed to normalize, treat as not within allowed
             return false;
@@ -343,10 +330,25 @@ export class PathValidator {
             return true;
         }
 
-        return this.normalizedAllowedPaths.some((allowedPath) => {
-            const relative = path.relative(allowedPath, normalizedPath);
-            return !relative.startsWith('..') && !path.isAbsolute(relative);
-        });
+        return [...this.normalizedAllowedPaths, ...this.canonicalAllowedPaths].some((allowedPath) =>
+            isWithinRoot(allowedPath, normalizedPath)
+        );
+    }
+
+    /**
+     * Allowed roots are configured lexically, but validated paths are canonical. Keep the
+     * canonical form of each root too, so a root reached through a symlink (for example
+     * macOS `/tmp` -> `/private/tmp`) still matches its own files.
+     */
+    private async refreshCanonicalAllowedPaths(): Promise<void> {
+        const canonical = await Promise.all(
+            this.normalizedAllowedPaths.map((allowedPath) =>
+                canonicalizePath(allowedPath).catch(() => allowedPath)
+            )
+        );
+        this.canonicalAllowedPaths = canonical.filter(
+            (canonicalPath, index) => canonicalPath !== this.normalizedAllowedPaths[index]
+        );
     }
 
     /**
@@ -362,4 +364,12 @@ export class PathValidator {
     getBlockedPaths(): string[] {
         return [...this.normalizedBlockedPaths];
     }
+}
+
+function isWithinRoot(root: string, candidate: string): boolean {
+    const relative = path.relative(root, candidate);
+    if (relative === '') {
+        return true;
+    }
+    return relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative);
 }

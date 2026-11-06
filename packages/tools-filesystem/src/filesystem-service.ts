@@ -41,6 +41,7 @@ import { PathValidator, type DirectoryApprovalOperation } from './path-validator
 import { FileSystemError } from './errors.js';
 import { detectMimeType, getMediaFileKind, isLikelyBinary, isTextMimeType } from './mime-utils.js';
 import { resolveUserPath } from './path-utils.js';
+import { canonicalizePath, writeFileNoFollow } from './safe-fs.js';
 
 const DEFAULT_ENCODING: BufferEncoding = 'utf-8';
 const DEFAULT_MAX_RESULTS = 1000;
@@ -972,8 +973,13 @@ export class FileSystemService {
             const dir = path.dirname(normalizedPath);
             await fs.mkdir(dir, { recursive: true });
 
-            // Write file
-            await fs.writeFile(normalizedPath, content, encoding);
+            const isAllowed = (candidate: string) =>
+                this.pathValidator.isPathAllowedQuick(candidate, 'write');
+            if ((await canonicalizePath(dir)) !== dir) {
+                throw new Error(`Parent directory changed during write: ${dir}`);
+            }
+
+            await writeFileNoFollow(normalizedPath, content, encoding, isAllowed);
 
             const bytesWritten = Buffer.byteLength(content, encoding);
 
@@ -1049,7 +1055,12 @@ export class FileSystemService {
             }
 
             // Write updated content
-            await fs.writeFile(normalizedPath, newContent, options.encoding || DEFAULT_ENCODING);
+            await writeFileNoFollow(
+                normalizedPath,
+                newContent,
+                options.encoding || DEFAULT_ENCODING,
+                (candidate) => this.pathValidator.isPathAllowedQuick(candidate, 'edit')
+            );
 
             this.logger.debug(`File edited: ${normalizedPath} (${occurrences} replacements)`);
 
