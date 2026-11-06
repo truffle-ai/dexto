@@ -127,6 +127,72 @@ it('recovers the accepted return after losing its start response', async () => {
     ]);
 });
 
+it('cancels the accepted cloud start whose response was lost and restarts its upload', async () => {
+    let starts = 0;
+    const calls: string[] = [];
+    const fetch: typeof globalThis.fetch = async (input, init) => {
+        const request =
+            input instanceof globalThis.Request ? input : new globalThis.Request(input, init);
+        const route = new URL(request.url).pathname;
+        calls.push(`${request.method} ${route}`);
+        if (route.endsWith('/cancel'))
+            return Response.json({ id: 'lost', to: 'cloud', status: 'canceled' });
+        if (request.method === 'GET')
+            return Response.json({ id: 'lost', to: 'cloud', status: 'awaiting_upload' });
+        if (request.method === 'PUT') return new Response(null);
+        if (route.endsWith('/uploaded'))
+            return Response.json({ id: 'new', to: 'cloud', status: 'completed' });
+        starts += 1;
+        if (starts === 1) throw new TypeError('accepted response lost');
+        if (starts === 2)
+            return Response.json(
+                {
+                    error: {
+                        code: 'move_in_progress',
+                        message: 'open move',
+                        details: { move_id: 'lost' },
+                    },
+                },
+                { status: 409 }
+            );
+        return Response.json({
+            id: 'new',
+            to: 'cloud',
+            status: 'awaiting_upload',
+            uploads: [{ object: 'bundle', url: 'https://upload.invalid/bundle', headers: {} }],
+        });
+    };
+    const transport = {
+        client: createCloudClient({
+            apiBaseUrl: 'https://api.invalid',
+            token: 'fake',
+            cloudProject: null,
+            fetch,
+        }),
+        fetch,
+        signal: new AbortController().signal,
+        sleep: async () => undefined,
+    };
+    const tree = {
+        branch: 'main',
+        head_commit: 'a'.repeat(40),
+        bundle: Buffer.from('fake bundle'),
+        patch: null,
+        cleanup: async () => undefined,
+    };
+    await expect(moveToCloud(transport, 'chat', tree)).rejects.toThrow('accepted response lost');
+    await expect(moveToCloud(transport, 'chat', tree)).resolves.toBeUndefined();
+    expect(calls).toEqual([
+        'POST /v1/synced_chats/chat/moves',
+        'POST /v1/synced_chats/chat/moves',
+        'GET /v1/synced_chats/chat/moves/lost',
+        'POST /v1/synced_chats/chat/moves/lost/cancel',
+        'POST /v1/synced_chats/chat/moves',
+        'PUT /bundle',
+        'POST /v1/synced_chats/chat/moves/new/uploaded',
+    ]);
+});
+
 it('keeps cloud ownership when cancellation discovers that an interrupted import completed', async () => {
     let canceled = false;
     const fetch: typeof globalThis.fetch = async (input, init) => {

@@ -94,38 +94,51 @@ export async function cancelMove(
     );
 }
 
+async function readOpenMove(
+    transport: MoveTransport,
+    chatId: string,
+    error: unknown
+): Promise<ChatMove | null> {
+    if (
+        !(error instanceof CloudApiError) ||
+        error.code !== 'move_in_progress' ||
+        typeof error.details !== 'object' ||
+        error.details === null ||
+        !('move_id' in error.details) ||
+        typeof error.details.move_id !== 'string'
+    )
+        return null;
+    return await unwrap(
+        await transport.client.GET('/v1/synced_chats/{chat_id}/moves/{move_id}', {
+            params: { path: { chat_id: chatId, move_id: error.details.move_id } },
+            signal: transport.signal,
+        })
+    );
+}
+
 /** Recover the server's open return when its original start response never reached the CLI. */
 export async function startLocalReturn(
     transport: MoveTransport,
     chatId: string
 ): Promise<ChatMove> {
-    try {
-        return await unwrap(
+    const start = async () =>
+        unwrap(
             await transport.client.POST('/v1/synced_chats/{chat_id}/moves', {
                 params: { path: { chat_id: chatId } },
                 body: { to: 'local' },
                 signal: transport.signal,
             })
         );
+    try {
+        return await start();
     } catch (error) {
-        if (
-            !(error instanceof CloudApiError) ||
-            error.code !== 'move_in_progress' ||
-            typeof error.details !== 'object' ||
-            error.details === null ||
-            !('move_id' in error.details) ||
-            typeof error.details.move_id !== 'string'
-        )
-            throw error;
-        const move = await unwrap(
-            await transport.client.GET('/v1/synced_chats/{chat_id}/moves/{move_id}', {
-                params: { path: { chat_id: chatId, move_id: error.details.move_id } },
-                signal: transport.signal,
-            })
-        );
-        if (move.to !== 'local')
-            throw new Error('The move to cloud is still open. Finish it with --to cloud first.');
-        return move;
+        const move = await readOpenMove(transport, chatId, error);
+        if (move === null) throw error;
+        if (move.to === 'local') return move;
+        // Reconcile an interrupted outbound request in the direction the person asked for.
+        // A canceled upload is local (chat_local); an import that completed can now return.
+        await cancelMove(transport, chatId, move.id);
+        return await start();
     }
 }
 
@@ -134,9 +147,8 @@ export async function moveToCloud(
     chatId: string,
     tree: WorkingTree
 ): Promise<void> {
-    let started: ChatMove;
-    try {
-        started = await unwrap(
+    const start = async () =>
+        unwrap(
             await transport.client.POST('/v1/synced_chats/{chat_id}/moves', {
                 params: { path: { chat_id: chatId } },
                 signal: transport.signal,
@@ -151,9 +163,24 @@ export async function moveToCloud(
                 },
             })
         );
+    let started: ChatMove;
+    try {
+        started = await start();
     } catch (error) {
         if (error instanceof CloudApiError && error.code === 'chat_in_cloud') return;
-        throw error;
+        const open = await readOpenMove(transport, chatId, error);
+        if (open === null) throw error;
+        if (open.to !== 'cloud')
+            throw new Error('A return is already open. Finish it with --to local.');
+        const canceled = await cancelMove(transport, chatId, open.id);
+        if (canceled.status === 'completed') return;
+        if (
+            canceled.status !== 'canceled' &&
+            canceled.status !== 'expired' &&
+            canceled.status !== 'failed'
+        )
+            throw new CloudMoveFailure(error, 'unknown');
+        started = await start();
     }
     try {
         for (const upload of started.uploads) {
