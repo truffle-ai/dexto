@@ -171,7 +171,19 @@ export function createRequestGuardMiddleware(guard: RequestGuard): MiddlewareHan
         }
         const result = guard({
             method: ctx.req.method,
-            header: (name) => ctx.req.header(name),
+            header: (name) => {
+                const value = ctx.req.header(name);
+                if (value !== undefined || name.toLowerCase() !== 'host') {
+                    return value;
+                }
+                // In-process app.fetch() requests carry no Host header; their URL was chosen by
+                // the embedding code, not by a remote client, so use its host instead.
+                try {
+                    return new URL(ctx.req.url).host;
+                } catch {
+                    return undefined;
+                }
+            },
         });
         if (!result.allowed) {
             logger.warn('Rejected request by origin/host guard', {
