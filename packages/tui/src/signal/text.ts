@@ -9,9 +9,10 @@
  * Plain output (not a TTY, or NO_COLOR) gets no colour, no links, no wordmark and no cut type:
  * the same words on plain lines.
  */
+import chalk, { type ColorSupportLevel } from 'chalk';
 import stringWidth from 'string-width';
 import stripAnsi from 'strip-ansi';
-import { getCaps } from './caps.js';
+import { detectCaps, getCaps, setCaps, type Caps } from './caps.js';
 import { cutLines } from './cut.js';
 import { glyphText } from './glyphs.js';
 import { paint } from './paint.js';
@@ -275,4 +276,34 @@ export function faultLines(fault: Fault, indent = 2): string[] {
     if (fault.fix !== null)
         rows.push({ bar: 'redDim', label: span('dim', 'next'), text: [span('amber', fault.fix)] });
     return barLines(rows, indent);
+}
+
+const CHALK_LEVELS: Readonly<Record<Caps['color'], ColorSupportLevel>> = {
+    none: 0,
+    '16': 1,
+    '256': 2,
+    truecolor: 3,
+};
+
+/**
+ * Caps for a stream other than stdout (stderr for the sign-in screens): its own TTY decides the
+ * colour, links and live lines; the rest (glyphs, theme, palette) is this terminal's.
+ */
+export function capsFor(stream: { readonly isTTY?: boolean }): Caps {
+    const own = detectCaps(process.env, stream.isTTY === true);
+    return { ...getCaps(), tty: own.tty, color: own.color };
+}
+
+/** `draw` with these caps and the matching chalk level; both are put back afterwards. */
+export function drawOn<T>(caps: Caps, draw: () => T): T {
+    const savedCaps = getCaps();
+    const savedLevel = chalk.level;
+    setCaps(caps);
+    chalk.level = CHALK_LEVELS[caps.color];
+    try {
+        return draw();
+    } finally {
+        chalk.level = savedLevel;
+        setCaps(savedCaps);
+    }
 }

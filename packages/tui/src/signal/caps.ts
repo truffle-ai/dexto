@@ -12,10 +12,9 @@
  *   palette: legacy (the pre-Signal colours) unless DEXTO_PALETTE=signal. Signal becomes the
  *           default when the new screens ship.
  *
- * Caps are process-wide: one terminal, one answer. `useCaps()` re-renders when they change.
+ * Caps are process-wide: one terminal, one answer. `useCaps()` (hooks.ts) re-renders when they
+ * change. No React here, so commands that print and exit can draw without loading it.
  */
-import { useSyncExternalStore } from 'react';
-
 export type ColorTier = 'truecolor' | '256' | '16' | 'none';
 export type GlyphTier = 'unicode' | 'ascii';
 export type LogoTier = 'sextant' | 'quadrant';
@@ -110,13 +109,10 @@ export function setCaps(next: Caps): void {
     for (const listener of listeners) listener();
 }
 
-function subscribe(listener: () => void): () => void {
+/** Calls `listener` whenever the caps change; returns the unsubscribe. */
+export function subscribeCaps(listener: () => void): () => void {
     listeners.add(listener);
     return () => {
         listeners.delete(listener);
     };
-}
-
-export function useCaps(): Caps {
-    return useSyncExternalStore(subscribe, getCaps, getCaps);
 }

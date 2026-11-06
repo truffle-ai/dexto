@@ -23,17 +23,23 @@ export interface SignInIo {
 
 const toStderr = (text: string) => process.stderr.write(`${text}\n`);
 
-const TERMINAL: SignInIo = {
-    result: (_value, text) => process.stdout.write(`${text}\n`),
-    note: toStderr,
-    screen: terminalSignInScreen((text) => process.stderr.write(text), toStderr, false),
-    confirm: async (question) => {
-        if (!process.stdin.isTTY) return false;
-        const answer = await p.confirm({ message: question, initialValue: false });
-        return answer === true;
-    },
-    signal: new AbortController().signal,
-};
+/**
+ * The terminal's io, built when a context is: the screen reads the caps and stderr then, not
+ * when this module is imported.
+ */
+function terminalIo(): SignInIo {
+    return {
+        result: (_value, text) => process.stdout.write(`${text}\n`),
+        note: toStderr,
+        screen: terminalSignInScreen((text) => process.stderr.write(text), toStderr, false),
+        confirm: async (question) => {
+            if (!process.stdin.isTTY) return false;
+            const answer = await p.confirm({ message: question, initialValue: false });
+            return answer === true;
+        },
+        signal: new AbortController().signal,
+    };
+}
 
 /** The folder the internal `dexto-cloud` CLI saved its sign-ins in. */
 function cloudCliDirectory(): string {
@@ -55,7 +61,7 @@ export async function carryOverEarlierSignIns(): Promise<void> {
     );
 }
 
-export async function nodeSignInContext(io: SignInIo = TERMINAL): Promise<SignInContext> {
+export async function nodeSignInContext(io: SignInIo = terminalIo()): Promise<SignInContext> {
     const dir = getDextoGlobalPath('accounts');
     await carryOverEarlierSignIns();
     const runtime = { ...nodeSignInRuntime(io.signal), prompt: io.screen.show };
