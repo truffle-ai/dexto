@@ -7,6 +7,7 @@ import { z } from 'zod';
 import {
     gitRepositoryRoot,
     readLocalTreeCheckpoint,
+    refuseSecretHistory,
     type LocalTreeCheckpoint,
 } from './working-tree.js';
 import { isSecretPath } from './redaction.js';
@@ -95,16 +96,7 @@ export async function applyReturnedTree(
             await git(['fetch', '--no-tags', bundle, returned.head]);
         }
         await git(['merge-base', '--is-ancestor', baseline.head, returned.head]);
-        const commits = (await git(['rev-list', returned.head])).trim().split('\n');
-        for (const commit of commits) {
-            const secret = (await git(['ls-tree', '-r', '--name-only', '-z', commit]))
-                .split('\0')
-                .find(isSecretPath);
-            if (secret !== undefined)
-                throw new Error(
-                    `Cloud history contains a secret-shaped file: ${JSON.stringify(secret)}.`
-                );
-        }
+        await refuseSecretHistory(repository, `${baseline.head}..${returned.head}`);
         await git(['worktree', 'add', '--detach', checkout, returned.head]);
         added = true;
         const patchPath = path.join(folder, 'return.patch');
