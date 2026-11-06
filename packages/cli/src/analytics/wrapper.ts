@@ -107,7 +107,6 @@ export function withAnalytics<A extends unknown[], R = unknown>(
             try {
                 if (analytics) {
                     await analytics.onCommandEnd(commandName, false, {
-                        error: err instanceof Error ? err.message : String(err),
                         args: argsMeta,
                     });
                 }
