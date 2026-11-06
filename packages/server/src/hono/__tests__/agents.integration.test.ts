@@ -7,6 +7,7 @@ import type { CreateDextoAppOptions } from '../index.js';
 describe('Hono API Integration Tests - Agent Routes', () => {
     let testServer: TestServer | undefined;
     let initialAgent: DextoAgent;
+    const switchAgentByPath = vi.fn<(filePath: string) => Promise<{ id: string; name: string }>>();
     let mockAgents: Array<{
         id: string;
         name: string;
@@ -49,6 +50,21 @@ describe('Hono API Integration Tests - Agent Routes', () => {
         let activeAgentId = 'test-agent-1';
         let isSwitching = false;
 
+        switchAgentByPath.mockImplementation(async (filePath: string) => {
+            if (isSwitching) throw new Error('Agent switch in progress');
+            isSwitching = true;
+            try {
+                const newAgent = await createTestAgent();
+                await newAgent.start();
+                if (activeAgent.isStarted()) await activeAgent.stop();
+                activeAgent = newAgent;
+                activeAgentId = `agent-from-${filePath}`;
+                return { id: activeAgentId, name: 'Agent from Path' };
+            } finally {
+                isSwitching = false;
+            }
+        });
+
         const agentsContext: CreateDextoAppOptions['agentsContext'] = {
             switchAgentById: async (id: string) => {
                 if (isSwitching) throw new Error('Agent switch in progress');
@@ -67,22 +83,7 @@ describe('Hono API Integration Tests - Agent Routes', () => {
                     isSwitching = false;
                 }
             },
-            switchAgentByPath: async (filePath: string) => {
-                if (isSwitching) throw new Error('Agent switch in progress');
-                isSwitching = true;
-                try {
-                    const newAgent = await createTestAgent();
-                    await newAgent.start();
-                    if (activeAgent.isStarted()) {
-                        await activeAgent.stop();
-                    }
-                    activeAgent = newAgent;
-                    activeAgentId = `agent-from-${filePath}`;
-                    return { id: activeAgentId, name: 'Agent from Path' };
-                } finally {
-                    isSwitching = false;
-                }
-            },
+            switchAgentByPath,
             resolveAgentInfo: async (id: string) => {
                 const agent = mockAgents.find((a) => a.id === id);
                 return {
@@ -105,6 +106,107 @@ describe('Hono API Integration Tests - Agent Routes', () => {
         if (testServer) {
             await testServer.cleanup();
         }
+    });
+
+    describe('Agent configuration unsafe keys', () => {
+        const baseYaml =
+            'systemPrompt: Test\nllm:\n  provider: openai\n  model: gpt-5\n  apiKey: $OPENAI_API_KEY\ntools:\n  - type: lifecycle-tools\n';
+
+        it.each(['__proto__', 'constructor', 'prototype'])(
+            'rejects %s in YAML validation and save',
+            async (key) => {
+                if (!testServer) throw new Error('Test server not initialized');
+                const yaml = `${baseYaml}    ${key}: {polluted: true}\n`;
+                const validation = await httpRequest(
+                    testServer.baseUrl,
+                    'POST',
+                    '/api/agent/validate',
+                    { yaml }
+                );
+                expect(validation.body).toMatchObject({ valid: false });
+                expect(JSON.stringify(validation.body)).toContain(
+                    `Forbidden configuration key: tools.0.${key}`
+                );
+                const save = await httpRequest(testServer.baseUrl, 'POST', '/api/agent/config', {
+                    yaml,
+                });
+                expect(save.status).toBe(400);
+                expect(JSON.stringify(save.body)).toContain(
+                    `Forbidden configuration key: tools.0.${key}`
+                );
+                expect(Object.prototype).not.toHaveProperty('polluted');
+            }
+        );
+
+        it('accepts the same YAML when the key is safe', async () => {
+            if (!testServer) throw new Error('Test server not initialized');
+            const validation = await httpRequest(
+                testServer.baseUrl,
+                'POST',
+                '/api/agent/validate',
+                { yaml: baseYaml }
+            );
+            expect(validation.body).toMatchObject({ valid: true });
+            switchAgentByPath.mockResolvedValueOnce({ id: 'test-agent', name: 'Test' });
+            const save = await httpRequest(testServer.baseUrl, 'POST', '/api/agent/config', {
+                yaml: baseYaml,
+            });
+            expect(save.status, JSON.stringify(save.body)).toBe(200);
+        });
+
+        it.each(['__proto__', 'constructor', 'prototype'])(
+            'rejects %s in custom agent config',
+            async (key) => {
+                if (!testServer) throw new Error('Test server not initialized');
+                const config = JSON.parse(
+                    `{"systemPrompt":"Test","llm":{"provider":"openai","model":"gpt-5","apiKey":"$OPENAI_API_KEY"},"tools":[{"type":"lifecycle-tools","${key}":{"polluted":true}}]}`
+                );
+                const response = await httpRequest(
+                    testServer.baseUrl,
+                    'POST',
+                    '/api/agents/custom/create',
+                    {
+                        id: 'safe-config-test',
+                        name: 'Test',
+                        description: 'Test',
+                        config,
+                    }
+                );
+                expect(response.status).toBe(400);
+                expect(JSON.stringify(response.body)).toContain(
+                    `Forbidden configuration key: config.tools.0.${key}`
+                );
+                expect(Object.prototype).not.toHaveProperty('polluted');
+            }
+        );
+
+        it('accepts the same custom agent config without the key', async () => {
+            if (!testServer) throw new Error('Test server not initialized');
+            const install = vi
+                .spyOn(AgentFactory, 'installCustomAgent')
+                .mockResolvedValue('/tmp/test-agent');
+            try {
+                const response = await httpRequest(
+                    testServer.baseUrl,
+                    'POST',
+                    '/api/agents/custom/create',
+                    {
+                        id: 'safe-config-test',
+                        name: 'Test',
+                        description: 'Test',
+                        config: {
+                            systemPrompt: 'Test',
+                            llm: { provider: 'openai', model: 'gpt-5', apiKey: '$OPENAI_API_KEY' },
+                            tools: [{ type: 'lifecycle-tools' }],
+                        },
+                    }
+                );
+                expect(response.status).toBe(201);
+                expect(install).toHaveBeenCalledOnce();
+            } finally {
+                install.mockRestore();
+            }
+        });
     });
 
     describe('Agent Management Routes', () => {

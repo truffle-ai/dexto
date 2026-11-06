@@ -1,3 +1,4 @@
+import { assertSafeConfigKeys } from '../utils/assert-safe-config-keys.js';
 import type { AgentConfig } from '../schemas/agent-config.js';
 import type { ImageDefaults } from '../image/types.js';
 import type { PlainObject } from './utils.js';
@@ -77,6 +78,8 @@ function mergePrompts(configPrompts: unknown, defaultPrompts: unknown): unknown 
  *   - prompts: when config provides prompts, image prompts are retained unless config sets prompts: []
  */
 export function applyImageDefaults(config: AgentConfig, defaults?: ImageDefaults): AgentConfig {
+    assertSafeConfigKeys(config);
+    assertSafeConfigKeys(defaults);
     if (!defaults) {
         return config;
     }
