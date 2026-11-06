@@ -15,6 +15,7 @@ vi.mock('../../../analytics/index.js', () => ({
 }));
 
 import { handleUninstallCommand } from './uninstall.js';
+import { capture } from '../../../analytics/index.js';
 
 describe('Uninstall Command', () => {
     let consoleSpy: ReturnType<typeof vi.spyOn>;
@@ -57,6 +58,14 @@ describe('Uninstall Command', () => {
     });
 
     describe('Single agent uninstall', () => {
+        it('does not send agent names or error messages in analytics', async () => {
+            getInstalledAgents.mockResolvedValue(['private-agent']);
+            uninstallAgent.mockRejectedValue(new Error('synthetic-private-error'));
+            await expect(handleUninstallCommand(['private-agent'], {})).rejects.toThrow();
+            const events = JSON.stringify(vi.mocked(capture).mock.calls);
+            expect(events).not.toContain('private-agent');
+            expect(events).not.toContain('synthetic-private-error');
+        });
         it('successfully uninstalls existing agent', async () => {
             getInstalledAgents.mockResolvedValue(['test-agent']);
             uninstallAgent.mockResolvedValue(undefined);

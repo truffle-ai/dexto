@@ -244,7 +244,6 @@ export async function handleInstallCommand(
                     );
                     skipped.push(metadata.agentName);
                     capture('dexto_install_agent', {
-                        agent: metadata.agentName,
                         status: 'skipped',
                         reason: 'already_installed',
                         force: validated.force,
@@ -267,7 +266,6 @@ export async function handleInstallCommand(
                 p.outro('🎉 Custom agent installed successfully!');
 
                 capture('dexto_install_agent', {
-                    agent: metadata.agentName,
                     status: 'installed',
                     force: validated.force,
                 });
@@ -282,7 +280,6 @@ export async function handleInstallCommand(
                     console.log(`⏭️  ${agentInput} already installed (use --force to reinstall)`);
                     skipped.push(agentInput);
                     capture('dexto_install_agent', {
-                        agent: agentInput,
                         status: 'skipped',
                         reason: 'already_installed',
                         force: validated.force,
@@ -296,7 +293,6 @@ export async function handleInstallCommand(
                 installed.push(agentInput);
 
                 capture('dexto_install_agent', {
-                    agent: agentInput,
                     status: 'installed',
                     force: validated.force,
                 });
@@ -308,12 +304,8 @@ export async function handleInstallCommand(
             failed.push(agentInput);
             console.error(`❌ ${errorMsg}`);
 
-            // Sanitize agent identifier for analytics (avoid sending full local paths)
-            const safeAgentId = isFilePath(agentInput) ? path.basename(agentInput) : agentInput;
             capture('dexto_install_agent', {
-                agent: safeAgentId,
                 status: 'failed',
-                error_message: error instanceof Error ? error.message : String(error),
                 force: validated.force,
             });
         }
@@ -322,10 +314,10 @@ export async function handleInstallCommand(
     // Emit analytics for both single- and multi-agent cases
     try {
         capture('dexto_install', {
-            requested: agentsToInstall,
-            installed,
-            skipped,
-            failed,
+            requestedCount: agentsToInstall.length,
+            installedCount: installed.length,
+            skippedCount: skipped.length,
+            failedCount: failed.length,
             successCount,
             errorCount,
         });

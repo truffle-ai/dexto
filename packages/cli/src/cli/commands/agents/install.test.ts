@@ -54,6 +54,7 @@ import {
     listInstalledAgents,
 } from '../../../utils/agent-helpers.js';
 import { loadBundledRegistryAgents } from '@dexto/agent-management';
+import { capture } from '../../../analytics/index.js';
 
 describe('Install Command', () => {
     let consoleSpy: any;
@@ -125,6 +126,13 @@ describe('Install Command', () => {
     });
 
     describe('Single agent installation', () => {
+        it('does not send agent names or error messages in analytics', async () => {
+            vi.mocked(installBundledAgent).mockRejectedValue(new Error('synthetic-private-error'));
+            await expect(handleInstallCommand(['test-agent'], {})).rejects.toThrow();
+            const events = JSON.stringify(vi.mocked(capture).mock.calls);
+            expect(events).not.toContain('test-agent');
+            expect(events).not.toContain('synthetic-private-error');
+        });
         it('installs single agent', async () => {
             await handleInstallCommand(['test-agent'], {});
 
