@@ -124,10 +124,21 @@ describe('raw MCP HTTP authorization', () => {
             expect(handlers.handleGet).not.toHaveBeenCalled();
         });
     });
-    it('preserves the development default even if a server key is set', async () => {
+    it('enforces the bearer key whenever one is set, even in development', async () => {
         setPolicy('development', 'false');
         await withServer(async (baseUrl) => {
+            expect((await fetch(`${baseUrl}/mcp`)).status).toBe(401);
+            expect((await fetch(`${baseUrl}/rest`)).status).toBe(401);
+            const authorized = { headers: { Authorization: 'Bearer synthetic-server-key' } };
+            expect((await fetch(`${baseUrl}/mcp`, authorized)).status).toBe(200);
+            expect((await fetch(`${baseUrl}/rest`, authorized)).status).toBe(200);
+        });
+    });
+    it('allows unauthenticated loopback development only when no key is set', async () => {
+        setPolicy('development', 'false', '');
+        await withServer(async (baseUrl) => {
             expect((await fetch(`${baseUrl}/mcp`)).status).toBe(200);
+            expect((await fetch(`${baseUrl}/rest`)).status).toBe(200);
         });
     });
     it('honors the shared external-auth opt-out rather than re-reading environment policy', async () => {
@@ -141,7 +152,7 @@ describe('raw MCP HTTP authorization', () => {
         );
     });
     it('matches only the exact MCP pathname and retains REST routes', async () => {
-        setPolicy('development', 'false');
+        setPolicy('development', 'false', '');
         await withServer(async (baseUrl, handlers) => {
             for (const path of ['/mcp/servers', '/mcpx']) {
                 expect(await (await fetch(`${baseUrl}${path}`)).json()).toEqual({ rest: true });

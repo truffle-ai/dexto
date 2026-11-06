@@ -5,6 +5,7 @@ import type { UpdateInfo } from '../utils/version-check.js';
 export interface MainModeOptions {
     mode: string;
     port?: string;
+    host?: string;
     resume?: string;
     continue?: boolean;
     bypassPermissions?: boolean;

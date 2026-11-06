@@ -51,6 +51,7 @@ RUN chmod +x /usr/local/bin/dexto-entrypoint
 # Environment
 ENV NODE_ENV=production \
     PORT=3001 \
+    DEXTO_SERVER_HOST=0.0.0.0 \
     HOME=/app \
     CONFIG_FILE=/app/dist/agents/coding-agent/coding-agent.yml \
     PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
