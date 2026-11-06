@@ -4,6 +4,7 @@ import { createServer } from 'node:http';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { openBrowserUrl } from './browser-launch.js';
 import { dextoSignIn } from '@dexto/agent-management';
+import { safeSignInPrompt } from '../commands/auth/sign-in-commands.js';
 
 type RedirectListener = dextoSignIn.RedirectListener;
 type SignInRuntime = dextoSignIn.SignInRuntime;
@@ -52,7 +53,8 @@ export function nodeSignInRuntime(signal: AbortSignal): SignInRuntime {
     return {
         fetch: globalThis.fetch,
         signal,
-        prompt: (prompt) => process.stderr.write(`${dextoSignIn.signInPromptText(prompt)}\n`),
+        prompt: (prompt) =>
+            process.stderr.write(`${dextoSignIn.signInPromptText(safeSignInPrompt(prompt))}\n`),
         openBrowser: async (url) => {
             try {
                 await openBrowserUrl(url);

@@ -33,6 +33,19 @@ describe('Signal text from a server', () => {
         expect(safeText('Acme · ◆ café 日本')).toBe('Acme · ◆ café 日本');
     });
 
+    it('takes out bidi controls, zero-width characters and tag characters', () => {
+        // An override that makes `exe.txt` read as `txt.exe`, and isolates and marks.
+        expect(safeText('invoice\u202Etxt.exe')).toBe('invoicetxt.exe');
+        expect(
+            safeText('\u202Aa\u202Bb\u202Cc\u202Dd\u2066e\u2067f\u2068g\u2069h\u200Ei\u200Fj')
+        ).toBe('abcdefghij');
+        expect(safeText('ac\u200Bme\u200C co\u2060rp\uFEFF')).toBe('acme corp');
+        expect(safeText('hidden\u{E0041}\u{E0042}\u{E007F} tags')).toBe('hidden tags');
+        expect(safeHref('https://dexto.ai/\u202Eevil')).toBeNull();
+        // The zero-width joiner stays, so emoji sequences keep together.
+        expect(safeText('family 👩\u200D👩\u200D👧')).toBe('family 👩\u200D👩\u200D👧');
+    });
+
     it.each(TERMINAL_NAMES)('draws no escape of its own from server text on %s', (terminal) => {
         const name = `Acme${ESC}]8;;https://evil.example${BEL}click${ESC}]8;;${BEL}${ESC}[2J\u009B2J`;
         const out = drawText(terminal, () => [

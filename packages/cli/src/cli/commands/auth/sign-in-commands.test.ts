@@ -491,6 +491,143 @@ describe('sign-in commands', () => {
         ]);
     });
 
+    describe('with control characters in server text', () => {
+        // ESC[2J clears the screen, OSC 0 sets the title, CSI as one C1 byte sets a colour.
+        const HOSTILE = 'Evil\u001B[2J Org\u001B]0;pwned\u0007 \u009B31mInc';
+        // eslint-disable-next-line no-control-regex
+        const CONTROLS = /[\u001B\u0007\u0080-\u009F]/u;
+        const EVIL = { id: 'org_evil', name: HOSTILE, slug: `evil${HOSTILE}` };
+        const evilLogin = (overrides: Partial<OAuthLogin> = {}) =>
+            signedIn(EVIL, {
+                signedInAs: {
+                    account: { email: `ada${HOSTILE}@example.com`, id: 'acc_1', name: 'Ada' },
+                    organization: EVIL,
+                },
+                scopes: ['cloud:read', `cloud:${HOSTILE}`],
+                ...overrides,
+            });
+        const expectClean = (text: string | undefined) => {
+            expect(text).toBeDefined();
+            expect(text).not.toMatch(CONTROLS);
+            expect(text).toContain('Evil[2J Org]0;pwned 31mInc');
+        };
+
+        it('strips them from the signed-in words, project name included', async () => {
+            organization = EVIL;
+            projects = [{ id: 'prj_main', name: HOSTILE, isDefault: true, archived: false }];
+            context = {
+                ...context,
+                dexto: { ...context.dexto, signInWithBrowser: async () => evilLogin() },
+            };
+
+            await login(context, noOptions);
+
+            expect(printed).toHaveLength(1);
+            expectClean(printed[0]);
+            expect(printed[0]).toContain('Signed in as adaEvil[2J Org]0;pwned 31mInc@example.com');
+            expect(printed[0]).toContain('Dexto models bill Cloud project Evil[2J');
+            expect(JSON.stringify(values)).toContain('\\u001b[2J');
+        });
+
+        it('strips them from the organization conflict', async () => {
+            await writeLogin(dir, 'acme', evilLogin());
+            organization = { ...ACME, name: HOSTILE };
+
+            const failure = await login(context, { ...noOptions, org: 'acme' }).catch(
+                (error: unknown) => error
+            );
+
+            expect(failure).toBeInstanceOf(Error);
+            const message = (failure as Error).message;
+            expectClean(message);
+            expect(message).toContain('The profile acme already signs in to Evil[2J');
+        });
+
+        it('strips them from the sign-in prompt: code and links', () => {
+            const shown: string[] = [];
+            const screen = plainSignInScreen((text) => shown.push(text));
+
+            screen.show({ kind: 'browser', authorizeUrl: `${APP}/authorize?x=${HOSTILE}` });
+            screen.show({
+                kind: 'device',
+                userCode: `ABCD${HOSTILE}`,
+                verificationUri: `${APP}/device${HOSTILE}`,
+                verificationUriComplete: null,
+                expiresInSeconds: 600,
+            });
+            screen.show({
+                kind: 'device',
+                userCode: `ABCD${HOSTILE}`,
+                verificationUri: `${APP}/device`,
+                verificationUriComplete: `${APP}/device?code=${HOSTILE}`,
+                expiresInSeconds: 600,
+            });
+
+            expect(shown).toHaveLength(3);
+            shown.forEach(expectClean);
+            // The prompt's own line breaks stay.
+            expect(shown[1]).toContain(
+                'To sign in, open this link on any device and enter ABCDEvil[2J'
+            );
+            expect(shown[1]?.split('\n')).toHaveLength(3);
+        });
+
+        it('strips them from describeSignIn', async () => {
+            await writeLogin(dir, 'default', evilLogin());
+            expectClean((await describeSignIn(context)) ?? undefined);
+
+            await writeLogin(
+                dir,
+                'default',
+                evilLogin({ signedInAs: null, appUrl: `${APP}/${HOSTILE}` })
+            );
+            expectClean((await describeSignIn(context)) ?? undefined);
+        });
+
+        it('strips them from whoami', async () => {
+            await writeLogin(dir, 'default', evilLogin({ appUrl: `${APP}/${HOSTILE}` }));
+
+            await whoami(context, { profile: null, apiKey: null });
+
+            expectClean(printed[0]);
+            const lines = printed[0]?.split('\n') ?? [];
+            expect(lines).toHaveLength(5);
+            expect(lines[2]).toBe(
+                'organization  Evil[2J Org]0;pwned 31mInc (evilEvil[2J Org]0;pwned 31mInc)'
+            );
+        });
+
+        it('strips them from the accounts list and the remove question', async () => {
+            await writeLogin(dir, 'default', evilLogin());
+            await writeLogin(
+                dir,
+                'other',
+                evilLogin({ signedInAs: null, appUrl: `${APP}/${HOSTILE}` })
+            );
+
+            await listAccounts(context, { profile: null });
+            expectClean(printed[0]);
+            expect(printed[0]?.split('\n')).toHaveLength(2);
+
+            for (const name of ['default', 'other']) {
+                const failure = await removeAccount(context, name, { yes: false }).catch(
+                    (error: unknown) => error
+                );
+                expectClean((failure as Error).message);
+            }
+        });
+
+        it("strips them from the note when the server couldn't end a sign-in", async () => {
+            await writeLogin(dir, 'default', evilLogin());
+            endResult = { status: 'failed', reason: HOSTILE };
+
+            await logout(context, { profile: null });
+
+            expect(notes).toHaveLength(1);
+            expectClean(notes[0]);
+        });
+    });
+
     describe('on Signal', () => {
         const withSignal = <T>(run: () => Promise<T>) => onTerminal('no-color', run);
 

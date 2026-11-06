@@ -68,14 +68,21 @@ export function spansWidth(spans: readonly Span[]): number {
 const SPACING_CONTROLS = /[\t\n\r]/gu;
 // eslint-disable-next-line no-control-regex
 const CONTROLS = /[\u0000-\u001F\u007F-\u009F]/gu;
+// Characters that change how text reads without showing: bidi marks, embeddings, overrides and
+// isolates (U+200E/200F, U+202A-202E, U+2066-2069), zero-width space and non-joiner (U+200B,
+// U+200C), word joiner (U+2060), BOM (U+FEFF) and tag characters (U+E0000-E007F). The
+// zero-width joiner (U+200D) stays: emoji sequences need it.
+const INVISIBLES =
+    /[\u200B\u200C\u200E\u200F\u202A-\u202E\u2060\u2066-\u2069\uFEFF\u{E0000}-\u{E007F}]/gu;
 
 /**
  * Text with its control characters taken out. Span text can come from a server (a name, an
  * error message), and an ESC or C1 in it could move the cursor, rewrite the title or start a
- * link of its own.
+ * link of its own; a bidi override or an invisible character could make it read as something
+ * else.
  */
 export function safeText(text: string): string {
-    return text.replace(SPACING_CONTROLS, ' ').replace(CONTROLS, '');
+    return text.replace(SPACING_CONTROLS, ' ').replace(CONTROLS, '').replace(INVISIBLES, '');
 }
 
 /**

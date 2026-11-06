@@ -235,6 +235,34 @@ describe('dexto cloud', () => {
         expect(granted).toEqual([]);
     });
 
+    it('strips control characters from the API error on the plain stderr notes', async () => {
+        // ESC[2J clears the screen, OSC 0 sets the title, CSI as one C1 byte sets a colour.
+        const hostile = 'Evil\u001B[2J Org\u001B]0;pwned\u0007 \u009B31mInc';
+        await dextoAccounts.writeLogin(dir, 'default', signedIn());
+        reply = () =>
+            Response.json(
+                {
+                    error: {
+                        code: `expired${hostile}`,
+                        message: `Session expired for ${hostile}.`,
+                        requestId: 'req_3',
+                        retryable: false,
+                    },
+                },
+                { status: 401 }
+            );
+
+        const code = await runCloud(host, ['cloud', 'projects', 'list', '--table']);
+
+        expect(code).toBe(3);
+        // eslint-disable-next-line no-control-regex
+        expect(stderr).not.toMatch(/[\u001B\u0007\u0080-\u009F]/u);
+        expect(stderr).toContain(
+            'Error (expiredEvil[2J Org]0;pwned 31mInc): Session expired for Evil[2J Org]0;pwned 31mInc.\n'
+        );
+        expect(stderr).toContain('Run: dexto login');
+    });
+
     it('maps a missing resource to exit 5', async () => {
         await dextoAccounts.writeLogin(dir, 'default', signedIn());
         reply = () =>

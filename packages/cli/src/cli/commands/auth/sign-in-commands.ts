@@ -3,7 +3,7 @@
 import { CommandFailure, NOT_SIGNED_IN } from '../../failure.js';
 
 import { dextoAccounts, dextoSignIn, type dextoCloud } from '@dexto/agent-management';
-import { signalOn } from '@dexto/tui/signal-text';
+import { safeText, signalOn } from '@dexto/tui/signal-text';
 import { CHAT_SYNC_SCOPE } from '../../chat-sync/host.js';
 import { loginCommand, UsageError } from '../../cloud/command.js';
 import { isSshSession } from '../../auth/ssh.js';
@@ -67,14 +67,14 @@ export interface SignInScreen {
 export function plainSignInScreen(note: (text: string) => void): SignInScreen {
     return {
         look: 'plain',
-        show: (prompt) => note(dextoSignIn.signInPromptText(prompt)),
+        show: (prompt) => note(dextoSignIn.signInPromptText(safeSignInPrompt(prompt))),
         settle: () => undefined,
         signedInText: (signedIn) =>
             [
                 `Signed in${describeSignedInAs(signedIn.signedInAs)}${signedIn.profile === DEFAULT_PROFILE ? '' : ` (profile ${signedIn.profile})`}.`,
                 signedIn.cloudProject === null
                     ? 'This organization has no Cloud project for Dexto models to bill.'
-                    : `Dexto models bill Cloud project ${signedIn.cloudProject}.`,
+                    : `Dexto models bill Cloud project ${safeText(signedIn.cloudProject)}.`,
                 ...(signedIn.notCurrent
                     ? [
                           `Other commands still use another profile: pass --profile ${signedIn.profile}, or run dexto accounts use ${signedIn.profile}.`,
@@ -175,7 +175,7 @@ export async function login(context: SignInContext, options: LoginOptions): Prom
         savedOrganization.id !== newOrganization.id
     )
         throw new UsageError(
-            `The profile ${profile} already signs in to ${savedOrganization.name}. Sign in to ${newOrganization.name} with --profile <name> to keep both.`
+            `The profile ${profile} already signs in to ${safeText(savedOrganization.name)}. Sign in to ${safeText(newOrganization.name)} with --profile <name> to keep both.`
         );
 
     const withProject = {
@@ -262,8 +262,8 @@ export async function describeSignIn(context: SignInContext): Promise<string | n
     if (saved.kind === 'api_key') return `API key ${maskApiKey(saved.apiKey)}${suffix}`;
     const who =
         saved.signedInAs === null
-            ? saved.appUrl
-            : `${saved.signedInAs.account.email} in ${saved.signedInAs.organization.name}`;
+            ? safeText(saved.appUrl)
+            : `${safeText(saved.signedInAs.account.email)} in ${safeText(saved.signedInAs.organization.name)}`;
     return `${who}${suffix}`;
 }
 
@@ -290,7 +290,7 @@ async function logOutProfile(context: SignInContext, profile: string): Promise<b
         const ended = await context.dexto.endSignIn(saved);
         if (ended.status === 'failed')
             context.note(
-                `Couldn't end the sign-in on ${saved.appUrl} (${ended.reason}). Sign it out at ${new URL('/settings/sign-ins', saved.appUrl).href}, or it keeps working until it expires.`
+                `Couldn't end the sign-in on ${safeText(saved.appUrl)} (${safeText(ended.reason)}). Sign it out at ${safeText(new URL('/settings/sign-ins', saved.appUrl).href)}, or it keeps working until it expires.`
             );
     }
     return await forgetLogin(context.dir, profile);
@@ -340,15 +340,15 @@ export async function whoami(
         ? whoamiLines(credential.profile, saved).join('\n')
         : [
               field('profile', credential.profile),
-              field('account', saved.signedInAs?.account.email ?? 'unknown'),
+              field('account', safeText(saved.signedInAs?.account.email ?? 'unknown')),
               field(
                   'organization',
                   saved.signedInAs === null
                       ? 'unknown'
-                      : `${saved.signedInAs.organization.name} (${saved.signedInAs.organization.slug})`
+                      : `${safeText(saved.signedInAs.organization.name)} (${safeText(saved.signedInAs.organization.slug)})`
               ),
-              field('app', saved.appUrl),
-              field('scopes', saved.scopes.join(' ')),
+              field('app', safeText(saved.appUrl)),
+              field('scopes', safeText(saved.scopes.join(' '))),
           ].join('\n');
     context.result(
         {
@@ -380,8 +380,10 @@ export async function listAccounts(
     }));
     const rows = accounts.map((account) => [
         `${account.current ? '*' : ' '} ${account.profile}`,
-        account.key !== null ? `API key ${account.key}` : (account.account?.email ?? account.url),
-        account.organization?.name ?? '',
+        account.key !== null
+            ? `API key ${account.key}`
+            : safeText(account.account?.email ?? account.url),
+        safeText(account.organization?.name ?? ''),
     ]);
     context.result(
         { data: accounts },
@@ -443,15 +445,33 @@ async function requireSaved(
 function describeProfile(name: string, saved: StoredLogin): string {
     if (saved.kind === 'api_key') return `${name} (API key ${maskApiKey(saved.apiKey)})`;
     return saved.signedInAs === null
-        ? `${name} (${saved.appUrl})`
-        : `${name} (${saved.signedInAs.account.email} in ${saved.signedInAs.organization.name})`;
+        ? `${name} (${safeText(saved.appUrl)})`
+        : `${name} (${safeText(saved.signedInAs.account.email)} in ${safeText(saved.signedInAs.organization.name)})`;
 }
 
 /** ` as ada@example.com in Acme`, or nothing when the server didn't say. */
 function describeSignedInAs(signedInAs: SignedInAs | null): string {
     return signedInAs === null
         ? ''
-        : ` as ${signedInAs.account.email} in ${signedInAs.organization.name}`;
+        : ` as ${safeText(signedInAs.account.email)} in ${safeText(signedInAs.organization.name)}`;
+}
+
+/**
+ * The prompt with its server values (the code and links) stripped of control characters, for
+ * the plain words in `signInPromptText`.
+ */
+export function safeSignInPrompt(prompt: SignInPrompt): SignInPrompt {
+    if (prompt.kind === 'browser')
+        return { ...prompt, authorizeUrl: safeText(prompt.authorizeUrl) };
+    return {
+        ...prompt,
+        userCode: safeText(prompt.userCode),
+        verificationUri: safeText(prompt.verificationUri),
+        verificationUriComplete:
+            prompt.verificationUriComplete === null
+                ? null
+                : safeText(prompt.verificationUriComplete),
+    };
 }
 
 /** `dxt_123…abcd`: enough to recognize a key without showing it. */
