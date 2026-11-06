@@ -60,12 +60,6 @@ cloud-data-deletions-create
 cloud-data-deletions-get
 cloud-data-deletions-list
 cloud-fetch
-cloud-files-delete
-cloud-files-download
-cloud-files-get
-cloud-files-list
-cloud-files-upload
-cloud-files-url
 cloud-functions-deploy
 cloud-functions-list
 models-list
