@@ -56,6 +56,8 @@ These rules are intended to prevent stack fragmentation and review churn.
   starts, return a cursor and resume command instead of allowing that retry to start it again.
 - Chat follow JSON output stays NDJSON through read errors and interruption, with one final
   record. Stopping a follow never cancels the remote chat.
+- Bound each in-flight wait/follow read with a client deadline as well as the server wait budget;
+  clear its timer and interruption listener when the read ends.
 
 ### TUI (`packages/tui`)
 

@@ -388,19 +388,37 @@ async function followChat(
     firstTool: 'dexto_chat_wait' | 'dexto_chat_follow' = 'dexto_chat_follow'
 ): Promise<number> {
     let tool = firstTool;
+    let timedOut = false;
     try {
         for (;;) {
             context.runtime.signal.throwIfAborted();
-            const page = FollowResultSchema.parse(
-                await queryWorkspaceTool(context, tool, {
-                    sessionId,
-                    ...(cursor === undefined ? {} : { cursor }),
-                    waitSeconds: Math.min(
-                        25,
-                        Math.max(0, Math.ceil((deadline - Date.now()) / 1000))
-                    ),
-                })
+            const remainingMs = Math.max(0, deadline - Date.now());
+            const waitSeconds = Math.min(25, Math.ceil(remainingMs / 1000));
+            const read = new AbortController();
+            const onInterrupt = () => read.abort(context.runtime.signal.reason);
+            context.runtime.signal.addEventListener('abort', onInterrupt, { once: true });
+            timedOut = false;
+            // Bound stalled reads too, with a small transport grace beyond the server's budget.
+            const timer = setTimeout(
+                () => {
+                    timedOut = true;
+                    read.abort();
+                },
+                Math.min(25_000, remainingMs) + 1_500
             );
+            let page: z.output<typeof FollowResultSchema>;
+            try {
+                page = FollowResultSchema.parse(
+                    await queryWorkspaceTool(
+                        { ...context, runtime: { ...context.runtime, signal: read.signal } },
+                        tool,
+                        { sessionId, ...(cursor === undefined ? {} : { cursor }), waitSeconds }
+                    )
+                );
+            } finally {
+                clearTimeout(timer);
+                context.runtime.signal.removeEventListener('abort', onInterrupt);
+            }
             tool = 'dexto_chat_follow';
             for (const event of page.events) {
                 if (context.output.json)
@@ -441,10 +459,12 @@ async function followChat(
             type: 'final',
             ...(interrupted
                 ? { outcome: 'running', interrupted: true }
-                : {
-                      outcome: 'error',
-                      error: { kind: failure.kind, message: failure.message, fix: failure.fix },
-                  }),
+                : timedOut
+                  ? { outcome: 'running', timedOut: true }
+                  : {
+                        outcome: 'error',
+                        error: { kind: failure.kind, message: failure.message, fix: failure.fix },
+                    }),
             session: { id: sessionId },
             cursor: cursor ?? null,
             nextAction: {
@@ -456,9 +476,9 @@ async function followChat(
         else
             context.output.result(
                 result,
-                `Stopped following ${sessionId}.\n${interrupted ? 'Interrupted.' : failure.message}\n${interrupted || failure.fix === null ? '' : `${failure.fix}\n`}Resume: dexto chat follow ${sessionId}${cursor === undefined ? '' : ` --cursor ${cursor}`}`
+                `Stopped following ${sessionId}.\n${interrupted ? 'Interrupted.' : timedOut ? 'Read deadline reached.' : failure.message}\n${interrupted || timedOut || failure.fix === null ? '' : `${failure.fix}\n`}Resume: dexto chat follow ${sessionId}${cursor === undefined ? '' : ` --cursor ${cursor}`}`
             );
-        return interrupted ? 130 : EXIT_CODES[failure.kind];
+        return interrupted ? 130 : timedOut ? 6 : EXIT_CODES[failure.kind];
     }
 }
 

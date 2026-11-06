@@ -360,6 +360,68 @@ describe('dexto workspace', () => {
         });
     });
 
+    it.each(['follow', 'start'])(
+        'a stalled %s read respects --timeout and remains resumable',
+        async (command) => {
+            let readSignal: AbortSignal | null = null;
+            const stalledHost: CloudHost = {
+                ...host,
+                runtime: {
+                    ...host.runtime,
+                    fetch: async (input, init) => {
+                        const request = new globalThis.Request(input, init);
+                        const message = JSON.parse(await request.clone().text());
+                        if (
+                            message.params?.name === 'dexto_chat_wait' ||
+                            message.params?.name === 'dexto_chat_follow'
+                        ) {
+                            readSignal = request.signal;
+                            request.signal.throwIfAborted();
+                            return new Promise((_resolve, reject) =>
+                                request.signal.addEventListener(
+                                    'abort',
+                                    () => reject(request.signal.reason),
+                                    { once: true }
+                                )
+                            );
+                        }
+                        return host.runtime.fetch(request);
+                    },
+                },
+            };
+            const args =
+                command === 'start'
+                    ? ['chat', 'start', 'Hello', '--wait', '--timeout', '0', '--json']
+                    : [
+                          'chat',
+                          'follow',
+                          'chat-1',
+                          '--cursor',
+                          'chat-1:0',
+                          '--timeout',
+                          '0',
+                          '--json',
+                      ];
+            expect(await runCloud(stalledHost, args)).toBe(6);
+            expect(readSignal).toMatchObject({ aborted: true });
+            const lines = stdout
+                .trim()
+                .split('\n')
+                .map((line) => JSON.parse(line));
+            expect(lines).toHaveLength(1);
+            expect(lines[0]).toMatchObject({
+                type: 'final',
+                outcome: 'running',
+                nextAction: { tool: 'dexto_chat_follow', arguments: { sessionId: 'chat-1' } },
+                cursor: command === 'follow' ? 'chat-1:0' : null,
+            });
+            expect(calls.filter((call) => call.params.name === 'dexto_chat_start')).toHaveLength(
+                command === 'start' ? 1 : 0
+            );
+            expect(calls.some((call) => call.params.name === 'dexto_chat_cancel')).toBe(false);
+        }
+    );
+
     it.each(['failed', 'cancelled'])('follow reports %s with a nonzero exit', async (outcome) => {
         followResponses = [page(outcome)];
         expect(await runCloud(host, ['chat', 'follow', 'chat-1', '--json'])).toBe(1);
