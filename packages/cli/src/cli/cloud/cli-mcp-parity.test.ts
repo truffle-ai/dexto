@@ -29,22 +29,6 @@ const catalog = z
 // Approved S0 debt ceiling. Remove closed exceptions; never extend this baseline.
 const approvedExceptions = new Set(
     `billing
-cloud-agents-approve
-cloud-agents-archive
-cloud-agents-chat
-cloud-agents-create
-cloud-agents-reject
-cloud-agents-get
-cloud-agents-list
-cloud-agents-messages
-cloud-agents-runs-get
-cloud-agents-runs-list
-cloud-agents-runs-steps
-cloud-agents-sessions-cancel
-cloud-agents-sessions-delete
-cloud-agents-sessions-get
-cloud-agents-sessions-list
-cloud-agents-update
 cloud-api
 cloud-automations-rotate-secret
 cloud-data-deletions-create

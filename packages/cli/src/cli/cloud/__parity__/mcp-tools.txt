@@ -3994,6 +3994,1388 @@
         "$schema": "http://json-schema.org/draft-07/schema#",
         "type": "object",
         "properties": {
+          "agentId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The agent's id, from dexto_cloud_agents_list."
+          },
+          "cloudProjectId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The Cloud project to act in: its id, as the CLI's selected project or GET /v1/projects lists it."
+          },
+          "sessionId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The session's id, from dexto_cloud_agents_sessions_list or a run's session_id."
+          },
+          "approvalId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The approval's id: the pending approval.id of a tool call step in dexto_cloud_agents_runs_steps."
+          },
+          "confirm": {
+            "description": "Set to true only after the person agreed to this exact call. Dexto refuses an approve or money call without it.",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "agentId",
+          "cloudProjectId",
+          "sessionId",
+          "approvalId"
+        ],
+        "additionalProperties": false
+      },
+      "name": "dexto_cloud_agents_approve"
+    },
+    {
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "agentId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The agent's id, from dexto_cloud_agents_list."
+          },
+          "cloudProjectId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The Cloud project to act in: its id, as the CLI's selected project or GET /v1/projects lists it."
+          }
+        },
+        "required": [
+          "agentId",
+          "cloudProjectId"
+        ],
+        "additionalProperties": false
+      },
+      "name": "dexto_cloud_agents_archive"
+    },
+    {
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "agentId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The agent's id, from dexto_cloud_agents_list."
+          },
+          "cloudProjectId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The Cloud project to act in: its id, as the CLI's selected project or GET /v1/projects lists it."
+          },
+          "content": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32000,
+            "description": "The message to send, as the session's end user."
+          },
+          "idempotencyKey": {
+            "description": "With sessionId, retry a message safely: a key already sent in that session returns its original run instead of starting another.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "sessionId": {
+            "description": "Continue this session; omit to start a new one.",
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "user": {
+            "description": "The end-user label of a new session, mcp by default. Only without sessionId.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        },
+        "required": [
+          "agentId",
+          "cloudProjectId",
+          "content"
+        ],
+        "additionalProperties": false
+      },
+      "name": "dexto_cloud_agents_chat"
+    },
+    {
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "description": {
+            "default": null,
+            "description": "Optional description for your own reference.",
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "instructions": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32000,
+            "description": "The agent's system instructions."
+          },
+          "model": {
+            "default": null,
+            "description": "A model id from GET /v1/models. Leave null to use your plan's model.",
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "description": "Display name."
+          },
+          "tools": {
+            "default": [],
+            "description": "Every tool the agent may use. Runs get nothing else.",
+            "maxItems": 20,
+            "type": "array",
+            "items": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "require_approval": {
+                      "default": false,
+                      "description": "Pause the run for an approval before each search.",
+                      "type": "boolean"
+                    },
+                    "type": {
+                      "type": "string",
+                      "const": "web_search",
+                      "description": "Searches the web."
+                    }
+                  },
+                  "required": [
+                    "type"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "require_approval": {
+                      "default": false,
+                      "description": "Pause the run for an approval before each fetch.",
+                      "type": "boolean"
+                    },
+                    "type": {
+                      "type": "string",
+                      "const": "web_fetch",
+                      "description": "Reads the text of web pages by URL, up to 10 per call."
+                    }
+                  },
+                  "required": [
+                    "type"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "prefix": {
+                      "default": "",
+                      "description": "Only files whose path starts with this, ending in \"/\" (such as knowledge/). Empty reaches every file of the project.",
+                      "type": "string",
+                      "maxLength": 1024
+                    },
+                    "read_only": {
+                      "default": false,
+                      "description": "Give the agent only read_file, read_media_file, glob_files and search_files.",
+                      "type": "boolean"
+                    },
+                    "require_approval": {
+                      "default": false,
+                      "description": "Pause the run for an approval before each write_file, edit_file, delete_file and share_file call. Reads never ask.",
+                      "type": "boolean"
+                    },
+                    "type": {
+                      "type": "string",
+                      "const": "files",
+                      "description": "Gives the agent file tools on this API key's Cloud project's files under the prefix, which the agent sees as /: read_file, read_media_file, write_file, edit_file, glob_files, search_files, delete_file and share_file. Stored bytes are charged to the project."
+                    }
+                  },
+                  "required": [
+                    "type"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "deployment_id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                      "description": "The ready Function deployment to call."
+                    },
+                    "name": {
+                      "type": "string",
+                      "pattern": "^[a-z][a-z0-9_]{0,31}$",
+                      "description": "Lowercase tool name. Each operation becomes the model tool <name>_<operation>."
+                    },
+                    "operations": {
+                      "minItems": 1,
+                      "maxItems": 20,
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 128
+                      },
+                      "description": "Published operations the agent may call."
+                    },
+                    "project_id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                      "description": "A Function you own in this organization."
+                    },
+                    "require_approval": {
+                      "default": false,
+                      "description": "Pause the run for an approval before each call.",
+                      "type": "boolean"
+                    },
+                    "type": {
+                      "type": "string",
+                      "const": "function",
+                      "description": "Calls operations of your own Function."
+                    }
+                  },
+                  "required": [
+                    "deployment_id",
+                    "name",
+                    "operations",
+                    "project_id",
+                    "type"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "require_approval": {
+                      "default": false,
+                      "description": "Pause the run for an approval before each sandbox call.",
+                      "type": "boolean"
+                    },
+                    "sandbox": {
+                      "oneOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "sandbox_id": {
+                              "type": "string",
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                              "description": "A sandbox in this API key's Cloud project."
+                            },
+                            "type": {
+                              "type": "string",
+                              "const": "project",
+                              "description": "Every run shares this sandbox."
+                            }
+                          },
+                          "required": [
+                            "sandbox_id",
+                            "type"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "size": {
+                              "type": "string",
+                              "enum": [
+                                "large"
+                              ]
+                            },
+                            "type": {
+                              "type": "string",
+                              "const": "session",
+                              "description": "Each session gets its own sandbox, created on first use and deleted when the session ends: its agent is archived, or it has had no run for 24 hours."
+                            }
+                          },
+                          "required": [
+                            "size",
+                            "type"
+                          ],
+                          "additionalProperties": false
+                        }
+                      ],
+                      "description": "Which sandbox the agent works in."
+                    },
+                    "secrets": {
+                      "default": [],
+                      "description": "Names of this key's Cloud project's secrets the agent's commands may use. Each command sees the name as an environment variable holding a placeholder, and Dexto attaches the real value to HTTPS requests to that secret's hosts. At most one secret per host.",
+                      "maxItems": 20,
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 64
+                      }
+                    },
+                    "type": {
+                      "type": "string",
+                      "const": "sandbox",
+                      "description": "Starts and pauses a sandbox, works with its files and runs commands in it. Its compute is paid from credits."
+                    }
+                  },
+                  "required": [
+                    "sandbox",
+                    "type"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "auth": {
+                      "default": null,
+                      "description": "The server's credential; null for a server that needs none.",
+                      "anyOf": [
+                        {
+                          "oneOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "secret": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 64,
+                                  "description": "A secret of this key's Cloud project whose hosts include the server's host. Dexto sends it with each request as the secret's placement says."
+                                },
+                                "type": {
+                                  "type": "string",
+                                  "const": "secret"
+                                }
+                              },
+                              "required": [
+                                "secret",
+                                "type"
+                              ],
+                              "additionalProperties": false
+                            }
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "name": {
+                      "type": "string",
+                      "pattern": "^[a-z][a-z0-9_]{0,31}$",
+                      "description": "Lowercase tool name. Each MCP tool becomes the model tool <name>_<tool>."
+                    },
+                    "require_approval": {
+                      "default": false,
+                      "description": "Pause the run for an approval before each call.",
+                      "type": "boolean"
+                    },
+                    "server_url": {
+                      "type": "string",
+                      "maxLength": 2048,
+                      "format": "uri",
+                      "description": "The server's Streamable HTTP MCP endpoint: HTTPS on a public host."
+                    },
+                    "tools": {
+                      "minItems": 1,
+                      "maxItems": 20,
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 128
+                      },
+                      "description": "Tools of the server the agent may call. Dexto lists the server's tools when the agent is saved, refuses names it does not publish and keeps their input schemas with the version."
+                    },
+                    "type": {
+                      "type": "string",
+                      "const": "mcp",
+                      "description": "Calls tools of a remote MCP server from Dexto's servers, with the credential attached by Dexto. Each call is paid from credits."
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "server_url",
+                    "tools",
+                    "type"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "kinds": {
+                      "default": [
+                        "image",
+                        "audio",
+                        "video"
+                      ],
+                      "description": "The media the agent may generate. Omit to allow all three.",
+                      "minItems": 1,
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "enum": [
+                          "image",
+                          "audio",
+                          "video"
+                        ]
+                      }
+                    },
+                    "require_approval": {
+                      "default": false,
+                      "description": "Pause the run for an approval before each generation.",
+                      "type": "boolean"
+                    },
+                    "type": {
+                      "type": "string",
+                      "const": "media",
+                      "description": "Lists media models, estimates and generates images, audio or video. Each generation is paid from credits. With a files tool, a generation can save its outputs as project files under that tool's prefix."
+                    }
+                  },
+                  "required": [
+                    "type"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "max_active": {
+                      "default": 10,
+                      "description": "The most active automations the agent may have created at once.",
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 100
+                    },
+                    "require_approval": {
+                      "default": false,
+                      "description": "Pause the run for an approval before each create and resume.",
+                      "type": "boolean"
+                    },
+                    "type": {
+                      "type": "string",
+                      "const": "automations",
+                      "description": "Lets the agent schedule follow-ups for itself: create, list, pause, resume and delete schedule automations that run it again in this session or a new one. Each firing is a run paid from credits."
+                    }
+                  },
+                  "required": [
+                    "type"
+                  ],
+                  "additionalProperties": false
+                }
+              ]
+            }
+          },
+          "cloudProjectId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The Cloud project to act in: its id, as the CLI's selected project or GET /v1/projects lists it."
+          }
+        },
+        "required": [
+          "instructions",
+          "name",
+          "cloudProjectId"
+        ],
+        "additionalProperties": false
+      },
+      "name": "dexto_cloud_agents_create"
+    },
+    {
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "agentId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The agent's id, from dexto_cloud_agents_list."
+          },
+          "cloudProjectId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The Cloud project to act in: its id, as the CLI's selected project or GET /v1/projects lists it."
+          }
+        },
+        "required": [
+          "agentId",
+          "cloudProjectId"
+        ],
+        "additionalProperties": false
+      },
+      "name": "dexto_cloud_agents_get"
+    },
+    {
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "after": {
+            "description": "A previous page's next_after, to read the page after it.",
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "cloudProjectId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The Cloud project to act in: its id, as the CLI's selected project or GET /v1/projects lists it."
+          },
+          "limit": {
+            "default": 20,
+            "description": "At most this many, 1 to 100; 20 by default.",
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          }
+        },
+        "required": [
+          "cloudProjectId"
+        ],
+        "additionalProperties": false
+      },
+      "name": "dexto_cloud_agents_list"
+    },
+    {
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "agentId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The agent's id, from dexto_cloud_agents_list."
+          },
+          "cloudProjectId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The Cloud project to act in: its id, as the CLI's selected project or GET /v1/projects lists it."
+          },
+          "sessionId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The session's id, from dexto_cloud_agents_sessions_list or a run's session_id."
+          },
+          "after": {
+            "default": 0,
+            "description": "Messages after this sequence number, a previous page's next_after; 0 by default.",
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "limit": {
+            "default": 20,
+            "description": "At most this many, 1 to 100; 20 by default.",
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          }
+        },
+        "required": [
+          "agentId",
+          "cloudProjectId",
+          "sessionId"
+        ],
+        "additionalProperties": false
+      },
+      "name": "dexto_cloud_agents_messages"
+    },
+    {
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "agentId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The agent's id, from dexto_cloud_agents_list."
+          },
+          "cloudProjectId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The Cloud project to act in: its id, as the CLI's selected project or GET /v1/projects lists it."
+          },
+          "sessionId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The session's id, from dexto_cloud_agents_sessions_list or a run's session_id."
+          },
+          "approvalId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The approval's id: the pending approval.id of a tool call step in dexto_cloud_agents_runs_steps."
+          },
+          "message": {
+            "description": "Why, for the agent: it reads this in place of the tool's result.",
+            "type": "string",
+            "maxLength": 1000
+          },
+          "confirm": {
+            "description": "Set to true only after the person agreed to this exact call. Dexto refuses an approve or money call without it.",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "agentId",
+          "cloudProjectId",
+          "sessionId",
+          "approvalId"
+        ],
+        "additionalProperties": false
+      },
+      "name": "dexto_cloud_agents_reject"
+    },
+    {
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "agentId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The agent's id, from dexto_cloud_agents_list."
+          },
+          "cloudProjectId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The Cloud project to act in: its id, as the CLI's selected project or GET /v1/projects lists it."
+          },
+          "sessionId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The session's id, from dexto_cloud_agents_sessions_list or a run's session_id."
+          },
+          "runId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The run's id, from dexto_cloud_agents_chat or dexto_cloud_agents_runs_list."
+          }
+        },
+        "required": [
+          "agentId",
+          "cloudProjectId",
+          "sessionId",
+          "runId"
+        ],
+        "additionalProperties": false
+      },
+      "name": "dexto_cloud_agents_runs_get"
+    },
+    {
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "agentId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The agent's id, from dexto_cloud_agents_list."
+          },
+          "cloudProjectId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The Cloud project to act in: its id, as the CLI's selected project or GET /v1/projects lists it."
+          },
+          "sessionId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The session's id, from dexto_cloud_agents_sessions_list or a run's session_id."
+          },
+          "after": {
+            "description": "A previous page's next_after, to read the page after it.",
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "limit": {
+            "default": 20,
+            "description": "At most this many, 1 to 100; 20 by default.",
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          }
+        },
+        "required": [
+          "agentId",
+          "cloudProjectId",
+          "sessionId"
+        ],
+        "additionalProperties": false
+      },
+      "name": "dexto_cloud_agents_runs_list"
+    },
+    {
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "agentId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The agent's id, from dexto_cloud_agents_list."
+          },
+          "cloudProjectId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The Cloud project to act in: its id, as the CLI's selected project or GET /v1/projects lists it."
+          },
+          "sessionId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The session's id, from dexto_cloud_agents_sessions_list or a run's session_id."
+          },
+          "runId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The run's id, from dexto_cloud_agents_chat or dexto_cloud_agents_runs_list."
+          },
+          "after": {
+            "description": "A previous page's next_after, to read the steps after it.",
+            "type": "string",
+            "pattern": "^(m\\d{1,15}\\.\\d{1,6}|f\\d{1,6})$"
+          },
+          "limit": {
+            "default": 50,
+            "description": "At most this many steps, 1 to 100; 50 by default.",
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          }
+        },
+        "required": [
+          "agentId",
+          "cloudProjectId",
+          "sessionId",
+          "runId"
+        ],
+        "additionalProperties": false
+      },
+      "name": "dexto_cloud_agents_runs_steps"
+    },
+    {
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "agentId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The agent's id, from dexto_cloud_agents_list."
+          },
+          "cloudProjectId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The Cloud project to act in: its id, as the CLI's selected project or GET /v1/projects lists it."
+          },
+          "sessionId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The session's id, from dexto_cloud_agents_sessions_list or a run's session_id."
+          }
+        },
+        "required": [
+          "agentId",
+          "cloudProjectId",
+          "sessionId"
+        ],
+        "additionalProperties": false
+      },
+      "name": "dexto_cloud_agents_sessions_cancel"
+    },
+    {
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "agentId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The agent's id, from dexto_cloud_agents_list."
+          },
+          "cloudProjectId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The Cloud project to act in: its id, as the CLI's selected project or GET /v1/projects lists it."
+          },
+          "sessionId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The session's id, from dexto_cloud_agents_sessions_list or a run's session_id."
+          }
+        },
+        "required": [
+          "agentId",
+          "cloudProjectId",
+          "sessionId"
+        ],
+        "additionalProperties": false
+      },
+      "name": "dexto_cloud_agents_sessions_delete"
+    },
+    {
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "agentId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The agent's id, from dexto_cloud_agents_list."
+          },
+          "cloudProjectId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The Cloud project to act in: its id, as the CLI's selected project or GET /v1/projects lists it."
+          },
+          "sessionId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The session's id, from dexto_cloud_agents_sessions_list or a run's session_id."
+          }
+        },
+        "required": [
+          "agentId",
+          "cloudProjectId",
+          "sessionId"
+        ],
+        "additionalProperties": false
+      },
+      "name": "dexto_cloud_agents_sessions_get"
+    },
+    {
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "agentId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The agent's id, from dexto_cloud_agents_list."
+          },
+          "cloudProjectId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The Cloud project to act in: its id, as the CLI's selected project or GET /v1/projects lists it."
+          },
+          "after": {
+            "description": "A previous page's next_after, to read the page after it.",
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "limit": {
+            "default": 20,
+            "description": "At most this many, 1 to 100; 20 by default.",
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "user": {
+            "description": "Only sessions with this end-user label.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        },
+        "required": [
+          "agentId",
+          "cloudProjectId"
+        ],
+        "additionalProperties": false
+      },
+      "name": "dexto_cloud_agents_sessions_list"
+    },
+    {
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "agentId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The agent's id, from dexto_cloud_agents_list."
+          },
+          "cloudProjectId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "The Cloud project to act in: its id, as the CLI's selected project or GET /v1/projects lists it."
+          },
+          "description": {
+            "default": null,
+            "description": "Optional description for your own reference.",
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "instructions": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32000,
+            "description": "The agent's system instructions."
+          },
+          "model": {
+            "default": null,
+            "description": "A model id from GET /v1/models. Leave null to use your plan's model.",
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "description": "Display name."
+          },
+          "tools": {
+            "default": [],
+            "description": "Every tool the agent may use. Runs get nothing else.",
+            "maxItems": 20,
+            "type": "array",
+            "items": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "require_approval": {
+                      "default": false,
+                      "description": "Pause the run for an approval before each search.",
+                      "type": "boolean"
+                    },
+                    "type": {
+                      "type": "string",
+                      "const": "web_search",
+                      "description": "Searches the web."
+                    }
+                  },
+                  "required": [
+                    "type"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "require_approval": {
+                      "default": false,
+                      "description": "Pause the run for an approval before each fetch.",
+                      "type": "boolean"
+                    },
+                    "type": {
+                      "type": "string",
+                      "const": "web_fetch",
+                      "description": "Reads the text of web pages by URL, up to 10 per call."
+                    }
+                  },
+                  "required": [
+                    "type"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "prefix": {
+                      "default": "",
+                      "description": "Only files whose path starts with this, ending in \"/\" (such as knowledge/). Empty reaches every file of the project.",
+                      "type": "string",
+                      "maxLength": 1024
+                    },
+                    "read_only": {
+                      "default": false,
+                      "description": "Give the agent only read_file, read_media_file, glob_files and search_files.",
+                      "type": "boolean"
+                    },
+                    "require_approval": {
+                      "default": false,
+                      "description": "Pause the run for an approval before each write_file, edit_file, delete_file and share_file call. Reads never ask.",
+                      "type": "boolean"
+                    },
+                    "type": {
+                      "type": "string",
+                      "const": "files",
+                      "description": "Gives the agent file tools on this API key's Cloud project's files under the prefix, which the agent sees as /: read_file, read_media_file, write_file, edit_file, glob_files, search_files, delete_file and share_file. Stored bytes are charged to the project."
+                    }
+                  },
+                  "required": [
+                    "type"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "deployment_id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                      "description": "The ready Function deployment to call."
+                    },
+                    "name": {
+                      "type": "string",
+                      "pattern": "^[a-z][a-z0-9_]{0,31}$",
+                      "description": "Lowercase tool name. Each operation becomes the model tool <name>_<operation>."
+                    },
+                    "operations": {
+                      "minItems": 1,
+                      "maxItems": 20,
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 128
+                      },
+                      "description": "Published operations the agent may call."
+                    },
+                    "project_id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                      "description": "A Function you own in this organization."
+                    },
+                    "require_approval": {
+                      "default": false,
+                      "description": "Pause the run for an approval before each call.",
+                      "type": "boolean"
+                    },
+                    "type": {
+                      "type": "string",
+                      "const": "function",
+                      "description": "Calls operations of your own Function."
+                    }
+                  },
+                  "required": [
+                    "deployment_id",
+                    "name",
+                    "operations",
+                    "project_id",
+                    "type"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "require_approval": {
+                      "default": false,
+                      "description": "Pause the run for an approval before each sandbox call.",
+                      "type": "boolean"
+                    },
+                    "sandbox": {
+                      "oneOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "sandbox_id": {
+                              "type": "string",
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                              "description": "A sandbox in this API key's Cloud project."
+                            },
+                            "type": {
+                              "type": "string",
+                              "const": "project",
+                              "description": "Every run shares this sandbox."
+                            }
+                          },
+                          "required": [
+                            "sandbox_id",
+                            "type"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "size": {
+                              "type": "string",
+                              "enum": [
+                                "large"
+                              ]
+                            },
+                            "type": {
+                              "type": "string",
+                              "const": "session",
+                              "description": "Each session gets its own sandbox, created on first use and deleted when the session ends: its agent is archived, or it has had no run for 24 hours."
+                            }
+                          },
+                          "required": [
+                            "size",
+                            "type"
+                          ],
+                          "additionalProperties": false
+                        }
+                      ],
+                      "description": "Which sandbox the agent works in."
+                    },
+                    "secrets": {
+                      "default": [],
+                      "description": "Names of this key's Cloud project's secrets the agent's commands may use. Each command sees the name as an environment variable holding a placeholder, and Dexto attaches the real value to HTTPS requests to that secret's hosts. At most one secret per host.",
+                      "maxItems": 20,
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 64
+                      }
+                    },
+                    "type": {
+                      "type": "string",
+                      "const": "sandbox",
+                      "description": "Starts and pauses a sandbox, works with its files and runs commands in it. Its compute is paid from credits."
+                    }
+                  },
+                  "required": [
+                    "sandbox",
+                    "type"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "auth": {
+                      "default": null,
+                      "description": "The server's credential; null for a server that needs none.",
+                      "anyOf": [
+                        {
+                          "oneOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "secret": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 64,
+                                  "description": "A secret of this key's Cloud project whose hosts include the server's host. Dexto sends it with each request as the secret's placement says."
+                                },
+                                "type": {
+                                  "type": "string",
+                                  "const": "secret"
+                                }
+                              },
+                              "required": [
+                                "secret",
+                                "type"
+                              ],
+                              "additionalProperties": false
+                            }
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "name": {
+                      "type": "string",
+                      "pattern": "^[a-z][a-z0-9_]{0,31}$",
+                      "description": "Lowercase tool name. Each MCP tool becomes the model tool <name>_<tool>."
+                    },
+                    "require_approval": {
+                      "default": false,
+                      "description": "Pause the run for an approval before each call.",
+                      "type": "boolean"
+                    },
+                    "server_url": {
+                      "type": "string",
+                      "maxLength": 2048,
+                      "format": "uri",
+                      "description": "The server's Streamable HTTP MCP endpoint: HTTPS on a public host."
+                    },
+                    "tools": {
+                      "minItems": 1,
+                      "maxItems": 20,
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 128
+                      },
+                      "description": "Tools of the server the agent may call. Dexto lists the server's tools when the agent is saved, refuses names it does not publish and keeps their input schemas with the version."
+                    },
+                    "type": {
+                      "type": "string",
+                      "const": "mcp",
+                      "description": "Calls tools of a remote MCP server from Dexto's servers, with the credential attached by Dexto. Each call is paid from credits."
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "server_url",
+                    "tools",
+                    "type"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "kinds": {
+                      "default": [
+                        "image",
+                        "audio",
+                        "video"
+                      ],
+                      "description": "The media the agent may generate. Omit to allow all three.",
+                      "minItems": 1,
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "enum": [
+                          "image",
+                          "audio",
+                          "video"
+                        ]
+                      }
+                    },
+                    "require_approval": {
+                      "default": false,
+                      "description": "Pause the run for an approval before each generation.",
+                      "type": "boolean"
+                    },
+                    "type": {
+                      "type": "string",
+                      "const": "media",
+                      "description": "Lists media models, estimates and generates images, audio or video. Each generation is paid from credits. With a files tool, a generation can save its outputs as project files under that tool's prefix."
+                    }
+                  },
+                  "required": [
+                    "type"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "max_active": {
+                      "default": 10,
+                      "description": "The most active automations the agent may have created at once.",
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 100
+                    },
+                    "require_approval": {
+                      "default": false,
+                      "description": "Pause the run for an approval before each create and resume.",
+                      "type": "boolean"
+                    },
+                    "type": {
+                      "type": "string",
+                      "const": "automations",
+                      "description": "Lets the agent schedule follow-ups for itself: create, list, pause, resume and delete schedule automations that run it again in this session or a new one. Each firing is a run paid from credits."
+                    }
+                  },
+                  "required": [
+                    "type"
+                  ],
+                  "additionalProperties": false
+                }
+              ]
+            }
+          },
+          "expectedVersion": {
+            "description": "The version you read with dexto_cloud_agents_get: refuses the update if another change came first.",
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "agentId",
+          "cloudProjectId",
+          "instructions",
+          "name"
+        ],
+        "additionalProperties": false
+      },
+      "name": "dexto_cloud_agents_update"
+    },
+    {
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
           "name": {
             "type": "string",
             "minLength": 1,
