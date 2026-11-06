@@ -7,6 +7,7 @@ import type { CreateDextoAppOptions } from '../index.js';
 describe('Hono API Integration Tests - Agent Routes', () => {
     let testServer: TestServer | undefined;
     let initialAgent: DextoAgent;
+    const switchAgentByPath = vi.fn<(filePath: string) => Promise<{ id: string; name: string }>>();
     let mockAgents: Array<{
         id: string;
         name: string;
@@ -49,6 +50,21 @@ describe('Hono API Integration Tests - Agent Routes', () => {
         let activeAgentId = 'test-agent-1';
         let isSwitching = false;
 
+        switchAgentByPath.mockImplementation(async (filePath: string) => {
+            if (isSwitching) throw new Error('Agent switch in progress');
+            isSwitching = true;
+            try {
+                const newAgent = await createTestAgent();
+                await newAgent.start();
+                if (activeAgent.isStarted()) await activeAgent.stop();
+                activeAgent = newAgent;
+                activeAgentId = `agent-from-${filePath}`;
+                return { id: activeAgentId, name: 'Agent from Path' };
+            } finally {
+                isSwitching = false;
+            }
+        });
+
         const agentsContext: CreateDextoAppOptions['agentsContext'] = {
             switchAgentById: async (id: string) => {
                 if (isSwitching) throw new Error('Agent switch in progress');
@@ -67,22 +83,7 @@ describe('Hono API Integration Tests - Agent Routes', () => {
                     isSwitching = false;
                 }
             },
-            switchAgentByPath: async (filePath: string) => {
-                if (isSwitching) throw new Error('Agent switch in progress');
-                isSwitching = true;
-                try {
-                    const newAgent = await createTestAgent();
-                    await newAgent.start();
-                    if (activeAgent.isStarted()) {
-                        await activeAgent.stop();
-                    }
-                    activeAgent = newAgent;
-                    activeAgentId = `agent-from-${filePath}`;
-                    return { id: activeAgentId, name: 'Agent from Path' };
-                } finally {
-                    isSwitching = false;
-                }
-            },
+            switchAgentByPath,
             resolveAgentInfo: async (id: string) => {
                 const agent = mockAgents.find((a) => a.id === id);
                 return {
@@ -146,15 +147,11 @@ describe('Hono API Integration Tests - Agent Routes', () => {
                 { yaml: baseYaml }
             );
             expect(validation.body).toMatchObject({ valid: true });
-            const start = vi.spyOn(DextoAgent.prototype, 'start').mockResolvedValue(undefined);
-            try {
-                const save = await httpRequest(testServer.baseUrl, 'POST', '/api/agent/config', {
-                    yaml: baseYaml,
-                });
-                expect(save.status, JSON.stringify(save.body)).toBe(200);
-            } finally {
-                start.mockRestore();
-            }
+            switchAgentByPath.mockResolvedValueOnce({ id: 'test-agent', name: 'Test' });
+            const save = await httpRequest(testServer.baseUrl, 'POST', '/api/agent/config', {
+                yaml: baseYaml,
+            });
+            expect(save.status, JSON.stringify(save.body)).toBe(200);
         });
 
         it.each(['__proto__', 'constructor', 'prototype'])(
