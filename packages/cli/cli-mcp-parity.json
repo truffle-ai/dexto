@@ -34,7 +34,7 @@
         },
         {
             "command": "chat watch",
-            "reason": "Attaches this terminal to its locally synced chat; local hand-off view and detach lifecycle (DEXTO-2519).",
+            "reason": "Attaches this local terminal to the hosted chat through its saved local session mapping; owns the local detach lifecycle (DEXTO-2519).",
             "registry": "cloud"
         },
         {
