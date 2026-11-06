@@ -31,11 +31,13 @@ it('allows every tracked file in the full repository tree', () => {
     expect(refusedPaths(['ls-tree', '--full-tree', '-r', '--name-only', '-z', 'HEAD'])).toEqual([]);
 });
 it('allows every path in the full upstream history', () => {
-    const upstream = execFileSync('git', ['remote'], { cwd: repository, encoding: 'utf8' })
-        .split('\n')
-        .includes('truffle-dexto')
-        ? 'truffle-dexto/cli-2.0'
-        : 'origin/cli-2.0';
+    expect(
+        execFileSync('git', ['rev-parse', '--is-shallow-repository'], {
+            cwd: repository,
+            encoding: 'utf8',
+        }).trim()
+    ).toBe('false');
+    const upstream = 'HEAD';
     const refused = refusedPaths([
         'log',
         '--root',
