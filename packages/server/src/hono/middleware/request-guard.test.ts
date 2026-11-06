@@ -42,6 +42,12 @@ describe('origin and host allowlists', () => {
         expect(isAllowedHostHeader('127.0.0.1:3001')).toBe(true);
         expect(isAllowedHostHeader('[::1]:3001')).toBe(true);
         expect(isAllowedHostHeader('localhost')).toBe(true);
+        expect(isAllowedHostHeader('127.0.0.2:3001')).toBe(true);
+        expect(isAllowedHostHeader('0.0.0.0:3001')).toBe(true);
+        expect(isAllowedHostHeader('LOCALHOST:3001')).toBe(true);
+        expect(isAllowedHostHeader('localhost.:3001')).toBe(false);
+        expect(isAllowedHostHeader('127.0.0.1.nip.io:3001')).toBe(false);
+        expect(isAllowedHostHeader('x@evil.example')).toBe(false);
         expect(isAllowedHostHeader('rebind.evil.example:3001')).toBe(false);
         expect(isAllowedHostHeader('192.168.1.10:3001')).toBe(false);
         expect(isAllowedHostHeader(undefined)).toBe(false);
@@ -86,6 +92,38 @@ describe('createRequestGuard', () => {
                 header: headersOf({
                     ...local,
                     'content-type': 'application/x-www-form-urlencoded',
+                }),
+            })
+        ).toMatchObject({ allowed: false });
+    });
+
+    it('rejects a text/plain media type even when a parameter mentions JSON', () => {
+        expect(
+            open({
+                method: 'POST',
+                header: headersOf({ ...local, 'content-type': 'text/plain;x=application/json' }),
+            })
+        ).toMatchObject({ allowed: false });
+    });
+
+    it("accepts the server's own origin behind a non-loopback host", () => {
+        expect(
+            authed({
+                method: 'POST',
+                header: headersOf({
+                    host: 'dexto.example.com',
+                    origin: 'https://dexto.example.com',
+                    'content-type': 'application/json',
+                }),
+            })
+        ).toEqual({ allowed: true });
+        expect(
+            authed({
+                method: 'POST',
+                header: headersOf({
+                    host: 'dexto.example.com',
+                    origin: 'https://evil.example',
+                    'content-type': 'application/json',
                 }),
             })
         ).toMatchObject({ allowed: false });

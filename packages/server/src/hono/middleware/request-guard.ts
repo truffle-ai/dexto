@@ -9,14 +9,15 @@ import { logger } from '@dexto/core';
  * another site could send:
  *
  * 1. State-changing methods (POST, PUT, PATCH, DELETE):
- *    - an `Origin` header, when present, must be an allowed origin (loopback, or listed in
- *      DEXTO_ALLOWED_ORIGINS); `Origin: null` is rejected;
+ *    - an `Origin` header, when present, must be an allowed origin (loopback, listed in
+ *      DEXTO_ALLOWED_ORIGINS, or the request's own `Host`); `Origin: null` is rejected;
  *    - `Sec-Fetch-Site: cross-site` is rejected;
  *    - the request must carry a header a browser cannot send cross-origin without a CORS
  *      preflight: `Authorization`, `X-Dexto-Request`, or a non-simple `Content-Type`
  *      (for example `application/json`).
- * 2. When the server runs without authentication (loopback development), every request must
- *    name a loopback host in its `Host` header (or one listed in DEXTO_ALLOWED_HOSTS). This
+ * 2. When the server runs without authentication (no API key, not production, no
+ *    DEXTO_SERVER_REQUIRE_AUTH, built-in auth not disabled), every request must name a loopback
+ *    address in its `Host` header (or one listed in DEXTO_ALLOWED_HOSTS). This
  *    blocks DNS-rebinding pages, whose requests carry the attacker's hostname.
  */
 
@@ -67,6 +68,18 @@ export function isAllowedRequestOrigin(origin: string): boolean {
     return listFromEnv('DEXTO_ALLOWED_ORIGINS').includes(origin);
 }
 
+/**
+ * True for literal loopback / unspecified addresses. DNS-rebinding requests always carry the
+ * attacker's DNS name in `Host`, so literal IPs here are safe to accept.
+ */
+function isLoopbackLiteral(hostname: string): boolean {
+    if (LOOPBACK_HOSTNAMES.has(hostname) || hostname === '0.0.0.0') {
+        return true;
+    }
+    // The WHATWG URL parser normalizes IPv4 forms (127.1, 0x7f000001) to dotted decimal.
+    return /^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(hostname);
+}
+
 /** True when a `Host` header names loopback (any port) or an entry of DEXTO_ALLOWED_HOSTS. */
 export function isAllowedHostHeader(host: string | undefined): boolean {
     if (!host) {
@@ -78,11 +91,31 @@ export function isAllowedHostHeader(host: string | undefined): boolean {
     } catch {
         return false;
     }
-    if (LOOPBACK_HOSTNAMES.has(hostname)) {
+    if (isLoopbackLiteral(hostname)) {
         return true;
     }
     const allowed = listFromEnv('DEXTO_ALLOWED_HOSTS').map((entry) => entry.toLowerCase());
     return allowed.includes(host.toLowerCase()) || allowed.includes(hostname);
+}
+
+/**
+ * A page served by this server (for example the Web UI behind a proxy or an external auth
+ * layer) sends its own origin. Accept an Origin whose host matches the request's `Host`.
+ * Without auth the Host itself has already been checked, so this cannot admit a rebinding page.
+ */
+function isSameOrigin(origin: string, host: string | undefined): boolean {
+    if (!host) {
+        return false;
+    }
+    try {
+        const url = new URL(origin);
+        return (
+            (url.protocol === 'http:' || url.protocol === 'https:') &&
+            url.host.toLowerCase() === host.toLowerCase()
+        );
+    } catch {
+        return false;
+    }
 }
 
 function hasNonSimpleSignal(header: (name: string) => string | undefined): boolean {
@@ -100,7 +133,10 @@ function hasNonSimpleSignal(header: (name: string) => string | undefined): boole
 export function createRequestGuard(options: RequestGuardOptions): RequestGuard {
     return ({ method, header }) => {
         if (options.enforceLoopbackHost && !isAllowedHostHeader(header('host'))) {
-            return { allowed: false, reason: 'Host header is not allowed' };
+            return {
+                allowed: false,
+                reason: 'Host header is not allowed (add it to DEXTO_ALLOWED_HOSTS to permit it)',
+            };
         }
 
         if (!STATE_CHANGING_METHODS.has(method.toUpperCase())) {
@@ -108,7 +144,11 @@ export function createRequestGuard(options: RequestGuardOptions): RequestGuard {
         }
 
         const origin = header('origin');
-        if (origin !== undefined && !isAllowedRequestOrigin(origin)) {
+        if (
+            origin !== undefined &&
+            !isAllowedRequestOrigin(origin) &&
+            !isSameOrigin(origin, header('host'))
+        ) {
             return { allowed: false, reason: 'Origin is not allowed' };
         }
         if (header('sec-fetch-site')?.toLowerCase() === 'cross-site') {
