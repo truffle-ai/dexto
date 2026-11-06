@@ -7,6 +7,7 @@ import { accountCommands, type SignInFor } from './commands/account.js';
 import { agentCommands } from './commands/agents.js';
 import { apiCommands } from './commands/api.js';
 import { artifactCommands } from './commands/artifacts.js';
+import { connectionCommands } from './commands/connections.js';
 import { chatCommands } from './commands/chats.js';
 import { chatOutputsCommand } from './commands/chat-outputs.js';
 import { automationCommands } from './commands/automations.js';
@@ -76,6 +77,7 @@ export function cloudCommands(dir: string, signIn: SignInFor): readonly Command[
         ...traceCommands,
         ...chatCommands,
         chatOutputsCommand,
+        ...connectionCommands,
     ];
 }
 

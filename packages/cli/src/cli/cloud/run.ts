@@ -461,6 +461,15 @@ async function extractGlobals(runtime: CloudRuntime, argv: readonly string[]): P
             }
             continue;
         }
+        // Authorization codes belong in command input, never in a suggested rerun.
+        if (name === '--code') {
+            rest.push(token);
+            if (inline === null && argv[index + 1] !== undefined) {
+                rest.push(argv[index + 1] ?? '');
+                index += 1;
+            }
+            continue;
+        }
         if (token === '--json') json = true;
         else if (token === '--table') table = true;
         else if (token === '--help' || token === '-h') help = true;
