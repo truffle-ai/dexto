@@ -369,7 +369,8 @@ const RefusalDataSchema = z.object({
             arguments: z.object({ attemptId: z.string() }),
         })
         .nullable()
-        .default(null),
+        .default(null)
+        .catch(null),
     level: z.string().optional(),
     scope: z.string().optional(),
     scopes: z.array(z.string()).optional(),

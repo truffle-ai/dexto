@@ -68,23 +68,33 @@ const connectOptions = {
     code: {
         type: 'string',
         valueName: 'CODE',
-        description: 'Claude authorization code, or pipe the code on stdin with --json.',
+        description:
+            'Use --code - to read a Claude authorization code from stdin. A literal code on argv is visible in shell history and ps.',
     },
     session: { type: 'string', valueName: 'ID', description: 'Reuse a Claude sign-in chat.' },
 } satisfies NonNullable<Command['options']>;
 
+type StartResult = z.output<typeof Start>;
+type Started = Extract<StartResult, { outcome: 'started' }>;
+type FinishResult = z.output<typeof Finish>;
+
 function resume(provider: string, attempt: string): string {
     return `dexto connect ${provider} --attempt ${shellWord(attempt)}`;
+}
+function submitCode(attempt: string): string {
+    return `${resume('claude', attempt)} --code -`;
+}
+function writeResult(context: CommandContext, value: unknown, text: string): void {
+    if (context.output.json) context.runtime.writeOutput(`${JSON.stringify(value)}\n`);
+    else context.output.result(value, text);
 }
 async function showAuthorization(
     context: CommandContext,
     input: CommandInput,
-    started: { url: string; code?: string }
+    started: Started | Extract<FinishResult, { outcome: 'code_rejected' }>
 ): Promise<void> {
-    if (!context.output.json)
-        context.output.note(
-            `${started.url}${started.code === undefined ? '' : `\nCode: ${started.code}`}`
-        );
+    if (context.output.json) writeResult(context, started, '');
+    else context.output.note(`${started.url}${'code' in started ? `\nCode: ${started.code}` : ''}`);
     if (!flag(input, 'no-browser') && !context.output.json) {
         const { openBrowserUrl } = await import('../../auth/browser-launch.js');
         await openBrowserUrl(started.url).catch(() => undefined);
@@ -96,13 +106,17 @@ const claude: Command = {
     summary: 'Sign in to Claude Code in Cloud; credentials stay in Cloud.',
     async run(context, input) {
         let attempt = stringOption(input, 'attempt');
+        let started: Extract<Started, { provider: 'claude' }> | null = null;
+        let code = stringOption(input, 'code')?.trim();
+        if (code?.startsWith('sk-ant-'))
+            throw new UsageError('API keys belong in dashboard Settings > Models.');
         if (attempt === undefined) {
             let sessionId = stringOption(input, 'session');
             for (let tries = 0; tries < 12; tries++) {
                 context.runtime.signal.throwIfAborted();
-                let started;
+                let next: StartResult;
                 try {
-                    started = Start.parse(
+                    next = Start.parse(
                         await queryWorkspaceTool(context, 'dexto_connection_start', {
                             provider: 'claude',
                             ...(sessionId === undefined ? {} : { sessionId }),
@@ -120,70 +134,69 @@ const claude: Command = {
                         `dexto connect claude --session ${shellWord(error.data.sessionId)}`
                     );
                 }
-                if (started.outcome === 'retry') {
-                    sessionId = started.sessionId;
+                if (next.outcome === 'retry') {
+                    sessionId = next.sessionId;
                     if (flag(input, 'no-wait') || tries === 11) {
                         const nextCommand = `dexto connect claude --session ${shellWord(sessionId)}`;
-                        context.output.result(
-                            { ...started, nextCommand },
+                        writeResult(
+                            context,
+                            { ...next, nextCommand },
                             `Computer is warming. Next: ${nextCommand}`
                         );
                         return flag(input, 'no-wait') ? 0 : EXIT_CODES.waiting_on_person;
                     }
-                    await context.runtime.sleep(started.retryAfterSeconds * 1000);
+                    await context.runtime.sleep(next.retryAfterSeconds * 1000);
                     continue;
                 }
-                attempt = started.attemptId;
+                if (next.provider !== 'claude')
+                    throw new Error('Dexto returned no Claude attempt.');
+                started = next;
+                attempt = next.attemptId;
                 await showAuthorization(context, input, started);
-                if (flag(input, 'no-wait')) {
-                    context.output.result(
-                        { ...started, nextCommand: `${resume('claude', attempt)} --code <code>` },
-                        `Next: ${resume('claude', attempt)} --code <code>`
-                    );
-                    return 0;
-                }
                 break;
             }
         }
         if (attempt === undefined) throw new Error('Claude start returned no attempt.');
         if (flag(input, 'no-wait')) {
-            context.output.result(
-                {
-                    outcome: 'started',
-                    provider: 'claude',
-                    attemptId: attempt,
-                    nextCommand: resume('claude', attempt),
-                },
-                `Next: ${resume('claude', attempt)}`
-            );
+            if (started === null || !context.output.json)
+                writeResult(
+                    context,
+                    {
+                        outcome: 'started',
+                        provider: 'claude',
+                        attemptId: attempt,
+                        nextCommand: submitCode(attempt),
+                    },
+                    `Next: ${submitCode(attempt)}`
+                );
             return 0;
         }
-        let code = stringOption(input, 'code')?.trim();
+        if (code === '-') code = (await context.runtime.readStdin()).trim();
         if (
             code === undefined &&
-            stringOption(input, 'attempt') === undefined &&
-            context.runtime.prompt === null
-        ) {
-            const piped = (await context.runtime.readStdin()).trim();
-            if (piped.length > 0) code = piped;
-        }
-        if (code === undefined && stringOption(input, 'attempt') === undefined) {
-            if (!context.output.json && context.runtime.prompt !== null)
-                code = (
-                    await context.runtime.prompt('Paste Claude authorization code: ', {
-                        secret: true,
-                    })
-                ).trim();
-            if (code === undefined || code.length === 0)
-                throw new CommandFailure(
-                    'waiting_on_person',
-                    'Claude needs the authorization code.',
-                    `${resume('claude', attempt)} --code <code>`
-                );
+            started !== null &&
+            !context.output.json &&
+            context.runtime.prompt !== null
+        )
+            code = (
+                await context.runtime.prompt('Paste Claude authorization code: ', { secret: true })
+            ).trim();
+        if ((code === undefined && started !== null) || code === '') {
+            writeResult(
+                context,
+                {
+                    ...started,
+                    outcome: 'code_required',
+                    attemptId: attempt,
+                    nextCommand: submitCode(attempt),
+                },
+                `Claude needs the authorization code. Next: ${submitCode(attempt)}`
+            );
+            return EXIT_CODES.waiting_on_person;
         }
         if (code?.startsWith('sk-ant-'))
             throw new UsageError('API keys belong in dashboard Settings > Models.');
-        let finished;
+        let finished: FinishResult;
         for (let tries = 0; ; tries++) {
             try {
                 finished = Finish.parse(
@@ -196,24 +209,49 @@ const claude: Command = {
             } catch (error) {
                 if (!(error instanceof WorkspaceToolFailure)) throw error;
                 const hint = error.data.resume;
-                if (!error.data.retryable || hint === null || tries >= 2)
-                    throw new CommandFailure(
-                        error.kind,
-                        error.message,
-                        error.fix ?? resume('claude', attempt)
-                    );
-                attempt = hint.arguments.attemptId;
-                code = undefined;
-                await context.runtime.sleep(1000);
+                if (error.data.retryable && hint !== null) {
+                    attempt = hint.arguments.attemptId;
+                    if (tries >= 2)
+                        throw new CommandFailure(
+                            error.kind,
+                            error.message,
+                            error.fix ?? resume('claude', attempt)
+                        );
+                    code = undefined;
+                    await context.runtime.sleep(1000);
+                    continue;
+                }
+                const sessionId =
+                    error.data.sessionId ?? started?.sessionId ?? stringOption(input, 'session');
+                const dead = error.data.kind === 'not_found' || error.data.kind === 'invalid_state';
+                const fix = dead
+                    ? sessionId === undefined
+                        ? 'dexto connect claude'
+                        : `dexto connect claude --session ${shellWord(sessionId)}`
+                    : submitCode(attempt);
+                throw new CommandFailure(
+                    error.kind,
+                    error.message,
+                    error.fix === null
+                        ? fix
+                        : error.kind === 'needs_confirmation'
+                          ? `${error.fix} --code -`
+                          : error.fix
+                );
             }
         }
         if (finished.outcome === 'connected') {
-            context.output.result(finished, 'Claude connected.');
+            writeResult(context, finished, 'Claude connected.');
             return 0;
         }
-        await showAuthorization(context, input, finished);
-        const nextCommand = `${resume('claude', finished.attemptId)} --code <code>`;
-        context.output.result({ ...finished, nextCommand }, `Code rejected. Next: ${nextCommand}`);
+        // A replacement needs a new code, not a save-only retry.
+        const nextCommand = submitCode(finished.attemptId);
+        if (!context.output.json) await showAuthorization(context, input, finished);
+        writeResult(
+            context,
+            { ...finished, nextCommand },
+            `Code rejected. ${finished.url}\nNext: ${nextCommand}`
+        );
         return EXIT_CODES.waiting_on_person;
     },
 };
@@ -235,60 +273,95 @@ const codex: Command = {
     summary: 'Sign in to Codex with a device code; credentials stay in Cloud.',
     async run(context, input) {
         let attempt = stringOption(input, 'attempt');
+        let started: Extract<Started, { provider: 'codex' }> | null = null;
+        let deadline: number | null = null;
         if (attempt === undefined) {
-            const started = Start.parse(
+            const next = Start.parse(
                 await queryWorkspaceTool(context, 'dexto_connection_start', { provider: 'codex' })
             );
-            if (started.outcome !== 'started' || started.provider !== 'codex')
+            if (next.outcome !== 'started' || next.provider !== 'codex')
                 throw new Error('Dexto returned no Codex attempt.');
+            started = next;
             attempt = started.attemptId;
+            deadline = Date.parse(started.expiresAt);
+            if (!Number.isFinite(deadline))
+                throw new Error('Dexto returned an invalid Codex expiry.');
             await showAuthorization(context, input, started);
-            if (flag(input, 'no-wait')) {
-                context.output.result(
-                    { ...started, nextCommand: resume('codex', attempt) },
-                    `Next: ${resume('codex', attempt)}`
-                );
-                return 0;
-            }
-            if (context.output.json) context.runtime.writeOutput(`${JSON.stringify(started)}\n`);
         }
         if (flag(input, 'no-wait')) {
-            const result = {
-                outcome: 'started',
-                provider: 'codex',
-                attemptId: attempt,
-                nextCommand: resume('codex', attempt),
-            };
-            context.output.result(result, `Next: ${result.nextCommand}`);
+            const nextCommand = resume('codex', attempt);
+            if (started === null || !context.output.json)
+                writeResult(
+                    context,
+                    {
+                        ...(started ?? {
+                            outcome: 'started',
+                            provider: 'codex',
+                            attemptId: attempt,
+                        }),
+                        nextCommand,
+                    },
+                    `Next: ${nextCommand}`
+                );
             return 0;
         }
         for (let tries = 0; ; tries++) {
             context.runtime.signal.throwIfAborted();
-            const result = Wait.parse(
-                await queryWorkspaceTool(context, 'dexto_connection_wait', {
-                    provider: 'codex',
-                    attemptId: attempt,
-                    timeoutSeconds: 25,
-                })
-            );
-            if (result.outcome === 'connected') {
-                if (context.output.json) context.runtime.writeOutput(`${JSON.stringify(result)}\n`);
-                else context.output.result(result, 'Codex connected.');
+            if (deadline !== null && Date.now() >= deadline) {
+                writeResult(
+                    context,
+                    {
+                        outcome: 'expired',
+                        attemptId: attempt,
+                        nextAction: 'dexto_connection_start',
+                        nextCommand: 'dexto connect codex',
+                    },
+                    'Expired. Next: dexto connect codex'
+                );
+                return EXIT_CODES.failed;
+            }
+            let waited: z.output<typeof Wait>;
+            try {
+                waited = Wait.parse(
+                    await queryWorkspaceTool(context, 'dexto_connection_wait', {
+                        provider: 'codex',
+                        attemptId: attempt,
+                        timeoutSeconds:
+                            deadline === null
+                                ? 25
+                                : Math.min(
+                                      25,
+                                      Math.max(0, Math.ceil((deadline - Date.now()) / 1000))
+                                  ),
+                    })
+                );
+            } catch (error) {
+                if (!(error instanceof CommandFailure)) throw error;
+                throw new CommandFailure(
+                    error.kind,
+                    error.message,
+                    error.fix ?? resume('codex', attempt)
+                );
+            }
+            if (waited.outcome === 'connected') {
+                writeResult(context, waited, 'Codex connected.');
                 return 0;
             }
-            if (result.outcome !== 'timeout' || flag(input, 'no-wait') || tries === 119) {
+            if (waited.outcome !== 'timeout' || tries === 119) {
                 const nextCommand =
-                    result.outcome === 'timeout' ? resume('codex', attempt) : 'dexto connect codex';
-                if (context.output.json)
-                    context.runtime.writeOutput(`${JSON.stringify({ ...result, nextCommand })}\n`);
-                else
-                    context.output.result(
-                        { ...result, nextCommand },
-                        `${result.outcome}. Next: ${nextCommand}`
-                    );
-                return EXIT_CODES.waiting_on_person;
+                    waited.outcome === 'timeout' ? resume('codex', attempt) : 'dexto connect codex';
+                writeResult(
+                    context,
+                    { ...waited, nextCommand },
+                    `${waited.outcome}. Next: ${nextCommand}`
+                );
+                return waited.outcome === 'timeout'
+                    ? EXIT_CODES.waiting_on_person
+                    : EXIT_CODES.failed;
             }
-            await context.runtime.sleep(1000);
+            await context.runtime.sleep(
+                deadline === null ? 1000 : Math.min(1000, Math.max(0, deadline - Date.now()))
+            );
         }
     },
 };
@@ -330,7 +403,7 @@ const list: Command = {
         const result = z
             .object({ connections: z.array(ConnectionRow) })
             .parse(await queryWorkspaceTool(context, 'dexto_connections_list', {}));
-        if (context.output.json) return context.output.record(result);
+        if (context.output.json) return writeResult(context, result, '');
         context.output.list({ data: result.connections }, [
             { header: 'name', value: (r) => r.name },
             { header: 'kind', value: (r) => r.kind },
@@ -347,12 +420,24 @@ const status: Command = {
         const row = ConnectionRow.parse(
             await queryWorkspaceTool(context, 'dexto_connection_get', { name })
         );
-        const nextCommand =
-            row.nextAction !== null && (row.name === 'claude' || row.name === 'codex')
-                ? `dexto connect ${row.name}`
-                : `dexto connections status ${shellWord(row.name)}`;
-        context.output.record({ ...row, ...(row.status === 'connected' ? {} : { nextCommand }) });
-        return row.status === 'connected' ? 0 : EXIT_CODES.waiting_on_person;
+        const provider =
+            row.kind === 'model_connection'
+                ? row.provider === 'openai' && row.methodId === 'chatgpt_login'
+                    ? 'codex'
+                    : row.provider
+                : row.name;
+        const nextCommand = `dexto connect ${shellWord(provider)}`;
+        writeResult(
+            context,
+            { ...row, ...(row.status === 'connected' ? {} : { nextCommand }) },
+            `${row.name}: ${row.status}${row.status === 'connected' ? '' : `\nNext: ${nextCommand}`}`
+        );
+        if (row.kind === 'claude_home' && !row.available) return EXIT_CODES.failed;
+        return row.status === 'connected'
+            ? 0
+            : row.nextAction === null
+              ? EXIT_CODES.failed
+              : EXIT_CODES.waiting_on_person;
     },
 };
 const disconnect: Command = {
@@ -362,6 +447,22 @@ const disconnect: Command = {
     summary: 'Disconnect a subscription sign-in. API keys stay dashboard-managed.',
     async run(context, input) {
         const name = argument(input, 0, 'name');
+        const connection = ConnectionRow.parse(
+            await queryWorkspaceTool(context, 'dexto_connection_get', { name })
+        );
+        if (
+            connection.kind === 'model_connection' &&
+            !(
+                connection.provider === 'openai' &&
+                connection.authType === 'oauth' &&
+                connection.methodId === 'chatgpt_login'
+            )
+        )
+            throw new CommandFailure(
+                'invalid_input',
+                'Only model subscriptions can be disconnected here. Manage API keys and other connections in dashboard Settings > Models.',
+                'dexto connections list'
+            );
         if (context.output.json && !flag(input, 'yes'))
             throw new CommandFailure(
                 'needs_confirmation',
@@ -380,7 +481,7 @@ const disconnect: Command = {
                 nextAction: z.string(),
             })
             .parse(await queryWorkspaceTool(context, 'dexto_connection_disconnect', { name }));
-        context.output.result(result, `Disconnected ${name}.`);
+        writeResult(context, result, `Disconnected ${name}.`);
     },
 };
 // Keep the server's refusal text and exit kind, with a safe next command for every refusal.
