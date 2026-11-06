@@ -36,7 +36,10 @@ export async function runServerMode(context: MainModeContext): Promise<void> {
         agentCard,
         derivedAgentId,
         resolvedPath,
-        workspaceRoot
+        workspaceRoot,
+        undefined,
+        undefined,
+        opts.host
     );
     console.log(`✅ Server running at ${apiUrl}`);
     console.log('Available endpoints:');

@@ -5,19 +5,63 @@ import { logger } from '@dexto/core';
  * Authentication middleware for API security
  *
  * Security model:
- * 1. Default (no env): Development mode - no auth required
- * 2. NODE_ENV=production: Production mode - auth required
- * 3. DEXTO_SERVER_REQUIRE_AUTH=true: Explicit auth enforcement
- * 4. Public routes (health check, A2A discovery) are always accessible
+ * 1. The server binds to loopback (127.0.0.1) unless a host is chosen explicitly.
+ * 2. DEXTO_SERVER_API_KEY set: every protected request needs `Authorization: Bearer <key>`.
+ * 3. NODE_ENV=production or DEXTO_SERVER_REQUIRE_AUTH=true without a key: protected requests
+ *    fail closed with a configuration error.
+ * 4. No key and neither flag: no auth (loopback development only). Binding to any
+ *    non-loopback host without a key is refused at startup (see assertNetworkBindAllowed).
+ * 5. Public routes (health check, A2A discovery) are always accessible.
  *
  * Usage:
  * Development (default):
- *   npm start  # No auth needed, existing scripts work
+ *   dexto --mode server            # loopback only, no auth
  *
- * Production:
- *   DEXTO_SERVER_API_KEY=your-key NODE_ENV=production npm start
+ * Network-facing:
+ *   DEXTO_SERVER_API_KEY=your-key dexto --mode server --host 0.0.0.0
  *   Clients must send: Authorization: Bearer <DEXTO_SERVER_API_KEY>
  */
+
+/** Default bind address for Dexto HTTP servers. */
+export const DEFAULT_SERVER_HOSTNAME = '127.0.0.1';
+
+const LOOPBACK_HOSTS = new Set(['127.0.0.1', '::1']);
+
+/** True only for literal loopback addresses. Hostnames (including `localhost`) are not trusted. */
+export function isLoopbackHost(host: string): boolean {
+    const normalized = host
+        .trim()
+        .toLowerCase()
+        .replace(/^\[(.*)\]$/, '$1');
+    return LOOPBACK_HOSTS.has(normalized);
+}
+
+/** The bind host: an explicit value, else DEXTO_SERVER_HOST, else loopback. */
+export function resolveServerHostname(explicit?: string): string {
+    const fromEnv = process.env.DEXTO_SERVER_HOST?.trim();
+    return explicit?.trim() || fromEnv || DEFAULT_SERVER_HOSTNAME;
+}
+
+function configuredApiKey(): string | undefined {
+    const apiKey = process.env.DEXTO_SERVER_API_KEY;
+    return apiKey && apiKey.trim() !== '' ? apiKey : undefined;
+}
+
+/**
+ * Refuse to listen on a non-loopback host unless a bearer credential is configured, or the
+ * caller explicitly disabled built-in auth because an external auth layer is in front.
+ */
+export function assertNetworkBindAllowed(
+    hostname: string,
+    options: { authDisabled?: boolean } = {}
+): void {
+    if (isLoopbackHost(hostname) || options.authDisabled || configuredApiKey()) {
+        return;
+    }
+    throw new Error(
+        `Refusing to listen on ${hostname} without authentication. Set DEXTO_SERVER_API_KEY to require a bearer token, or bind to 127.0.0.1.`
+    );
+}
 
 const PUBLIC_ROUTES = ['/health', '/.well-known/agent-card.json', '/openapi.json'];
 
@@ -57,10 +101,10 @@ export function createRequiredBearerAuthorization(
 }
 
 export function createHttpAuthorization(): HttpAuthorization {
-    const apiKey = process.env.DEXTO_SERVER_API_KEY;
+    const apiKey = configuredApiKey();
     const isProduction = process.env.NODE_ENV === 'production';
     const requireAuth = process.env.DEXTO_SERVER_REQUIRE_AUTH === 'true';
-    if (!isProduction && !requireAuth) return () => ({ allowed: true });
+    if (!apiKey && !isProduction && !requireAuth) return () => ({ allowed: true });
     if (isProduction && !apiKey) {
         logger.warn(
             'Production HTTP authentication requires DEXTO_SERVER_API_KEY; protected requests will fail closed.'

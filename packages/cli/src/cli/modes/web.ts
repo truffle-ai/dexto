@@ -41,6 +41,14 @@ export async function runWebMode(context: MainModeContext): Promise<void> {
         console.info('For development: Run "pnpm dev" for hot reload');
     }
 
+    if (webRoot && process.env.DEXTO_SERVER_API_KEY?.trim()) {
+        console.warn(
+            chalk.yellow(
+                '⚠️  DEXTO_SERVER_API_KEY is set, so API requests require a bearer token. The bundled Web UI does not send one; unset the key to use the Web UI locally.'
+            )
+        );
+    }
+
     const webUIConfig = webRoot ? { analytics: await getWebUIAnalyticsConfig() } : undefined;
 
     await startHonoApiServer(
@@ -51,7 +59,8 @@ export async function runWebMode(context: MainModeContext): Promise<void> {
         resolvedPath,
         workspaceRoot,
         webRoot,
-        webUIConfig
+        webUIConfig,
+        opts.host
     );
 
     console.log(chalk.green(`✅ Server running at ${serverUrl}`));

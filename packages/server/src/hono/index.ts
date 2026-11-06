@@ -434,7 +434,7 @@ export function createDextoApp(options: CreateDextoAppOptions): DextoApp {
     // This ensures proper initialization order and validation
     // We attach webhookSubscriber as a property but don't include it in the return type
     // to preserve Hono's route type inference
-    Object.assign(fullApp, { webhookSubscriber, httpAuthorization });
+    Object.assign(fullApp, { webhookSubscriber, httpAuthorization, authDisabled: disableAuth });
 
     return fullApp;
 }
