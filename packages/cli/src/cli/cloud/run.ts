@@ -106,7 +106,13 @@ async function run(host: CloudHost, argv: readonly string[], mayGrant: boolean):
         return reportError(
             { overrides: NO_OVERRIDES, runtime },
             argv.includes('--json') || !runtime.stdoutIsTerminal,
-            { text: groupHelp(host, argv.slice(0, 1)), command: 'dexto --help' },
+            {
+                text: groupHelp(host, argv.slice(0, 1)),
+                command:
+                    argv[0] === 'connect' || argv[0] === 'connections'
+                        ? `dexto ${argv[0]} --help`
+                        : 'dexto --help',
+            },
             error
         );
     }
@@ -331,14 +337,17 @@ function reportError(context: SignInContext, json: boolean, help: Help, error: u
     const { runtime } = context;
     const failure = describeFailure(context, error);
     if (json) {
+        const error = {
+            code: failure.code,
+            message: failure.message,
+            ...(failure.fix === null ? {} : { fix: failure.fix }),
+            ...(failure.apiCode === null ? {} : { api_code: failure.apiCode }),
+            ...(failure.details === null ? {} : { details: failure.details }),
+        };
         runtime.writeError(
-            jsonError({
-                code: failure.code,
-                message: failure.message,
-                ...(failure.fix === null ? {} : { fix: failure.fix }),
-                ...(failure.apiCode === null ? {} : { api_code: failure.apiCode }),
-                ...(failure.details === null ? {} : { details: failure.details }),
-            })
+            /^dexto (?:connect|connections)(?: |$)/u.test(help.command)
+                ? `${JSON.stringify({ error })}\n`
+                : jsonError(error)
         );
     } else if (signalOn()) {
         runtime.writeError(
@@ -454,6 +463,18 @@ async function extractGlobals(runtime: CloudRuntime, argv: readonly string[]): P
             }
             continue;
         }
+        // Authorization codes belong in command input, never in a suggested rerun.
+        if (name === '--code') {
+            const value = inline ?? argv[index + 1];
+            if (value === undefined || (inline === null && value.startsWith('-') && value !== '-'))
+                throw new UsageError('Missing value for --code. Use --code - to read stdin.');
+            rest.push(token);
+            if (inline === null) {
+                rest.push(value);
+                index += 1;
+            }
+            continue;
+        }
         if (token === '--json') json = true;
         else if (token === '--table') table = true;
         else if (token === '--help' || token === '-h') help = true;
@@ -514,7 +535,9 @@ function startsWith(path: readonly string[], prefix: readonly string[]): boolean
 /** Help as text for people, or as JSON where the output is JSON. */
 function printHelp(runtime: CloudRuntime, globals: Globals, text: string, json: unknown): number {
     if (createOutput(runtime, globals.format).json)
-        runtime.writeOutput(`${JSON.stringify(json, null, 2)}\n`);
+        runtime.writeOutput(
+            `${JSON.stringify(json, null, globals.rest[0] === 'connect' || globals.rest[0] === 'connections' ? undefined : 2)}\n`
+        );
     else runtime.writeOutput(text);
     return 0;
 }
