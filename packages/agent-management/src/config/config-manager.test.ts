@@ -3,6 +3,7 @@ import { promises as fs } from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'node:url';
 import {
+    updateAgentConfigFile,
     addPromptToAgentConfig,
     removePromptFromAgentConfig,
     deletePromptByMetadata,
@@ -596,5 +597,18 @@ prompts:
         expect(result.success).toBe(true);
         expect(result.deletedFile).toBe(false); // File didn't exist
         expect(result.removedFromConfig).toBe(true);
+    });
+});
+
+describe('updateAgentConfigFile unsafe keys', () => {
+    it.each(['__proto__', 'constructor', 'prototype'])('rejects %s before writing', async (key) => {
+        const original = 'llm:\n  provider: openai\n  model: test\n';
+        await fs.writeFile(tmpFile, original);
+        const updates = JSON.parse(`{"nested":[{"${key}":{"polluted":true}}]}`);
+        await expect(updateAgentConfigFile(tmpFile, updates)).rejects.toThrow(
+            'Forbidden configuration key'
+        );
+        expect(await fs.readFile(tmpFile, 'utf8')).toBe(original);
+        expect(Object.prototype).not.toHaveProperty('polluted');
     });
 });
