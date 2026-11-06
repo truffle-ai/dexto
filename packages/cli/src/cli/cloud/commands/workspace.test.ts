@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { dextoAccounts } from '@dexto/agent-management';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { resolveConnection } from '../connection.js';
 import { cloudCommands, CLOUD_GROUPS } from '../host.js';
 import { runCloud, type CloudHost } from '../run.js';
@@ -56,6 +56,7 @@ describe('dexto workspace', () => {
     let chatResponse: unknown;
     let computersResponse: unknown;
     let profilesResponse: unknown;
+    let followResponses: unknown[];
 
     beforeEach(async () => {
         dir = path.join(await mkdtemp(path.join(os.tmpdir(), 'dexto-ws-')), 'accounts');
@@ -86,6 +87,7 @@ describe('dexto workspace', () => {
                 },
             ],
         };
+        followResponses = [];
         profilesResponse = { profiles: [{ id: 'profile-1', name: 'Work', available: true }] };
         publishStatus = 200;
         publishProject = null;
@@ -156,13 +158,15 @@ describe('dexto workspace', () => {
                               headers: {},
                               path: 'uploads/u1.zip',
                           }
-                        : tool === 'dexto_chat_start'
-                          ? chatResponse
-                          : tool === 'dexto_chat_computers_list'
-                            ? computersResponse
-                            : tool === 'dexto_chat_browser_profiles_list'
-                              ? profilesResponse
-                              : { status: 'sent' };
+                        : tool === 'dexto_chat_follow' || tool === 'dexto_chat_wait'
+                          ? followResponses.shift()
+                          : tool === 'dexto_chat_start'
+                            ? chatResponse
+                            : tool === 'dexto_chat_computers_list'
+                              ? computersResponse
+                              : tool === 'dexto_chat_browser_profiles_list'
+                                ? profilesResponse
+                                : { status: 'sent' };
                 const result =
                     message.method === 'tools/list'
                         ? { tools: TOOLS }
@@ -200,6 +204,454 @@ describe('dexto workspace', () => {
                 }),
             signInForScope: async () => false,
         };
+    });
+
+    const page = (outcome = 'done', cursor = 'chat-1:1') => ({
+        outcome,
+        running: outcome === 'running',
+        cursor,
+        hasMore: false,
+        session: { id: 'chat-1' },
+        events: [{ id: cursor }],
+        answer: 'Finished answer',
+        artifacts: [{ name: 'report.txt' }],
+        usage: { totalChargeUsd: 0.01 },
+    });
+
+    it('start --wait starts once and prints events and a final NDJSON answer', async () => {
+        followResponses = [page('running'), page('done', 'chat-1:2')];
+        expect(await runCloud(host, ['chat', 'start', 'Hello', '--wait', '--json'])).toBe(0);
+        const lines = stdout
+            .trim()
+            .split('\n')
+            .map((line) => JSON.parse(line));
+        expect(lines.map((line) => line.type)).toEqual(['event', 'event', 'final']);
+        expect(lines.at(-1)).toMatchObject({
+            answer: 'Finished answer',
+            artifacts: [{ name: 'report.txt' }],
+            usage: { totalChargeUsd: 0.01 },
+        });
+        expect(calls.filter((call) => call.params.name === 'dexto_chat_start')).toHaveLength(1);
+        expect(
+            calls.find((call) => call.params.name === 'dexto_chat_follow')?.params.arguments
+        ).toMatchObject({ cursor: 'chat-1:1' });
+    });
+    it('ends an unbounded follow with a resumable needs_input final record', async () => {
+        followResponses = [
+            {
+                ...page('running'),
+                outcome: 'needs_input',
+                session: { id: 'chat-1', status: 'waiting_approval' },
+                usage: null,
+                nextAction: {
+                    tool: 'dexto_chat_get',
+                    arguments: { sessionId: 'chat-1' },
+                    instruction: 'Resolve the pending approval in Dexto.',
+                },
+            },
+        ];
+        expect(await runCloud(host, ['chat', 'follow', 'chat-1', '--json'])).toBe(6);
+        expect(JSON.parse(stdout.trim().split('\n').at(-1) ?? '{}')).toMatchObject({
+            type: 'final',
+            outcome: 'needs_input',
+            nextAction: { instruction: 'Resolve the pending approval in Dexto.' },
+        });
+    });
+    it('follow resumes at a cursor and exits 6 after timeout without cancelling', async () => {
+        followResponses = [page('running')];
+        expect(
+            await runCloud(host, [
+                'chat',
+                'follow',
+                'chat-1',
+                '--cursor',
+                'chat-1:0',
+                '--timeout',
+                '0',
+                '--json',
+            ])
+        ).toBe(6);
+        expect(
+            calls.find((call) => call.params.name === 'dexto_chat_follow')?.params.arguments
+        ).toMatchObject({ cursor: 'chat-1:0', waitSeconds: 0 });
+        expect(calls.some((call) => call.params.name === 'dexto_chat_cancel')).toBe(false);
+    });
+    it.each(['follow', 'start'])(
+        'Ctrl-C during %s ends NDJSON with a resumable final record',
+        async (command) => {
+            followResponses = [page('running')];
+            const controller = new AbortController();
+            const interruptedHost: CloudHost = {
+                ...host,
+                runtime: {
+                    ...host.runtime,
+                    signal: controller.signal,
+                    fetch: async (input, init) => {
+                        const request = new globalThis.Request(input, init);
+                        const name = JSON.parse(await request.clone().text()).params?.name;
+                        const response = await host.runtime.fetch(request);
+                        if (name === 'dexto_chat_wait' || name === 'dexto_chat_follow')
+                            controller.abort();
+                        return response;
+                    },
+                },
+            };
+            const args =
+                command === 'start'
+                    ? ['chat', 'start', 'Hello', '--wait', '--json']
+                    : ['chat', 'follow', 'chat-1', '--json'];
+            expect(await runCloud(interruptedHost, args)).toBe(130);
+            const lines = stdout
+                .trim()
+                .split('\n')
+                .map((line) => JSON.parse(line));
+            expect(lines.at(-1)).toMatchObject({
+                type: 'final',
+                interrupted: true,
+                cursor: 'chat-1:1',
+                nextAction: {
+                    tool: 'dexto_chat_follow',
+                    arguments: { sessionId: 'chat-1', cursor: 'chat-1:1' },
+                },
+            });
+            expect(calls.some((call) => call.params.name === 'dexto_chat_cancel')).toBe(false);
+        }
+    );
+
+    it('a wait permission failure never grants and replays a billable start', async () => {
+        let grants = 0;
+        const waitingHost: CloudHost = {
+            ...host,
+            signInForScope: async () => {
+                grants++;
+                return true;
+            },
+            runtime: {
+                ...host.runtime,
+                stdoutIsTerminal: true,
+                prompt: async () => 'yes',
+                fetch: async (input, init) => {
+                    const request = new globalThis.Request(input, init);
+                    const message = JSON.parse(await request.clone().text());
+                    if (message.params?.name === 'dexto_chat_wait')
+                        return Response.json({
+                            jsonrpc: '2.0',
+                            id: message.id,
+                            error: {
+                                code: -32602,
+                                message: 'Missing required scope: sessions:read',
+                                data: { kind: 'forbidden', scope: 'sessions:read' },
+                            },
+                        });
+                    return host.runtime.fetch(request);
+                },
+            },
+        };
+        expect(await runCloud(waitingHost, ['chat', 'start', 'Hello', '--wait'])).toBe(3);
+        expect(calls.filter((call) => call.params.name === 'dexto_chat_start')).toHaveLength(1);
+        expect(grants).toBe(0);
+        expect(stdout).toContain('dexto chat follow');
+    });
+    it('a follow transport error ends NDJSON with the last cursor', async () => {
+        followResponses = [page('running')];
+        let reads = 0;
+        const failingHost: CloudHost = {
+            ...host,
+            runtime: {
+                ...host.runtime,
+                fetch: async (input, init) => {
+                    const request = new globalThis.Request(input, init);
+                    const message = JSON.parse(await request.clone().text());
+                    if (message.params?.name === 'dexto_chat_follow' && reads++ > 0)
+                        throw new Error('Connection closed');
+                    return host.runtime.fetch(request);
+                },
+            },
+        };
+        expect(await runCloud(failingHost, ['chat', 'follow', 'chat-1', '--json'])).toBe(1);
+        const lines = stdout
+            .trim()
+            .split('\n')
+            .map((line) => JSON.parse(line));
+        expect(lines.at(-1)).toMatchObject({
+            type: 'final',
+            outcome: 'error',
+            cursor: 'chat-1:1',
+            nextAction: { tool: 'dexto_chat_follow', arguments: { cursor: 'chat-1:1' } },
+        });
+    });
+
+    it('retries a rate-limited wait read after Retry-After without repeating start', async () => {
+        followResponses = [page('done')];
+        const delays: number[] = [];
+        let reads = 0;
+        const retryHost: CloudHost = {
+            ...host,
+            runtime: {
+                ...host.runtime,
+                sleep: async (ms) => {
+                    delays.push(ms);
+                },
+                fetch: async (input, init) => {
+                    const request = new globalThis.Request(input, init);
+                    const message = JSON.parse(await request.clone().text());
+                    if (message.params?.name === 'dexto_chat_wait' && reads++ === 0)
+                        return new Response(null, { status: 429, headers: { 'Retry-After': '2' } });
+                    return host.runtime.fetch(request);
+                },
+            },
+        };
+        expect(await runCloud(retryHost, ['chat', 'start', 'Hello', '--wait', '--json'])).toBe(0);
+        expect(delays).toEqual([2000]);
+        expect(reads).toBe(2);
+        expect(calls.filter((call) => call.params.name === 'dexto_chat_start')).toHaveLength(1);
+        expect(JSON.parse(stdout.trim().split('\n').at(-1) ?? '{}')).toMatchObject({
+            type: 'final',
+            outcome: 'done',
+        });
+    });
+
+    it.each([503, 'network'])(
+        'retries a transient %s read and preserves its cursor',
+        async (status) => {
+            followResponses = [page('done')];
+            let reads = 0;
+            const retryHost: CloudHost = {
+                ...host,
+                runtime: {
+                    ...host.runtime,
+                    fetch: async (input, init) => {
+                        const request = new globalThis.Request(input, init);
+                        const message = JSON.parse(await request.clone().text());
+                        if (message.params?.name === 'dexto_chat_follow' && reads++ === 0) {
+                            if (typeof status === 'string') throw new TypeError('fetch failed');
+                            return new Response(null, { status });
+                        }
+                        return host.runtime.fetch(request);
+                    },
+                },
+            };
+            expect(
+                await runCloud(retryHost, [
+                    'chat',
+                    'follow',
+                    'chat-1',
+                    '--cursor',
+                    'chat-1:0',
+                    '--json',
+                ])
+            ).toBe(0);
+            expect(reads).toBe(2);
+            expect(
+                calls.find((call) => call.params.name === 'dexto_chat_follow')?.params.arguments
+            ).toMatchObject({ cursor: 'chat-1:0' });
+        }
+    );
+
+    it('expires the user deadline when Retry-After leaves no retry budget', async () => {
+        let reads = 0;
+        const retryHost: CloudHost = {
+            ...host,
+            runtime: {
+                ...host.runtime,
+                sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+                fetch: async (input, init) => {
+                    const request = new globalThis.Request(input, init);
+                    const message = JSON.parse(await request.clone().text());
+                    if (message.params?.name === 'dexto_chat_follow') {
+                        reads++;
+                        return new Response(null, { status: 429, headers: { 'Retry-After': '2' } });
+                    }
+                    return host.runtime.fetch(request);
+                },
+            },
+        };
+        expect(
+            await runCloud(retryHost, [
+                'chat',
+                'follow',
+                'chat-1',
+                '--cursor',
+                'chat-1:0',
+                '--timeout',
+                '0.05',
+                '--json',
+            ])
+        ).toBe(6);
+        expect(reads).toBe(1);
+        expect(JSON.parse(stdout.trim().split('\n').at(-1) ?? '{}')).toMatchObject({
+            type: 'final',
+            outcome: 'running',
+            cursor: 'chat-1:0',
+            timedOut: true,
+        });
+    });
+
+    it.each(['follow', 'start'])(
+        'retries a stalled %s read when the user deadline remains',
+        async (command) => {
+            vi.useFakeTimers();
+            try {
+                followResponses = [page('done')];
+                let seenRead: () => void = () => {
+                    throw new Error('Read observer is not ready.');
+                };
+                const firstRead = new Promise<void>((resolve) => {
+                    seenRead = resolve;
+                });
+                let reads = 0;
+                const stalledHost: CloudHost = {
+                    ...host,
+                    runtime: {
+                        ...host.runtime,
+                        fetch: async (input, init) => {
+                            const request = new globalThis.Request(input, init);
+                            const message = JSON.parse(await request.clone().text());
+                            if (
+                                (message.params?.name === 'dexto_chat_wait' ||
+                                    message.params?.name === 'dexto_chat_follow') &&
+                                reads++ === 0
+                            ) {
+                                seenRead();
+                                return new Promise((_resolve, reject) =>
+                                    request.signal.addEventListener(
+                                        'abort',
+                                        () => reject(request.signal.reason),
+                                        { once: true }
+                                    )
+                                );
+                            }
+                            return host.runtime.fetch(request);
+                        },
+                    },
+                };
+                const args =
+                    command === 'start'
+                        ? ['chat', 'start', 'Hello', '--wait']
+                        : ['chat', 'follow', 'chat-1'];
+                const completion = runCloud(stalledHost, [...args, '--timeout', '60', '--json']);
+                await firstRead;
+                await vi.advanceTimersByTimeAsync(26_500);
+                expect(await completion).toBe(0);
+                expect(reads).toBe(2);
+                expect(
+                    calls.filter((call) => call.params.name === 'dexto_chat_start')
+                ).toHaveLength(command === 'start' ? 1 : 0);
+                expect(JSON.parse(stdout.trim().split('\n').at(-1) ?? '{}')).toMatchObject({
+                    type: 'final',
+                    outcome: 'done',
+                });
+            } finally {
+                vi.useRealTimers();
+            }
+        }
+    );
+
+    it('ends a refused start --wait with a final NDJSON record', async () => {
+        chatResponse = {
+            outcome: 'profile_busy',
+            nextAction: { tool: 'dexto_chat_browser_profiles_list', arguments: {} },
+            type: 'untrusted',
+        };
+        expect(await runCloud(host, ['chat', 'start', 'Hello', '--wait', '--json'])).toBe(6);
+        expect(
+            stdout
+                .trim()
+                .split('\n')
+                .map((line) => JSON.parse(line))
+        ).toEqual([expect.objectContaining({ type: 'final', outcome: 'profile_busy' })]);
+    });
+
+    it('prints readable events and an input hint in text mode', async () => {
+        followResponses = [
+            {
+                ...page('running'),
+                outcome: 'needs_input',
+                events: [{ type: 'run.started', sequence: 1, payload: {} }],
+                nextAction: { instruction: 'Resolve the pending approval in Dexto.' },
+            },
+        ];
+        expect(await runCloud(host, ['chat', 'follow', 'chat-1', '--table'])).toBe(6);
+        expect(stdout).toContain('run.started');
+        expect(stdout).toContain('Resolve the pending approval');
+        expect(stdout).not.toContain('{"type":"run.started"');
+    });
+
+    it('sets the final record type after server fields', async () => {
+        followResponses = [{ ...page('done'), type: 'untrusted' }];
+        expect(await runCloud(host, ['chat', 'follow', 'chat-1', '--json'])).toBe(0);
+        expect(JSON.parse(stdout.trim().split('\n').at(-1) ?? '{}').type).toBe('final');
+    });
+
+    it.each(['follow', 'start'])(
+        'a stalled %s read respects --timeout and remains resumable',
+        async (command) => {
+            let readSignal: AbortSignal | null = null;
+            const stalledHost: CloudHost = {
+                ...host,
+                runtime: {
+                    ...host.runtime,
+                    fetch: async (input, init) => {
+                        const request = new globalThis.Request(input, init);
+                        const message = JSON.parse(await request.clone().text());
+                        if (
+                            message.params?.name === 'dexto_chat_wait' ||
+                            message.params?.name === 'dexto_chat_follow'
+                        ) {
+                            readSignal = request.signal;
+                            request.signal.throwIfAborted();
+                            return new Promise((_resolve, reject) =>
+                                request.signal.addEventListener(
+                                    'abort',
+                                    () => reject(request.signal.reason),
+                                    { once: true }
+                                )
+                            );
+                        }
+                        return host.runtime.fetch(request);
+                    },
+                },
+            };
+            const args =
+                command === 'start'
+                    ? ['chat', 'start', 'Hello', '--wait', '--timeout', '0', '--json']
+                    : [
+                          'chat',
+                          'follow',
+                          'chat-1',
+                          '--cursor',
+                          'chat-1:0',
+                          '--timeout',
+                          '0',
+                          '--json',
+                      ];
+            expect(await runCloud(stalledHost, args)).toBe(6);
+            expect(readSignal).toMatchObject({ aborted: true });
+            const lines = stdout
+                .trim()
+                .split('\n')
+                .map((line) => JSON.parse(line));
+            expect(lines).toHaveLength(1);
+            expect(lines[0]).toMatchObject({
+                type: 'final',
+                outcome: 'running',
+                nextAction: { tool: 'dexto_chat_follow', arguments: { sessionId: 'chat-1' } },
+                cursor: command === 'follow' ? 'chat-1:0' : null,
+            });
+            expect(calls.filter((call) => call.params.name === 'dexto_chat_start')).toHaveLength(
+                command === 'start' ? 1 : 0
+            );
+            expect(calls.some((call) => call.params.name === 'dexto_chat_cancel')).toBe(false);
+        }
+    );
+
+    it.each(['failed', 'cancelled'])('follow reports %s with a nonzero exit', async (outcome) => {
+        followResponses = [page(outcome)];
+        expect(await runCloud(host, ['chat', 'follow', 'chat-1', '--json'])).toBe(1);
+        expect(JSON.parse(stdout.trim().split('\n').at(-1) ?? '{}')).toMatchObject({
+            type: 'final',
+            outcome,
+        });
     });
 
     afterEach(async () => {
