@@ -1,5 +1,5 @@
 ---
-'@dexto/cli': patch
+'dexto': patch
 ---
 
 Limit CLI analytics arguments to non-content metadata.
