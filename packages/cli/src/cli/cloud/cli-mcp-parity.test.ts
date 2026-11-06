@@ -100,7 +100,6 @@ span-list
 trace-list
 trace-view
 chat-list-status
-chat-wait-follow
 chat-get-usage`.split('\n')
 );
 

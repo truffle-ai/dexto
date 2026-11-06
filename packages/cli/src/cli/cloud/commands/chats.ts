@@ -392,7 +392,7 @@ async function followChat(
             await queryWorkspaceTool(context, 'dexto_chat_follow', {
                 sessionId,
                 ...(cursor === undefined ? {} : { cursor }),
-                waitSeconds: Math.min(25, Math.max(0, Math.floor((deadline - Date.now()) / 1000))),
+                waitSeconds: Math.min(25, Math.max(0, Math.ceil((deadline - Date.now()) / 1000))),
             })
         );
         for (const event of page.events) {
@@ -521,7 +521,7 @@ const start: Command = {
                         sessionId: started.data.session.id,
                         waitSeconds: Math.min(
                             25,
-                            Math.max(0, Math.floor((deadline - Date.now()) / 1000))
+                            Math.max(0, Math.ceil((deadline - Date.now()) / 1000))
                         ),
                     })
                 );
@@ -558,6 +558,7 @@ const start: Command = {
             result,
             `Started ${result.session.title ?? result.session.id}\n${result.session.url}\nStatus: ${result.session.status}`
         );
+        return 0;
     },
 };
 
