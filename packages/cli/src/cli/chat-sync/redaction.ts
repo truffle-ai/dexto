@@ -159,6 +159,7 @@ export function isSecretPath(path: string): boolean {
     const name = path.split(/[\\/]/u).at(-1) ?? path;
     if (SECRET_FILE_NAME.test(name)) return true;
     if (SECRET_DIRECTORY.test(path)) return true;
+    if (/\[\^?\]/u.test(name)) return true;
     // A glob of wildcards alone (`*`, `.*`) names no file in particular.
     const literal = name.replaceAll(/[*?]|\[[^\]]*\]?/gu, '');
     return (

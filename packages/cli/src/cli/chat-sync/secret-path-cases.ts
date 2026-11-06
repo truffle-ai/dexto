@@ -48,6 +48,11 @@ export const allowedSecretPathCases = [
 ];
 
 export const refusedSecretPathCases = [
+    '.e[]n]v',
+    '.e[^]n]v',
+    '[]',
+    '[^]',
+
     'production.env',
     'STAGING.env',
     'private.env',
