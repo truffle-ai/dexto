@@ -18,7 +18,9 @@ vi.mock('fs', async () => {
 const mockFetch = vi.fn();
 global.fetch = mockFetch;
 
-import { checkForUpdates, displayUpdateNotification } from './version-check.js';
+import { TERMINALS } from '@dexto/tui/signal-harness';
+import { getCaps, setCaps } from '@dexto/tui/signal-text';
+import { checkForUpdates, displayUpdateNotification, updateNoticeLines } from './version-check.js';
 
 describe('version-check', () => {
     beforeEach(() => {
@@ -259,6 +261,68 @@ describe('version-check', () => {
                     updateCommand: 'dexto upgrade',
                 })
             ).not.toThrow();
+        });
+
+        describe('on Signal', () => {
+            const info = { current: '2.1.0', latest: '2.2.0', updateCommand: 'dexto upgrade' };
+            const savedCaps = getCaps();
+            const savedIsTTY = Object.getOwnPropertyDescriptor(process.stderr, 'isTTY');
+            let stderr: string[];
+            let stdout: string[];
+
+            beforeEach(() => {
+                setCaps(TERMINALS['16-dark']);
+                stderr = [];
+                stdout = [];
+                vi.spyOn(process.stderr, 'write').mockImplementation((chunk: unknown) => {
+                    stderr.push(String(chunk));
+                    return true;
+                });
+                vi.spyOn(process.stdout, 'write').mockImplementation((chunk: unknown) => {
+                    stdout.push(String(chunk));
+                    return true;
+                });
+                vi.spyOn(console, 'error').mockImplementation(() => undefined);
+                vi.spyOn(console, 'log').mockImplementation(() => undefined);
+            });
+
+            afterEach(() => {
+                vi.restoreAllMocks();
+                setCaps(savedCaps);
+                if (savedIsTTY === undefined) Reflect.deleteProperty(process.stderr, 'isTTY');
+                else Object.defineProperty(process.stderr, 'isTTY', savedIsTTY);
+            });
+
+            const stderrIsTTY = (isTTY: boolean | undefined) =>
+                Object.defineProperty(process.stderr, 'isTTY', {
+                    value: isTTY,
+                    configurable: true,
+                });
+
+            it('writes the notice to stderr at a terminal, never to stdout', () => {
+                stderrIsTTY(true);
+
+                displayUpdateNotification(info);
+
+                expect(stderr).toEqual([`${updateNoticeLines(info).join('\n')}\n`]);
+                expect(stderr[0]).toContain('2.2.0');
+                expect(stdout).toEqual([]);
+                expect(console.error).not.toHaveBeenCalled();
+                expect(console.log).not.toHaveBeenCalled();
+            });
+
+            it("writes nothing when stderr isn't a terminal", () => {
+                for (const isTTY of [false, undefined]) {
+                    stderrIsTTY(isTTY);
+
+                    displayUpdateNotification(info);
+                }
+
+                expect(stderr).toEqual([]);
+                expect(stdout).toEqual([]);
+                expect(console.error).not.toHaveBeenCalled();
+                expect(console.log).not.toHaveBeenCalled();
+            });
         });
     });
 });
