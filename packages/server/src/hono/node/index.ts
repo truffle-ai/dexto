@@ -1,7 +1,11 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { Readable } from 'node:stream';
 import type { ReadableStream as NodeReadableStream } from 'stream/web';
-import { createHttpAuthorization } from '../middleware/auth.js';
+import {
+    assertNetworkBindAllowed,
+    createHttpAuthorization,
+    resolveServerHostname,
+} from '../middleware/auth.js';
 import type { DextoApp } from '../types.js';
 import type { DextoAgent } from '@dexto/core';
 import { logger } from '@dexto/core';
@@ -13,6 +17,7 @@ type FetchBodyInit = globalThis.BodyInit;
 export type NodeBridgeOptions = {
     getAgent: () => DextoAgent;
     port?: number;
+    /** Bind address when `port` is set. Defaults to DEXTO_SERVER_HOST, else 127.0.0.1. */
     hostname?: string;
     mcpHandlers?: {
         handlePost: (
@@ -34,6 +39,11 @@ export function createNodeServer(app: DextoApp, options: NodeBridgeOptions): Nod
     const { getAgent: _getAgent } = options;
     const webhookSubscriber = app.webhookSubscriber;
     const authorize = app.httpAuthorization ?? createHttpAuthorization();
+    const listenHostname =
+        typeof options.port === 'number' ? resolveServerHostname(options.hostname) : undefined;
+    if (listenHostname !== undefined) {
+        assertNetworkBindAllowed(listenHostname, { authDisabled: app.authDisabled === true });
+    }
 
     const server = createServer(async (req, res) => {
         const disconnectController = new AbortController();
@@ -112,10 +122,9 @@ export function createNodeServer(app: DextoApp, options: NodeBridgeOptions): Nod
         webhookSubscriber?.cleanup?.();
     });
 
-    if (typeof options.port === 'number') {
-        const hostname = options.hostname ?? '0.0.0.0';
-        server.listen(options.port, hostname, () => {
-            logger.info(`Hono Node bridge listening on http://${hostname}:${options.port}`);
+    if (typeof options.port === 'number' && listenHostname !== undefined) {
+        server.listen(options.port, listenHostname, () => {
+            logger.info(`Hono Node bridge listening on http://${listenHostname}:${options.port}`);
         });
     }
 

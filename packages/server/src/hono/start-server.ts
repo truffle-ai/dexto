@@ -4,6 +4,7 @@ import type { DextoAgent, AgentCard } from '@dexto/core';
 import { createAgentCard, logger, startLlmRegistryAutoUpdate } from '@dexto/core';
 import { createDextoApp } from './index.js';
 import { createNodeServer } from './node/index.js';
+import { assertNetworkBindAllowed, resolveServerHostname } from './middleware/auth.js';
 import type { DextoApp } from './types.js';
 import type { WebUIRuntimeConfig } from './routes/static.js';
 import { WebhookEventSubscriber } from '../events/webhook-subscriber.js';
@@ -16,7 +17,10 @@ import { SessionSseEventSubscriber } from '../events/session-sse-subscriber.js';
 export type StartDextoServerOptions = {
     /** Port to listen on. Defaults to 3000 or process.env.PORT */
     port?: number;
-    /** Hostname to bind to. Defaults to 0.0.0.0 */
+    /**
+     * Hostname to bind to. Defaults to DEXTO_SERVER_HOST, else 127.0.0.1 (loopback).
+     * A non-loopback host requires DEXTO_SERVER_API_KEY; startup fails without it.
+     */
     hostname?: string;
     /** Override agent card metadata (name, version, etc.) */
     agentCard?: Partial<AgentCard>;
@@ -83,17 +87,20 @@ export async function startDextoServer(
     agent: DextoAgent,
     options: StartDextoServerOptions = {}
 ): Promise<StartDextoServerResult> {
-    // Keep LLM registry metadata (pricing/capabilities/limits) self-updating in server mode too.
-    startLlmRegistryAutoUpdate();
-
     const {
         port: requestedPort,
-        hostname = '0.0.0.0',
+        hostname: requestedHostname,
         agentCard: agentCardOverride = {},
         webRoot,
         webUIConfig,
         baseUrl: baseUrlOverride,
     } = options;
+
+    const hostname = resolveServerHostname(requestedHostname);
+    assertNetworkBindAllowed(hostname);
+
+    // Keep LLM registry metadata (pricing/capabilities/limits) self-updating in server mode too.
+    startLlmRegistryAutoUpdate();
 
     // Resolve port from options, env, or default
     const resolvedPort = requestedPort ?? (process.env.PORT ? Number(process.env.PORT) : 3000);

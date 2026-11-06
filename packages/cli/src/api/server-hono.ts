@@ -29,6 +29,11 @@ import {
     type McpTransportType,
     type WebUIRuntimeConfig,
 } from '@dexto/server';
+import {
+    assertNetworkBindAllowed,
+    isLoopbackHost,
+    resolveServerHostname,
+} from '@dexto/server/hono/auth';
 import { registerGracefulShutdown } from '../utils/graceful-shutdown.js';
 import { applyWorkspaceToAgent } from '../utils/workspace.js';
 
@@ -631,12 +636,16 @@ export async function startHonoApiServer(
     configFilePath?: string,
     workspaceRoot?: string,
     webRoot?: string,
-    webUIConfig?: WebUIRuntimeConfig
+    webUIConfig?: WebUIRuntimeConfig,
+    host?: string
 ): Promise<{
     server: ReturnType<typeof createNodeServer>['server'];
     stop: () => Promise<void>;
     webhookSubscriber?: NonNullable<ReturnType<typeof createNodeServer>['webhookSubscriber']>;
 }> {
+    const hostname = resolveServerHostname(host);
+    assertNetworkBindAllowed(hostname);
+
     const { server, webhookSubscriber, stop } = await initializeHonoApi(
         agent,
         agentCardOverride,
@@ -652,7 +661,7 @@ export async function startHonoApiServer(
         await new Promise<void>((resolve, reject) => {
             const onError = (error: Error) => reject(error);
             server.once('error', onError);
-            server.listen(port, '0.0.0.0', () => {
+            server.listen(port, hostname, () => {
                 server.off('error', onError);
                 resolve();
             });
@@ -665,21 +674,29 @@ export async function startHonoApiServer(
         }
         throw error;
     }
-    const networkInterfaces = os.networkInterfaces();
-    let localIp = 'localhost';
-    Object.values(networkInterfaces).forEach((ifaceList) => {
-        ifaceList?.forEach((iface) => {
-            if (iface.family === 'IPv4' && !iface.internal) {
-                localIp = iface.address;
-            }
+    if (isLoopbackHost(hostname)) {
+        logger.info(
+            `Hono server started successfully. Accessible at: http://localhost:${port} (loopback only).`,
+            null,
+            'green'
+        );
+    } else {
+        const networkInterfaces = os.networkInterfaces();
+        let localIp = 'localhost';
+        Object.values(networkInterfaces).forEach((ifaceList) => {
+            ifaceList?.forEach((iface) => {
+                if (iface.family === 'IPv4' && !iface.internal) {
+                    localIp = iface.address;
+                }
+            });
         });
-    });
 
-    logger.info(
-        `Hono server started successfully. Accessible at: http://localhost:${port} and http://${localIp}:${port} on your local network.`,
-        null,
-        'green'
-    );
+        logger.info(
+            `Hono server started successfully on ${hostname}. Accessible at: http://localhost:${port} and http://${localIp}:${port} on your local network (bearer auth required).`,
+            null,
+            'green'
+        );
+    }
 
     return {
         server,

@@ -140,6 +140,7 @@ beforeEach(() => {
     previous = signals.map((signal) => processEvents.listeners(signal));
 });
 afterEach(async () => {
+    vi.unstubAllEnvs();
     for (const resource of resources.splice(0)) {
         if (resource.stop) await resource.stop().catch(() => undefined);
         else if (resource.server.listening)
@@ -163,6 +164,55 @@ describe('CLI HTTP host lifecycle', () => {
         if (!address || typeof address === 'string') throw new Error('Expected TCP listener');
         const response = await fetch(`http://127.0.0.1:${address.port}`);
         expect(await response.text()).toBe('ready');
+    });
+    it('binds to loopback by default', async () => {
+        vi.stubEnv('DEXTO_SERVER_HOST', '');
+        const { agent } = fakeAgent();
+        const host = await startHonoApiServer(agent, 0);
+        resources.push(host);
+        const address = host.server.address();
+        if (!address || typeof address === 'string') throw new Error('Expected TCP listener');
+        expect(address.address).toBe('127.0.0.1');
+    });
+    it('refuses a network bind without an API key before starting the agent', async () => {
+        vi.stubEnv('DEXTO_SERVER_API_KEY', '');
+        const { agent, start } = fakeAgent();
+        await expect(
+            startHonoApiServer(
+                agent,
+                0,
+                undefined,
+                undefined,
+                undefined,
+                undefined,
+                undefined,
+                undefined,
+                '0.0.0.0'
+            )
+        ).rejects.toThrow(/DEXTO_SERVER_API_KEY/);
+        expect(start).not.toHaveBeenCalled();
+        vi.stubEnv('DEXTO_SERVER_HOST', '0.0.0.0');
+        await expect(startHonoApiServer(agent, 0)).rejects.toThrow(/DEXTO_SERVER_API_KEY/);
+        expect(start).not.toHaveBeenCalled();
+    });
+    it('binds a network host when an API key is configured', async () => {
+        vi.stubEnv('DEXTO_SERVER_API_KEY', 'synthetic-key');
+        const { agent } = fakeAgent();
+        const host = await startHonoApiServer(
+            agent,
+            0,
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            '0.0.0.0'
+        );
+        resources.push(host);
+        const address = host.server.address();
+        if (!address || typeof address === 'string') throw new Error('Expected TCP listener');
+        expect(address.address).toBe('0.0.0.0');
     });
     it('stops owned resources once and removes only host process hooks', async () => {
         const { agent, stop } = fakeAgent();

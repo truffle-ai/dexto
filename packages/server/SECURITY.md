@@ -23,9 +23,17 @@ DEXTO_SERVER_REQUIRE_AUTH=true
 
 | Mode | Environment | Auth Required | Notes |
 |------|-------------|---------------|-------|
-| **Development (default)** | No env vars | ❌ No | Default mode - safe for local dev |
-| **Production** | `NODE_ENV=production` + `DEXTO_SERVER_API_KEY` | ✅ Yes | Requires API key authentication |
-| **Explicit Auth** | `DEXTO_SERVER_REQUIRE_AUTH=true` + `DEXTO_SERVER_API_KEY` | ✅ Yes | Force auth in any environment |
+| **Development (default)** | No env vars | ❌ No | Binds to `127.0.0.1` only |
+| **API key configured** | `DEXTO_SERVER_API_KEY` | ✅ Yes | Enforced whenever a key is set, in any environment |
+| **Production / explicit auth without a key** | `NODE_ENV=production` or `DEXTO_SERVER_REQUIRE_AUTH=true` | ✅ Fails closed | Protected requests return a configuration error |
+
+### Bind address
+
+The server binds to `127.0.0.1` unless a host is given (`--host`, `DEXTO_SERVER_HOST`, or the
+`hostname` option of `startDextoServer`/`createNodeServer`). Binding to any other host
+(including `0.0.0.0` and `localhost`) requires `DEXTO_SERVER_API_KEY`; without it the server
+refuses to start. Apps created with `disableAuth: true` are exempt and must enforce auth in
+their own layer.
 
 ## Usage
 

@@ -63,6 +63,7 @@ dexto --mode mcp
 | `-r, --resume <sessionId>` | Resume a specific session by ID | `dexto --resume my-session` |
 | `--mode <mode>` | Run mode (web/cli/server/mcp, default: web) | `dexto --mode cli` |
 | `--port <port>` | Server port (default: 3000 for web, 3001 for server mode) | `dexto --port 8080` |
+| `--host <host>` | Bind address for web/server mode (default: `127.0.0.1`). A non-loopback host requires `DEXTO_SERVER_API_KEY` | `dexto --mode server --host 0.0.0.0` |
 | `--skip-setup` | Skip initial setup prompts | `dexto --skip-setup` |
 | `-s, --strict` | Require all MCP servers to connect | `dexto --strict` |
 | `--no-verbose` | Disable verbose output | `dexto --no-verbose` |
