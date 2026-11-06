@@ -4,6 +4,7 @@
     "cliCatalog": "packages/cli/src/cli/cloud/__parity__/mcp-tools.txt",
     "maintenance": "Regenerate the MCP catalog on the check host with UPDATE_CLI_MCP_PARITY=1 and src/mcp/cli-mcp-parity.test.ts. Vendor both files into paired PRs. workspace call is passthrough, not coverage. Remove closed exceptions/passthroughOnly entries and their pinned approvals together; never extend those ceilings.",
     "commands": {
+        "chat outputs": ["dexto_chat_outputs_list"],
         "chat import": ["dexto_chat_import_prepare", "dexto_chat_import"],
         "find": ["dexto_search", "dexto_route_get"],
         "profile get": ["dexto_profile_get"],
@@ -1120,5 +1121,6 @@
         "dexto_skill_update",
         "dexto_skill_validate",
         "dexto_skill_versions"
-    ]
+    ],
+    "pendingCli": []
 }
