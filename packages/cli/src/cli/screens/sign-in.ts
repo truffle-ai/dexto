@@ -14,6 +14,7 @@ import {
     richOutput,
     signalOn,
     span,
+    spansWidth,
     spinnerFrame,
     strong,
     type Caps,
@@ -124,6 +125,36 @@ function shortUrl(url: string): string {
     return `${parsed.host}${parsed.pathname === '/' ? '' : parsed.pathname}`;
 }
 
+/** Spans with the same look, run together: one escape pair instead of several. */
+function merged(spans: readonly Span[]): Span[] {
+    return spans.reduce<Span[]>((out, each) => {
+        const last = out[out.length - 1];
+        if (
+            last !== undefined &&
+            last.role === each.role &&
+            last.bold === each.bold &&
+            last.href === each.href
+        )
+            out[out.length - 1] = { ...last, text: last.text + each.text };
+        else out.push(each);
+        return out;
+    }, []);
+}
+
+/**
+ * `parts` on one indented row, `joint` between them, when it fits in `columns`; otherwise each
+ * part on its own indented row.
+ */
+function rowOrRows(parts: readonly (readonly Span[])[], joint: Span, columns: number): string[] {
+    const indent = span('dim', '  ');
+    const joined = merged([
+        indent,
+        ...parts.flatMap((part, index) => (index === 0 ? part : [joint, ...part])),
+    ]);
+    if (spansWidth(joined) <= columns) return [line(joined)];
+    return parts.map((part) => line(merged([indent, ...part])));
+}
+
 /** Screen 3: who you are now, what that adds, and what next. */
 export function signedInLines(signedIn: SignedIn, columns: number): string[] {
     const who =
@@ -134,12 +165,15 @@ export function signedInLines(signedIn: SignedIn, columns: number): string[] {
         line([span('cloud', '◆ '), span('fg', 'approved in the browser')]),
         '',
         line([span('cloud', '◆ '), strong('cloud', who)]),
-        line([
-            span(
-                'dim',
-                `  profile ${signedIn.profile} · stored in ~/.dexto · your provider keys stay on this machine`
-            ),
-        ]),
+        // One row when it fits; a profile name longer than `default` overflows 80 columns.
+        ...rowOrRows(
+            [
+                [span('dim', `profile ${signedIn.profile} · stored in ~/.dexto`)],
+                [span('dim', 'your provider keys stay on this machine')],
+            ],
+            span('dim', ' · '),
+            columns
+        ),
         signedIn.cloudProject === null
             ? line([
                   span(
@@ -149,14 +183,21 @@ export function signedInLines(signedIn: SignedIn, columns: number): string[] {
               ])
             : line([span('dim', `  Dexto models bill Cloud project ${signedIn.cloudProject}.`)]),
         ...(signedIn.notCurrent
-            ? [
-                  line([
-                      span('dim', '  Other commands still use another profile: pass '),
-                      span('teal', `--profile ${signedIn.profile}`),
-                      span('dim', ', or run '),
-                      span('teal', `dexto accounts use ${signedIn.profile}`),
-                  ]),
-              ]
+            ? rowOrRows(
+                  [
+                      [
+                          span('dim', 'Other commands still use another profile: pass '),
+                          span('teal', `--profile ${signedIn.profile}`),
+                          span('dim', ','),
+                      ],
+                      [
+                          span('dim', 'or run '),
+                          span('teal', `dexto accounts use ${signedIn.profile}`),
+                      ],
+                  ],
+                  span('dim', ' '),
+                  columns
+              )
             : []),
         '',
         line([span('fg', '  Now available:')]),
