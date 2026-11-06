@@ -107,6 +107,49 @@ describe('Hono API Integration Tests - Agent Routes', () => {
         }
     });
 
+    describe('Agent configuration unsafe keys', () => {
+        it.each(['__proto__', 'constructor', 'prototype'])(
+            'rejects %s in YAML validation and save',
+            async (key) => {
+                if (!testServer) throw new Error('Test server not initialized');
+                const yaml = `nested:\n  - ${key}:\n      polluted: true\n`;
+                const validation = await httpRequest(
+                    testServer.baseUrl,
+                    'POST',
+                    '/api/agent/validate',
+                    { yaml }
+                );
+                expect(validation.body).toMatchObject({ valid: false });
+                const save = await httpRequest(testServer.baseUrl, 'POST', '/api/agent/config', {
+                    yaml,
+                });
+                expect(save.status).toBeGreaterThanOrEqual(400);
+                expect(Object.prototype).not.toHaveProperty('polluted');
+            }
+        );
+    });
+
+    it.each(['__proto__', 'constructor', 'prototype'])(
+        'rejects %s in custom agent config',
+        async (key) => {
+            if (!testServer) throw new Error('Test server not initialized');
+            const config = JSON.parse(`{"nested":{"${key}":{"polluted":true}}}`);
+            const response = await httpRequest(
+                testServer.baseUrl,
+                'POST',
+                '/api/agents/custom/create',
+                {
+                    id: 'safe-config-test',
+                    name: 'Test',
+                    description: 'Test',
+                    config,
+                }
+            );
+            expect(response.status).toBe(400);
+            expect(Object.prototype).not.toHaveProperty('polluted');
+        }
+    );
+
     describe('Agent Management Routes', () => {
         it('GET /api/agents returns list of agents', async () => {
             if (!testServer) throw new Error('Test server not initialized');

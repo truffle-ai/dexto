@@ -1,5 +1,5 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
-import { AgentConfigSchema } from '@dexto/agent-config';
+import { AgentConfigSchema, assertSafeConfigKeys } from '@dexto/agent-config';
 import { AgentError, logger, safeStringify, zodToIssues } from '@dexto/core';
 import type { LLMProvider } from '@dexto/llm';
 import {
@@ -701,6 +701,19 @@ export function createAgentsRouter(
             return ctx.json({ uninstalled: true as const, id }, 200);
         })
         .openapi(customCreateRoute, async (ctx) => {
+            try {
+                assertSafeConfigKeys(await ctx.req.json());
+            } catch (error) {
+                throw new DextoValidationError([
+                    {
+                        code: AgentErrorCode.INVALID_CONFIG,
+                        message: error instanceof Error ? error.message : String(error),
+                        scope: ErrorScope.AGENT,
+                        type: ErrorType.USER,
+                        severity: 'error',
+                    },
+                ]);
+            }
             const { id, name, description, author, tags, config } = ctx.req.valid('json');
             const configResult = AgentConfigSchema.safeParse(config);
 
@@ -821,6 +834,7 @@ export function createAgentsRouter(
             let parsed;
             try {
                 parsed = yamlParse(yaml);
+                assertSafeConfigKeys(parsed);
             } catch (parseError: unknown) {
                 const message =
                     parseError instanceof Error ? parseError.message : String(parseError);
@@ -919,6 +933,7 @@ export function createAgentsRouter(
             let parsed;
             try {
                 parsed = yamlParse(yaml);
+                assertSafeConfigKeys(parsed);
             } catch (parseError: unknown) {
                 const message =
                     parseError instanceof Error ? parseError.message : String(parseError);

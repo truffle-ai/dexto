@@ -6,6 +6,7 @@ import { loadAgentConfig } from './loader.js';
 import { enrichAgentConfig } from './config-enrichment.js';
 import {
     AgentConfigSchema,
+    assertSafeConfigKeys,
     type AgentConfig,
     type ValidatedAgentConfig,
 } from '@dexto/agent-config';
@@ -70,12 +71,16 @@ export async function updateAgentConfigFile(
     configPath: string,
     updates: Partial<AgentConfig>
 ): Promise<ValidatedAgentConfig> {
+    assertSafeConfigKeys(updates);
+
     // Read raw YAML from disk (without env var expansion)
     const rawYaml = await fs.readFile(configPath, 'utf-8');
 
     // Use YAML Document API to preserve comments/anchors/formatting
     const doc = parseDocument(rawYaml);
     const rawConfig = doc.toJSON() as Record<string, unknown>;
+
+    assertSafeConfigKeys(rawConfig);
 
     // Shallow merge top-level updates into raw config
     const updatedRawConfig = { ...rawConfig, ...updates } as AgentConfig;

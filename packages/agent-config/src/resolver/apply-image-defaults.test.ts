@@ -13,6 +13,18 @@ describe('applyImageDefaults', () => {
         },
     };
 
+    it.each(['__proto__', 'constructor', 'prototype'])(
+        'rejects unsafe %s in config and defaults',
+        (key) => {
+            const unsafe = JSON.parse(`{"nested":{"${key}":{"polluted":true}}}`);
+            expect(() => applyImageDefaults(unsafe)).toThrow('Forbidden configuration key');
+            expect(() => applyImageDefaults(baseConfig, unsafe)).toThrow(
+                'Forbidden configuration key'
+            );
+            expect(Object.prototype).not.toHaveProperty('polluted');
+        }
+    );
+
     it('returns the original config when defaults are missing', () => {
         const result = applyImageDefaults(baseConfig);
         expect(result).toBe(baseConfig);
