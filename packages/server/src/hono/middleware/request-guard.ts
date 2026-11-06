@@ -6,16 +6,20 @@ import { logger } from '@dexto/core';
  *
  * CORS only controls whether a browser may *read* a cross-origin response; it does not stop
  * the request from reaching the server. These checks reject requests a browser page on
- * another site could send:
+ * another origin could send. Trust is per origin (scheme + host + port), never per host:
+ * a page on another port of localhost is a different origin and is not trusted.
  *
- * 1. State-changing methods (POST, PUT, PATCH, DELETE):
- *    - an `Origin` header, when present, must be an allowed origin (loopback, listed in
- *      DEXTO_ALLOWED_ORIGINS, or the request's own `Host`); `Origin: null` is rejected;
- *    - `Sec-Fetch-Site: cross-site` is rejected;
+ * 1. Every method except OPTIONS: an `Origin` header, when present, must be the server's own
+ *    origin (the authority in the request's `Host`) or listed in DEXTO_ALLOWED_ORIGINS.
+ *    `Origin: null` is rejected.
+ *    (Navigations and same-origin reads send no Origin, so links to the Web UI still work.)
+ * 2. State-changing methods (POST, PUT, PATCH, DELETE):
+ *    - `Sec-Fetch-Site: same-site` or `cross-site` is rejected unless the `Origin` is listed
+ *      in DEXTO_ALLOWED_ORIGINS;
  *    - the request must carry a header a browser cannot send cross-origin without a CORS
  *      preflight: `Authorization`, `X-Dexto-Request`, or a non-simple `Content-Type`
  *      (for example `application/json`).
- * 2. When the server runs without authentication (no API key, not production, no
+ * 3. When the server runs without authentication (no API key, not production, no
  *    DEXTO_SERVER_REQUIRE_AUTH, built-in auth not disabled), every request must name a loopback
  *    address in its `Host` header (or one listed in DEXTO_ALLOWED_HOSTS). This
  *    blocks DNS-rebinding pages, whose requests carry the attacker's hostname.
@@ -51,21 +55,31 @@ function listFromEnv(name: string): string[] {
         .filter((entry) => entry.length > 0);
 }
 
-/** Origins allowed to call the API from a browser: loopback, plus DEXTO_ALLOWED_ORIGINS. */
-export function isAllowedRequestOrigin(origin: string): boolean {
-    let url: URL;
+function normalizeOrigin(value: string): string | undefined {
     try {
-        url = new URL(origin);
+        const url = new URL(value);
+        if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+            return undefined;
+        }
+        return url.origin;
     } catch {
+        return undefined;
+    }
+}
+
+/**
+ * True when `origin` is listed in DEXTO_ALLOWED_ORIGINS (compared as serialized origins, so a
+ * trailing slash or default port in the setting does not matter). These are the only
+ * cross-origin pages the API trusts; CORS reflects only these.
+ */
+export function isAllowedRequestOrigin(origin: string): boolean {
+    const normalized = normalizeOrigin(origin);
+    if (normalized === undefined) {
         return false;
     }
-    if (
-        (url.protocol === 'http:' || url.protocol === 'https:') &&
-        LOOPBACK_HOSTNAMES.has(url.hostname)
-    ) {
-        return true;
-    }
-    return listFromEnv('DEXTO_ALLOWED_ORIGINS').includes(origin);
+    return listFromEnv('DEXTO_ALLOWED_ORIGINS').some(
+        (entry) => normalizeOrigin(entry) === normalized
+    );
 }
 
 /**
@@ -99,9 +113,13 @@ export function isAllowedHostHeader(host: string | undefined): boolean {
 }
 
 /**
- * A page served by this server (for example the Web UI behind a proxy or an external auth
- * layer) sends its own origin. Accept an Origin whose host matches the request's `Host`.
- * Without auth the Host itself has already been checked, so this cannot admit a rebinding page.
+ * True when `origin` is the server's own origin: a page served by this server (the bundled
+ * Web UI, or the same server behind a proxy) sends an Origin whose host and port equal the
+ * request's `Host`, which is the authority the browser connected to. A page on another port
+ * of the same host has a different authority and does not match. Without auth the Host itself
+ * has already been checked against loopback, so this cannot admit a rebinding page.
+ * The scheme is not compared: one host:port is one listener, and a TLS-terminating proxy in
+ * front of the server makes the browser's scheme differ from the server's.
  */
 function isSameOrigin(origin: string, host: string | undefined): boolean {
     if (!host) {
@@ -111,7 +129,7 @@ function isSameOrigin(origin: string, host: string | undefined): boolean {
         const url = new URL(origin);
         return (
             (url.protocol === 'http:' || url.protocol === 'https:') &&
-            url.host.toLowerCase() === host.toLowerCase()
+            url.host.toLowerCase() === new URL(`${url.protocol}//${host}`).host.toLowerCase()
         );
     } catch {
         return false;
@@ -139,20 +157,25 @@ export function createRequestGuard(options: RequestGuardOptions): RequestGuard {
             };
         }
 
+        const origin = header('origin');
+        const configuredOrigin = origin !== undefined && isAllowedRequestOrigin(origin);
+        if (origin !== undefined && !configuredOrigin && !isSameOrigin(origin, header('host'))) {
+            return {
+                allowed: false,
+                reason: 'Origin is not allowed (add it to DEXTO_ALLOWED_ORIGINS to permit it)',
+            };
+        }
         if (!STATE_CHANGING_METHODS.has(method.toUpperCase())) {
+            // Reads from another origin carry an Origin (CORS mode) and were checked above.
+            // Navigations carry no Origin and may come from any site (a link to the Web UI).
             return { allowed: true };
         }
 
-        const origin = header('origin');
-        if (
-            origin !== undefined &&
-            !isAllowedRequestOrigin(origin) &&
-            !isSameOrigin(origin, header('host'))
-        ) {
-            return { allowed: false, reason: 'Origin is not allowed' };
-        }
-        if (header('sec-fetch-site')?.toLowerCase() === 'cross-site') {
-            return { allowed: false, reason: 'Cross-site request' };
+        // Fetch metadata: a write from another origin is accepted only from an origin the
+        // operator listed explicitly, the same rule CORS applies to its preflight.
+        const fetchSite = header('sec-fetch-site')?.toLowerCase();
+        if ((fetchSite === 'cross-site' || fetchSite === 'same-site') && !configuredOrigin) {
+            return { allowed: false, reason: 'Cross-origin request from an origin not allowed' };
         }
         if (!hasNonSimpleSignal(header)) {
             return {

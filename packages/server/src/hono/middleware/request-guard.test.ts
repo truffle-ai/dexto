@@ -26,12 +26,16 @@ function headersOf(values: Record<string, string>) {
 }
 
 describe('origin and host allowlists', () => {
-    it('allows loopback origins and DEXTO_ALLOWED_ORIGINS only', () => {
-        vi.stubEnv('DEXTO_ALLOWED_ORIGINS', 'https://app.example.com');
-        expect(isAllowedRequestOrigin('http://localhost:3000')).toBe(true);
-        expect(isAllowedRequestOrigin('http://127.0.0.1:5173')).toBe(true);
-        expect(isAllowedRequestOrigin('http://[::1]:3001')).toBe(true);
+    it('allows DEXTO_ALLOWED_ORIGINS only, never loopback origins by host', () => {
+        expect(isAllowedRequestOrigin('http://localhost:3000')).toBe(false);
+        expect(isAllowedRequestOrigin('http://127.0.0.1:5173')).toBe(false);
+        expect(isAllowedRequestOrigin('http://[::1]:3001')).toBe(false);
+        vi.stubEnv('DEXTO_ALLOWED_ORIGINS', 'https://app.example.com/, http://localhost:5173');
         expect(isAllowedRequestOrigin('https://app.example.com')).toBe(true);
+        expect(isAllowedRequestOrigin('https://app.example.com:443')).toBe(true);
+        expect(isAllowedRequestOrigin('http://localhost:5173')).toBe(true);
+        expect(isAllowedRequestOrigin('http://localhost:5174')).toBe(false);
+        expect(isAllowedRequestOrigin('http://app.example.com')).toBe(false);
         expect(isAllowedRequestOrigin('https://evil.example')).toBe(false);
         expect(isAllowedRequestOrigin('http://localhost.evil.example')).toBe(false);
         expect(isAllowedRequestOrigin('null')).toBe(false);
@@ -140,17 +144,80 @@ describe('createRequestGuard', () => {
         }
     });
 
-    it('rejects Sec-Fetch-Site: cross-site', () => {
+    it('rejects Sec-Fetch-Site: cross-site or same-site from an unlisted origin', () => {
+        for (const fetchSite of ['cross-site', 'same-site']) {
+            expect(
+                open({
+                    method: 'POST',
+                    header: headersOf({
+                        ...local,
+                        'sec-fetch-site': fetchSite,
+                        [DEXTO_REQUEST_HEADER]: '1',
+                    }),
+                })
+            ).toMatchObject({ allowed: false });
+        }
+    });
+
+    it('rejects every method from another port of localhost', () => {
+        for (const origin of [
+            'http://localhost:8000',
+            'http://127.0.0.1:3001',
+            'http://[::1]:3001',
+        ]) {
+            for (const method of ['GET', 'POST', 'DELETE']) {
+                expect(
+                    open({
+                        method,
+                        header: headersOf({
+                            ...local,
+                            origin,
+                            'sec-fetch-site': 'same-site',
+                            'content-type': 'application/json',
+                            [DEXTO_REQUEST_HEADER]: '1',
+                        }),
+                    })
+                ).toMatchObject({ allowed: false });
+            }
+        }
+    });
+
+    it('accepts a cross-site write from an origin listed in DEXTO_ALLOWED_ORIGINS', () => {
+        vi.stubEnv('DEXTO_ALLOWED_ORIGINS', 'https://app.example.com');
+        const fromTrusted = {
+            ...local,
+            origin: 'https://app.example.com',
+            'sec-fetch-site': 'cross-site',
+        };
         expect(
             open({
                 method: 'POST',
+                header: headersOf({ ...fromTrusted, 'content-type': 'application/json' }),
+            })
+        ).toEqual({ allowed: true });
+        expect(open({ method: 'GET', header: headersOf(fromTrusted) })).toEqual({
+            allowed: true,
+        });
+        // Still needs a non-simple signal, like any other write.
+        expect(
+            open({
+                method: 'POST',
+                header: headersOf({ ...fromTrusted, 'content-type': 'text/plain' }),
+            })
+        ).toMatchObject({ allowed: false });
+    });
+
+    it('accepts navigations from other sites, which carry no Origin', () => {
+        expect(
+            open({
+                method: 'GET',
                 header: headersOf({
                     ...local,
                     'sec-fetch-site': 'cross-site',
-                    [DEXTO_REQUEST_HEADER]: '1',
+                    'sec-fetch-mode': 'navigate',
                 }),
             })
-        ).toMatchObject({ allowed: false });
+        ).toEqual({ allowed: true });
     });
 
     it('accepts state-changing requests carrying a non-simple signal', () => {
@@ -168,8 +235,8 @@ describe('createRequestGuard', () => {
                 method: 'POST',
                 header: headersOf({
                     ...local,
-                    origin: 'http://localhost:3000',
-                    'sec-fetch-site': 'same-site',
+                    origin: 'http://localhost:3001',
+                    'sec-fetch-site': 'same-origin',
                     'content-type': 'application/json',
                 }),
             })
