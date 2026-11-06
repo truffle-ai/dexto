@@ -53,7 +53,7 @@ jobs:
             shell: /bin/bash
           - runner: ubuntu-24.04
             shell: busybox
-          - runner: macos-14
+          - runner: macos-15
             shell: /bin/sh
     runs-on: ${{ matrix.runner }}
     steps:
@@ -105,7 +105,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        runner: [ macos-14, macos-15-intel ]
+        runner: [ macos-15, macos-15-intel ]
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4

@@ -3180,6 +3180,15 @@
     },
     {
       "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "name": "dexto_chat_browser_profiles_list"
+    },
+    {
+      "inputSchema": {
         "additionalProperties": false,
         "properties": {
           "sessionId": {
@@ -3466,6 +3475,15 @@
         "type": "object"
       },
       "name": "dexto_chat_computer"
+    },
+    {
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "name": "dexto_chat_computers_list"
     },
     {
       "inputSchema": {
@@ -3810,47 +3828,64 @@
     },
     {
       "inputSchema": {
-        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
         "properties": {
+          "computerId": {
+            "description": "MCP only: an owned online connected computer from dexto_chat_computers_list, attached in addition to the chat's hosted computer.",
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "browserProfileId": {
+            "description": "MCP only: an owned available browser profile from dexto_chat_browser_profiles_list. Loaded on the chat's hosted computer before its first turn; starts billed hosted compute.",
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
           "agentId": {
             "description": "Optional Dexto agent id. Defaults to the user's Dexto.",
             "type": "string"
           },
           "message": {
-            "description": "The first user message for the Dexto session.",
+            "type": "string",
             "minLength": 1,
-            "type": "string"
+            "description": "The first user message for the Dexto session."
           },
           "model": {
-            "description": "Optional model id from dexto_chat_models. Omitted, the chat starts on the agent's own model or the person's default; name another only when the task suits it better.",
+            "description": "Optional model id from dexto_chat_models. Omitted, the chat uses the agent's or person's default model.",
             "type": "string"
           },
           "route": {
-            "description": "Optional, with model: how the chat pays for it, one of the model's routes from dexto_chat_models. dexto_credits uses Dexto credits, chatgpt_subscription the person's ChatGPT subscription. Omitted, the model's usual route.",
+            "description": "Optional payment route for model, from dexto_chat_models.",
+            "type": "string",
             "enum": [
               "dexto_credits",
               "chatgpt_subscription",
               "claude_code"
-            ],
-            "type": "string"
+            ]
           },
           "title": {
             "description": "Optional short session title.",
             "type": "string"
           },
           "uploads": {
-            "description": "Optional uploaded local file paths returned by dexto_upload_prepare, after the returned curl command succeeds. Use the path only.",
+            "description": "Optional uploaded local paths from dexto_upload_prepare after its curl command succeeds.",
+            "type": "array",
             "items": {
-              "minLength": 1,
-              "type": "string"
-            },
-            "type": "array"
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "confirm": {
+            "description": "Set to true only after the person agreed to this exact call. Dexto refuses an approve or money call without it.",
+            "type": "boolean"
           }
         },
         "required": [
           "message"
         ],
-        "type": "object"
+        "additionalProperties": false
       },
       "name": "dexto_chat_start"
     },

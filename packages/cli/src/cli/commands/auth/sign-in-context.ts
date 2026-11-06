@@ -69,6 +69,7 @@ export async function nodeSignInContext(io: SignInIo = TERMINAL): Promise<SignIn
         screen: io.screen,
         confirm: io.confirm,
         canOpenBrowser: shouldAttemptBrowserLaunch(),
+        interactive: process.stdin.isTTY === true,
         chatSyncOn: async () => {
             const { nodeChatSyncStore } = await import('../../chat-sync/node.js');
             // Settings it can't read sync nothing, so the sign-in asks for no sync scope.

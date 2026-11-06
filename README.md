@@ -1,12 +1,27 @@
 Dexto 2.0 CLI: manage your Dexto cloud agents, chats, sandboxes and Sites, and run AI agents in your terminal.
 
-```bash
-npm i -g dexto@next
-dexto login
-dexto whoami
+Node.js 20 or later works; 22 is recommended. Use npm. `@next` selects the
+Dexto 2.0 beta; `@latest` selects 1.x. Install once:
+
+```sh
+npm install -g dexto@next
 ```
 
-`@next` is the Dexto 2.0 beta channel; `dexto@latest` is still 1.x.
+If npm fails with EACCES, don't use sudo; use the [install script](https://www.dexto.ai/docs/cli/#install-script)
+(installs under `~/.dexto`, no admin).
+
+`dexto login --device` prints a link and code on stderr, then waits for approval. Run it so you
+can read its output while it waits, and pass both to the person.
+Do not approve sign-in on their behalf. Check the first account result:
+
+```sh
+dexto whoami --json
+```
+
+Success is exit 0 with your account identity. Signed-out account commands exit 3 with
+`needs_sign_in`; for a headless machine, run `dexto login --device` and retry. Installation and
+`dexto --version` need no sign-in. Account and workspace requests do; model runs also need a
+configured model or credits. This check starts no model run.
 
 <a href="https://dexto.ai">
   <div align="center">
@@ -107,11 +122,14 @@ The coding agent is just one example of what you can build. Create your own agen
 ### Install
 
 ```bash
-# macOS / Linux / WSL (native installer, recommended)
-curl -fsSL https://dexto.ai/install | bash
+npm install -g dexto@next
+
+# Alternative: native installer (no sudo)
+# macOS / Linux / WSL
+curl -fsSL https://dexto.ai/install | sh -s -- --version next
 
 # Windows PowerShell
-irm https://dexto.ai/install.ps1 | iex
+$env:DEXTO_VERSION = 'next'; irm https://dexto.ai/install.ps1 | iex
 
 # Or build from source
 git clone https://github.com/truffle-ai/dexto.git
