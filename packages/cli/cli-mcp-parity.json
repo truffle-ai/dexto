@@ -11,6 +11,9 @@
         "publish": ["dexto_upload_prepare", "dexto_site_deploy", "dexto_site_publish"],
         "skills push": ["dexto_upload_prepare", "dexto_skill_bundle_import"],
         "skills sync": ["dexto_skills_search", "dexto_apps_action", "dexto_skill_bundle_download"],
+        "span list": ["dexto_span_list"],
+        "trace list": ["dexto_trace_list"],
+        "trace view": ["dexto_trace_view"],
         "workspace artifacts create": ["dexto_artifacts_create"],
         "workspace artifacts get": ["dexto_artifacts_get"],
         "workspace artifacts list": ["dexto_artifacts_list"],
@@ -942,45 +945,6 @@
             ]
         },
         {
-            "name": "span-list",
-            "group": "additionalRemote",
-            "issue": "DEXTO-2500",
-            "reason": "Operational trace/span inspection has no MCP operation.",
-            "commands": ["span list"],
-            "closesWhen": [
-                {
-                    "tool": "dexto_span_list",
-                    "inputs": []
-                }
-            ]
-        },
-        {
-            "name": "trace-list",
-            "group": "additionalRemote",
-            "issue": "DEXTO-2500",
-            "reason": "Operational trace/span inspection has no MCP operation.",
-            "commands": ["trace list"],
-            "closesWhen": [
-                {
-                    "tool": "dexto_trace_list",
-                    "inputs": []
-                }
-            ]
-        },
-        {
-            "name": "trace-view",
-            "group": "additionalRemote",
-            "issue": "DEXTO-2500",
-            "reason": "Operational trace/span inspection has no MCP operation.",
-            "commands": ["trace view"],
-            "closesWhen": [
-                {
-                    "tool": "dexto_trace_view",
-                    "inputs": []
-                }
-            ]
-        },
-        {
             "name": "models-list",
             "group": "additionalRemote",
             "issue": "DEXTO-2500",
@@ -1136,5 +1100,12 @@
         "dexto_skill_update",
         "dexto_skill_validate",
         "dexto_skill_versions"
+    ],
+    "pendingCli": [
+        {
+            "tool": "dexto_chat_outputs_list",
+            "issue": "DEXTO-2511",
+            "reason": "Cloud slice lands first; workspace chat outputs command follows in dexto."
+        }
     ]
 }

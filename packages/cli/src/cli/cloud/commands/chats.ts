@@ -452,12 +452,9 @@ async function followChat(
                 const transient =
                     error instanceof CloudApiError
                         ? error.status === 429 || (error.status >= 500 && error.status <= 599)
-                        : error instanceof TypeError ||
-                          (error instanceof Error &&
-                              !(error instanceof CommandFailure) &&
-                              /network|connection|socket|fetch|ECONN|ETIMEDOUT/iu.test(
-                                  error.message
-                              ));
+                        : error instanceof Error &&
+                          !(error instanceof CommandFailure) &&
+                          /network|connection|socket|fetch|ECONN|ETIMEDOUT/iu.test(error.message);
                 if ((!readTimedOut && !transient) || failures >= 3) throw error;
                 const delay = readTimedOut
                     ? 0
@@ -467,8 +464,6 @@ async function followChat(
                       );
                 failures++;
                 if (delay >= deadline - Date.now()) {
-                    await context.runtime.sleep(Math.max(0, deadline - Date.now()));
-                    timedOut = true;
                     throw error;
                 }
                 if (delay > retryBudgetMs) throw error;

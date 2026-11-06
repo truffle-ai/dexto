@@ -5,10 +5,10 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Box, Text, measureElement, useStdout, type DOMElement } from 'ink';
 import { useAnimationTick } from '../hooks/useAnimationTick.js';
-import { useCaps } from './caps.js';
+import { useCaps, useTone } from './hooks.js';
 import { glyphText } from './glyphs.js';
 import { cutLines } from './cut.js';
-import { useTone, type Role } from './tone.js';
+import type { Role } from './tone.js';
 import { deckLayout } from './deck-layout.js';
 import { StatusBlock, StatusRow, TraceView } from './deck-parts.js';
 import { traceKind } from './trace.js';

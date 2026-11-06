@@ -3811,6 +3811,34 @@
     },
     {
       "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "sessionId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "limit": {
+            "default": 50,
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "cursor": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2048
+          }
+        },
+        "required": [
+          "sessionId"
+        ],
+        "additionalProperties": false
+      },
+      "name": "dexto_chat_outputs_list"
+    },
+    {
+      "inputSchema": {
         "additionalProperties": false,
         "properties": {
           "queue": {
@@ -3865,10 +3893,18 @@
             "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
           },
           "browserProfileId": {
-            "description": "MCP only: an owned available browser profile from dexto_chat_browser_profiles_list. Loaded on the chat's hosted computer before its first turn; starts billed hosted compute.",
-            "type": "string",
-            "format": "uuid",
-            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            "description": "MCP only: an owned available browser profile from dexto_chat_browser_profiles_list, or \"none\" for a browser that keeps no sign-ins and leaves your profiles alone. Set on the chat's hosted computer before its first turn; starts billed hosted compute. Omitted, the chat uses your first profile.",
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              {
+                "type": "string",
+                "const": "none"
+              }
+            ]
           },
           "wait": {
             "description": "Requires sessions:read before admission. Wait up to 25 seconds for answer, artifacts and usage; running or needs_input includes nextAction.",
@@ -9354,6 +9390,114 @@
         "additionalProperties": false
       },
       "name": "dexto_skills_search"
+    },
+    {
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "limit": {
+            "default": 100,
+            "description": "At most this many spans, up to 500.",
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 500
+          },
+          "name": {
+            "description": "Only spans with exactly this name.",
+            "type": "string",
+            "minLength": 1
+          },
+          "runId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$",
+            "description": "The run to read, a run_id from dexto_trace_list. Another person's run is not found."
+          },
+          "sort": {
+            "default": "started_at",
+            "description": "started_at: by start time. duration: longest first.",
+            "type": "string",
+            "enum": [
+              "started_at",
+              "duration"
+            ]
+          },
+          "status": {
+            "description": "Only spans in this status.",
+            "type": "string",
+            "enum": [
+              "completed",
+              "failed"
+            ]
+          }
+        },
+        "required": [
+          "runId"
+        ],
+        "additionalProperties": false
+      },
+      "name": "dexto_span_list"
+    },
+    {
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "limit": {
+            "default": 20,
+            "description": "At most this many traces, up to 100.",
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "period": {
+            "description": "Only runs with a span in this recent period, such as 15m, 3h or 7d; at most 30d.",
+            "type": "string",
+            "pattern": "^[1-9]\\d*[mhd]$"
+          },
+          "sessionId": {
+            "description": "Only runs of this chat.",
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+          },
+          "status": {
+            "description": "Only runs in this status.",
+            "type": "string",
+            "enum": [
+              "cancelled",
+              "completed",
+              "failed",
+              "queued",
+              "retrying",
+              "running",
+              "waiting_approval"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "name": "dexto_trace_list"
+    },
+    {
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "runId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$",
+            "description": "The run to read, a run_id from dexto_trace_list. Another person's run is not found."
+          }
+        },
+        "required": [
+          "runId"
+        ],
+        "additionalProperties": false
+      },
+      "name": "dexto_trace_view"
     },
     {
       "inputSchema": {

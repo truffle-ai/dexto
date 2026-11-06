@@ -2,7 +2,7 @@ export {
     detectCaps,
     getCaps,
     setCaps,
-    useCaps,
+    subscribeCaps,
     type Caps,
     type ColorTier,
     type GlyphTier,
@@ -12,7 +12,8 @@ export {
     type ThemeName,
 } from './caps.js';
 export { detectBackgroundTheme } from './background.js';
-export { resolveTone, tone, useTone, type Role } from './tone.js';
+export { resolveTone, tone, type Role } from './tone.js';
+export { useCaps, useTone } from './hooks.js';
 export { markdownChalk, paint } from './paint.js';
 export { glyphText } from './glyphs.js';
 export { CUT_ROWS, cutLines, cutWidth } from './cut.js';

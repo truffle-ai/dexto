@@ -95,10 +95,7 @@ cloud-secrets-get
 cloud-secrets-list
 cloud-secrets-update
 cloud-sites-deploy
-cloud-sites-list
-span-list
-trace-list
-trace-view`.split('\n')
+cloud-sites-list`.split('\n')
 );
 
 // Tools with only generic passthrough reachability are debt, not coverage.
@@ -291,7 +288,21 @@ describe('CLI and MCP capability parity', () => {
                 .map(([command]) => command)
                 .sort()
         ).toEqual(['workspace call', 'workspace describe', 'workspace tools']);
-        expect([...new Set(direct.concat(inventory.passthroughOnly))].sort()).toEqual(
+        // DEXTO-2511 explicitly ships cloud first; remove this pending entry with its CLI follow-up.
+        expect(inventory.pendingCli).toEqual([
+            {
+                tool: 'dexto_chat_outputs_list',
+                issue: 'DEXTO-2511',
+                reason: 'Cloud slice lands first; workspace chat outputs command follows in dexto.',
+            },
+        ]);
+        const pending = inventory.pendingCli.map((entry) => entry.tool);
+        expect(
+            pending.filter(
+                (tool) => direct.includes(tool) || inventory.passthroughOnly.includes(tool)
+            )
+        ).toEqual([]);
+        expect([...new Set(direct.concat(inventory.passthroughOnly, pending))].sort()).toEqual(
             catalog.tools.map((tool) => tool.name).sort()
         );
     });
