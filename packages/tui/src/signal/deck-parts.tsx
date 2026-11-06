@@ -4,9 +4,8 @@
  */
 import { Box, Text } from 'ink';
 import stringWidth from 'string-width';
-import { useCaps } from './caps.js';
+import { useCaps, useTone } from './hooks.js';
 import { glyphText } from './glyphs.js';
-import { useTone } from './tone.js';
 import { TRACE_ROLE, fadeColor, traceRows, type TraceCell, type TraceSample } from './trace.js';
 import { formatTokens } from './deck-layout.js';
 import type { DeckCredits, DeckStatus, DeckWhere } from './components.js';
