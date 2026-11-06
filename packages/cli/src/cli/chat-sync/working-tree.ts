@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { isSecretPath } from './redaction.js';
+import { CommandFailure } from '../failure.js';
 
 const exec = promisify(execFile);
 const MAX_BUNDLE = 256 * 1024 * 1024;
@@ -81,7 +82,15 @@ async function workingTreeFiles(
     const repository = await gitRepositoryRoot(cwd);
     const folder = await mkdtemp(path.join(tmpdir(), 'dexto-move-index-'));
     try {
-        const branch = (await git(repository, ['symbolic-ref', '--short', 'HEAD']))
+        const branch = (
+            await git(repository, ['symbolic-ref', '--short', 'HEAD']).catch(() => {
+                throw new CommandFailure(
+                    'invalid_input',
+                    'Check out a local branch before moving this chat.',
+                    'git switch <branch>'
+                );
+            })
+        )
             .toString()
             .trim();
         const head_commit = (await git(repository, ['rev-parse', 'HEAD'])).toString().trim();

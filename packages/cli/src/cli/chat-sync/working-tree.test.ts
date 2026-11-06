@@ -166,11 +166,34 @@ it('refuses local drift before changing the branch or files', async () => {
                 },
                 { branch: tree.branch, head: tree.head_commit, bundle: null, patch: null }
             )
-        ).rejects.toThrow('changed since hand-off');
+        ).rejects.toMatchObject({ kind: 'invalid_input', fix: 'git status' });
         expect(await readFile(path.join(cwd, 'code.txt'), 'utf8')).toBe('new local work\n');
     } finally {
         await tree.cleanup();
     }
+});
+
+it('gives actionable refusals for detached HEAD and rewritten cloud history', async () => {
+    const cwd = await repository();
+    const baseline = await readLocalTreeCheckpoint(cwd);
+    await run('git', ['checkout', '--detach'], { cwd });
+    await expect(buildWorkingTree(cwd)).rejects.toMatchObject({
+        kind: 'invalid_input',
+        fix: 'git switch <branch>',
+    });
+    await run('git', ['checkout', '--orphan', 'rewritten'], { cwd });
+    await run('git', ['commit', '-am', 'rewritten history'], { cwd });
+    const rewritten = (await run('git', ['rev-parse', 'HEAD'], { cwd })).stdout.trim();
+    await run('git', ['checkout', 'main'], { cwd });
+    await expect(
+        applyReturnedTree(cwd, baseline, {
+            branch: 'main',
+            head: rewritten,
+            bundle: null,
+            patch: null,
+        })
+    ).rejects.toMatchObject({ kind: 'invalid_input', fix: 'git log --oneline --all' });
+    expect(await readLocalTreeCheckpoint(cwd)).toEqual(baseline);
 });
 
 it('restores the branch, index and dirty files when real application fails after checkout', async () => {
