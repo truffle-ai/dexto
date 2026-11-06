@@ -622,6 +622,12 @@ const start: Command = {
             description: 'Payment route for the chosen model.',
         },
         title: { type: 'string', valueName: 'TEXT', description: 'Short chat title.' },
+        repository: {
+            type: 'string',
+            valueName: 'VALUE',
+            description:
+                'Repository context: owner/repository or an HTTPS repository URL. Does not connect or clone it. Example: dexto chat start "Fix the bug" --repository truffle-ai/dexto',
+        },
         ...YES_OPTION,
     },
     async run(context, input) {
@@ -634,6 +640,7 @@ const start: Command = {
             model: 'model',
             route: 'route',
             title: 'title',
+            repository: 'repository',
         });
         const args: Record<string, string | boolean> = { message };
         for (const [flagName, field] of choices) {

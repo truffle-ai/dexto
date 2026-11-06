@@ -748,6 +748,28 @@ describe('dexto workspace', () => {
         expect(JSON.parse(stdout)).toEqual(chatResponse);
     });
 
+    it.each(['truffle-ai/dexto', ' https://github.com/truffle-ai/dexto/ '])(
+        'passes repository context %s unchanged to chat start',
+        async (repository) => {
+            expect(
+                await runCloud(host, [
+                    'chat',
+                    'start',
+                    'Investigate the bug',
+                    '--repository',
+                    repository,
+                ])
+            ).toBe(0);
+            expect(calls).toContainEqual({
+                method: 'tools/call',
+                params: {
+                    name: 'dexto_chat_start',
+                    arguments: { message: 'Investigate the bug', repository },
+                },
+            });
+        }
+    );
+
     it('omits unset chat start choices', async () => {
         expect(await runCloud(host, ['chat', 'start', 'Hello'])).toBe(0);
         expect(calls).toContainEqual({

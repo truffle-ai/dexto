@@ -3906,6 +3906,12 @@
               }
             ]
           },
+          "repository": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512,
+            "description": "Optional repository context: owner/repository or an HTTPS repository URL. This does not connect or clone it."
+          },
           "wait": {
             "description": "Requires sessions:read before admission. Wait up to 25 seconds for answer, artifacts and usage; running or needs_input includes nextAction.",
             "type": "boolean"
@@ -7077,6 +7083,12 @@
         "$schema": "http://json-schema.org/draft-07/schema#",
         "type": "object",
         "properties": {
+          "repository": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512,
+            "description": "Optional repository context: owner/repository or an HTTPS repository URL. This does not connect or clone it."
+          },
           "project": {
             "description": "The Project, by its id or link. A Project's coordinator leaves it out for its own Project.",
             "type": "string",
