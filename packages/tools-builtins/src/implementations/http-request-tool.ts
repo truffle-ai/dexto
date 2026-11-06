@@ -67,6 +67,7 @@ function safeJsonParse(text: string): unknown | undefined {
 
 const BLOCKED_HOSTNAMES = new Set(['localhost']);
 const MAX_RESPONSE_BYTES = 5 * 1024 * 1024;
+const MAX_REDIRECTS = 20;
 const SAFE_DISPATCHER = createSafeDispatcher();
 
 type LookupCallback =
@@ -104,22 +105,30 @@ function isPrivateIpv4(ip: string): boolean {
     return false;
 }
 
+/** Reject local IPv6 and mapped IPv4 addresses that are not safe request targets. */
 function isPrivateIpv6(ip: string): boolean {
-    const normalized = ip.toLowerCase();
+    const normalized = new URL(`http://[${ip.split('%')[0]}]/`).hostname.slice(1, -1);
     if (normalized === '::' || normalized === '::1') return true;
-    if (normalized.startsWith('fe80:')) return true;
+    if (normalized.startsWith('64:ff9b:1:')) return true;
+    if (/^fe[89ab][0-9a-f]:/.test(normalized)) return true;
     if (normalized.startsWith('fc') || normalized.startsWith('fd')) return true;
     if (normalized.startsWith('::ffff:')) {
-        const ipv4Part = normalized.slice('::ffff:'.length);
-        return isPrivateIpv4(ipv4Part);
+        const parts = normalized.slice('::ffff:'.length).split(':');
+        if (parts.length === 2) {
+            const high = Number.parseInt(parts[0] ?? '', 16);
+            const low = Number.parseInt(parts[1] ?? '', 16);
+            return isPrivateIpv4(`${high >> 8}.${high & 255}.${low >> 8}.${low & 255}`);
+        }
     }
     return false;
 }
 
+/** Check IP literals and DNS results, accepting URL-bracketed IPv6 literals. */
 function isPrivateAddress(ip: string): boolean {
-    const version = isIP(ip);
-    if (version === 4) return isPrivateIpv4(ip);
-    if (version === 6) return isPrivateIpv6(ip);
+    const address = ip.startsWith('[') && ip.endsWith(']') ? ip.slice(1, -1) : ip;
+    const version = isIP(address);
+    if (version === 4) return isPrivateIpv4(address);
+    if (version === 6) return isPrivateIpv6(address);
     return false;
 }
 
@@ -413,7 +422,43 @@ export function createHttpRequestTool(): Tool<typeof HttpRequestInputSchema> {
                     requestInit.body = requestBody;
                 }
 
-                const response = await fetch(requestUrl.toString(), requestInit);
+                requestInit.redirect = 'manual';
+                let currentUrl = requestUrl;
+                let response: Response;
+                for (let redirects = 0; ; redirects++) {
+                    await assertSafeUrl(currentUrl);
+                    response = await fetch(currentUrl.toString(), requestInit);
+                    const location = response.headers.get('location');
+                    if (![301, 302, 303, 307, 308].includes(response.status) || !location) break;
+                    await response.body?.cancel();
+                    if (redirects >= MAX_REDIRECTS) {
+                        throw new DextoRuntimeError(
+                            'HTTP_REQUEST_TOO_MANY_REDIRECTS',
+                            ErrorScope.TOOLS,
+                            ErrorType.THIRD_PARTY,
+                            `HTTP request exceeded ${MAX_REDIRECTS} redirects`
+                        );
+                    }
+                    const nextUrl = new URL(location, currentUrl);
+                    if (nextUrl.origin !== currentUrl.origin) {
+                        for (const key of Object.keys(requestHeaders)) {
+                            delete requestHeaders[key];
+                        }
+                    }
+                    if (
+                        response.status === 303 ||
+                        ((response.status === 301 || response.status === 302) &&
+                            requestInit.method === 'POST')
+                    ) {
+                        requestInit.method = 'GET';
+                        delete requestInit.body;
+                        for (const key of Object.keys(requestHeaders)) {
+                            if (['content-type', 'content-length'].includes(key.toLowerCase()))
+                                delete requestHeaders[key];
+                        }
+                    }
+                    currentUrl = nextUrl;
+                }
 
                 const responseText = await readResponseTextWithLimit(response);
                 const contentType = response.headers.get('content-type');
