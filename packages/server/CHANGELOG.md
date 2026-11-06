@@ -1,5 +1,25 @@
 # @dexto/server
 
+## 1.16.1
+
+### Patch Changes
+
+- ff72927: Reject unsafe keys when processing agent configuration.
+  The keys `__proto__`, `constructor`, and `prototype` are now refused anywhere in a config.
+- Updated dependencies [1064696]
+- Updated dependencies [77dc15c]
+- Updated dependencies [749f275]
+- Updated dependencies [360a05f]
+- Updated dependencies [5471dd3]
+- Updated dependencies [ff72927]
+    - @dexto/agent-management@1.16.1
+    - @dexto/core@1.16.1
+    - @dexto/agent-config@1.16.1
+    - @dexto/image-local@1.16.1
+    - @dexto/storage@1.16.1
+    - @dexto/tools-scheduler@1.16.1
+    - @dexto/llm@1.16.1
+
 ## 1.16.0
 
 ### Patch Changes

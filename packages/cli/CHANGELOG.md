@@ -1,5 +1,31 @@
 # dexto
 
+## 1.16.1
+
+### Patch Changes
+
+- f624099: Tighten the CLI command-end event contract and verify failure reporting.
+- aa5c24a: Limit CLI analytics arguments to non-content metadata.
+- 5471dd3: Avoid sending agent names and error messages in CLI analytics. Show the path of a forbidden configuration key when loading an agent config; keys named `constructor` or `prototype` are rejected even in custom config maps.
+- Updated dependencies [1064696]
+- Updated dependencies [77dc15c]
+- Updated dependencies [749f275]
+- Updated dependencies [360a05f]
+- Updated dependencies [5471dd3]
+- Updated dependencies [ff72927]
+    - @dexto/agent-management@1.16.1
+    - @dexto/core@1.16.1
+    - @dexto/agent-config@1.16.1
+    - @dexto/server@1.16.1
+    - @dexto/analytics@1.16.1
+    - @dexto/image-local@1.16.1
+    - @dexto/image-logger-agent@1.16.1
+    - @dexto/tui@1.16.1
+    - @dexto/client-sdk@1.16.1
+    - @dexto/storage@1.16.1
+    - @dexto/llm@1.16.1
+    - @dexto/registry@1.16.1
+
 ## 1.16.0
 
 ### Patch Changes
