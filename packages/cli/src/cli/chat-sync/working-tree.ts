@@ -25,8 +25,14 @@ export interface LocalTreeCheckpoint {
 }
 
 async function git(cwd: string, args: string[], env = process.env): Promise<Buffer> {
-    return (await exec('git', args, { cwd, env, encoding: 'buffer', maxBuffer: MAX_BUNDLE + 1 }))
-        .stdout;
+    return (
+        await exec('git', ['-c', 'diff.submodule=short', '-c', 'color.ui=never', ...args], {
+            cwd,
+            env: { ...env, GIT_NO_REPLACE_OBJECTS: '1' },
+            encoding: 'buffer',
+            maxBuffer: MAX_BUNDLE + 1,
+        })
+    ).stdout;
 }
 
 export async function gitRepositoryRoot(cwd: string): Promise<string> {
@@ -85,6 +91,9 @@ async function workingTreeFiles(
             [
                 '--literal-pathspecs',
                 'diff',
+                '--submodule=short',
+                '--no-color',
+                '--no-renames',
                 '--binary',
                 '--no-ext-diff',
                 '--no-textconv',

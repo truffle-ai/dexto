@@ -57,6 +57,29 @@ it('refuses a secret-shaped file in history even after it was deleted', async ()
     await expect(buildWorkingTree(cwd)).rejects.toThrow('secret-shaped');
 });
 
+it('isolates patches from inline submodule diffs, colors and rename configuration', async () => {
+    const cwd = await repository();
+    const sub = await repository();
+    await writeFile(path.join(sub, '.env.fake'), 'fake original\n');
+    await run('git', ['add', '.env.fake'], { cwd: sub });
+    await run('git', ['commit', '-m', 'fake submodule fixture'], { cwd: sub });
+    await run('git', ['-c', 'protocol.file.allow=always', 'submodule', 'add', sub, 'sub'], { cwd });
+    await run('git', ['commit', '-am', 'submodule'], { cwd });
+    await run('git', ['config', 'diff.submodule', 'diff'], { cwd });
+    await run('git', ['config', 'color.ui', 'always'], { cwd });
+    await run('git', ['config', 'diff.renames', 'copies'], { cwd });
+    await writeFile(path.join(cwd, 'sub', '.env.fake'), 'fake submodule secret sentinel\n');
+    await writeFile(path.join(cwd, 'code.txt'), 'safe changed code\n');
+    const tree = await buildWorkingTree(cwd);
+    try {
+        expect(tree.patch?.toString()).toContain('+safe changed code');
+        expect(tree.patch?.toString()).not.toContain('fake submodule secret sentinel');
+        expect(tree.patch?.toString()).not.toContain('\u001b');
+    } finally {
+        await tree.cleanup();
+    }
+});
+
 it('moves the whole repository when the chat started in a nested folder', async () => {
     const cwd = await repository();
     const nested = path.join(cwd, 'packages', 'example');
