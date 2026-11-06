@@ -252,7 +252,7 @@ export async function runCliMode(context: MainModeContext): Promise<void> {
                 },
                 ...(chatSync !== null && {
                     abortChatMove: () => {
-                        if (moveController === null) return false;
+                        if (moveController === null || moveController.signal.aborted) return false;
                         moveController.abort();
                         return true;
                     },
